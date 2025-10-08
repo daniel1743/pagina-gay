@@ -1,0 +1,159 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@import url('https://fonts.googleapis.com/css2?family=Nunito+Sans:wght@300;400;600;700;800&display=swap');
+
+:root {
+  --background: 260 19% 19%; /* #2C2A4A */
+  --foreground: 0 0% 100%;
+  
+  --card: 260 21% 16%; /* #22203a */
+  --card-foreground: var(--foreground);
+
+  --popover: var(--card);
+  --popover-foreground: var(--card-foreground);
+
+  --primary: 260 19% 19%;
+  --primary-foreground: var(--foreground);
+
+  --secondary: 260 20% 25%; /* #413e62 */
+  --secondary-foreground: var(--foreground);
+
+  --muted: var(--secondary);
+  --muted-foreground: 240 5% 65%;
+
+  --accent: 323 100% 45%; /* #E4007C */
+  --accent-foreground: var(--foreground);
+
+  --destructive: 0 84% 60%;
+  --destructive-foreground: var(--foreground);
+
+  --border: var(--secondary);
+  --input: var(--secondary);
+  --ring: var(--accent);
+
+  --radius: 0.5rem;
+}
+
+.light {
+  --background: 0 0% 98%;
+  --foreground: 260 19% 10%;
+
+  --card: 0 0% 100%;
+  --card-foreground: var(--foreground);
+  
+  --popover: var(--card);
+  --popover-foreground: var(--card-foreground);
+
+  --primary: var(--foreground);
+  --primary-foreground: var(--background);
+
+  --secondary: 0 0% 95%;
+  --secondary-foreground: var(--foreground);
+
+  --muted: var(--secondary);
+  --muted-foreground: 0 0% 45%;
+  
+  --accent: 323 100% 45%;
+  --accent-foreground: var(--background);
+
+  --border: 0 0% 90%;
+  --input: var(--border);
+}
+
+
+body {
+  @apply bg-background text-foreground;
+  font-family: 'Nunito Sans', sans-serif;
+  margin: 0;
+  padding: 0;
+  overflow-x: hidden;
+  transition: background-color 0.3s ease, color 0.3s ease;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+}
+
+@layer utilities {
+  .glass-effect {
+    background: color-mix(in srgb, hsl(var(--card)), transparent 50%);
+    backdrop-filter: blur(10px);
+    border: 1px solid color-mix(in srgb, hsl(var(--accent)), transparent 80%);
+  }
+
+  .magenta-gradient {
+    background: linear-gradient(135deg, #E4007C 0%, #a3005a 100%);
+  }
+
+  .cyan-gradient {
+    background: linear-gradient(135deg, #00FFFF 0%, #00a3a3 100%);
+  }
+  
+  .blue-gradient {
+    background: linear-gradient(135deg, #3B82F6, #1E40AF);
+  }
+  
+  .green-gradient {
+      background: linear-gradient(135deg, #10B981, #047857);
+  }
+
+  .purple-gradient {
+      background: linear-gradient(135deg, #8B5CF6, #5B21B6);
+  }
+
+  .amber-gradient {
+      background: linear-gradient(135deg, #F59E0B, #B45309);
+  }
+
+  .pink-gradient {
+      background: linear-gradient(135deg, #EC4899, #9D174D);
+  }
+
+  .teal-gradient {
+      background: linear-gradient(135deg, #14B8A6, #0F766E);
+  }
+
+  .chat-bubble {
+    @apply rounded-2xl px-4 py-2 max-w-[75%] break-words;
+  }
+
+  .scrollbar-hide::-webkit-scrollbar {
+    display: none;
+  }
+
+  .scrollbar-hide {
+    -ms-overflow-style: none;
+    scrollbar-width: none;
+  }
+
+  .premium-avatar-ring {
+    padding: 2px;
+    background: linear-gradient(45deg, #E4007C, #00FFFF, #E4007C);
+    background-size: 200% 200%;
+    animation: gradient-spin 3s linear infinite;
+  }
+  
+  @keyframes gradient-spin {
+    0% {
+      background-position: 0% 50%;
+    }
+    50% {
+      background-position: 100% 50%;
+    }
+    100% {
+      background-position: 0% 50%;
+    }
+  }
+
+  .carousel-container {
+    mask-image: linear-gradient(to right, transparent, black 20%, black 80%, transparent);
+  }
+}
