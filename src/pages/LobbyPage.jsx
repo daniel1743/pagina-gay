@@ -1,7 +1,8 @@
 import React, { useState } from 'react';
 import { Helmet } from 'react-helmet';
+import { useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
-import { MessageSquare, Shield, Calendar, HeartPulse, SlidersHorizontal, Users } from 'lucide-react';
+import { MessageSquare, Shield, Calendar, HeartPulse, SlidersHorizontal, Users, Lock } from 'lucide-react';
 import LobbyCard from '@/components/lobby/LobbyCard';
 import RoomsModal from '@/components/lobby/RoomsModal';
 import DenunciaModal from '@/components/lobby/DenunciaModal';
@@ -9,6 +10,9 @@ import EventosModal from '@/components/lobby/EventosModal';
 import SaludMentalModal from '@/components/lobby/SaludMentalModal';
 import AjustesModal from '@/components/lobby/AjustesModal';
 import { toast } from '@/components/ui/use-toast';
+import { useAuth } from '@/contexts/AuthContext';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog';
+import { Button } from '@/components/ui/button';
 
 const cardData = [
   { id: 'salas', icon: <MessageSquare className="w-12 h-12" />, title: "Salas de Chat", description: "Explora y únete a nuestras salas temáticas. ¡Siempre hay alguien con quien conectar!", modal: 'RoomsModal', gradient: "blue-gradient" },
@@ -83,9 +87,13 @@ const VideoSection = () => {
 
 
 const LobbyPage = () => {
+  const navigate = useNavigate();
+  const { user } = useAuth();
   const [activeModal, setActiveModal] = useState(null);
+  const [showAuthRequired, setShowAuthRequired] = useState(false);
 
   const handleCardClick = (modalId) => {
+    // "Próximamente" siempre es accesible
     if (modalId === 'ComingSoon') {
         toast({
             title: "🚧 ¡Próximamente!",
@@ -93,11 +101,28 @@ const LobbyPage = () => {
         });
         return;
     }
+
+    // Solo "Salas de Chat" es accesible para usuarios anónimos/invitados
+    if (modalId !== 'RoomsModal' && user && (user.isAnonymous || user.isGuest)) {
+        setShowAuthRequired(true);
+        return;
+    }
+
     setActiveModal(modalId);
   };
-  
+
   const closeModal = () => {
     setActiveModal(null);
+  };
+
+  const handleGoToRegister = () => {
+    setShowAuthRequired(false);
+    navigate('/?action=register');
+  };
+
+  const handleGoToLogin = () => {
+    setShowAuthRequired(false);
+    navigate('/?action=login');
   };
   
   return (
@@ -147,6 +172,48 @@ const LobbyPage = () => {
       {activeModal === 'EventosModal' && <EventosModal isOpen={true} onClose={closeModal} />}
       {activeModal === 'SaludMentalModal' && <SaludMentalModal isOpen={true} onClose={closeModal} />}
       {activeModal === 'AjustesModal' && <AjustesModal isOpen={true} onClose={closeModal} />}
+
+      {/* Modal de autenticación requerida */}
+      <Dialog open={showAuthRequired} onOpenChange={setShowAuthRequired}>
+        <DialogContent className="bg-[#22203a] border-[#413e62] text-white max-w-md rounded-2xl">
+          <DialogHeader>
+            <div className="flex items-center justify-center mb-4">
+              <div className="bg-gradient-to-r from-[#E4007C] to-[#00FFFF] p-3 rounded-full">
+                <Lock className="w-8 h-8 text-white" />
+              </div>
+            </div>
+            <DialogTitle className="text-2xl font-extrabold text-center bg-gradient-to-r from-[#E4007C] to-[#00FFFF] bg-clip-text text-transparent">
+              Registro Requerido
+            </DialogTitle>
+            <DialogDescription className="text-gray-300 text-center mt-2">
+              Para acceder a esta funcionalidad debes estar registrado e iniciar sesión.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="mt-4 space-y-3">
+            <p className="text-sm text-gray-400 text-center">
+              ✅ Acceso completo a todas las funcionalidades<br/>
+              ✅ Crear y personalizar tu perfil<br/>
+              ✅ Participar en eventos y denuncias<br/>
+              ✅ Conectar con la comunidad
+            </p>
+          </div>
+          <DialogFooter className="flex flex-col sm:flex-row gap-3 mt-6">
+            <Button
+              onClick={handleGoToRegister}
+              className="flex-1 bg-gradient-to-r from-[#E4007C] to-[#00FFFF] text-white font-bold hover:opacity-90 transition-opacity"
+            >
+              Ir a Registro
+            </Button>
+            <Button
+              onClick={handleGoToLogin}
+              variant="outline"
+              className="flex-1 border-[#413e62] text-white hover:bg-[#2C2A4A]"
+            >
+              Iniciar Sesión
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
     </>
   );

@@ -117,7 +117,7 @@ firebase init
 
 # Desplegar solo las rules de Firestore
 firebase deploy --only firestore:rules
-```
+``` 
 
 ### 5. Activar los archivos Firebase (Migración)
 

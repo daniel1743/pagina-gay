@@ -14,6 +14,7 @@ import TypingIndicator from '@/components/chat/TypingIndicator';
 import { toast } from '@/components/ui/use-toast';
 import PrivateChatWindow from '@/components/chat/PrivateChatWindow';
 import { sendMessage, subscribeToRoomMessages, addReactionToMessage } from '@/services/chatService';
+import { joinRoom, leaveRoom } from '@/services/presenceService';
 
 const roomWelcomeMessages = {
   'conversas-libres': '¡Bienvenido a Conversas Libres! Habla de lo que quieras.',
@@ -47,6 +48,9 @@ const ChatPage = () => {
   useEffect(() => {
     setCurrentRoom(roomId);
 
+    // Registrar presencia del usuario en la sala
+    joinRoom(roomId, user);
+
     // Suscribirse a mensajes de Firestore en tiempo real
     const unsubscribe = subscribeToRoomMessages(roomId, (newMessages) => {
       setMessages(newMessages);
@@ -61,13 +65,14 @@ const ChatPage = () => {
       description: `Estás en #${roomId}`,
     });
 
-    // Cleanup: desuscribirse cuando se desmonta o cambia de sala
+    // Cleanup: desuscribirse y remover presencia cuando se desmonta o cambia de sala
     return () => {
       if (unsubscribeRef.current) {
         unsubscribeRef.current();
       }
+      leaveRoom(roomId);
     };
-  }, [roomId, user.username]);
+  }, [roomId, user]);
 
   // Navegar cuando cambia la sala actual
   useEffect(() => {

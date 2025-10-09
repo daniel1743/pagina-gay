@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
@@ -7,20 +7,21 @@ import { Input } from '@/components/ui/input';
 import { useAuth } from '@/contexts/AuthContext';
 import { Users, Hash, Gamepad2, Heart, Search, Crown, Plus, X, GitFork, UserMinus, UserCheck, Cake } from 'lucide-react';
 import { toast } from '@/components/ui/use-toast';
+import { subscribeToMultipleRoomCounts } from '@/services/presenceService';
 
 
 const roomsData = [
-  { id: 'conversas-libres', name: 'Conversas Libres', icon: <Hash className="w-5 h-5 text-[#00FFFF]" />, users: 42 },
-  { id: 'amistad', name: 'Amistad', icon: <Heart className="w-5 h-5 text-[#00FFFF]" />, users: 31 },
-  { id: 'osos', name: 'Osos', icon: <UserCheck className="w-5 h-5 text-[#00FFFF]" />, users: 18 },
-  { id: 'activos-buscando', name: 'Activos Buscando', icon: <UserCheck className="w-5 h-5 text-[#00FFFF]" />, users: 22 },
-  { id: 'pasivos-buscando', name: 'Pasivos Buscando', icon: <UserCheck className="w-5 h-5 text-[#00FFFF]" />, users: 25 },
-  { id: 'lesbianas', name: 'Lesbianas', icon: <GitFork className="w-5 h-5 text-[#00FFFF]" />, users: 19 },
-  { id: 'menos-30', name: '-30', icon: <UserMinus className="w-5 h-5 text-[#00FFFF]" />, users: 55 },
-  { id: 'mas-30', name: '+30', icon: <Users className="w-5 h-5 text-[#00FFFF]" />, users: 15 },
-  { id: 'mas-40', name: '+40', icon: <Cake className="w-5 h-5 text-[#00FFFF]" />, users: 28 },
-  { id: 'mas-50', name: '+50', icon: <Cake className="w-5 h-5 text-[#00FFFF]" />, users: 12 },
-  { id: 'gaming', name: 'Gaming', icon: <Gamepad2 className="w-5 h-5 text-[#00FFFF]" />, users: 23 },
+  { id: 'conversas-libres', name: 'Conversas Libres', icon: <Hash className="w-5 h-5 text-[#00FFFF]" /> },
+  { id: 'amistad', name: 'Amistad', icon: <Heart className="w-5 h-5 text-[#00FFFF]" /> },
+  { id: 'osos', name: 'Osos', icon: <UserCheck className="w-5 h-5 text-[#00FFFF]" /> },
+  { id: 'activos-buscando', name: 'Activos Buscando', icon: <UserCheck className="w-5 h-5 text-[#00FFFF]" /> },
+  { id: 'pasivos-buscando', name: 'Pasivos Buscando', icon: <UserCheck className="w-5 h-5 text-[#00FFFF]" /> },
+  { id: 'lesbianas', name: 'Lesbianas', icon: <GitFork className="w-5 h-5 text-[#00FFFF]" /> },
+  { id: 'menos-30', name: '-30', icon: <UserMinus className="w-5 h-5 text-[#00FFFF]" /> },
+  { id: 'mas-30', name: '+30', icon: <Users className="w-5 h-5 text-[#00FFFF]" /> },
+  { id: 'mas-40', name: '+40', icon: <Cake className="w-5 h-5 text-[#00FFFF]" /> },
+  { id: 'mas-50', name: '+50', icon: <Cake className="w-5 h-5 text-[#00FFFF]" /> },
+  { id: 'gaming', name: 'Gaming', icon: <Gamepad2 className="w-5 h-5 text-[#00FFFF]" /> },
 ];
 
 
@@ -28,6 +29,17 @@ const RoomsModal = ({ isOpen, onClose }) => {
   const navigate = useNavigate();
   const { user } = useAuth();
   const [searchTerm, setSearchTerm] = useState('');
+  const [roomCounts, setRoomCounts] = useState({});
+
+  // Suscribirse a contadores de usuarios en tiempo real
+  useEffect(() => {
+    const roomIds = roomsData.map(room => room.id);
+    const unsubscribe = subscribeToMultipleRoomCounts(roomIds, (counts) => {
+      setRoomCounts(counts);
+    });
+
+    return () => unsubscribe();
+  }, []);
 
   const filteredRooms = roomsData.filter(room =>
     room.name.toLowerCase().includes(searchTerm.toLowerCase())
@@ -95,7 +107,7 @@ const RoomsModal = ({ isOpen, onClose }) => {
                 </div>
                 <div className="flex items-center gap-2 text-[#00FFFF]">
                   <Users className="w-5 h-5" />
-                  <span className="font-bold">{room.users}</span>
+                  <span className="font-bold">{roomCounts[room.id] || 0}</span>
                 </div>
               </motion.div>
             ))}

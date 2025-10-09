@@ -90,6 +90,19 @@ service cloud.firestore {
     }
 
     // ===========================
+    // REGLAS DE PRESENCIA (Usuarios Conectados)
+    // ===========================
+
+    match /roomPresence/{roomId}/users/{userId} {
+      // Cualquiera puede leer quién está en la sala
+      allow read: if true;
+
+      // Solo el propio usuario puede crear/actualizar/eliminar su presencia
+      allow create, update, delete: if request.auth != null &&
+                                      request.auth.uid == userId;
+    }
+
+    // ===========================
     // REGLAS DE SALAS Y MENSAJES
     // ===========================
 

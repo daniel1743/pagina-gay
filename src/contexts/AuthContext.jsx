@@ -237,23 +237,18 @@ export const AuthProvider = ({ children }) => {
    * Cerrar sesión
    */
   const logout = async () => {
-    try {
-      await signOut(auth);
-      setUser(GUEST_USER);
-
-      toast({
-        title: "Sesión cerrada",
-        description: "¡Hasta pronto! 👋",
-      });
-    } catch (error) {
-      console.error('Logout error:', error);
-      toast({
-        title: "Error",
-        description: "Error al cerrar sesión",
-        variant: "destructive",
-      });
-    }
-  };
+  try {
+    // Simplemente cierra la sesión. El useEffect se encargará del resto.
+    await signOut(auth); 
+    
+    toast({
+      title: "Sesión cerrada",
+      description: "¡Hasta pronto! 👋",
+    });
+  } catch (error) {
+    // ...
+  }
+};
 
   /**
    * Actualizar perfil de usuario
