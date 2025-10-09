@@ -1,4 +1,11 @@
+# Robots.txt para Chactivo
 User-agent: *
 Allow: /
+Disallow: /api/
+Disallow: /admin/
+Disallow: /chat/
+Disallow: /profile
 
-Sitemap: /sitemap.xml
+Crawl-delay: 1
+
+Sitemap: https://chactivo.app/sitemap.xml

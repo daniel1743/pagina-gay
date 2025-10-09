@@ -131,15 +131,6 @@ const PremiumPage = () => {
                   <Crown className="w-5 h-5 mr-2" />
                   Actualizar Ahora
                 </Button>
-                {user && !user.isPremium && (
-                  <Button
-                    onClick={handleUpgradeDemo}
-                    variant="outline"
-                    className="w-full border-yellow-400 text-foreground hover:bg-yellow-400/20 text-sm"
-                  >
-                    Activar Demo (Sin pago)
-                  </Button>
-                )}
               </div>
             </motion.div>
           </div>

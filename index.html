@@ -1,11 +1,64 @@
 <!doctype html>
-<html lang="en">
+<html lang="es">
 	<head>
 		<meta charset="UTF-8" />
 		<link rel="icon" type="image/svg+xml" href="/vite.svg" />
-		<meta name="generator" content="Hostinger Horizons" />
 		<meta name="viewport" content="width=device-width, initial-scale=1.0" />
-		<title>Hostinger Horizons</title>
+
+		<!-- SEO Básico -->
+		<title>Chactivo - Comunidad LGBT+ Chile | Chat Seguro LGBTQ+</title>
+		<meta name="description" content="Conecta con la comunidad LGBTQ+ más segura de Chile. Chat en tiempo real, eventos, apoyo emocional y amistades en un espacio 100% inclusivo y LGBT-friendly." />
+		<meta name="keywords" content="lgbt chile, chat gay, comunidad lgbtq, chat lesbiana, chat trans, queer chile, gay santiago, lgbt friendly, chat inclusivo, orgullo chile" />
+		<meta name="author" content="Chactivo" />
+		<meta name="robots" content="index, follow" />
+
+		<!-- Open Graph (Facebook, WhatsApp) -->
+		<meta property="og:type" content="website" />
+		<meta property="og:site_name" content="Chactivo" />
+		<meta property="og:title" content="Chactivo - Comunidad LGBT+ Chile" />
+		<meta property="og:description" content="El espacio digital LGBTQ+ más seguro de Chile para conectar, chatear y ser tú mismo. Únete gratis." />
+		<meta property="og:url" content="https://chactivo.app" />
+		<meta property="og:locale" content="es_CL" />
+
+		<!-- Twitter Card -->
+		<meta name="twitter:card" content="summary_large_image" />
+		<meta name="twitter:title" content="Chactivo - Comunidad LGBT+ Chile" />
+		<meta name="twitter:description" content="Conecta con la comunidad LGBTQ+ más segura de Chile. Chat, eventos y apoyo." />
+
+		<!-- PWA -->
+		<meta name="theme-color" content="#E4007C" />
+		<meta name="mobile-web-app-capable" content="yes" />
+		<meta name="apple-mobile-web-app-capable" content="yes" />
+		<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+		<meta name="apple-mobile-web-app-title" content="Chactivo" />
+		<link rel="manifest" href="/manifest.json" />
+
+		<!-- Preconnect para Firebase (Performance) -->
+		<link rel="preconnect" href="https://firestore.googleapis.com" />
+		<link rel="preconnect" href="https://firebase.googleapis.com" />
+		<link rel="dns-prefetch" href="https://www.gstatic.com" />
+
+		<!-- Structured Data (JSON-LD) -->
+		<script type="application/ld+json">
+		{
+			"@context": "https://schema.org",
+			"@type": "WebApplication",
+			"name": "Chactivo",
+			"description": "Comunidad LGBTQ+ de Chile. Chat seguro, eventos y apoyo emocional.",
+			"url": "https://chactivo.app",
+			"applicationCategory": "SocialNetworkingApplication",
+			"operatingSystem": "Web, iOS, Android",
+			"offers": {
+				"@type": "Offer",
+				"price": "0",
+				"priceCurrency": "CLP"
+			},
+			"audience": {
+				"@type": "Audience",
+				"audienceType": "LGBTQ+ Community"
+			}
+		}
+		</script>
 	</head>
 	<body>
 		<div id="root"></div>

@@ -9,6 +9,8 @@ import DenunciaModal from '@/components/lobby/DenunciaModal';
 import EventosModal from '@/components/lobby/EventosModal';
 import SaludMentalModal from '@/components/lobby/SaludMentalModal';
 import AjustesModal from '@/components/lobby/AjustesModal';
+import AdCarousel from '@/components/lobby/AdCarousel';
+import AdModal from '@/components/lobby/AdModal';
 import { toast } from '@/components/ui/use-toast';
 import { useAuth } from '@/contexts/AuthContext';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog';
@@ -91,6 +93,8 @@ const LobbyPage = () => {
   const { user } = useAuth();
   const [activeModal, setActiveModal] = useState(null);
   const [showAuthRequired, setShowAuthRequired] = useState(false);
+  const [selectedAd, setSelectedAd] = useState(null);
+  const [showAdModal, setShowAdModal] = useState(false);
 
   const handleCardClick = (modalId) => {
     // "Próximamente" siempre es accesible
@@ -124,7 +128,17 @@ const LobbyPage = () => {
     setShowAuthRequired(false);
     navigate('/?action=login');
   };
-  
+
+  const handleAdClick = (ad) => {
+    setSelectedAd(ad);
+    setShowAdModal(true);
+  };
+
+  const closeAdModal = () => {
+    setShowAdModal(false);
+    setSelectedAd(null);
+  };
+
   return (
     <>
       <Helmet>
@@ -133,7 +147,7 @@ const LobbyPage = () => {
       </Helmet>
 
       <div className="w-full min-h-screen pt-12 pb-20">
-        <motion.div 
+        <motion.div
             initial={{ opacity: 0, y: -20 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.5 }}
@@ -144,7 +158,12 @@ const LobbyPage = () => {
         </motion.div>
 
         <NewsTicker />
-        
+
+        {/* Ad Carousel - Solo visible para usuarios autenticados (no anónimos/invitados) */}
+        {user && !user.isAnonymous && !user.isGuest && (
+          <AdCarousel onAdClick={handleAdClick} />
+        )}
+
         <div className="px-4">
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6 max-w-7xl mx-auto mb-16">
               {cardData.map((card, index) => (
@@ -172,6 +191,9 @@ const LobbyPage = () => {
       {activeModal === 'EventosModal' && <EventosModal isOpen={true} onClose={closeModal} />}
       {activeModal === 'SaludMentalModal' && <SaludMentalModal isOpen={true} onClose={closeModal} />}
       {activeModal === 'AjustesModal' && <AjustesModal isOpen={true} onClose={closeModal} />}
+
+      {/* Modal de anuncio */}
+      <AdModal ad={selectedAd} isOpen={showAdModal} onClose={closeAdModal} />
 
       {/* Modal de autenticación requerida */}
       <Dialog open={showAuthRequired} onOpenChange={setShowAuthRequired}>
