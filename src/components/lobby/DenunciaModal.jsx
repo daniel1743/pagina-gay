@@ -135,7 +135,7 @@ const DenunciaModal = ({ isOpen, onClose }) => {
           </Button>
         </form>
 
-        <Button variant="ghost" size="icon" onClick={onClose} className="absolute top-4 right-4 text-gray-400 hover:text-white">
+        <Button variant="ghost" size="icon" onClick={onClose} className="absolute top-4 right-4 z-50 text-gray-400 hover:text-white">
           <X className="w-6 h-6" />
         </Button>
       </DialogContent>

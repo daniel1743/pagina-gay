@@ -58,17 +58,17 @@ const AvatarSelector = ({ isOpen, onClose, currentAvatar, onSelect }) => {
 
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
-      <DialogContent className="bg-background border-border max-w-3xl rounded-2xl p-0 max-h-[85vh] overflow-hidden">
-        <DialogHeader className="p-6 pb-4">
-          <DialogTitle className="text-3xl font-extrabold text-foreground">
+      <DialogContent className="bg-background border-border max-w-4xl w-[95vw] max-h-[90vh] rounded-2xl p-0 overflow-hidden flex flex-col">
+        <DialogHeader className="p-4 pb-3 flex-shrink-0 border-b border-border">
+          <DialogTitle className="text-2xl font-extrabold text-foreground pr-8">
             Elige tu Avatar
           </DialogTitle>
-          <DialogDescription className="text-muted-foreground">
+          <DialogDescription className="text-muted-foreground text-sm">
             Selecciona el avatar que mejor te represente. Las fotos personalizadas son Premium 👑
           </DialogDescription>
         </DialogHeader>
 
-        <div className="px-6 pb-6 overflow-y-auto max-h-[60vh] scrollbar-hide">
+        <div className="px-4 py-4 overflow-y-auto flex-1 scrollbar-hide">
           <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 gap-4">
             {AVATAR_STYLES.map((avatar, index) => {
               const url = generateAvatarUrl(avatar);
@@ -112,7 +112,7 @@ const AvatarSelector = ({ isOpen, onClose, currentAvatar, onSelect }) => {
         </div>
 
         {/* Footer con botones */}
-        <div className="px-6 pb-6 pt-2 flex gap-3 border-t border-border">
+        <div className="px-4 py-3 flex gap-3 border-t border-border flex-shrink-0 bg-background">
           <Button
             variant="outline"
             onClick={onClose}
@@ -129,13 +129,14 @@ const AvatarSelector = ({ isOpen, onClose, currentAvatar, onSelect }) => {
           </Button>
         </div>
 
+        {/* Botón cerrar - siempre visible */}
         <Button
           variant="ghost"
           size="icon"
           onClick={onClose}
-          className="absolute top-4 right-4 text-muted-foreground hover:text-foreground"
+          className="absolute top-2 right-2 z-50 text-muted-foreground hover:text-foreground hover:bg-accent rounded-full"
         >
-          <X className="w-6 h-6" />
+          <X className="w-5 h-5" />
         </Button>
       </DialogContent>
     </Dialog>

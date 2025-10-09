@@ -54,7 +54,7 @@ const UserProfileModal = ({ user, onClose, onReport }) => {
             variant="ghost"
             size="icon"
             onClick={onClose}
-            className="absolute top-4 right-4 text-muted-foreground"
+            className="absolute top-4 right-4 z-50 text-muted-foreground"
           >
             <X className="w-5 h-5" />
           </Button>

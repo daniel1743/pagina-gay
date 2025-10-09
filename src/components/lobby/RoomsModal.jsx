@@ -238,7 +238,7 @@ const RoomsModal = ({ isOpen, onClose }) => {
           variant="ghost"
           size="icon"
           onClick={onClose}
-          className="absolute top-4 right-4 text-muted-foreground hover:text-foreground"
+          className="absolute top-4 right-4 z-50 text-muted-foreground hover:text-foreground"
         >
           <X className="w-6 h-6" />
         </Button>
