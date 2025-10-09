@@ -171,9 +171,15 @@ service cloud.firestore {
 
       // Usuarios autenticados pueden crear reportes
       allow create: if isAuthenticated() &&
-                      request.resource.data.keys().hasAll(['reporterId', 'targetId', 'reason', 'timestamp']) &&
+                      'reporterId' in request.resource.data &&
                       request.resource.data.reporterId == request.auth.uid &&
-                      request.resource.data.reason.size() > 10;
+                      'type' in request.resource.data &&
+                      'description' in request.resource.data &&
+                      request.resource.data.description is string &&
+                      request.resource.data.description.size() > 10 &&
+                      'targetUsername' in request.resource.data &&
+                      'status' in request.resource.data &&
+                      request.resource.data.status == 'pending';
 
       // No se pueden actualizar ni eliminar reportes
       allow update, delete: if false;

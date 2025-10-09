@@ -1,11 +1,14 @@
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef, useEffect, lazy, Suspense, useMemo } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Send, Smile, Mic, Image, MessageSquarePlus, X } from 'lucide-react';
 import { toast } from '@/components/ui/use-toast';
-import EmojiPicker, { EmojiStyle, Categories } from 'emoji-picker-react';
+import { EmojiStyle, Categories } from 'emoji-picker-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useAuth } from '@/contexts/AuthContext';
+
+// Lazy load del EmojiPicker para mejorar rendimiento
+const EmojiPicker = lazy(() => import('emoji-picker-react'));
 
 const SENSITIVE_WORDS = ['acoso', 'amenaza', 'amenazas', 'acosador'];
 
@@ -104,7 +107,8 @@ const ChatInput = ({ onSendMessage }) => {
       });
   }
 
-  const emojiPickerCategories = () => {
+  // Memoizar las categorías para evitar recalcularlas en cada render
+  const emojiPickerCategories = useMemo(() => {
     const standardCategories = [
       { name: "Recientes", category: Categories.SUGGESTED },
       { name: "Sonrisas y Emociones", category: Categories.SMILEYS_PEOPLE },
@@ -117,34 +121,44 @@ const ChatInput = ({ onSendMessage }) => {
       { name: "Banderas", category: Categories.FLAGS },
     ];
 
-    if (user.isPremium) {
+    if (user?.isPremium) {
       return [
         { name: "Premium 👑", category: Categories.CUSTOM },
         ...standardCategories
       ];
     }
     return standardCategories;
-  }
+  }, [user?.isPremium]);
 
   return (
     <div className="bg-card border-t p-4 shrink-0 relative" ref={wrapperRef}>
       <AnimatePresence>
         {showEmojiPicker && (
-          <motion.div 
+          <motion.div
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
               exit={{ opacity: 0, y: 20 }}
               className="absolute bottom-full right-4 mb-2 z-10"
           >
-            <EmojiPicker
-              onEmojiClick={handleEmojiClick}
-              theme="dark"
-              height={350}
-              width={300}
-              emojiStyle={EmojiStyle.NATIVE}
-              customEmojis={user.isPremium ? PREMIUM_EMOJIS : []}
-              categories={emojiPickerCategories()}
-            />
+            <Suspense fallback={
+              <div className="bg-secondary p-4 rounded-lg border border-input w-[300px] h-[350px] flex items-center justify-center">
+                <div className="flex flex-col items-center gap-2">
+                  <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-cyan-400"></div>
+                  <p className="text-sm text-muted-foreground">Cargando emojis...</p>
+                </div>
+              </div>
+            }>
+              <EmojiPicker
+                onEmojiClick={handleEmojiClick}
+                theme="dark"
+                height={350}
+                width={300}
+                emojiStyle={EmojiStyle.NATIVE}
+                customEmojis={user?.isPremium ? PREMIUM_EMOJIS : []}
+                categories={emojiPickerCategories}
+                preload={true}
+              />
+            </Suspense>
           </motion.div>
         )}
         {showQuickPhrases && (

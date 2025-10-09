@@ -44,7 +44,12 @@ function App() {
     <HelmetProvider>
       <ThemeProvider>
         <AuthProvider>
-          <Router>
+          <Router
+            future={{
+              v7_startTransition: true,
+              v7_relativeSplatPath: true,
+            }}
+          >
             <Helmet>
               <html lang="es" />
               <title>Chactivo - Hub Comunitario LGBTQ+</title>

@@ -8,10 +8,15 @@ import { Textarea } from '@/components/ui/textarea';
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import { Camera, Send, X, ShieldAlert } from 'lucide-react';
 import { toast } from '@/components/ui/use-toast';
+import { useAuth } from '@/contexts/AuthContext';
+import { createReport } from '@/services/reportService';
 
 const DenunciaModal = ({ isOpen, onClose }) => {
+  const { user } = useAuth();
   const [denunciaType, setDenunciaType] = useState('acoso');
   const [otraDenuncia, setOtraDenuncia] = useState('');
+  const [descripcion, setDescripcion] = useState('');
+  const [denunciado, setDenunciado] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   const handleFileEvidence = () => {
@@ -21,18 +26,42 @@ const DenunciaModal = ({ isOpen, onClose }) => {
     });
   };
 
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault();
     setIsSubmitting(true);
-    // Simulate API call
-    setTimeout(() => {
+
+    try {
+      // Guardar denuncia en Firestore
+      await createReport({
+        reporterUsername: user?.username || 'Anónimo',
+        type: denunciaType,
+        otherType: denunciaType === 'otras' ? otraDenuncia : null,
+        description: descripcion,
+        targetUsername: denunciado,
+      });
+
       toast({
         title: '✅ Denuncia Enviada',
         description: 'Nuestro equipo revisará tu caso y te mantendremos al tanto. Gracias por tu ayuda.',
       });
-      setIsSubmitting(false);
+
+      // Limpiar formulario
+      setDescripcion('');
+      setDenunciado('');
+      setOtraDenuncia('');
+      setDenunciaType('acoso');
+
       onClose();
-    }, 1500);
+    } catch (error) {
+      console.error('Error al enviar denuncia:', error);
+      toast({
+        title: 'Error',
+        description: 'No se pudo enviar la denuncia. Por favor intenta de nuevo.',
+        variant: 'destructive',
+      });
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   return (
@@ -70,12 +99,26 @@ const DenunciaModal = ({ isOpen, onClose }) => {
 
           <div>
             <Label htmlFor="descripcion" className="font-bold text-gray-200">¿Qué sucedió?</Label>
-            <Textarea id="descripcion" placeholder="Describe la situación con el mayor detalle posible." className="mt-1 bg-[#2C2A4A] border-2 border-[#413e62] focus:border-red-500 min-h-[120px]" required />
+            <Textarea
+              id="descripcion"
+              value={descripcion}
+              onChange={(e) => setDescripcion(e.target.value)}
+              placeholder="Describe la situación con el mayor detalle posible."
+              className="mt-1 bg-[#2C2A4A] border-2 border-[#413e62] focus:border-red-500 min-h-[120px]"
+              required
+            />
           </div>
 
           <div>
             <Label htmlFor="denunciado" className="font-bold text-gray-200">¿Quién es la persona denunciada?</Label>
-            <Input id="denunciado" placeholder="Nombre de usuario, si lo sabes." className="mt-1 bg-[#2C2A4A] border-2 border-[#413e62] focus:border-red-500" required />
+            <Input
+              id="denunciado"
+              value={denunciado}
+              onChange={(e) => setDenunciado(e.target.value)}
+              placeholder="Nombre de usuario, si lo sabes."
+              className="mt-1 bg-[#2C2A4A] border-2 border-[#413e62] focus:border-red-500"
+              required
+            />
           </div>
 
           <div>

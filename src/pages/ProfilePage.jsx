@@ -47,7 +47,7 @@ const ProfilePage = () => {
           <Button
             variant="ghost"
             onClick={() => navigate('/')}
-            className="mb-6 text-gray-300 hover:text-white"
+            className="mb-6 text-muted-foreground hover:text-foreground"
           >
             <ArrowLeft className="w-4 h-4 mr-2" />
             Volver al Lobby
@@ -75,7 +75,7 @@ const ProfilePage = () => {
               </div>
 
               <div className="flex-1 text-center md:text-left">
-                <h1 className="text-3xl md:text-4xl font-bold text-white mb-2 flex items-center justify-center md:justify-start gap-2">
+                <h1 className="text-3xl md:text-4xl font-bold text-foreground mb-2 flex items-center justify-center md:justify-start gap-2">
                   {user.username}
                   {user.isPremium && <CheckCircle className="w-6 h-6 text-cyan-400"/>}
                 </h1>
@@ -87,11 +87,11 @@ const ProfilePage = () => {
                     </span>
                   )}
                 </div>
-                <p className="text-gray-300 mb-2">"{user.description || '¡Hola! Soy nuevo en Chactivo.'}"</p>
+                <p className="text-muted-foreground mb-2">"{user.description || '¡Hola! Soy nuevo en Chactivo.'}"</p>
                 <div className="flex flex-wrap gap-2 justify-center md:justify-start">
-                  {user.role && <span className="bg-[#413e62] text-cyan-300 px-3 py-1 text-sm rounded-full">{user.role}</span>}
+                  {user.role && <span className="bg-accent text-cyan-600 dark:text-cyan-300 px-3 py-1 text-sm rounded-full font-medium">{user.role}</span>}
                   {user.interests?.map(interest => (
-                    <span key={interest} className="bg-[#413e62] text-gray-200 px-3 py-1 text-sm rounded-full">{interest}</span>
+                    <span key={interest} className="bg-accent text-foreground px-3 py-1 text-sm rounded-full">{interest}</span>
                   ))}
                 </div>
               </div>
@@ -120,7 +120,7 @@ const ProfilePage = () => {
             </div>
 
             <div className="mt-12">
-              <h2 className="text-2xl font-bold text-white mb-4 flex items-center gap-2">
+              <h2 className="text-2xl font-bold text-foreground mb-4 flex items-center gap-2">
                 <MessageSquare />
                 Comentarios del Perfil
               </h2>
