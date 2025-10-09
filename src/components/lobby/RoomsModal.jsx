@@ -34,6 +34,8 @@ const RoomsModal = ({ isOpen, onClose }) => {
   );
   
   const handleCreateRoom = () => {
+    if (!user) return; // Protección si user es null
+
     if (user.isPremium) {
       toast({
         title: '🚧 Función en desarrollo',
@@ -73,7 +75,7 @@ const RoomsModal = ({ isOpen, onClose }) => {
             </div>
             <Button onClick={handleCreateRoom} className="cyan-gradient text-black font-bold">
               <Plus className="mr-2 h-5 w-5" />
-              Crear Sala {!user.isPremium && <Crown className="ml-2 h-4 w-4" />}
+              Crear Sala {user && !user.isPremium && <Crown className="ml-2 h-4 w-4" />}
             </Button>
           </div>
 

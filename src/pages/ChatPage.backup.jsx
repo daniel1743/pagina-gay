@@ -13,7 +13,6 @@ import VerificationModal from '@/components/chat/VerificationModal';
 import TypingIndicator from '@/components/chat/TypingIndicator';
 import { toast } from '@/components/ui/use-toast';
 import PrivateChatWindow from '@/components/chat/PrivateChatWindow';
-import { sendMessage, subscribeToRoomMessages, addReactionToMessage } from '@/services/chatService';
 
 const roomWelcomeMessages = {
   'conversas-libres': '¡Bienvenido a Conversas Libres! Habla de lo que quieras.',
@@ -31,7 +30,7 @@ const roomWelcomeMessages = {
 const ChatPage = () => {
   const { roomId } = useParams();
   const navigate = useNavigate();
-  const { user, guestMessageCount, setGuestMessageCount } = useAuth();
+  const { user } = useAuth();
   const [currentRoom, setCurrentRoom] = useState(roomId);
   const [messages, setMessages] = useState([]);
   const [selectedUser, setSelectedUser] = useState(null);
@@ -40,130 +39,114 @@ const ChatPage = () => {
   const [privateChatRequest, setPrivateChatRequest] = useState(null);
   const [activePrivateChat, setActivePrivateChat] = useState(null);
   const [showVerificationModal, setShowVerificationModal] = useState(false);
+  const [messageCount, setMessageCount] = useState(0);
   const messagesEndRef = useRef(null);
-  const unsubscribeRef = useRef(null);
 
-  // Suscribirse a mensajes en tiempo real cuando cambia la sala
   useEffect(() => {
     setCurrentRoom(roomId);
+    const storedMessages = JSON.parse(localStorage.getItem(`chactivo_messages_${roomId}`) || '[]');
+    
+    const demoMessage = {
+      id: 'demo_message',
+      userId: 'demo-user-123',
+      username: 'Usuario Demo',
+      avatar: `https://api.dicebear.com/7.x/pixel-art/svg?seed=Demo`,
+      content: '¡Hola! Haz clic en mi mensaje para probar el chat privado.',
+      type: 'text',
+      timestamp: new Date().toISOString(),
+      room: roomId,
+      reactions: { like: 1, dislike: 0 },
+      isPremium: true
+    };
 
-    // Suscribirse a mensajes de Firestore en tiempo real
-    const unsubscribe = subscribeToRoomMessages(roomId, (newMessages) => {
-      setMessages(newMessages);
-    });
-
-    // Guardar función de desuscripción
-    unsubscribeRef.current = unsubscribe;
-
-    // Toast de bienvenida
+    const welcomeMessage = {
+      id: 'welcome_message',
+      userId: 'system',
+      username: 'Chactivo',
+      avatar: `https://api.dicebear.com/7.x/bottts/svg?seed=Chactivo`,
+      content: roomWelcomeMessages[roomId] || `¡Bienvenido a la sala ${roomId}!`,
+      type: 'text',
+      timestamp: new Date().toISOString(),
+      room: roomId,
+    };
+    
+    const initialMessages = storedMessages.length > 0 ? storedMessages : [welcomeMessage, demoMessage];
+    if (storedMessages.length === 0) {
+      localStorage.setItem(`chactivo_messages_${roomId}`, JSON.stringify(initialMessages));
+    }
+    
+    setMessages(initialMessages);
+    
     toast({
       title: `👋 ¡${user.username} se ha unido a la sala!`,
       description: `Estás en #${roomId}`,
     });
 
-    // Cleanup: desuscribirse cuando se desmonta o cambia de sala
-    return () => {
-      if (unsubscribeRef.current) {
-        unsubscribeRef.current();
-      }
-    };
   }, [roomId, user.username]);
-
-  // Navegar cuando cambia la sala actual
+  
   useEffect(() => {
     if (currentRoom !== roomId) {
       navigate(`/chat/${currentRoom}`, { replace: true });
     }
   }, [currentRoom, roomId, navigate]);
 
-  // Auto-scroll a nuevos mensajes
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages]);
 
-  /**
-   * Manejar reacciones a mensajes
-   * ✅ Actualiza Firestore directamente
-   */
-  const handleMessageReaction = async (messageId, reaction) => {
-    try {
-      await addReactionToMessage(currentRoom, messageId, reaction);
-      // El listener de onSnapshot actualizará automáticamente los mensajes
-    } catch (error) {
-      console.error('Error adding reaction:', error);
-      toast({
-        title: "Error",
-        description: "No se pudo añadir la reacción",
-        variant: "destructive",
+  const handleMessageReaction = (messageId, reaction) => {
+    setMessages(prevMessages => {
+      const updatedMessages = prevMessages.map(msg => {
+        if (msg.id === messageId) {
+          const newReactions = { ...msg.reactions };
+          if (!newReactions[reaction]) {
+            newReactions[reaction] = 0;
+          }
+          newReactions[reaction]++;
+          return { ...msg, reactions: newReactions };
+        }
+        return msg;
       });
-    }
+      localStorage.setItem(`chactivo_messages_${currentRoom}`, JSON.stringify(updatedMessages));
+      return updatedMessages;
+    });
   };
 
-  /**
-   * Enviar mensaje
-   * ✅ Guarda en Firestore en tiempo real
-   * ✅ Validación para usuarios invitados (máx 3 mensajes)
-   * ✅ Contador persistente en Firestore para anónimos
-   */
-  const handleSendMessage = async (content, type = 'text') => {
-    // Validación: usuarios anónimos solo 3 mensajes
-    if (user.isAnonymous && guestMessageCount >= 3) {
+  const sendMessage = (content, type = 'text') => {
+    if (user.isGuest && messageCount >= 3) {
       setShowVerificationModal(true);
       return;
     }
 
-    try {
-      // Enviar mensaje a Firestore con transacción si es anónimo
-      await sendMessage(
-        currentRoom,
-        {
-          userId: user.id,
-          username: user.username,
-          avatar: user.avatar,
-          isPremium: user.isPremium,
-          content,
-          type,
-        },
-        user.isAnonymous // Indica si es anónimo para usar transacción
-      );
-
-      // Actualizar contador local si es anónimo
-      if (user.isAnonymous) {
-        setGuestMessageCount(prev => prev + 1);
-      }
-
-      // El listener de onSnapshot actualizará automáticamente los mensajes
-    } catch (error) {
-      console.error('Error sending message:', error);
-
-      // Mensaje específico si se excedió el límite
-      if (error.code === 'permission-denied') {
-        setShowVerificationModal(true);
-        toast({
-          title: "Límite alcanzado",
-          description: "Has alcanzado el límite de 3 mensajes. Por favor, regístrate para continuar.",
-          variant: "destructive",
-        });
-      } else {
-        toast({
-          title: "Error",
-          description: "No se pudo enviar el mensaje",
-          variant: "destructive",
-        });
-      }
+    if (user.isGuest) {
+      setMessageCount(prev => prev + 1);
     }
+
+    const newMessage = {
+      id: Date.now().toString(),
+      userId: user.id,
+      username: user.username,
+      avatar: user.avatar,
+      isPremium: user.isPremium,
+      content,
+      type,
+      timestamp: new Date().toISOString(),
+      room: currentRoom,
+      reactions: { like: 0, dislike: 0 },
+    };
+
+    const updatedMessages = [...messages, newMessage];
+    setMessages(updatedMessages);
+    localStorage.setItem(`chactivo_messages_${currentRoom}`, JSON.stringify(updatedMessages));
   };
 
-  /**
-   * Solicitud de chat privado
-   */
   const handlePrivateChatRequest = (targetUser) => {
     if (user.isGuest) {
       setShowVerificationModal(true);
       return;
     }
     if (targetUser.userId === user.id) return;
-
+    
     if (targetUser.userId === 'demo-user-123') {
       setActivePrivateChat({ user, partner: targetUser });
     } else {
@@ -175,9 +158,6 @@ const ChatPage = () => {
     }
   };
 
-  /**
-   * Respuesta a solicitud de chat privado
-   */
   const handlePrivateChatResponse = (accepted) => {
     if (accepted) {
       toast({
@@ -197,6 +177,7 @@ const ChatPage = () => {
     }
     setPrivateChatRequest(null);
   };
+  
 
   return (
     <>
@@ -228,10 +209,10 @@ const ChatPage = () => {
             onReaction={handleMessageReaction}
             messagesEndRef={messagesEndRef}
           />
-
+          
           <TypingIndicator />
 
-          <ChatInput onSendMessage={handleSendMessage} />
+          <ChatInput onSendMessage={sendMessage} />
         </div>
 
         {selectedUser && (
@@ -239,7 +220,7 @@ const ChatPage = () => {
             user={selectedUser}
             onClose={() => setSelectedUser(null)}
             onReport={() => {
-              setReportTarget({ type: 'user', ...selectedUser });
+              setReportTarget({type: 'user', ...selectedUser});
               setSelectedUser(null);
             }}
           />
