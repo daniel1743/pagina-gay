@@ -56,14 +56,22 @@ const ChatMessages = ({ messages, currentUserId, onUserClick, onReport, onPrivat
         return (
           <motion.div
             key={message.id}
-            initial={{ opacity: 0, y: 10 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.2 }}
+            initial={{ opacity: 0, y: 10, scale: 0.95 }}
+            animate={{ opacity: 1, y: 0, scale: 1 }}
+            transition={{
+              duration: 0.3,
+              type: 'spring',
+              stiffness: 500,
+              damping: 30
+            }}
             className={`flex gap-2 ${isOwn ? 'flex-row-reverse' : 'flex-row'}`}
           >
-            <div
+            <motion.div
               className={`rounded-full ${isUserPremium ? 'premium-avatar-ring' : ''}`}
               onClick={() => onUserClick({ username: message.username, avatar: message.avatar, userId: message.userId, isPremium: isUserPremium })}
+              whileHover={{ scale: 1.1, rotate: [0, -5, 5, -5, 0] }}
+              whileTap={{ scale: 0.95 }}
+              transition={{ duration: 0.3 }}
             >
                 <Avatar
                   className="w-8 h-8 cursor-pointer flex-shrink-0"
@@ -73,7 +81,7 @@ const ChatMessages = ({ messages, currentUserId, onUserClick, onReport, onPrivat
                     {message.username[0].toUpperCase()}
                   </AvatarFallback>
                 </Avatar>
-            </div>
+            </motion.div>
 
             <div className={`group flex flex-col ${isOwn ? 'items-end' : 'items-start'} max-w-[70%] min-w-0`}>
               <div className="flex items-center gap-1.5 mb-0.5">
@@ -93,9 +101,11 @@ const ChatMessages = ({ messages, currentUserId, onUserClick, onReport, onPrivat
                 </span>
               </div>
 
-              <div
+              <motion.div
                 style={isOwn ? getBubbleStyle() : {}}
-                className={`relative chat-bubble ${isOwn ? 'magenta-gradient text-white' : 'bg-secondary text-foreground'}`}
+                className={`relative chat-bubble ${isOwn ? 'magenta-gradient text-white' : 'bg-secondary text-foreground'} ${!isOwn ? 'group-hover:border-cyan-400 border-2 border-transparent transition-all duration-200' : ''}`}
+                whileHover={!isOwn ? { scale: 1.01, borderColor: 'rgb(34, 211, 238)' } : {}}
+                transition={{ type: 'spring', stiffness: 400 }}
               >
                 <div 
                   className="cursor-pointer"
@@ -108,31 +118,61 @@ const ChatMessages = ({ messages, currentUserId, onUserClick, onReport, onPrivat
                     <img src={message.content} alt="GIF" className="rounded-lg max-w-xs" />
                   )}
                 </div>
-                
+
                 {!isOwn && (
-                  <div className="absolute -bottom-3 right-0 flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity">
-                    <Button size="icon" variant="ghost" className="h-5 w-5 text-muted-foreground hover:text-green-400" onClick={() => onReaction(message.id, 'like')}>
-                      <ThumbsUp className="h-3 w-3" />
-                    </Button>
-                    <Button size="icon" variant="ghost" className="h-5 w-5 text-muted-foreground hover:text-red-400" onClick={() => onReaction(message.id, 'dislike')}>
-                      <ThumbsDown className="h-3 w-3" />
-                    </Button>
-                  </div>
+                  <motion.div
+                    className="absolute -bottom-3 right-0 flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity"
+                    initial={{ y: 5 }}
+                    whileHover={{ y: 0 }}
+                  >
+                    <motion.div whileHover={{ scale: 1.2 }} whileTap={{ scale: 0.9 }}>
+                      <Button size="icon" variant="ghost" className="h-5 w-5 text-muted-foreground hover:text-green-400" onClick={() => onReaction(message.id, 'like')}>
+                        <ThumbsUp className="h-3 w-3" />
+                      </Button>
+                    </motion.div>
+                    <motion.div whileHover={{ scale: 1.2 }} whileTap={{ scale: 0.9 }}>
+                      <Button size="icon" variant="ghost" className="h-5 w-5 text-muted-foreground hover:text-red-400" onClick={() => onReaction(message.id, 'dislike')}>
+                        <ThumbsDown className="h-3 w-3" />
+                      </Button>
+                    </motion.div>
+                  </motion.div>
                 )}
-              </div>
+              </motion.div>
 
               <div className="flex items-center gap-2 mt-0.5 text-[10px] text-muted-foreground">
                 {message.reactions?.like > 0 && (
-                  <div className="flex items-center gap-0.5">
+                  <motion.div
+                    className="flex items-center gap-0.5"
+                    initial={{ scale: 0 }}
+                    animate={{ scale: 1 }}
+                    transition={{ type: 'spring', stiffness: 500 }}
+                  >
                     <ThumbsUp className="w-2.5 h-2.5 text-green-400" />
-                    <span>{message.reactions.like}</span>
-                  </div>
+                    <motion.span
+                      key={message.reactions.like}
+                      initial={{ scale: 1.5 }}
+                      animate={{ scale: 1 }}
+                    >
+                      {message.reactions.like}
+                    </motion.span>
+                  </motion.div>
                 )}
                 {message.reactions?.dislike > 0 && (
-                  <div className="flex items-center gap-0.5">
+                  <motion.div
+                    className="flex items-center gap-0.5"
+                    initial={{ scale: 0 }}
+                    animate={{ scale: 1 }}
+                    transition={{ type: 'spring', stiffness: 500 }}
+                  >
                     <ThumbsDown className="w-2.5 h-2.5 text-red-400" />
-                    <span>{message.reactions.dislike}</span>
-                  </div>
+                    <motion.span
+                      key={message.reactions.dislike}
+                      initial={{ scale: 1.5 }}
+                      animate={{ scale: 1 }}
+                    >
+                      {message.reactions.dislike}
+                    </motion.span>
+                  </motion.div>
                 )}
               </div>
 

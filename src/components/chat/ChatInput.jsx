@@ -73,14 +73,32 @@ const ChatInput = ({ onSendMessage }) => {
     }
   };
 
-  const handleSubmit = (e) => {
+  const [isSending, setIsSending] = useState(false);
+
+  const handleSubmit = async (e) => {
     e.preventDefault();
-    if (message.trim()) {
+    if (message.trim() && !isSending) {
+      setIsSending(true);
       checkForSensitiveWords(message);
-      onSendMessage(message.trim(), 'text');
-      setMessage('');
-      setShowEmojiPicker(false);
-      setShowQuickPhrases(false);
+
+      // Microinteracción: feedback inmediato
+      const messageToSend = message.trim();
+      setMessage(''); // Limpiar inmediatamente para sensación de velocidad
+
+      try {
+        await onSendMessage(messageToSend, 'text');
+        // Vibración sutil si está disponible
+        if (navigator.vibrate) {
+          navigator.vibrate(10);
+        }
+      } catch (error) {
+        // Si falla, restaurar el mensaje
+        setMessage(messageToSend);
+      } finally {
+        setIsSending(false);
+        setShowEmojiPicker(false);
+        setShowQuickPhrases(false);
+      }
     }
   };
 
@@ -226,14 +244,33 @@ const ChatInput = ({ onSendMessage }) => {
           className="flex-1 bg-secondary border-2 border-input rounded-lg px-4 py-2 text-foreground placeholder:text-muted-foreground focus:border-accent transition-all"
         />
 
-        <Button
-          type="submit"
-          disabled={!message.trim()}
-          className="magenta-gradient text-white hover:scale-105 transition-transform rounded-lg"
-          size="icon"
+        <motion.div
+          whileHover={{ scale: 1.05 }}
+          whileTap={{ scale: 0.95 }}
         >
-          <Send className="w-5 h-5" />
-        </Button>
+          <Button
+            type="submit"
+            disabled={!message.trim() || isSending}
+            className="magenta-gradient text-white rounded-lg relative overflow-hidden"
+            size="icon"
+          >
+            <motion.div
+              animate={isSending ? {
+                rotate: 360,
+                transition: { duration: 0.6, repeat: Infinity, ease: "linear" }
+              } : { rotate: 0 }}
+            >
+              <Send className="w-5 h-5" />
+            </motion.div>
+            {isSending && (
+              <motion.div
+                className="absolute inset-0 bg-gradient-to-r from-transparent via-white/20 to-transparent"
+                animate={{ x: ['-100%', '100%'] }}
+                transition={{ duration: 0.8, repeat: Infinity, ease: "linear" }}
+              />
+            )}
+          </Button>
+        </motion.div>
       </form>
     </div>
   );

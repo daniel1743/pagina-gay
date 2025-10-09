@@ -37,7 +37,7 @@ const ChatPage = () => {
   const [messages, setMessages] = useState([]);
   const [selectedUser, setSelectedUser] = useState(null);
   const [reportTarget, setReportTarget] = useState(null);
-  const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [sidebarOpen, setSidebarOpen] = useState(true); // Abierto por defecto en desktop
   const [privateChatRequest, setPrivateChatRequest] = useState(null);
   const [activePrivateChat, setActivePrivateChat] = useState(null);
   const [showVerificationModal, setShowVerificationModal] = useState(false);
@@ -87,16 +87,17 @@ const ChatPage = () => {
   }, [messages]);
 
   // Marcar mensajes como leídos cuando la sala está activa
-  useEffect(() => {
-    if (roomId && user && messages.length > 0) {
-      // Esperar 1 segundo antes de marcar como leídos (simula que el usuario los vio)
-      const timer = setTimeout(() => {
-        markMessagesAsRead(roomId, user.id);
-      }, 1000);
+  // TEMPORALMENTE DESHABILITADO: Requiere índice de Firestore
+  // useEffect(() => {
+  //   if (roomId && user && messages.length > 0) {
+  //     // Esperar 1 segundo antes de marcar como leídos (simula que el usuario los vio)
+  //     const timer = setTimeout(() => {
+  //       markMessagesAsRead(roomId, user.id);
+  //     }, 1000);
 
-      return () => clearTimeout(timer);
-    }
-  }, [roomId, user, messages.length]);
+  //     return () => clearTimeout(timer);
+  //   }
+  // }, [roomId, user, messages.length]);
 
   /**
    * Manejar reacciones a mensajes
