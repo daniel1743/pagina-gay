@@ -11,6 +11,8 @@ import {
   runTransaction,
   setDoc,
   getDoc,
+  getDocs,
+  where,
 } from 'firebase/firestore';
 import { db, auth } from '@/config/firebase';
 
@@ -31,6 +33,7 @@ export const sendMessage = async (roomId, messageData, isAnonymous = false) => {
       type: messageData.type || 'text',
       timestamp: serverTimestamp(),
       reactions: { like: 0, dislike: 0 },
+      read: false, // Para doble check
     };
 
     if (isAnonymous && auth.currentUser) {
@@ -95,6 +98,34 @@ export const addReactionToMessage = async (roomId, messageId, reactionType) => {
   } catch (error) {
     console.error('Error adding reaction:', error);
     throw error;
+  }
+};
+
+/**
+ * Marca mensajes como leídos (doble check)
+ * Marca todos los mensajes de la sala que NO sean del usuario actual
+ */
+export const markMessagesAsRead = async (roomId, currentUserId) => {
+  try {
+    const messagesRef = collection(db, 'rooms', roomId, 'messages');
+    const q = query(
+      messagesRef,
+      where('read', '==', false),
+      where('userId', '!=', currentUserId)
+    );
+
+    const snapshot = await getDocs(q);
+
+    // Actualizar en lotes (batch) para mejor performance
+    const batch = [];
+    snapshot.docs.forEach(doc => {
+      batch.push(updateDoc(doc.ref, { read: true }));
+    });
+
+    await Promise.all(batch);
+  } catch (error) {
+    // Error silencioso - no es crítico si falla
+    console.error('Error marking messages as read:', error);
   }
 };
 

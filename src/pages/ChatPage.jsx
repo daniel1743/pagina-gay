@@ -13,7 +13,7 @@ import VerificationModal from '@/components/chat/VerificationModal';
 import TypingIndicator from '@/components/chat/TypingIndicator';
 import { toast } from '@/components/ui/use-toast';
 import PrivateChatWindow from '@/components/chat/PrivateChatWindow';
-import { sendMessage, subscribeToRoomMessages, addReactionToMessage } from '@/services/chatService';
+import { sendMessage, subscribeToRoomMessages, addReactionToMessage, markMessagesAsRead } from '@/services/chatService';
 import { joinRoom, leaveRoom } from '@/services/presenceService';
 
 const roomWelcomeMessages = {
@@ -85,6 +85,18 @@ const ChatPage = () => {
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages]);
+
+  // Marcar mensajes como leídos cuando la sala está activa
+  useEffect(() => {
+    if (roomId && user && messages.length > 0) {
+      // Esperar 1 segundo antes de marcar como leídos (simula que el usuario los vio)
+      const timer = setTimeout(() => {
+        markMessagesAsRead(roomId, user.id);
+      }, 1000);
+
+      return () => clearTimeout(timer);
+    }
+  }, [roomId, user, messages.length]);
 
   /**
    * Manejar reacciones a mensajes

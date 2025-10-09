@@ -8,12 +8,14 @@ import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { ArrowLeft, Crown, Shield, Camera, Edit, MessageSquare, CheckCircle } from 'lucide-react';
 import { toast } from '@/components/ui/use-toast';
 import EditProfileModal from '@/components/profile/EditProfileModal';
+import AvatarSelector from '@/components/profile/AvatarSelector';
 import ProfileComments from '@/components/profile/ProfileComments';
 
 const ProfilePage = () => {
   const navigate = useNavigate();
   const { user, logout, updateProfile } = useAuth();
   const [isEditModalOpen, setEditModalOpen] = useState(false);
+  const [isAvatarSelectorOpen, setAvatarSelectorOpen] = useState(false);
 
   const handleVerification = () => {
     toast({
@@ -23,10 +25,13 @@ const ProfilePage = () => {
   };
 
   const handleChangePicture = () => {
-    const newAvatar = `https://api.dicebear.com/7.x/avataaars/svg?seed=${Date.now()}`;
+    setAvatarSelectorOpen(true);
+  };
+
+  const handleAvatarSelect = (newAvatar) => {
     updateProfile({ avatar: newAvatar });
     toast({
-      title: "¡Foto de perfil actualizada!",
+      title: "¡Avatar actualizado!",
       description: "Tu nuevo avatar está listo. ✨",
     });
   };
@@ -132,9 +137,18 @@ const ProfilePage = () => {
       </div>
       
       {isEditModalOpen && (
-        <EditProfileModal 
+        <EditProfileModal
           isOpen={isEditModalOpen}
           onClose={() => setEditModalOpen(false)}
+        />
+      )}
+
+      {isAvatarSelectorOpen && (
+        <AvatarSelector
+          isOpen={isAvatarSelectorOpen}
+          onClose={() => setAvatarSelectorOpen(false)}
+          currentAvatar={user.avatar}
+          onSelect={handleAvatarSelect}
         />
       )}
     </>
