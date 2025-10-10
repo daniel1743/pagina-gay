@@ -16,20 +16,12 @@ const PrivateChatWindow = ({ user, partner, onClose, chatId }) => {
 
   // Suscribirse a mensajes en tiempo real
   useEffect(() => {
-    console.log('[PrivateChatWindow] chatId:', chatId);
-
-    if (!chatId) {
-      console.warn('[PrivateChatWindow] No chatId provided!');
-      return;
-    }
+    if (!chatId) return;
 
     const messagesRef = collection(db, 'private_chats', chatId, 'messages');
     const q = query(messagesRef, orderBy('timestamp', 'asc'));
 
-    console.log('[PrivateChatWindow] Subscribing to messages for chatId:', chatId);
-
     const unsubscribe = onSnapshot(q, (snapshot) => {
-      console.log('[PrivateChatWindow] Received', snapshot.docs.length, 'messages');
       const newMessages = snapshot.docs.map(doc => ({
         id: doc.id,
         ...doc.data(),
@@ -37,7 +29,7 @@ const PrivateChatWindow = ({ user, partner, onClose, chatId }) => {
       }));
       setMessages(newMessages);
     }, (error) => {
-      console.error('[PrivateChatWindow] Error subscribing to private chat messages:', error);
+      console.error('Error subscribing to private chat messages:', error);
     });
 
     return () => unsubscribe();
@@ -49,13 +41,9 @@ const PrivateChatWindow = ({ user, partner, onClose, chatId }) => {
 
   const handleSendMessage = async (e) => {
     e.preventDefault();
-    if (newMessage.trim() === '' || !chatId) {
-      console.warn('[PrivateChatWindow] Cannot send message. Message:', newMessage, 'chatId:', chatId);
-      return;
-    }
+    if (newMessage.trim() === '' || !chatId) return;
 
     try {
-      console.log('[PrivateChatWindow] Sending message to chatId:', chatId);
       const messagesRef = collection(db, 'private_chats', chatId, 'messages');
 
       await addDoc(messagesRef, {
@@ -67,10 +55,9 @@ const PrivateChatWindow = ({ user, partner, onClose, chatId }) => {
         timestamp: serverTimestamp(),
       });
 
-      console.log('[PrivateChatWindow] Message sent successfully');
       setNewMessage('');
     } catch (error) {
-      console.error('[PrivateChatWindow] Error sending private message:', error);
+      console.error('Error sending private message:', error);
       toast({
         title: "Error",
         description: "No se pudo enviar el mensaje",
@@ -140,9 +127,15 @@ const PrivateChatWindow = ({ user, partner, onClose, chatId }) => {
                         exit={{ opacity: 0 }}
                         className={`flex gap-2 ${isOwn ? 'flex-row-reverse' : 'flex-row'}`}
                     >
-                         <div className={`chat-bubble text-white ${isOwn ? 'magenta-gradient' : 'bg-secondary'}`}>
-                            <p>{msg.content}</p>
-                        </div>
+                         <div className={`
+                           px-4 py-2 rounded-2xl max-w-[75%] break-words
+                           ${isOwn
+                             ? 'magenta-gradient text-white'
+                             : 'bg-secondary text-foreground border border-border'
+                           }
+                         `}>
+                            <p className="text-sm">{msg.content}</p>
+                         </div>
                     </motion.div>
                 );
             })}

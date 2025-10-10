@@ -222,7 +222,6 @@ const ChatPage = () => {
    * Abrir chat privado desde notificaciones
    */
   const handleOpenPrivateChatFromNotification = ({ chatId, partner }) => {
-    console.log('[ChatPage] Opening private chat with chatId:', chatId, 'partner:', partner);
     setActivePrivateChat({
       chatId,
       user: user,

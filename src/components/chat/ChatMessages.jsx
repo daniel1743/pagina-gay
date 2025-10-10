@@ -103,16 +103,16 @@ const ChatMessages = ({ messages, currentUserId, onUserClick, onReport, onPrivat
 
               <motion.div
                 style={isOwn ? getBubbleStyle() : {}}
-                className={`relative chat-bubble ${isOwn ? 'magenta-gradient text-white' : 'bg-secondary text-foreground'} ${!isOwn ? 'group-hover:border-cyan-400 border-2 border-transparent transition-all duration-200' : ''}`}
+                className={`relative rounded-xl px-3 py-1.5 max-w-[70%] break-words text-sm leading-snug ${isOwn ? 'magenta-gradient text-white' : 'bg-secondary text-foreground border border-border'} ${!isOwn ? 'group-hover:border-cyan-400 border-2 transition-all duration-200' : ''}`}
                 whileHover={!isOwn ? { scale: 1.01, borderColor: 'rgb(34, 211, 238)' } : {}}
                 transition={{ type: 'spring', stiffness: 400 }}
               >
-                <div 
+                <div
                   className="cursor-pointer"
                   onClick={() => onPrivateChat({ username: message.username, avatar: message.avatar, userId: message.userId, isPremium: isUserPremium })}
                 >
                   {message.type === 'text' && (
-                    <p>{message.content}</p>
+                    <p className="text-sm">{message.content}</p>
                   )}
                   {message.type === 'gif' && (
                     <img src={message.content} alt="GIF" className="rounded-lg max-w-xs" />
