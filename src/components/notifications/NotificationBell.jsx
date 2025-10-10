@@ -22,7 +22,7 @@ const NotificationBell = ({ onOpenPrivateChat }) => {
       const currentCount = newNotifications.length;
       const previousCount = previousCountRef.current;
 
-      // Si hay nuevas notificaciones, mostrar toast
+      // Si hay nuevas notificaciones, mostrar toast y/o abrir ventana
       if (currentCount > previousCount && previousCount > 0) {
         const latestNotification = newNotifications[0];
 
@@ -36,6 +36,25 @@ const NotificationBell = ({ onOpenPrivateChat }) => {
           toast({
             title: `📞 Solicitud de chat privado`,
             description: `${latestNotification.fromUsername || 'Un usuario'} quiere conectar contigo`,
+            duration: 5000,
+          });
+        } else if (latestNotification.type === 'private_chat_accepted') {
+          // Abrir automáticamente la ventana de chat privado
+          if (onOpenPrivateChat && latestNotification.chatId) {
+            onOpenPrivateChat({
+              chatId: latestNotification.chatId,
+              partner: {
+                userId: latestNotification.from,
+                username: latestNotification.fromUsername,
+                avatar: latestNotification.fromAvatar,
+                isPremium: latestNotification.fromIsPremium,
+              }
+            });
+          }
+
+          toast({
+            title: `✅ ${latestNotification.fromUsername} aceptó tu solicitud`,
+            description: 'La ventana de chat privado se ha abierto',
             duration: 5000,
           });
         }

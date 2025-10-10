@@ -21,8 +21,15 @@ import { db } from '@/config/firebase';
  */
 export const sendDirectMessage = async (fromUserId, toUserId, content) => {
   try {
+    // Obtener datos del remitente
+    const fromUserDoc = await getDoc(doc(db, 'users', fromUserId));
+    const fromUserData = fromUserDoc.data();
+
     const messageData = {
       from: fromUserId,
+      fromUsername: fromUserData?.username || 'Usuario',
+      fromAvatar: fromUserData?.avatar || '',
+      fromIsPremium: fromUserData?.isPremium || false,
       to: toUserId,
       content,
       type: 'direct_message',
@@ -111,6 +118,24 @@ export const respondToPrivateChatRequest = async (
         createdAt: serverTimestamp(),
         lastMessage: null,
         active: true,
+      });
+
+      // Obtener datos del usuario que aceptó
+      const acceptedUserDoc = await getDoc(doc(db, 'users', userId));
+      const acceptedUserData = acceptedUserDoc.data();
+
+      // Enviar notificación al usuario que envió la solicitud original
+      // para que se le abra automáticamente la ventana de chat
+      await addDoc(collection(db, 'users', notificationData.from, 'notifications'), {
+        from: userId,
+        fromUsername: acceptedUserData?.username || 'Usuario',
+        fromAvatar: acceptedUserData?.avatar || '',
+        fromIsPremium: acceptedUserData?.isPremium || false,
+        to: notificationData.from,
+        type: 'private_chat_accepted',
+        chatId: privateChatRef.id,
+        read: false,
+        timestamp: serverTimestamp(),
       });
 
       return { success: true, chatId: privateChatRef.id };

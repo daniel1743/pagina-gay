@@ -310,6 +310,7 @@ const ChatPage = () => {
           <PrivateChatWindow
             user={activePrivateChat.user}
             partner={activePrivateChat.partner}
+            chatId={activePrivateChat.chatId}
             onClose={() => setActivePrivateChat(null)}
           />
         )}
