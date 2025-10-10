@@ -1,11 +1,27 @@
-# Robots.txt para Chactivo
+# robots.txt para Chactivo - Chat Gay Chile
+
 User-agent: *
 Allow: /
+Allow: /chat/*
+Allow: /premium
+Allow: /about
+
+# Páginas que no deben indexarse (privacidad)
 Disallow: /api/
 Disallow: /admin/
-Disallow: /chat/
-Disallow: /profile
+Disallow: /user/
+Disallow: /private/
 
-Crawl-delay: 1
-
+# Sitemap
 Sitemap: https://chactivo.app/sitemap.xml
+
+# Rastreadores específicos
+User-agent: Googlebot
+Allow: /
+
+User-agent: Bingbot
+Allow: /
+
+# Crawl-delay para bots menos importantes
+User-agent: *
+Crawl-delay: 1

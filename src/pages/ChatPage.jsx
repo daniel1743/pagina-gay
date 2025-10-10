@@ -12,6 +12,7 @@ import ReportModal from '@/components/chat/ReportModal';
 import PrivateChatRequestModal from '@/components/chat/PrivateChatRequestModal';
 import VerificationModal from '@/components/chat/VerificationModal';
 import TypingIndicator from '@/components/chat/TypingIndicator';
+import WelcomeTour from '@/components/onboarding/WelcomeTour';
 import { toast } from '@/components/ui/use-toast';
 import PrivateChatWindow from '@/components/chat/PrivateChatWindow';
 import { sendMessage, subscribeToRoomMessages, addReactionToMessage, markMessagesAsRead } from '@/services/chatService';
@@ -33,7 +34,7 @@ const roomWelcomeMessages = {
 const ChatPage = () => {
   const { roomId } = useParams();
   const navigate = useNavigate();
-  const { user, guestMessageCount, setGuestMessageCount } = useAuth();
+  const { user, guestMessageCount, setGuestMessageCount, showWelcomeTour, setShowWelcomeTour } = useAuth();
   const [currentRoom, setCurrentRoom] = useState(roomId);
   const [messages, setMessages] = useState([]);
   const [selectedUser, setSelectedUser] = useState(null);
@@ -307,15 +308,16 @@ const ChatPage = () => {
         )}
 
         {activePrivateChat && (
-          <>
-            {console.log('[ChatPage] Rendering PrivateChatWindow with:', activePrivateChat)}
-            <PrivateChatWindow
-              user={activePrivateChat.user}
-              partner={activePrivateChat.partner}
-              chatId={activePrivateChat.chatId}
-              onClose={() => setActivePrivateChat(null)}
-            />
-          </>
+          <PrivateChatWindow
+            user={activePrivateChat.user}
+            partner={activePrivateChat.partner}
+            chatId={activePrivateChat.chatId}
+            onClose={() => setActivePrivateChat(null)}
+          />
+        )}
+
+        {showWelcomeTour && (
+          <WelcomeTour onComplete={() => setShowWelcomeTour(false)} />
         )}
       </div>
     </>

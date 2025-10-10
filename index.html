@@ -6,24 +6,30 @@
 		<meta name="viewport" content="width=device-width, initial-scale=1.0" />
 
 		<!-- SEO Básico -->
-		<title>Chactivo - Comunidad LGBT+ Chile | Chat Seguro LGBTQ+</title>
-		<meta name="description" content="Conecta con la comunidad LGBTQ+ más segura de Chile. Chat en tiempo real, eventos, apoyo emocional y amistades en un espacio 100% inclusivo y LGBT-friendly." />
-		<meta name="keywords" content="lgbt chile, chat gay, comunidad lgbtq, chat lesbiana, chat trans, queer chile, gay santiago, lgbt friendly, chat inclusivo, orgullo chile" />
+		<title>Chat Gay Chile - Conoce Gays en Santiago | Chactivo LGBT+</title>
+		<meta name="description" content="Chat gay Chile gratis 🌈 Conoce hombres gays en Santiago y todo Chile. Chat en vivo, sin registro, 100% seguro. Comunidad LGBT+ activa 24/7. ¡Únete ahora!" />
+		<meta name="keywords" content="chat gay chile, chat gay santiago, gays santiago, conocer gays chile, chat homosexual chile, comunidad gay chile, chat lgbt chile, gay chile gratis, chat gays online, app gay chile, gays chilenos" />
 		<meta name="author" content="Chactivo" />
 		<meta name="robots" content="index, follow" />
+
+		<!-- SEO Local (Chile/Santiago) -->
+		<meta name="geo.region" content="CL-RM" />
+		<meta name="geo.placename" content="Santiago, Chile" />
+		<meta name="geo.position" content="-33.4489;-70.6693" />
+		<meta name="ICBM" content="-33.4489, -70.6693" />
 
 		<!-- Open Graph (Facebook, WhatsApp) -->
 		<meta property="og:type" content="website" />
 		<meta property="og:site_name" content="Chactivo" />
-		<meta property="og:title" content="Chactivo - Comunidad LGBT+ Chile" />
-		<meta property="og:description" content="El espacio digital LGBTQ+ más seguro de Chile para conectar, chatear y ser tú mismo. Únete gratis." />
+		<meta property="og:title" content="Chat Gay Chile - Conoce Gays en Santiago | Chactivo" />
+		<meta property="og:description" content="Chat gay Chile gratis 🌈 Conoce hombres gays en Santiago. Chat en vivo 24/7, sin registro. Comunidad LGBT+ segura y activa." />
 		<meta property="og:url" content="https://chactivo.app" />
 		<meta property="og:locale" content="es_CL" />
 
 		<!-- Twitter Card -->
 		<meta name="twitter:card" content="summary_large_image" />
-		<meta name="twitter:title" content="Chactivo - Comunidad LGBT+ Chile" />
-		<meta name="twitter:description" content="Conecta con la comunidad LGBTQ+ más segura de Chile. Chat, eventos y apoyo." />
+		<meta name="twitter:title" content="Chat Gay Chile - Conoce Gays en Santiago" />
+		<meta name="twitter:description" content="Chat gay gratis en Chile. Conoce gays en Santiago y todo el país. 100% seguro y anónimo." />
 
 		<!-- PWA -->
 		<meta name="theme-color" content="#E4007C" />
@@ -43,19 +49,40 @@
 		{
 			"@context": "https://schema.org",
 			"@type": "WebApplication",
-			"name": "Chactivo",
-			"description": "Comunidad LGBTQ+ de Chile. Chat seguro, eventos y apoyo emocional.",
+			"name": "Chactivo - Chat Gay Chile",
+			"alternateName": "Chat Gay Santiago",
+			"description": "Chat gay Chile gratis. Conoce hombres gays en Santiago y todo Chile. Comunidad LGBT+ segura, chat en vivo 24/7, sin registro obligatorio.",
 			"url": "https://chactivo.app",
 			"applicationCategory": "SocialNetworkingApplication",
 			"operatingSystem": "Web, iOS, Android",
 			"offers": {
 				"@type": "Offer",
 				"price": "0",
-				"priceCurrency": "CLP"
+				"priceCurrency": "CLP",
+				"availability": "https://schema.org/InStock"
 			},
 			"audience": {
 				"@type": "Audience",
-				"audienceType": "LGBTQ+ Community"
+				"audienceType": "Comunidad LGBT+ Chile",
+				"geographicArea": {
+					"@type": "Country",
+					"name": "Chile"
+				}
+			},
+			"serviceArea": {
+				"@type": "City",
+				"name": "Santiago",
+				"containedIn": {
+					"@type": "Country",
+					"name": "Chile"
+				}
+			},
+			"keywords": "chat gay chile, chat gay santiago, conocer gays chile, comunidad lgbt chile, chat homosexual",
+			"inLanguage": "es-CL",
+			"potentialAction": {
+				"@type": "InteractAction",
+				"name": "Chatear gratis",
+				"target": "https://chactivo.app/chat"
 			}
 		}
 		</script>

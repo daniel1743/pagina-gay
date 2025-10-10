@@ -1,29 +1,93 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
+<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9"
+        xmlns:xhtml="http://www.w3.org/1999/xhtml"
+        xmlns:image="http://www.google.com/schemas/sitemap-image/1.1">
+
+  <!-- Página principal -->
   <url>
     <loc>https://chactivo.app/</loc>
+    <lastmod>2025-01-10</lastmod>
     <changefreq>daily</changefreq>
     <priority>1.0</priority>
-    <lastmod>2025-10-09</lastmod>
   </url>
+
+  <!-- Salas de chat principales -->
   <url>
-    <loc>https://chactivo.app/auth</loc>
-    <changefreq>monthly</changefreq>
-    <priority>0.8</priority>
-  </url>
-  <url>
-    <loc>https://chactivo.app/premium</loc>
-    <changefreq>weekly</changefreq>
+    <loc>https://chactivo.app/chat/conversas-libres</loc>
+    <lastmod>2025-01-10</lastmod>
+    <changefreq>always</changefreq>
     <priority>0.9</priority>
   </url>
+
   <url>
-    <loc>https://chactivo.app/anonymous-chat</loc>
-    <changefreq>weekly</changefreq>
+    <loc>https://chactivo.app/chat/gaming</loc>
+    <lastmod>2025-01-10</lastmod>
+    <changefreq>always</changefreq>
+    <priority>0.8</priority>
+  </url>
+
+  <url>
+    <loc>https://chactivo.app/chat/mas-30</loc>
+    <lastmod>2025-01-10</lastmod>
+    <changefreq>always</changefreq>
+    <priority>0.8</priority>
+  </url>
+
+  <url>
+    <loc>https://chactivo.app/chat/amistad</loc>
+    <lastmod>2025-01-10</lastmod>
+    <changefreq>always</changefreq>
+    <priority>0.8</priority>
+  </url>
+
+  <url>
+    <loc>https://chactivo.app/chat/osos-activos</loc>
+    <lastmod>2025-01-10</lastmod>
+    <changefreq>always</changefreq>
     <priority>0.7</priority>
   </url>
+
   <url>
-    <loc>https://chactivo.app/anonymous-forum</loc>
+    <loc>https://chactivo.app/chat/pasivos-buscando</loc>
+    <lastmod>2025-01-10</lastmod>
+    <changefreq>always</changefreq>
+    <priority>0.7</priority>
+  </url>
+
+  <url>
+    <loc>https://chactivo.app/chat/versatiles</loc>
+    <lastmod>2025-01-10</lastmod>
+    <changefreq>always</changefreq>
+    <priority>0.7</priority>
+  </url>
+
+  <url>
+    <loc>https://chactivo.app/chat/quedar-ya</loc>
+    <lastmod>2025-01-10</lastmod>
+    <changefreq>always</changefreq>
+    <priority>0.7</priority>
+  </url>
+
+  <url>
+    <loc>https://chactivo.app/chat/hablar-primero</loc>
+    <lastmod>2025-01-10</lastmod>
+    <changefreq>always</changefreq>
+    <priority>0.7</priority>
+  </url>
+
+  <url>
+    <loc>https://chactivo.app/chat/morbosear</loc>
+    <lastmod>2025-01-10</lastmod>
+    <changefreq>always</changefreq>
+    <priority>0.7</priority>
+  </url>
+
+  <!-- Página Premium -->
+  <url>
+    <loc>https://chactivo.app/premium</loc>
+    <lastmod>2025-01-10</lastmod>
     <changefreq>weekly</changefreq>
     <priority>0.6</priority>
   </url>
+
 </urlset>

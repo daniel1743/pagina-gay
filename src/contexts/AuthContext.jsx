@@ -34,6 +34,7 @@ export const AuthProvider = ({ children }) => {
   const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(true);
   const [guestMessageCount, setGuestMessageCount] = useState(0);
+  const [showWelcomeTour, setShowWelcomeTour] = useState(false);
 
   // Escuchar cambios de autenticación de Firebase
   useEffect(() => {
@@ -198,6 +199,9 @@ export const AuthProvider = ({ children }) => {
 
       setUser(userProfile);
 
+      // Mostrar tour de bienvenida para nuevos usuarios
+      setShowWelcomeTour(true);
+
       toast({
         title: "¡Cuenta creada! 🎉",
         description: "Bienvenido a Chactivo",
@@ -352,6 +356,8 @@ export const AuthProvider = ({ children }) => {
     loading,
     guestMessageCount,
     setGuestMessageCount,
+    showWelcomeTour,
+    setShowWelcomeTour,
     login,
     register,
     logout,

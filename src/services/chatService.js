@@ -13,6 +13,8 @@ import {
   getDoc,
   getDocs,
   where,
+  limit,
+  limitToLast,
 } from 'firebase/firestore';
 import { db, auth } from '@/config/firebase';
 
@@ -68,10 +70,17 @@ export const sendMessage = async (roomId, messageData, isAnonymous = false) => {
 
 /**
  * Suscribe a mensajes de una sala en tiempo real
+ * OPTIMIZADO: Solo carga los últimos 10 mensajes para reducir lecturas de Firestore
  */
-export const subscribeToRoomMessages = (roomId, callback) => {
+export const subscribeToRoomMessages = (roomId, callback, messageLimit = 10) => {
   const messagesRef = collection(db, 'rooms', roomId, 'messages');
-  const q = query(messagesRef, orderBy('timestamp', 'asc'));
+
+  // limitToLast obtiene los últimos N documentos ordenados por timestamp
+  const q = query(
+    messagesRef,
+    orderBy('timestamp', 'asc'),
+    limitToLast(messageLimit)
+  );
 
   return onSnapshot(q, (snapshot) => {
     const messages = snapshot.docs.map(doc => ({
