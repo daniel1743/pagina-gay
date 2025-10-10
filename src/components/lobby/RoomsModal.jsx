@@ -12,11 +12,25 @@ import { subscribeToMultipleRoomCounts } from '@/services/presenceService';
 
 const roomsData = [
   {
+    id: 'santiago',
+    name: 'Santiago 🏙️',
+    description: 'Gays de Santiago - Capital de Chile',
+    icon: Users,
+    color: 'cyan'
+  },
+  {
+    id: 'valparaiso',
+    name: 'Valparaíso 🌊',
+    description: 'Gays de Valparaíso - Puerto y cerros',
+    icon: Users,
+    color: 'blue'
+  },
+  {
     id: 'conversas-libres',
     name: 'Conversas Libres',
     description: 'Chat general para todos los temas',
     icon: Hash,
-    color: 'cyan'
+    color: 'teal'
   },
   {
     id: 'amistad',

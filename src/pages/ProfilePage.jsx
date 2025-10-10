@@ -7,6 +7,7 @@ import { Button } from '@/components/ui/button';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { ArrowLeft, Crown, Shield, Camera, Edit, MessageSquare, CheckCircle } from 'lucide-react';
 import { toast } from '@/components/ui/use-toast';
+import ComingSoonModal from '@/components/ui/ComingSoonModal';
 import EditProfileModal from '@/components/profile/EditProfileModal';
 import AvatarSelector from '@/components/profile/AvatarSelector';
 import ProfileComments from '@/components/profile/ProfileComments';
@@ -16,12 +17,15 @@ const ProfilePage = () => {
   const { user, logout, updateProfile } = useAuth();
   const [isEditModalOpen, setEditModalOpen] = useState(false);
   const [isAvatarSelectorOpen, setAvatarSelectorOpen] = useState(false);
+  const [showComingSoon, setShowComingSoon] = useState(false);
+  const [comingSoonFeature, setComingSoonFeature] = useState({ name: '', description: '' });
 
   const handleVerification = () => {
-    toast({
-      title: "🚧 Verificación en desarrollo",
-      description: "Esta función estará disponible pronto. ¡Solicítala en tu próximo mensaje! 🚀",
+    setComingSoonFeature({
+      name: 'la verificación de cuenta',
+      description: 'Podrás verificar tu identidad para obtener una insignia de verificación y mayor confianza en la comunidad. ¡Pronto estará disponible!'
     });
+    setShowComingSoon(true);
   };
 
   const handleChangePicture = () => {
@@ -151,6 +155,13 @@ const ProfilePage = () => {
           onSelect={handleAvatarSelect}
         />
       )}
+
+      <ComingSoonModal
+        isOpen={showComingSoon}
+        onClose={() => setShowComingSoon(false)}
+        feature={comingSoonFeature.name}
+        description={comingSoonFeature.description}
+      />
     </>
   );
 };

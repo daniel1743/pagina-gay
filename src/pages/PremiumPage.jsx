@@ -6,10 +6,13 @@ import { useAuth } from '@/contexts/AuthContext';
 import { Button } from '@/components/ui/button';
 import { Check, Crown, ArrowLeft, Sparkles, Shield, Zap } from 'lucide-react';
 import { toast } from '@/components/ui/use-toast';
+import ComingSoonModal from '@/components/ui/ComingSoonModal';
 
 const PremiumPage = () => {
   const navigate = useNavigate();
   const { user, upgradeToPremium } = useAuth();
+  const [showComingSoon, setShowComingSoon] = React.useState(false);
+  const [comingSoonFeature, setComingSoonFeature] = React.useState({ name: '', description: '' });
 
   const features = [
     { icon: <Zap className="w-5 h-5" />, text: "Chat ilimitado sin restricciones" },
@@ -21,10 +24,11 @@ const PremiumPage = () => {
   ];
 
   const handleUpgrade = () => {
-    toast({
-      title: "🚧 Pagos en desarrollo",
-      description: "La integración de pagos estará disponible pronto. ¡Solicítala en tu próximo mensaje! 🚀",
+    setComingSoonFeature({
+      name: 'el sistema de pagos',
+      description: 'Estamos integrando pasarelas de pago seguras (Mercado Pago, WebPay) para que puedas actualizar a Premium de forma fácil y confiable. ¡Pronto podrás disfrutar de todos los beneficios!'
     });
+    setShowComingSoon(true);
   };
 
   const handleUpgradeDemo = () => {
@@ -152,6 +156,13 @@ const PremiumPage = () => {
           </motion.div>
         </div>
       </div>
+
+      <ComingSoonModal
+        isOpen={showComingSoon}
+        onClose={() => setShowComingSoon(false)}
+        feature={comingSoonFeature.name}
+        description={comingSoonFeature.description}
+      />
     </>
   );
 };

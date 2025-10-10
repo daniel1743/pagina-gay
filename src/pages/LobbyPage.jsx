@@ -12,6 +12,7 @@ import AjustesModal from '@/components/lobby/AjustesModal';
 import AdCarousel from '@/components/lobby/AdCarousel';
 import AdModal from '@/components/lobby/AdModal';
 import PWAInstallBanner from '@/components/ui/PWAInstallBanner';
+import ComingSoonModal from '@/components/ui/ComingSoonModal';
 import { toast } from '@/components/ui/use-toast';
 import { useAuth } from '@/contexts/AuthContext';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog';
@@ -62,7 +63,7 @@ const NewsTicker = () => {
   );
 };
 
-const VideoSection = () => {
+const VideoSection = ({ onComingSoon }) => {
   const videos = [
     { id: 1, title: "Marcha del Orgullo Santiago 2024 - Resumen y mejores momentos", thumbnailText: "🏳️‍🌈 Pride Santiago 2024", description: "Miles de personas marcharon por Alameda exigiendo igualdad de derechos" },
     { id: 2, title: "Testimonios: Vivir siendo LGBT+ en Chile", thumbnailText: "🎤 Voces de la comunidad", description: "Historias reales de jóvenes LGBT+ en Santiago y regiones" },
@@ -78,7 +79,7 @@ const VideoSection = () => {
             key={video.id}
             className="glass-effect rounded-2xl p-4 cursor-pointer hover:border-accent/50 transition-colors"
             whileHover={{ scale: 1.05, y: -5 }}
-            onClick={() => toast({ title: '🚧 Videos en desarrollo', description: 'Pronto podrás ver este video aquí.' })}
+            onClick={() => onComingSoon('la sección de videos', 'Pronto podrás ver contenido educativo, entretenimiento LGBT+ y testimonios de la comunidad directamente aquí.')}
           >
             <div className="aspect-video bg-gradient-to-br from-secondary to-secondary/50 rounded-lg mb-4 flex items-center justify-center border border-border">
               <span className="text-lg font-bold text-center px-4">{video.thumbnailText}</span>
@@ -100,14 +101,17 @@ const LobbyPage = () => {
   const [showAuthRequired, setShowAuthRequired] = useState(false);
   const [selectedAd, setSelectedAd] = useState(null);
   const [showAdModal, setShowAdModal] = useState(false);
+  const [showComingSoon, setShowComingSoon] = useState(false);
+  const [comingSoonFeature, setComingSoonFeature] = useState({ name: '', description: '' });
 
   const handleCardClick = (modalId) => {
     // "Próximamente" siempre es accesible
     if (modalId === 'ComingSoon') {
-        toast({
-            title: "🚧 ¡Próximamente!",
-            description: "Esta sección está en construcción. ¡Vuelve pronto!",
+        setComingSoonFeature({
+          name: 'las Comunidades',
+          description: 'Podrás crear y unirte a grupos más pequeños con tus intereses específicos: hobbies, deportes, series, política, y mucho más.'
         });
+        setShowComingSoon(true);
         return;
     }
 
@@ -142,6 +146,11 @@ const LobbyPage = () => {
   const closeAdModal = () => {
     setShowAdModal(false);
     setSelectedAd(null);
+  };
+
+  const handleFeatureComingSoon = (featureName, description = '') => {
+    setComingSoonFeature({ name: featureName, description });
+    setShowComingSoon(true);
   };
 
   return (
@@ -186,7 +195,7 @@ const LobbyPage = () => {
         </div>
         
         <div className="mb-16">
-          <VideoSection />
+          <VideoSection onComingSoon={handleFeatureComingSoon} />
         </div>
 
       </div>
@@ -244,6 +253,14 @@ const LobbyPage = () => {
 
       {/* PWA Install Banner */}
       <PWAInstallBanner />
+
+      {/* Coming Soon Modal */}
+      <ComingSoonModal
+        isOpen={showComingSoon}
+        onClose={() => setShowComingSoon(false)}
+        feature={comingSoonFeature.name}
+        description={comingSoonFeature.description}
+      />
 
     </>
   );

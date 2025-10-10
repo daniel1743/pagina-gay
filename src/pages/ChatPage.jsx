@@ -23,6 +23,8 @@ const roomWelcomeMessages = {
   'gaming': '¡Gamers, uníos! ¿A qué están jugando?',
   'mas-30': 'Espacio para mayores de 30. ¡Comparte tus experiencias!',
   'amistad': '¿Buscas nuevos amigos? ¡Este es el lugar!',
+  'santiago': '🏙️ ¡Bienvenido a la sala de Santiago! Gays de la capital, ¿qué tal el día?',
+  'valparaiso': '🌊 ¡Bienvenido a la sala de Valparaíso! Puerto, cerros y buena onda.',
   'osos-activos': 'Sala para osos activos y quienes los buscan. ¡Grrr!',
   'pasivos-buscando': 'Pasivos buscando activos. ¡Encuentra tu match!',
   'versatiles': 'Para los versátiles que disfrutan de todo. ¡Bienvenidos!',
@@ -40,7 +42,8 @@ const ChatPage = () => {
   const [selectedUser, setSelectedUser] = useState(null);
   const [userActionsTarget, setUserActionsTarget] = useState(null);
   const [reportTarget, setReportTarget] = useState(null);
-  const [sidebarOpen, setSidebarOpen] = useState(true); // Abierto por defecto en desktop
+  // Sidebar cerrado en móvil (< 1024px), abierto en desktop
+  const [sidebarOpen, setSidebarOpen] = useState(window.innerWidth >= 1024);
   const [privateChatRequest, setPrivateChatRequest] = useState(null);
   const [activePrivateChat, setActivePrivateChat] = useState(null);
   const [showVerificationModal, setShowVerificationModal] = useState(false);
@@ -237,7 +240,7 @@ const ChatPage = () => {
         <meta name="description" content={`Chatea en tiempo real en la sala ${currentRoom} de Chactivo.`} />
       </Helmet>
 
-      <div className="h-screen flex overflow-hidden bg-background">
+      <div className="h-screen flex overflow-hidden bg-background pt-20">
         <ChatSidebar
           currentRoom={currentRoom}
           setCurrentRoom={setCurrentRoom}

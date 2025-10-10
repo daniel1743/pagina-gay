@@ -83,8 +83,8 @@ const ChatMessages = ({ messages, currentUserId, onUserClick, onReport, onPrivat
                 </Avatar>
             </motion.div>
 
-            <div className={`group flex flex-col ${isOwn ? 'items-end' : 'items-start'} max-w-[70%] min-w-0`}>
-              <div className="flex items-center gap-1.5 mb-0.5">
+            <div className={`group flex flex-col ${isOwn ? 'items-end' : 'items-start'} max-w-[85%] sm:max-w-[75%] md:max-w-[65%] min-w-0`}>
+              <div className="flex items-center gap-1.5 mb-0.5 flex-wrap">
                 <span className="text-[10px] font-semibold text-foreground flex items-center gap-1">
                   {message.username}
                   {isUserPremium && <CheckCircle className="w-2.5 h-2.5 text-cyan-400" />}
@@ -103,16 +103,16 @@ const ChatMessages = ({ messages, currentUserId, onUserClick, onReport, onPrivat
 
               <motion.div
                 style={isOwn ? getBubbleStyle() : {}}
-                className={`relative rounded-xl px-3 py-1.5 max-w-[70%] break-words text-sm leading-snug ${isOwn ? 'magenta-gradient text-white' : 'bg-secondary text-foreground border border-border'} ${!isOwn ? 'group-hover:border-cyan-400 border-2 transition-all duration-200' : ''}`}
+                className={`relative rounded-xl px-3 py-2 w-full break-words text-sm leading-relaxed ${isOwn ? 'magenta-gradient text-white' : 'bg-secondary text-foreground border border-border'} ${!isOwn ? 'group-hover:border-cyan-400 border-2 transition-all duration-200' : ''}`}
                 whileHover={!isOwn ? { scale: 1.01, borderColor: 'rgb(34, 211, 238)' } : {}}
                 transition={{ type: 'spring', stiffness: 400 }}
               >
                 <div
-                  className="cursor-pointer"
+                  className="cursor-pointer break-words overflow-wrap-anywhere"
                   onClick={() => onPrivateChat({ username: message.username, avatar: message.avatar, userId: message.userId, isPremium: isUserPremium })}
                 >
                   {message.type === 'text' && (
-                    <p className="text-sm">{message.content}</p>
+                    <p className="text-sm whitespace-pre-wrap break-words">{message.content}</p>
                   )}
                   {message.type === 'gif' && (
                     <img src={message.content} alt="GIF" className="rounded-lg max-w-xs" />

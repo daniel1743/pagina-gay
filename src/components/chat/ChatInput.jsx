@@ -3,6 +3,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Send, Smile, Mic, Image, MessageSquarePlus, X } from 'lucide-react';
 import { toast } from '@/components/ui/use-toast';
+import ComingSoonModal from '@/components/ui/ComingSoonModal';
 import { EmojiStyle, Categories } from 'emoji-picker-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useAuth } from '@/contexts/AuthContext';
@@ -46,6 +47,8 @@ const ChatInput = ({ onSendMessage }) => {
   const [message, setMessage] = useState('');
   const [showEmojiPicker, setShowEmojiPicker] = useState(false);
   const [showQuickPhrases, setShowQuickPhrases] = useState(false);
+  const [showComingSoon, setShowComingSoon] = useState(false);
+  const [comingSoonFeature, setComingSoonFeature] = useState({ name: '', description: '' });
   const wrapperRef = useRef(null);
 
   useEffect(() => {
@@ -119,10 +122,16 @@ const ChatInput = ({ onSendMessage }) => {
       });
       return;
     }
-    toast({
-        title: `🚧 ${implementationMessage} en desarrollo`,
-        description: "Esta función estará disponible pronto. ¡Solicítala en tu próximo mensaje! 🚀",
-      });
+    // Show Coming Soon modal for premium users
+    const descriptions = {
+      'fotos': 'Podrás compartir imágenes directamente en el chat. Sube fotos desde tu dispositivo o cámara.',
+      'mensajes de voz': 'Envía mensajes de voz de hasta 60 segundos. Perfecto para cuando escribir no es suficiente.'
+    };
+    setComingSoonFeature({
+      name: implementationMessage,
+      description: descriptions[featureName] || 'Esta función estará disponible pronto.'
+    });
+    setShowComingSoon(true);
   }
 
   // Memoizar las categorías para evitar recalcularlas en cada render
@@ -272,6 +281,13 @@ const ChatInput = ({ onSendMessage }) => {
           </Button>
         </motion.div>
       </form>
+
+      <ComingSoonModal
+        isOpen={showComingSoon}
+        onClose={() => setShowComingSoon(false)}
+        feature={comingSoonFeature.name}
+        description={comingSoonFeature.description}
+      />
     </div>
   );
 };

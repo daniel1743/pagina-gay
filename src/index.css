@@ -123,7 +123,11 @@ body {
   }
 
   .chat-bubble {
-    @apply rounded-xl px-3 py-1.5 max-w-[70%] break-words text-sm leading-snug;
+    @apply rounded-xl px-3 py-2 w-full break-words text-sm leading-relaxed;
+    word-wrap: break-word;
+    overflow-wrap: break-word;
+    word-break: break-word;
+    hyphens: auto;
   }
 
   .scrollbar-hide::-webkit-scrollbar {

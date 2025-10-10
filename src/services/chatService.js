@@ -39,24 +39,17 @@ export const sendMessage = async (roomId, messageData, isAnonymous = false) => {
     };
 
     if (isAnonymous && auth.currentUser) {
-      // Para usuarios anónimos: usar transacción para incrementar contador
-      const result = await runTransaction(db, async (transaction) => {
-        const guestRef = doc(db, 'guests', auth.currentUser.uid);
-        const guestDoc = await transaction.get(guestRef);
+      // OPTIMIZACIÓN: Enviar mensaje primero (rápido), actualizar contador después (asíncrono)
+      const docRef = await addDoc(messagesRef, message);
 
-        const currentCount = guestDoc.exists() ? (guestDoc.data().messageCount || 0) : 0;
+      // Actualizar contador en segundo plano sin bloquear
+      setDoc(
+        doc(db, 'guests', auth.currentUser.uid),
+        { messageCount: increment(1), lastMessageAt: serverTimestamp() },
+        { merge: true }
+      ).catch(err => console.error('Error updating guest count:', err));
 
-        // Incrementar contador
-        transaction.set(guestRef, { messageCount: currentCount + 1 }, { merge: true });
-
-        // Crear mensaje
-        const newMessageRef = doc(messagesRef);
-        transaction.set(newMessageRef, message);
-
-        return { id: newMessageRef.id, ...message };
-      });
-
-      return result;
+      return { id: docRef.id, ...message };
     } else {
       // Para usuarios registrados: crear mensaje directamente
       const docRef = await addDoc(messagesRef, message);

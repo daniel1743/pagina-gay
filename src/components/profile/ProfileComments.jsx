@@ -6,6 +6,7 @@ import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
 import { Send, ThumbsUp, ThumbsDown } from 'lucide-react';
 import { toast } from '@/components/ui/use-toast';
+import ComingSoonModal from '@/components/ui/ComingSoonModal';
 
 const initialComments = [
   { id: 1, author: 'Carlos', avatarSeed: 'Carlos', text: '¡Un perfil genial! Muy buena onda.', likes: 12, dislikes: 1 },
@@ -16,6 +17,8 @@ const ProfileComments = () => {
   const { user } = useAuth();
   const [comments, setComments] = useState(initialComments);
   const [newComment, setNewComment] = useState('');
+  const [showComingSoon, setShowComingSoon] = useState(false);
+  const [comingSoonFeature, setComingSoonFeature] = useState({ name: '', description: '' });
 
   const handleSubmitComment = (e) => {
     e.preventDefault();
@@ -44,10 +47,11 @@ const ProfileComments = () => {
   };
 
   const handleReaction = (commentId, reaction) => {
-     toast({
-        title: '🚧 Función en desarrollo',
-        description: 'Pronto podrás reaccionar a los comentarios.',
-      });
+    setComingSoonFeature({
+      name: 'las reacciones a comentarios',
+      description: 'Pronto podrás dar like o dislike a los comentarios y ver las reacciones de otros usuarios en tiempo real.'
+    });
+    setShowComingSoon(true);
   }
 
   return (
@@ -99,6 +103,13 @@ const ProfileComments = () => {
           ))}
         </AnimatePresence>
       </div>
+
+      <ComingSoonModal
+        isOpen={showComingSoon}
+        onClose={() => setShowComingSoon(false)}
+        feature={comingSoonFeature.name}
+        description={comingSoonFeature.description}
+      />
     </div>
   );
 };
