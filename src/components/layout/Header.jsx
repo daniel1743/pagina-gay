@@ -27,7 +27,12 @@ const Header = () => {
           <div className="w-10 h-10 flex items-center justify-center">
             <HeartPulse className="w-9 h-9 text-[#E4007C]"/>
           </div>
-          <h1 className="text-2xl font-bold text-foreground hidden sm:block">Chactivo</h1>
+          <div className="hidden sm:flex items-center gap-2">
+            <h1 className="text-2xl font-bold text-foreground">Chactivo</h1>
+            <span className="px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider bg-gradient-to-r from-amber-400 to-orange-500 text-gray-900 rounded-md shadow-sm animate-pulse">
+              Beta
+            </span>
+          </div>
         </div>
 
         <div className="flex items-center gap-2 sm:gap-4">

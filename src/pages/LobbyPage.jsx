@@ -11,6 +11,7 @@ import SaludMentalModal from '@/components/lobby/SaludMentalModal';
 import AjustesModal from '@/components/lobby/AjustesModal';
 import AdCarousel from '@/components/lobby/AdCarousel';
 import AdModal from '@/components/lobby/AdModal';
+import PWAInstallBanner from '@/components/ui/PWAInstallBanner';
 import { toast } from '@/components/ui/use-toast';
 import { useAuth } from '@/contexts/AuthContext';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog';
@@ -27,11 +28,14 @@ const cardData = [
 
 const NewsTicker = () => {
   const newsItems = [
-    { id: 1, text: "Noticia de Último Minuto: Nueva Ley de Igualdad Aprobada." },
-    { id: 2, text: "Este Viernes: Fiesta Flúor en Club Divino. ¡No te la pierdas!" },
-    { id: 3, text: "Charla sobre salud sexual este miércoles vía Zoom. Link en 'Eventos'." },
-    { id: 4, text: "Campaña de donación de sangre para la comunidad. ¡Participa!" },
-    { id: 5, text: "Chactivo busca moderadores voluntarios. Postula en nuestro Discord." },
+    { id: 1, text: "🏳️‍🌈 Chile avanza en reconocimiento de familias homoparentales - Proyecto de ley ingresa al Congreso" },
+    { id: 2, text: "🎉 Este sábado: Fiesta Pride en Blondie - Providencia, Santiago. DJs invitados desde las 23:00hrs" },
+    { id: 3, text: "💉 Campaña de testeo VIH gratuito en Fundación Savia - Barrio Bellavista, miércoles 10-18hrs" },
+    { id: 4, text: "📚 Charla virtual sobre salud mental LGBT+ este jueves 19:00hrs. Cupos limitados - Inscríbete en 'Eventos'" },
+    { id: 5, text: "🌈 Marcha del Orgullo Santiago 2025 confirmada para junio - Convocatoria abierta para organizaciones" },
+    { id: 6, text: "⚽ Liga deportiva LGBT+ Chile abre inscripciones - Fútbol, vóley y básquet. Info en Eventos" },
+    { id: 7, text: "🎭 Festival de cine Diversa presenta películas queer latinoamericanas - Centro Cultural La Moneda" },
+    { id: 8, text: "💼 Feria laboral inclusiva LGBT+ en Mall Plaza Vespucio - Empresas certificadas OTD este viernes" },
   ];
 
   return (
@@ -60,9 +64,9 @@ const NewsTicker = () => {
 
 const VideoSection = () => {
   const videos = [
-    { id: 1, title: "Resumen Marcha del Orgullo 2024", thumbnailText: "Resumen Marcha 2024" },
-    { id: 2, title: "Entrevista a activista LGBTQ+", thumbnailText: "Entrevista a Activista" },
-    { id: 3, title: "Tips para una cita segura", thumbnailText: "Citas Seguras" },
+    { id: 1, title: "Marcha del Orgullo Santiago 2024 - Resumen y mejores momentos", thumbnailText: "🏳️‍🌈 Pride Santiago 2024", description: "Miles de personas marcharon por Alameda exigiendo igualdad de derechos" },
+    { id: 2, title: "Testimonios: Vivir siendo LGBT+ en Chile", thumbnailText: "🎤 Voces de la comunidad", description: "Historias reales de jóvenes LGBT+ en Santiago y regiones" },
+    { id: 3, title: "Guía práctica: Citas seguras y consentimiento", thumbnailText: "💕 Citas Seguras", description: "Tips de seguridad para encuentros, apps de citas y red flags a detectar" },
   ];
 
   return (
@@ -70,16 +74,17 @@ const VideoSection = () => {
       <h2 className="text-3xl font-bold text-center mb-8">Videos Destacados</h2>
       <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
         {videos.map(video => (
-          <motion.div 
+          <motion.div
             key={video.id}
-            className="glass-effect rounded-2xl p-4 cursor-pointer"
+            className="glass-effect rounded-2xl p-4 cursor-pointer hover:border-accent/50 transition-colors"
             whileHover={{ scale: 1.05, y: -5 }}
             onClick={() => toast({ title: '🚧 Videos en desarrollo', description: 'Pronto podrás ver este video aquí.' })}
           >
-            <div className="aspect-video bg-secondary rounded-lg mb-4 flex items-center justify-center">
-              <span className="text-muted-foreground text-center px-2">{video.thumbnailText}</span>
+            <div className="aspect-video bg-gradient-to-br from-secondary to-secondary/50 rounded-lg mb-4 flex items-center justify-center border border-border">
+              <span className="text-lg font-bold text-center px-4">{video.thumbnailText}</span>
             </div>
-            <h3 className="font-bold text-lg">{video.title}</h3>
+            <h3 className="font-bold text-lg mb-2 text-foreground">{video.title}</h3>
+            <p className="text-sm text-muted-foreground leading-relaxed">{video.description}</p>
           </motion.div>
         ))}
       </div>
@@ -236,6 +241,9 @@ const LobbyPage = () => {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* PWA Install Banner */}
+      <PWAInstallBanner />
 
     </>
   );

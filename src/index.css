@@ -42,24 +42,25 @@
 
   --card: 0 0% 100%;
   --card-foreground: var(--foreground);
-  
+
   --popover: var(--card);
   --popover-foreground: var(--card-foreground);
 
-  --primary: var(--foreground);
-  --primary-foreground: var(--background);
+  --primary: 260 19% 15%; /* Más oscuro para mejor contraste */
+  --primary-foreground: 0 0% 100%;
 
-  --secondary: 0 0% 95%;
-  --secondary-foreground: var(--foreground);
+  --secondary: 0 0% 90%; /* Más oscuro para mejor visibilidad */
+  --secondary-foreground: 260 19% 10%;
 
-  --muted: var(--secondary);
-  --muted-foreground: 0 0% 45%;
-  
-  --accent: 323 100% 45%;
-  --accent-foreground: var(--background);
+  --muted: 0 0% 92%;
+  --muted-foreground: 0 0% 35%; /* Más oscuro para cumplir WCAG AA */
 
-  --border: 0 0% 90%;
-  --input: var(--border);
+  --accent: 323 100% 40%; /* Más oscuro para mejor contraste sobre fondo claro */
+  --accent-foreground: 0 0% 100%;
+
+  --border: 0 0% 75%; /* Bordes más visibles */
+  --input: 0 0% 85%;
+  --ring: 323 100% 40%;
 }
 
 
@@ -155,5 +156,53 @@ body {
 
   .carousel-container {
     mask-image: linear-gradient(to right, transparent, black 20%, black 80%, transparent);
+  }
+
+  /* Gradiente dorado con alto contraste para accesibilidad */
+  .gold-gradient {
+    background: linear-gradient(135deg, #FFD700 0%, #FFA500 50%, #FF8C00 100%);
+    color: #1a0f0a !important;
+    font-weight: 700;
+    text-shadow: 0 1px 2px rgba(0, 0, 0, 0.1);
+  }
+
+  .gold-gradient:hover {
+    background: linear-gradient(135deg, #FFE44D 0%, #FFB84D 50%, #FFA04D 100%);
+  }
+
+  /* Asegurar contraste suficiente en modo claro para botones outline */
+  .light .button-outline-light {
+    border: 2px solid hsl(260 19% 20%) !important;
+    color: hsl(260 19% 15%) !important;
+    background: hsl(0 0% 100%) !important;
+  }
+
+  .light .button-outline-light:hover {
+    background: hsl(260 19% 95%) !important;
+    border-color: hsl(260 19% 10%) !important;
+  }
+
+  /* Mejorar contraste de bg-accent en modo claro */
+  .light .bg-accent-accessible {
+    background: hsl(323 100% 40%) !important;
+    color: hsl(0 0% 100%) !important;
+  }
+
+  .light .bg-accent-accessible:hover {
+    background: hsl(323 100% 35%) !important;
+  }
+
+  /* Animación shimmer para efectos de brillo */
+  @keyframes shimmer {
+    0% {
+      background-position: -200% 0;
+    }
+    100% {
+      background-position: 200% 0;
+    }
+  }
+
+  .animate-shimmer {
+    animation: shimmer 3s ease-in-out infinite;
   }
 }
