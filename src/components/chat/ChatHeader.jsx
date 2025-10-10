@@ -17,7 +17,7 @@ const roomNames = {
   'morbosear': 'Morbosear',
 };
 
-const ChatHeader = ({ currentRoom, onMenuClick }) => {
+const ChatHeader = ({ currentRoom, onMenuClick, onOpenPrivateChat }) => {
   const navigate = useNavigate();
 
   return (
@@ -47,7 +47,7 @@ const ChatHeader = ({ currentRoom, onMenuClick }) => {
       </div>
 
       <div className="flex items-center gap-2">
-        <NotificationBell />
+        <NotificationBell onOpenPrivateChat={onOpenPrivateChat} />
         <Button
           variant="ghost"
           size="icon"

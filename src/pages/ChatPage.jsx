@@ -218,6 +218,17 @@ const ChatPage = () => {
     setPrivateChatRequest(null);
   };
 
+  /**
+   * Abrir chat privado desde notificaciones
+   */
+  const handleOpenPrivateChatFromNotification = ({ chatId, partner }) => {
+    setActivePrivateChat({
+      chatId,
+      user: user,
+      partner: partner
+    });
+  };
+
   return (
     <>
       <Helmet>
@@ -237,6 +248,7 @@ const ChatPage = () => {
           <ChatHeader
             currentRoom={currentRoom}
             onMenuClick={() => setSidebarOpen(true)}
+            onOpenPrivateChat={handleOpenPrivateChatFromNotification}
           />
 
           <ChatMessages
@@ -249,7 +261,7 @@ const ChatPage = () => {
             messagesEndRef={messagesEndRef}
           />
 
-          <TypingIndicator />
+          <TypingIndicator typingUsers={[]} />
 
           <ChatInput onSendMessage={handleSendMessage} />
         </div>

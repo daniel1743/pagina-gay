@@ -1,22 +1,47 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { Bell } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useAuth } from '@/contexts/AuthContext';
 import { subscribeToNotifications } from '@/services/socialService';
+import { toast } from '@/components/ui/use-toast';
 import NotificationsPanel from './NotificationsPanel';
 
-const NotificationBell = () => {
+const NotificationBell = ({ onOpenPrivateChat }) => {
   const { user } = useAuth();
   const [isOpen, setIsOpen] = useState(false);
   const [notifications, setNotifications] = useState([]);
   const [unreadCount, setUnreadCount] = useState(0);
+  const previousCountRef = useRef(0);
 
   useEffect(() => {
     if (!user || user.isGuest || user.isAnonymous) return;
 
     const unsubscribe = subscribeToNotifications(user.id, (newNotifications) => {
+      const currentCount = newNotifications.length;
+      const previousCount = previousCountRef.current;
+
+      // Si hay nuevas notificaciones, mostrar toast
+      if (currentCount > previousCount && previousCount > 0) {
+        const latestNotification = newNotifications[0];
+
+        if (latestNotification.type === 'direct_message') {
+          toast({
+            title: `💬 Nuevo mensaje de ${latestNotification.fromUsername || 'un usuario'}`,
+            description: latestNotification.content?.substring(0, 100) || '',
+            duration: 5000,
+          });
+        } else if (latestNotification.type === 'private_chat_request') {
+          toast({
+            title: `📞 Solicitud de chat privado`,
+            description: `${latestNotification.fromUsername || 'Un usuario'} quiere conectar contigo`,
+            duration: 5000,
+          });
+        }
+      }
+
+      previousCountRef.current = currentCount;
       setNotifications(newNotifications);
       setUnreadCount(newNotifications.filter((n) => !n.read).length);
     });
@@ -80,6 +105,7 @@ const NotificationBell = () => {
         isOpen={isOpen}
         onClose={() => setIsOpen(false)}
         notifications={notifications}
+        onOpenPrivateChat={onOpenPrivateChat}
       />
     </>
   );

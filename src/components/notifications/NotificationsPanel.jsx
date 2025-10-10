@@ -10,7 +10,7 @@ import { toast } from '@/components/ui/use-toast';
 import { formatDistanceToNow } from 'date-fns';
 import { es } from 'date-fns/locale';
 
-const NotificationsPanel = ({ isOpen, onClose, notifications }) => {
+const NotificationsPanel = ({ isOpen, onClose, notifications, onOpenPrivateChat }) => {
   const { user } = useAuth();
 
   const handleAcceptPrivateChat = async (notification) => {
@@ -22,8 +22,18 @@ const NotificationsPanel = ({ isOpen, onClose, notifications }) => {
         description: `Ahora estás conectado con ${notification.fromUsername}`,
       });
 
-      // Aquí podrías abrir automáticamente la ventana de chat privado
-      // onOpenPrivateChat(result.chatId);
+      // Abrir ventana de chat privado automáticamente
+      if (onOpenPrivateChat && result.chatId) {
+        onOpenPrivateChat({
+          chatId: result.chatId,
+          partner: {
+            userId: notification.from,
+            username: notification.fromUsername,
+            avatar: notification.fromAvatar,
+            isPremium: notification.fromIsPremium,
+          }
+        });
+      }
     } catch (error) {
       toast({
         title: "Error",
