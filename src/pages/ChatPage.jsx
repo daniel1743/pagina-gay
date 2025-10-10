@@ -222,6 +222,7 @@ const ChatPage = () => {
    * Abrir chat privado desde notificaciones
    */
   const handleOpenPrivateChatFromNotification = ({ chatId, partner }) => {
+    console.log('[ChatPage] Opening private chat with chatId:', chatId, 'partner:', partner);
     setActivePrivateChat({
       chatId,
       user: user,
@@ -307,12 +308,15 @@ const ChatPage = () => {
         )}
 
         {activePrivateChat && (
-          <PrivateChatWindow
-            user={activePrivateChat.user}
-            partner={activePrivateChat.partner}
-            chatId={activePrivateChat.chatId}
-            onClose={() => setActivePrivateChat(null)}
-          />
+          <>
+            {console.log('[ChatPage] Rendering PrivateChatWindow with:', activePrivateChat)}
+            <PrivateChatWindow
+              user={activePrivateChat.user}
+              partner={activePrivateChat.partner}
+              chatId={activePrivateChat.chatId}
+              onClose={() => setActivePrivateChat(null)}
+            />
+          </>
         )}
       </div>
     </>
