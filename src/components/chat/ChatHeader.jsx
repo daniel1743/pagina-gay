@@ -2,6 +2,7 @@ import React from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { Menu, Home, ArrowLeft } from 'lucide-react';
+import NotificationBell from '@/components/notifications/NotificationBell';
 
 const roomNames = {
   'conversas-libres': 'Conversas Libres',
@@ -46,6 +47,7 @@ const ChatHeader = ({ currentRoom, onMenuClick }) => {
       </div>
 
       <div className="flex items-center gap-2">
+        <NotificationBell />
         <Button
           variant="ghost"
           size="icon"

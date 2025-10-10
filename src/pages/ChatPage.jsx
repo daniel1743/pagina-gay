@@ -7,6 +7,7 @@ import ChatHeader from '@/components/chat/ChatHeader';
 import ChatMessages from '@/components/chat/ChatMessages';
 import ChatInput from '@/components/chat/ChatInput';
 import UserProfileModal from '@/components/chat/UserProfileModal';
+import UserActionsModal from '@/components/chat/UserActionsModal';
 import ReportModal from '@/components/chat/ReportModal';
 import PrivateChatRequestModal from '@/components/chat/PrivateChatRequestModal';
 import VerificationModal from '@/components/chat/VerificationModal';
@@ -36,6 +37,7 @@ const ChatPage = () => {
   const [currentRoom, setCurrentRoom] = useState(roomId);
   const [messages, setMessages] = useState([]);
   const [selectedUser, setSelectedUser] = useState(null);
+  const [userActionsTarget, setUserActionsTarget] = useState(null);
   const [reportTarget, setReportTarget] = useState(null);
   const [sidebarOpen, setSidebarOpen] = useState(true); // Abierto por defecto en desktop
   const [privateChatRequest, setPrivateChatRequest] = useState(null);
@@ -240,7 +242,7 @@ const ChatPage = () => {
           <ChatMessages
             messages={messages}
             currentUserId={user.id}
-            onUserClick={setSelectedUser}
+            onUserClick={setUserActionsTarget}
             onReport={setReportTarget}
             onPrivateChat={handlePrivateChatRequest}
             onReaction={handleMessageReaction}
@@ -251,6 +253,14 @@ const ChatPage = () => {
 
           <ChatInput onSendMessage={handleSendMessage} />
         </div>
+
+        {userActionsTarget && (
+          <UserActionsModal
+            user={userActionsTarget}
+            onClose={() => setUserActionsTarget(null)}
+            onViewProfile={() => setSelectedUser(userActionsTarget)}
+          />
+        )}
 
         {selectedUser && (
           <UserProfileModal
