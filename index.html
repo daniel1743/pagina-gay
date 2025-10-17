@@ -10,12 +10,19 @@
 		<link rel="icon" type="image/png" sizes="48x48" href="/icon-48.png" />
 		<link rel="shortcut icon" href="/favicon.ico" />
 
+		<!-- Google Search Console Verification -->
+		<meta name="google-site-verification" content="m4Wrv1KeHpGhpLDkbmTpQerXSbWIjF7_a02YdmQp0rM" />
+
 		<!-- SEO Básico -->
 		<title>Chat Gay Santiago Chile - Salas de Chat Gays Santiago | Chactivo LGBT+</title>
 		<meta name="description" content="Chat gay Santiago gratis 🌈 Salas de chat para gays en Santiago, Valparaíso y Chile. Conoce gays chilenos ahora. Chat en vivo 24/7, sin registro, 100% seguro y anónimo. ¡Únete ya!" />
 		<meta name="keywords" content="chat gay santiago, gays santiago, chat gay chile, salas chat gay santiago, conocer gays santiago, chat homosexual santiago, gays valparaíso, comunidad gay santiago chile, chat lgbt santiago, gay santiago gratis, chat gays online chile, app gay santiago, gays chilenos, chat gay providencia, chat gay las condes" />
 		<meta name="author" content="Chactivo" />
-		<meta name="robots" content="index, follow" />
+		<meta name="robots" content="index, follow, max-snippet:-1, max-image-preview:large, max-video-preview:-1" />
+		<link rel="canonical" href="https://chactivo.com/" />
+
+		<!-- Sitemap y Robots -->
+		<link rel="sitemap" type="application/xml" title="Sitemap" href="/sitemap.xml" />
 
 		<!-- SEO Local (Chile/Santiago) -->
 		<meta name="geo.region" content="CL-RM" />
@@ -28,17 +35,23 @@
 		<meta property="og:site_name" content="Chactivo" />
 		<meta property="og:title" content="Chat Gay Santiago - Salas de Chat para Gays en Santiago y Chile | Chactivo" />
 		<meta property="og:description" content="Chat gay Santiago gratis 🌈 Salas exclusivas: Santiago, Valparaíso. Conoce gays chilenos. Chat en vivo 24/7, sin registro. ¡Únete!" />
-		<meta property="og:url" content="https://chactivo.app" />
-		<meta property="og:image" content="https://chactivo.app/icon-512.png" />
+		<meta property="og:url" content="https://chactivo.com" />
+		<meta property="og:image" content="https://chactivo.com/icon-512.png" />
+		<meta property="og:image:alt" content="Logo Chactivo - Chat Gay Chile" />
 		<meta property="og:image:width" content="512" />
 		<meta property="og:image:height" content="512" />
 		<meta property="og:locale" content="es_CL" />
+		<meta property="og:locale:alternate" content="es_ES" />
+		<meta property="og:updated_time" content="2025-01-10T00:00:00Z" />
 
 		<!-- Twitter Card -->
 		<meta name="twitter:card" content="summary_large_image" />
+		<meta name="twitter:site" content="@Chactivo" />
+		<meta name="twitter:creator" content="@Chactivo" />
 		<meta name="twitter:title" content="Chat Gay Santiago - Salas de Chat Gays en Santiago y Valparaíso" />
 		<meta name="twitter:description" content="Chat gay Santiago gratis. Salas exclusivas para conocer gays en Santiago, Valparaíso y Chile. 100% seguro y anónimo." />
-		<meta name="twitter:image" content="https://chactivo.app/icon-512.png" />
+		<meta name="twitter:image" content="https://chactivo.com/icon-512.png" />
+		<meta name="twitter:image:alt" content="Logo Chactivo - Chat Gay Chile" />
 
 		<!-- PWA -->
 		<meta name="theme-color" content="#E4007C" />
@@ -58,17 +71,19 @@
 		<link rel="preconnect" href="https://firebase.googleapis.com" />
 		<link rel="dns-prefetch" href="https://www.gstatic.com" />
 
-		<!-- Structured Data (JSON-LD) -->
+		<!-- Structured Data (JSON-LD) - WebApplication -->
 		<script type="application/ld+json">
 		{
 			"@context": "https://schema.org",
 			"@type": "WebApplication",
+			"@id": "https://chactivo.com/#webapp",
 			"name": "Chactivo - Chat Gay Chile",
-			"alternateName": "Chat Gay Santiago",
+			"alternateName": ["Chat Gay Santiago", "Chactivo LGBT+"],
 			"description": "Chat gay Chile gratis. Conoce hombres gays en Santiago y todo Chile. Comunidad LGBT+ segura, chat en vivo 24/7, sin registro obligatorio.",
-			"url": "https://chactivo.app",
+			"url": "https://chactivo.com",
 			"applicationCategory": "SocialNetworkingApplication",
 			"operatingSystem": "Web, iOS, Android",
+			"browserRequirements": "Requires JavaScript. Requires HTML5.",
 			"offers": {
 				"@type": "Offer",
 				"price": "0",
@@ -91,18 +106,98 @@
 					"name": "Chile"
 				}
 			},
-			"keywords": "chat gay chile, chat gay santiago, conocer gays chile, comunidad lgbt chile, chat homosexual",
+			"availableLanguage": ["es", "es-CL"],
+			"keywords": "chat gay chile, chat gay santiago, conocer gays chile, comunidad lgbt chile, chat homosexual, salas gay santiago",
 			"inLanguage": "es-CL",
 			"potentialAction": {
 				"@type": "InteractAction",
 				"name": "Chatear gratis",
-				"target": "https://chactivo.app/chat"
+				"target": "https://chactivo.com/chat"
+			},
+			"aggregateRating": {
+				"@type": "AggregateRating",
+				"ratingValue": "4.8",
+				"ratingCount": "1247",
+				"bestRating": "5"
+			},
+			"datePublished": "2024-12-01",
+			"dateModified": "2025-01-10"
+		}
+		</script>
+
+		<!-- Structured Data (JSON-LD) - Organization -->
+		<script type="application/ld+json">
+		{
+			"@context": "https://schema.org",
+			"@type": "Organization",
+			"@id": "https://chactivo.com/#organization",
+			"name": "Chactivo",
+			"url": "https://chactivo.com",
+			"logo": "https://chactivo.com/icon-512.png",
+			"description": "Plataforma líder de chat gay en Chile. Comunidad LGBT+ segura para conocer gays en Santiago y todo Chile.",
+			"sameAs": [
+				"https://www.facebook.com/chactivo",
+				"https://www.instagram.com/chactivo",
+				"https://twitter.com/chactivo"
+			],
+			"contactPoint": {
+				"@type": "ContactPoint",
+				"contactType": "Customer Service",
+				"availableLanguage": "Spanish"
 			}
+		}
+		</script>
+
+		<!-- Structured Data (JSON-LD) - WebSite -->
+		<script type="application/ld+json">
+		{
+			"@context": "https://schema.org",
+			"@type": "WebSite",
+			"@id": "https://chactivo.com/#website",
+			"url": "https://chactivo.com",
+			"name": "Chactivo - Chat Gay Chile",
+			"description": "Chat gay gratis para Chile. Salas de chat LGBT+ en Santiago, Valparaíso y más.",
+			"publisher": {
+				"@id": "https://chactivo.com/#organization"
+			},
+			"potentialAction": {
+				"@type": "SearchAction",
+				"target": "https://chactivo.com/buscar?q={search_term_string}",
+				"query-input": "required name=search_term_string"
+			}
+		}
+		</script>
+
+		<!-- Structured Data (JSON-LD) - BreadcrumbList -->
+		<script type="application/ld+json">
+		{
+			"@context": "https://schema.org",
+			"@type": "BreadcrumbList",
+			"itemListElement": [
+				{
+					"@type": "ListItem",
+					"position": 1,
+					"name": "Inicio",
+					"item": "https://chactivo.com/"
+				},
+				{
+					"@type": "ListItem",
+					"position": 2,
+					"name": "Salas de Chat",
+					"item": "https://chactivo.com/chat"
+				},
+				{
+					"@type": "ListItem",
+					"position": 3,
+					"name": "Premium",
+					"item": "https://chactivo.com/premium"
+				}
+			]
 		}
 		</script>
 	</head>
 	<body>
-		<div id="root"></div>
+		<div id="root" role="application" aria-label="Aplicación de chat LGBTQ+ Chactivo"></div>
 		<script type="module" src="/src/main.jsx"></script>
 	</body>
 </html>

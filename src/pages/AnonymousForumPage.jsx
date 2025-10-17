@@ -1,5 +1,4 @@
 import React, { useState, useEffect } from 'react';
-import { Helmet } from 'react-helmet';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
 import { Button } from '@/components/ui/button';
@@ -35,6 +34,10 @@ const initialThreads = [
 ];
 
 const AnonymousForumPage = () => {
+  React.useEffect(() => {
+    document.title = "Foro Anónimo - Chactivo | Chat Gay Chile";
+  }, []);
+
   const navigate = useNavigate();
   const { user } = useAuth();
   const [threads, setThreads] = useState(initialThreads);
@@ -71,11 +74,6 @@ const AnonymousForumPage = () => {
 
   return (
     <>
-      <Helmet>
-        <title>Foro Anónimo - Chactivo</title>
-        <meta name="description" content="Foro anónimo de apoyo y recursos para la comunidad LGBT+" />
-      </Helmet>
-
       <div className="min-h-screen px-4 py-8">
         <div className="max-w-5xl mx-auto">
           <div className="flex items-center justify-between mb-6">

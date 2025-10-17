@@ -1,6 +1,5 @@
 
 import React, { useState, useEffect, useRef } from 'react';
-import { Helmet } from 'react-helmet';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
 import { Button } from '@/components/ui/button';
@@ -10,6 +9,10 @@ import { Send, Home, Shield } from 'lucide-react';
 import { motion } from 'framer-motion';
 
 const AnonymousChatPage = () => {
+  React.useEffect(() => {
+    document.title = "Sala de Apoyo Anónima - Chactivo | Chat Gay Chile";
+  }, []);
+
   const navigate = useNavigate();
   const { user } = useAuth();
   const [messages, setMessages] = useState([]);
@@ -84,10 +87,6 @@ const AnonymousChatPage = () => {
 
   return (
     <>
-      <Helmet>
-        <title>Sala de Apoyo Anónima - Chactivo</title>
-        <meta name="description" content="Un espacio seguro y anónimo para hablar." />
-      </Helmet>
       <div className="h-screen flex flex-col bg-[#2C2A4A] text-white">
         <header className="bg-[#22203a] border-b border-[#413e62] p-4 flex items-center justify-between shrink-0">
           <div className="flex items-center gap-3">

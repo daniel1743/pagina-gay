@@ -209,4 +209,90 @@ body {
   .animate-shimmer {
     animation: shimmer 3s ease-in-out infinite;
   }
+
+  /* Responsive Media Queries */
+  @media (max-width: 640px) {
+    body {
+      font-size: 14px;
+    }
+
+    h1 {
+      font-size: 1.5rem;
+    }
+
+    h2 {
+      font-size: 1.25rem;
+    }
+
+    .chat-bubble {
+      @apply text-xs px-2 py-1.5;
+    }
+  }
+
+  @media (max-width: 768px) {
+    .glass-effect {
+      backdrop-filter: blur(8px);
+    }
+  }
+
+  /* Mejoras para dispositivos táctiles (WCAG 2.5.5) */
+  @media (hover: none) and (pointer: coarse) {
+    button, a, [role="button"] {
+      min-height: 44px;
+      min-width: 44px;
+    }
+  }
+
+  /* Alto contraste para accesibilidad (WCAG AAA) */
+  @media (prefers-contrast: high) {
+    :root {
+      --accent: 323 100% 60%;
+      --border: 260 40% 50%;
+    }
+
+    .light {
+      --accent: 323 100% 35%;
+      --border: 260 40% 30%;
+    }
+  }
+
+  /* Respeto a preferencias de movimiento reducido (WCAG 2.3.3) */
+  @media (prefers-reduced-motion: reduce) {
+    *, *::before, *::after {
+      animation-duration: 0.01ms !important;
+      animation-iteration-count: 1 !important;
+      transition-duration: 0.01ms !important;
+      scroll-behavior: auto !important;
+    }
+
+    .premium-avatar-ring {
+      animation: none !important;
+      background: linear-gradient(45deg, #E4007C, #00FFFF);
+    }
+
+    .animate-shimmer {
+      animation: none !important;
+    }
+  }
+
+  /* Soporte para pantallas grandes */
+  @media (min-width: 1280px) {
+    .chat-bubble {
+      max-width: 65%;
+    }
+  }
+
+  /* Modo oscuro forzado del sistema */
+  @media (prefers-color-scheme: dark) {
+    :root {
+      color-scheme: dark;
+    }
+  }
+
+  /* Modo claro forzado del sistema */
+  @media (prefers-color-scheme: light) {
+    .light {
+      color-scheme: light;
+    }
+  }
 }

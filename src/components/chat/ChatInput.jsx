@@ -210,6 +210,8 @@ const ChatInput = ({ onSendMessage }) => {
           className="text-muted-foreground hover:text-cyan-400"
           title="Frases Rápidas"
           disabled={!user.isPremium}
+          aria-label="Abrir frases rápidas (Premium)"
+          aria-pressed={showQuickPhrases}
         >
             <MessageSquarePlus className="w-5 h-5" />
         </Button>
@@ -220,6 +222,9 @@ const ChatInput = ({ onSendMessage }) => {
           onClick={() => { setShowEmojiPicker(prev => !prev); setShowQuickPhrases(false);}}
           className="text-muted-foreground hover:text-cyan-400"
           title="Selector de Emojis"
+          aria-label={showEmojiPicker ? "Cerrar selector de emojis" : "Abrir selector de emojis"}
+          aria-pressed={showEmojiPicker}
+          aria-expanded={showEmojiPicker}
         >
           {showEmojiPicker ? <X className="w-5 h-5"/> : <Smile className="w-5 h-5" />}
         </Button>
@@ -231,6 +236,7 @@ const ChatInput = ({ onSendMessage }) => {
           onClick={() => handlePremiumFeature("fotos", "Selector de imágenes")}
           className={`text-muted-foreground hover:text-cyan-400 ${!user.isPremium ? 'opacity-50' : ''}`}
           title="Enviar Imagen (Premium)"
+          aria-label="Enviar imagen (función Premium)"
         >
           <Image className="w-5 h-5" />
         </Button>
@@ -242,6 +248,7 @@ const ChatInput = ({ onSendMessage }) => {
           onClick={() => handlePremiumFeature("mensajes de voz", "Grabadora de voz")}
           className={`text-muted-foreground hover:text-cyan-400 ${!user.isPremium ? 'opacity-50' : ''}`}
           title="Enviar Mensaje de Voz (Premium)"
+          aria-label="Enviar mensaje de voz (función Premium)"
         >
           <Mic className="w-5 h-5" />
         </Button>
@@ -251,6 +258,9 @@ const ChatInput = ({ onSendMessage }) => {
           onChange={(e) => setMessage(e.target.value)}
           placeholder={user.isGuest ? "Escribe hasta 3 mensajes..." : "Escribe un mensaje..."}
           className="flex-1 bg-secondary border-2 border-input rounded-lg px-4 py-2 text-foreground placeholder:text-muted-foreground focus:border-accent transition-all"
+          aria-label="Campo de texto para escribir mensaje"
+          maxLength={500}
+          autoComplete="off"
         />
 
         <motion.div
@@ -262,6 +272,7 @@ const ChatInput = ({ onSendMessage }) => {
             disabled={!message.trim() || isSending}
             className="magenta-gradient text-white rounded-lg relative overflow-hidden"
             size="icon"
+            aria-label={isSending ? "Enviando mensaje..." : "Enviar mensaje"}
           >
             <motion.div
               animate={isSending ? {

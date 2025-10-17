@@ -1,5 +1,4 @@
 import React from 'react';
-import { Helmet } from 'react-helmet';
 import { motion } from 'framer-motion';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
@@ -36,13 +35,12 @@ const PremiumPage = () => {
     navigate('/profile');
   };
 
+  React.useEffect(() => {
+    document.title = "Premium - Chactivo | Chat Gay Chile";
+  }, []);
+
   return (
     <>
-      <Helmet>
-        <title>Premium - Chactivo</title>
-        <meta name="description" content="Actualiza a Premium y disfruta de funciones exclusivas en Chactivo" />
-      </Helmet>
-
       <div className="min-h-screen px-4 py-8">
         <div className="max-w-4xl mx-auto">
           <Button

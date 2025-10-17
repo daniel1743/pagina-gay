@@ -1,14 +1,14 @@
-import React, { useState } from 'react';
-import { Helmet } from 'react-helmet';
+import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
-import { MessageSquare, Shield, Calendar, HeartPulse, SlidersHorizontal, Users, Lock } from 'lucide-react';
+import { MessageSquare, Shield, Calendar, HeartPulse, SlidersHorizontal, Users, Lock, MapPin } from 'lucide-react';
 import LobbyCard from '@/components/lobby/LobbyCard';
 import RoomsModal from '@/components/lobby/RoomsModal';
 import DenunciaModal from '@/components/lobby/DenunciaModal';
 import EventosModal from '@/components/lobby/EventosModal';
 import SaludMentalModal from '@/components/lobby/SaludMentalModal';
 import AjustesModal from '@/components/lobby/AjustesModal';
+import NearbyUsersModal from '@/components/lobby/NearbyUsersModal';
 import AdCarousel from '@/components/lobby/AdCarousel';
 import AdModal from '@/components/lobby/AdModal';
 import PWAInstallBanner from '@/components/ui/PWAInstallBanner';
@@ -20,6 +20,7 @@ import { Button } from '@/components/ui/button';
 
 const cardData = [
   { id: 'salas', icon: <MessageSquare className="w-12 h-12" />, title: "Salas de Chat", description: "Explora y únete a nuestras salas temáticas. ¡Siempre hay alguien con quien conectar!", modal: 'RoomsModal', gradient: "blue-gradient" },
+  { id: 'cercanos', icon: <MapPin className="w-12 h-12" />, title: "Click Aquí", description: "Descubre usuarios cercanos a ti. Conéctate con personas en tu zona. ¡Haz click!", modal: 'NearbyUsersModal', gradient: "magenta-gradient" },
   { id: 'denuncias', icon: <Shield className="w-12 h-12" />, title: "Centro de Denuncias", description: "Ayúdanos a mantener la comunidad segura. Reporta cualquier comportamiento inadecuado.", modal: 'DenunciaModal', gradient: "amber-gradient" },
   { id: 'eventos', icon: <Calendar className="w-12 h-12" />, title: "Eventos y Noticias", description: "Mantente al día con los últimos eventos, fiestas y noticias de la comunidad.", modal: 'EventosModal', gradient: "green-gradient" },
   { id: 'salud', icon: <HeartPulse className="w-12 h-12" />, title: "Salud Mental LGBTQ+", description: "Un espacio seguro y anónimo para hablar, encontrar apoyo y conectar con profesionales.", modal: 'SaludMentalModal', gradient: "teal-gradient" },
@@ -115,8 +116,8 @@ const LobbyPage = () => {
         return;
     }
 
-    // Solo "Salas de Chat" es accesible para usuarios anónimos/invitados
-    if (modalId !== 'RoomsModal' && user && (user.isAnonymous || user.isGuest)) {
+    // "Salas de Chat" y "Click Aquí" son accesibles para todos
+    if (modalId !== 'RoomsModal' && modalId !== 'NearbyUsersModal' && user && (user.isAnonymous || user.isGuest)) {
         setShowAuthRequired(true);
         return;
     }
@@ -153,13 +154,12 @@ const LobbyPage = () => {
     setShowComingSoon(true);
   };
 
+  useEffect(() => {
+    document.title = "Lobby - Chactivo | Chat Gay Chile";
+  }, []);
+
   return (
     <>
-      <Helmet>
-        <title>Lobby - Chactivo</title>
-        <meta name="description" content="Bienvenido al lobby de Chactivo. Conecta con la comunidad." />
-      </Helmet>
-
       <div className="w-full min-h-screen pt-12 pb-20">
         <motion.div
             initial={{ opacity: 0, y: -20 }}
@@ -201,6 +201,7 @@ const LobbyPage = () => {
       </div>
 
       {activeModal === 'RoomsModal' && <RoomsModal isOpen={true} onClose={closeModal} />}
+      {activeModal === 'NearbyUsersModal' && <NearbyUsersModal isOpen={true} onClose={closeModal} />}
       {activeModal === 'DenunciaModal' && <DenunciaModal isOpen={true} onClose={closeModal} />}
       {activeModal === 'EventosModal' && <EventosModal isOpen={true} onClose={closeModal} />}
       {activeModal === 'SaludMentalModal' && <SaludMentalModal isOpen={true} onClose={closeModal} />}

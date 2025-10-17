@@ -1,5 +1,4 @@
 import React, { useState } from 'react';
-import { Helmet } from 'react-helmet';
 import { motion } from 'framer-motion';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
@@ -13,6 +12,10 @@ import AvatarSelector from '@/components/profile/AvatarSelector';
 import ProfileComments from '@/components/profile/ProfileComments';
 
 const ProfilePage = () => {
+  React.useEffect(() => {
+    document.title = "Mi Perfil - Chactivo | Chat Gay Chile";
+  }, []);
+
   const navigate = useNavigate();
   const { user, logout, updateProfile } = useAuth();
   const [isEditModalOpen, setEditModalOpen] = useState(false);
@@ -46,11 +49,6 @@ const ProfilePage = () => {
 
   return (
     <>
-      <Helmet>
-        <title>Mi Perfil - Chactivo</title>
-        <meta name="description" content="Gestiona tu perfil en Chactivo" />
-      </Helmet>
-
       <div className="min-h-screen px-4 py-8">
         <div className="max-w-4xl mx-auto">
           <Button

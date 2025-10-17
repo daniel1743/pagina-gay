@@ -1,5 +1,4 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Helmet } from 'react-helmet';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
 import ChatSidebar from '@/components/chat/ChatSidebar';
@@ -34,6 +33,10 @@ const roomWelcomeMessages = {
 };
 
 const ChatPage = () => {
+  React.useEffect(() => {
+    document.title = "Chat - Chactivo | Chat Gay Chile";
+  }, []);
+
   const { roomId } = useParams();
   const navigate = useNavigate();
   const { user, guestMessageCount, setGuestMessageCount, showWelcomeTour, setShowWelcomeTour } = useAuth();
@@ -235,11 +238,6 @@ const ChatPage = () => {
 
   return (
     <>
-      <Helmet>
-        <title>Chat: {currentRoom} - Chactivo</title>
-        <meta name="description" content={`Chatea en tiempo real en la sala ${currentRoom} de Chactivo.`} />
-      </Helmet>
-
       <div className="h-screen flex overflow-hidden bg-background pt-20">
         <ChatSidebar
           currentRoom={currentRoom}

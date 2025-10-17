@@ -1,6 +1,5 @@
 import React from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
-import { HelmetProvider, Helmet } from 'react-helmet-async';
 import { Toaster } from '@/components/ui/toaster';
 import LobbyPage from '@/pages/LobbyPage';
 import AuthPage from '@/pages/AuthPage';
@@ -41,24 +40,15 @@ function MainLayout({ children }) {
 
 function App() {
   return (
-    <HelmetProvider>
-      <ThemeProvider>
-        <AuthProvider>
-          <Router
-            future={{
-              v7_startTransition: true,
-              v7_relativeSplatPath: true,
-            }}
-          >
-            <Helmet>
-              <html lang="es" />
-              <title>Chactivo - Hub Comunitario LGBTQ+</title>
-              <meta name="description" content="El espacio digital LGBTQ+ más seguro de Chile para conectar, chatear y ser tú mismo." />
-              <meta name="keywords" content="LGBTQ+, chat, comunidad, Chile, gay, lesbiana, bisexual, trans, queer" />
-              <meta name="robots" content="index, follow" />
-              <link rel="canonical" href="https://chactivo.app" />
-            </Helmet>
-            <Routes>
+    <ThemeProvider>
+      <AuthProvider>
+        <Router
+          future={{
+            v7_startTransition: true,
+            v7_relativeSplatPath: true,
+          }}
+        >
+          <Routes>
               <Route path="/" element={<MainLayout><LobbyPage /></MainLayout>} />
               <Route path="/auth" element={<AuthPage />} />
               <Route path="/chat/:roomId" element={<ChatPage />} />
@@ -81,12 +71,11 @@ function App() {
                 } 
               />
               <Route path="*" element={<Navigate to="/" />} />
-            </Routes>
-            <Toaster />
-          </Router>
-        </AuthProvider>
-      </ThemeProvider>
-    </HelmetProvider>
+          </Routes>
+          <Toaster />
+        </Router>
+      </AuthProvider>
+    </ThemeProvider>
   );
 }
 
