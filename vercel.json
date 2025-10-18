@@ -2,41 +2,7 @@
   "buildCommand": "npm run build",
   "outputDirectory": "dist",
   "framework": "vite",
-  "redirects": [
-    {
-      "source": "/:path*",
-      "has": [
-        {
-          "type": "host",
-          "value": "chactivo.com"
-        }
-      ],
-      "destination": "https://chactivo.com/:path*",
-      "permanent": true
-    },
-    {
-      "source": "/:path*",
-      "has": [
-        {
-          "type": "host",
-          "value": "www.chactivo.com"
-        }
-      ],
-      "destination": "https://chactivo.com/:path*",
-      "permanent": true
-    },
-    {
-      "source": "/:path*",
-      "has": [
-        {
-          "type": "host",
-          "value": "www.chactivo.com"
-        }
-      ],
-      "destination": "https://chactivo.com/:path*",
-      "permanent": true
-    }
-  ],
+  "redirects": [],
   "rewrites": [
     { "source": "/(.*)", "destination": "/index.html" }
   ],
