@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
 import { motion, AnimatePresence } from 'framer-motion';
 import { MapPin, Zap, Heart, Flame, X, MessageSquare, User, Send } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
@@ -11,17 +11,20 @@ import { Input } from '@/components/ui/input';
 // Datos de usuarios simulados cercanos (máximo 1000m)
 const generateNearbyUsers = (userLocation) => {
   const roles = ['Activo', 'Versátil', 'Versátil Pasivo', 'Pasivo'];
+
+  // Ubicación base: Santiago Centro (-33.4489, -70.6693)
+  // Cada 0.001 de latitud/longitud ≈ 111 metros
   const users = [
     { id: 1, name: 'Carlos', age: 28, bio: 'Amante del gym', online: true, lat: -33.4489, lon: -70.6693, role: 'Activo' },
-    { id: 2, name: 'Mateo', age: 25, bio: 'Gamer', online: true, lat: -33.4510, lon: -70.6680, role: 'Activo' },
-    { id: 3, name: 'Diego', age: 30, bio: 'Chef profesional', online: false, lat: -33.4520, lon: -70.6700, role: 'Activo' },
-    { id: 4, name: 'Sebastián', age: 27, bio: 'Fotógrafo', online: true, lat: -33.4470, lon: -70.6650, role: 'Activo' },
-    { id: 5, name: 'Andrés', age: 32, bio: 'Ingeniero', online: false, lat: -33.4495, lon: -70.6698, role: 'Activo' },
-    { id: 6, name: 'Felipe', age: 24, bio: 'Estudiante', online: true, lat: -33.4485, lon: -70.6690, role: 'Versátil' },
-    { id: 7, name: 'Nicolás', age: 29, bio: 'Músico', online: true, lat: -33.4492, lon: -70.6695, role: 'Versátil' },
-    { id: 8, name: 'Javier', age: 26, bio: 'Diseñador', online: false, lat: -33.4487, lon: -70.6691, role: 'Versátil Pasivo' },
-    { id: 9, name: 'Lucas', age: 31, bio: 'Médico', online: true, lat: -33.4490, lon: -70.6694, role: 'Pasivo' },
-    { id: 10, name: 'Martín', age: 28, bio: 'Abogado', online: false, lat: -33.4488, lon: -70.6692, role: 'Pasivo' },
+    { id: 2, name: 'Mateo', age: 25, bio: 'Gamer', online: true, lat: -33.4495, lon: -70.6695, role: 'Activo' },
+    { id: 3, name: 'Diego', age: 30, bio: 'Chef profesional', online: false, lat: -33.4492, lon: -70.6698, role: 'Activo' },
+    { id: 4, name: 'Sebastián', age: 27, bio: 'Fotógrafo', online: true, lat: -33.4485, lon: -70.6690, role: 'Activo' },
+    { id: 5, name: 'Andrés', age: 32, bio: 'Ingeniero', online: false, lat: -33.4480, lon: -70.6688, role: 'Activo' },
+    { id: 6, name: 'Felipe', age: 24, bio: 'Estudiante', online: true, lat: -33.4493, lon: -70.6700, role: 'Versátil' },
+    { id: 7, name: 'Nicolás', age: 29, bio: 'Músico', online: true, lat: -33.4478, lon: -70.6685, role: 'Versátil' },
+    { id: 8, name: 'Javier', age: 26, bio: 'Diseñador', online: false, lat: -33.4497, lon: -70.6697, role: 'Versátil Pasivo' },
+    { id: 9, name: 'Lucas', age: 31, bio: 'Médico', online: true, lat: -33.4482, lon: -70.6695, role: 'Pasivo' },
+    { id: 10, name: 'Martín', age: 28, bio: 'Abogado', online: false, lat: -33.4490, lon: -70.6692, role: 'Pasivo' },
   ];
 
   // Calcular distancia para cada usuario y filtrar solo los que están a menos de 1000m
@@ -164,9 +167,9 @@ const MessageModal = ({ isOpen, onClose, targetUser, onSend }) => {
             <MessageSquare className="inline w-5 h-5 mr-2 text-cyan-400" />
             Mensaje para {targetUser.name}
           </DialogTitle>
-          <p className="text-sm text-muted-foreground mt-2">
+          <DialogDescription className="text-sm text-muted-foreground mt-2">
             Rompe el hielo con un mensaje personalizado (máx. {maxChars} caracteres)
-          </p>
+          </DialogDescription>
         </DialogHeader>
 
         <div className="space-y-4 mt-4">
@@ -226,6 +229,14 @@ const NearbyUsersModal = ({ isOpen, onClose }) => {
   const getUserLocation = () => {
     setLoading(true);
 
+    // Por ahora, siempre usar Santiago Centro para que los usuarios simulados siempre aparezcan
+    // En producción, esto usaría la ubicación real del usuario
+    const defaultLocation = { lat: -33.4489, lon: -70.6693 };
+    setUserLocation(defaultLocation);
+    setNearbyUsers(generateNearbyUsers(defaultLocation));
+    setLoading(false);
+
+    /* CÓDIGO ORIGINAL COMENTADO - Descomentar en producción
     if (navigator.geolocation) {
       navigator.geolocation.getCurrentPosition(
         (position) => {
@@ -258,6 +269,7 @@ const NearbyUsersModal = ({ isOpen, onClose }) => {
       setNearbyUsers(generateNearbyUsers(defaultLocation));
       setLoading(false);
     }
+    */
   };
 
   const handleInteraction = (targetUser, type) => {
@@ -315,9 +327,9 @@ const NearbyUsersModal = ({ isOpen, onClose }) => {
               <X className="w-5 h-5" />
             </button>
           </div>
-          <p className="text-sm text-muted-foreground mt-2">
+          <DialogDescription className="text-sm text-muted-foreground mt-2">
             {nearbyUsers.length} usuarios cerca de ti • Ordenados por distancia
-          </p>
+          </DialogDescription>
         </DialogHeader>
 
         <div className="p-6 overflow-y-auto max-h-[calc(90vh-120px)]">
