@@ -1,45 +1,23 @@
 # robots.txt para Chactivo - Chat Gay Chile
 # URL principal: https://chactivo.com
 
+# Configuración para todos los bots
 User-agent: *
+
+# Permitir acceso público
 Allow: /
-Allow: /chat/*
+Allow: /chat/
 Allow: /premium
 Allow: /profile
 Allow: /anonymous-chat
 Allow: /anonymous-forum
+Allow: /auth
 
-# Páginas que no deben indexarse (privacidad)
+# Bloquear rutas privadas y técnicas
 Disallow: /api/
 Disallow: /admin/
 Disallow: /user/
 Disallow: /private/
-Disallow: /*.json$
-Disallow: /node_modules/
-Disallow: /dist/assets/
 
 # Sitemap principal
 Sitemap: https://chactivo.com/sitemap.xml
-
-# Rastreadores específicos - Googlebot
-User-agent: Googlebot
-Allow: /
-Allow: /chat/*
-Allow: /premium
-Crawl-delay: 0
-
-# Rastreadores específicos - Bingbot
-User-agent: Bingbot
-Allow: /
-Crawl-delay: 0
-
-# Google Image Bot
-User-agent: Googlebot-Image
-Allow: /
-Allow: /*.png$
-Allow: /*.jpg$
-Allow: /*.webp$
-
-# Crawl-delay para bots menos importantes
-User-agent: *
-Crawl-delay: 1
