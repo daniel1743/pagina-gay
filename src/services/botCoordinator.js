@@ -107,6 +107,50 @@ const countRealUsers = (users) => {
 /**
  * Envía mensaje de bot a la sala
  */
+/**
+ * Historial de mensajes enviados (anti-spam global)
+ * Estructura: Map de userId → [{ message, timestamp }]
+ */
+const globalMessageHistory = new Map();
+const SPAM_COOLDOWN = 7 * 60 * 1000; // 7 minutos
+
+/**
+ * Verifica si un mensaje es spam (repetido en menos de 7 min)
+ */
+const isSpamMessage = (userId, message) => {
+  if (!globalMessageHistory.has(userId)) {
+    return false;
+  }
+
+  const history = globalMessageHistory.get(userId);
+  const now = Date.now();
+
+  // Limpiar mensajes antiguos
+  const validHistory = history.filter(entry => (now - entry.timestamp) < SPAM_COOLDOWN);
+  globalMessageHistory.set(userId, validHistory);
+
+  // Verificar si el mensaje ya fue enviado recientemente
+  return validHistory.some(entry => entry.message === message);
+};
+
+/**
+ * Registra un mensaje enviado
+ */
+const recordMessage = (userId, message) => {
+  if (!globalMessageHistory.has(userId)) {
+    globalMessageHistory.set(userId, []);
+  }
+
+  const history = globalMessageHistory.get(userId);
+  const now = Date.now();
+
+  history.push({ message, timestamp: now });
+
+  // Limpiar mensajes antiguos
+  const validHistory = history.filter(entry => (now - entry.timestamp) < SPAM_COOLDOWN);
+  globalMessageHistory.set(userId, validHistory);
+};
+
 const sendBotMessage = async (roomId, botProfile, conversationHistory, userMessage = null, useGemini = true) => {
   try {
     let response;
@@ -119,6 +163,12 @@ const sendBotMessage = async (roomId, botProfile, conversationHistory, userMessa
       response = generateInitialMessage(botProfile);
     }
 
+    // 🛡️ ANTI-SPAM: Verificar si el mensaje es repetido
+    if (isSpamMessage(botProfile.id, response)) {
+      console.error(`🚫 SPAM BLOQUEADO: ${botProfile.username} intentó repetir: "${response}"`);
+      return; // NO enviar mensaje spam
+    }
+
     // Enviar mensaje a Firebase
     await sendMessage(roomId, {
       userId: botProfile.id,
@@ -128,6 +178,9 @@ const sendBotMessage = async (roomId, botProfile, conversationHistory, userMessa
       content: response,
       type: 'text'
     });
+
+    // Registrar mensaje enviado
+    recordMessage(botProfile.id, response);
 
     console.log(`🤖 ${botProfile.username} envió: "${response}"`);
   } catch (error) {
@@ -323,27 +376,46 @@ export const updateBotsOnUserChange = (roomId, currentUsers, getConversationHist
  * @param {Array} conversationHistory - Historial de conversación
  */
 export const botRespondToUser = async (roomId, userMessage, conversationHistory) => {
+  console.log(`👤 Usuario REAL escribió: "${userMessage}"`);
+
   const roomState = roomBotStates.get(roomId);
   if (!roomState || !roomState.isActive || roomState.activeBots.length === 0) {
+    console.log('⚠️ No hay bots activos para responder');
     return; // No hay bots activos
   }
 
-  // Probabilidad de 40% de que un bot responda al mensaje de usuario
-  if (Math.random() > 0.4) {
+  // 🆕 Responder a usuarios reales (80% probabilidad para ahorrar API)
+  const shouldRespond = Math.random() <= 0.8;
+  console.log(`🎲 Probabilidad de respuesta: ${shouldRespond ? 'SÍ ✅' : 'NO ❌'} (80%)`);
+
+  if (!shouldRespond) {
     return;
   }
 
-  // Elegir un bot aleatorio de los activos
-  const randomBot = roomState.activeBots[
-    Math.floor(Math.random() * roomState.activeBots.length)
-  ];
+  // 🆕 Elegir 1 bot para responder (ahorrar llamadas API)
+  const numBotsToRespond = 1;
+  const botsToRespond = [];
 
-  // Esperar un delay realista antes de responder
-  const delay = getContextualDelay();
+  // Seleccionar bots aleatorios sin repetir
+  for (let i = 0; i < Math.min(numBotsToRespond, roomState.activeBots.length); i++) {
+    const availableBots = roomState.activeBots.filter(b => !botsToRespond.includes(b));
+    if (availableBots.length > 0) {
+      const randomBot = availableBots[Math.floor(Math.random() * availableBots.length)];
+      botsToRespond.push(randomBot);
+    }
+  }
 
-  setTimeout(async () => {
-    await sendBotMessage(roomId, randomBot, conversationHistory, userMessage);
-  }, delay);
+  console.log(`🤖 ${botsToRespond.map(b => b.username).join(' y ')} responderá(n) al usuario`);
+
+  // Cada bot responde con un delay diferente (más natural)
+  botsToRespond.forEach((bot, index) => {
+    const delay = getContextualDelay() + (index * 4000); // 4 segundos de diferencia entre bots
+
+    setTimeout(async () => {
+      console.log(`💬 ${bot.username} enviando respuesta ahora...`);
+      await sendBotMessage(roomId, bot, conversationHistory, userMessage, true);
+    }, delay);
+  });
 };
 
 /**

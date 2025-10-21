@@ -12,6 +12,7 @@ import PrivateChatRequestModal from '@/components/chat/PrivateChatRequestModal';
 import VerificationModal from '@/components/chat/VerificationModal';
 import TypingIndicator from '@/components/chat/TypingIndicator';
 import WelcomeTour from '@/components/onboarding/WelcomeTour';
+import { PremiumWelcomeModal } from '@/components/chat/PremiumWelcomeModal';
 import { toast } from '@/components/ui/use-toast';
 import PrivateChatWindow from '@/components/chat/PrivateChatWindow';
 import { sendMessage, subscribeToRoomMessages, addReactionToMessage, markMessagesAsRead } from '@/services/chatService';
@@ -52,8 +53,28 @@ const ChatPage = () => {
   const [privateChatRequest, setPrivateChatRequest] = useState(null);
   const [activePrivateChat, setActivePrivateChat] = useState(null);
   const [showVerificationModal, setShowVerificationModal] = useState(false);
+  const [showPremiumWelcome, setShowPremiumWelcome] = useState(false);
   const messagesEndRef = useRef(null);
   const unsubscribeRef = useRef(null);
+
+  // 🎁 Mostrar modal de bienvenida premium solo una vez
+  useEffect(() => {
+    const hasSeenPremiumWelcome = localStorage.getItem('hasSeenPremiumWelcome');
+
+    if (!hasSeenPremiumWelcome) {
+      // Mostrar después de 2 segundos de entrar a la sala
+      const timer = setTimeout(() => {
+        setShowPremiumWelcome(true);
+      }, 2000);
+
+      return () => clearTimeout(timer);
+    }
+  }, []);
+
+  const handleClosePremiumWelcome = () => {
+    setShowPremiumWelcome(false);
+    localStorage.setItem('hasSeenPremiumWelcome', 'true');
+  };
 
   // 🤖 Callback para notificar cuando un bot se conecta
   const handleBotJoin = (botData) => {
@@ -354,6 +375,12 @@ const ChatPage = () => {
         {showWelcomeTour && (
           <WelcomeTour onComplete={() => setShowWelcomeTour(false)} />
         )}
+
+        {/* 🎁 Modal de Bienvenida Premium */}
+        <PremiumWelcomeModal
+          open={showPremiumWelcome}
+          onClose={handleClosePremiumWelcome}
+        />
       </div>
     </>
   );
