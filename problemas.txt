@@ -1,81 +1,210 @@
-Iniciando sistema de bots...
-botCoordinator.js:295 🚀 Inicializando bots para sala conversas-libres
-botCoordinator.js:296 👥 Usuarios reales: 0
-botCoordinator.js:297 🤖 Bots a activar: 1
-botCoordinator.js:298 📊 Total esperado: 1 usuarios (mín: 30)
-botCoordinator.js:280 ✅ 1 bots iniciados en sala conversas-libres
-botCoordinator.js:281 🎭 Conversaciones programadas cada 2 minutos
+ailed to load resource: the server responded with a status of 404 (Not Found)Entender este error
+chunk-V5LT2MCF.js?v=1d10ede8:21580 Download the React DevTools for a better development experience: https://reactjs.org/link/react-devtools
+useBotSystem.js:50 🎬 Iniciando sistema de bots...
+botCoordinator.js:287 🚀 Inicializando bots para sala conversas-libres
+botCoordinator.js:288 👥 Usuarios reales: 0
+botCoordinator.js:289 🤖 Bots a activar: 1
+botCoordinator.js:290 📊 Total esperado: 1 usuarios (mín: 30)
+botConversationOrchestrator.js:222 ⚠️ No hay suficientes bots para conversaciones (mínimo 2)
+botCoordinator.js:272 ✅ 1 bots iniciados en sala conversas-libres
+botCoordinator.js:273 🎭 Conversaciones programadas cada 2 minutos
 useBotSystem.js:82 🎬 Iniciando simulador de entradas de bots...
-botJoinSimulator.js:140 🎬 Iniciando join simulator para sala conversas-libres
+botJoinSimulator.js:131 🎬 Iniciando join simulator para sala conversas-libres
 useBotSystem.js:93 🧹 Limpiando bots al desmontar componente
 botCoordinator.js:198 🛑 Todos los bots detenidos en sala conversas-libres
-botCoordinator.js:365 🛑 Sistema de bots detenido para sala conversas-libres
-botJoinSimulator.js:176 🛑 Join simulator detenido para sala conversas-libres
+botCoordinator.js:375 🛑 Sistema de bots detenido para sala conversas-libres
+botJoinSimulator.js:167 🛑 Join simulator detenido para sala conversas-libres
 useBotSystem.js:50 🎬 Iniciando sistema de bots...
-botCoordinator.js:295 🚀 Inicializando bots para sala conversas-libres
-botCoordinator.js:296 👥 Usuarios reales: 0
-botCoordinator.js:297 🤖 Bots a activar: 1
-botCoordinator.js:298 📊 Total esperado: 1 usuarios (mín: 30)
-botCoordinator.js:280 ✅ 1 bots iniciados en sala conversas-libres
-botCoordinator.js:281 🎭 Conversaciones programadas cada 2 minutos
+botCoordinator.js:287 🚀 Inicializando bots para sala conversas-libres
+botCoordinator.js:288 👥 Usuarios reales: 0
+botCoordinator.js:289 🤖 Bots a activar: 1
+botCoordinator.js:290 📊 Total esperado: 1 usuarios (mín: 30)
+botConversationOrchestrator.js:222 ⚠️ No hay suficientes bots para conversaciones (mínimo 2)
+botCoordinator.js:272 ✅ 1 bots iniciados en sala conversas-libres
+botCoordinator.js:273 🎭 Conversaciones programadas cada 2 minutos
 useBotSystem.js:82 🎬 Iniciando simulador de entradas de bots...
-botJoinSimulator.js:140 🎬 Iniciando join simulator para sala conversas-libres
-useBotSystem.js:71 👥 Usuarios cambió de 0 a 7
-botCoordinator.js:321 🔄 Actualización: 7 usuarios reales en sala conversas-libres
-botCoordinator.js:242 📈 Añadiendo 9 bots (total: 10)
-VM9:4 AbortError: signal is aborted without reason
-    at h.abort (firebase_firestore.js?v=1d10ede8:1877:12)
-    at h.abort (firebase_firestore.js?v=1d10ede8:2046:64)
-    at Q2 (firebase_firestore.js?v=1d10ede8:1445:36)
-    at N2.cancel (firebase_firestore.js?v=1d10ede8:1417:5)
-    at ec.cancel (firebase_firestore.js?v=1d10ede8:1562:14)
-    at Tc (firebase_firestore.js?v=1d10ede8:2275:9)
-    at cc (firebase_firestore.js?v=1d10ede8:2245:5)
-    at Y2.close (firebase_firestore.js?v=1d10ede8:2633:5)
-    at firebase_firestore.js?v=1d10ede8:13170:57
-    at Y2.<anonymous> (firebase_firestore.js?v=1d10ede8:13133:11)
-console.error @ VM9:4Entender este error
-VM9:4 Error simulando entrada de bot: FirebaseError: Missing or insufficient permissions.
-console.error @ VM9:4Entender este error
-firestore.googleapis.com/google.firestore.v1.Firestore/Write/channel?VER=8&database=projects%2Fchat-gay-3016f%2Fdatabases%2F(default)&gsessionid=cEY6UWbdFqV2OvxMNGFcbR-Pw2i4lyL4Mktiy2gwVD0&SID=4mmlXjP0-ci7Ya2leBYMCA&RID=55249&TYPE=terminate&zx=odo33ehhgq9c:1  Failed to load resource: the server responded with a status of 400 ()Entender este error
-VM9:4 Error simulando entrada de bot: FirebaseError: Missing or insufficient permissions.
-console.error @ VM9:4Entender este error
-firestore.googleapis.com/google.firestore.v1.Firestore/Write/channel?VER=8&database=projects%2Fchat-gay-3016f%2Fdatabases%2F(default)&gsessionid=Q5WfhPpCb3JVCvpXgL5louM_A4PMeYHzGS9A0_uEVVo&SID=w_2hfnDBuWW4Ph0gndQGKA&RID=47120&TYPE=terminate&zx=a9bhtjnve7qc:1  Failed to load resource: the server responded with a status of 400 ()Entender este error
-botCoordinator.js:132 🤖 Mateo envió: "Holi! ¿Cómo están?"
-botCoordinator.js:132 🤖 Alejandro envió: "¿Qué tal la noche?"
-botCoordinator.js:132 🤖 David envió: "¿Qué tal bellezas?"
-botCoordinator.js:132 🤖 Fernando envió: "¿Cómo va todo?"
-botCoordinator.js:132 🤖 Miguel envió: "Buenas noches gente"
-botCoordinator.js:132 🤖 Javier envió: "Buenas! ¿Qué onda?"
-botCoordinator.js:132 🤖 Carlos envió: "Hola! ¿Alguien por aquí?"
-VM9:4 Error sending message: FirebaseError: Missing or insufficient permissions.
-console.error @ VM9:4Entender este error
-VM9:4 Error enviando mensaje de bot Mateo: FirebaseError: Missing or insufficient permissions.
-console.error @ VM9:4Entender este error
-firestore.googleapis.com/google.firestore.v1.Firestore/Write/channel?VER=8&database=projects%2Fchat-gay-3016f%2Fdatabases%2F(default)&gsessionid=tmO949VipSQ3qBhFumGL1Q8AABVjNYZcClis2Vd3mXg&SID=vaTDNx4CqvNuWezMMVTTsw&RID=11872&TYPE=terminate&zx=xcjmk35wda4k:1  Failed to load resource: the server responded with a status of 400 ()Entender este error
+botJoinSimulator.js:131 🎬 Iniciando join simulator para sala conversas-libres
+useBotSystem.js:71 👥 Usuarios cambió de 0 a 8
+botCoordinator.js:313 🔄 Actualización: 8 usuarios reales en sala conversas-libres
+botCoordinator.js:241 📈 Necesitamos 10 bots, tenemos 1
+botCoordinator.js:198 🛑 Todos los bots detenidos en sala conversas-libres
+botConversationOrchestrator.js:226 📅 Programando conversaciones cada 2 minutos
+botConversationOrchestrator.js:227 📋 Bots activos: Alejandro, Pablo, David, Miguel, Javier, Mateo, Fernando, Carlos
+botConversationOrchestrator.js:239 ⏰ Primera conversación en 10 segundos...
+botCoordinator.js:272 ✅ 10 bots iniciados en sala conversas-libres
+botCoordinator.js:273 🎭 Conversaciones programadas cada 2 minutos
+botJoinSimulator.js:111 👋 Adrián se conectó a la sala conversas-libres (pasivo)
+botJoinSimulator.js:111 👋 Manuel se conectó a la sala conversas-libres (oso versátil)
+botCoordinator.js:326 👤 Usuario REAL escribió: "hola"
+botCoordinator.js:336 🎲 Probabilidad de respuesta: SÍ ✅ (80%)
+botCoordinator.js:354 🤖 David responderá(n) al usuario
+botConversationOrchestrator.js:241 🚀 Ejecutando primera conversación ahora!
+botConversationOrchestrator.js:155 💬 Alejandro inició conversación: "Recién salí del closet con mis papás 🥺"
+botConversationOrchestrator.js:195 💬 Pablo respondió: "Yo aún no me animo, te admiro"
+botConversationOrchestrator.js:195 💬 David respondió: "Wow, eso requiere valor, bien por ti! 💕"
+botCoordinator.js:361 💬 David enviando respuesta ahora...
 generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash-latest:generateContent?key=AIzaSyCztlhKh33ffQdvFiYIFhfR1IIXSBpbj0g:1  Failed to load resource: the server responded with a status of 404 ()Entender este error
 VM9:4 Fetch error from https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash-latest:generateContent?key=AIzaSyCztlhKh33ffQdvFiYIFhfR1IIXSBpbj0g: {
   "error": {
     "code": 404,
-    "message": "models/gemini-1.5-flash-latest is not found for API version v1beta, or is not supported for generateConten
+    "message": "models/gemini-1.5-flash-latest is not found for API version v1beta, or is not supported for generateContent. Call ListModels to see the list of available models and their supported methods.",
+    "status": "NOT_FOUND"
+  }
+}
 
-    systemPrompt: `Eres Carlos, 28 años, gay activo...
-...
-REGLAS CRÍTICAS:
-...
-8. Si la conversación está muerta (solo hay saludos o nadie responde), **haz una pregunta abierta** que incite a debatir o responder, relacionada con tus intereses.
-9. **Responde y reacciona directamente a otros bots** (Mateo, David, etc.) con comentarios cortos si ves que ellos escribieron. NO ignores a los otros "usuarios".
-10. Mantente en un tono coqueteo/bromista, haciendo comentarios sobre planes o la ciudad.
-`
-l log final muestra:Bots Inicializados: ✅ 3 bots iniciados en sala conversas-libres.Detección de Usuario Real: 👥 Usuarios cambió de 1 a 6.Reducción/Aumento de Bots: 📈 Añadiendo 9 bots (total: 10) (luego ajustado a 1, según la lógica de tu BOT_ACTIVATION_CONFIG).Mensajes Exitosos: Los logs de los bots (🤖 Alejandro envió: "¿Qué tal la noche?", etc.) aparecen sin errores de FirebaseError: Missing or insufficient permissions, lo que confirma que las nuevas reglas están funcionando correctamente.🛠️ Solución al Problema de Conversación RealAhora que el sistema base está operativo, el siguiente desafío es la calidad de la conversación. El problema de que los bots no tienen "conversaciones reales" se debe a que están usando sus mensajes de saludo preprogramados (greetings), y su lógica de respuesta necesita más contexto para generar respuestas dinámicas usando Gemini.Aquí tienes el plan de acción en dos partes para que los bots tengan conversaciones más naturales y coherentes:1. Reforzar el Coordinador de Bots (botCoordinator.js)Tu sistema actual parece estar enviando los mensajes de saludo iniciales (generateInitialMessage) o usando respuestas de fallback muy básicas. Necesitas asegurarte de que, tras el saludo inicial, se active la lógica de respuesta dinámica de Gemini.Archivo / AcciónProblema a CorregirSoluciónbotCoordinator.jsEl bot está usando solo el saludo (generateInitialMessage) o el fallback en lugar de la IA.Asegúrate de que la función startBotActivity pase el historial de conversación (aunque sea corto) a sendBotMessage para que active el flujo de la IA.sendBotMessageCuando no hay un mensaje de usuario directo, la función usa generateInitialMessage.Modifica sendBotMessage para que, después del primer saludo, llame a generateBotResponse (la función que usa Gemini) incluso sin un mensaje de usuario directo, para que el bot inicie una conversación.Lógica de MantenimientoLos bots solo hablan cuando entra gente, pero no se dan pie para continuar hablando entre ellos.En la función sendRandomMessage, cuando se usa generateBotResponse sin un userMessage, la IA debe generar una pregunta o comentario basado en el conversationHistory reciente.2. Mejorar la Memoria y el Prompt del Sistema (geminiBotService.js / botProfiles.js)La clave para una conversación "real" es darle a Gemini suficiente memoria (historial) e instrucciones estrictas para mantener el personaje.Historial de Conversación (geminiBotService.js):Aumenta el número de mensajes que envías a Gemini para el contexto. Actualmente estás tomando solo los últimos 10.JavaScript// geminiBotService.js
-// Tomar los últimos 15-20 mensajes para mejor contexto.
-const recentMessages = conversationHistory.slice(-20); 
-Prompts del Sistema (botProfiles.js):Los prompts que tienes son buenos, pero podemos reforzarlos con instrucciones para reaccionar a los otros bots y forzar preguntas.Ejemplo de Refuerzo para Carlos:JavaScriptsystemPrompt: `Eres Carlos, 28 años, gay activo...
-...
-REGLAS CRÍTICAS:
-...
-8. Si la conversación está muerta (solo hay saludos o nadie responde), **haz una pregunta abierta** que incite a debatir o responder, relacionada con tus intereses.
-9. **Responde y reacciona directamente a otros bots** (Mateo, David, etc.) con comentarios cortos si ves que ellos escribieron. NO ignores a los otros "usuarios".
-10. Mantente en un tono coqueteo/bromista, haciendo comentarios sobre planes o la ciudad.
-`
-Resumen del Plan de ConversaciónUna vez que implementes los ajustes en botCoordinator.js para que use el servicio de Gemini más activamente y los ajustes de Memoria en geminiBotService.js, verás una mejora significativa.El ciclo debe ser:Inicio: Bot usa greetings (saludo).Actividad Programada: El interval llama a sendBotMessage (sin userMessage).IA Genera: generateBotResponse lee el conversationHistory (los saludos de los otros bots y tu último mensaje, si lo hay) y genera un comentario o pregunta coherente para mantener el flow.Respuesta Directa: Si un usuario (humano o bot) habla, el bot tiene un 40% de probabilidad de responder directamente usando Gemini, lo que crea interacción real.¡Lo más difícil ya está hecho! Con estos ajustes, pasarás de un chat de saludos a una conversación activa.
+console.error @ VM9:4Entender este error
+VM9:4 Error de Gemini API: Object
+console.error @ VM9:4Entender este error
+VM9:4 Error generando respuesta del bot: Error: Gemini API error: 404
+    at generateBotResponse (geminiBotService.js:185:13)
+    at async sendBotMessage (botCoordinator.js:116:18)
+    at async botCoordinator.js:362:7
+console.error @ VM9:4Entender este error
+botCoordinator.js:132 🤖 David envió: "¿De dónde son?"
+generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash-latest:generateContent?key=AIzaSyCztlhKh33ffQdvFiYIFhfR1IIXSBpbj0g:1  Failed to load resource: the server responded with a status of 404 ()Entender este error
+VM9:4 Fetch error from https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash-latest:generateContent?key=AIzaSyCztlhKh33ffQdvFiYIFhfR1IIXSBpbj0g: {
+  "error": {
+    "code": 404,
+    "message": "models/gemini-1.5-flash-latest is not found for API version v1beta, or is not supported for generateContent. Call ListModels to see the list of available models and their supported methods.",
+    "status": "NOT_FOUND"
+  }
+}
+
+console.error @ VM9:4Entender este error
+VM9:4 Error de Gemini API: Object
+console.error @ VM9:4Entender este error
+VM9:4 Error generando respuesta del bot: Error: Gemini API error: 404
+    at generateBotResponse (geminiBotService.js:185:13)
+    at async botConversationOrchestrator.js:177:22
+console.error @ VM9:4Entender este error
+botConversationOrchestrator.js:195 💬 Miguel respondió: "Cuéntenme más"
+useBotSystem.js:93 🧹 Limpiando bots al desmontar componente
+botConversationOrchestrator.js:258 🛑 Conversaciones programadas detenidas
+botCoordinator.js:198 🛑 Todos los bots detenidos en sala conversas-libres
+botCoordinator.js:375 🛑 Sistema de bots detenido para sala conversas-libres
+botJoinSimulator.js:167 🛑 Join simulator detenido para sala conversas-libres
+useBotSystem.js?t=1761064757324:50 🎬 Iniciando sistema de bots...
+botCoordinator.js?t=1761064757324:287 🚀 Inicializando bots para sala conversas-libres
+botCoordinator.js?t=1761064757324:288 👥 Usuarios reales: 8
+botCoordinator.js?t=1761064757324:289 🤖 Bots a activar: 10
+botCoordinator.js?t=1761064757324:290 📊 Total esperado: 18 usuarios (mín: 30)
+botConversationOrchestrator.js?t=1761064757324:253 📅 Programando conversaciones cada 2 minutos
+botConversationOrchestrator.js?t=1761064757324:254 📋 Bots activos: Carlos, Miguel, Fernando, Pablo, Javier, Alejandro, David, Mateo
+botConversationOrchestrator.js?t=1761064757324:266 ⏰ Primera conversación en 10 segundos...
+botCoordinator.js?t=1761064757324:272 ✅ 10 bots iniciados en sala conversas-libres
+botCoordinator.js?t=1761064757324:273 🎭 Conversaciones programadas cada 2 minutos
+useBotSystem.js?t=1761064757324:82 🎬 Iniciando simulador de entradas de bots...
+botJoinSimulator.js:131 🎬 Iniciando join simulator para sala conversas-libres
+botConversationOrchestrator.js:209 💬 Miguel siguió: "me pasa igual"
+botJoinSimulator.js:111 👋 Rodrigo se conectó a la sala conversas-libres (pasivo)
+botConversationOrchestrator.js?t=1761064757324:268 🚀 Ejecutando primera conversación ahora!
+useBotSystem.js?t=1761064757324:71 👥 Usuarios cambió de 8 a 7
+botCoordinator.js?t=1761064757324:313 🔄 Actualización: 7 usuarios reales en sala conversas-libres
+botCoordinator.js?t=1761064757324:241 📈 Necesitamos 10 bots, tenemos 8
+botConversationOrchestrator.js?t=1761064757324:285 🛑 Conversaciones programadas detenidas
+botCoordinator.js?t=1761064757324:198 🛑 Todos los bots detenidos en sala conversas-libres
+botConversationOrchestrator.js?t=1761064757324:253 📅 Programando conversaciones cada 2 minutos
+botConversationOrchestrator.js?t=1761064757324:254 📋 Bots activos: Pablo, Carlos, David, Javier, Mateo, Alejandro, Miguel, Fernando
+botConversationOrchestrator.js?t=1761064757324:266 ⏰ Primera conversación en 10 segundos...
+botCoordinator.js?t=1761064757324:272 ✅ 10 bots iniciados en sala conversas-libres
+botCoordinator.js?t=1761064757324:273 🎭 Conversaciones programadas cada 2 minutos
+useBotSystem.js?t=1761064757324:71 👥 Usuarios cambió de 7 a 8
+botCoordinator.js?t=1761064757324:313 🔄 Actualización: 8 usuarios reales en sala conversas-libres
+botCoordinator.js?t=1761064757324:241 📈 Necesitamos 10 bots, tenemos 8
+botConversationOrchestrator.js?t=1761064757324:285 🛑 Conversaciones programadas detenidas
+botCoordinator.js?t=1761064757324:198 🛑 Todos los bots detenidos en sala conversas-libres
+botConversationOrchestrator.js?t=1761064757324:253 📅 Programando conversaciones cada 2 minutos
+botConversationOrchestrator.js?t=1761064757324:254 📋 Bots activos: David, Javier, Pablo, Carlos, Miguel, Mateo, Alejandro, Fernando
+botConversationOrchestrator.js?t=1761064757324:266 ⏰ Primera conversación en 10 segundos...
+botCoordinator.js?t=1761064757324:272 ✅ 10 bots iniciados en sala conversas-libres
+botCoordinator.js?t=1761064757324:273 🎭 Conversaciones programadas cada 2 minutos
+botConversationOrchestrator.js?t=1761064757324:182 💬 Carlos inició conversación: "Quién más odia los lunes? 😩☕"
+botConversationOrchestrator.js?t=1761064757324:222 💬 Miguel respondió: "Lunes de resaca, peor combinación posible"
+2botConversationOrchestrator.js?t=1761064757324:268 🚀 Ejecutando primera conversación ahora!
+botConversationOrchestrator.js?t=1761064757324:182 💬 Pablo inició conversación: "¿Cómo están? Yo recién llegando del trabajo 😮‍💨"
+botConversationOrchestrator.js?t=1761064757324:182 💬 David inició conversación: "Quién más odia los lunes? 😩☕"
+botConversationOrchestrator.js?t=1761064757324:222 💬 Fernando respondió: "Lunes de resaca, peor combinación posible"
+botConversationOrchestrator.js?t=1761064757324:222 💬 Pablo respondió: "Yo amo los lunes, soy raro 😂"
+generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash-latest:generateContent?key=AIzaSyCztlhKh33ffQdvFiYIFhfR1IIXSBpbj0g:1  Failed to load resource: the server responded with a status of 404 ()Entender este error
+VM9:4 Fetch error from https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash-latest:generateContent?key=AIzaSyCztlhKh33ffQdvFiYIFhfR1IIXSBpbj0g: {
+  "error": {
+    "code": 404,
+    "message": "models/gemini-1.5-flash-latest is not found for API version v1beta, or is not supported for generateContent. Call ListModels to see the list of available models and their supported methods.",
+    "status": "NOT_FOUND"
+  }
+}
+
+console.error @ VM9:4Entender este error
+VM9:4 Error de Gemini API: Object
+console.error @ VM9:4Entender este error
+VM9:4 Error generando respuesta del bot: Error: Gemini API error: 404
+    at generateBotResponse (geminiBotService.js:185:13)
+    at async botConversationOrchestrator.js?t=1761064757324:204:22
+console.error @ VM9:4Entender este error
+botConversationOrchestrator.js?t=1761064757324:222 💬 Javier respondió: "Todos jaja, vuelta a la rutina del trabajo"
+botConversationOrchestrator.js?t=1761064757324:222 💬 Carlos respondió: "¿Y ustedes qué?"
+botConversationOrchestrator.js?t=1761064757324:222 💬 David respondió: "Bien! Descansando, ¿en qué trabajas?"
+VM10:12  POST https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash-latest:generateContent?key=AIzaSyCztlhKh33ffQdvFiYIFhfR1IIXSBpbj0g 404 (Not Found)
+window.fetch @ VM10:12
+generateBotResponse @ geminiBotService.js:156
+(anónimo) @ botConversationOrchestrator.js?t=1761064757324:204Entender este error
+VM9:4 Fetch error from https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash-latest:generateContent?key=AIzaSyCztlhKh33ffQdvFiYIFhfR1IIXSBpbj0g: {
+  "error": {
+    "code": 404,
+    "message": "models/gemini-1.5-flash-latest is not found for API version v1beta, or is not supported for generateContent. Call ListModels to see the list of available models and their supported methods.",
+    "status": "NOT_FOUND"
+  }
+}
+
+console.error @ VM9:4
+(anónimo) @ VM10:25
+Promise.then
+window.fetch @ VM10:13
+generateBotResponse @ geminiBotService.js:156
+(anónimo) @ botConversationOrchestrator.js?t=1761064757324:204Entender este error
+VM9:4 Error de Gemini API: {error: {…}}
+console.error @ VM9:4
+generateBotResponse @ geminiBotService.js:184
+await in generateBotResponse
+(anónimo) @ botConversationOrchestrator.js?t=1761064757324:204Entender este error
+VM9:4 Error generando respuesta del bot: Error: Gemini API error: 404
+    at generateBotResponse (geminiBotService.js:185:13)
+    at async botConversationOrchestrator.js?t=1761064757324:204:22
+console.error @ VM9:4
+generateBotResponse @ geminiBotService.js:217
+await in generateBotResponse
+(anónimo) @ botConversationOrchestrator.js?t=1761064757324:204Entender este error
+botConversationOrchestrator.js?t=1761064757324:222 💬 Pablo respondió: "¿Qué tal?"
+botConversationOrchestrator.js?t=1761064757324:222 💬 Javier respondió: "Cansado también, fue un día largo"
+VM10:12  POST https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash-latest:generateContent?key=AIzaSyCztlhKh33ffQdvFiYIFhfR1IIXSBpbj0g 404 (Not Found)
+window.fetch @ VM10:12
+generateBotResponse @ geminiBotService.js:156
+(anónimo) @ botConversationOrchestrator.js?t=1761064757324:204Entender este error
+VM9:4 Fetch error from https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash-latest:generateContent?key=AIzaSyCztlhKh33ffQdvFiYIFhfR1IIXSBpbj0g: {
+  "error": {
+    "code": 404,
+    "message": "models/gemini-1.5-flash-latest is not found for API version v1beta, or is not supported for generateContent. Call ListModels to see the list of available models and their supported methods.",
+    "status": "NOT_FOUND"
+  }
+}
+
+console.error @ VM9:4
+(anónimo) @ VM10:25
+Promise.then
+window.fetch @ VM10:13
+generateBotResponse @ geminiBotService.js:156
+(anónimo) @ botConversationOrchestrator.js?t=1761064757324:204Entender este error
+VM9:4 Error de Gemini API: {error: {…}}
+console.error @ VM9:4
+generateBotResponse @ geminiBotService.js:184
+await in generateBotResponse
+(anónimo) @ botConversationOrchestrator.js?t=1761064757324:204Entender este error
+VM9:4 Error generando respuesta del bot: Error: Gemini API error: 404
+    at generateBotResponse (geminiBotService.js:185:13)
+    at async botConversationOrchestrator.js?t=1761064757324:204:22
+console.error @ VM9:4
+generateBotResponse @ geminiBotService.js:217
+await in generateBotResponse
+(anónimo) @ botConversationOrchestrator.js?t=1761064757324:204Entender este error
+botConversationOrchestrator.js?t=1761064757324:222 💬 Carlos respondió: "Cuéntenme más"
+botConversationOrchestrator.js?t=1761064757324:236 💬 Javier siguió: "😂😂😂"

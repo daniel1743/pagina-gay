@@ -323,27 +323,45 @@ export const updateBotsOnUserChange = (roomId, currentUsers, getConversationHist
  * @param {Array} conversationHistory - Historial de conversación
  */
 export const botRespondToUser = async (roomId, userMessage, conversationHistory) => {
+  console.log(`👤 Usuario REAL escribió: "${userMessage}"`);
+
   const roomState = roomBotStates.get(roomId);
   if (!roomState || !roomState.isActive || roomState.activeBots.length === 0) {
+    console.log('⚠️ No hay bots activos para responder');
     return; // No hay bots activos
   }
 
-  // Probabilidad de 40% de que un bot responda al mensaje de usuario
-  if (Math.random() > 0.4) {
+  // 🆕 AUMENTAR probabilidad a 80% para que SIEMPRE respondan a usuarios reales
+  const shouldRespond = Math.random() <= 0.8;
+  console.log(`🎲 Probabilidad de respuesta: ${shouldRespond ? 'SÍ ✅' : 'NO ❌'} (80%)`);
+
+  if (!shouldRespond) {
     return;
   }
 
-  // Elegir un bot aleatorio de los activos
-  const randomBot = roomState.activeBots[
-    Math.floor(Math.random() * roomState.activeBots.length)
-  ];
+  // 🆕 Elegir 1-2 bots para responder (más interacción)
+  const numBotsToRespond = Math.random() > 0.5 ? 2 : 1;
+  const botsToRespond = [];
 
-  // Esperar un delay realista antes de responder
-  const delay = getContextualDelay();
+  for (let i = 0; i < Math.min(numBotsToRespond, roomState.activeBots.length); i++) {
+    const availableBots = roomState.activeBots.filter(b => !botsToRespond.includes(b));
+    if (availableBots.length > 0) {
+      const randomBot = availableBots[Math.floor(Math.random() * availableBots.length)];
+      botsToRespond.push(randomBot);
+    }
+  }
 
-  setTimeout(async () => {
-    await sendBotMessage(roomId, randomBot, conversationHistory, userMessage);
-  }, delay);
+  console.log(`🤖 ${botsToRespond.map(b => b.username).join(' y ')} responderá(n) al usuario`);
+
+  // Cada bot responde con un delay diferente
+  botsToRespond.forEach((bot, index) => {
+    const delay = getContextualDelay() + (index * 3000); // 3 segundos de diferencia entre bots
+
+    setTimeout(async () => {
+      console.log(`💬 ${bot.username} enviando respuesta ahora...`);
+      await sendBotMessage(roomId, bot, conversationHistory, userMessage, true);
+    }, delay);
+  });
 };
 
 /**
