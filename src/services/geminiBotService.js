@@ -6,6 +6,7 @@
  */
 
 const GEMINI_API_KEY = import.meta.env.VITE_GEMINI_API_KEY;
+// CAMBIO CRÍTICO: Se corrige el nombre del modelo a 'gemini-2.5-flash' para solucionar el error 404.
 const GEMINI_API_URL = 'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent';
 
 /**
@@ -13,6 +14,7 @@ const GEMINI_API_URL = 'https://generativelanguage.googleapis.com/v1beta/models/
  * Si el bot responde con esto, se genera advertencia
  */
 const BOT_FORBIDDEN_RESPONSES = [
+  // ... (Reglas de BOT_FORBIDDEN_RESPONSES se mantienen)
   'como ia',
   'como modelo',
   'soy una ia',
@@ -35,13 +37,10 @@ const BOT_FORBIDDEN_RESPONSES = [
  * Contenido explícito que debe generar advertencias
  */
 const OFFENSIVE_WORDS = [
-  // Insultos graves
+  // ... (Reglas de OFFENSIVE_WORDS se mantienen)
   'puto', 'marica', 'maricón', 'sidoso', 'enfermo',
-  // Contenido sexual explícito (ejemplos, ajustar según necesidad)
   'pene', 'verga', 'polla', 'culo', 'coger', 'follar', 'mamada',
-  // Drogas y contenido ilegal
   'droga', 'cocaína', 'heroína', 'metanfetamina',
-  // Menores (CRÍTICO)
   'menor', 'niño', 'adolescente', 'joven menor'
 ];
 
@@ -49,6 +48,7 @@ const OFFENSIVE_WORDS = [
  * SISTEMA DE CONFIGURACIÓN DE SEGURIDAD DE GEMINI
  */
 const SAFETY_SETTINGS = [
+  // ... (SAFETY_SETTINGS se mantienen)
   {
     category: 'HARM_CATEGORY_HARASSMENT',
     threshold: 'BLOCK_MEDIUM_AND_ABOVE'
@@ -102,18 +102,63 @@ const logBotWarning = (botName, inappropriateResponse) => {
 /**
  * Genera respuesta de fallback cuando el bot falla
  */
-const getFallbackResponse = (botProfile) => {
+/**
+ * Genera respuesta de fallback inteligente y coloquial cuando el bot falla.
+ * Elige la respuesta más coherente según el mensaje del usuario,
+ * usando jerga informal (chamo, wn, mmgvo, pana).
+ *
+ * @param {Object} botProfile - Perfil del bot
+ * @param {String} userMessage - Mensaje del usuario que causó el fallo
+ * @returns {String} - Respuesta de fallback
+ */
+const getSmartFallbackResponse = (botProfile, userMessage = '') => {
+  const lowerMessage = userMessage.toLowerCase().trim();
+
+  // 1. Respuestas de SALUDO/BIENVENIDA (Más directas y abiertas)
+  if (
+    lowerMessage.includes('hola') ||
+    lowerMessage.includes('qué tal') ||
+    lowerMessage.includes('buenas') ||
+    lowerMessage.includes('saludos') ||
+    lowerMessage.includes('entré') ||
+    lowerMessage.length < 10 // Mensajes muy cortos suelen ser saludos
+  ) {
+    const greetings = [
+      '¡Hey! Bienvenid@, mi pana. ¿Qué haces por acá? 👀',
+      '¡Chamo! ¡Qué bueno que te uniste! ¿Qué buscas en la sala?',
+      '¡Hola, hola! Siéntete en casa, wn. ¿Qué cuentas de bueno?',
+      '¡MMMGVO, bienvenido! ¿Todo fino? Dale, únete a la conversa.'
+    ];
+    return greetings[Math.floor(Math.random() * greetings.length)];
+  }
+
+  // 2. Respuestas de OPINIÓN/PREGUNTA (Interés y chismorreo)
+  if (
+    lowerMessage.includes('qué piensas') ||
+    lowerMessage.includes('cuéntame') ||
+    lowerMessage.includes('alguien') ||
+    lowerMessage.includes('vieron') ||
+    lowerMessage.includes('escucharon') ||
+    lowerMessage.includes('qué onda')
+  ) {
+    const opinions = [
+      '¡Dale, wn! Cuéntanos más de eso, me interesa ese chisme.',
+      'Tienes razón, pana. ¿Y tú, qué opinas de esa locura?',
+      '¡Chamo! Me gusta cómo piensas. ¿Algún detalle más?',
+      '¡Totalmente! ¿Qué pasó con eso? No me enteré.'
+    ];
+    return opinions[Math.floor(Math.random() * opinions.length)];
+  }
+  
+  // 3. Respuesta GENÉRICA (último recurso)
   const fallbacks = [
-    '¿Qué tal?',
-    'Interesante jaja',
-    '¿Y ustedes qué?',
-    'Cuéntenme más',
-    '¿De dónde son?'
+    'Interesante, jaja. Sigue, sigue, que te leemos.',
+    'Puede ser, wn. ¿Y a ti qué te trae por estos lados?',
+    '😂 Totalmente de acuerdo, me pasa igual. ¿Algún plan para hoy, pana?'
   ];
 
   return fallbacks[Math.floor(Math.random() * fallbacks.length)];
 };
-
 /**
  * Genera una respuesta usando Gemini API
  *
@@ -139,9 +184,12 @@ export const generateBotResponse = async (botProfile, conversationHistory = [], 
         .join('\n');
     }
 
-    // Construir prompt
+    // CONSTRUCCIÓN DEL PROMPT CORREGIDA (Líneas 147 a 157)
+    // Se añade una instrucción fuerte para priorizar la respuesta al usuario real.
     const prompt = userMessage
-      ? `Conversación reciente:
+      ? `INSTRUCCIÓN CRÍTICA: Un usuario real acaba de escribir "${userMessage}". Tu RESPUESTA DEBE ser una interacción directa, natural y breve (máximo 2 frases) con ese mensaje, antes de intentar continuar el tema de conversación.
+
+Conversación reciente:
 ${conversationContext}
 
 Último mensaje: ${userMessage}
