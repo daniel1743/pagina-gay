@@ -22,11 +22,21 @@ service cloud.firestore {
              get(/databases/$(database)/documents/users/$(request.auth.uid)).data.isPremium == true;
     }
 
+    // Verificar si el mensaje es de un bot (userId comienza con 'bot_')
+    function isBot() {
+      let data = request.resource.data;
+      return 'userId' in data &&
+             data.userId is string &&
+             data.userId.matches('bot_.*');
+    }
+
     // Validar datos de mensaje
     function isValidMessage() {
       let data = request.resource.data;
       // Solo validar que tenga los campos mínimos requeridos (permite campos adicionales)
-      return 'userId' in data && data.userId == request.auth.uid &&
+      return 'userId' in data &&
+             // Permitir bots (userId empieza con 'bot_') o usuario autenticado
+             (data.userId.matches('bot_.*') || data.userId == request.auth.uid) &&
              'username' in data && data.username is string &&
              'content' in data && data.content is string &&
              data.content.size() > 0 &&

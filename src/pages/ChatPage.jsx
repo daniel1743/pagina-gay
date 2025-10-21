@@ -15,7 +15,8 @@ import WelcomeTour from '@/components/onboarding/WelcomeTour';
 import { toast } from '@/components/ui/use-toast';
 import PrivateChatWindow from '@/components/chat/PrivateChatWindow';
 import { sendMessage, subscribeToRoomMessages, addReactionToMessage, markMessagesAsRead } from '@/services/chatService';
-import { joinRoom, leaveRoom } from '@/services/presenceService';
+import { joinRoom, leaveRoom, subscribeToRoomUsers } from '@/services/presenceService';
+import { useBotSystem } from '@/hooks/useBotSystem';
 
 const roomWelcomeMessages = {
   'conversas-libres': '¡Bienvenido a Conversas Libres! Habla de lo que quieras.',
@@ -42,6 +43,7 @@ const ChatPage = () => {
   const { user, guestMessageCount, setGuestMessageCount, showWelcomeTour, setShowWelcomeTour } = useAuth();
   const [currentRoom, setCurrentRoom] = useState(roomId);
   const [messages, setMessages] = useState([]);
+  const [roomUsers, setRoomUsers] = useState([]); // 🤖 Usuarios en la sala (para sistema de bots)
   const [selectedUser, setSelectedUser] = useState(null);
   const [userActionsTarget, setUserActionsTarget] = useState(null);
   const [reportTarget, setReportTarget] = useState(null);
@@ -53,6 +55,24 @@ const ChatPage = () => {
   const messagesEndRef = useRef(null);
   const unsubscribeRef = useRef(null);
 
+  // 🤖 Callback para notificar cuando un bot se conecta
+  const handleBotJoin = (botData) => {
+    toast({
+      title: `👋 ${botData.username} se ha conectado`,
+      description: `${botData.role}`,
+      duration: 3000,
+    });
+  };
+
+  // 🤖 SISTEMA DE BOTS: Hook para gestionar bots automáticamente
+  const { botStatus, triggerBotResponse, isActive: botsActive } = useBotSystem(
+    roomId,
+    roomUsers,
+    messages,
+    true, // Sistema de bots habilitado
+    handleBotJoin // Callback para notificaciones de entrada
+  );
+
   // Suscribirse a mensajes en tiempo real cuando cambia la sala
   useEffect(() => {
     setCurrentRoom(roomId);
@@ -61,12 +81,20 @@ const ChatPage = () => {
     joinRoom(roomId, user);
 
     // Suscribirse a mensajes de Firestore en tiempo real
-    const unsubscribe = subscribeToRoomMessages(roomId, (newMessages) => {
+    const unsubscribeMessages = subscribeToRoomMessages(roomId, (newMessages) => {
       setMessages(newMessages);
     });
 
-    // Guardar función de desuscripción
-    unsubscribeRef.current = unsubscribe;
+    // 🤖 Suscribirse a usuarios de la sala (para sistema de bots)
+    const unsubscribeUsers = subscribeToRoomUsers(roomId, (users) => {
+      setRoomUsers(users);
+    });
+
+    // Guardar funciones de desuscripción
+    unsubscribeRef.current = () => {
+      unsubscribeMessages();
+      unsubscribeUsers();
+    };
 
     // Toast de bienvenida
     toast({
@@ -131,6 +159,7 @@ const ChatPage = () => {
    * ✅ Guarda en Firestore en tiempo real
    * ✅ Validación para usuarios invitados (máx 3 mensajes)
    * ✅ Contador persistente en Firestore para anónimos
+   * 🤖 Activa respuesta de bots si están activos
    */
   const handleSendMessage = async (content, type = 'text') => {
     // Validación: usuarios anónimos solo 3 mensajes
@@ -157,6 +186,11 @@ const ChatPage = () => {
       // Actualizar contador local si es anónimo
       if (user.isAnonymous) {
         setGuestMessageCount(prev => prev + 1);
+      }
+
+      // 🤖 Disparar respuesta de bot (probabilidad 40%)
+      if (botsActive && type === 'text') {
+        triggerBotResponse(content);
       }
 
       // El listener de onSnapshot actualizará automáticamente los mensajes
