@@ -1,0 +1,85 @@
+═══════════════════════════════════════════════════════════════
+🚨 DIAGNÓSTICO URGENTE - SISTEMA DE BOTS
+═══════════════════════════════════════════════════════════════
+
+PROBLEMA REPORTADO POR USUARIO:
+--------------------------------
+1. Los bots solo dan saludo inicial y no dicen nada más
+2. Los bots NO reconocen cuando hay una persona real hablando
+3. Por más que el usuario escribe, nadie le toma en cuenta
+
+═══════════════════════════════════════════════════════════════
+📋 INSTRUCCIONES PARA EL USUARIO:
+═══════════════════════════════════════════════════════════════
+
+Por favor, abre la consola del navegador (F12) y copia TODOS los mensajes que aparezcan.
+
+Necesito ver específicamente:
+
+1. ¿Aparece este mensaje?
+   🎭 Conversaciones programadas cada 2 minutos
+
+2. ¿Aparece este mensaje después de 10 segundos?
+   🎭 Iniciando nueva conversación programada...
+
+3. ¿Aparece este mensaje?
+   💬 [nombre del bot] inició conversación: "[tema]"
+
+4. Cuando escribes un mensaje, ¿aparece algo en la consola?
+
+5. ¿Hay algún error en rojo?
+
+
+COPIA Y PEGA AQUÍ TODOS LOS LOGS DE LA CONSOLA:
+------------------------------------------------
+(Borra esta línea y pega los logs aquí)
+
+
+
+
+
+
+
+
+
+
+
+
+═══════════════════════════════════════════════════════════════
+🔍 POSIBLES CAUSAS:
+═══════════════════════════════════════════════════════════════
+
+CAUSA 1: El orquestador NO se está ejecutando
+----------------------------------------------
+SÍNTOMA: No aparece "🎭 Conversaciones programadas cada 2 minutos"
+SOLUCIÓN: Verificar que schedulePeriodicConversations se esté llamando
+
+CAUSA 2: Los bots están en modo individual (viejo código)
+----------------------------------------------------------
+SÍNTOMA: Aparecen saludos sueltos como "Hola!", "Buenas!", "¿Qué tal?"
+SOLUCIÓN: Verificar que NO se esté llamando startBotActivity
+
+CAUSA 3: triggerBotResponse no se está ejecutando
+--------------------------------------------------
+SÍNTOMA: Cuando escribes, no aparece ningún log en la consola
+SOLUCIÓN: Verificar que ChatPage.jsx esté llamando triggerBotResponse
+
+CAUSA 4: Error de Gemini API
+-----------------------------
+SÍNTOMA: Error 404 o 400 en la consola
+SOLUCIÓN: Verificar API key y modelo
+
+CAUSA 5: Problema con el historial de mensajes
+-----------------------------------------------
+SÍNTOMA: Los bots responden pero con mensajes vacíos o genéricos
+SOLUCIÓN: Verificar que getConversationHistory retorne el array correcto
+
+
+═══════════════════════════════════════════════════════════════
+⚠️ IMPORTANTE:
+═══════════════════════════════════════════════════════════════
+
+Una vez que pegues los logs de la consola aquí, podré identificar
+exactamente cuál es el problema y darte la solución específica.
+
+Sin los logs, solo puedo adivinar.

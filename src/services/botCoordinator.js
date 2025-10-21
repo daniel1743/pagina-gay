@@ -376,48 +376,48 @@ export const updateBotsOnUserChange = (roomId, currentUsers, getConversationHist
  * @param {Array} conversationHistory - Historial de conversación
  */
 export const botRespondToUser = async (roomId, userMessage, conversationHistory) => {
-  console.log(`👤 Usuario REAL escribió: "${userMessage}"`);
+  console.log(`👤 Usuario REAL escribió: "${userMessage}"`);
 
-  const roomState = roomBotStates.get(roomId);
-  if (!roomState || !roomState.isActive || roomState.activeBots.length === 0) {
-    console.log('⚠️ No hay bots activos para responder');
-    return; // No hay bots activos
-  }
+  const roomState = roomBotStates.get(roomId);
+  if (!roomState || !roomState.isActive || roomState.activeBots.length === 0) {
+    console.log('⚠️ No hay bots activos para responder');
+    return; // No hay bots activos
+  }
 
-  // 🆕 Responder a usuarios reales (80% probabilidad para ahorrar API)
-  const shouldRespond = Math.random() <= 0.8;
-  console.log(`🎲 Probabilidad de respuesta: ${shouldRespond ? 'SÍ ✅' : 'NO ❌'} (80%)`);
+  // 🆕 AUMENTAR probabilidad a 80% para que SIEMPRE respondan a usuarios reales
+  const shouldRespond = Math.random() <= 0.8;
+  console.log(`🎲 Probabilidad de respuesta: ${shouldRespond ? 'SÍ ✅' : 'NO ❌'} (80%)`);
 
-  if (!shouldRespond) {
-    return;
-  }
+  if (!shouldRespond) {
+    return;
+  }
 
-  // 🆕 Elegir 1 bot para responder (ahorrar llamadas API)
-  const numBotsToRespond = 1;
-  const botsToRespond = [];
+  // 🆕 Elegir 1-2 bots para responder (más interacción)
+  // 50% de probabilidad de que respondan 2 bots, 50% de que responda 1 bot.
+  const numBotsToRespond = Math.random() > 0.5 ? 2 : 1; 
+  const botsToRespond = [];
 
-  // Seleccionar bots aleatorios sin repetir
-  for (let i = 0; i < Math.min(numBotsToRespond, roomState.activeBots.length); i++) {
-    const availableBots = roomState.activeBots.filter(b => !botsToRespond.includes(b));
-    if (availableBots.length > 0) {
-      const randomBot = availableBots[Math.floor(Math.random() * availableBots.length)];
-      botsToRespond.push(randomBot);
-    }
-  }
+  // Seleccionar bots aleatorios sin repetir
+  for (let i = 0; i < Math.min(numBotsToRespond, roomState.activeBots.length); i++) {
+    const availableBots = roomState.activeBots.filter(b => !botsToRespond.includes(b));
+    if (availableBots.length > 0) {
+      const randomBot = availableBots[Math.floor(Math.random() * availableBots.length)];
+      botsToRespond.push(randomBot);
+    }
+  }
 
-  console.log(`🤖 ${botsToRespond.map(b => b.username).join(' y ')} responderá(n) al usuario`);
+  console.log(`🤖 ${botsToRespond.map(b => b.username).join(' y ')} responderá(n) al usuario`);
 
-  // Cada bot responde con un delay diferente (más natural)
-  botsToRespond.forEach((bot, index) => {
-    const delay = getContextualDelay() + (index * 4000); // 4 segundos de diferencia entre bots
+  // Cada bot responde con un delay diferente (más natural)
+  botsToRespond.forEach((bot, index) => {
+    const delay = getContextualDelay() + (index * 3000); // 3 segundos de diferencia entre bots
 
-    setTimeout(async () => {
-      console.log(`💬 ${bot.username} enviando respuesta ahora...`);
-      await sendBotMessage(roomId, bot, conversationHistory, userMessage, true);
-    }, delay);
-  });
+    setTimeout(async () => {
+      console.log(`💬 ${bot.username} enviando respuesta ahora...`);
+      await sendBotMessage(roomId, bot, conversationHistory, userMessage, true);
+    }, delay);
+  });
 };
-
 /**
  * Detiene todos los bots de una sala específica
  *
