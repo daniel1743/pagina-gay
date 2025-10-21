@@ -230,5 +230,6 @@ export default defineConfig({
 				'@babel/types'
 			]
 		}
-	}
+	},
+	publicDir: 'public'
 });

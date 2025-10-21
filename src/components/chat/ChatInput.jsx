@@ -1,11 +1,15 @@
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef, useEffect, lazy, Suspense, useMemo } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Send, Smile, Mic, Image, MessageSquarePlus, X } from 'lucide-react';
 import { toast } from '@/components/ui/use-toast';
-import EmojiPicker, { EmojiStyle, Categories } from 'emoji-picker-react';
+import ComingSoonModal from '@/components/ui/ComingSoonModal';
+import { EmojiStyle, Categories } from 'emoji-picker-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useAuth } from '@/contexts/AuthContext';
+
+// Lazy load del EmojiPicker para mejorar rendimiento
+const EmojiPicker = lazy(() => import('emoji-picker-react'));
 
 const SENSITIVE_WORDS = ['acoso', 'amenaza', 'amenazas', 'acosador'];
 
@@ -43,6 +47,8 @@ const ChatInput = ({ onSendMessage }) => {
   const [message, setMessage] = useState('');
   const [showEmojiPicker, setShowEmojiPicker] = useState(false);
   const [showQuickPhrases, setShowQuickPhrases] = useState(false);
+  const [showComingSoon, setShowComingSoon] = useState(false);
+  const [comingSoonFeature, setComingSoonFeature] = useState({ name: '', description: '' });
   const wrapperRef = useRef(null);
 
   useEffect(() => {
@@ -70,14 +76,32 @@ const ChatInput = ({ onSendMessage }) => {
     }
   };
 
-  const handleSubmit = (e) => {
+  const [isSending, setIsSending] = useState(false);
+
+  const handleSubmit = async (e) => {
     e.preventDefault();
-    if (message.trim()) {
+    if (message.trim() && !isSending) {
+      setIsSending(true);
       checkForSensitiveWords(message);
-      onSendMessage(message.trim(), 'text');
-      setMessage('');
-      setShowEmojiPicker(false);
-      setShowQuickPhrases(false);
+
+      // Microinteracción: feedback inmediato
+      const messageToSend = message.trim();
+      setMessage(''); // Limpiar inmediatamente para sensación de velocidad
+
+      try {
+        await onSendMessage(messageToSend, 'text');
+        // Vibración sutil si está disponible
+        if (navigator.vibrate) {
+          navigator.vibrate(10);
+        }
+      } catch (error) {
+        // Si falla, restaurar el mensaje
+        setMessage(messageToSend);
+      } finally {
+        setIsSending(false);
+        setShowEmojiPicker(false);
+        setShowQuickPhrases(false);
+      }
     }
   };
 
@@ -98,13 +122,20 @@ const ChatInput = ({ onSendMessage }) => {
       });
       return;
     }
-    toast({
-        title: `🚧 ${implementationMessage} en desarrollo`,
-        description: "Esta función estará disponible pronto. ¡Solicítala en tu próximo mensaje! 🚀",
-      });
+    // Show Coming Soon modal for premium users
+    const descriptions = {
+      'fotos': 'Podrás compartir imágenes directamente en el chat. Sube fotos desde tu dispositivo o cámara.',
+      'mensajes de voz': 'Envía mensajes de voz de hasta 60 segundos. Perfecto para cuando escribir no es suficiente.'
+    };
+    setComingSoonFeature({
+      name: implementationMessage,
+      description: descriptions[featureName] || 'Esta función estará disponible pronto.'
+    });
+    setShowComingSoon(true);
   }
 
-  const emojiPickerCategories = () => {
+  // Memoizar las categorías para evitar recalcularlas en cada render
+  const emojiPickerCategories = useMemo(() => {
     const standardCategories = [
       { name: "Recientes", category: Categories.SUGGESTED },
       { name: "Sonrisas y Emociones", category: Categories.SMILEYS_PEOPLE },
@@ -117,34 +148,44 @@ const ChatInput = ({ onSendMessage }) => {
       { name: "Banderas", category: Categories.FLAGS },
     ];
 
-    if (user.isPremium) {
+    if (user?.isPremium) {
       return [
         { name: "Premium 👑", category: Categories.CUSTOM },
         ...standardCategories
       ];
     }
     return standardCategories;
-  }
+  }, [user?.isPremium]);
 
   return (
     <div className="bg-card border-t p-4 shrink-0 relative" ref={wrapperRef}>
       <AnimatePresence>
         {showEmojiPicker && (
-          <motion.div 
+          <motion.div
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
               exit={{ opacity: 0, y: 20 }}
               className="absolute bottom-full right-4 mb-2 z-10"
           >
-            <EmojiPicker
-              onEmojiClick={handleEmojiClick}
-              theme="dark"
-              height={350}
-              width={300}
-              emojiStyle={EmojiStyle.NATIVE}
-              customEmojis={user.isPremium ? PREMIUM_EMOJIS : []}
-              categories={emojiPickerCategories()}
-            />
+            <Suspense fallback={
+              <div className="bg-secondary p-4 rounded-lg border border-input w-[300px] h-[350px] flex items-center justify-center">
+                <div className="flex flex-col items-center gap-2">
+                  <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-cyan-400"></div>
+                  <p className="text-sm text-muted-foreground">Cargando emojis...</p>
+                </div>
+              </div>
+            }>
+              <EmojiPicker
+                onEmojiClick={handleEmojiClick}
+                theme="dark"
+                height={350}
+                width={300}
+                emojiStyle={EmojiStyle.NATIVE}
+                customEmojis={user?.isPremium ? PREMIUM_EMOJIS : []}
+                categories={emojiPickerCategories}
+                preload={true}
+              />
+            </Suspense>
           </motion.div>
         )}
         {showQuickPhrases && (
@@ -169,6 +210,8 @@ const ChatInput = ({ onSendMessage }) => {
           className="text-muted-foreground hover:text-cyan-400"
           title="Frases Rápidas"
           disabled={!user.isPremium}
+          aria-label="Abrir frases rápidas (Premium)"
+          aria-pressed={showQuickPhrases}
         >
             <MessageSquarePlus className="w-5 h-5" />
         </Button>
@@ -179,6 +222,9 @@ const ChatInput = ({ onSendMessage }) => {
           onClick={() => { setShowEmojiPicker(prev => !prev); setShowQuickPhrases(false);}}
           className="text-muted-foreground hover:text-cyan-400"
           title="Selector de Emojis"
+          aria-label={showEmojiPicker ? "Cerrar selector de emojis" : "Abrir selector de emojis"}
+          aria-pressed={showEmojiPicker}
+          aria-expanded={showEmojiPicker}
         >
           {showEmojiPicker ? <X className="w-5 h-5"/> : <Smile className="w-5 h-5" />}
         </Button>
@@ -190,6 +236,7 @@ const ChatInput = ({ onSendMessage }) => {
           onClick={() => handlePremiumFeature("fotos", "Selector de imágenes")}
           className={`text-muted-foreground hover:text-cyan-400 ${!user.isPremium ? 'opacity-50' : ''}`}
           title="Enviar Imagen (Premium)"
+          aria-label="Enviar imagen (función Premium)"
         >
           <Image className="w-5 h-5" />
         </Button>
@@ -201,6 +248,7 @@ const ChatInput = ({ onSendMessage }) => {
           onClick={() => handlePremiumFeature("mensajes de voz", "Grabadora de voz")}
           className={`text-muted-foreground hover:text-cyan-400 ${!user.isPremium ? 'opacity-50' : ''}`}
           title="Enviar Mensaje de Voz (Premium)"
+          aria-label="Enviar mensaje de voz (función Premium)"
         >
           <Mic className="w-5 h-5" />
         </Button>
@@ -210,17 +258,47 @@ const ChatInput = ({ onSendMessage }) => {
           onChange={(e) => setMessage(e.target.value)}
           placeholder={user.isGuest ? "Escribe hasta 3 mensajes..." : "Escribe un mensaje..."}
           className="flex-1 bg-secondary border-2 border-input rounded-lg px-4 py-2 text-foreground placeholder:text-muted-foreground focus:border-accent transition-all"
+          aria-label="Campo de texto para escribir mensaje"
+          maxLength={500}
+          autoComplete="off"
         />
 
-        <Button
-          type="submit"
-          disabled={!message.trim()}
-          className="magenta-gradient text-white hover:scale-105 transition-transform rounded-lg"
-          size="icon"
+        <motion.div
+          whileHover={{ scale: 1.05 }}
+          whileTap={{ scale: 0.95 }}
         >
-          <Send className="w-5 h-5" />
-        </Button>
+          <Button
+            type="submit"
+            disabled={!message.trim() || isSending}
+            className="magenta-gradient text-white rounded-lg relative overflow-hidden"
+            size="icon"
+            aria-label={isSending ? "Enviando mensaje..." : "Enviar mensaje"}
+          >
+            <motion.div
+              animate={isSending ? {
+                rotate: 360,
+                transition: { duration: 0.6, repeat: Infinity, ease: "linear" }
+              } : { rotate: 0 }}
+            >
+              <Send className="w-5 h-5" />
+            </motion.div>
+            {isSending && (
+              <motion.div
+                className="absolute inset-0 bg-gradient-to-r from-transparent via-white/20 to-transparent"
+                animate={{ x: ['-100%', '100%'] }}
+                transition={{ duration: 0.8, repeat: Infinity, ease: "linear" }}
+              />
+            )}
+          </Button>
+        </motion.div>
       </form>
+
+      <ComingSoonModal
+        isOpen={showComingSoon}
+        onClose={() => setShowComingSoon(false)}
+        feature={comingSoonFeature.name}
+        description={comingSoonFeature.description}
+      />
     </div>
   );
 };

@@ -7,6 +7,7 @@ import { Input } from '@/components/ui/input';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { X, Crown, Palette, Type, Smile, Music, MessageCircle, Star, Sparkles, Send, Trash2 } from 'lucide-react';
 import { toast } from '@/components/ui/use-toast';
+import ComingSoonModal from '@/components/ui/ComingSoonModal';
 import { Avatar, AvatarImage } from '@/components/ui/avatar';
 
 const colorPalettes = [
@@ -42,6 +43,8 @@ const AjustesModal = ({ isOpen, onClose }) => {
     const { user, updateThemeSetting, updateProfile, addQuickPhrase, removeQuickPhrase } = useAuth();
     const navigate = useNavigate();
     const [newPhrase, setNewPhrase] = useState('');
+    const [showComingSoon, setShowComingSoon] = useState(false);
+    const [comingSoonFeature, setComingSoonFeature] = useState({ name: '', description: '' });
 
     const handleGoPremium = () => {
         onClose();
@@ -56,8 +59,14 @@ const AjustesModal = ({ isOpen, onClose }) => {
             toast({ title: "Frase rápida añadida", description: "Ahora puedes usarla en el chat." });
         }
     };
+
+    const handleFeatureComingSoon = (featureName, description = '') => {
+        setComingSoonFeature({ name: featureName, description });
+        setShowComingSoon(true);
+    };
     
     return (
+        <>
         <Dialog open={isOpen} onOpenChange={onClose}>
             <DialogContent className="bg-[#22203a] border-[#413e62] text-white max-w-3xl rounded-2xl p-0">
                 <DialogHeader className="p-6">
@@ -106,7 +115,9 @@ const AjustesModal = ({ isOpen, onClose }) => {
                             </TabsContent>
                             <TabsContent value="chat" className="mt-6 space-y-4">
                                <PremiumFeature icon={<MessageCircle size={24} />} title="Estilos de Burbuja y Sonidos">
-                                    <div className="text-gray-300">Próximamente podrás elegir entre 10 diseños y sonidos únicos.</div>
+                                    <div className="text-gray-300 cursor-pointer hover:text-cyan-400 transition-colors" onClick={() => handleFeatureComingSoon('los estilos de burbuja y sonidos', 'Podrás elegir entre 10 diseños únicos para tus mensajes y sonidos personalizados de notificación.')}>
+                                        Próximamente podrás elegir entre 10 diseños y sonidos únicos. Haz clic para más info.
+                                    </div>
                                 </PremiumFeature>
                                <PremiumFeature icon={<Smile size={24} />} title="Set de Emojis Premium">
                                     <div className="text-gray-300">¡Ya tienes acceso a emojis exclusivos en el selector de emojis del chat!</div>
@@ -137,11 +148,19 @@ const AjustesModal = ({ isOpen, onClose }) => {
                     )}
                 </div>
 
-                <Button variant="ghost" size="icon" onClick={onClose} className="absolute top-4 right-4 text-gray-400 hover:text-white">
+                <Button variant="ghost" size="icon" onClick={onClose} className="absolute top-4 right-4 z-50 text-gray-400 hover:text-white">
                     <X className="w-6 h-6" />
                 </Button>
             </DialogContent>
         </Dialog>
+
+        <ComingSoonModal
+            isOpen={showComingSoon}
+            onClose={() => setShowComingSoon(false)}
+            feature={comingSoonFeature.name}
+            description={comingSoonFeature.description}
+        />
+        </>
     );
 };
 

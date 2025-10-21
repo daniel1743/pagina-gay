@@ -1,139 +1,144 @@
 import React, { useState, useEffect } from 'react';
-import { Helmet } from 'react-helmet';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
 import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { Textarea } from '@/components/ui/textarea';
-import { ArrowLeft, Send } from 'lucide-react';
+import { ArrowLeft, Plus, MessageCircle, TrendingUp } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { toast } from '@/components/ui/use-toast';
+// import ForumThread from '@/components/forum/ForumThread';
+// import CreateThreadModal from '@/components/forum/CreateThreadModal';
+
+const categories = ['Apoyo Emocional', 'Recursos', 'Experiencias', 'Preguntas', 'Logros'];
+
+const initialThreads = [
+  {
+    id: '1',
+    title: '¿Cómo manejar el estrés del coming out?',
+    content: 'Estoy pensando en salir del clóset con mi familia pero me siento muy ansioso. ¿Alguien tiene consejos?',
+    author: 'Usuario Anónimo #4521',
+    timestamp: Date.now() - 3600000,
+    replies: 8,
+    likes: 15,
+    category: 'Apoyo Emocional',
+  },
+  {
+    id: '2',
+    title: 'Recursos de salud mental LGBT+ en Santiago',
+    content: '¿Alguien conoce psicólogos o terapeutas que trabajen con temas LGBT+ en Santiago?',
+    author: 'Usuario Anónimo #7832',
+    timestamp: Date.now() - 7200000,
+    replies: 12,
+    likes: 23,
+    category: 'Recursos',
+  },
+];
 
 const AnonymousForumPage = () => {
-  const navigate = useNavigate();
-  const { user } = useAuth();
-  const [posts, setPosts] = useState([]);
-  const [newPost, setNewPost] = useState({ title: '', message: '' });
-
-  useEffect(() => {
-    const storedPosts = JSON.parse(localStorage.getItem('chactivo_forum_posts') || '[]');
-    setPosts(storedPosts);
+  React.useEffect(() => {
+    document.title = "Foro Anónimo - Chactivo | Chat Gay Chile";
   }, []);
 
-  const handleSubmit = (e) => {
-    e.preventDefault();
-    if (!newPost.title.trim() || !newPost.message.trim()) {
-      toast({
-        title: 'Campos incompletos',
-        description: 'Por favor, completa el título y el mensaje.',
-        variant: 'destructive',
-      });
-      return;
-    }
+  const navigate = useNavigate();
+  const { user } = useAuth();
+  const [threads, setThreads] = useState(initialThreads);
+  const [showCreateModal, setShowCreateModal] = useState(false);
+  const [selectedCategory, setSelectedCategory] = useState('Todos');
+  const [sortBy, setSortBy] = useState('recent');
 
-    const postToAdd = {
-      id: Date.now(),
-      title: newPost.title,
-      message: newPost.message,
-      authorId: `anon-${Math.random().toString(36).substr(2, 9)}`,
-      timestamp: new Date().toISOString(),
+  const filteredThreads = selectedCategory === 'Todos'
+    ? threads
+    : threads.filter(t => t.category === selectedCategory);
+
+  const sortedThreads = [...filteredThreads].sort((a, b) => {
+    if (sortBy === 'popular') return b.likes - a.likes;
+    if (sortBy === 'replies') return b.replies - a.replies;
+    return b.timestamp - a.timestamp;
+  });
+
+  const handleCreateThread = (threadData) => {
+    const newThread = {
+      id: String(Date.now()),
+      ...threadData,
+      author: `Usuario Anónimo #${Math.floor(Math.random() * 10000)}`,
+      timestamp: Date.now(),
+      replies: 0,
+      likes: 0,
     };
-
-    const updatedPosts = [postToAdd, ...posts];
-    setPosts(updatedPosts);
-    localStorage.setItem('chactivo_forum_posts', JSON.stringify(updatedPosts));
-    setNewPost({ title: '', message: '' });
-
+    setThreads([newThread, ...threads]);
+    setShowCreateModal(false);
     toast({
-      title: 'Publicación enviada',
-      description: 'Tu mensaje ha sido publicado en el foro anónimo.',
+      title: "✅ Hilo publicado",
+      description: "Tu pregunta ha sido publicada de forma anónima.",
     });
-  };
-
-  const formatTime = (timestamp) => {
-    const date = new Date(timestamp);
-    return date.toLocaleString('es-CL', { dateStyle: 'short', timeStyle: 'short' });
   };
 
   return (
     <>
-      <Helmet>
-        <title>Foro Anónimo - Chactivo</title>
-        <meta name="description" content="Un espacio anónimo para preguntas y respuestas sobre salud mental." />
-      </Helmet>
-      <div className="min-h-screen bg-background text-foreground px-4 py-8">
-        <div className="max-w-4xl mx-auto">
-          <Button
-            variant="ghost"
-            onClick={() => navigate('/')}
-            className="mb-6 text-muted-foreground hover:text-foreground"
-          >
-            <ArrowLeft className="w-4 h-4 mr-2" />
-            Volver al Lobby
-          </Button>
+      <div className="min-h-screen px-4 py-8">
+        <div className="max-w-5xl mx-auto">
+          <div className="flex items-center justify-between mb-6">
+            <Button variant="ghost" onClick={() => navigate('/')} className="text-muted-foreground">
+              <ArrowLeft className="w-4 h-4 mr-2" />
+              Volver
+            </Button>
+            <Button onClick={() => setShowCreateModal(true)} className="magenta-gradient text-white font-bold">
+              <Plus className="w-4 h-4 mr-2" />
+              Nuevo Hilo
+            </Button>
+          </div>
 
-          <motion.div
-            initial={{ opacity: 0, y: -20 }}
-            animate={{ opacity: 1, y: 0 }}
-            className="text-center mb-12"
-          >
-            <h1 className="text-4xl md:text-5xl font-extrabold">Foro Anónimo</h1>
-            <p className="text-lg text-muted-foreground mt-2">
-              Un lugar para compartir y encontrar apoyo sin revelar tu identidad.
+          <motion.div initial={{ opacity: 0, y: -20 }} animate={{ opacity: 1, y: 0 }} className="text-center mb-8">
+            <h1 className="text-4xl font-extrabold mb-2 flex items-center justify-center gap-3">
+              <MessageCircle className="w-10 h-10 text-cyan-400" />
+              Foro Anónimo de Apoyo
+            </h1>
+            <p className="text-muted-foreground max-w-2xl mx-auto">
+              Un espacio seguro para compartir experiencias y encontrar apoyo. 100% anónimo.
             </p>
           </motion.div>
-          
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.2 }}
-            className="glass-effect rounded-2xl p-6 mb-12"
-          >
-            <h2 className="text-2xl font-bold mb-4">Crear una nueva publicación</h2>
-            <form onSubmit={handleSubmit} className="space-y-4">
-              <Input
-                value={newPost.title}
-                onChange={(e) => setNewPost({ ...newPost, title: e.target.value })}
-                placeholder="Título de tu publicación"
-                className="bg-secondary border-2 border-input focus:border-accent"
-              />
-              <Textarea
-                value={newPost.message}
-                onChange={(e) => setNewPost({ ...newPost, message: e.target.value })}
-                placeholder="Escribe tu mensaje aquí..."
-                className="min-h-[120px] bg-secondary border-2 border-input focus:border-accent"
-              />
-              <Button type="submit" className="w-full magenta-gradient text-white font-bold">
-                <Send className="w-4 h-4 mr-2" />
-                Enviar a Foro
-              </Button>
-            </form>
-          </motion.div>
 
-          <div className="space-y-6">
-            <h2 className="text-3xl font-bold border-b pb-2">Publicaciones Recientes</h2>
+          <div className="glass-effect rounded-xl p-4 mb-6">
+            <div className="flex flex-wrap gap-2 mb-4">
+              {['Todos', ...categories].map(cat => (
+                <Button
+                  key={cat}
+                  variant={selectedCategory === cat ? "default" : "outline"}
+                  size="sm"
+                  onClick={() => setSelectedCategory(cat)}
+                  className={selectedCategory === cat ? "magenta-gradient text-white" : ""}
+                >
+                  {cat}
+                </Button>
+              ))}
+            </div>
+            <div className="flex gap-2">
+              <Button variant="ghost" size="sm" onClick={() => setSortBy('recent')}
+                className={sortBy === 'recent' ? 'text-cyan-400' : ''}>Recientes</Button>
+              <Button variant="ghost" size="sm" onClick={() => setSortBy('popular')}
+                className={sortBy === 'popular' ? 'text-cyan-400' : ''}>
+                <TrendingUp className="w-4 h-4 mr-1" />Popular
+              </Button>
+              <Button variant="ghost" size="sm" onClick={() => setSortBy('replies')}
+                className={sortBy === 'replies' ? 'text-cyan-400' : ''}>
+                <MessageCircle className="w-4 h-4 mr-1" />Más Respuestas
+              </Button>
+            </div>
+          </div>
+
+          <div className="space-y-4">
             <AnimatePresence>
-              {posts.length > 0 ? (
-                posts.map((post, index) => (
-                  <motion.div
-                    key={post.id}
-                    layout
-                    initial={{ opacity: 0, y: 20 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    exit={{ opacity: 0 }}
-                    transition={{ duration: 0.4, delay: index * 0.1 }}
-                    className="bg-card p-6 rounded-xl shadow-md"
-                  >
-                    <h3 className="text-xl font-bold text-accent">{post.title}</h3>
-                    <p className="text-xs text-muted-foreground mb-3">Publicado el {formatTime(post.timestamp)}</p>
-                    <p className="text-foreground whitespace-pre-wrap">{post.message}</p>
-                  </motion.div>
-                ))
-              ) : (
-                <p className="text-center text-muted-foreground py-8">
-                  Aún no hay publicaciones. ¡Sé el primero en compartir algo!
-                </p>
-              )}
+              {sortedThreads.map((thread, index) => (
+                <motion.div key={thread.id} initial={{opacity: 0, y: 20}} animate={{opacity: 1, y: 0}}
+                  className="glass-effect rounded-xl p-5 cursor-pointer hover:border-cyan-400 transition-all border"
+                  onClick={() => toast({ title: "Próximamente", description: "La página de detalle estará lista pronto" })}>
+                  <h3 className="text-lg font-bold mb-2">{thread.title}</h3>
+                  <p className="text-sm text-muted-foreground mb-3">{thread.content}</p>
+                  <div className="flex gap-4 text-xs text-muted-foreground">
+                    <span>{thread.replies} respuestas</span>
+                    <span>{thread.likes} votos</span>
+                  </div>
+                </motion.div>
+              ))}
             </AnimatePresence>
           </div>
         </div>

@@ -1,0 +1,139 @@
+// =====================================================
+// REGLAS DE FIRESTORE PARA CHACTIVO
+// =====================================================
+//
+// INSTRUCCIONES:
+// 1. Ve a Firebase Console: https://console.firebase.google.com/
+// 2. Selecciona tu proyecto: chat-gay-3016f
+// 3. Ve a "Firestore Database" en el menú lateral
+// 4. Click en la pestaña "Reglas" (Rules)
+// 5. REEMPLAZA TODO el contenido con estas reglas
+// 6. Click en "Publicar" (Publish)
+//
+// =====================================================
+
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // ===================================
+    // USUARIOS
+    // ===================================
+    match /users/{userId} {
+      // Leer: todos pueden ver perfiles públicos
+      allow read: if true;
+
+      // Escribir: solo el propio usuario
+      allow write: if request.auth != null && request.auth.uid == userId;
+
+      // NOTIFICACIONES del usuario
+      match /notifications/{notificationId} {
+        // Leer: solo el dueño de las notificaciones
+        allow read: if request.auth != null && request.auth.uid == userId;
+
+        // Escribir: cualquier usuario autenticado puede enviar notificaciones
+        allow create: if request.auth != null;
+
+        // Actualizar: solo el dueño (para marcar como leído)
+        allow update: if request.auth != null && request.auth.uid == userId;
+
+        // Eliminar: solo el dueño
+        allow delete: if request.auth != null && request.auth.uid == userId;
+      }
+
+      // MENSAJES ENVIADOS (historial)
+      match /sent_messages/{messageId} {
+        // Solo el remitente puede ver sus mensajes enviados
+        allow read: if request.auth != null && request.auth.uid == userId;
+
+        // Solo el sistema puede crear (cuando se envía un mensaje)
+        allow create: if request.auth != null;
+      }
+    }
+
+    // ===================================
+    // SALAS DE CHAT
+    // ===================================
+    match /rooms/{roomId}/messages/{messageId} {
+      // Leer: todos pueden ver mensajes de salas
+      allow read: if true;
+
+      // Crear: solo usuarios autenticados
+      allow create: if request.auth != null;
+
+      // Actualizar: solo para reacciones (like/dislike)
+      allow update: if request.auth != null;
+
+      // Eliminar: solo moderadores (por ahora nadie)
+      allow delete: if false;
+    }
+
+    // ===================================
+    // PRESENCIA (usuarios conectados)
+    // ===================================
+    match /presence/{roomId}/users/{userId} {
+      // Leer: todos pueden ver quién está conectado
+      allow read: if true;
+
+      // Escribir: solo el propio usuario
+      allow write: if request.auth != null && request.auth.uid == userId;
+    }
+
+    // ===================================
+    // CHATS PRIVADOS
+    // ===================================
+    match /private_chats/{chatId} {
+      // Leer: solo los participantes del chat
+      allow read: if request.auth != null &&
+                     request.auth.uid in resource.data.participants;
+
+      // Crear: cualquier usuario autenticado
+      allow create: if request.auth != null;
+
+      // Actualizar: solo los participantes
+      allow update: if request.auth != null &&
+                       request.auth.uid in resource.data.participants;
+
+      // Mensajes dentro del chat privado
+      match /messages/{messageId} {
+        // Leer: solo participantes
+        allow read: if request.auth != null &&
+                       request.auth.uid in get(/databases/$(database)/documents/private_chats/$(chatId)).data.participants;
+
+        // Crear: solo participantes
+        allow create: if request.auth != null &&
+                         request.auth.uid in get(/databases/$(database)/documents/private_chats/$(chatId)).data.participants;
+      }
+    }
+
+    // ===================================
+    // REPORTES
+    // ===================================
+    match /reports/{reportId} {
+      // Leer: solo administradores (por ahora nadie)
+      allow read: if false;
+
+      // Crear: cualquier usuario autenticado
+      allow create: if request.auth != null;
+    }
+
+    // ===================================
+    // INVITADOS (contador de mensajes)
+    // ===================================
+    match /guests/{guestId} {
+      // Leer: solo el propio invitado
+      allow read: if request.auth != null && request.auth.uid == guestId;
+
+      // Escribir: solo el propio invitado (transacciones)
+      allow write: if request.auth != null && request.auth.uid == guestId;
+    }
+
+    // ===================================
+    // DENEGAR TODO LO DEMÁS
+    // ===================================
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}

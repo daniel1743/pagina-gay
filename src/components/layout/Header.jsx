@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
 import { useTheme } from '@/contexts/ThemeContext';
@@ -6,18 +6,18 @@ import { Button } from '@/components/ui/button';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Bell, LogIn, ChevronDown, Circle, HeartPulse, Sun, Moon, CheckCircle } from 'lucide-react';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
-import { toast } from '@/components/ui/use-toast';
+import ComingSoonModal from '@/components/ui/ComingSoonModal';
 
 const Header = () => {
   const navigate = useNavigate();
   const { user, logout } = useAuth();
   const { theme, toggleTheme } = useTheme();
-  
-  const handleStatusChange = (status) => {
-    toast({
-      title: '🚧 Función en desarrollo',
-      description: `Pronto podrás cambiar tu estado a "${status}".`,
-    });
+  const [showComingSoon, setShowComingSoon] = useState(false);
+  const [comingSoonFeature, setComingSoonFeature] = useState({ name: '', description: '' });
+
+  const handleFeatureComingSoon = (featureName, description = '') => {
+    setComingSoonFeature({ name: featureName, description });
+    setShowComingSoon(true);
   };
 
   return (
@@ -27,7 +27,12 @@ const Header = () => {
           <div className="w-10 h-10 flex items-center justify-center">
             <HeartPulse className="w-9 h-9 text-[#E4007C]"/>
           </div>
-          <h1 className="text-2xl font-bold text-foreground hidden sm:block">Chactivo</h1>
+          <div className="hidden sm:flex items-center gap-2">
+            <h1 className="text-2xl font-bold text-foreground">Chactivo</h1>
+            <span className="px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider bg-gradient-to-r from-amber-400 to-orange-500 text-gray-900 rounded-md shadow-sm animate-pulse">
+              Beta
+            </span>
+          </div>
         </div>
 
         <div className="flex items-center gap-2 sm:gap-4">
@@ -35,8 +40,9 @@ const Header = () => {
             {theme === 'dark' ? <Sun className="w-6 h-6" /> : <Moon className="w-6 h-6" />}
           </Button>
 
-          <Button variant="ghost" size="icon" className="text-muted-foreground hover:text-cyan-400" onClick={() => toast({ title: '🚧 Notificaciones en desarrollo', description: '¡Pronto verás tus notificaciones aquí!' })}>
+          <Button variant="ghost" size="icon" className="text-muted-foreground hover:text-cyan-400 relative" onClick={() => handleFeatureComingSoon('el sistema de notificaciones', 'Podrás recibir alertas de mensajes privados, menciones y eventos de la comunidad en tiempo real.')}>
             <Bell className="w-6 h-6" />
+            <span className="absolute top-2 right-2 w-2 h-2 bg-[#E4007C] rounded-full animate-pulse"></span>
           </Button>
 
           {user && !user.isGuest ? (
@@ -66,14 +72,14 @@ const Header = () => {
                 <DropdownMenuItem onClick={() => navigate('/profile')}>Perfil</DropdownMenuItem>
                 <DropdownMenuSeparator />
                 <DropdownMenuLabel>Estado</DropdownMenuLabel>
-                <DropdownMenuItem onClick={() => handleStatusChange('Conectado')}>
+                <DropdownMenuItem onClick={() => handleFeatureComingSoon('cambiar tu estado', 'Próximamente podrás mostrar si estás Conectado, Desconectado u Oculto.')}>
                   <Circle className="w-2 h-2 mr-2 text-green-400 fill-current" /> Conectado
                 </DropdownMenuItem>
-                <DropdownMenuItem onClick={() => handleStatusChange('Desconectado')}>
+                <DropdownMenuItem onClick={() => handleFeatureComingSoon('cambiar tu estado', 'Próximamente podrás mostrar si estás Conectado, Desconectado u Oculto.')}>
                   <Circle className="w-2 h-2 mr-2 text-gray-500 fill-current" /> Desconectado
                 </DropdownMenuItem>
                 <DropdownMenuItem onClick={() => {
-                  if (user.isPremium) handleStatusChange('Oculto');
+                  if (user.isPremium) handleFeatureComingSoon('modo oculto', 'Función exclusiva Premium que te permite navegar sin ser visto.');
                   else navigate('/premium');
                 }}>
                   <Circle className="w-2 h-2 mr-2 text-purple-400 fill-current" /> Oculto {user.isPremium ? '' : '👑'}
@@ -90,6 +96,13 @@ const Header = () => {
           )}
         </div>
       </div>
+
+      <ComingSoonModal
+        isOpen={showComingSoon}
+        onClose={() => setShowComingSoon(false)}
+        feature={comingSoonFeature.name}
+        description={comingSoonFeature.description}
+      />
     </header>
   );
 };

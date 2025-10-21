@@ -1,6 +1,5 @@
 
 import React, { useState } from 'react';
-import { Helmet } from 'react-helmet';
 import { motion } from 'framer-motion';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
@@ -11,6 +10,10 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { ArrowLeft } from 'lucide-react';
 
 const AuthPage = () => {
+  React.useEffect(() => {
+    document.title = "Iniciar Sesión - Chactivo | Chat Gay Chile";
+  }, []);
+
   const navigate = useNavigate();
   const { login, register } = useAuth();
   const [loginData, setLoginData] = useState({ email: '', password: '' });
@@ -38,11 +41,6 @@ const AuthPage = () => {
 
   return (
     <>
-      <Helmet>
-        <title>Iniciar Sesión - Chactivo</title>
-        <meta name="description" content="Inicia sesión o crea tu cuenta en Chactivo para conectar con la comunidad LGBTQ+ de Santiago" />
-      </Helmet>
-
       <div className="min-h-screen flex items-center justify-center px-4 py-8 relative overflow-hidden">
         <div className="absolute inset-0">
           <div className="absolute top-20 left-10 w-72 h-72 bg-purple-500/20 rounded-full blur-3xl"></div>

@@ -1,0 +1,249 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Generador de Iconos - Chactivo</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            padding: 20px;
+            background: #1a1625;
+            color: white;
+        }
+        .container {
+            max-width: 800px;
+            margin: 0 auto;
+        }
+        canvas {
+            border: 2px solid #E4007C;
+            margin: 10px;
+            background: white;
+        }
+        button {
+            background: #E4007C;
+            color: white;
+            border: none;
+            padding: 15px 30px;
+            font-size: 16px;
+            cursor: pointer;
+            border-radius: 8px;
+            margin: 10px;
+        }
+        button:hover {
+            background: #c6006a;
+        }
+        .preview {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 20px;
+            margin: 20px 0;
+        }
+        .icon-item {
+            text-align: center;
+        }
+        h1 {
+            color: #E4007C;
+        }
+        .instructions {
+            background: rgba(228, 0, 124, 0.1);
+            padding: 15px;
+            border-radius: 8px;
+            margin: 20px 0;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🌈 Generador de Iconos - Chactivo</h1>
+
+        <div class="instructions">
+            <h3>Instrucciones:</h3>
+            <ol>
+                <li>Haz clic en "Generar Todos los Iconos"</li>
+                <li>Se generarán automáticamente todos los tamaños necesarios</li>
+                <li>Descarga cada ícono haciendo clic en su botón</li>
+                <li>Guarda los archivos en la carpeta <code>public/</code> de tu proyecto</li>
+            </ol>
+        </div>
+
+        <button onclick="generateAllIcons()">🎨 Generar Todos los Iconos</button>
+
+        <div class="preview" id="preview"></div>
+    </div>
+
+    <script>
+        const sizes = [
+            { size: 16, name: 'favicon-16x16.png' },
+            { size: 32, name: 'favicon-32x32.png' },
+            { size: 48, name: 'icon-48.png' },
+            { size: 72, name: 'icon-72.png' },
+            { size: 96, name: 'icon-96.png' },
+            { size: 144, name: 'icon-144.png' },
+            { size: 192, name: 'icon-192.png' },
+            { size: 384, name: 'icon-384.png' },
+            { size: 512, name: 'icon-512.png' }
+        ];
+
+        function drawIcon(canvas, size) {
+            const ctx = canvas.getContext('2d');
+            canvas.width = size;
+            canvas.height = size;
+
+            // Fondo degradado
+            const gradient = ctx.createLinearGradient(0, 0, size, size);
+            gradient.addColorStop(0, '#E4007C');
+            gradient.addColorStop(0.5, '#9D4EDD');
+            gradient.addColorStop(1, '#3C096C');
+            ctx.fillStyle = gradient;
+            ctx.fillRect(0, 0, size, size);
+
+            // Borde redondeado (para maskable)
+            const cornerRadius = size * 0.15;
+            ctx.globalCompositeOperation = 'destination-in';
+            ctx.beginPath();
+            ctx.moveTo(cornerRadius, 0);
+            ctx.lineTo(size - cornerRadius, 0);
+            ctx.quadraticCurveTo(size, 0, size, cornerRadius);
+            ctx.lineTo(size, size - cornerRadius);
+            ctx.quadraticCurveTo(size, size, size - cornerRadius, size);
+            ctx.lineTo(cornerRadius, size);
+            ctx.quadraticCurveTo(0, size, 0, size - cornerRadius);
+            ctx.lineTo(0, cornerRadius);
+            ctx.quadraticCurveTo(0, 0, cornerRadius, 0);
+            ctx.closePath();
+            ctx.fill();
+
+            // Restaurar modo de composición
+            ctx.globalCompositeOperation = 'source-over';
+
+            // Redibujar el fondo con el borde redondeado
+            ctx.fillStyle = gradient;
+            ctx.fill();
+
+            // Dibujar burbujas de chat
+            ctx.fillStyle = 'rgba(255, 255, 255, 0.95)';
+
+            // Burbuja grande (izquierda)
+            const bubble1Size = size * 0.35;
+            const bubble1X = size * 0.3;
+            const bubble1Y = size * 0.4;
+            drawChatBubble(ctx, bubble1X, bubble1Y, bubble1Size, 'left');
+
+            // Burbuja pequeña (derecha)
+            const bubble2Size = size * 0.28;
+            const bubble2X = size * 0.65;
+            const bubble2Y = size * 0.55;
+            drawChatBubble(ctx, bubble2X, bubble2Y, bubble2Size, 'right');
+
+            // Corazón pequeño (símbolo LGBT+)
+            ctx.fillStyle = 'rgba(255, 255, 255, 0.9)';
+            const heartSize = size * 0.15;
+            const heartX = size * 0.7;
+            const heartY = size * 0.28;
+            drawHeart(ctx, heartX, heartY, heartSize);
+        }
+
+        function drawChatBubble(ctx, x, y, size, direction) {
+            ctx.beginPath();
+
+            // Cuerpo de la burbuja (círculo redondeado)
+            const radius = size / 2;
+            ctx.arc(x, y, radius, 0, Math.PI * 2);
+            ctx.fill();
+
+            // Cola de la burbuja
+            ctx.beginPath();
+            if (direction === 'left') {
+                ctx.moveTo(x - radius * 0.5, y + radius * 0.5);
+                ctx.lineTo(x - radius * 0.9, y + radius * 1.2);
+                ctx.lineTo(x - radius * 0.2, y + radius * 0.7);
+            } else {
+                ctx.moveTo(x + radius * 0.5, y + radius * 0.5);
+                ctx.lineTo(x + radius * 0.9, y + radius * 1.2);
+                ctx.lineTo(x + radius * 0.2, y + radius * 0.7);
+            }
+            ctx.closePath();
+            ctx.fill();
+        }
+
+        function drawHeart(ctx, x, y, size) {
+            ctx.beginPath();
+            const topCurveHeight = size * 0.3;
+            ctx.moveTo(x, y + topCurveHeight);
+
+            // Curva izquierda
+            ctx.bezierCurveTo(
+                x, y,
+                x - size / 2, y,
+                x - size / 2, y + topCurveHeight
+            );
+
+            ctx.bezierCurveTo(
+                x - size / 2, y + (size + topCurveHeight) / 2,
+                x, y + (size + topCurveHeight) / 1.2,
+                x, y + size
+            );
+
+            // Curva derecha
+            ctx.bezierCurveTo(
+                x, y + (size + topCurveHeight) / 1.2,
+                x + size / 2, y + (size + topCurveHeight) / 2,
+                x + size / 2, y + topCurveHeight
+            );
+
+            ctx.bezierCurveTo(
+                x + size / 2, y,
+                x, y,
+                x, y + topCurveHeight
+            );
+
+            ctx.closePath();
+            ctx.fill();
+        }
+
+        function generateAllIcons() {
+            const preview = document.getElementById('preview');
+            preview.innerHTML = '';
+
+            sizes.forEach(iconConfig => {
+                const iconItem = document.createElement('div');
+                iconItem.className = 'icon-item';
+
+                const canvas = document.createElement('canvas');
+                drawIcon(canvas, iconConfig.size);
+
+                const label = document.createElement('p');
+                label.textContent = `${iconConfig.size}x${iconConfig.size}`;
+
+                const downloadBtn = document.createElement('button');
+                downloadBtn.textContent = `Descargar ${iconConfig.name}`;
+                downloadBtn.onclick = () => downloadIcon(canvas, iconConfig.name);
+
+                iconItem.appendChild(label);
+                iconItem.appendChild(canvas);
+                iconItem.appendChild(downloadBtn);
+                preview.appendChild(iconItem);
+            });
+
+            alert('✅ ¡Iconos generados! Ahora descarga cada uno haciendo clic en su botón.');
+        }
+
+        function downloadIcon(canvas, filename) {
+            canvas.toBlob(blob => {
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = filename;
+                a.click();
+                URL.revokeObjectURL(url);
+            });
+        }
+
+        // Generar automáticamente al cargar
+        window.onload = () => {
+            setTimeout(generateAllIcons, 500);
+        };
+    </script>
+</body>
+</html>

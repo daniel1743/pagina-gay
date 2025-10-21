@@ -1,0 +1,207 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // ===========================
+    // FUNCIONES AUXILIARES
+    // ===========================
+
+    // Verificar si el usuario está autenticado
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+
+    // Verificar si el usuario es el propietario del recurso
+    function isOwner(userId) {
+      return isAuthenticated() && request.auth.uid == userId;
+    }
+
+    // Verificar si el usuario es Premium
+    function isPremium() {
+      return isAuthenticated() &&
+             get(/databases/$(database)/documents/users/$(request.auth.uid)).data.isPremium == true;
+    }
+
+    // Verificar si el mensaje es de un bot (userId comienza con 'bot_')
+    function isBot() {
+      let data = request.resource.data;
+      return 'userId' in data &&
+             data.userId is string &&
+             data.userId.matches('bot_.*');
+    }
+
+    // Validar datos de mensaje
+    function isValidMessage() {
+      let data = request.resource.data;
+      // Solo validar que tenga los campos mínimos requeridos (permite campos adicionales)
+      return 'userId' in data &&
+             // Permitir bots (userId empieza con 'bot_') o usuario autenticado
+             (data.userId.matches('bot_.*') || data.userId == request.auth.uid) &&
+             'username' in data && data.username is string &&
+             'content' in data && data.content is string &&
+             data.content.size() > 0 &&
+             data.content.size() <= 1000 && // Máximo 1000 caracteres
+             'type' in data && data.type in ['text', 'image', 'voice', 'system'] &&
+             'timestamp' in data && data.timestamp is timestamp;
+    }
+
+    // Validar que no contiene palabras prohibidas (básico)
+    function hasNoProhibitedWords(content) {
+      // Lista básica de palabras sensibles
+      let prohibited = ['spam', 'phishing'];
+      return !content.matches('.*(' + prohibited.join('|') + ').*');
+    }
+
+    // Validar edad del usuario (null es válido si no se proporciona)
+    function isAdult(age) {
+      return age == null || (age is number && age >= 18);
+    }
+
+    // ===========================
+    // REGLAS DE INVITADOS (ANÓNIMOS)
+    // ===========================
+
+    match /guests/{guestId} {
+      // Un invitado solo puede leer y modificar su propio contador
+      allow read, write: if request.auth != null &&
+                           request.auth.uid == guestId &&
+                           request.auth.token.firebase.sign_in_provider == 'anonymous';
+    }
+
+    // ===========================
+    // REGLAS DE USUARIOS
+    // ===========================
+
+    match /users/{userId} {
+      // Lectura: cualquier usuario autenticado puede leer perfiles
+      allow read: if isAuthenticated();
+
+      // Creación: solo al registrarse, con validaciones básicas
+      allow create: if isOwner(userId) &&
+                      request.resource.data.username is string &&
+                      request.resource.data.username.size() >= 3 &&
+                      request.resource.data.username.size() <= 30 &&
+                      request.resource.data.email is string &&
+                      request.resource.data.isPremium == false && // Nuevo usuario no puede ser premium
+                      request.resource.data.verified == false &&
+                      isAdult(request.resource.data.get('age', null));
+
+      // Actualización: solo el propietario, con restricciones
+      allow update: if isOwner(userId) &&
+                      // No puede cambiar email ni id
+                      request.resource.data.email == resource.data.email &&
+                      request.resource.data.id == resource.data.id &&
+                      // No puede auto-promocionarse a premium (debe hacerse mediante función cloud)
+                      (request.resource.data.isPremium == resource.data.isPremium ||
+                       request.resource.data.isPremium == false);
+
+      // Eliminación: solo el propietario
+      allow delete: if isOwner(userId);
+    }
+
+    // ===========================
+    // REGLAS DE PRESENCIA (Usuarios Conectados)
+    // ===========================
+
+    match /roomPresence/{roomId}/users/{userId} {
+      // Cualquiera puede leer quién está en la sala
+      allow read: if true;
+
+      // Solo el propio usuario puede crear/actualizar/eliminar su presencia
+      allow create, update, delete: if request.auth != null &&
+                                      request.auth.uid == userId;
+    }
+
+    // ===========================
+    // REGLAS DE SALAS Y MENSAJES
+    // ===========================
+
+    match /rooms/{roomId}/messages/{messageId} {
+      // Lectura: cualquier usuario (autenticado o invitado)
+      allow read: if true;
+
+      // Creación: usuario autenticado con validaciones
+      allow create: if isAuthenticated() &&
+                      isValidMessage() &&
+                      hasNoProhibitedWords(request.resource.data.content.lower()) &&
+                      // Si es anónimo, debe tener menos de 3 mensajes
+                      (request.auth.token.firebase.sign_in_provider != 'anonymous' ||
+                       !exists(/databases/$(database)/documents/guests/$(request.auth.uid)) ||
+                       get(/databases/$(database)/documents/guests/$(request.auth.uid)).data.messageCount < 3);
+
+      // Actualización: solo usuarios autenticados para reacciones
+      allow update: if isAuthenticated() &&
+                      // No se puede cambiar el contenido del mensaje
+                      request.resource.data.content == resource.data.content &&
+                      request.resource.data.userId == resource.data.userId &&
+                      request.resource.data.timestamp == resource.data.timestamp &&
+                      // Solo se pueden actualizar las reacciones
+                      request.resource.data.diff(resource.data).affectedKeys().hasOnly(['reactions']);
+
+      // Eliminación: solo el autor
+      allow delete: if isAuthenticated() &&
+                      resource.data.userId == request.auth.uid;
+    }
+
+    // ===========================
+    // REGLAS DE CHATS PRIVADOS
+    // ===========================
+
+    match /privateChats/{chatId} {
+      // Solo los participantes pueden leer
+      allow read: if isAuthenticated() &&
+                    request.auth.uid in resource.data.participants;
+
+      // Crear chat privado: ambos usuarios deben estar autenticados
+      allow create: if isAuthenticated() &&
+                      request.resource.data.keys().hasAll(['participants', 'createdAt']) &&
+                      request.auth.uid in request.resource.data.participants &&
+                      request.resource.data.participants.size() == 2;
+
+      // Mensajes dentro de chats privados
+      match /messages/{messageId} {
+        // Solo los participantes del chat pueden leer
+        allow read: if isAuthenticated() &&
+                      request.auth.uid in get(/databases/$(database)/documents/privateChats/$(chatId)).data.participants;
+
+        // Solo los participantes pueden enviar mensajes
+        allow create: if isAuthenticated() &&
+                        request.auth.uid in get(/databases/$(database)/documents/privateChats/$(chatId)).data.participants &&
+                        isValidMessage();
+      }
+    }
+
+    // ===========================
+    // REGLAS DE REPORTES/DENUNCIAS
+    // ===========================
+
+    match /reports/{reportId} {
+      // Solo admins pueden leer reportes (por ahora nadie)
+      allow read: if false;
+
+      // Usuarios autenticados pueden crear reportes
+      allow create: if isAuthenticated() &&
+                      'reporterId' in request.resource.data &&
+                      request.resource.data.reporterId == request.auth.uid &&
+                      'type' in request.resource.data &&
+                      'description' in request.resource.data &&
+                      request.resource.data.description is string &&
+                      request.resource.data.description.size() > 10 &&
+                      'targetUsername' in request.resource.data &&
+                      'status' in request.resource.data &&
+                      request.resource.data.status == 'pending';
+
+      // No se pueden actualizar ni eliminar reportes
+      allow update, delete: if false;
+    }
+
+    // ===========================
+    // REGLAS POR DEFECTO
+    // ===========================
+
+    // Denegar acceso a cualquier otra colección no especificada
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}

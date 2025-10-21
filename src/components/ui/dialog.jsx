@@ -72,6 +72,17 @@ const DialogDescription = React.forwardRef(({ className, ...props }, ref) => (
 ));
 DialogDescription.displayName = DialogPrimitive.Description.displayName;
 
+const DialogFooter = ({ className, ...props }) => (
+  <div
+    className={cn(
+      'flex flex-col-reverse sm:flex-row sm:justify-end sm:space-x-2',
+      className
+    )}
+    {...props}
+  />
+);
+DialogFooter.displayName = 'DialogFooter';
+
 export {
   Dialog,
   DialogTrigger,
@@ -79,4 +90,5 @@ export {
   DialogHeader,
   DialogTitle,
   DialogDescription,
+  DialogFooter,
 };

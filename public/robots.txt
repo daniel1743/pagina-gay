@@ -1,4 +1,23 @@
-User-agent: *
-Allow: /
+# robots.txt para Chactivo - Chat Gay Chile
+# URL principal: https://chactivo.com
 
-Sitemap: /sitemap.xml
+# Configuración para todos los bots
+User-agent: *
+
+# Permitir acceso público
+Allow: /
+Allow: /chat/
+Allow: /premium
+Allow: /profile
+Allow: /anonymous-chat
+Allow: /anonymous-forum
+Allow: /auth
+
+# Bloquear rutas privadas y técnicas
+Disallow: /api/
+Disallow: /admin/
+Disallow: /user/
+Disallow: /private/
+
+# Sitemap principal
+Sitemap: https://chactivo.com/sitemap.xml

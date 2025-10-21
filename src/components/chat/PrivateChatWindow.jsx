@@ -6,39 +6,64 @@ import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Send, X, Shield, PhoneOff, User, MoreVertical } from 'lucide-react';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import { toast } from '@/components/ui/use-toast';
+import { collection, addDoc, onSnapshot, query, orderBy, serverTimestamp } from 'firebase/firestore';
+import { db } from '@/config/firebase';
 
-const PrivateChatWindow = ({ user, partner, onClose }) => {
+const PrivateChatWindow = ({ user, partner, onClose, chatId }) => {
   const [messages, setMessages] = useState([]);
   const [newMessage, setNewMessage] = useState('');
   const messagesEndRef = useRef(null);
+
+  // Suscribirse a mensajes en tiempo real
+  useEffect(() => {
+    if (!chatId) return;
+
+    const messagesRef = collection(db, 'private_chats', chatId, 'messages');
+    const q = query(messagesRef, orderBy('timestamp', 'asc'));
+
+    const unsubscribe = onSnapshot(q, (snapshot) => {
+      const newMessages = snapshot.docs.map(doc => ({
+        id: doc.id,
+        ...doc.data(),
+        timestamp: doc.data().timestamp?.toDate?.()?.toISOString() || new Date().toISOString(),
+      }));
+      setMessages(newMessages);
+    }, (error) => {
+      console.error('Error subscribing to private chat messages:', error);
+    });
+
+    return () => unsubscribe();
+  }, [chatId]);
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages]);
 
-  const handleSendMessage = (e) => {
+  const handleSendMessage = async (e) => {
     e.preventDefault();
-    if (newMessage.trim() === '') return;
+    if (newMessage.trim() === '' || !chatId) return;
 
-    const message = {
-      id: Date.now(),
-      userId: user.id,
-      content: newMessage,
-      timestamp: new Date().toISOString(),
-    };
-    setMessages(prev => [...prev, message]);
-    setNewMessage('');
-    
-    // Simulate partner response
-    setTimeout(() => {
-        const partnerResponse = {
-            id: Date.now() + 1,
-            userId: partner.userId,
-            content: "...",
-            timestamp: new Date().toISOString(),
-        };
-        setMessages(prev => [...prev, partnerResponse]);
-    }, 1500);
+    try {
+      const messagesRef = collection(db, 'private_chats', chatId, 'messages');
+
+      await addDoc(messagesRef, {
+        userId: user.id,
+        username: user.username,
+        avatar: user.avatar,
+        content: newMessage.trim(),
+        type: 'text',
+        timestamp: serverTimestamp(),
+      });
+
+      setNewMessage('');
+    } catch (error) {
+      console.error('Error sending private message:', error);
+      toast({
+        title: "Error",
+        description: "No se pudo enviar el mensaje",
+        variant: "destructive",
+      });
+    }
   };
 
   const handleBlockUser = () => {
@@ -102,9 +127,15 @@ const PrivateChatWindow = ({ user, partner, onClose }) => {
                         exit={{ opacity: 0 }}
                         className={`flex gap-2 ${isOwn ? 'flex-row-reverse' : 'flex-row'}`}
                     >
-                         <div className={`chat-bubble text-white ${isOwn ? 'magenta-gradient' : 'bg-secondary'}`}>
-                            <p>{msg.content}</p>
-                        </div>
+                         <div className={`
+                           px-4 py-2 rounded-2xl max-w-[75%] break-words
+                           ${isOwn
+                             ? 'magenta-gradient text-white'
+                             : 'bg-secondary text-foreground border border-border'
+                           }
+                         `}>
+                            <p className="text-sm">{msg.content}</p>
+                         </div>
                     </motion.div>
                 );
             })}

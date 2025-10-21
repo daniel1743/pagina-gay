@@ -1,15 +1,17 @@
 import React from 'react';
-import { Helmet } from 'react-helmet';
 import { motion } from 'framer-motion';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
 import { Button } from '@/components/ui/button';
 import { Check, Crown, ArrowLeft, Sparkles, Shield, Zap } from 'lucide-react';
 import { toast } from '@/components/ui/use-toast';
+import ComingSoonModal from '@/components/ui/ComingSoonModal';
 
 const PremiumPage = () => {
   const navigate = useNavigate();
   const { user, upgradeToPremium } = useAuth();
+  const [showComingSoon, setShowComingSoon] = React.useState(false);
+  const [comingSoonFeature, setComingSoonFeature] = React.useState({ name: '', description: '' });
 
   const features = [
     { icon: <Zap className="w-5 h-5" />, text: "Chat ilimitado sin restricciones" },
@@ -21,10 +23,11 @@ const PremiumPage = () => {
   ];
 
   const handleUpgrade = () => {
-    toast({
-      title: "🚧 Pagos en desarrollo",
-      description: "La integración de pagos estará disponible pronto. ¡Solicítala en tu próximo mensaje! 🚀",
+    setComingSoonFeature({
+      name: 'el sistema de pagos',
+      description: 'Estamos integrando pasarelas de pago seguras (Mercado Pago, WebPay) para que puedas actualizar a Premium de forma fácil y confiable. ¡Pronto podrás disfrutar de todos los beneficios!'
     });
+    setShowComingSoon(true);
   };
 
   const handleUpgradeDemo = () => {
@@ -32,13 +35,12 @@ const PremiumPage = () => {
     navigate('/profile');
   };
 
+  React.useEffect(() => {
+    document.title = "Premium - Chactivo | Chat Gay Chile";
+  }, []);
+
   return (
     <>
-      <Helmet>
-        <title>Premium - Chactivo</title>
-        <meta name="description" content="Actualiza a Premium y disfruta de funciones exclusivas en Chactivo" />
-      </Helmet>
-
       <div className="min-h-screen px-4 py-8">
         <div className="max-w-4xl mx-auto">
           <Button
@@ -62,7 +64,7 @@ const PremiumPage = () => {
             <h1 className="text-4xl md:text-5xl font-bold mb-4 bg-gradient-to-r from-yellow-400 via-fuchsia-400 to-purple-400 bg-clip-text text-transparent">
               Chactivo Premium
             </h1>
-            <p className="text-xl text-purple-300">
+            <p className="text-xl text-muted-foreground">
               Desbloquea todo el potencial de la comunidad
             </p>
           </motion.div>
@@ -72,28 +74,28 @@ const PremiumPage = () => {
               initial={{ opacity: 0, x: -20 }}
               animate={{ opacity: 1, x: 0 }}
               transition={{ duration: 0.6, delay: 0.2 }}
-              className="glass-effect rounded-3xl p-8"
+              className="glass-effect rounded-3xl p-8 border-2 border-border"
             >
-              <h2 className="text-2xl font-bold mb-2 text-purple-200">Plan Gratuito</h2>
-              <p className="text-4xl font-bold mb-6 text-purple-300">$0</p>
+              <h2 className="text-2xl font-bold mb-2 text-foreground">Plan Gratuito</h2>
+              <p className="text-4xl font-bold mb-6 text-foreground">$0</p>
               <ul className="space-y-3 mb-8">
-                <li className="flex items-center text-purple-300">
-                  <Check className="w-5 h-5 mr-2 text-purple-400" />
+                <li className="flex items-center text-foreground">
+                  <Check className="w-5 h-5 mr-2 text-green-600 dark:text-green-400" />
                   Acceso a salas públicas
                 </li>
-                <li className="flex items-center text-purple-300">
-                  <Check className="w-5 h-5 mr-2 text-purple-400" />
+                <li className="flex items-center text-foreground">
+                  <Check className="w-5 h-5 mr-2 text-green-600 dark:text-green-400" />
                   Chat básico
                 </li>
-                <li className="flex items-center text-purple-300">
-                  <Check className="w-5 h-5 mr-2 text-purple-400" />
+                <li className="flex items-center text-foreground">
+                  <Check className="w-5 h-5 mr-2 text-green-600 dark:text-green-400" />
                   Perfil estándar
                 </li>
               </ul>
               <Button
                 onClick={() => navigate('/profile')}
                 variant="outline"
-                className="w-full border-purple-400 text-purple-200 hover:bg-purple-400/20"
+                className="w-full border-border hover:bg-accent"
               >
                 {user ? 'Continuar Gratis' : 'Comenzar Gratis'}
               </Button>
@@ -111,11 +113,11 @@ const PremiumPage = () => {
               <h2 className="text-2xl font-bold mb-2 bg-gradient-to-r from-yellow-400 to-fuchsia-400 bg-clip-text text-transparent">
                 Plan Premium
               </h2>
-              <p className="text-4xl font-bold mb-2 text-purple-200">$9.990</p>
-              <p className="text-sm text-purple-400 mb-6">por mes</p>
+              <p className="text-4xl font-bold mb-2 text-foreground">$9.990</p>
+              <p className="text-sm text-muted-foreground mb-6">por mes</p>
               <ul className="space-y-3 mb-8">
                 {features.map((feature, index) => (
-                  <li key={index} className="flex items-center text-purple-200">
+                  <li key={index} className="flex items-center text-foreground">
                     <span className="gold-gradient p-1 rounded-full mr-2 text-purple-950">
                       {feature.icon}
                     </span>
@@ -131,15 +133,6 @@ const PremiumPage = () => {
                   <Crown className="w-5 h-5 mr-2" />
                   Actualizar Ahora
                 </Button>
-                {user && !user.isPremium && (
-                  <Button
-                    onClick={handleUpgradeDemo}
-                    variant="outline"
-                    className="w-full border-purple-400 text-purple-200 hover:bg-purple-400/20 text-sm"
-                  >
-                    Activar Demo (Sin pago)
-                  </Button>
-                )}
               </div>
             </motion.div>
           </div>
@@ -150,10 +143,10 @@ const PremiumPage = () => {
             transition={{ duration: 0.6, delay: 0.4 }}
             className="glass-effect rounded-3xl p-8 text-center"
           >
-            <h3 className="text-2xl font-bold mb-4 text-purple-200">
+            <h3 className="text-2xl font-bold mb-4 text-foreground">
               ¿Por qué Premium?
             </h3>
-            <p className="text-purple-300 max-w-2xl mx-auto">
+            <p className="text-muted-foreground max-w-2xl mx-auto">
               Únete a miles de miembros Premium que disfrutan de una experiencia sin límites,
               acceso exclusivo a eventos y la mejor forma de conectar con la comunidad LGBTQ+
               de Santiago. Tu apoyo nos ayuda a mantener Chactivo seguro y en constante mejora.
@@ -161,6 +154,13 @@ const PremiumPage = () => {
           </motion.div>
         </div>
       </div>
+
+      <ComingSoonModal
+        isOpen={showComingSoon}
+        onClose={() => setShowComingSoon(false)}
+        feature={comingSoonFeature.name}
+        description={comingSoonFeature.description}
+      />
     </>
   );
 };

@@ -1,6 +1,5 @@
 
 import React, { useState, useEffect, useRef } from 'react';
-import { Helmet } from 'react-helmet';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
 import { Button } from '@/components/ui/button';
@@ -10,6 +9,10 @@ import { Send, Home, Shield } from 'lucide-react';
 import { motion } from 'framer-motion';
 
 const AnonymousChatPage = () => {
+  React.useEffect(() => {
+    document.title = "Sala de Apoyo Anónima - Chactivo | Chat Gay Chile";
+  }, []);
+
   const navigate = useNavigate();
   const { user } = useAuth();
   const [messages, setMessages] = useState([]);
@@ -36,7 +39,7 @@ const AnonymousChatPage = () => {
       id: 'welcome_anon',
       userId: 'system',
       username: 'Moderador',
-      content: 'Bienvenido/a a la Sala de Apoyo Anónima. Este es un espacio seguro para compartir. Recuerda ser respetuoso y empático. Las conversaciones aquí no se guardan permanentemente.',
+      content: '🔒 Bienvenido/a a la Sala de Apoyo Confidencial. Este es un espacio seguro protegido: solo usuarios registrados pueden escribir para garantizar la privacidad y seguridad de todos. Puedes leer libremente, pero necesitas registrarte para participar. Recuerda ser respetuoso y empático.',
       timestamp: new Date().toISOString(),
     };
     setMessages(storedMessages.length > 0 ? storedMessages : [welcomeMessage]);
@@ -48,12 +51,26 @@ const AnonymousChatPage = () => {
   
   const handleSendMessage = (e) => {
     e.preventDefault();
-    if (newMessage.trim() === '' || !anonymousUser) return;
-    
+
+    // IMPORTANTE: Solo usuarios autenticados pueden escribir (no anónimos de Firebase)
+    if (user && user.isAnonymous) {
+      alert('⚠️ Por privacidad y seguridad, debes registrarte para escribir en la Sala de Apoyo.\n\n' +
+            'Esta sala es un espacio confidencial donde solo usuarios verificados pueden participar.');
+      return;
+    }
+
+    if (!user || user.isGuest) {
+      alert('⚠️ Debes iniciar sesión para escribir en la Sala de Apoyo.');
+      navigate('/');
+      return;
+    }
+
+    if (newMessage.trim() === '') return;
+
     const message = {
       id: Date.now(),
-      userId: anonymousUser.id,
-      username: anonymousUser.username,
+      userId: user.id,
+      username: user.username,
       content: newMessage,
       timestamp: new Date().toISOString(),
     };
@@ -70,10 +87,6 @@ const AnonymousChatPage = () => {
 
   return (
     <>
-      <Helmet>
-        <title>Sala de Apoyo Anónima - Chactivo</title>
-        <meta name="description" content="Un espacio seguro y anónimo para hablar." />
-      </Helmet>
       <div className="h-screen flex flex-col bg-[#2C2A4A] text-white">
         <header className="bg-[#22203a] border-b border-[#413e62] p-4 flex items-center justify-between shrink-0">
           <div className="flex items-center gap-3">
@@ -141,8 +154,9 @@ const AnonymousChatPage = () => {
             <Input
               value={newMessage}
               onChange={(e) => setNewMessage(e.target.value)}
-              placeholder="Escribe tu mensaje anónimo..."
-              className="flex-1 bg-[#2C2A4A] border-2 border-[#413e62] rounded-lg px-4 py-2 text-white placeholder:text-gray-400 focus:border-cyan-400 transition-all"
+              placeholder={user && !user.isAnonymous && !user.isGuest ? "Escribe tu mensaje..." : "🔒 Regístrate para escribir en esta sala protegida"}
+              disabled={!user || user.isAnonymous || user.isGuest}
+              className="flex-1 bg-[#2C2A4A] border-2 border-[#413e62] rounded-lg px-4 py-2 text-white placeholder:text-gray-400 focus:border-cyan-400 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
             />
             <Button
               type="submit"
