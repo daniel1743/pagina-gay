@@ -97,6 +97,21 @@ service cloud.firestore {
 
       // Eliminación: solo el propietario
       allow delete: if isOwner(userId);
+
+      // Subcolección de notificaciones del usuario
+      match /notifications/{notificationId} {
+        // Solo el usuario puede leer sus propias notificaciones
+        allow read: if isOwner(userId);
+
+        // Cualquier usuario autenticado puede crear notificaciones para otros
+        allow create: if isAuthenticated();
+
+        // Solo el usuario puede actualizar (marcar como leída) sus notificaciones
+        allow update: if isOwner(userId);
+
+        // Solo el usuario puede eliminar sus notificaciones
+        allow delete: if isOwner(userId);
+      }
     }
 
     // ===========================

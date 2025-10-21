@@ -1,6 +1,6 @@
 /**
  * ORQUESTADOR DE CONVERSACIONES DE BOTS - VERSIÓN EXPANDIDA Y HUMANIZADA
- * 
+ *
  * Sistema avanzado para crear conversaciones 100% REALES entre bots
  * - 25+ respuestas variadas por tema
  * - Humor gay auténtico (Chile/Venezuela/Latino)
@@ -11,6 +11,8 @@
  * - Frases chilenas (wn, po) y venezolanas (marico, verga, mrc)
  */
 
+import { sendMessage } from './chatService';
+
 /**
  * ==============================================
  * TEMAS DE CONVERSACIÓN EXPANDIDOS (25+ respuestas cada uno)
@@ -20,33 +22,34 @@
 const CONVERSATION_TOPICS = [
   // ============ SERIES & PELÍCULAS LGBT+ ============
   {
-    starter: "Chamo, alguien vio Heartstopper temporada 3? Me tiene LLORANDO wn 😭💕",
+    starter: "Alguien vio Heartstopper temporada 3? Me tiene LLORANDO 😭💕",
     responses: [
       "SIIII ESE BESO EN PARIS ME MATÓ, literal lloré como loca jajaja",
-      "Nick y Charlie son lo más puro que existe en este mundo wn",
-      "Wn yo la vi completa en un día, no pude parar de verla",
-      "Me recordó cuando salí del closet, muy emotiva pana",
-      "La escena del baile me destruyó emocionalmente marico",
+      "Nick y Charlie son lo más puro que existe en este mundo",
+      "Yo la vi completa en un día, no pude parar de verla",
+      "Me recordó cuando salí del closet, muy emotiva",
+      "La escena del baile me destruyó emocionalmente",
       "Tao y Elle también me encantan, son adorables",
-      "Chamo esa serie es demasiado wholesome, la amo",
-      "Isaac como personaje asexual me representa tanto wn",
+      "Esa serie es demasiado wholesome, la amo",
+      "Isaac como personaje asexual me representa tanto",
       "Mr Farouk es el mejor profesor, todos necesitamos uno así",
       "Las escenas animadas son ARTE PURO, literal",
-      "Wn cuando Nick le dice te amo a Charlie MUERO",
+      "Cuando Nick le dice te amo a Charlie MUERO",
       "París fue el escenario perfecto para ese capítulo",
       "Imogen descubriendo su sexualidad fue hermoso verlo",
-      "Necesito una temporada 4 YA, no puedo esperar marico",
-      "Elle en la escuela de arte es inspiración pura wn",
+      "Necesito una temporada 4 YA, no puedo esperar",
+      "Elle en la escuela de arte es inspiración pura",
       "Charlie luchando con su salud mental me tocó el alma",
       "Los padres de Nick son complicados pero reales",
       "Tara y Darcy superando sus problemas me encantó",
-      "Wn la fotografía de esa serie es PERFECTA",
+      "La fotografía de esa serie es PERFECTA",
       "Sahar siendo la mejor amiga que todos necesitamos",
-      "James y Isaac explorando su amistad fue lindo pana",
+      "James y Isaac explorando su amistad fue lindo",
       "La representación trans de Elle es impecable",
-      "Necesito ir a París ahora mismo después de ver eso wn",
-      "La banda sonora me tiene obsesionado marico",
-      "Es la serie gay más tierna que he visto en mi vida"
+      "Necesito ir a París ahora mismo después de ver eso",
+      "La banda sonora me tiene obsesionado",
+      "Es la serie gay más tierna que he visto en mi vida",
+      "Wn esa serie me hizo creer en el amor de nuevo"
     ]
   },
   {
@@ -327,36 +330,6 @@ const CONVERSATION_TOPICS = [
       "Me tienes intrigado con esa propuesta marico"
     ]
   },
-  {
-    starter: "Foto de perfil nueva, cómo me veo? 😊📸",
-    responses: [
-      "Uff te ves increíble wn 🔥",
-      "Chamo ese ángulo es perfecto marico",
-      "Wn guapísimo, me gusta esa foto pana 😍",
-      "Te ves bien! Ese filtro te queda genial",
-      "Chama esa sonrisa es contagiosa wn 💕",
-      "Wn 10/10 fácil, muy linda foto marico",
-      "Se nota que te esforzaste jajaja te ves bien pana",
-      "Chamo ese outfit también está brutal wn",
-      "Wn aprobada esa foto, súbela ya marico ✨",
-      "Te favorece ese fondo también pana",
-      "Chama esa iluminación es perfecta wn",
-      "Wn natural beauty, no necesitas filtros marico 😊",
-      "Me gusta tu estilo, muy tú esa foto pana",
-      "Chamo puedo usar tu fotógrafo? jajaja wn",
-      "Wn esos ojos en esa foto 😍 marico",
-      "Te ves feliz y eso se nota hermoso pana",
-      "Chama confident energy total en esa pic wn",
-      "Wn espera las reacciones van a llover marico",
-      "Me encanta tu vibe en esa foto pana 💯",
-      "Chamo ese corte de pelo también te queda wn",
-      "Wn te ves más joven en esa foto marico",
-      "Selfie level: experto total pana jajaja",
-      "Chama esa pose es todo wn 🔥",
-      "Wn cuándo salimos para sacar fotos juntos? marico 📸",
-      "Te ves radiante literal en esa imagen pana"
-    ]
-  },
 
   // ============ VIAJES & LUGARES ============
   {
@@ -439,7 +412,7 @@ const CONVERSATION_TOPICS = [
       "Wn Match o eHarmony si buscas formal pana",
       "Instagram es la mejor app de citas sin serlo wn",
       "Chamo Feeld para gente más open-minded marico",
-      "Wn las fotos mienten SIEMPRE en apps pana jajaja",
+      "Los perfiles nunca son como esperabas jajaja",
       "Conversaciones básicas y aburridas en Tinder wn",
       "Chama encontré buenos amigos en apps también marico",
       "Wn Hinge dice ser 'designed to be deleted' pana",
@@ -531,7 +504,7 @@ const FLIRTY_RESPONSES = [
   "ay pero qué lindo 👀",
   "uff interesante jaja",
   "me gusta cómo piensas wn 😏",
-  "chamo y tienes foto? jaja marico",
+  "cuéntame más de ti jaja",
   "suena tentador eso 🔥",
   "jajaja pícarO",
   "ay no seas malo jaja",
@@ -754,32 +727,34 @@ export const welcomeRealUser = async (roomId, username, activeBots) => {
 export const startBotConversation = async (roomId, activeBots) => {
   if (activeBots.length < 2) return;
 
-  const topic = getRandomTopic();
-  currentConversation = {
-    topic: topic,
-    messageCount: 0,
-    participants: []
-  };
+  try {
+    const topic = getRandomTopic();
+    currentConversation = {
+      topic: topic,
+      messageCount: 0,
+      participants: []
+    };
 
-  // Bot inicia tema
-  const starterBot = activeBots[0];
-  await sendMessage(roomId, {
-    userId: starterBot.id,
-    username: starterBot.username,
-    avatar: starterBot.avatar,
-    isPremium: false,
-    content: topic.starter,
-    type: 'text'
-  });
+    // Bot inicia tema
+    const starterBot = activeBots[0];
+    await sendMessage(roomId, {
+      userId: starterBot.id,
+      username: starterBot.username,
+      avatar: starterBot.avatar,
+      isPremium: false,
+      content: topic.starter,
+      type: 'text'
+    });
 
-  console.log(`💬 ${starterBot.username} inició: "${topic.starter}"`);
+    console.log(`💬 ${starterBot.username} inició: "${topic.starter}"`);
 
-  // Programar respuestas
-  const responseDelay = Math.random() * 3000 + 4000; // 4-7 segundos (más humano)
-  const otherBots = activeBots.slice(1, Math.min(5, activeBots.length)); // Hasta 4 bots responden
+    // Programar respuestas
+    const responseDelay = Math.random() * 3000 + 4000; // 4-7 segundos (más humano)
+    const otherBots = activeBots.slice(1, Math.min(5, activeBots.length)); // Hasta 4 bots responden
 
-  otherBots.forEach((bot, index) => {
-    setTimeout(async () => {
+    otherBots.forEach((bot, index) => {
+      setTimeout(async () => {
+        try {
       let response;
 
       // 93% respuestas predefinidas, 7% IA (ahorro de API)
@@ -850,8 +825,14 @@ export const startBotConversation = async (roomId, activeBots) => {
         }, 4000);
       }
 
-    }, responseDelay * (index + 1) + Math.random() * 2000); // Variación humana
-  });
+        } catch (error) {
+          console.error(`❌ Error en respuesta de ${bot.username}:`, error);
+        }
+      }, responseDelay * (index + 1) + Math.random() * 2000); // Variación humana
+    });
+  } catch (error) {
+    console.error('❌ Error iniciando conversación:', error);
+  }
 };
 
 /**

@@ -7,7 +7,7 @@
 
 const GEMINI_API_KEY = import.meta.env.VITE_GEMINI_API_KEY;
 // CAMBIO CRÍTICO: Se corrige el nombre del modelo a 'gemini-2.5-flash' para solucionar el error 404.
-const GEMINI_API_URL = 'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent';
+const GEMINI_API_URL =  'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent';
 
 /**
  * PALABRAS Y FRASES PROHIBIDAS PARA BOTS
@@ -124,10 +124,12 @@ const getSmartFallbackResponse = (botProfile, userMessage = '') => {
     lowerMessage.length < 10 // Mensajes muy cortos suelen ser saludos
   ) {
     const greetings = [
-      '¡Hey! Bienvenid@, mi pana. ¿Qué haces por acá? 👀',
-      '¡Chamo! ¡Qué bueno que te uniste! ¿Qué buscas en la sala?',
-      '¡Hola, hola! Siéntete en casa, wn. ¿Qué cuentas de bueno?',
-      '¡MMMGVO, bienvenido! ¿Todo fino? Dale, únete a la conversa.'
+      '¡Hey! Bienvenid@, ¿qué tal? 👀',
+      '¡Hola! ¿Cómo estás? Qué bueno que te uniste',
+      '¡Hola hola! Siéntete en casa, ¿qué cuentas?',
+      'Bienvenido! ¿Todo bien? Dale, únete a la conversa',
+      'Holaa, qué onda? 😊',
+      'Hey! Qué bueno verte por aquí'
     ];
     return greetings[Math.floor(Math.random() * greetings.length)];
   }
@@ -142,23 +144,36 @@ const getSmartFallbackResponse = (botProfile, userMessage = '') => {
     lowerMessage.includes('qué onda')
   ) {
     const opinions = [
-      '¡Dale, wn! Cuéntanos más de eso, me interesa ese chisme.',
-      'Tienes razón, pana. ¿Y tú, qué opinas de esa locura?',
-      '¡Chamo! Me gusta cómo piensas. ¿Algún detalle más?',
-      '¡Totalmente! ¿Qué pasó con eso? No me enteré.'
+      '¡Dale! Cuéntanos más de eso, me interesa',
+      'Tienes razón, ¿y tú qué opinas?',
+      'Me gusta cómo piensas, ¿algún detalle más?',
+      '¡Totalmente! ¿Qué pasó con eso? No me enteré',
+      'Interesante punto, cuenta más',
+      '¿En serio? No sabía eso'
     ];
     return opinions[Math.floor(Math.random() * opinions.length)];
   }
-  
+
   // 3. Respuesta GENÉRICA (último recurso)
   const fallbacks = [
-    'Interesante, jaja. Sigue, sigue, que te leemos.',
-    'Puede ser, wn. ¿Y a ti qué te trae por estos lados?',
-    '😂 Totalmente de acuerdo, me pasa igual. ¿Algún plan para hoy, pana?'
+    'Interesante, jaja. Sigue contando',
+    '¿Y a ti qué te trae por acá?',
+    '😂 Totalmente de acuerdo, me pasa igual',
+    'Puede ser, quién sabe jaja',
+    'Jajaja good point',
+    'Sí, entiendo lo que dices'
   ];
 
   return fallbacks[Math.floor(Math.random() * fallbacks.length)];
 };
+
+/**
+ * Alias para compatibilidad con código existente
+ */
+const getFallbackResponse = (botProfile, userMessage = '') => {
+  return getSmartFallbackResponse(botProfile, userMessage);
+};
+
 /**
  * Genera una respuesta usando Gemini API
  *
@@ -238,7 +253,7 @@ Inicia o continúa la conversación como ${botProfile.username} de manera natura
     // Verificar si la respuesta fue bloqueada por seguridad
     if (data.promptFeedback?.blockReason) {
       console.warn(`⚠️ Respuesta bloqueada por seguridad: ${data.promptFeedback.blockReason}`);
-      return getFallbackResponse(botProfile);
+      return getFallbackResponse(botProfile, userMessage);
     }
 
     // Extraer la respuesta
@@ -246,14 +261,14 @@ Inicia o continúa la conversación como ${botProfile.username} de manera natura
 
     if (!generatedText) {
       console.warn('⚠️ No se generó respuesta, usando fallback');
-      return getFallbackResponse(botProfile);
+      return getFallbackResponse(botProfile, userMessage);
     }
 
     // VERIFICACIÓN CRÍTICA: ¿El bot reveló que es IA?
     if (containsBotForbiddenPhrases(generatedText)) {
       logBotWarning(botProfile.username, generatedText);
       // NO enviar esta respuesta, usar fallback
-      return getFallbackResponse(botProfile);
+      return getFallbackResponse(botProfile, userMessage);
     }
 
     // Limpiar la respuesta (quitar saltos de línea innecesarios)
@@ -264,7 +279,7 @@ Inicia o continúa la conversación como ${botProfile.username} de manera natura
   } catch (error) {
     console.error('Error generando respuesta del bot:', error);
     // En caso de error, devolver respuesta de fallback
-    return getFallbackResponse(botProfile);
+    return getFallbackResponse(botProfile, userMessage);
   }
 };
 
