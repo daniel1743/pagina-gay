@@ -385,8 +385,8 @@ export const botRespondToUser = async (roomId, userMessage, conversationHistory)
   }
 
   // 🆕 AUMENTAR probabilidad a 80% para que SIEMPRE respondan a usuarios reales
-  const shouldRespond = Math.random() <= 0.8;
-  console.log(`🎲 Probabilidad de respuesta: ${shouldRespond ? 'SÍ ✅' : 'NO ❌'} (80%)`);
+  const shouldRespond = true;
+  console.log("✅ Respondiendo a usuario real (100% - NUNCA ignorar)");
 
   if (!shouldRespond) {
     return;

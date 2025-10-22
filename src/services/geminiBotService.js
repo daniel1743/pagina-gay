@@ -6,9 +6,8 @@
  */
 
 const GEMINI_API_KEY = import.meta.env.VITE_GEMINI_API_KEY;
-// CAMBIO CRÍTICO: Se corrige el nombre del modelo a 'gemini-2.5-flash' para solucionar el error 404.
-const GEMINI_API_URL =  'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent';
-
+// Modelo Gemini 1.5 Flash (rápido y eficiente para respuestas cortas)
+const GEMINI_API_URL = 'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent';
 /**
  * PALABRAS Y FRASES PROHIBIDAS PARA BOTS
  * Si el bot responde con esto, se genera advertencia
@@ -235,7 +234,7 @@ Inicia o continúa la conversación como ${botProfile.username} de manera natura
           temperature: 0.85,
           topP: 0.9,
           topK: 40,
-          maxOutputTokens: 60, // ~2-3 frases
+          maxOutputTokens: 400, // Aumentado: Gemini 2.5 usa muchos tokens en "thoughts"
           candidateCount: 1,
         },
         safetySettings: SAFETY_SETTINGS
@@ -244,8 +243,13 @@ Inicia o continúa la conversación como ${botProfile.username} de manera natura
 
     if (!response.ok) {
       const errorData = await response.json();
-      console.error('Error de Gemini API:', errorData);
-      throw new Error(`Gemini API error: ${response.status}`);
+      console.error('❌ Error de Gemini API:', {
+        status: response.status,
+        statusText: response.statusText,
+        error: errorData,
+        url: GEMINI_API_URL
+      });
+      throw new Error(`Gemini API error: ${response.status} - ${JSON.stringify(errorData)}`);
     }
 
     const data = await response.json();
@@ -253,6 +257,7 @@ Inicia o continúa la conversación como ${botProfile.username} de manera natura
     // Verificar si la respuesta fue bloqueada por seguridad
     if (data.promptFeedback?.blockReason) {
       console.warn(`⚠️ Respuesta bloqueada por seguridad: ${data.promptFeedback.blockReason}`);
+      console.log('📋 Data completa:', data);
       return getFallbackResponse(botProfile, userMessage);
     }
 
@@ -261,6 +266,7 @@ Inicia o continúa la conversación como ${botProfile.username} de manera natura
 
     if (!generatedText) {
       console.warn('⚠️ No se generó respuesta, usando fallback');
+      console.log('📋 Data recibida:', JSON.stringify(data, null, 2));
       return getFallbackResponse(botProfile, userMessage);
     }
 
