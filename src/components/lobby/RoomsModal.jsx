@@ -192,7 +192,15 @@ const RoomsModal = ({ isOpen, onClose }) => {
           <div className="max-h-[60vh] overflow-y-auto grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 pr-2 scrollbar-hide">
             {filteredRooms.map((room, index) => {
               const IconComponent = room.icon;
-              const userCount = roomCounts[room.id] || 0;
+              const realUserCount = roomCounts[room.id] || 0;
+
+              // 🎯 CONTADOR FICTICIO: Generar número consistente basado en el ID de la sala
+              // Esto evita que el número cambie en cada render
+              const hashCode = room.id.split('').reduce((acc, char) => {
+                return char.charCodeAt(0) + ((acc << 5) - acc);
+              }, 0);
+              const fictitiousUsers = 30 + Math.abs(hashCode % 51); // 30 a 80
+              const userCount = realUserCount + fictitiousUsers;
 
               return (
                 <motion.div

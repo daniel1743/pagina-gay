@@ -7,9 +7,30 @@ yarn-error.log*
 pnpm-debug.log*
 lerna-debug.log*
 
+# Dependencies
 node_modules
-dist
-dist-ssr
+.pnp
+.pnp.js
+
+# Testing
+coverage/
+
+# Production
+build/
+dist/
+dist-ssr/
+
+# Environment variables
+.env
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+.env.production
+.env.*.local
+
+# Vite
+.vite/
 *.local
 
 # Editor directories and files
@@ -23,15 +44,34 @@ dist-ssr
 *.sln
 *.sw?
 
-# Environment variables
-.env
-.env.local
-.env.production
+# OS
+Thumbs.db
+
+# Optional npm cache directory
+.npm
+
+# Optional eslint cache
+.eslintcache
+
+# Config files with sensitive data
+config.local.js
+secrets.json
+credentials.json
+
+# Backup files
+*.backup
+*.bak
+*.tmp
+*.temp
 
 # Firebase
 .firebase/
 firebase-debug.log
 firestore-debug.log
 ui-debug.log
+
+# Vercel
 .vercel
+
+# Other
 src/nul

@@ -19,6 +19,15 @@ const UserActionsModal = ({ user: targetUser, onClose, onViewProfile }) => {
   );
 
   const handleSendMessage = async () => {
+    // 🚧 PRÓXIMAMENTE - Mostrar toast en lugar de enviar
+    toast({
+      title: "🚧 Función Próximamente",
+      description: "Los mensajes directos estarán disponibles muy pronto. ¡Estamos trabajando en ello! 💬",
+    });
+    setShowMessageInput(false);
+    return;
+
+    /* CÓDIGO ORIGINAL - DESHABILITADO TEMPORALMENTE
     if (!message.trim()) return;
 
     setIsSending(true);
@@ -42,9 +51,18 @@ const UserActionsModal = ({ user: targetUser, onClose, onViewProfile }) => {
     } finally {
       setIsSending(false);
     }
+    */
   };
 
   const handlePrivateChatRequest = async () => {
+    // 🚧 PRÓXIMAMENTE - Mostrar toast en lugar de enviar solicitud
+    toast({
+      title: "🚧 Función Próximamente",
+      description: "Los chats privados 1 a 1 estarán disponibles muy pronto. ¡Estamos trabajando en esta función! 📞",
+    });
+    return;
+
+    /* CÓDIGO ORIGINAL - DESHABILITADO TEMPORALMENTE
     try {
       await sendPrivateChatRequest(currentUser.id, targetUser.userId);
 
@@ -61,6 +79,7 @@ const UserActionsModal = ({ user: targetUser, onClose, onViewProfile }) => {
         variant: "destructive",
       });
     }
+    */
   };
 
   const handleToggleFavorite = async () => {
@@ -164,7 +183,12 @@ const UserActionsModal = ({ user: targetUser, onClose, onViewProfile }) => {
                 {/* Enviar Mensaje Directo */}
                 <motion.div whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }}>
                   <Button
-                    onClick={() => setShowMessageInput(true)}
+                    onClick={() => {
+                      toast({
+                        title: "🚧 Función Próximamente",
+                        description: "Los mensajes directos estarán disponibles muy pronto. ¡Estamos trabajando en ello! 💬",
+                      });
+                    }}
                     variant="outline"
                     className="w-full justify-start h-auto py-3 text-left"
                   >
@@ -172,7 +196,7 @@ const UserActionsModal = ({ user: targetUser, onClose, onViewProfile }) => {
                     <div>
                       <p className="font-semibold">Enviar Mensaje Directo</p>
                       <p className="text-xs text-muted-foreground">
-                        El usuario recibirá una notificación
+                        🚧 Próximamente - En desarrollo
                       </p>
                     </div>
                   </Button>
@@ -189,7 +213,7 @@ const UserActionsModal = ({ user: targetUser, onClose, onViewProfile }) => {
                     <div>
                       <p className="font-semibold">Invitar a Chat Privado</p>
                       <p className="text-xs text-muted-foreground">
-                        Solicitud de chat 1 a 1
+                        🚧 Próximamente - En desarrollo
                       </p>
                     </div>
                   </Button>

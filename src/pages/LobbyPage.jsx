@@ -9,6 +9,7 @@ import EventosModal from '@/components/lobby/EventosModal';
 import SaludMentalModal from '@/components/lobby/SaludMentalModal';
 import AjustesModal from '@/components/lobby/AjustesModal';
 import NearbyUsersModal from '@/components/lobby/NearbyUsersModal';
+import GlobalStats from '@/components/lobby/GlobalStats';
 import AdCarousel from '@/components/lobby/AdCarousel';
 import AdModal from '@/components/lobby/AdModal';
 import PWAInstallBanner from '@/components/ui/PWAInstallBanner';
@@ -172,6 +173,9 @@ const LobbyPage = () => {
         </motion.div>
 
         <NewsTicker />
+
+        {/* Estadísticas Globales */}
+        <GlobalStats />
 
         {/* Ad Carousel - Solo visible para usuarios autenticados (no anónimos/invitados) */}
         {user && !user.isAnonymous && !user.isGuest && (

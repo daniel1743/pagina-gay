@@ -19,6 +19,10 @@ import {
   schedulePeriodicConversations,
   stopPeriodicConversations
 } from './botConversationOrchestrator';
+import {
+  schedulePeriodicGroupConversations,
+  stopPeriodicGroupConversations
+} from './botGroupConversation';
 
 /**
  * CONFIGURACIÓN DE ACTIVACIÓN DE BOTS
@@ -239,6 +243,9 @@ const stopAllBots = (roomId) => {
     stopPeriodicConversations(roomState.conversationInterval);
   }
 
+  // 🎭 Detener conversaciones grupales
+  stopPeriodicGroupConversations(roomId);
+
   // Cancelar todos los intervalos
   roomState.intervals.forEach(intervalId => clearTimeout(intervalId));
 
@@ -315,6 +322,9 @@ const startBotsForRoom = (roomId, botCount, getConversationHistory) => {
   // 🆕 SOLO USAR CONVERSACIONES PROGRAMADAS
   const conversationInterval = schedulePeriodicConversations(roomId, botProfiles, 2); // Cada 2 minutos
 
+  // 🎭 NUEVO: Conversaciones grupales coherentes (3 bots)
+  schedulePeriodicGroupConversations(roomId); // Cada 10-15 minutos
+
   roomBotStates.set(roomId, {
     activeBots: botProfiles,
     intervals: [], // Sin intervals individuales
@@ -324,6 +334,7 @@ const startBotsForRoom = (roomId, botCount, getConversationHistory) => {
 
   console.log(`✅ ${botCount} bots iniciados en sala ${roomId}`);
   console.log(`🎭 Conversaciones programadas cada 2 minutos`);
+  console.log(`👥 Conversaciones grupales (3 bots) programadas cada 10-15 minutos`);
 };
 
 /**
