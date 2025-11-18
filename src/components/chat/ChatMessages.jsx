@@ -89,16 +89,29 @@ const ChatMessages = ({ messages, currentUserId, onUserClick, onReport, onPrivat
                   {message.username}
                   {isUserPremium && <CheckCircle className="w-2.5 h-2.5 text-cyan-400" />}
                 </span>
-                <span className="text-[10px] text-muted-foreground flex items-center gap-0.5">
-                  {formatTime(message.timestamp)}
-                  {isOwn && (
-                    message.read ? (
+                {/* Ocultar hora solo para bots */}
+                {!message.userId.startsWith('bot_') && (
+                  <span className="text-[10px] text-muted-foreground flex items-center gap-0.5">
+                    {formatTime(message.timestamp)}
+                    {isOwn && (
+                      message.read ? (
+                        <CheckCheck className="w-3 h-3 text-cyan-400" />
+                      ) : (
+                        <Check className="w-3 h-3 text-muted-foreground" />
+                      )
+                    )}
+                  </span>
+                )}
+                {/* Para bots, solo mostrar check si es propio */}
+                {message.userId.startsWith('bot_') && isOwn && (
+                  <span className="text-[10px] text-muted-foreground flex items-center gap-0.5">
+                    {message.read ? (
                       <CheckCheck className="w-3 h-3 text-cyan-400" />
                     ) : (
                       <Check className="w-3 h-3 text-muted-foreground" />
-                    )
-                  )}
-                </span>
+                    )}
+                  </span>
+                )}
               </div>
 
               <motion.div

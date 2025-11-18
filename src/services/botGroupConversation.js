@@ -583,20 +583,20 @@ export const schedulePeriodicGroupConversations = (roomId) => {
     return;
   }
 
-  console.log(`🔄 Programando conversaciones grupales cada 10-15 minutos en ${roomId}`);
+  console.log(`🔄 Programando conversaciones grupales cada 2-3 minutos en ${roomId} (PLENO HABLADERA)`);
 
-  // Primera conversación después de 30 segundos
+  // Primera conversación después de 10 segundos (más rápido)
   setTimeout(() => {
     startGroupConversation(roomId);
-  }, 30000);
+  }, 10000);
 
-  // Conversaciones periódicas cada 10-15 minutos
+  // Conversaciones periódicas cada 2-3 minutos (mucho más frecuentes)
   const intervalId = setInterval(() => {
     // Solo iniciar si no hay otra conversación activa
     if (!activeGroupConversations.has(roomId)) {
       startGroupConversation(roomId);
     }
-  }, Math.random() * 300000 + 600000); // 10-15 minutos
+  }, Math.random() * 60000 + 120000); // 2-3 minutos (120000-180000 ms)
 
   groupConversationIntervals.set(roomId, intervalId);
 };

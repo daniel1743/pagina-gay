@@ -319,11 +319,12 @@ const startBotsForRoom = (roomId, botCount, getConversationHistory) => {
   // ⚠️ DESACTIVADO - Ya no usar startBotActivity individual
   // Los bots SOLO conversan vía orquestador
 
-  // 🆕 SOLO USAR CONVERSACIONES PROGRAMADAS
-  const conversationInterval = schedulePeriodicConversations(roomId, botProfiles, 2); // Cada 2 minutos
+  // 🆕 SOLO USAR CONVERSACIONES PROGRAMADAS - MÁS ACTIVAS
+  // Conversaciones cada 30-45 segundos para más actividad
+  const conversationInterval = schedulePeriodicConversations(roomId, botProfiles, 0.5); // Cada 30 segundos
 
-  // 🎭 NUEVO: Conversaciones grupales coherentes (3 bots)
-  schedulePeriodicGroupConversations(roomId); // Cada 10-15 minutos
+  // 🎭 NUEVO: Conversaciones grupales coherentes (3 bots) - MÁS FRECUENTES
+  schedulePeriodicGroupConversations(roomId); // Cada 2-3 minutos
 
   roomBotStates.set(roomId, {
     activeBots: botProfiles,
@@ -333,8 +334,8 @@ const startBotsForRoom = (roomId, botCount, getConversationHistory) => {
   });
 
   console.log(`✅ ${botCount} bots iniciados en sala ${roomId}`);
-  console.log(`🎭 Conversaciones programadas cada 2 minutos`);
-  console.log(`👥 Conversaciones grupales (3 bots) programadas cada 10-15 minutos`);
+  console.log(`🎭 Conversaciones programadas cada 30 segundos (PLENO HABLADERA)`);
+  console.log(`👥 Conversaciones grupales (3 bots) programadas cada 2-3 minutos`);
 };
 
 /**

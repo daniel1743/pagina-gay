@@ -21,7 +21,15 @@ export const PremiumWelcomeModal = ({ open, onClose }) => {
         title: 'Chat Gay Santiago',
         text: '¡Únete al nuevo chat gay de Santiago! 🌈',
         url: window.location.href,
-      }).catch(() => {});
+      }).catch((error) => {
+        // Error al compartir - puede ser que el usuario canceló o hay un problema
+        console.error('Error al compartir:', error);
+        // No es crítico, solo silenciamos errores de cancelación del usuario
+        if (error.name !== 'AbortError') {
+          // Si no es una cancelación, podríamos mostrar un mensaje al usuario
+          console.warn('No se pudo compartir:', error.message);
+        }
+      });
     }
   };
 

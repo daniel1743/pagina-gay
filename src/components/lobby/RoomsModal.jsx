@@ -8,115 +8,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import { Users, Hash, Gamepad2, Heart, Search, Crown, Plus, X, GitFork, UserMinus, UserCheck, Cake, MessageSquare } from 'lucide-react';
 import { toast } from '@/components/ui/use-toast';
 import { subscribeToMultipleRoomCounts } from '@/services/presenceService';
-
-
-const roomsData = [
-  {
-    id: 'santiago',
-    name: 'Santiago 🏙️',
-    description: 'Gays de Santiago - Capital de Chile',
-    icon: Users,
-    color: 'cyan'
-  },
-  {
-    id: 'valparaiso',
-    name: 'Valparaíso 🌊',
-    description: 'Gays de Valparaíso - Puerto y cerros',
-    icon: Users,
-    color: 'blue'
-  },
-  {
-    id: 'conversas-libres',
-    name: 'Conversas Libres',
-    description: 'Chat general para todos los temas',
-    icon: Hash,
-    color: 'teal'
-  },
-  {
-    id: 'amistad',
-    name: 'Amistad',
-    description: 'Conoce nuevos amigos LGBT+',
-    icon: Heart,
-    color: 'pink'
-  },
-  {
-    id: 'osos',
-    name: 'Osos',
-    description: 'Espacio para la comunidad Bear',
-    icon: UserCheck,
-    color: 'amber'
-  },
-  {
-    id: 'activos-buscando',
-    name: 'Activos Buscando',
-    description: 'Activos en búsqueda',
-    icon: UserCheck,
-    color: 'blue'
-  },
-  {
-    id: 'pasivos-buscando',
-    name: 'Pasivos Buscando',
-    description: 'Pasivos en búsqueda',
-    icon: UserCheck,
-    color: 'purple'
-  },
-  {
-    id: 'lesbianas',
-    name: 'Lesbianas',
-    description: 'Sala exclusiva para lesbianas',
-    icon: GitFork,
-    color: 'fuchsia'
-  },
-  {
-    id: 'menos-30',
-    name: 'Menos de 30',
-    description: 'Para menores de 30 años',
-    icon: UserMinus,
-    color: 'green'
-  },
-  {
-    id: 'mas-30',
-    name: 'Más de 30',
-    description: 'Para mayores de 30 años',
-    icon: Users,
-    color: 'teal'
-  },
-  {
-    id: 'mas-40',
-    name: 'Más de 40',
-    description: 'Para mayores de 40 años',
-    icon: Cake,
-    color: 'orange'
-  },
-  {
-    id: 'mas-50',
-    name: 'Más de 50',
-    description: 'Para mayores de 50 años',
-    icon: Cake,
-    color: 'red'
-  },
-  {
-    id: 'gaming',
-    name: 'Gaming',
-    description: 'Gamers LGBT+ conectando',
-    icon: Gamepad2,
-    color: 'violet'
-  },
-];
-
-const colorClasses = {
-  cyan: 'text-cyan-400',
-  pink: 'text-pink-400',
-  amber: 'text-amber-400',
-  blue: 'text-blue-400',
-  purple: 'text-purple-400',
-  fuchsia: 'text-fuchsia-400',
-  green: 'text-green-400',
-  teal: 'text-teal-400',
-  orange: 'text-orange-400',
-  red: 'text-red-400',
-  violet: 'text-violet-400',
-};
+import { roomsData, colorClasses } from '@/config/rooms';
 
 
 const RoomsModal = ({ isOpen, onClose }) => {
@@ -195,12 +87,17 @@ const RoomsModal = ({ isOpen, onClose }) => {
               const realUserCount = roomCounts[room.id] || 0;
 
               // 🎯 CONTADOR FICTICIO: Generar número consistente basado en el ID de la sala
-              // Esto evita que el número cambie en cada render
+              // Mínimo 50, 70, 100+ usuarios para mostrar actividad alta
               const hashCode = room.id.split('').reduce((acc, char) => {
                 return char.charCodeAt(0) + ((acc << 5) - acc);
               }, 0);
-              const fictitiousUsers = 30 + Math.abs(hashCode % 51); // 30 a 80
-              const userCount = realUserCount + fictitiousUsers;
+              // Generar números en rangos: 50-69, 70-99, 100-149, 150+ (más activos)
+              const ranges = [50, 70, 100, 120, 150];
+              const rangeIndex = Math.abs(hashCode % ranges.length);
+              const baseMin = ranges[rangeIndex];
+              const rangeSize = rangeIndex < ranges.length - 1 ? ranges[rangeIndex + 1] - baseMin : 50;
+              const fictitiousUsers = baseMin + Math.abs(hashCode % rangeSize);
+              const userCount = Math.max(fictitiousUsers, realUserCount > 0 ? Math.max(realUserCount, 50) : fictitiousUsers);
 
               return (
                 <motion.div

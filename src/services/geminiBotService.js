@@ -8,6 +8,15 @@
 const GEMINI_API_KEY = import.meta.env.VITE_GEMINI_API_KEY;
 // Modelo Gemini 1.5 Flash (rápido y eficiente para respuestas cortas)
 const GEMINI_API_URL = 'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent';
+
+// Validar API key de Gemini (solo si se intenta usar)
+export const validateGeminiConfig = () => {
+  if (!GEMINI_API_KEY) {
+    console.warn('⚠️ VITE_GEMINI_API_KEY no está configurada. El sistema de bots no funcionará.');
+    return false;
+  }
+  return true;
+};
 /**
  * PALABRAS Y FRASES PROHIBIDAS PARA BOTS
  * Si el bot responde con esto, se genera advertencia

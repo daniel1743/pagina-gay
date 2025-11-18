@@ -6,39 +6,12 @@ import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Hash, Gamepad2, Users, Heart, User, LogIn, X, UserCheck, GitFork, UserMinus, Cake, HeartPulse } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { subscribeToMultipleRoomCounts } from '@/services/presenceService';
+import { roomsData, colorClasses } from '@/config/rooms';
 
 const ChatSidebar = ({ currentRoom, setCurrentRoom, isOpen, onClose }) => {
   const navigate = useNavigate();
   const { user, logout } = useAuth();
   const [roomCounts, setRoomCounts] = useState({});
-
-  const roomsData = [
-    { id: 'conversas-libres', name: 'Conversas Libres', icon: Hash, color: 'cyan' },
-    { id: 'amistad', name: 'Amistad', icon: Heart, color: 'pink' },
-    { id: 'osos', name: 'Osos', icon: UserCheck, color: 'amber' },
-    { id: 'activos-buscando', name: 'Activos Buscando', icon: UserCheck, color: 'blue' },
-    { id: 'pasivos-buscando', name: 'Pasivos Buscando', icon: UserCheck, color: 'purple' },
-    { id: 'lesbianas', name: 'Lesbianas', icon: GitFork, color: 'fuchsia' },
-    { id: 'menos-30', name: 'Menos de 30', icon: UserMinus, color: 'green' },
-    { id: 'mas-30', name: 'Más de 30', icon: Users, color: 'teal' },
-    { id: 'mas-40', name: 'Más de 40', icon: Cake, color: 'orange' },
-    { id: 'mas-50', name: 'Más de 50', icon: Cake, color: 'red' },
-    { id: 'gaming', name: 'Gaming', icon: Gamepad2, color: 'violet' },
-  ];
-
-  const colorClasses = {
-    cyan: 'text-cyan-400',
-    pink: 'text-pink-400',
-    amber: 'text-amber-400',
-    blue: 'text-blue-400',
-    purple: 'text-purple-400',
-    fuchsia: 'text-fuchsia-400',
-    green: 'text-green-400',
-    teal: 'text-teal-400',
-    orange: 'text-orange-400',
-    red: 'text-red-400',
-    violet: 'text-violet-400',
-  };
 
   // Suscribirse a contadores en tiempo real
   useEffect(() => {
@@ -97,7 +70,21 @@ const ChatSidebar = ({ currentRoom, setCurrentRoom, isOpen, onClose }) => {
             <div className="space-y-1">
               {roomsData.map((room, index) => {
                 const IconComponent = room.icon;
-                const userCount = roomCounts[room.id] || 0;
+                const realUserCount = roomCounts[room.id] || 0;
+                
+                // 🎯 CONTADOR FICTICIO: Generar número consistente basado en el ID de la sala
+                // Mínimo 50, 70, 100+ usuarios para mostrar actividad alta
+                const hashCode = room.id.split('').reduce((acc, char) => {
+                  return char.charCodeAt(0) + ((acc << 5) - acc);
+                }, 0);
+                // Generar números en rangos: 50-69, 70-99, 100-149, 150+ (más activos)
+                const ranges = [50, 70, 100, 120, 150];
+                const rangeIndex = Math.abs(hashCode % ranges.length);
+                const baseMin = ranges[rangeIndex];
+                const rangeSize = rangeIndex < ranges.length - 1 ? ranges[rangeIndex + 1] - baseMin : 50;
+                const fictitiousUsers = baseMin + Math.abs(hashCode % rangeSize);
+                const userCount = Math.max(fictitiousUsers, realUserCount > 0 ? Math.max(realUserCount, 50) : fictitiousUsers);
+                
                 const isActive = currentRoom === room.id;
 
                 return (
@@ -260,7 +247,21 @@ const ChatSidebar = ({ currentRoom, setCurrentRoom, isOpen, onClose }) => {
             <div className="space-y-1">
               {roomsData.map((room, index) => {
                 const IconComponent = room.icon;
-                const userCount = roomCounts[room.id] || 0;
+                const realUserCount = roomCounts[room.id] || 0;
+                
+                // 🎯 CONTADOR FICTICIO: Generar número consistente basado en el ID de la sala
+                // Mínimo 50, 70, 100+ usuarios para mostrar actividad alta
+                const hashCode = room.id.split('').reduce((acc, char) => {
+                  return char.charCodeAt(0) + ((acc << 5) - acc);
+                }, 0);
+                // Generar números en rangos: 50-69, 70-99, 100-149, 150+ (más activos)
+                const ranges = [50, 70, 100, 120, 150];
+                const rangeIndex = Math.abs(hashCode % ranges.length);
+                const baseMin = ranges[rangeIndex];
+                const rangeSize = rangeIndex < ranges.length - 1 ? ranges[rangeIndex + 1] - baseMin : 50;
+                const fictitiousUsers = baseMin + Math.abs(hashCode % rangeSize);
+                const userCount = Math.max(fictitiousUsers, realUserCount > 0 ? Math.max(realUserCount, 50) : fictitiousUsers);
+                
                 const isActive = currentRoom === room.id;
 
                 return (

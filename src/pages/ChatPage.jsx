@@ -49,7 +49,12 @@ const ChatPage = () => {
   const [userActionsTarget, setUserActionsTarget] = useState(null);
   const [reportTarget, setReportTarget] = useState(null);
   // Sidebar cerrado en móvil (< 1024px), abierto en desktop
-  const [sidebarOpen, setSidebarOpen] = useState(window.innerWidth >= 1024);
+  const [sidebarOpen, setSidebarOpen] = useState(() => {
+    if (typeof window !== 'undefined') {
+      return window.innerWidth >= 1024;
+    }
+    return false; // Valor por defecto para SSR
+  });
   const [privateChatRequest, setPrivateChatRequest] = useState(null);
   const [activePrivateChat, setActivePrivateChat] = useState(null);
   const [showVerificationModal, setShowVerificationModal] = useState(false);

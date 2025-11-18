@@ -3208,8 +3208,8 @@ export const schedulePeriodicConversations = (roomId, activeBots, intervalMinute
     }
   }, intervalMinutes * 60 * 1000);
 
-  // Primera conversación en 15 segundos
-  console.log('⏰ Primera conversación en 15s...');
+  // Primera conversación en 5 segundos (más rápido para actividad inmediata)
+  console.log('⏰ Primera conversación en 5s...');
   setTimeout(async () => {
     console.log('🚀 Iniciando ahora!');
     try {
@@ -3217,7 +3217,7 @@ export const schedulePeriodicConversations = (roomId, activeBots, intervalMinute
     } catch (error) {
       console.error('❌ Error primera conversación:', error);
     }
-  }, 15000);
+  }, 5000);
 
   return interval;
 };
