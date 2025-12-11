@@ -201,12 +201,30 @@ logger.error = (msg, options) => {
 	loggerError(msg, options);
 }
 
+// ✅ AÑADIDO 2025-12-11: Plugin para remover console.logs en producción
+const removeConsolePlugin = {
+	name: 'remove-console',
+	transform(code, id) {
+		if (isDev || id.includes('node_modules')) return;
+
+		// Remover console.log, console.debug, console.info, console.warn
+		// Mantener console.error para producción
+		return {
+			code: code
+				.replace(/console\.(log|debug|info|warn)\s*\([^)]*\);?/g, '')
+				.replace(/console\.(log|debug|info|warn)\s*\(`[^`]*`\);?/g, ''),
+			map: null
+		};
+	}
+};
+
 export default defineConfig({
 	customLogger: logger,
 	plugins: [
 		...(isDev ? [inlineEditPlugin(), editModeDevPlugin(), iframeRouteRestorationPlugin()] : []),
 		react(),
-		addTransformIndexHtml
+		addTransformIndexHtml,
+		// removeConsolePlugin // ⚠️ TEMPORALMENTE DESHABILITADO - Causa error de parseo
 	],
 	server: {
 		cors: true,

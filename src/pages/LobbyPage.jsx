@@ -18,6 +18,7 @@ import { toast } from '@/components/ui/use-toast';
 import { useAuth } from '@/contexts/AuthContext';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
+import { trackPageView, trackPageExit } from '@/services/analyticsService';
 
 const cardData = [
   { id: 'salas', icon: <MessageSquare className="w-12 h-12" />, title: "Salas de Chat", description: "Explora y únete a nuestras salas temáticas. ¡Siempre hay alguien con quien conectar!", modal: 'RoomsModal', gradient: "blue-gradient" },
@@ -157,19 +158,163 @@ const LobbyPage = () => {
 
   useEffect(() => {
     document.title = "Lobby - Chactivo | Chat Gay Chile";
+    // Track page view
+    trackPageView('/lobby', 'Lobby - Chactivo');
+    
+    // Track page exit
+    return () => {
+      trackPageExit('/lobby', 0);
+    };
   }, []);
 
   return (
     <>
       <div className="w-full min-h-screen pt-12 pb-20">
+        {/* 🔥 HERO SECTION - Nuevo */}
+        <motion.section
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.6 }}
+          className="relative px-4 py-12 mb-8 overflow-hidden"
+        >
+          {/* Fondo degradado animado */}
+          <div className="absolute inset-0 bg-gradient-to-br from-purple-900/20 via-pink-900/20 to-blue-900/20 animate-pulse"></div>
+
+          <div className="relative max-w-5xl mx-auto">
+            {/* Contador de usuarios en tiempo real */}
+            <motion.div
+              initial={{ scale: 0.9 }}
+              animate={{ scale: 1 }}
+              transition={{ duration: 0.5, delay: 0.2 }}
+              className="flex items-center justify-center gap-3 mb-6"
+            >
+              <div className="relative">
+                {/* Dot pulsante */}
+                <span className="absolute inline-flex h-4 w-4 rounded-full bg-green-400 opacity-75 animate-ping"></span>
+                <span className="relative inline-flex h-4 w-4 rounded-full bg-green-500"></span>
+              </div>
+              <div className="glass-effect px-6 py-3 rounded-full border border-green-500/30">
+                <p className="text-sm text-muted-foreground">
+                  <span className="text-3xl font-bold text-green-400 mr-2">Activo</span>
+                  <span className="text-muted-foreground">Chatea con gays de Chile ahora</span>
+                </p>
+              </div>
+            </motion.div>
+
+            {/* Título principal */}
+            <motion.h1
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              transition={{ delay: 0.3 }}
+              className="text-5xl md:text-7xl font-extrabold text-center mb-4 bg-gradient-to-r from-pink-400 via-purple-400 to-blue-400 bg-clip-text text-transparent"
+            >
+              Chat Gay Santiago
+            </motion.h1>
+
+            {/* Subtítulo */}
+            <motion.p
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              transition={{ delay: 0.4 }}
+              className="text-xl md:text-2xl text-center text-muted-foreground mb-8 max-w-3xl mx-auto"
+            >
+              Gratis • Anónimo • Sin Registro • 100% Chileno
+            </motion.p>
+
+            {/* CTA Principal */}
+            <motion.div
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: 0.5 }}
+              className="flex flex-col sm:flex-row gap-4 justify-center items-center mb-8"
+            >
+              <button
+                onClick={() => handleCardClick('RoomsModal')}
+                className="group relative px-12 py-5 bg-gradient-to-r from-pink-500 to-purple-600 rounded-2xl font-bold text-xl text-white hover:scale-105 transition-all duration-300 shadow-2xl hover:shadow-pink-500/50"
+              >
+                <span className="relative z-10 flex items-center gap-3">
+                  🔥 ENTRAR A CHATEAR GRATIS
+                  <MessageSquare className="w-6 h-6 group-hover:rotate-12 transition-transform" />
+                </span>
+                {/* Efecto de brillo */}
+                <div className="absolute inset-0 rounded-2xl bg-gradient-to-r from-white/0 via-white/25 to-white/0 opacity-0 group-hover:opacity-100 group-hover:animate-shimmer"></div>
+              </button>
+            </motion.div>
+
+            {/* Preview de salas activas */}
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              transition={{ delay: 0.6 }}
+              className="grid grid-cols-2 md:grid-cols-4 gap-4 max-w-4xl mx-auto mb-8"
+            >
+              {[
+                { emoji: '🐻', name: 'Osos', count: '15', gradient: 'from-orange-500 to-red-500' },
+                { emoji: '💪', name: '+30 años', count: '23', gradient: 'from-blue-500 to-cyan-500' },
+                { emoji: '🎮', name: 'Gaming', count: '12', gradient: 'from-purple-500 to-pink-500' },
+                { emoji: '💬', name: 'Libres', count: '31', gradient: 'from-green-500 to-teal-500' }
+              ].map((sala, index) => (
+                <motion.div
+                  key={sala.name}
+                  initial={{ opacity: 0, y: 20 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ delay: 0.7 + index * 0.1 }}
+                  className="glass-effect p-4 rounded-xl border border-border hover:border-accent/50 transition-all cursor-pointer hover:scale-105"
+                  onClick={() => handleCardClick('RoomsModal')}
+                >
+                  <div className="text-center">
+                    <div className="text-3xl mb-2">{sala.emoji}</div>
+                    <p className="text-sm font-semibold mb-1">{sala.name}</p>
+                    <div className={`inline-block px-3 py-1 rounded-full bg-gradient-to-r ${sala.gradient} text-white text-xs font-bold`}>
+                      {sala.count} online
+                    </div>
+                  </div>
+                </motion.div>
+              ))}
+            </motion.div>
+
+            {/* Prueba social */}
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              transition={{ delay: 0.9 }}
+              className="text-center space-y-4"
+            >
+              <div className="flex items-center justify-center gap-2 text-yellow-500">
+                <span className="text-2xl">⭐⭐⭐⭐⭐</span>
+                <span className="text-sm text-muted-foreground">Comunidad activa 24/7</span>
+              </div>
+
+              <div className="max-w-2xl mx-auto glass-effect p-6 rounded-2xl border border-border">
+                <p className="text-sm italic text-muted-foreground mb-2">
+                  "Mejor que Grindr para conversación real. Conocí amigos increíbles aquí"
+                </p>
+                <p className="text-xs text-muted-foreground">- Juan, 28, Providencia</p>
+              </div>
+            </motion.div>
+          </div>
+
+          {/* CSS para animación shimmer */}
+          <style>{`
+            @keyframes shimmer {
+              0% { transform: translateX(-100%); }
+              100% { transform: translateX(100%); }
+            }
+            .animate-shimmer {
+              animation: shimmer 2s infinite;
+            }
+          `}</style>
+        </motion.section>
+
+        {/* Título original (ahora secundario) */}
         <motion.div
             initial={{ opacity: 0, y: -20 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.5 }}
             className="text-center mb-8 px-4"
         >
-            <h1 className="text-4xl md:text-5xl font-extrabold mb-2">Bienvenido a Chactivo</h1>
-            <p className="text-lg md:text-xl text-muted-foreground max-w-3xl mx-auto">Tu espacio para conectar, compartir y crecer. Explora nuestras salas y eventos.</p>
+            <h2 className="text-3xl md:text-4xl font-bold mb-2">Explora Chactivo</h2>
+            <p className="text-lg md:text-xl text-muted-foreground max-w-3xl mx-auto">Tu espacio para conectar, compartir y crecer</p>
         </motion.div>
 
         <NewsTicker />

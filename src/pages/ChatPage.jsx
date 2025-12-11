@@ -18,6 +18,7 @@ import PrivateChatWindow from '@/components/chat/PrivateChatWindow';
 import { sendMessage, subscribeToRoomMessages, addReactionToMessage, markMessagesAsRead } from '@/services/chatService';
 import { joinRoom, leaveRoom, subscribeToRoomUsers } from '@/services/presenceService';
 import { useBotSystem } from '@/hooks/useBotSystem';
+import { trackPageView, trackPageExit, trackRoomJoined, trackMessageSent } from '@/services/analyticsService';
 
 const roomWelcomeMessages = {
   'conversas-libres': '¡Bienvenido a Conversas Libres! Habla de lo que quieras.',
@@ -38,6 +39,20 @@ const ChatPage = () => {
   React.useEffect(() => {
     document.title = "Chat - Chactivo | Chat Gay Chile";
   }, []);
+
+  // Track page view and room join
+  useEffect(() => {
+    if (roomId) {
+      trackPageView(`/chat/${roomId}`, `Chat - ${roomId}`);
+      trackRoomJoined(roomId);
+    }
+    
+    return () => {
+      if (roomId) {
+        trackPageExit(`/chat/${roomId}`, 0);
+      }
+    };
+  }, [roomId]);
 
   const { roomId } = useParams();
   const navigate = useNavigate();
@@ -95,7 +110,7 @@ const ChatPage = () => {
     roomId,
     roomUsers,
     messages,
-    true, // Sistema de bots habilitado
+    false, // Sistema de bots DESHABILITADO
     handleBotJoin // Callback para notificaciones de entrada
   );
 
@@ -208,6 +223,9 @@ const ChatPage = () => {
         },
         user.isAnonymous // Indica si es anónimo para usar transacción
       );
+
+      // Track message sent
+      trackMessageSent(currentRoom);
 
       // Actualizar contador local si es anónimo
       if (user.isAnonymous) {

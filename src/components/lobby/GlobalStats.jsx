@@ -22,23 +22,11 @@ const GlobalStats = () => {
     const stats = roomsData.map(room => {
       const realCount = roomCounts[room.id] || 0;
 
-      // Generar número ficticio consistente basado en ID de sala
-      // Mínimo 50, 70, 100+ usuarios para mostrar actividad alta
-      const hashCode = room.id.split('').reduce((acc, char) => {
-        return char.charCodeAt(0) + ((acc << 5) - acc);
-      }, 0);
-      // Generar números en rangos: 50-69, 70-99, 100-149, 150+ (más activos)
-      const ranges = [50, 70, 100, 120, 150];
-      const rangeIndex = Math.abs(hashCode % ranges.length);
-      const baseMin = ranges[rangeIndex];
-      const rangeSize = rangeIndex < ranges.length - 1 ? ranges[rangeIndex + 1] - baseMin : 50;
-      const fictitiousUsers = baseMin + Math.abs(hashCode % rangeSize);
-      const totalCount = Math.max(fictitiousUsers, realCount > 0 ? Math.max(realCount, 50) : fictitiousUsers);
-
+      // Usar solo el número real de usuarios conectados
       return {
         id: room.id,
         name: room.name,
-        count: totalCount
+        count: realCount
       };
     });
 

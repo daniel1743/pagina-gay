@@ -6,6 +6,7 @@ import AuthPage from '@/pages/AuthPage';
 import ChatPage from '@/pages/ChatPage';
 import ProfilePage from '@/pages/ProfilePage';
 import PremiumPage from '@/pages/PremiumPage';
+import AdminPage from '@/pages/AdminPage';
 import Header from '@/components/layout/Header';
 import Footer from '@/components/layout/Footer';
 import { AuthProvider, useAuth } from '@/contexts/AuthContext';
@@ -62,13 +63,21 @@ function App() {
                   </PrivateRoute>
                 } 
               />
-              <Route 
-                path="/premium" 
+              <Route
+                path="/premium"
                 element={
                   <PrivateRoute>
                     <MainLayout><PremiumPage /></MainLayout>
                   </PrivateRoute>
-                } 
+                }
+              />
+              <Route
+                path="/admin"
+                element={
+                  <PrivateRoute>
+                    <MainLayout><AdminPage /></MainLayout>
+                  </PrivateRoute>
+                }
               />
               <Route path="*" element={<Navigate to="/" />} />
           </Routes>

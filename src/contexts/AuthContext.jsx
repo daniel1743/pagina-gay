@@ -19,6 +19,7 @@ import {
 import { doc, getDoc } from 'firebase/firestore';
 import { db } from '@/config/firebase';
 import { toast } from '@/components/ui/use-toast';
+import { trackUserRegister, trackUserLogin } from '@/services/analyticsService';
 
 const AuthContext = createContext();
 
@@ -104,6 +105,9 @@ export const AuthProvider = ({ children }) => {
       // Obtener perfil del usuario desde Firestore
       const userProfile = await getUserProfile(userCredential.user.uid);
       setUser(userProfile);
+
+      // Track login
+      trackUserLogin(userCredential.user.uid, 'email');
 
       toast({
         title: "¡Bienvenido de vuelta! 🌈",
@@ -198,6 +202,9 @@ export const AuthProvider = ({ children }) => {
       });
 
       setUser(userProfile);
+
+      // Track registration
+      trackUserRegister(userCredential.user.uid, 'email');
 
       // Mostrar tour de bienvenida para nuevos usuarios
       setShowWelcomeTour(true);

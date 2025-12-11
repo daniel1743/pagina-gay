@@ -22,6 +22,12 @@ service cloud.firestore {
              get(/databases/$(database)/documents/users/$(request.auth.uid)).data.isPremium == true;
     }
 
+    // ✅ AÑADIDO 2025-12-11: Verificar si el usuario es Admin
+    function isAdmin() {
+      return isAuthenticated() &&
+             get(/databases/$(database)/documents/users/$(request.auth.uid)).data.get('role', '') == 'admin';
+    }
+
     // Verificar si el mensaje es de un bot (userId comienza con 'bot_')
     function isBot() {
       let data = request.resource.data;
@@ -45,10 +51,16 @@ service cloud.firestore {
              'timestamp' in data && data.timestamp is timestamp;
     }
 
-    // Validar que no contiene palabras prohibidas (básico)
+    // ✅ CORREGIDO 2025-12-11: Filtro expandido de palabras prohibidas
     function hasNoProhibitedWords(content) {
-      // Lista básica de palabras sensibles
-      let prohibited = ['spam', 'phishing'];
+      // Lista expandida de palabras sensibles (contenido inapropiado, spam, contacto externo)
+      let prohibited = [
+        'spam', 'phishing', 'scam', 'hack', 'viagra',
+        'puto', 'maricon', 'sidoso', 'enfermo', 'degenerado',
+        'whatsapp', 'instagram', 'telegram', 'numero', 'telefono',
+        'drogas', 'coca', 'perico', 'sexopago', 'escort',
+        'menor', 'niño', 'adolescente', 'joven18'
+      ];
       return !content.matches('.*(' + prohibited.join('|') + ').*');
     }
 
@@ -91,9 +103,8 @@ service cloud.firestore {
                       // No puede cambiar email ni id
                       request.resource.data.email == resource.data.email &&
                       request.resource.data.id == resource.data.id &&
-                      // No puede auto-promocionarse a premium (debe hacerse mediante función cloud)
-                      (request.resource.data.isPremium == resource.data.isPremium ||
-                       request.resource.data.isPremium == false);
+                      // ✅ CORREGIDO 2025-12-11: No puede cambiar isPremium (solo mediante admin/Cloud Function)
+                      request.resource.data.isPremium == resource.data.isPremium;
 
       // Eliminación: solo el propietario
       allow delete: if isOwner(userId);
@@ -119,8 +130,8 @@ service cloud.firestore {
     // ===========================
 
     match /roomPresence/{roomId}/users/{userId} {
-      // Cualquiera puede leer quién está en la sala
-      allow read: if true;
+      // ✅ CORREGIDO 2025-12-11: Solo usuarios autenticados pueden ver presencia (privacidad)
+      allow read: if isAuthenticated();
 
       // Solo el propio usuario puede crear/actualizar/eliminar su presencia
       allow create, update, delete: if request.auth != null &&
@@ -191,8 +202,9 @@ service cloud.firestore {
     // ===========================
 
     match /reports/{reportId} {
-      // Solo admins pueden leer reportes (por ahora nadie)
-      allow read: if false;
+      // ✅ CORREGIDO 2025-12-11: Admins y reportador pueden leer reportes
+      allow read: if isAdmin() ||
+                    (isAuthenticated() && resource.data.reporterId == request.auth.uid);
 
       // Usuarios autenticados pueden crear reportes
       allow create: if isAuthenticated() &&
@@ -206,8 +218,52 @@ service cloud.firestore {
                       'status' in request.resource.data &&
                       request.resource.data.status == 'pending';
 
-      // No se pueden actualizar ni eliminar reportes
-      allow update, delete: if false;
+      // ✅ CORREGIDO 2025-12-11: Solo admins pueden actualizar estado de reportes
+      allow update: if isAdmin();
+
+      // No se pueden eliminar reportes
+      allow delete: if false;
+    }
+
+    // ===========================
+    // REGLAS DE ANALYTICS (Estadísticas)
+    // ===========================
+
+    match /analytics_stats/{dateId} {
+      // Cualquier usuario autenticado puede escribir (para tracking)
+      allow write: if isAuthenticated();
+      
+      // Solo admins pueden leer estadísticas
+      allow read: if isAdmin();
+    }
+
+    // ===========================
+    // REGLAS DE TICKETS DE SOPORTE
+    // ===========================
+
+    match /tickets/{ticketId} {
+      // Usuarios pueden leer sus propios tickets, admins pueden leer todos
+      // IMPORTANTE: Para queries sin filtro, los admins necesitan poder leer todos
+      allow read: if isAdmin() ||
+                    (isAuthenticated() && 
+                     (resource == null || resource.data.userId == request.auth.uid));
+
+      // Usuarios autenticados pueden crear tickets
+      allow create: if isAuthenticated() &&
+                      'userId' in request.resource.data &&
+                      request.resource.data.userId == request.auth.uid &&
+                      'subject' in request.resource.data &&
+                      'description' in request.resource.data &&
+                      'category' in request.resource.data &&
+                      'priority' in request.resource.data &&
+                      'status' in request.resource.data &&
+                      request.resource.data.status == 'open';
+
+      // Solo admins pueden actualizar tickets (cambiar estado, agregar notas)
+      allow update: if isAdmin();
+
+      // No se pueden eliminar tickets
+      allow delete: if false;
     }
 
     // ===========================

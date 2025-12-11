@@ -10,6 +10,8 @@ import ComingSoonModal from '@/components/ui/ComingSoonModal';
 import EditProfileModal from '@/components/profile/EditProfileModal';
 import AvatarSelector from '@/components/profile/AvatarSelector';
 import ProfileComments from '@/components/profile/ProfileComments';
+import CreateTicketModal from '@/components/tickets/CreateTicketModal';
+import { Ticket } from 'lucide-react';
 
 const ProfilePage = () => {
   React.useEffect(() => {
@@ -22,6 +24,7 @@ const ProfilePage = () => {
   const [isAvatarSelectorOpen, setAvatarSelectorOpen] = useState(false);
   const [showComingSoon, setShowComingSoon] = useState(false);
   const [comingSoonFeature, setComingSoonFeature] = useState({ name: '', description: '' });
+  const [showTicketModal, setShowTicketModal] = useState(false);
 
   const handleVerification = () => {
     setComingSoonFeature({
@@ -109,6 +112,10 @@ const ProfilePage = () => {
                   <Edit className="w-4 h-4 mr-2" />
                   Editar Perfil
                 </Button>
+                <Button onClick={() => setShowTicketModal(true)} variant="outline" className="w-full border-orange-500 text-orange-400 hover:bg-orange-500/20">
+                  <Ticket className="w-4 h-4 mr-2" />
+                  Crear Ticket
+                </Button>
                 {!user.verified && (
                   <Button onClick={handleVerification} variant="outline" className="w-full border-green-500 text-green-400 hover:bg-green-500/20">
                     <Shield className="w-4 h-4 mr-2" />
@@ -159,6 +166,12 @@ const ProfilePage = () => {
         onClose={() => setShowComingSoon(false)}
         feature={comingSoonFeature.name}
         description={comingSoonFeature.description}
+      />
+
+      <CreateTicketModal
+        isOpen={showTicketModal}
+        onClose={() => setShowTicketModal(false)}
+        user={user}
       />
     </>
   );
