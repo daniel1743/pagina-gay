@@ -1,38 +1,87 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
-import { User, MessageSquare, Video, Heart, Send, X, CheckCircle } from 'lucide-react';
+import { User, MessageSquare, Video, Heart, Send, X, CheckCircle, Crown } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { toast } from '@/components/ui/use-toast';
 import { useAuth } from '@/contexts/AuthContext';
 import { sendDirectMessage, sendPrivateChatRequest, addToFavorites, removeFromFavorites } from '@/services/socialService';
+import {
+  canSendChatInvite,
+  canSendDirectMessage,
+  incrementChatInvites,
+  incrementDirectMessages,
+  getCurrentLimits,
+} from '@/services/limitService';
 
 const UserActionsModal = ({ user: targetUser, onClose, onViewProfile }) => {
   const { user: currentUser } = useAuth();
+  const navigate = useNavigate();
   const [showMessageInput, setShowMessageInput] = useState(false);
   const [message, setMessage] = useState('');
   const [isSending, setIsSending] = useState(false);
   const [isFavorite, setIsFavorite] = useState(
     currentUser?.favorites?.includes(targetUser.userId) || false
   );
+  const [limits, setLimits] = useState({
+    chatInvites: { used: 0, remaining: 5, limit: 5 },
+    directMessages: { used: 0, remaining: 3, limit: 3 },
+  });
+
+  // Cargar límites actuales al montar (solo para usuarios FREE, no Admin ni Premium)
+  useEffect(() => {
+    if (currentUser && !currentUser.isPremium && currentUser.role !== 'admin') {
+      const currentLimits = getCurrentLimits(currentUser.id);
+      setLimits(currentLimits);
+    }
+  }, [currentUser]);
 
   const handleSendMessage = async () => {
-    // 🚧 PRÓXIMAMENTE - Mostrar toast en lugar de enviar
-    toast({
-      title: "🚧 Función Próximamente",
-      description: "Los mensajes directos estarán disponibles muy pronto. ¡Estamos trabajando en ello! 💬",
-    });
-    setShowMessageInput(false);
-    return;
-
-    /* CÓDIGO ORIGINAL - DESHABILITADO TEMPORALMENTE
     if (!message.trim()) return;
+
+    // Verificar límites
+    const canSend = canSendDirectMessage(currentUser);
+
+    if (!canSend.allowed) {
+      if (canSend.reason === 'guest') {
+        toast({
+          title: "👤 Regístrate",
+          description: canSend.message,
+          action: {
+            label: "Registrarse",
+            onClick: () => navigate('/auth')
+          }
+        });
+        return;
+      }
+
+      if (canSend.reason === 'limit_reached') {
+        toast({
+          title: "⏱️ Límite Alcanzado",
+          description: canSend.message,
+          action: {
+            label: "👑 Ver Premium",
+            onClick: () => navigate('/premium')
+          },
+          duration: 5000,
+        });
+        return;
+      }
+    }
 
     setIsSending(true);
     try {
       await sendDirectMessage(currentUser.id, targetUser.userId, message.trim());
+
+      // Incrementar contador solo si no es Premium ni Admin
+      if (!currentUser.isPremium && currentUser.role !== 'admin') {
+        await incrementDirectMessages(currentUser.id);
+        const newLimits = getCurrentLimits(currentUser.id);
+        setLimits(newLimits);
+      }
 
       toast({
         title: "✉️ Mensaje enviado",
@@ -51,20 +100,48 @@ const UserActionsModal = ({ user: targetUser, onClose, onViewProfile }) => {
     } finally {
       setIsSending(false);
     }
-    */
   };
 
   const handlePrivateChatRequest = async () => {
-    // 🚧 PRÓXIMAMENTE - Mostrar toast en lugar de enviar solicitud
-    toast({
-      title: "🚧 Función Próximamente",
-      description: "Los chats privados 1 a 1 estarán disponibles muy pronto. ¡Estamos trabajando en esta función! 📞",
-    });
-    return;
+    // Verificar límites
+    const canSend = canSendChatInvite(currentUser);
 
-    /* CÓDIGO ORIGINAL - DESHABILITADO TEMPORALMENTE
+    if (!canSend.allowed) {
+      if (canSend.reason === 'guest') {
+        toast({
+          title: "👤 Regístrate",
+          description: canSend.message,
+          action: {
+            label: "Registrarse",
+            onClick: () => navigate('/auth')
+          }
+        });
+        return;
+      }
+
+      if (canSend.reason === 'limit_reached') {
+        toast({
+          title: "⏱️ Límite Alcanzado",
+          description: canSend.message,
+          action: {
+            label: "👑 Ver Premium",
+            onClick: () => navigate('/premium')
+          },
+          duration: 5000,
+        });
+        return;
+      }
+    }
+
     try {
       await sendPrivateChatRequest(currentUser.id, targetUser.userId);
+
+      // Incrementar contador solo si no es Premium ni Admin
+      if (!currentUser.isPremium && currentUser.role !== 'admin') {
+        await incrementChatInvites(currentUser.id);
+        const newLimits = getCurrentLimits(currentUser.id);
+        setLimits(newLimits);
+      }
 
       toast({
         title: "📞 Solicitud enviada",
@@ -79,7 +156,6 @@ const UserActionsModal = ({ user: targetUser, onClose, onViewProfile }) => {
         variant: "destructive",
       });
     }
-    */
   };
 
   const handleToggleFavorite = async () => {
@@ -125,6 +201,40 @@ const UserActionsModal = ({ user: targetUser, onClose, onViewProfile }) => {
         variant: "destructive",
       });
     }
+  };
+
+  // Botón de "Enviar Mensaje Directo"
+  const handleOpenMessageInput = () => {
+    const canSend = canSendDirectMessage(currentUser);
+
+    if (!canSend.allowed) {
+      if (canSend.reason === 'guest') {
+        toast({
+          title: "👤 Regístrate",
+          description: canSend.message,
+          action: {
+            label: "Registrarse",
+            onClick: () => navigate('/auth')
+          }
+        });
+        return;
+      }
+
+      if (canSend.reason === 'limit_reached') {
+        toast({
+          title: "⏱️ Límite Alcanzado",
+          description: canSend.message,
+          action: {
+            label: "👑 Ver Premium",
+            onClick: () => navigate('/premium')
+          },
+          duration: 5000,
+        });
+        return;
+      }
+    }
+
+    setShowMessageInput(true);
   };
 
   return (
@@ -183,20 +293,22 @@ const UserActionsModal = ({ user: targetUser, onClose, onViewProfile }) => {
                 {/* Enviar Mensaje Directo */}
                 <motion.div whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }}>
                   <Button
-                    onClick={() => {
-                      toast({
-                        title: "🚧 Función Próximamente",
-                        description: "Los mensajes directos estarán disponibles muy pronto. ¡Estamos trabajando en ello! 💬",
-                      });
-                    }}
+                    onClick={handleOpenMessageInput}
                     variant="outline"
                     className="w-full justify-start h-auto py-3 text-left"
                   >
                     <MessageSquare className="w-5 h-5 mr-3 text-green-400" />
-                    <div>
+                    <div className="flex-1">
                       <p className="font-semibold">Enviar Mensaje Directo</p>
                       <p className="text-xs text-muted-foreground">
-                        🚧 Próximamente - En desarrollo
+                        {(currentUser.isPremium || currentUser.role === 'admin') ? (
+                          <span className="flex items-center gap-1">
+                            <Crown className="w-3 h-3 text-amber-400" />
+                            Mensajes ilimitados
+                          </span>
+                        ) : (
+                          `💬 Te quedan ${limits.directMessages.remaining}/${limits.directMessages.limit} mensajes hoy`
+                        )}
                       </p>
                     </div>
                   </Button>
@@ -210,10 +322,17 @@ const UserActionsModal = ({ user: targetUser, onClose, onViewProfile }) => {
                     className="w-full justify-start h-auto py-3 text-left"
                   >
                     <Video className="w-5 h-5 mr-3 text-purple-400" />
-                    <div>
+                    <div className="flex-1">
                       <p className="font-semibold">Invitar a Chat Privado</p>
                       <p className="text-xs text-muted-foreground">
-                        🚧 Próximamente - En desarrollo
+                        {(currentUser.isPremium || currentUser.role === 'admin') ? (
+                          <span className="flex items-center gap-1">
+                            <Crown className="w-3 h-3 text-amber-400" />
+                            Invitaciones ilimitadas
+                          </span>
+                        ) : (
+                          `📞 Te quedan ${limits.chatInvites.remaining}/${limits.chatInvites.limit} invitaciones hoy`
+                        )}
                       </p>
                     </div>
                   </Button>
@@ -243,6 +362,28 @@ const UserActionsModal = ({ user: targetUser, onClose, onViewProfile }) => {
                     </div>
                   </Button>
                 </motion.div>
+
+                {/* CTA Premium (solo si no es Premium ni Admin y tiene límites bajos) */}
+                {!currentUser.isPremium && currentUser.role !== 'admin' && (limits.chatInvites.remaining <= 1 || limits.directMessages.remaining <= 1) && (
+                  <motion.div
+                    initial={{ opacity: 0, y: 10 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    whileHover={{ scale: 1.02 }}
+                    whileTap={{ scale: 0.98 }}
+                    className="mt-4"
+                  >
+                    <Button
+                      onClick={() => {
+                        onClose();
+                        navigate('/premium');
+                      }}
+                      className="w-full gold-gradient text-gray-900 font-bold py-4"
+                    >
+                      <Crown className="w-5 h-5 mr-2" />
+                      Desbloquear Mensajes Ilimitados
+                    </Button>
+                  </motion.div>
+                )}
               </motion.div>
             ) : (
               <motion.div
@@ -258,6 +399,7 @@ const UserActionsModal = ({ user: targetUser, onClose, onViewProfile }) => {
                     size="icon"
                     onClick={() => setShowMessageInput(false)}
                     className="text-muted-foreground"
+                    aria-label="Cerrar formulario de mensaje"
                   >
                     <X className="w-4 h-4" />
                   </Button>
@@ -273,6 +415,11 @@ const UserActionsModal = ({ user: targetUser, onClose, onViewProfile }) => {
 
                 <div className="flex items-center justify-between text-xs text-muted-foreground">
                   <span>{message.length}/500 caracteres</span>
+                  {!currentUser.isPremium && currentUser.role !== 'admin' && (
+                    <span className="text-amber-400 font-medium">
+                      {limits.directMessages.remaining}/{limits.directMessages.limit} restantes hoy
+                    </span>
+                  )}
                 </div>
 
                 <div className="flex gap-2">
@@ -308,6 +455,7 @@ const UserActionsModal = ({ user: targetUser, onClose, onViewProfile }) => {
           size="icon"
           onClick={onClose}
           className="absolute top-2 right-2 z-50 text-muted-foreground hover:text-foreground"
+          aria-label="Cerrar modal"
         >
           <X className="w-5 h-5" />
         </Button>

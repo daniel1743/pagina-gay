@@ -28,6 +28,7 @@ const ChatHeader = ({ currentRoom, onMenuClick, onOpenPrivateChat }) => {
           size="icon"
           onClick={() => navigate(-1)}
           className="text-muted-foreground hover:text-cyan-400"
+          aria-label="Volver a la página anterior"
         >
           <ArrowLeft className="w-5 h-5" />
         </Button>
@@ -36,6 +37,7 @@ const ChatHeader = ({ currentRoom, onMenuClick, onOpenPrivateChat }) => {
           size="icon"
           onClick={onMenuClick}
           className="lg:hidden text-muted-foreground"
+          aria-label="Abrir menú de salas"
         >
           <Menu className="w-5 h-5" />
         </Button>
@@ -53,6 +55,7 @@ const ChatHeader = ({ currentRoom, onMenuClick, onOpenPrivateChat }) => {
           size="icon"
           onClick={() => navigate('/')}
           className="text-muted-foreground hover:text-cyan-400"
+          aria-label="Ir al inicio"
         >
           <Home className="w-5 h-5" />
         </Button>

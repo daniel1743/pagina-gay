@@ -27,7 +27,7 @@ const Footer = () => {
           <div className="flex flex-col items-center">
             <span className="font-bold text-lg text-foreground">Legal</span>
              <div className="flex flex-col items-center gap-1 mt-2">
-              <a href="#" className="hover:text-accent transition-colors text-sm">Términos de Servicio</a>
+              <a href="#" className="hover:text-cyan-400 transition-colors text-sm">Términos de Servicio</a>
               <a href="#" className="hover:text-cyan-400 transition-colors text-sm">Política de Privacidad</a>
             </div>
           </div>

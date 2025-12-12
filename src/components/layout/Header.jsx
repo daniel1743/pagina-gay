@@ -4,7 +4,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import { useTheme } from '@/contexts/ThemeContext';
 import { Button } from '@/components/ui/button';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
-import { Bell, LogIn, ChevronDown, Circle, HeartPulse, Sun, Moon, CheckCircle } from 'lucide-react';
+import { Bell, LogIn, ChevronDown, Circle, HeartPulse, Sun, Moon, CheckCircle, Shield } from 'lucide-react';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import ComingSoonModal from '@/components/ui/ComingSoonModal';
 
@@ -36,11 +36,23 @@ const Header = () => {
         </div>
 
         <div className="flex items-center gap-2 sm:gap-4">
-          <Button variant="ghost" size="icon" className="text-muted-foreground hover:text-accent" onClick={toggleTheme}>
+          <Button
+            variant="ghost"
+            size="icon"
+            className="text-muted-foreground hover:text-accent"
+            onClick={toggleTheme}
+            aria-label={theme === 'dark' ? 'Cambiar a tema claro' : 'Cambiar a tema oscuro'}
+          >
             {theme === 'dark' ? <Sun className="w-6 h-6" /> : <Moon className="w-6 h-6" />}
           </Button>
 
-          <Button variant="ghost" size="icon" className="text-muted-foreground hover:text-cyan-400 relative" onClick={() => handleFeatureComingSoon('el sistema de notificaciones', 'Podrás recibir alertas de mensajes privados, menciones y eventos de la comunidad en tiempo real.')}>
+          <Button
+            variant="ghost"
+            size="icon"
+            className="text-muted-foreground hover:text-cyan-400 relative"
+            onClick={() => handleFeatureComingSoon('el sistema de notificaciones', 'Podrás recibir alertas de mensajes privados, menciones y eventos de la comunidad en tiempo real.')}
+            aria-label="Ver notificaciones (próximamente)"
+          >
             <Bell className="w-6 h-6" />
             <span className="absolute top-2 right-2 w-2 h-2 bg-[#E4007C] rounded-full animate-pulse"></span>
           </Button>
@@ -71,6 +83,18 @@ const Header = () => {
                 <DropdownMenuLabel>Mi Cuenta</DropdownMenuLabel>
                 <DropdownMenuItem onClick={() => navigate('/profile')}>Perfil</DropdownMenuItem>
                 <DropdownMenuSeparator />
+
+                {/* Panel Admin - Solo visible para administradores */}
+                {user.role === 'admin' && (
+                  <>
+                    <DropdownMenuItem onClick={() => navigate('/admin')} className="text-purple-400 hover:text-purple-300">
+                      <Shield className="w-4 h-4 mr-2" />
+                      Panel Admin
+                    </DropdownMenuItem>
+                    <DropdownMenuSeparator />
+                  </>
+                )}
+
                 <DropdownMenuLabel>Estado</DropdownMenuLabel>
                 <DropdownMenuItem onClick={() => handleFeatureComingSoon('cambiar tu estado', 'Próximamente podrás mostrar si estás Conectado, Desconectado u Oculto.')}>
                   <Circle className="w-2 h-2 mr-2 text-green-400 fill-current" /> Conectado

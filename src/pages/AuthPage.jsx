@@ -24,6 +24,7 @@ const AuthPage = () => {
     age: '',
     phone: ''
   });
+  const [ageError, setAgeError] = useState('');
 
   const handleLogin = (e) => {
     e.preventDefault();
@@ -34,6 +35,19 @@ const AuthPage = () => {
 
   const handleRegister = (e) => {
     e.preventDefault();
+    setAgeError('');
+
+    // ✅ VALIDACIÓN CRÍTICA: Verificar edad mínima (18 años)
+    const age = parseInt(registerData.age);
+    if (isNaN(age) || age < 18) {
+      setAgeError('Debes ser mayor de 18 años para registrarte. Esta es una comunidad para adultos.');
+      return;
+    }
+    if (age > 120) {
+      setAgeError('Por favor ingresa una edad válida.');
+      return;
+    }
+
     if (register(registerData)) {
       navigate('/chat');
     }
@@ -158,11 +172,23 @@ const AuthPage = () => {
                       type="number"
                       required
                       min="18"
+                      max="120"
                       value={registerData.age}
-                      onChange={(e) => setRegisterData({ ...registerData, age: e.target.value })}
-                      className="bg-purple-900/30 border-purple-700 text-white"
+                      onChange={(e) => {
+                        setRegisterData({ ...registerData, age: e.target.value });
+                        setAgeError(''); // Limpiar error al escribir
+                      }}
+                      className={`bg-purple-900/30 border-purple-700 text-white ${ageError ? 'border-red-500' : ''}`}
                       placeholder="18+"
                     />
+                    {ageError && (
+                      <p className="text-red-400 text-sm mt-2 font-medium">
+                        ⚠️ {ageError}
+                      </p>
+                    )}
+                    <p className="text-purple-400 text-xs mt-1">
+                      Debes ser mayor de edad para usar Chactivo
+                    </p>
                   </div>
                   <div>
                     <Label htmlFor="password" className="text-purple-200">Contraseña</Label>
