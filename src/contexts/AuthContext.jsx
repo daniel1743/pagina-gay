@@ -20,6 +20,7 @@ import { doc, getDoc } from 'firebase/firestore';
 import { db } from '@/config/firebase';
 import { toast } from '@/components/ui/use-toast';
 import { trackUserRegister, trackUserLogin } from '@/services/analyticsService';
+import { recordUserConnection, checkVerificationMaintenance } from '@/services/verificationService';
 
 const AuthContext = createContext();
 
@@ -72,6 +73,12 @@ export const AuthProvider = ({ children }) => {
             const userProfile = await getUserProfile(firebaseUser.uid);
             setUser(userProfile);
             setGuestMessageCount(0); // Los usuarios registrados no tienen límite
+            
+            // Registrar conexión para sistema de verificación
+            recordUserConnection(firebaseUser.uid);
+            
+            // Verificar mantenimiento de verificación
+            checkVerificationMaintenance(firebaseUser.uid);
           }
         } catch (error) {
           console.error('Error loading user profile:', error);
@@ -108,6 +115,12 @@ export const AuthProvider = ({ children }) => {
 
       // Track login
       trackUserLogin(userCredential.user.uid, 'email');
+      
+      // Registrar conexión para sistema de verificación
+      recordUserConnection(userCredential.user.uid);
+      
+      // Verificar mantenimiento de verificación
+      checkVerificationMaintenance(userCredential.user.uid);
 
       toast({
         title: "¡Bienvenido de vuelta! 🌈",

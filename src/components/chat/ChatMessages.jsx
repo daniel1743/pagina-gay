@@ -17,7 +17,20 @@ const ChatMessages = ({ messages, currentUserId, onUserClick, onReport, onPrivat
     if (authUser.id === userId) return authUser.isPremium;
     const userMessage = messages.find(m => m.userId === userId);
     if(userMessage && userMessage.isPremium) return true;
-    return false; 
+    return false;
+  };
+
+  const findUserVerifiedStatus = (userId) => {
+    if (authUser.id === userId) return authUser.verified;
+    const userMessage = messages.find(m => m.userId === userId);
+    if(userMessage && userMessage.verified) return true;
+    return false;
+  };
+
+  const findUserRole = (userId) => {
+    if (authUser.id === userId) return authUser.role;
+    const userMessage = messages.find(m => m.userId === userId);
+    return userMessage?.role || null;
   };
   
   const getBubbleStyle = () => {
@@ -36,6 +49,8 @@ const ChatMessages = ({ messages, currentUserId, onUserClick, onReport, onPrivat
         const isOwn = message.userId === currentUserId;
         const isSystem = message.userId === 'system';
         const isUserPremium = findUserPremiumStatus(message.userId);
+        const isUserVerified = findUserVerifiedStatus(message.userId);
+        const userRole = findUserRole(message.userId);
 
         if (isSystem) {
           return (
@@ -67,8 +82,23 @@ const ChatMessages = ({ messages, currentUserId, onUserClick, onReport, onPrivat
             className={`flex gap-2 ${isOwn ? 'flex-row-reverse' : 'flex-row'}`}
           >
             <motion.div
-              className={`rounded-full ${isUserPremium ? 'premium-avatar-ring' : ''}`}
-              onClick={() => onUserClick({ username: message.username, avatar: message.avatar, userId: message.userId, isPremium: isUserPremium })}
+              className={`rounded-full ${
+                userRole === 'admin'
+                  ? 'admin-avatar-ring'
+                  : isUserVerified
+                    ? 'verified-avatar-ring'
+                    : isUserPremium
+                      ? 'premium-avatar-ring'
+                      : ''
+              }`}
+              onClick={() => onUserClick({
+                username: message.username,
+                avatar: message.avatar,
+                userId: message.userId,
+                isPremium: isUserPremium,
+                verified: isUserVerified,
+                role: userRole
+              })}
               whileHover={{ scale: 1.1, rotate: [0, -5, 5, -5, 0] }}
               whileTap={{ scale: 0.95 }}
               transition={{ duration: 0.3 }}
@@ -87,7 +117,9 @@ const ChatMessages = ({ messages, currentUserId, onUserClick, onReport, onPrivat
               <div className="flex items-center gap-1.5 mb-0.5 flex-wrap">
                 <span className="text-[10px] font-semibold text-foreground flex items-center gap-1">
                   {message.username}
-                  {isUserPremium && <CheckCircle className="w-2.5 h-2.5 text-cyan-400" />}
+                  {(isUserPremium || isUserVerified || userRole === 'admin') && (
+                    <CheckCircle className="w-2.5 h-2.5 text-[#1DA1F2]" />
+                  )}
                 </span>
                 {/* Ocultar hora solo para bots */}
                 {!message.userId.startsWith('bot_') && (

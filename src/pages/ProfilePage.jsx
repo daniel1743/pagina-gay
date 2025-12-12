@@ -1,19 +1,25 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
 import { Button } from '@/components/ui/button';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
-import { ArrowLeft, Crown, Shield, Camera, Edit, MessageSquare, CheckCircle } from 'lucide-react';
+import { ArrowLeft, Crown, Shield, Camera, Edit, MessageSquare, CheckCircle, HelpCircle, Ticket } from 'lucide-react';
 import { toast } from '@/components/ui/use-toast';
 import ComingSoonModal from '@/components/ui/ComingSoonModal';
 import EditProfileModal from '@/components/profile/EditProfileModal';
 import AvatarSelector from '@/components/profile/AvatarSelector';
 import ProfileComments from '@/components/profile/ProfileComments';
 import CreateTicketModal from '@/components/tickets/CreateTicketModal';
-import { Ticket } from 'lucide-react';
+import VerificationExplanationModal from '@/components/verification/VerificationExplanationModal';
+import VerificationFAQ from '@/components/verification/VerificationFAQ';
+import { getUserVerificationStatus } from '@/services/verificationService';
+import { useCanonical } from '@/hooks/useCanonical';
 
 const ProfilePage = () => {
+  // SEO: Canonical tag para página de perfil
+  useCanonical('/profile');
+
   React.useEffect(() => {
     document.title = "Mi Perfil - Chactivo | Chat Gay Chile";
   }, []);
@@ -25,13 +31,23 @@ const ProfilePage = () => {
   const [showComingSoon, setShowComingSoon] = useState(false);
   const [comingSoonFeature, setComingSoonFeature] = useState({ name: '', description: '' });
   const [showTicketModal, setShowTicketModal] = useState(false);
+  const [showVerificationModal, setShowVerificationModal] = useState(false);
+  const [showVerificationFAQ, setShowVerificationFAQ] = useState(false);
+  const [verificationStatus, setVerificationStatus] = useState(null);
+
+  // Cargar estado de verificación
+  useEffect(() => {
+    if (user && !user.isGuest && !user.isAnonymous) {
+      const loadVerificationStatus = async () => {
+        const status = await getUserVerificationStatus(user.id);
+        setVerificationStatus(status);
+      };
+      loadVerificationStatus();
+    }
+  }, [user]);
 
   const handleVerification = () => {
-    setComingSoonFeature({
-      name: 'la verificación de cuenta',
-      description: 'Podrás verificar tu identidad para obtener una insignia de verificación y mayor confianza en la comunidad. ¡Pronto estará disponible!'
-    });
-    setShowComingSoon(true);
+    setShowVerificationModal(true);
   };
 
   const handleChangePicture = () => {
@@ -71,7 +87,15 @@ const ProfilePage = () => {
           >
             <div className="flex flex-col md:flex-row items-center md:items-start gap-8 mb-8">
               <div className="relative">
-                <div className={`rounded-full ${user.isPremium ? 'premium-avatar-ring' : ''}`}>
+                <div className={`rounded-full ${
+                  user.role === 'admin'
+                    ? 'admin-avatar-ring'
+                    : user.verified
+                      ? 'verified-avatar-ring'
+                      : user.isPremium
+                        ? 'premium-avatar-ring'
+                        : ''
+                }`}>
                     <Avatar className="w-32 h-32 md:w-40 md:h-40">
                     <AvatarImage src={user.avatar} alt={user.username} />
                     <AvatarFallback className="text-4xl bg-[#413e62]">
@@ -87,11 +111,13 @@ const ProfilePage = () => {
               <div className="flex-1 text-center md:text-left">
                 <h1 className="text-3xl md:text-4xl font-bold text-foreground mb-2 flex items-center justify-center md:justify-start gap-2">
                   {user.username}
-                  {user.isPremium && <CheckCircle className="w-6 h-6 text-cyan-400"/>}
+                  {(user.isPremium || user.verified || user.role === 'admin') && (
+                    <CheckCircle className="w-6 h-6 text-[#1DA1F2]"/>
+                  )}
                 </h1>
                 <div className="flex gap-2 justify-center md:justify-start mb-4">
                   {user.verified && (
-                    <span className="bg-green-500 text-white px-3 py-1 rounded-full text-xs font-bold flex items-center gap-1">
+                    <span className="bg-[#1DA1F2] text-white px-3 py-1 rounded-full text-xs font-bold flex items-center gap-1">
                       <Shield className="w-4 h-4" />
                       Verificado
                     </span>
@@ -116,12 +142,25 @@ const ProfilePage = () => {
                   <Ticket className="w-4 h-4 mr-2" />
                   Crear Ticket
                 </Button>
-                {!user.verified && (
-                  <Button onClick={handleVerification} variant="outline" className="w-full border-green-500 text-green-400 hover:bg-green-500/20">
-                    <Shield className="w-4 h-4 mr-2" />
-                    Verificar Cuenta
-                  </Button>
-                )}
+                <Button 
+                  onClick={handleVerification} 
+                  variant="outline" 
+                  className={`w-full ${user.verified 
+                    ? 'border-green-500 text-green-400 hover:bg-green-500/20' 
+                    : 'border-blue-500 text-blue-400 hover:bg-blue-500/20'
+                  }`}
+                >
+                  <Shield className="w-4 h-4 mr-2" />
+                  {user.verified ? 'Verificación' : 'Verificar Cuenta'}
+                </Button>
+                <Button 
+                  onClick={() => setShowVerificationFAQ(!showVerificationFAQ)} 
+                  variant="ghost" 
+                  className="w-full"
+                >
+                  <HelpCircle className="w-4 h-4 mr-2" />
+                  Preguntas sobre Verificación
+                </Button>
                 {!user.isPremium && (
                   <Button onClick={() => navigate('/premium')} className="w-full cyan-gradient text-black">
                     <Crown className="w-4 h-4 mr-2" />
@@ -132,6 +171,40 @@ const ProfilePage = () => {
                   Cerrar Sesión
                 </Button>
             </div>
+
+            {/* Estado de Verificación */}
+            {!user.verified && verificationStatus && (
+              <div className="mt-8 mb-8 glass-effect p-6 rounded-xl border border-blue-500/30">
+                <div className="flex items-center justify-between mb-4">
+                  <h3 className="text-lg font-semibold flex items-center gap-2">
+                    <Shield className="w-5 h-5 text-blue-400" />
+                    Progreso de Verificación
+                  </h3>
+                  <span className="text-sm text-muted-foreground">
+                    {verificationStatus.consecutiveDays} / 30 días
+                  </span>
+                </div>
+                <div className="w-full bg-background rounded-full h-3 mb-2">
+                  <div
+                    className="bg-gradient-to-r from-blue-500 to-purple-500 h-3 rounded-full transition-all"
+                    style={{ width: `${Math.min(100, (verificationStatus.consecutiveDays / 30) * 100)}%` }}
+                  />
+                </div>
+                <p className="text-sm text-muted-foreground">
+                  {verificationStatus.daysUntilVerification > 0 
+                    ? `Te faltan ${verificationStatus.daysUntilVerification} días consecutivos para verificarte`
+                    : '¡Estás a punto de verificarte!'
+                  }
+                </p>
+              </div>
+            )}
+
+            {/* Preguntas Frecuentes sobre Verificación */}
+            {showVerificationFAQ && (
+              <div className="mt-8 mb-8 glass-effect p-6 rounded-xl border border-border">
+                <VerificationFAQ />
+              </div>
+            )}
 
             <div className="mt-12">
               <h2 className="text-2xl font-bold text-foreground mb-4 flex items-center gap-2">
@@ -172,6 +245,12 @@ const ProfilePage = () => {
         isOpen={showTicketModal}
         onClose={() => setShowTicketModal(false)}
         user={user}
+      />
+
+      <VerificationExplanationModal
+        isOpen={showVerificationModal}
+        onClose={() => setShowVerificationModal(false)}
+        verificationStatus={verificationStatus}
       />
     </>
   );

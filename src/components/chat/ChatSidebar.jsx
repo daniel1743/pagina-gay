@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
 import { Button } from '@/components/ui/button';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
-import { Hash, Gamepad2, Users, Heart, User, LogIn, X, UserCheck, GitFork, UserMinus, Cake, HeartPulse } from 'lucide-react';
+import { Hash, Gamepad2, Users, Heart, User, LogIn, X, UserCheck, GitFork, UserMinus, Cake, HeartPulse, CheckCircle } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { subscribeToMultipleRoomCounts } from '@/services/presenceService';
 import { roomsData, colorClasses } from '@/config/rooms';
@@ -156,7 +156,15 @@ const ChatSidebar = ({ currentRoom, setCurrentRoom, isOpen, onClose }) => {
               whileTap={{ scale: 0.98 }}
             >
               <motion.div
-                className={`${user.isPremium ? 'premium-avatar-ring' : ''}`}
+                className={`${
+                  user.role === 'admin'
+                    ? 'admin-avatar-ring'
+                    : user.verified
+                      ? 'verified-avatar-ring'
+                      : user.isPremium
+                        ? 'premium-avatar-ring'
+                        : ''
+                }`}
                 whileHover={{ rotate: [0, -5, 5, -5, 0] }}
                 transition={{ duration: 0.5 }}
               >
@@ -168,8 +176,11 @@ const ChatSidebar = ({ currentRoom, setCurrentRoom, isOpen, onClose }) => {
                 </Avatar>
               </motion.div>
               <div className="flex-1 min-w-0">
-                <p className="text-sm font-semibold text-foreground truncate">
+                <p className="text-sm font-semibold text-foreground truncate flex items-center gap-1">
                   {user.username}
+                  {(user.isPremium || user.verified || user.role === 'admin') && (
+                    <CheckCircle className="w-3 h-3 text-[#1DA1F2] flex-shrink-0" />
+                  )}
                 </p>
                 <motion.p
                   className="text-xs text-muted-foreground hover:text-red-400 transition-colors"
@@ -326,7 +337,15 @@ const ChatSidebar = ({ currentRoom, setCurrentRoom, isOpen, onClose }) => {
               whileTap={{ scale: 0.98 }}
             >
               <motion.div
-                className={`${user.isPremium ? 'premium-avatar-ring' : ''}`}
+                className={`${
+                  user.role === 'admin'
+                    ? 'admin-avatar-ring'
+                    : user.verified
+                      ? 'verified-avatar-ring'
+                      : user.isPremium
+                        ? 'premium-avatar-ring'
+                        : ''
+                }`}
                 whileHover={{ rotate: [0, -5, 5, -5, 0] }}
                 transition={{ duration: 0.5 }}
               >
@@ -338,8 +357,11 @@ const ChatSidebar = ({ currentRoom, setCurrentRoom, isOpen, onClose }) => {
                 </Avatar>
               </motion.div>
               <div className="flex-1 min-w-0">
-                <p className="text-sm font-semibold text-foreground truncate">
+                <p className="text-sm font-semibold text-foreground truncate flex items-center gap-1">
                   {user.username}
+                  {(user.isPremium || user.verified || user.role === 'admin') && (
+                    <CheckCircle className="w-3 h-3 text-[#1DA1F2] flex-shrink-0" />
+                  )}
                 </p>
                 <motion.p
                   className="text-xs text-muted-foreground hover:text-red-400 transition-colors"

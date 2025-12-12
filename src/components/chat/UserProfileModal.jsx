@@ -21,7 +21,15 @@ const UserProfileModal = ({ user, onClose, onReport }) => {
       >
         <DialogContent className="bg-card border text-foreground max-w-sm rounded-2xl">
           <DialogHeader className="items-center text-center">
-             <div className={`rounded-full ${user.isPremium ? 'premium-avatar-ring' : ''} mb-4`}>
+             <div className={`rounded-full ${
+               user.role === 'admin'
+                 ? 'admin-avatar-ring'
+                 : user.verified
+                   ? 'verified-avatar-ring'
+                   : user.isPremium
+                     ? 'premium-avatar-ring'
+                     : ''
+             } mb-4`}>
               <Avatar className="w-24 h-24 text-4xl">
                 <AvatarImage src={user.avatar} alt={user.username} />
                 <AvatarFallback className="bg-secondary">
@@ -31,7 +39,9 @@ const UserProfileModal = ({ user, onClose, onReport }) => {
             </div>
             <DialogTitle className="text-foreground text-2xl flex items-center gap-2">
               {user.username}
-              {user.isPremium && <CheckCircle className="w-5 h-5 text-cyan-400"/>}
+              {(user.isPremium || user.verified || user.role === 'admin') && (
+                <CheckCircle className="w-5 h-5 text-[#1DA1F2]"/>
+              )}
             </DialogTitle>
             <DialogDescription className="text-muted-foreground">
               Miembro desde {new Date().getFullYear()}

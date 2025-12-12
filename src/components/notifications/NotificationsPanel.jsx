@@ -162,7 +162,15 @@ const NotificationsPanel = ({ isOpen, onClose, notifications, onOpenPrivateChat 
                       {notification.type === 'private_chat_request' && (
                         <div className="space-y-3">
                           <div className="flex gap-3">
-                            <div className={`${notification.fromIsPremium ? 'premium-avatar-ring' : ''}`}>
+                            <div className={`${
+                              notification.fromRole === 'admin'
+                                ? 'admin-avatar-ring'
+                                : notification.fromVerified
+                                  ? 'verified-avatar-ring'
+                                  : notification.fromIsPremium
+                                    ? 'premium-avatar-ring'
+                                    : ''
+                            }`}>
                               <Avatar className="w-10 h-10">
                                 <AvatarImage src={notification.fromAvatar} />
                                 <AvatarFallback className="bg-secondary text-xs">
@@ -173,8 +181,8 @@ const NotificationsPanel = ({ isOpen, onClose, notifications, onOpenPrivateChat 
                             <div className="flex-1 min-w-0">
                               <p className="font-semibold text-sm text-foreground flex items-center gap-1">
                                 {notification.fromUsername}
-                                {notification.fromIsPremium && (
-                                  <CheckCircle className="w-3 h-3 text-cyan-400" />
+                                {(notification.fromIsPremium || notification.fromVerified || notification.fromRole === 'admin') && (
+                                  <CheckCircle className="w-3 h-3 text-[#1DA1F2]" />
                                 )}
                               </p>
                               <div className="flex items-center gap-1.5 mt-0.5">

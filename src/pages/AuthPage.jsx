@@ -8,8 +8,12 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { ArrowLeft } from 'lucide-react';
+import { useCanonical } from '@/hooks/useCanonical';
 
 const AuthPage = () => {
+  // SEO: Canonical tag para página de autenticación
+  useCanonical('/auth');
+
   React.useEffect(() => {
     document.title = "Iniciar Sesión - Chactivo | Chat Gay Chile";
   }, []);

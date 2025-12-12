@@ -145,7 +145,40 @@ body {
     background-size: 200% 200%;
     animation: gradient-spin 3s linear infinite;
   }
-  
+
+  /* Anillo verificado tipo Instagram/Google - colores vibrantes */
+  .verified-avatar-ring {
+    padding: 3px;
+    background: linear-gradient(90deg,
+      #1DA1F2 0%,    /* Azul Twitter */
+      #34C759 25%,   /* Verde */
+      #FFD60A 50%,   /* Amarillo */
+      #FF453A 75%,   /* Rojo */
+      #1DA1F2 100%   /* Azul nuevamente */
+    );
+    background-size: 400% 400%;
+    animation: verified-ring-rotate 4s linear infinite;
+    border-radius: 9999px;
+  }
+
+  /* Anillo admin - gradiente arcoíris completo */
+  .admin-avatar-ring {
+    padding: 3px;
+    background: linear-gradient(90deg,
+      #FF0080 0%,    /* Magenta */
+      #FF8C00 14%,   /* Naranja */
+      #FFD700 28%,   /* Oro */
+      #00FF00 42%,   /* Verde */
+      #00FFFF 57%,   /* Cyan */
+      #1DA1F2 71%,   /* Azul */
+      #8B00FF 85%,   /* Violeta */
+      #FF0080 100%   /* Magenta */
+    );
+    background-size: 400% 400%;
+    animation: verified-ring-rotate 3s linear infinite;
+    border-radius: 9999px;
+  }
+
   @keyframes gradient-spin {
     0% {
       background-position: 0% 50%;
@@ -155,6 +188,15 @@ body {
     }
     100% {
       background-position: 0% 50%;
+    }
+  }
+
+  @keyframes verified-ring-rotate {
+    0% {
+      background-position: 0% 50%;
+    }
+    100% {
+      background-position: 400% 50%;
     }
   }
 
@@ -268,6 +310,16 @@ body {
     .premium-avatar-ring {
       animation: none !important;
       background: linear-gradient(45deg, #E4007C, #00FFFF);
+    }
+
+    .verified-avatar-ring {
+      animation: none !important;
+      background: linear-gradient(90deg, #1DA1F2, #34C759, #FFD60A, #FF453A);
+    }
+
+    .admin-avatar-ring {
+      animation: none !important;
+      background: linear-gradient(90deg, #FF0080, #FFD700, #00FFFF, #8B00FF);
     }
 
     .animate-shimmer {

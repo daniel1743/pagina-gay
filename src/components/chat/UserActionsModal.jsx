@@ -242,7 +242,15 @@ const UserActionsModal = ({ user: targetUser, onClose, onViewProfile }) => {
       <DialogContent className="bg-card border text-foreground max-w-md rounded-2xl p-0">
         <DialogHeader className="p-6 pb-4">
           <div className="flex items-center gap-4">
-            <div className={`${targetUser.isPremium ? 'premium-avatar-ring' : ''}`}>
+            <div className={`${
+              targetUser.role === 'admin'
+                ? 'admin-avatar-ring'
+                : targetUser.verified
+                  ? 'verified-avatar-ring'
+                  : targetUser.isPremium
+                    ? 'premium-avatar-ring'
+                    : ''
+            }`}>
               <Avatar className="w-16 h-16">
                 <AvatarImage src={targetUser.avatar} alt={targetUser.username} />
                 <AvatarFallback className="bg-secondary text-2xl">
@@ -253,7 +261,9 @@ const UserActionsModal = ({ user: targetUser, onClose, onViewProfile }) => {
             <div className="flex-1">
               <DialogTitle className="text-2xl flex items-center gap-2">
                 {targetUser.username}
-                {targetUser.isPremium && <CheckCircle className="w-5 h-5 text-cyan-400" />}
+                {(targetUser.isPremium || targetUser.verified || targetUser.role === 'admin') && (
+                  <CheckCircle className="w-5 h-5 text-[#1DA1F2]" />
+                )}
               </DialogTitle>
               <p className="text-sm text-muted-foreground">
                 {targetUser.isPremium ? 'Miembro Premium' : 'Miembro'}

@@ -6,8 +6,12 @@ import { Button } from '@/components/ui/button';
 import { Check, Crown, ArrowLeft, Sparkles, Shield, Zap } from 'lucide-react';
 import { toast } from '@/components/ui/use-toast';
 import ComingSoonModal from '@/components/ui/ComingSoonModal';
+import { useCanonical } from '@/hooks/useCanonical';
 
 const PremiumPage = () => {
+  // SEO: Canonical tag para página premium
+  useCanonical('/premium');
+
   const navigate = useNavigate();
   const { user, upgradeToPremium } = useAuth();
   const [showComingSoon, setShowComingSoon] = React.useState(false);

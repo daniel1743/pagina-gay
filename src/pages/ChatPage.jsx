@@ -19,6 +19,7 @@ import { sendMessage, subscribeToRoomMessages, addReactionToMessage, markMessage
 import { joinRoom, leaveRoom, subscribeToRoomUsers } from '@/services/presenceService';
 import { useBotSystem } from '@/hooks/useBotSystem';
 import { trackPageView, trackPageExit, trackRoomJoined, trackMessageSent } from '@/services/analyticsService';
+import { useCanonical } from '@/hooks/useCanonical';
 
 const roomWelcomeMessages = {
   'conversas-libres': '¡Bienvenido a Conversas Libres! Habla de lo que quieras.',
@@ -36,9 +37,15 @@ const roomWelcomeMessages = {
 };
 
 const ChatPage = () => {
+  const { roomId } = useParams();
+
+  // SEO: Actualizar título y canonical tag dinámicamente
   React.useEffect(() => {
-    document.title = "Chat - Chactivo | Chat Gay Chile";
-  }, []);
+    document.title = `Chat ${roomId} - Chactivo | Chat Gay Chile`;
+  }, [roomId]);
+
+  // SEO: Canonical tag dinámico para cada sala
+  useCanonical(`/chat/${roomId}`);
 
   // Track page view and room join
   useEffect(() => {
@@ -53,8 +60,6 @@ const ChatPage = () => {
       }
     };
   }, [roomId]);
-
-  const { roomId } = useParams();
   const navigate = useNavigate();
   const { user, guestMessageCount, setGuestMessageCount, showWelcomeTour, setShowWelcomeTour } = useAuth();
   const [currentRoom, setCurrentRoom] = useState(roomId);

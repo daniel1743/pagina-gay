@@ -238,6 +238,18 @@ service cloud.firestore {
     }
 
     // ===========================
+    // REGLAS DE CONEXIONES DE USUARIO (Verificación)
+    // ===========================
+
+    match /user_connections/{userId} {
+      // Solo el propio usuario puede leer sus datos de conexión
+      allow read: if isAuthenticated() && request.auth.uid == userId;
+      
+      // Solo el sistema puede escribir (mediante recordUserConnection)
+      allow write: if isAuthenticated() && request.auth.uid == userId;
+    }
+
+    // ===========================
     // REGLAS DE TICKETS DE SOPORTE
     // ===========================
 

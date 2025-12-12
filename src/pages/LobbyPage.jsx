@@ -19,6 +19,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { trackPageView, trackPageExit } from '@/services/analyticsService';
+import { useCanonical } from '@/hooks/useCanonical';
 
 const cardData = [
   { id: 'salas', icon: <MessageSquare className="w-12 h-12" />, title: "Salas de Chat", description: "Explora y únete a nuestras salas temáticas. ¡Siempre hay alguien con quien conectar!", modal: 'RoomsModal', gradient: "blue-gradient" },
@@ -98,6 +99,9 @@ const VideoSection = ({ onComingSoon }) => {
 
 
 const LobbyPage = () => {
+  // SEO: Canonical tag para homepage
+  useCanonical('/');
+
   const navigate = useNavigate();
   const { user } = useAuth();
   const [activeModal, setActiveModal] = useState(null);

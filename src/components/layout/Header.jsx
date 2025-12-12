@@ -61,7 +61,15 @@ const Header = () => {
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
                 <div className="flex items-center gap-3 cursor-pointer">
-                  <div className={`rounded-full ${user.isPremium ? 'premium-avatar-ring' : ''}`}>
+                  <div className={`rounded-full ${
+                    user.role === 'admin'
+                      ? 'admin-avatar-ring'
+                      : user.verified
+                        ? 'verified-avatar-ring'
+                        : user.isPremium
+                          ? 'premium-avatar-ring'
+                          : ''
+                  }`}>
                     <Avatar className="w-10 h-10">
                       <AvatarImage src={user.avatar} alt={user.username} />
                       <AvatarFallback className="bg-secondary">{user.username[0].toUpperCase()}</AvatarFallback>
@@ -70,7 +78,9 @@ const Header = () => {
                   <div className="hidden md:flex flex-col items-start">
                     <span className="text-sm font-semibold text-foreground flex items-center gap-1">
                       {user.username}
-                      {user.isPremium && <CheckCircle className="w-4 h-4 text-cyan-400"/>}
+                      {(user.isPremium || user.verified || user.role === 'admin') && (
+                        <CheckCircle className="w-4 h-4 text-[#1DA1F2]"/>
+                      )}
                     </span>
                     <span className="text-xs text-green-400 flex items-center gap-1">
                       <Circle className="w-2 h-2 fill-current" /> Conectado
