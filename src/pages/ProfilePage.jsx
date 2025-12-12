@@ -111,7 +111,10 @@ const ProfilePage = () => {
               <div className="flex-1 text-center md:text-left">
                 <h1 className="text-3xl md:text-4xl font-bold text-foreground mb-2 flex items-center justify-center md:justify-start gap-2">
                   {user.username}
-                  {(user.isPremium || user.verified || user.role === 'admin') && (
+                  {(user.isPremium || user.role === 'admin') && (
+                    <CheckCircle className="w-6 h-6 text-[#FFD700]"/>
+                  )}
+                  {user.verified && !user.isPremium && user.role !== 'admin' && (
                     <CheckCircle className="w-6 h-6 text-[#1DA1F2]"/>
                   )}
                 </h1>

@@ -178,7 +178,10 @@ const ChatSidebar = ({ currentRoom, setCurrentRoom, isOpen, onClose }) => {
               <div className="flex-1 min-w-0">
                 <p className="text-sm font-semibold text-foreground truncate flex items-center gap-1">
                   {user.username}
-                  {(user.isPremium || user.verified || user.role === 'admin') && (
+                  {(user.isPremium || user.role === 'admin') && (
+                    <CheckCircle className="w-3 h-3 text-[#FFD700] flex-shrink-0" />
+                  )}
+                  {user.verified && !user.isPremium && user.role !== 'admin' && (
                     <CheckCircle className="w-3 h-3 text-[#1DA1F2] flex-shrink-0" />
                   )}
                 </p>
@@ -359,7 +362,10 @@ const ChatSidebar = ({ currentRoom, setCurrentRoom, isOpen, onClose }) => {
               <div className="flex-1 min-w-0">
                 <p className="text-sm font-semibold text-foreground truncate flex items-center gap-1">
                   {user.username}
-                  {(user.isPremium || user.verified || user.role === 'admin') && (
+                  {(user.isPremium || user.role === 'admin') && (
+                    <CheckCircle className="w-3 h-3 text-[#FFD700] flex-shrink-0" />
+                  )}
+                  {user.verified && !user.isPremium && user.role !== 'admin' && (
                     <CheckCircle className="w-3 h-3 text-[#1DA1F2] flex-shrink-0" />
                   )}
                 </p>

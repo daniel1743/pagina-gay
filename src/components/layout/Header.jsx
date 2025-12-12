@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
 import { useTheme } from '@/contexts/ThemeContext';
@@ -7,6 +7,8 @@ import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Bell, LogIn, ChevronDown, Circle, HeartPulse, Sun, Moon, CheckCircle, Shield } from 'lucide-react';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import ComingSoonModal from '@/components/ui/ComingSoonModal';
+import { doc, getDoc } from 'firebase/firestore';
+import { db } from '@/config/firebase';
 
 const Header = () => {
   const navigate = useNavigate();
@@ -14,6 +16,40 @@ const Header = () => {
   const { theme, toggleTheme } = useTheme();
   const [showComingSoon, setShowComingSoon] = useState(false);
   const [comingSoonFeature, setComingSoonFeature] = useState({ name: '', description: '' });
+  const [isAdmin, setIsAdmin] = useState(false);
+
+  // Verificar si el usuario es admin (consulta Firestore si no está en user.role)
+  useEffect(() => {
+    const checkAdminRole = async () => {
+      if (!user || user.isGuest || user.isAnonymous) {
+        setIsAdmin(false);
+        return;
+      }
+
+      // Primero verificar si ya está en el objeto user
+      if (user.role === 'admin' || user.role === 'administrator') {
+        setIsAdmin(true);
+        return;
+      }
+
+      // Si no está, consultar Firestore directamente
+      try {
+        const userDoc = await getDoc(doc(db, 'users', user.id));
+        if (userDoc.exists()) {
+          const userData = userDoc.data();
+          const role = userData.role;
+          setIsAdmin(role === 'admin' || role === 'administrator');
+        } else {
+          setIsAdmin(false);
+        }
+      } catch (error) {
+        console.error('Error checking admin role:', error);
+        setIsAdmin(false);
+      }
+    };
+
+    checkAdminRole();
+  }, [user]);
 
   const handleFeatureComingSoon = (featureName, description = '') => {
     setComingSoonFeature({ name: featureName, description });
@@ -62,7 +98,7 @@ const Header = () => {
               <DropdownMenuTrigger asChild>
                 <div className="flex items-center gap-3 cursor-pointer">
                   <div className={`rounded-full ${
-                    user.role === 'admin'
+                    (user.role === 'admin' || user.role === 'administrator')
                       ? 'admin-avatar-ring'
                       : user.verified
                         ? 'verified-avatar-ring'
@@ -78,7 +114,10 @@ const Header = () => {
                   <div className="hidden md:flex flex-col items-start">
                     <span className="text-sm font-semibold text-foreground flex items-center gap-1">
                       {user.username}
-                      {(user.isPremium || user.verified || user.role === 'admin') && (
+                      {(user.isPremium || user.role === 'admin' || user.role === 'administrator') && (
+                        <CheckCircle className="w-4 h-4 text-[#FFD700]"/>
+                      )}
+                      {user.verified && !user.isPremium && user.role !== 'admin' && user.role !== 'administrator' && (
                         <CheckCircle className="w-4 h-4 text-[#1DA1F2]"/>
                       )}
                     </span>
@@ -95,7 +134,7 @@ const Header = () => {
                 <DropdownMenuSeparator />
 
                 {/* Panel Admin - Solo visible para administradores */}
-                {user.role === 'admin' && (
+                {isAdmin && (
                   <>
                     <DropdownMenuItem onClick={() => navigate('/admin')} className="text-purple-400 hover:text-purple-300">
                       <Shield className="w-4 h-4 mr-2" />

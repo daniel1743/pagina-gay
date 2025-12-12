@@ -261,7 +261,10 @@ const UserActionsModal = ({ user: targetUser, onClose, onViewProfile }) => {
             <div className="flex-1">
               <DialogTitle className="text-2xl flex items-center gap-2">
                 {targetUser.username}
-                {(targetUser.isPremium || targetUser.verified || targetUser.role === 'admin') && (
+                {(targetUser.isPremium || targetUser.role === 'admin') && (
+                  <CheckCircle className="w-5 h-5 text-[#FFD700]" />
+                )}
+                {targetUser.verified && !targetUser.isPremium && targetUser.role !== 'admin' && (
                   <CheckCircle className="w-5 h-5 text-[#1DA1F2]" />
                 )}
               </DialogTitle>

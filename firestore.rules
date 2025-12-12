@@ -22,10 +22,13 @@ service cloud.firestore {
              get(/databases/$(database)/documents/users/$(request.auth.uid)).data.isPremium == true;
     }
 
-    // ✅ AÑADIDO 2025-12-11: Verificar si el usuario es Admin
+    // ✅ CORREGIDO 2025-12-12: Verificar si el usuario es Admin (maneja role no existente)
     function isAdmin() {
+      let userData = get(/databases/$(database)/documents/users/$(request.auth.uid)).data;
+      // Verificar autenticación, existencia del campo 'role' y valor 'admin' o 'administrator'
       return isAuthenticated() &&
-             get(/databases/$(database)/documents/users/$(request.auth.uid)).data.get('role', '') == 'admin';
+             userData.keys().hasAny(['role']) &&
+             (userData.role == 'admin' || userData.role == 'administrator');
     }
 
     // Verificar si el mensaje es de un bot (userId comienza con 'bot_')
@@ -245,8 +248,48 @@ service cloud.firestore {
       // Solo el propio usuario puede leer sus datos de conexión
       allow read: if isAuthenticated() && request.auth.uid == userId;
       
-      // Solo el sistema puede escribir (mediante recordUserConnection)
-      allow write: if isAuthenticated() && request.auth.uid == userId;
+      // El usuario puede crear y actualizar sus propios datos de conexión
+      allow create: if isAuthenticated() && 
+                      request.auth.uid == userId &&
+                      'userId' in request.resource.data &&
+                      request.resource.data.userId == userId;
+      
+      // El usuario puede actualizar sus propios datos de conexión
+      allow update: if isAuthenticated() && 
+                      request.auth.uid == userId &&
+                      resource.data.userId == userId;
+      
+      // No se pueden eliminar (para mantener historial)
+      allow delete: if false;
+    }
+
+    // ===========================
+    // REGLAS DE SANCIONES Y EXPULSIONES
+    // ===========================
+
+    match /sanctions/{sanctionId} {
+      // Solo admins pueden leer todas las sanciones
+      // Usuarios pueden leer sus propias sanciones activas
+      allow read: if isAdmin() ||
+                    (isAuthenticated() && 
+                     resource.data.userId == request.auth.uid &&
+                     resource.data.status == 'active');
+
+      // Solo admins pueden crear sanciones
+      allow create: if isAdmin() &&
+                      'userId' in request.resource.data &&
+                      'type' in request.resource.data &&
+                      'reason' in request.resource.data &&
+                      'issuedBy' in request.resource.data &&
+                      request.resource.data.issuedBy == request.auth.uid &&
+                      'status' in request.resource.data &&
+                      request.resource.data.status == 'active';
+
+      // Solo admins pueden actualizar sanciones (revocar, etc.)
+      allow update: if isAdmin();
+
+      // No se pueden eliminar sanciones (para mantener historial)
+      allow delete: if false;
     }
 
     // ===========================

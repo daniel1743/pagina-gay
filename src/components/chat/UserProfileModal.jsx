@@ -39,7 +39,10 @@ const UserProfileModal = ({ user, onClose, onReport }) => {
             </div>
             <DialogTitle className="text-foreground text-2xl flex items-center gap-2">
               {user.username}
-              {(user.isPremium || user.verified || user.role === 'admin') && (
+              {(user.isPremium || user.role === 'admin') && (
+                <CheckCircle className="w-5 h-5 text-[#FFD700]"/>
+              )}
+              {user.verified && !user.isPremium && user.role !== 'admin' && (
                 <CheckCircle className="w-5 h-5 text-[#1DA1F2]"/>
               )}
             </DialogTitle>

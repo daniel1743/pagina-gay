@@ -87,7 +87,7 @@ export const getCurrentLimits = (userId) => {
  */
 export const canSendChatInvite = (user) => {
   // Admin: ilimitado (bypass para testing)
-  if (user.role === 'admin') {
+  if (user?.role === 'admin' || user?.role === 'administrator') {
     return { allowed: true, reason: 'admin' };
   }
 
@@ -132,7 +132,7 @@ export const canSendChatInvite = (user) => {
  */
 export const canSendDirectMessage = (user) => {
   // Admin: ilimitado (bypass para testing)
-  if (user.role === 'admin') {
+  if (user?.role === 'admin' || user?.role === 'administrator') {
     return { allowed: true, reason: 'admin' };
   }
 

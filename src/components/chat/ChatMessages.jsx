@@ -117,7 +117,10 @@ const ChatMessages = ({ messages, currentUserId, onUserClick, onReport, onPrivat
               <div className="flex items-center gap-1.5 mb-0.5 flex-wrap">
                 <span className="text-[10px] font-semibold text-foreground flex items-center gap-1">
                   {message.username}
-                  {(isUserPremium || isUserVerified || userRole === 'admin') && (
+                  {(isUserPremium || userRole === 'admin') && (
+                    <CheckCircle className="w-2.5 h-2.5 text-[#FFD700]" />
+                  )}
+                  {isUserVerified && !isUserPremium && userRole !== 'admin' && (
                     <CheckCircle className="w-2.5 h-2.5 text-[#1DA1F2]" />
                   )}
                 </span>

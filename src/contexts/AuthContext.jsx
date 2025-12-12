@@ -21,6 +21,7 @@ import { db } from '@/config/firebase';
 import { toast } from '@/components/ui/use-toast';
 import { trackUserRegister, trackUserLogin } from '@/services/analyticsService';
 import { recordUserConnection, checkVerificationMaintenance } from '@/services/verificationService';
+import { checkUserSanctions } from '@/services/sanctionsService';
 
 const AuthContext = createContext();
 
@@ -71,6 +72,23 @@ export const AuthProvider = ({ children }) => {
           } else {
             // Usuario registrado - obtener perfil de Firestore
             const userProfile = await getUserProfile(firebaseUser.uid);
+            
+            // Verificar sanciones antes de permitir acceso
+            const sanctions = await checkUserSanctions(firebaseUser.uid);
+            
+            if (sanctions.isBanned) {
+              // Usuario está baneado
+              await signOut(auth);
+              toast({
+                title: "Acceso Denegado",
+                description: sanctions.banType === 'perm_ban' 
+                  ? "Tu cuenta ha sido expulsada permanentemente por violar las normas de la comunidad."
+                  : "Tu cuenta está suspendida temporalmente. Revisa tu email para más información.",
+                variant: "destructive",
+              });
+              return;
+            }
+            
             setUser(userProfile);
             setGuestMessageCount(0); // Los usuarios registrados no tienen límite
             
@@ -111,6 +129,23 @@ export const AuthProvider = ({ children }) => {
 
       // Obtener perfil del usuario desde Firestore
       const userProfile = await getUserProfile(userCredential.user.uid);
+      
+      // Verificar sanciones antes de permitir acceso
+      const sanctions = await checkUserSanctions(userCredential.user.uid);
+      
+      if (sanctions.isBanned) {
+        // Usuario está baneado
+        await signOut(auth);
+        toast({
+          title: "Acceso Denegado",
+          description: sanctions.banType === 'perm_ban' 
+            ? "Tu cuenta ha sido expulsada permanentemente por violar las normas de la comunidad."
+            : "Tu cuenta está suspendida temporalmente. Revisa tu email para más información.",
+          variant: "destructive",
+        });
+        return false;
+      }
+      
       setUser(userProfile);
 
       // Track login

@@ -20,6 +20,7 @@ import { joinRoom, leaveRoom, subscribeToRoomUsers } from '@/services/presenceSe
 import { useBotSystem } from '@/hooks/useBotSystem';
 import { trackPageView, trackPageExit, trackRoomJoined, trackMessageSent } from '@/services/analyticsService';
 import { useCanonical } from '@/hooks/useCanonical';
+import { checkUserSanctions, SANCTION_TYPES } from '@/services/sanctionsService';
 
 const roomWelcomeMessages = {
   'conversas-libres': '¡Bienvenido a Conversas Libres! Habla de lo que quieras.',
@@ -212,6 +213,36 @@ const ChatPage = () => {
     if (user.isAnonymous && guestMessageCount >= 3) {
       setShowVerificationModal(true);
       return;
+    }
+
+    // Verificar si el usuario está silenciado o baneado
+    if (!user.isAnonymous && !user.isGuest) {
+      const sanctions = await checkUserSanctions(user.id);
+      
+      if (sanctions.isBanned) {
+        toast({
+          title: "Acceso Denegado",
+          description: sanctions.banType === 'perm_ban' 
+            ? "Tu cuenta ha sido expulsada permanentemente."
+            : "Tu cuenta está suspendida temporalmente.",
+          variant: "destructive",
+        });
+        return;
+      }
+
+      // Verificar si está silenciado
+      const isMuted = sanctions.sanctions.some(s => 
+        s.type === SANCTION_TYPES.MUTE && s.status === 'active'
+      );
+      
+      if (isMuted) {
+        toast({
+          title: "No puedes enviar mensajes",
+          description: "Estás silenciado y no puedes enviar mensajes en este momento.",
+          variant: "destructive",
+        });
+        return;
+      }
     }
 
     try {

@@ -4,7 +4,7 @@ import { motion } from 'framer-motion';
 import { 
   Shield, AlertTriangle, Users, MessageSquare, TrendingUp, ArrowLeft, 
   CheckCircle, XCircle, Clock, Eye, UserPlus, LogIn, BarChart3, 
-  Ticket, Activity, FileText, Search, Filter
+  Ticket, Activity, FileText, Search, Filter, Ban, VolumeX
 } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
 import { Button } from '@/components/ui/button';
@@ -21,13 +21,25 @@ import {
   subscribeToTickets, 
   updateTicketStatus 
 } from '@/services/ticketService';
+import { 
+  subscribeToSanctions,
+  revokeSanction,
+  getSanctionStats,
+  SANCTION_TYPES
+} from '@/services/sanctionsService';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import SanctionUserModal from '@/components/sanctions/SanctionUserModal';
+import SanctionsFAQ from '@/components/sanctions/SanctionsFAQ';
 
 const AdminPage = () => {
   const navigate = useNavigate();
   const { user } = useAuth();
   const [reports, setReports] = useState([]);
   const [tickets, setTickets] = useState([]);
+  const [sanctions, setSanctions] = useState([]);
+  const [selectedUserToSanction, setSelectedUserToSanction] = useState(null);
+  const [showSanctionModal, setShowSanctionModal] = useState(false);
+  const [showSanctionsFAQ, setShowSanctionsFAQ] = useState(false);
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState('dashboard');
   
@@ -58,6 +70,16 @@ const AdminPage = () => {
     resolvedTickets: 0,
   });
 
+  // Estadísticas de sanciones
+  const [sanctionStats, setSanctionStats] = useState({
+    total: 0,
+    active: 0,
+    warnings: 0,
+    tempBans: 0,
+    permBans: 0,
+    mutes: 0,
+  });
+
   // Datos de análisis
   const [mostUsedFeatures, setMostUsedFeatures] = useState([]);
   const [exitPages, setExitPages] = useState([]);
@@ -76,8 +98,10 @@ const AdminPage = () => {
       try {
         const userDoc = await getDoc(doc(db, 'users', user.id));
         const userData = userDoc.data();
+        const role = userData?.role;
 
-        if (userData?.role === 'admin') {
+        // Aceptar tanto 'admin' como 'administrator'
+        if (role === 'admin' || role === 'administrator') {
           setIsAdmin(true);
         } else {
           toast({
@@ -89,6 +113,11 @@ const AdminPage = () => {
         }
       } catch (error) {
         console.error('Error checking admin:', error);
+        toast({
+          title: "Error",
+          description: "No se pudo verificar tu rol de administrador",
+          variant: "destructive",
+        });
         navigate('/');
       }
     };
@@ -173,6 +202,22 @@ const AdminPage = () => {
     return () => unsubscribe();
   }, [isAdmin]);
 
+  // Cargar sanciones en tiempo real
+  useEffect(() => {
+    if (!isAdmin) return;
+
+    const unsubscribe = subscribeToSanctions((sanctionsData) => {
+      setSanctions(sanctionsData);
+      
+      // Cargar estadísticas
+      getSanctionStats().then(stats => {
+        setSanctionStats(stats);
+      });
+    });
+
+    return () => unsubscribe();
+  }, [isAdmin]);
+
   // Cargar análisis de uso y abandono
   useEffect(() => {
     if (!isAdmin) return;
@@ -235,6 +280,69 @@ const AdminPage = () => {
         description: "No se pudo actualizar el ticket",
         variant: "destructive",
       });
+    }
+  };
+
+  // Sancionar usuario desde reporte
+  const handleSanctionFromReport = (report) => {
+    setSelectedUserToSanction({
+      id: report.targetId || report.id,
+      username: report.targetUsername || 'Usuario Desconocido',
+    });
+    setShowSanctionModal(true);
+  };
+
+  // Revocar sanción
+  const handleRevokeSanction = async (sanctionId) => {
+    try {
+      await revokeSanction(sanctionId, user.id, 'Revocada por administrador');
+      toast({
+        title: "Sanción Revocada",
+        description: "La sanción ha sido revocada exitosamente",
+      });
+    } catch (error) {
+      console.error('Error revoking sanction:', error);
+      toast({
+        title: "Error",
+        description: "No se pudo revocar la sanción",
+        variant: "destructive",
+      });
+    }
+  };
+
+  const getSanctionTypeLabel = (type) => {
+    switch (type) {
+      case SANCTION_TYPES.WARNING: return 'Advertencia';
+      case SANCTION_TYPES.TEMP_BAN: return 'Suspensión Temporal';
+      case SANCTION_TYPES.PERM_BAN: return 'Expulsión Permanente';
+      case SANCTION_TYPES.MUTE: return 'Silenciado';
+      case SANCTION_TYPES.RESTRICT: return 'Restringido';
+      default: return type;
+    }
+  };
+
+  const getSanctionTypeColor = (type) => {
+    switch (type) {
+      case SANCTION_TYPES.WARNING: return 'bg-yellow-500/20 text-yellow-400 border-yellow-500/30';
+      case SANCTION_TYPES.TEMP_BAN: return 'bg-orange-500/20 text-orange-400 border-orange-500/30';
+      case SANCTION_TYPES.PERM_BAN: return 'bg-red-500/20 text-red-400 border-red-500/30';
+      case SANCTION_TYPES.MUTE: return 'bg-purple-500/20 text-purple-400 border-purple-500/30';
+      case SANCTION_TYPES.RESTRICT: return 'bg-blue-500/20 text-blue-400 border-blue-500/30';
+      default: return 'bg-gray-500/20 text-gray-400 border-gray-500/30';
+    }
+  };
+
+  const getReasonLabel = (reason) => {
+    switch (reason) {
+      case 'spam': return 'Spam';
+      case 'harassment': return 'Acoso';
+      case 'inappropriate_content': return 'Contenido Inapropiado';
+      case 'profanity': return 'Groserías/Insultos';
+      case 'fake_account': return 'Cuenta Falsa';
+      case 'violence_threats': return 'Amenazas/Violencia';
+      case 'illegal_content': return 'Contenido Ilegal';
+      case 'other': return 'Otra';
+      default: return reason;
     }
   };
 
@@ -357,10 +465,11 @@ const AdminPage = () => {
 
         {/* Tabs */}
         <Tabs value={activeTab} onValueChange={setActiveTab} className="mb-8">
-          <TabsList className="grid w-full grid-cols-4">
+          <TabsList className="grid w-full grid-cols-5">
             <TabsTrigger value="dashboard">Dashboard</TabsTrigger>
             <TabsTrigger value="reports">Reportes</TabsTrigger>
             <TabsTrigger value="tickets">Tickets</TabsTrigger>
+            <TabsTrigger value="sanctions">Sanciones</TabsTrigger>
             <TabsTrigger value="analytics">Analytics</TabsTrigger>
           </TabsList>
 
@@ -588,22 +697,33 @@ const AdminPage = () => {
                           </div>
 
                           {report.status === 'pending' && (
-                            <div className="flex gap-2">
+                            <div className="flex flex-col gap-2">
+                              <div className="flex gap-2">
+                                <Button
+                                  size="sm"
+                                  onClick={() => handleUpdateReportStatus(report.id, 'resolved')}
+                                  className="bg-green-500 hover:bg-green-600 text-white"
+                                >
+                                  <CheckCircle className="w-4 h-4 mr-1" />
+                                  Resolver
+                                </Button>
+                                <Button
+                                  size="sm"
+                                  variant="destructive"
+                                  onClick={() => handleUpdateReportStatus(report.id, 'rejected')}
+                                >
+                                  <XCircle className="w-4 h-4 mr-1" />
+                                  Rechazar
+                                </Button>
+                              </div>
                               <Button
                                 size="sm"
-                                onClick={() => handleUpdateReportStatus(report.id, 'resolved')}
-                                className="bg-green-500 hover:bg-green-600 text-white"
+                                variant="outline"
+                                onClick={() => handleSanctionFromReport(report)}
+                                className="border-red-500 text-red-400 hover:bg-red-500/20"
                               >
-                                <CheckCircle className="w-4 h-4 mr-1" />
-                                Resolver
-                              </Button>
-                              <Button
-                                size="sm"
-                                variant="destructive"
-                                onClick={() => handleUpdateReportStatus(report.id, 'rejected')}
-                              >
-                                <XCircle className="w-4 h-4 mr-1" />
-                                Rechazar
+                                <Ban className="w-4 h-4 mr-1" />
+                                Sancionar Usuario
                               </Button>
                             </div>
                           )}
@@ -720,6 +840,139 @@ const AdminPage = () => {
             </motion.div>
           </TabsContent>
 
+          {/* Sanciones Tab */}
+          <TabsContent value="sanctions" className="space-y-6">
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              className="glass-effect rounded-2xl border border-border p-6"
+            >
+              <div className="flex items-center justify-between mb-6">
+                <h2 className="text-2xl font-bold flex items-center gap-2">
+                  <Ban className="w-6 h-6 text-red-400" />
+                  Sanciones y Expulsiones
+                </h2>
+                <Button
+                  variant="outline"
+                  onClick={() => setShowSanctionsFAQ(!showSanctionsFAQ)}
+                  size="sm"
+                >
+                  <FileText className="w-4 h-4 mr-2" />
+                  Preguntas Frecuentes
+                </Button>
+              </div>
+
+              {/* Estadísticas de Sanciones */}
+              <div className="grid grid-cols-2 md:grid-cols-5 gap-4 mb-6">
+                <div className="glass-effect p-4 rounded-lg border border-border">
+                  <div className="text-2xl font-bold mb-1">{sanctionStats.total}</div>
+                  <div className="text-xs text-muted-foreground">Total</div>
+                </div>
+                <div className="glass-effect p-4 rounded-lg border border-yellow-500/30">
+                  <div className="text-2xl font-bold mb-1 text-yellow-400">{sanctionStats.warnings}</div>
+                  <div className="text-xs text-muted-foreground">Advertencias</div>
+                </div>
+                <div className="glass-effect p-4 rounded-lg border border-orange-500/30">
+                  <div className="text-2xl font-bold mb-1 text-orange-400">{sanctionStats.tempBans}</div>
+                  <div className="text-xs text-muted-foreground">Suspensiones</div>
+                </div>
+                <div className="glass-effect p-4 rounded-lg border border-red-500/30">
+                  <div className="text-2xl font-bold mb-1 text-red-400">{sanctionStats.permBans}</div>
+                  <div className="text-xs text-muted-foreground">Expulsiones</div>
+                </div>
+                <div className="glass-effect p-4 rounded-lg border border-purple-500/30">
+                  <div className="text-2xl font-bold mb-1 text-purple-400">{sanctionStats.mutes}</div>
+                  <div className="text-xs text-muted-foreground">Silenciados</div>
+                </div>
+              </div>
+
+              {/* Preguntas Frecuentes */}
+              {showSanctionsFAQ && (
+                <div className="mb-6">
+                  <SanctionsFAQ />
+                </div>
+              )}
+
+              {/* Lista de Sanciones */}
+              {sanctions.length === 0 ? (
+                <div className="text-center py-12">
+                  <Ban className="w-16 h-16 text-gray-400 mx-auto mb-4" />
+                  <p className="text-muted-foreground">No hay sanciones registradas</p>
+                </div>
+              ) : (
+                <div className="space-y-4">
+                  {sanctions.map((sanction, index) => (
+                    <motion.div
+                      key={sanction.id}
+                      initial={{ opacity: 0, x: -20 }}
+                      animate={{ opacity: 1, x: 0 }}
+                      transition={{ delay: index * 0.05 }}
+                      className="glass-effect p-5 rounded-xl border border-border hover:border-accent/50 transition-all"
+                    >
+                      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+                        <div className="flex-1">
+                          <div className="flex items-center gap-3 mb-2">
+                            {sanction.type === SANCTION_TYPES.WARNING && <Shield className="w-6 h-6 text-yellow-400" />}
+                            {sanction.type === SANCTION_TYPES.TEMP_BAN && <Ban className="w-6 h-6 text-orange-400" />}
+                            {sanction.type === SANCTION_TYPES.PERM_BAN && <AlertTriangle className="w-6 h-6 text-red-400" />}
+                            {sanction.type === SANCTION_TYPES.MUTE && <VolumeX className="w-6 h-6 text-purple-400" />}
+                            <div>
+                              <h3 className="font-semibold text-lg">
+                                {sanction.username}
+                              </h3>
+                              <p className="text-sm text-muted-foreground">
+                                Razón: {getReasonLabel(sanction.reason)}
+                              </p>
+                            </div>
+                          </div>
+                          <p className="text-sm text-muted-foreground mb-2 pl-9">
+                            {sanction.reasonDescription || 'Sin descripción'}
+                          </p>
+                          <div className="flex items-center gap-4 text-xs text-muted-foreground pl-9">
+                            <span>Tipo: {getSanctionTypeLabel(sanction.type)}</span>
+                            {sanction.expiresAt && (
+                              <>
+                                <span>•</span>
+                                <span>Expira: {new Date(sanction.expiresAt).toLocaleDateString('es-CL')}</span>
+                              </>
+                            )}
+                            <span>•</span>
+                            <span>Sancionado por: {sanction.issuedByUsername}</span>
+                            <span>•</span>
+                            <span>{new Date(sanction.createdAt).toLocaleDateString('es-CL')}</span>
+                          </div>
+                        </div>
+
+                        <div className="flex flex-col items-end gap-3">
+                          <div className={`flex items-center gap-2 px-3 py-1 rounded-full border ${getSanctionTypeColor(sanction.type)}`}>
+                            {sanction.status === 'active' ? (
+                              <CheckCircle className="w-4 h-4" />
+                            ) : (
+                              <XCircle className="w-4 h-4" />
+                            )}
+                            <span className="text-xs font-medium capitalize">{sanction.status}</span>
+                          </div>
+
+                          {sanction.status === 'active' && (
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              onClick={() => handleRevokeSanction(sanction.id)}
+                              className="border-green-500 text-green-400 hover:bg-green-500/20"
+                            >
+                              <CheckCircle className="w-4 h-4 mr-1" />
+                              Revocar
+                            </Button>
+                          )}
+                        </div>
+                      </div>
+                    </motion.div>
+                  ))}
+                </div>
+              )}
+            </motion.div>
+          </TabsContent>
+
           {/* Analytics Tab */}
           <TabsContent value="analytics" className="space-y-6">
             <motion.div
@@ -769,6 +1022,19 @@ const AdminPage = () => {
           <p>Panel de administración • Actualización en tiempo real • Optimizado para bajo consumo de Firestore</p>
         </div>
       </div>
+
+      {/* Modal de Sancionar Usuario */}
+      {selectedUserToSanction && (
+        <SanctionUserModal
+          isOpen={showSanctionModal}
+          onClose={() => {
+            setShowSanctionModal(false);
+            setSelectedUserToSanction(null);
+          }}
+          user={selectedUserToSanction}
+          currentAdmin={user}
+        />
+      )}
     </div>
   );
 };

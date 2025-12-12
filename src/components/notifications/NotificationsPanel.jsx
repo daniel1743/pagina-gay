@@ -181,7 +181,10 @@ const NotificationsPanel = ({ isOpen, onClose, notifications, onOpenPrivateChat 
                             <div className="flex-1 min-w-0">
                               <p className="font-semibold text-sm text-foreground flex items-center gap-1">
                                 {notification.fromUsername}
-                                {(notification.fromIsPremium || notification.fromVerified || notification.fromRole === 'admin') && (
+                                {(notification.fromIsPremium || notification.fromRole === 'admin') && (
+                                  <CheckCircle className="w-3 h-3 text-[#FFD700]" />
+                                )}
+                                {notification.fromVerified && !notification.fromIsPremium && notification.fromRole !== 'admin' && (
                                   <CheckCircle className="w-3 h-3 text-[#1DA1F2]" />
                                 )}
                               </p>
