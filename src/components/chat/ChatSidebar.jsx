@@ -13,14 +13,20 @@ const ChatSidebar = ({ currentRoom, setCurrentRoom, isOpen, onClose }) => {
   const { user, logout } = useAuth();
   const [roomCounts, setRoomCounts] = useState({});
 
-  // Suscribirse a contadores en tiempo real
+  // Suscribirse a contadores en tiempo real (solo para usuarios registrados)
   useEffect(() => {
+    // No suscribirse si el usuario es invitado o anónimo (evitar errores de permisos)
+    if (!user || user.isGuest || user.isAnonymous) {
+      setRoomCounts({});
+      return;
+    }
+
     const roomIds = roomsData.map(room => room.id);
     const unsubscribe = subscribeToMultipleRoomCounts(roomIds, (counts) => {
       setRoomCounts(counts);
     });
     return () => unsubscribe();
-  }, []);
+  }, [user]);
 
   const handleRoomChange = (roomId) => {
     setCurrentRoom(roomId);

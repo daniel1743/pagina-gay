@@ -39,6 +39,43 @@ const roomWelcomeMessages = {
 
 const ChatPage = () => {
   const { roomId } = useParams();
+  const navigate = useNavigate();
+  const { user, guestMessageCount, setGuestMessageCount, showWelcomeTour, setShowWelcomeTour } = useAuth();
+
+  // ✅ VALIDACIÓN: Solo usuarios registrados pueden acceder a las salas de chat
+  useEffect(() => {
+    if (!user) {
+      // Si no hay usuario, redirigir al auth
+      toast({
+        title: "Debes iniciar sesión",
+        description: "Regístrate para acceder a las salas de chat",
+        variant: "destructive",
+      });
+      navigate('/auth');
+      return;
+    }
+
+    if (user.isGuest || user.isAnonymous) {
+      // Si es invitado, redirigir al registro
+      toast({
+        title: "Registro Requerido 🔒",
+        description: "Debes registrarte para acceder a las conversaciones. ¡Es gratis y toma solo 1 minuto!",
+        variant: "destructive",
+        duration: 5000,
+      });
+      navigate('/auth');
+      return;
+    }
+  }, [user, navigate]);
+
+  // Si el usuario no está cargado o es invitado, no renderizar nada (evitar errores de permisos)
+  if (!user || user.isGuest || user.isAnonymous) {
+    return (
+      <div className="flex items-center justify-center min-h-screen">
+        <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-purple-500"></div>
+      </div>
+    );
+  }
 
   // SEO: Actualizar título y canonical tag dinámicamente
   React.useEffect(() => {
@@ -54,15 +91,13 @@ const ChatPage = () => {
       trackPageView(`/chat/${roomId}`, `Chat - ${roomId}`);
       trackRoomJoined(roomId);
     }
-    
+
     return () => {
       if (roomId) {
         trackPageExit(`/chat/${roomId}`, 0);
       }
     };
   }, [roomId]);
-  const navigate = useNavigate();
-  const { user, guestMessageCount, setGuestMessageCount, showWelcomeTour, setShowWelcomeTour } = useAuth();
   const [currentRoom, setCurrentRoom] = useState(roomId);
   const [messages, setMessages] = useState([]);
   const [roomUsers, setRoomUsers] = useState([]); // 🤖 Usuarios en la sala (para sistema de bots)

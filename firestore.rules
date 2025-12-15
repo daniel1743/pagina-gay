@@ -133,12 +133,14 @@ service cloud.firestore {
     // ===========================
 
     match /roomPresence/{roomId}/users/{userId} {
-      // ✅ CORREGIDO 2025-12-11: Solo usuarios autenticados pueden ver presencia (privacidad)
-      allow read: if isAuthenticated();
+      // ✅ ACTUALIZADO 2025-12-14: Solo usuarios REGISTRADOS pueden ver presencia
+      allow read: if isAuthenticated() &&
+                    request.auth.token.firebase.sign_in_provider != 'anonymous';
 
-      // Solo el propio usuario puede crear/actualizar/eliminar su presencia
-      allow create, update, delete: if request.auth != null &&
-                                      request.auth.uid == userId;
+      // ✅ ACTUALIZADO 2025-12-14: Solo usuarios REGISTRADOS pueden marcar presencia
+      allow create, update, delete: if isAuthenticated() &&
+                                      request.auth.uid == userId &&
+                                      request.auth.token.firebase.sign_in_provider != 'anonymous';
     }
 
     // ===========================
@@ -146,17 +148,15 @@ service cloud.firestore {
     // ===========================
 
     match /rooms/{roomId}/messages/{messageId} {
-      // Lectura: cualquier usuario (autenticado o invitado)
-      allow read: if true;
+      // ✅ ACTUALIZADO 2025-12-14: Lectura SOLO para usuarios REGISTRADOS (no invitados)
+      allow read: if isAuthenticated() &&
+                    request.auth.token.firebase.sign_in_provider != 'anonymous';
 
-      // Creación: usuario autenticado con validaciones
+      // ✅ ACTUALIZADO 2025-12-14: Creación SOLO para usuarios REGISTRADOS (no invitados)
       allow create: if isAuthenticated() &&
+                      request.auth.token.firebase.sign_in_provider != 'anonymous' &&
                       isValidMessage() &&
-                      hasNoProhibitedWords(request.resource.data.content.lower()) &&
-                      // Si es anónimo, debe tener menos de 3 mensajes
-                      (request.auth.token.firebase.sign_in_provider != 'anonymous' ||
-                       !exists(/databases/$(database)/documents/guests/$(request.auth.uid)) ||
-                       get(/databases/$(database)/documents/guests/$(request.auth.uid)).data.messageCount < 3);
+                      hasNoProhibitedWords(request.resource.data.content.lower());
 
       // Actualización: solo usuarios autenticados para reacciones
       allow update: if isAuthenticated() &&
@@ -289,6 +289,38 @@ service cloud.firestore {
       allow update: if isAdmin();
 
       // No se pueden eliminar sanciones (para mantener historial)
+      allow delete: if false;
+    }
+
+    // ===========================
+    // REGLAS DE NOTIFICACIONES DEL SISTEMA
+    // ===========================
+
+    match /systemNotifications/{notificationId} {
+      // Los usuarios solo pueden leer sus propias notificaciones
+      allow read: if isAuthenticated() &&
+                    resource.data.userId == request.auth.uid;
+
+      // Solo admins pueden crear notificaciones
+      allow create: if isAdmin() &&
+                      'userId' in request.resource.data &&
+                      'title' in request.resource.data &&
+                      'message' in request.resource.data &&
+                      'type' in request.resource.data &&
+                      'read' in request.resource.data &&
+                      request.resource.data.read == false;
+
+      // Los usuarios pueden actualizar solo para marcar como leídas
+      // Los admins pueden actualizar cualquier notificación
+      allow update: if (isAuthenticated() &&
+                       resource.data.userId == request.auth.uid &&
+                       request.resource.data.userId == resource.data.userId &&
+                       request.resource.data.title == resource.data.title &&
+                       request.resource.data.message == resource.data.message &&
+                       request.resource.data.diff(resource.data).affectedKeys().hasOnly(['read', 'readAt'])) ||
+                      isAdmin();
+
+      // No se pueden eliminar notificaciones (para mantener historial)
       allow delete: if false;
     }
 

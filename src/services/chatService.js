@@ -79,9 +79,9 @@ export const sendMessage = async (roomId, messageData, isAnonymous = false) => {
 
 /**
  * Suscribe a mensajes de una sala en tiempo real
- * OPTIMIZADO: Solo carga los últimos 10 mensajes para reducir lecturas de Firestore
+ * ✅ ACTUALIZADO: Carga los últimos 100 mensajes para mejor experiencia
  */
-export const subscribeToRoomMessages = (roomId, callback, messageLimit = 10) => {
+export const subscribeToRoomMessages = (roomId, callback, messageLimit = 100) => {
   const messagesRef = collection(db, 'rooms', roomId, 'messages');
 
   // limitToLast obtiene los últimos N documentos ordenados por timestamp

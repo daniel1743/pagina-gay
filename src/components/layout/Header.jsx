@@ -7,8 +7,11 @@ import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Bell, LogIn, ChevronDown, Circle, HeartPulse, Sun, Moon, CheckCircle, Shield } from 'lucide-react';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import ComingSoonModal from '@/components/ui/ComingSoonModal';
+import SystemNotificationsPanel from '@/components/notifications/SystemNotificationsPanel';
 import { doc, getDoc } from 'firebase/firestore';
 import { db } from '@/config/firebase';
+import { subscribeToSystemNotifications } from '@/services/systemNotificationsService';
+import { motion, AnimatePresence } from 'framer-motion';
 
 const Header = () => {
   const navigate = useNavigate();
@@ -17,6 +20,8 @@ const Header = () => {
   const [showComingSoon, setShowComingSoon] = useState(false);
   const [comingSoonFeature, setComingSoonFeature] = useState({ name: '', description: '' });
   const [isAdmin, setIsAdmin] = useState(false);
+  const [showNotifications, setShowNotifications] = useState(false);
+  const [unreadNotificationsCount, setUnreadNotificationsCount] = useState(0);
 
   // Verificar si el usuario es admin (consulta Firestore si no está en user.role)
   useEffect(() => {
@@ -56,6 +61,21 @@ const Header = () => {
     setShowComingSoon(true);
   };
 
+  // Suscribirse a notificaciones para obtener contador en tiempo real
+  useEffect(() => {
+    if (!user || user.isGuest || user.isAnonymous) {
+      setUnreadNotificationsCount(0);
+      return;
+    }
+
+    const unsubscribe = subscribeToSystemNotifications(user.id, (notifications) => {
+      const unreadCount = notifications.filter(n => !n.read).length;
+      setUnreadNotificationsCount(unreadCount);
+    });
+
+    return () => unsubscribe();
+  }, [user]);
+
   return (
     <header className="fixed top-0 left-0 right-0 z-50 bg-card/80 backdrop-blur-lg border-b">
       <div className="container mx-auto px-4 flex items-center justify-between h-20">
@@ -86,11 +106,22 @@ const Header = () => {
             variant="ghost"
             size="icon"
             className="text-muted-foreground hover:text-cyan-400 relative"
-            onClick={() => handleFeatureComingSoon('el sistema de notificaciones', 'Podrás recibir alertas de mensajes privados, menciones y eventos de la comunidad en tiempo real.')}
-            aria-label="Ver notificaciones (próximamente)"
+            onClick={() => setShowNotifications(!showNotifications)}
+            aria-label="Ver notificaciones"
           >
             <Bell className="w-6 h-6" />
-            <span className="absolute top-2 right-2 w-2 h-2 bg-[#E4007C] rounded-full animate-pulse"></span>
+            {unreadNotificationsCount > 0 && (
+              <AnimatePresence>
+                <motion.div
+                  initial={{ scale: 0 }}
+                  animate={{ scale: 1 }}
+                  exit={{ scale: 0 }}
+                  className="absolute -top-1 -right-1 bg-[#E4007C] text-white text-xs font-bold rounded-full w-5 h-5 flex items-center justify-center"
+                >
+                  {unreadNotificationsCount > 9 ? '9+' : unreadNotificationsCount}
+                </motion.div>
+              </AnimatePresence>
+            )}
           </Button>
 
           {user && !user.isGuest ? (
@@ -175,6 +206,13 @@ const Header = () => {
         onClose={() => setShowComingSoon(false)}
         feature={comingSoonFeature.name}
         description={comingSoonFeature.description}
+      />
+
+      {/* Panel de Notificaciones */}
+      <SystemNotificationsPanel
+        isOpen={showNotifications}
+        onClose={() => setShowNotifications(false)}
+        onNotificationCountChange={setUnreadNotificationsCount}
       />
     </header>
   );

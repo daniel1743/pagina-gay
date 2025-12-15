@@ -1,10 +1,10 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
-import { 
-  Shield, AlertTriangle, Users, MessageSquare, TrendingUp, ArrowLeft, 
-  CheckCircle, XCircle, Clock, Eye, UserPlus, LogIn, BarChart3, 
-  Ticket, Activity, FileText, Search, Filter, Ban, VolumeX
+import {
+  Shield, AlertTriangle, Users, MessageSquare, TrendingUp, ArrowLeft,
+  CheckCircle, XCircle, Clock, Eye, UserPlus, LogIn, BarChart3,
+  Ticket, Activity, FileText, Search, Filter, Ban, VolumeX, Bell, Send, Megaphone
 } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
 import { Button } from '@/components/ui/button';
@@ -21,13 +21,20 @@ import {
   subscribeToTickets, 
   updateTicketStatus 
 } from '@/services/ticketService';
-import { 
+import {
   subscribeToSanctions,
   revokeSanction,
   getSanctionStats,
   SANCTION_TYPES
 } from '@/services/sanctionsService';
+import {
+  createBroadcastNotification,
+  NOTIFICATION_TYPES
+} from '@/services/systemNotificationsService';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { Input } from '@/components/ui/input';
+import { Textarea } from '@/components/ui/textarea';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import SanctionUserModal from '@/components/sanctions/SanctionUserModal';
 import SanctionsFAQ from '@/components/sanctions/SanctionsFAQ';
 
@@ -84,8 +91,19 @@ const AdminPage = () => {
   const [mostUsedFeatures, setMostUsedFeatures] = useState([]);
   const [exitPages, setExitPages] = useState([]);
   const [historicalStats, setHistoricalStats] = useState([]);
-  
+
   const [isAdmin, setIsAdmin] = useState(false);
+
+  // Estado para formulario de notificaciones
+  const [notificationForm, setNotificationForm] = useState({
+    title: '',
+    message: '',
+    type: NOTIFICATION_TYPES.ANNOUNCEMENT,
+    icon: '📢',
+    priority: 'normal',
+    link: '',
+  });
+  const [isSendingNotification, setIsSendingNotification] = useState(false);
 
   // Verificar si el usuario es admin
   useEffect(() => {
@@ -465,11 +483,12 @@ const AdminPage = () => {
 
         {/* Tabs */}
         <Tabs value={activeTab} onValueChange={setActiveTab} className="mb-8">
-          <TabsList className="grid w-full grid-cols-5">
+          <TabsList className="grid w-full grid-cols-6">
             <TabsTrigger value="dashboard">Dashboard</TabsTrigger>
             <TabsTrigger value="reports">Reportes</TabsTrigger>
             <TabsTrigger value="tickets">Tickets</TabsTrigger>
             <TabsTrigger value="sanctions">Sanciones</TabsTrigger>
+            <TabsTrigger value="notifications">Notificaciones</TabsTrigger>
             <TabsTrigger value="analytics">Analytics</TabsTrigger>
           </TabsList>
 
@@ -970,6 +989,194 @@ const AdminPage = () => {
                   ))}
                 </div>
               )}
+            </motion.div>
+          </TabsContent>
+
+          {/* Notificaciones Tab */}
+          <TabsContent value="notifications" className="space-y-6">
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              className="glass-effect rounded-2xl border border-border p-6"
+            >
+              <h2 className="text-2xl font-bold mb-6 flex items-center gap-2">
+                <Bell className="w-6 h-6 text-cyan-400" />
+                Enviar Notificación del Sistema
+              </h2>
+
+              <div className="space-y-6">
+                {/* Formulario */}
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                  {/* Tipo de notificación */}
+                  <div className="space-y-2">
+                    <label className="text-sm font-medium text-foreground">Tipo de Notificación</label>
+                    <Select
+                      value={notificationForm.type}
+                      onValueChange={(value) => setNotificationForm({ ...notificationForm, type: value })}
+                    >
+                      <SelectTrigger className="bg-background border-border">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value={NOTIFICATION_TYPES.ANNOUNCEMENT}>📢 Anuncio</SelectItem>
+                        <SelectItem value={NOTIFICATION_TYPES.UPDATE}>🔄 Actualización</SelectItem>
+                        <SelectItem value={NOTIFICATION_TYPES.NEWS}>📰 Noticias</SelectItem>
+                        <SelectItem value={NOTIFICATION_TYPES.BROADCAST}>📣 Difusión</SelectItem>
+                        <SelectItem value={NOTIFICATION_TYPES.FEATURE}>🎁 Nueva Funcionalidad</SelectItem>
+                        <SelectItem value={NOTIFICATION_TYPES.MAINTENANCE}>🔧 Mantenimiento</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+
+                  {/* Prioridad */}
+                  <div className="space-y-2">
+                    <label className="text-sm font-medium text-foreground">Prioridad</label>
+                    <Select
+                      value={notificationForm.priority}
+                      onValueChange={(value) => setNotificationForm({ ...notificationForm, priority: value })}
+                    >
+                      <SelectTrigger className="bg-background border-border">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="low">🟢 Baja</SelectItem>
+                        <SelectItem value="normal">🔵 Normal</SelectItem>
+                        <SelectItem value="high">🟠 Alta</SelectItem>
+                        <SelectItem value="urgent">🔴 Urgente</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+
+                  {/* Icono */}
+                  <div className="space-y-2">
+                    <label className="text-sm font-medium text-foreground">Icono (Emoji)</label>
+                    <Input
+                      value={notificationForm.icon}
+                      onChange={(e) => setNotificationForm({ ...notificationForm, icon: e.target.value })}
+                      placeholder="📢"
+                      className="bg-background border-border"
+                      maxLength={2}
+                    />
+                  </div>
+
+                  {/* Link (opcional) */}
+                  <div className="space-y-2">
+                    <label className="text-sm font-medium text-foreground">Enlace (Opcional)</label>
+                    <Input
+                      value={notificationForm.link}
+                      onChange={(e) => setNotificationForm({ ...notificationForm, link: e.target.value })}
+                      placeholder="/premium"
+                      className="bg-background border-border"
+                    />
+                  </div>
+                </div>
+
+                {/* Título */}
+                <div className="space-y-2">
+                  <label className="text-sm font-medium text-foreground">Título de la Notificación</label>
+                  <Input
+                    value={notificationForm.title}
+                    onChange={(e) => setNotificationForm({ ...notificationForm, title: e.target.value })}
+                    placeholder="¡Nueva actualización disponible!"
+                    className="bg-background border-border"
+                    maxLength={100}
+                  />
+                </div>
+
+                {/* Mensaje */}
+                <div className="space-y-2">
+                  <label className="text-sm font-medium text-foreground">Mensaje</label>
+                  <Textarea
+                    value={notificationForm.message}
+                    onChange={(e) => setNotificationForm({ ...notificationForm, message: e.target.value })}
+                    placeholder="Hemos agregado nuevas funcionalidades increíbles a Chactivo..."
+                    className="bg-background border-border min-h-[120px]"
+                    maxLength={500}
+                  />
+                  <p className="text-xs text-muted-foreground text-right">
+                    {notificationForm.message.length}/500 caracteres
+                  </p>
+                </div>
+
+                {/* Vista previa */}
+                <div className="p-4 rounded-lg bg-accent/30 border border-border">
+                  <p className="text-xs text-muted-foreground mb-3">Vista Previa:</p>
+                  <div className="flex gap-3 p-4 bg-background rounded-lg">
+                    <div className="text-2xl">{notificationForm.icon}</div>
+                    <div className="flex-1">
+                      <h4 className="font-semibold text-sm text-foreground mb-1">
+                        {notificationForm.title || 'Título de ejemplo'}
+                      </h4>
+                      <p className="text-sm text-muted-foreground">
+                        {notificationForm.message || 'Mensaje de ejemplo...'}
+                      </p>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Botón enviar */}
+                <div className="flex items-center justify-between pt-4 border-t border-border">
+                  <p className="text-sm text-muted-foreground">
+                    <Megaphone className="w-4 h-4 inline mr-1" />
+                    Esta notificación se enviará a <strong>TODOS</strong> los usuarios registrados
+                  </p>
+                  <Button
+                    onClick={async () => {
+                      if (!notificationForm.title || !notificationForm.message) {
+                        toast({
+                          title: "Campos Incompletos",
+                          description: "Debes completar el título y el mensaje",
+                          variant: "destructive",
+                        });
+                        return;
+                      }
+
+                      setIsSendingNotification(true);
+                      try {
+                        const count = await createBroadcastNotification(notificationForm, user.id);
+
+                        toast({
+                          title: "Notificación Enviada ✅",
+                          description: `Se envió la notificación a ${count} usuarios`,
+                        });
+
+                        // Limpiar formulario
+                        setNotificationForm({
+                          title: '',
+                          message: '',
+                          type: NOTIFICATION_TYPES.ANNOUNCEMENT,
+                          icon: '📢',
+                          priority: 'normal',
+                          link: '',
+                        });
+                      } catch (error) {
+                        console.error('Error sending notification:', error);
+                        toast({
+                          title: "Error",
+                          description: "No se pudo enviar la notificación",
+                          variant: "destructive",
+                        });
+                      } finally {
+                        setIsSendingNotification(false);
+                      }
+                    }}
+                    disabled={isSendingNotification || !notificationForm.title || !notificationForm.message}
+                    className="bg-cyan-500 hover:bg-cyan-600 text-white"
+                  >
+                    {isSendingNotification ? (
+                      <>
+                        <div className="animate-spin rounded-full h-4 w-4 border-2 border-white border-t-transparent mr-2"></div>
+                        Enviando...
+                      </>
+                    ) : (
+                      <>
+                        <Send className="w-4 h-4 mr-2" />
+                        Enviar Notificación
+                      </>
+                    )}
+                  </Button>
+                </div>
+              </div>
             </motion.div>
           </TabsContent>
 

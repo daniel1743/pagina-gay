@@ -22,6 +22,7 @@ import { toast } from '@/components/ui/use-toast';
 import { trackUserRegister, trackUserLogin } from '@/services/analyticsService';
 import { recordUserConnection, checkVerificationMaintenance } from '@/services/verificationService';
 import { checkUserSanctions } from '@/services/sanctionsService';
+import { createWelcomeNotification } from '@/services/systemNotificationsService';
 
 const AuthContext = createContext();
 
@@ -253,6 +254,9 @@ export const AuthProvider = ({ children }) => {
 
       // Track registration
       trackUserRegister(userCredential.user.uid, 'email');
+
+      // Crear notificación de bienvenida
+      createWelcomeNotification(userCredential.user.uid, userData.username);
 
       // Mostrar tour de bienvenida para nuevos usuarios
       setShowWelcomeTour(true);
