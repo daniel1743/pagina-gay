@@ -157,12 +157,15 @@ export const getUserSystemNotifications = async (userId, limitCount = 50) => {
 export const subscribeToSystemNotifications = (userId, callback) => {
   try {
     const notificationsRef = collection(db, 'systemNotifications');
+    // Intentar query con orderBy primero
     const q = query(
       notificationsRef,
       where('userId', '==', userId),
       orderBy('createdAt', 'desc'),
       limit(50)
     );
+
+    let fallbackUnsubscribe = null;
 
     const unsubscribe = onSnapshot(q, (snapshot) => {
       const notifications = snapshot.docs.map((doc) => ({
@@ -173,13 +176,44 @@ export const subscribeToSystemNotifications = (userId, callback) => {
 
       callback(notifications);
     }, (error) => {
-      console.error('Error in notifications subscription:', error);
-      callback([]);
+      // Si falla por falta de índice, usar query simplificada
+      if (error?.code === 'failed-precondition' || error?.message?.includes('index')) {
+        console.warn('Index missing for notifications, using fallback query');
+        const fallbackQ = query(
+          notificationsRef,
+          where('userId', '==', userId),
+          limit(50)
+        );
+        
+        fallbackUnsubscribe = onSnapshot(fallbackQ, (snapshot) => {
+          const notifications = snapshot.docs.map((doc) => ({
+            id: doc.id,
+            ...doc.data(),
+            createdAt: doc.data().createdAt?.toDate?.()?.toISOString() || new Date().toISOString(),
+          }));
+          
+          // Ordenar en memoria
+          notifications.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
+          callback(notifications);
+        }, (fallbackError) => {
+          console.error('Error in notifications subscription (fallback):', fallbackError);
+          callback([]);
+        });
+      } else {
+        console.error('Error in notifications subscription:', error);
+        callback([]);
+      }
     });
 
-    return unsubscribe;
+    // Retornar función que desuscribe tanto la query principal como el fallback
+    return () => {
+      if (unsubscribe) unsubscribe();
+      if (fallbackUnsubscribe) fallbackUnsubscribe();
+    };
   } catch (error) {
     console.error('Error subscribing to notifications:', error);
+    // Retornar callback vacío para evitar errores
+    callback([]);
     return () => {};
   }
 };

@@ -133,11 +133,10 @@ service cloud.firestore {
     // ===========================
 
     match /roomPresence/{roomId}/users/{userId} {
-      // ✅ ACTUALIZADO 2025-12-14: Solo usuarios REGISTRADOS pueden ver presencia
-      allow read: if isAuthenticated() &&
-                    request.auth.token.firebase.sign_in_provider != 'anonymous';
+      // ✅ CORREGIDO 2025-12-16: Todos pueden VER presencia (incluso anónimos)
+      allow read: if isAuthenticated();
 
-      // ✅ ACTUALIZADO 2025-12-14: Solo usuarios REGISTRADOS pueden marcar presencia
+      // Solo usuarios REGISTRADOS pueden MARCAR presencia
       allow create, update, delete: if isAuthenticated() &&
                                       request.auth.uid == userId &&
                                       request.auth.token.firebase.sign_in_provider != 'anonymous';

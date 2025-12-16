@@ -95,7 +95,7 @@ const Header = () => {
           <Button
             variant="ghost"
             size="icon"
-            className="text-muted-foreground hover:text-accent"
+            className="text-muted-foreground hover:text-accent hover:bg-transparent"
             onClick={toggleTheme}
             aria-label={theme === 'dark' ? 'Cambiar a tema claro' : 'Cambiar a tema oscuro'}
           >
@@ -105,7 +105,7 @@ const Header = () => {
           <Button
             variant="ghost"
             size="icon"
-            className="text-muted-foreground hover:text-cyan-400 relative"
+            className="text-muted-foreground hover:text-cyan-400 hover:bg-transparent relative"
             onClick={() => setShowNotifications(!showNotifications)}
             aria-label="Ver notificaciones"
           >

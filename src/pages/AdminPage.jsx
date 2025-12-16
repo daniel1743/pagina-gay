@@ -182,7 +182,10 @@ const AdminPage = () => {
 
   // Suscribirse a estadísticas de analytics en tiempo real
   useEffect(() => {
-    if (!isAdmin) return;
+    if (!isAdmin) {
+      setLoading(false);
+      return;
+    }
 
     const unsubscribe = subscribeToTodayStats((stats) => {
       setAnalyticsStats({
@@ -195,9 +198,30 @@ const AdminPage = () => {
         pageExits: stats.pageExits || 0,
       });
       setLoading(false);
+    }, (error) => {
+      // Si hay error, establecer loading en false y valores por defecto
+      console.error('Error loading analytics stats:', error);
+      setAnalyticsStats({
+        pageViews: 0,
+        registrations: 0,
+        logins: 0,
+        messagesSent: 0,
+        roomsCreated: 0,
+        roomsJoined: 0,
+        pageExits: 0,
+      });
+      setLoading(false);
     });
 
-    return () => unsubscribe();
+    // Timeout de seguridad: si después de 5 segundos no hay datos, establecer loading en false
+    const timeout = setTimeout(() => {
+      setLoading(false);
+    }, 5000);
+
+    return () => {
+      if (unsubscribe) unsubscribe();
+      clearTimeout(timeout);
+    };
   }, [isAdmin]);
 
   // Cargar tickets en tiempo real
@@ -230,6 +254,17 @@ const AdminPage = () => {
       // Cargar estadísticas
       getSanctionStats().then(stats => {
         setSanctionStats(stats);
+      }).catch(error => {
+        console.error('Error loading sanction stats:', error);
+        // Establecer estadísticas por defecto si falla
+        setSanctionStats({
+          total: 0,
+          active: 0,
+          warnings: 0,
+          tempBans: 0,
+          permBans: 0,
+          mutes: 0,
+        });
       });
     });
 

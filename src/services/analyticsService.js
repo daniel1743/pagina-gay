@@ -344,9 +344,10 @@ export const getExitPages = async (limit = 10) => {
 /**
  * Suscripción en tiempo real a estadísticas del día actual
  * @param {function} callback - Función callback que recibe las estadísticas
+ * @param {function} errorCallback - Función callback opcional para manejar errores
  * @returns {function} Función para desuscribirse
  */
-export const subscribeToTodayStats = (callback) => {
+export const subscribeToTodayStats = (callback, errorCallback) => {
   const today = new Date().toISOString().split('T')[0];
   const statsRef = doc(db, 'analytics_stats', today);
 
@@ -354,6 +355,23 @@ export const subscribeToTodayStats = (callback) => {
     if (snapshot.exists()) {
       callback(snapshot.data());
     } else {
+      callback({
+        date: today,
+        pageViews: 0,
+        registrations: 0,
+        logins: 0,
+        messagesSent: 0,
+        roomsCreated: 0,
+        roomsJoined: 0,
+        pageExits: 0,
+      });
+    }
+  }, (error) => {
+    console.error('Error subscribing to today stats:', error);
+    if (errorCallback) {
+      errorCallback(error);
+    } else {
+      // Si no hay errorCallback, llamar al callback con valores por defecto
       callback({
         date: today,
         pageViews: 0,

@@ -13,10 +13,9 @@ const ChatSidebar = ({ currentRoom, setCurrentRoom, isOpen, onClose }) => {
   const { user, logout } = useAuth();
   const [roomCounts, setRoomCounts] = useState({});
 
-  // Suscribirse a contadores en tiempo real (solo para usuarios registrados)
+  // Suscribirse a contadores en tiempo real (todos los usuarios pueden ver)
   useEffect(() => {
-    // No suscribirse si el usuario es invitado o anónimo (evitar errores de permisos)
-    if (!user || user.isGuest || user.isAnonymous) {
+    if (!user) {
       setRoomCounts({});
       return;
     }

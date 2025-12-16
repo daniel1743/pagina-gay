@@ -226,7 +226,7 @@ const LobbyPage = () => {
               transition={{ delay: 0.4 }}
               className="text-xl md:text-2xl text-center text-muted-foreground mb-8 max-w-3xl mx-auto"
             >
-              Gratis • Anónimo • Sin Registro • 100% Chileno
+              Gratis • Anónimo • 100% Chileno
             </motion.p>
 
             {/* CTA Principal */}
@@ -330,8 +330,10 @@ const LobbyPage = () => {
 
         <NewsTicker />
 
-        {/* Estadísticas Globales */}
-        <GlobalStats />
+        {/* Estadísticas Globales - Solo visible para usuarios NO registrados */}
+        {showHeroSection && (
+          <GlobalStats />
+        )}
 
         {/* Ad Carousel - Solo visible para usuarios autenticados (no anónimos/invitados) */}
         {user && !user.isAnonymous && !user.isGuest && (
