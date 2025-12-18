@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Button } from '@/components/ui/button';
@@ -6,12 +6,32 @@ import { Flag, ThumbsUp, ThumbsDown, CheckCircle, Check, CheckCheck } from 'luci
 import { useAuth } from '@/contexts/AuthContext';
 
 const ChatMessages = ({ messages, currentUserId, onUserClick, onReport, onPrivateChat, onReaction, messagesEndRef }) => {
+  // 📱 Sistema de doble check dinámico (like WhatsApp)
+  const [messageChecks, setMessageChecks] = useState({});
   const formatTime = (timestamp) => {
     const date = new Date(timestamp);
     return date.toLocaleTimeString('es-CL', { hour: '2-digit', minute: '2-digit' });
   };
   
   const { user: authUser } = useAuth();
+
+  // ✅ Simular doble check: 1 check → 2 checks azules después de 2 segundos
+  useEffect(() => {
+    messages.forEach((message) => {
+      const isOwn = message.userId === currentUserId;
+
+      // Solo procesar mensajes propios que no tengan check establecido
+      if (isOwn && !messageChecks[message.id]) {
+        // Iniciar con 1 check
+        setMessageChecks(prev => ({ ...prev, [message.id]: 'single' }));
+
+        // Después de 2 segundos, cambiar a 2 checks azules
+        setTimeout(() => {
+          setMessageChecks(prev => ({ ...prev, [message.id]: 'double' }));
+        }, 2000);
+      }
+    });
+  }, [messages, currentUserId]);
 
   const findUserPremiumStatus = (userId) => {
     if (authUser.id === userId) return authUser.isPremium;
@@ -82,7 +102,7 @@ const ChatMessages = ({ messages, currentUserId, onUserClick, onReport, onPrivat
             className={`flex gap-2 ${isOwn ? 'flex-row-reverse' : 'flex-row'}`}
           >
             <motion.div
-              className={`rounded-full ${
+              className={`w-8 h-8 rounded-full flex-shrink-0 ${
                 userRole === 'admin'
                   ? 'admin-avatar-ring'
                   : isUserVerified
@@ -103,11 +123,9 @@ const ChatMessages = ({ messages, currentUserId, onUserClick, onReport, onPrivat
               whileTap={{ scale: 0.95 }}
               transition={{ duration: 0.3 }}
             >
-                <Avatar
-                  className="w-8 h-8 cursor-pointer flex-shrink-0"
-                >
-                  <AvatarImage src={message.avatar} alt={message.username} />
-                  <AvatarFallback className="bg-secondary text-xs">
+                <Avatar className="w-full h-full cursor-pointer rounded-full overflow-hidden">
+                  <AvatarImage src={message.avatar} alt={message.username} className="object-cover" />
+                  <AvatarFallback className="bg-secondary text-xs rounded-full">
                     {message.username[0].toUpperCase()}
                   </AvatarFallback>
                 </Avatar>
@@ -129,8 +147,8 @@ const ChatMessages = ({ messages, currentUserId, onUserClick, onReport, onPrivat
                   <span className="text-[10px] text-muted-foreground flex items-center gap-0.5">
                     {formatTime(message.timestamp)}
                     {isOwn && (
-                      message.read ? (
-                        <CheckCheck className="w-3 h-3 text-cyan-400" />
+                      messageChecks[message.id] === 'double' ? (
+                        <CheckCheck className="w-3 h-3 text-blue-400" />
                       ) : (
                         <Check className="w-3 h-3 text-muted-foreground" />
                       )
@@ -140,8 +158,8 @@ const ChatMessages = ({ messages, currentUserId, onUserClick, onReport, onPrivat
                 {/* Para bots, solo mostrar check si es propio */}
                 {message.userId.startsWith('bot_') && isOwn && (
                   <span className="text-[10px] text-muted-foreground flex items-center gap-0.5">
-                    {message.read ? (
-                      <CheckCheck className="w-3 h-3 text-cyan-400" />
+                    {messageChecks[message.id] === 'double' ? (
+                      <CheckCheck className="w-3 h-3 text-blue-400" />
                     ) : (
                       <Check className="w-3 h-3 text-muted-foreground" />
                     )}

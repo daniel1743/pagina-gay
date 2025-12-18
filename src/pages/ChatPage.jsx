@@ -16,11 +16,12 @@ import { PremiumWelcomeModal } from '@/components/chat/PremiumWelcomeModal';
 import { toast } from '@/components/ui/use-toast';
 import PrivateChatWindow from '@/components/chat/PrivateChatWindow';
 import { sendMessage, subscribeToRoomMessages, addReactionToMessage, markMessagesAsRead } from '@/services/chatService';
-import { joinRoom, leaveRoom, subscribeToRoomUsers } from '@/services/presenceService';
+import { joinRoom, leaveRoom, subscribeToRoomUsers, subscribeToMultipleRoomCounts, updateUserActivity, cleanInactiveUsers, filterActiveUsers } from '@/services/presenceService';
 import { useBotSystem } from '@/hooks/useBotSystem';
 import { trackPageView, trackPageExit, trackRoomJoined, trackMessageSent } from '@/services/analyticsService';
 import { useCanonical } from '@/hooks/useCanonical';
 import { checkUserSanctions, SANCTION_TYPES } from '@/services/sanctionsService';
+import { roomsData } from '@/config/rooms';
 
 const roomWelcomeMessages = {
   'conversas-libres': '¡Bienvenido a Conversas Libres! Habla de lo que quieras.',
@@ -41,6 +42,29 @@ const ChatPage = () => {
   const { roomId } = useParams();
   const navigate = useNavigate();
   const { user, guestMessageCount, setGuestMessageCount, showWelcomeTour, setShowWelcomeTour } = useAuth();
+
+  // ✅ Estados y refs - DEBEN estar ANTES del early return
+  const [currentRoom, setCurrentRoom] = useState(roomId);
+  const [messages, setMessages] = useState([]);
+  const [roomUsers, setRoomUsers] = useState([]); // 🤖 Usuarios en la sala (para sistema de bots)
+  const [selectedUser, setSelectedUser] = useState(null);
+  const [userActionsTarget, setUserActionsTarget] = useState(null);
+  const [reportTarget, setReportTarget] = useState(null);
+  // Sidebar cerrado en móvil (< 1024px), abierto en desktop
+  const [sidebarOpen, setSidebarOpen] = useState(() => {
+    if (typeof window !== 'undefined') {
+      return window.innerWidth >= 1024;
+    }
+    return false; // Valor por defecto para SSR
+  });
+  const [privateChatRequest, setPrivateChatRequest] = useState(null);
+  const [activePrivateChat, setActivePrivateChat] = useState(null);
+  const [showVerificationModal, setShowVerificationModal] = useState(false);
+  const [showPremiumWelcome, setShowPremiumWelcome] = useState(false);
+  const [roomCounts, setRoomCounts] = useState({}); // Contadores de usuarios por sala
+  const messagesEndRef = useRef(null);
+  const unsubscribeRef = useRef(null);
+  const aiActivatedRef = useRef(false); // Flag para evitar activaciones múltiples de IA
 
   // ✅ VALIDACIÓN: Solo usuarios registrados pueden acceder a las salas de chat
   useEffect(() => {
@@ -68,15 +92,6 @@ const ChatPage = () => {
     }
   }, [user, navigate]);
 
-  // Si el usuario no está cargado o es invitado, no renderizar nada (evitar errores de permisos)
-  if (!user || user.isGuest || user.isAnonymous) {
-    return (
-      <div className="flex items-center justify-center min-h-screen">
-        <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-purple-500"></div>
-      </div>
-    );
-  }
-
   // SEO: Actualizar título y canonical tag dinámicamente
   React.useEffect(() => {
     document.title = `Chat ${roomId} - Chactivo | Chat Gay Chile`;
@@ -98,25 +113,6 @@ const ChatPage = () => {
       }
     };
   }, [roomId]);
-  const [currentRoom, setCurrentRoom] = useState(roomId);
-  const [messages, setMessages] = useState([]);
-  const [roomUsers, setRoomUsers] = useState([]); // 🤖 Usuarios en la sala (para sistema de bots)
-  const [selectedUser, setSelectedUser] = useState(null);
-  const [userActionsTarget, setUserActionsTarget] = useState(null);
-  const [reportTarget, setReportTarget] = useState(null);
-  // Sidebar cerrado en móvil (< 1024px), abierto en desktop
-  const [sidebarOpen, setSidebarOpen] = useState(() => {
-    if (typeof window !== 'undefined') {
-      return window.innerWidth >= 1024;
-    }
-    return false; // Valor por defecto para SSR
-  });
-  const [privateChatRequest, setPrivateChatRequest] = useState(null);
-  const [activePrivateChat, setActivePrivateChat] = useState(null);
-  const [showVerificationModal, setShowVerificationModal] = useState(false);
-  const [showPremiumWelcome, setShowPremiumWelcome] = useState(false);
-  const messagesEndRef = useRef(null);
-  const unsubscribeRef = useRef(null);
 
   // 🎁 Mostrar modal de bienvenida premium solo una vez
   useEffect(() => {
@@ -147,17 +143,23 @@ const ChatPage = () => {
   };
 
   // 🤖 SISTEMA DE BOTS: Hook para gestionar bots automáticamente
-  const { botStatus, triggerBotResponse, isActive: botsActive } = useBotSystem(
+  // ✅ ACTIVADO 2025-12-16: Bots inteligentes para mantener salas activas
+  // ✨ NUEVO: Sistema de IA pura para interactuar con usuarios reales
+  const { botStatus, triggerBotResponse, activateAIForUser, isActive: botsActive } = useBotSystem(
     roomId,
     roomUsers,
     messages,
-    false, // Sistema de bots DESHABILITADO
+    true, // ✅ Sistema de bots HABILITADO (solo actúa con 1-3 usuarios reales)
     handleBotJoin // Callback para notificaciones de entrada
   );
 
   // Suscribirse a mensajes en tiempo real cuando cambia la sala
   useEffect(() => {
     setCurrentRoom(roomId);
+    aiActivatedRef.current = false; // Resetear flag de IA cuando cambia de sala
+
+    // 🧹 Limpiar usuarios inactivos al entrar a la sala
+    cleanInactiveUsers(roomId);
 
     // Registrar presencia del usuario en la sala
     joinRoom(roomId, user);
@@ -169,7 +171,10 @@ const ChatPage = () => {
 
     // 🤖 Suscribirse a usuarios de la sala (para sistema de bots)
     const unsubscribeUsers = subscribeToRoomUsers(roomId, (users) => {
-      setRoomUsers(users);
+      // ✅ Filtrar solo usuarios activos (<30s inactividad)
+      const activeUsers = filterActiveUsers(users);
+      console.log(`👥 Total usuarios en DB: ${users.length} | Activos (<30s): ${activeUsers.length}`);
+      setRoomUsers(activeUsers);
     });
 
     // Guardar funciones de desuscripción
@@ -192,6 +197,83 @@ const ChatPage = () => {
       leaveRoom(roomId);
     };
   }, [roomId, user]);
+
+  // 💓 Heartbeat: Actualizar presencia cada 10 segundos + Limpiar inactivos cada 30s
+  useEffect(() => {
+    if (!roomId || !user) return;
+
+    // Actualizar presencia inmediatamente
+    updateUserActivity(roomId);
+
+    // Heartbeat cada 10 segundos
+    const heartbeatInterval = setInterval(() => {
+      updateUserActivity(roomId);
+    }, 10000);
+
+    // Limpieza de usuarios inactivos cada 30 segundos
+    const cleanupInterval = setInterval(() => {
+      cleanInactiveUsers(roomId);
+    }, 30000);
+
+    return () => {
+      clearInterval(heartbeatInterval);
+      clearInterval(cleanupInterval);
+    };
+  }, [roomId, user]);
+
+  // ✨ Activar IA cuando el sistema esté listo y usuarios cargados
+  useEffect(() => {
+    // Función auxiliar para contar usuarios reales (excluyendo bots)
+    const countRealUsers = (users) => {
+      if (!users || users.length === 0) return 0;
+      return users.filter(u => {
+        const userId = u.userId || u.id;
+        return userId !== 'system' && 
+               !userId?.startsWith('bot_') && 
+               !userId?.startsWith('bot-') &&
+               !userId?.includes('bot_join');
+      }).length;
+    };
+
+    const realUserCount = countRealUsers(roomUsers);
+    
+    // ✅ CORREGIDO: Activar IA cuando hay usuarios reales, incluso si bots no están activos
+    // Esperar a que:
+    // 1. Tengamos al menos 1 usuario REAL cargado (no bots)
+    // 2. Función de activación esté disponible
+    // 3. No se haya activado ya
+    // NOTA: Ya no requerimos que botsActive sea true, la IA puede activarse independientemente
+    if (realUserCount === 0 || !activateAIForUser || aiActivatedRef.current) {
+      if (realUserCount === 0) {
+        console.log('⏳ [CHAT PAGE] Esperando usuarios reales... (actual:', roomUsers?.length || 0, 'usuarios totales)');
+      }
+      return;
+    }
+
+    console.log(`✅ [CHAT PAGE] Condiciones cumplidas: ${realUserCount} usuarios reales, activando IA...`);
+
+    // Delay de 2 segundos para asegurar que todo esté inicializado
+    const timer = setTimeout(() => {
+      console.log('⏰ [CHAT PAGE] Activando IA después de que sistema esté listo...');
+      console.log(`👤 [CHAT PAGE] Activando para usuario: ${user.username} (ID: ${user.id})`);
+      activateAIForUser(user.id, user.username);
+      aiActivatedRef.current = true; // Marcar como activado
+    }, 2000);
+
+    return () => clearTimeout(timer);
+  }, [roomUsers, activateAIForUser, user.id, user.username]);
+
+  // Suscribirse a contadores de todas las salas (para mensajes contextuales)
+  useEffect(() => {
+    if (!user) return;
+
+    const roomIds = roomsData.map(room => room.id);
+    const unsubscribe = subscribeToMultipleRoomCounts(roomIds, (counts) => {
+      setRoomCounts(counts);
+    });
+
+    return () => unsubscribe();
+  }, [user]);
 
   // Navegar cuando cambia la sala actual
   useEffect(() => {
@@ -303,9 +385,9 @@ const ChatPage = () => {
         setGuestMessageCount(prev => prev + 1);
       }
 
-      // 🤖 Disparar respuesta de bot (probabilidad 40%)
+      // 🤖 Disparar respuesta de bot anfitrión
       if (botsActive && type === 'text') {
-        triggerBotResponse(content);
+        triggerBotResponse(content, user.id);
       }
 
       // El listener de onSnapshot actualizará automáticamente los mensajes
@@ -384,6 +466,15 @@ const ChatPage = () => {
       partner: partner
     });
   };
+
+  // ✅ Early return DESPUÉS de todos los hooks - Loading spinner mientras se valida usuario
+  if (!user || user.isGuest || user.isAnonymous) {
+    return (
+      <div className="flex items-center justify-center min-h-screen">
+        <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-purple-500"></div>
+      </div>
+    );
+  }
 
   return (
     <>

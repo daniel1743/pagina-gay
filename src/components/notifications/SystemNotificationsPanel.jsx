@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Button } from '@/components/ui/button';
 import { ScrollArea } from '@/components/ui/scroll-area';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog';
 import {
   X, Bell, BellOff, CheckCheck, Sparkles, Megaphone,
   Info, AlertCircle, Wrench, Gift, ExternalLink
@@ -23,6 +24,8 @@ const SystemNotificationsPanel = ({ isOpen, onClose, onNotificationCountChange }
   const { user } = useAuth();
   const navigate = useNavigate();
   const [notifications, setNotifications] = useState([]);
+  const [selectedNotification, setSelectedNotification] = useState(null);
+  const [showNotificationModal, setShowNotificationModal] = useState(false);
   const [notificationPermission, setNotificationPermission] = useState(
     typeof Notification !== 'undefined' ? Notification.permission : 'default'
   );
@@ -91,11 +94,21 @@ const SystemNotificationsPanel = ({ isOpen, onClose, onNotificationCountChange }
       handleMarkAsRead(notification.id);
     }
 
-    // Navegar si tiene link
-    if (notification.link) {
-      onClose();
-      navigate(notification.link);
+    // Abrir modal con el mensaje completo
+    setSelectedNotification(notification);
+    setShowNotificationModal(true);
+  };
+
+  // Manejar cierre del modal y navegación
+  const handleModalClose = () => {
+    setShowNotificationModal(false);
+    // Si tiene link, navegar después de cerrar el modal
+    if (selectedNotification?.link) {
+      setTimeout(() => {
+        navigate(selectedNotification.link);
+      }, 300);
     }
+    setSelectedNotification(null);
   };
 
   // Obtener icono según tipo
@@ -308,6 +321,83 @@ const SystemNotificationsPanel = ({ isOpen, onClose, onNotificationCountChange }
               )}
             </ScrollArea>
           </motion.div>
+
+          {/* Modal de Notificación Detallada */}
+          <Dialog open={showNotificationModal} onOpenChange={setShowNotificationModal}>
+            <DialogContent className="bg-card border-border text-foreground max-w-2xl max-h-[90vh] overflow-y-auto">
+              {selectedNotification && (
+                <>
+                  <DialogHeader>
+                    <div className="flex items-center gap-3 mb-2">
+                      <motion.div
+                        whileHover={{ scale: 1.1, rotate: 5 }}
+                        className="flex-shrink-0"
+                      >
+                        {getNotificationIcon(selectedNotification.type)}
+                      </motion.div>
+                      <DialogTitle className="text-2xl font-bold">
+                        {selectedNotification.title}
+                      </DialogTitle>
+                    </div>
+                    <DialogDescription className="text-sm text-muted-foreground">
+                      {getTimeAgo(selectedNotification.createdAt)}
+                      {selectedNotification.priority && (
+                        <span className="ml-2 px-2 py-1 rounded-full text-xs bg-accent/30">
+                          {selectedNotification.priority === 'urgent' && '🔴 Urgente'}
+                          {selectedNotification.priority === 'high' && '🟠 Alta'}
+                          {selectedNotification.priority === 'normal' && '🔵 Normal'}
+                          {selectedNotification.priority === 'low' && '🟢 Baja'}
+                        </span>
+                      )}
+                    </DialogDescription>
+                  </DialogHeader>
+
+                  <div className="mt-4">
+                    <div className="p-4 rounded-lg bg-accent/10 border border-border">
+                      <p className="text-base text-foreground whitespace-pre-wrap leading-relaxed">
+                        {selectedNotification.message}
+                      </p>
+                    </div>
+                  </div>
+
+                  <DialogFooter className="flex items-center justify-between mt-6">
+                    <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                      <span>Tipo:</span>
+                      <span className="px-2 py-1 rounded-full bg-accent/20 text-xs">
+                        {selectedNotification.type === NOTIFICATION_TYPES.WELCOME && 'Bienvenida'}
+                        {selectedNotification.type === NOTIFICATION_TYPES.UPDATE && 'Actualización'}
+                        {selectedNotification.type === NOTIFICATION_TYPES.NEWS && 'Noticias'}
+                        {selectedNotification.type === NOTIFICATION_TYPES.BROADCAST && 'Difusión'}
+                        {selectedNotification.type === NOTIFICATION_TYPES.ANNOUNCEMENT && 'Anuncio'}
+                        {selectedNotification.type === NOTIFICATION_TYPES.FEATURE && 'Nueva Funcionalidad'}
+                        {selectedNotification.type === NOTIFICATION_TYPES.MAINTENANCE && 'Mantenimiento'}
+                      </span>
+                    </div>
+                    <div className="flex gap-2">
+                      <Button
+                        variant="outline"
+                        onClick={handleModalClose}
+                      >
+                        Cerrar
+                      </Button>
+                      {selectedNotification.link && (
+                        <Button
+                          onClick={() => {
+                            setShowNotificationModal(false);
+                            navigate(selectedNotification.link);
+                          }}
+                          className="bg-cyan-500 hover:bg-cyan-600 text-white"
+                        >
+                          <ExternalLink className="w-4 h-4 mr-2" />
+                          Ir al enlace
+                        </Button>
+                      )}
+                    </div>
+                  </DialogFooter>
+                </>
+              )}
+            </DialogContent>
+          </Dialog>
         </>
       )}
     </AnimatePresence>

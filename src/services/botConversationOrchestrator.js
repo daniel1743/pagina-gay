@@ -3114,7 +3114,7 @@ export const startBotConversation = async (roomId, activeBots) => {
     console.log(`💬 ${starterBot.username} inició: "${topic.starter}"`);
 
     // Programar respuestas
-    const responseDelay = Math.random() * 3000 + 4000; // 4-7 segundos (más humano)
+    const responseDelay = Math.random() * 4000 + 5000; // 5-9 segundos (más humano + respetar rate limit)
     const otherBots = activeBots.slice(1, Math.min(5, activeBots.length)); // Hasta 4 bots responden
 
     otherBots.forEach((bot, index) => {
@@ -3174,13 +3174,13 @@ export const startBotConversation = async (roomId, activeBots) => {
                 type: 'text'
               });
               console.log(`💬 ${bot.username} siguió: "${followUp}"`);
-            }, 4000 + Math.random() * 2000);
+            }, 6000 + Math.random() * 3000); // Aumentado a 6-9s para respetar rate limit
           }
 
         } catch (error) {
           console.error(`❌ Error en respuesta de ${bot.username}:`, error);
         }
-      }, responseDelay * (index + 1) + Math.random() * 2000); // Variación humana
+      }, responseDelay * (index + 1) + (index * 3000) + Math.random() * 2000); // +3s por bot para respetar rate limit
     });
   } catch (error) {
     console.error('❌ Error iniciando conversación:', error);

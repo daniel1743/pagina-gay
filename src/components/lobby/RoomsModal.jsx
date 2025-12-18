@@ -17,15 +17,29 @@ const RoomsModal = ({ isOpen, onClose }) => {
   const [searchTerm, setSearchTerm] = useState('');
   const [roomCounts, setRoomCounts] = useState({});
 
-  // Suscribirse a contadores de usuarios en tiempo real
+  // ✅ Protección: Si el usuario es anónimo o invitado, cerrar modal y redirigir
   useEffect(() => {
+    if (isOpen && (!user || user.isAnonymous || user.isGuest)) {
+      onClose();
+      navigate('/auth');
+      toast({
+        title: '🔒 Acceso restringido',
+        description: 'Debes registrarte para ver las salas de chat.',
+      });
+    }
+  }, [isOpen, user, onClose, navigate]);
+
+  // Suscribirse a contadores de usuarios en tiempo real (solo si está registrado)
+  useEffect(() => {
+    if (!user || user.isAnonymous || user.isGuest) return;
+    
     const roomIds = roomsData.map(room => room.id);
     const unsubscribe = subscribeToMultipleRoomCounts(roomIds, (counts) => {
       setRoomCounts(counts);
     });
 
     return () => unsubscribe();
-  }, []);
+  }, [user]);
 
   const filteredRooms = roomsData.filter(room =>
     room.name.toLowerCase().includes(searchTerm.toLowerCase())

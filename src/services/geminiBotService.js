@@ -120,6 +120,10 @@ const logBotWarning = (botName, inappropriateResponse) => {
  * @returns {String} - Respuesta de fallback
  */
 const getSmartFallbackResponse = (botProfile, userMessage = '') => {
+  // ✅ CORREGIDO: Validar que userMessage sea un string
+  if (typeof userMessage !== 'string') {
+    userMessage = String(userMessage || '');
+  }
   const lowerMessage = userMessage.toLowerCase().trim();
 
   // 1. Respuestas de SALUDO/BIENVENIDA (Más directas y abiertas)
@@ -197,12 +201,26 @@ export const generateBotResponse = async (botProfile, conversationHistory = [], 
       throw new Error('Gemini API Key no configurada');
     }
 
+    // ✅ CORREGIDO: Validar que conversationHistory sea un array
+    if (!Array.isArray(conversationHistory)) {
+      console.warn('⚠️ conversationHistory no es un array, convirtiendo...', conversationHistory);
+      conversationHistory = [];
+    }
+
+    // ✅ CORREGIDO: Validar que userMessage sea un string o null
+    if (userMessage !== null && typeof userMessage !== 'string') {
+      console.warn('⚠️ userMessage no es un string, convirtiendo...', userMessage);
+      userMessage = String(userMessage || '');
+    }
+
     // Construir contexto de conversación
     let conversationContext = '';
     if (conversationHistory.length > 0) {
       // Tomar solo los últimos 10 mensajes para no saturar
       const recentMessages = conversationHistory.slice(-10);
+      // ✅ CORREGIDO: Validar que cada mensaje tenga las propiedades necesarias
       conversationContext = recentMessages
+        .filter(msg => msg && typeof msg === 'object' && msg.username && msg.content)
         .map(msg => `${msg.username}: ${msg.content}`)
         .join('\n');
     }

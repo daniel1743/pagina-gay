@@ -122,7 +122,13 @@ const LobbyPage = () => {
         return;
     }
 
-    // "Salas de Chat" y "Click Aquí" son accesibles para todos
+    // ✅ BLOQUEO DE SEGURIDAD: RoomsModal requiere registro (muestra usuarios conectados)
+    if (modalId === 'RoomsModal' && (!user || user.isAnonymous || user.isGuest)) {
+        setShowAuthRequired(true);
+        return;
+    }
+
+    // "Click Aquí" y otros modales requieren registro
     if (modalId !== 'RoomsModal' && modalId !== 'NearbyUsersModal' && user && (user.isAnonymous || user.isGuest)) {
         setShowAuthRequired(true);
         return;
@@ -236,20 +242,34 @@ const LobbyPage = () => {
               transition={{ delay: 0.5 }}
               className="flex flex-col sm:flex-row gap-4 justify-center items-center mb-8"
             >
-              <button
-                onClick={() => handleCardClick('RoomsModal')}
-                className="group relative px-12 py-5 magenta-gradient rounded-2xl font-bold text-xl text-white hover:scale-105 transition-all duration-300 shadow-2xl hover:shadow-[#E4007C]/50"
-              >
-                <span className="relative z-10 flex items-center gap-3">
-                  🔥 ENTRAR A CHATEAR GRATIS
-                  <MessageSquare className="w-6 h-6 group-hover:rotate-12 transition-transform" />
-                </span>
-                {/* Efecto de brillo */}
-                <div className="absolute inset-0 rounded-2xl bg-gradient-to-r from-white/0 via-white/25 to-white/0 opacity-0 group-hover:opacity-100 group-hover:animate-shimmer"></div>
-              </button>
+              {user && !user.isAnonymous && !user.isGuest ? (
+                <button
+                  onClick={() => handleCardClick('RoomsModal')}
+                  className="group relative px-12 py-5 magenta-gradient rounded-2xl font-bold text-xl text-white hover:scale-105 transition-all duration-300 shadow-2xl hover:shadow-[#E4007C]/50"
+                >
+                  <span className="relative z-10 flex items-center gap-3">
+                    🔥 ENTRAR A CHATEAR GRATIS
+                    <MessageSquare className="w-6 h-6 group-hover:rotate-12 transition-transform" />
+                  </span>
+                  {/* Efecto de brillo */}
+                  <div className="absolute inset-0 rounded-2xl bg-gradient-to-r from-white/0 via-white/25 to-white/0 opacity-0 group-hover:opacity-100 group-hover:animate-shimmer"></div>
+                </button>
+              ) : (
+                <button
+                  onClick={() => navigate('/auth')}
+                  className="group relative px-12 py-5 magenta-gradient rounded-2xl font-bold text-xl text-white hover:scale-105 transition-all duration-300 shadow-2xl hover:shadow-[#E4007C]/50"
+                >
+                  <span className="relative z-10 flex items-center gap-3">
+                    🔥 REGÍSTRATE PARA CHATEAR
+                    <MessageSquare className="w-6 h-6 group-hover:rotate-12 transition-transform" />
+                  </span>
+                  {/* Efecto de brillo */}
+                  <div className="absolute inset-0 rounded-2xl bg-gradient-to-r from-white/0 via-white/25 to-white/0 opacity-0 group-hover:opacity-100 group-hover:animate-shimmer"></div>
+                </button>
+              )}
             </motion.div>
 
-            {/* Preview de salas activas */}
+            {/* Preview de salas activas - Solo decorativo, sin enlaces para anónimos */}
             <motion.div
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
@@ -267,8 +287,20 @@ const LobbyPage = () => {
                   initial={{ opacity: 0, y: 20 }}
                   animate={{ opacity: 1, y: 0 }}
                   transition={{ delay: 0.7 + index * 0.1 }}
-                  className="glass-effect p-4 rounded-xl border border-border hover:border-accent/50 transition-all cursor-pointer hover:scale-105"
-                  onClick={() => handleCardClick('RoomsModal')}
+                  className={`glass-effect p-4 rounded-xl border border-border transition-all ${
+                    user && !user.isAnonymous && !user.isGuest 
+                      ? 'hover:border-accent/50 cursor-pointer hover:scale-105' 
+                      : 'cursor-default'
+                  }`}
+                  onClick={() => {
+                    // Solo permitir clic si el usuario está registrado
+                    if (user && !user.isAnonymous && !user.isGuest) {
+                      handleCardClick('RoomsModal');
+                    } else {
+                      // Si es anónimo, redirigir a registro
+                      navigate('/auth');
+                    }
+                  }}
                 >
                   <div className="text-center">
                     <div className="text-3xl mb-2">{sala.emoji}</div>

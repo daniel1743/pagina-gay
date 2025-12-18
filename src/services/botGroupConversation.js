@@ -515,8 +515,10 @@ export const startGroupConversation = async (roomId) => {
 
   activeGroupConversations.set(roomId, conversationState);
 
-  // Iniciar el flujo de mensajes
-  await sendNextGroupMessage(roomId);
+  // Iniciar el flujo de mensajes con delay inicial para evitar colisión con otras conversaciones
+  setTimeout(() => {
+    sendNextGroupMessage(roomId);
+  }, 3000 + Math.random() * 3000); // 3-6 segundos de delay inicial
 };
 
 /**
@@ -563,8 +565,8 @@ const sendNextGroupMessage = async (roomId) => {
   // Avanzar al siguiente mensaje
   state.currentIndex++;
 
-  // Programar siguiente mensaje (delay entre 4-8 segundos para naturalidad)
-  const delay = Math.random() * 4000 + 4000; // 4-8 segundos
+  // Programar siguiente mensaje (delay entre 5-10 segundos para naturalidad + respetar rate limit)
+  const delay = Math.random() * 5000 + 5000; // 5-10 segundos
   setTimeout(() => sendNextGroupMessage(roomId), delay);
 };
 

@@ -11,7 +11,8 @@ import {
   botRespondToUser,
   stopBotsInRoom,
   getBotStatus,
-  sendWelcomeMessage
+  sendWelcomeMessage,
+  activateAIWhenUserEnters
 } from '@/services/botCoordinator';
 import {
   startJoinSimulator,
@@ -100,15 +101,22 @@ export const useBotSystem = (roomId, users = [], messages = [], enabled = true, 
   }, [roomId]);
 
   // Función para que bots respondan a mensaje de usuario
-  const triggerBotResponse = (userMessage) => {
+  const triggerBotResponse = (userMessage, userId) => {
     if (!enabled || !roomId) return;
-    botRespondToUser(roomId, userMessage, messages);
+    botRespondToUser(roomId, userMessage, messages, userId);
   };
 
   // Función para enviar bienvenida cuando entra usuario
   const welcomeUser = (username) => {
     if (!enabled || !roomId) return;
     sendWelcomeMessage(roomId, username, messages);
+  };
+
+  // ✨ Función para activar IA cuando entra usuario real
+  const activateAIForUser = (userId, username) => {
+    if (!enabled || !roomId) return;
+    console.log(`✨ Activando IA para usuario ${username} (${userId})`);
+    activateAIWhenUserEnters(roomId, userId, username);
   };
 
   // Obtener estado actual de bots
@@ -118,6 +126,7 @@ export const useBotSystem = (roomId, users = [], messages = [], enabled = true, 
     botStatus: status,
     triggerBotResponse,
     welcomeUser,
+    activateAIForUser, // ← Nueva función para activar IA
     isActive: status.active
   };
 };

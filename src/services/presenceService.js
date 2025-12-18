@@ -7,6 +7,8 @@ import {
   serverTimestamp,
   query,
   where,
+  getDocs,
+  Timestamp,
 } from 'firebase/firestore';
 import { db, auth } from '@/config/firebase';
 
@@ -21,6 +23,7 @@ export const joinRoom = async (roomId, userData) => {
   const presenceRef = doc(db, 'roomPresence', roomId, 'users', auth.currentUser.uid);
 
   try {
+    // ✅ Actualizar lastSeen inmediatamente al entrar
     await setDoc(presenceRef, {
       userId: auth.currentUser.uid,
       username: userData.username,
@@ -30,6 +33,10 @@ export const joinRoom = async (roomId, userData) => {
       joinedAt: serverTimestamp(),
       lastSeen: serverTimestamp(),
     });
+    
+    // ✅ Asegurar que la actividad se actualice inmediatamente
+    // Esto ayuda a que el usuario sea detectado como activo de inmediato
+    await updateUserActivity(roomId);
   } catch (error) {
     console.error('Error joining room:', error);
   }
@@ -136,4 +143,99 @@ export const updateUserActivity = async (roomId) => {
   } catch (error) {
     console.error('Error updating user activity:', error);
   }
+};
+
+/**
+ * Limpia usuarios inactivos de la sala (sin actividad en más de 120 segundos)
+ * ✅ CORREGIDO: Aumentado el threshold y mejor manejo de errores
+ * @param {string} roomId - ID de la sala
+ */
+export const cleanInactiveUsers = async (roomId) => {
+  if (!auth.currentUser) return; // Solo usuarios autenticados pueden limpiar
+
+  const usersRef = collection(db, 'roomPresence', roomId, 'users');
+
+  try {
+    const snapshot = await getDocs(usersRef);
+    const now = Date.now();
+    const INACTIVITY_THRESHOLD = 120 * 1000; // 120 segundos (2 minutos) - más permisivo
+
+    const deletePromises = [];
+
+    snapshot.docs.forEach(docSnap => {
+      const data = docSnap.data();
+      
+      // No eliminar al usuario actual
+      if (data.userId === auth.currentUser.uid) {
+        return;
+      }
+
+      const lastSeen = data.lastSeen?.toMillis() || 0;
+      
+      // Si no tiene lastSeen, no eliminar (puede ser un usuario que acaba de entrar)
+      if (lastSeen === 0) {
+        return;
+      }
+
+      const timeSinceLastSeen = now - lastSeen;
+
+      // Solo eliminar si no ha tenido actividad en más de 2 minutos
+      if (timeSinceLastSeen > INACTIVITY_THRESHOLD) {
+        console.log(`🧹 Limpiando usuario inactivo: ${data.username} (inactivo ${Math.round(timeSinceLastSeen / 1000)}s)`);
+        deletePromises.push(deleteDoc(docSnap.ref));
+      }
+    });
+
+    if (deletePromises.length > 0) {
+      await Promise.all(deletePromises);
+      console.log(`✅ ${deletePromises.length} usuarios inactivos eliminados de ${roomId}`);
+    }
+  } catch (error) {
+    // Silenciar errores de permisos (puede ser que el usuario no tenga permisos para limpiar)
+    if (error.code !== 'permission-denied') {
+      console.error('Error cleaning inactive users:', error);
+    }
+  }
+};
+
+/**
+ * Filtra usuarios activos (con actividad en los últimos 30 segundos)
+ * ✅ CORREGIDO: No filtra usuarios que están en la lista pero no tienen lastSeen actualizado
+ * @param {array} users - Array de usuarios
+ * @returns {array} Array de usuarios activos
+ */
+export const filterActiveUsers = (users) => {
+  const now = Date.now();
+  const ACTIVE_THRESHOLD = 30 * 1000; // 30 segundos
+  const GRACE_PERIOD = 60 * 1000; // 60 segundos de gracia para usuarios sin lastSeen
+
+  return users.filter(user => {
+    // Si el usuario no tiene lastSeen, asumir que está activo (acaba de entrar)
+    if (!user.lastSeen) {
+      return true;
+    }
+
+    const lastSeen = user.lastSeen?.toMillis() || 0;
+    
+    // Si lastSeen es 0 o muy antiguo pero el usuario está en la lista, darle gracia
+    if (lastSeen === 0) {
+      return true;
+    }
+
+    const timeSinceLastSeen = now - lastSeen;
+    
+    // Si el tiempo desde lastSeen es menor al threshold, está activo
+    if (timeSinceLastSeen <= ACTIVE_THRESHOLD) {
+      return true;
+    }
+
+    // Si el tiempo es mayor pero menor al grace period, también está activo
+    // (puede ser un delay en la actualización de Firestore)
+    if (timeSinceLastSeen <= GRACE_PERIOD) {
+      return true;
+    }
+
+    // Usuario inactivo
+    return false;
+  });
 };

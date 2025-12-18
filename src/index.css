@@ -64,6 +64,11 @@
 }
 
 
+html {
+  margin: 0;
+  padding: 0;
+}
+
 body {
   @apply bg-background text-foreground;
   font-family: 'Nunito Sans', sans-serif;
@@ -71,6 +76,11 @@ body {
   padding: 0;
   overflow-x: hidden;
   transition: background-color 0.3s ease, color 0.3s ease;
+}
+
+#root {
+  margin: 0;
+  padding: 0;
 }
 
 * {

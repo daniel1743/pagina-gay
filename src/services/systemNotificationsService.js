@@ -72,8 +72,26 @@ export const createWelcomeNotification = async (userId, username) => {
   try {
     await createSystemNotification(userId, {
       type: NOTIFICATION_TYPES.WELCOME,
-      title: `¡Bienvenido/a, ${username}! 🎉`,
-      message: 'Gracias por unirte a Chactivo. Explora nuestras salas de chat, conoce gente nueva y disfruta de una experiencia segura y divertida. ¡No olvides verificar tu perfil!',
+      title: `¡Bienvenido/a a Chactivo, ${username}! 🌈`,
+      message: `¡Hola ${username}! 🎉
+
+Estamos muy felices de tenerte en nuestra comunidad LGBT+ de Chile. 
+
+En Chactivo encontrarás:
+✨ Salas de chat temáticas para conectar con personas increíbles
+💬 Conversaciones seguras y respetuosas
+🎯 Usuarios cercanos a ti para hacer nuevos amigos
+🛡️ Un espacio seguro donde puedes ser tú mismo/a
+
+Consejos para empezar:
+• Completa tu perfil para que otros usuarios te conozcan mejor
+• Explora las diferentes salas de chat según tus intereses
+• Respeta las normas de la comunidad para mantener un ambiente positivo
+• ¡Disfruta y conéctate con personas increíbles!
+
+Si tienes alguna pregunta o necesitas ayuda, no dudes en contactarnos a través del Centro de Soporte.
+
+¡Bienvenido/a y que tengas una experiencia increíble! ❤️`,
       icon: '🌈',
       link: '/profile',
       priority: 'high',
