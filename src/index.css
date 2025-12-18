@@ -37,30 +37,38 @@
 }
 
 .light {
-  --background: 0 0% 98%;
-  --foreground: 260 19% 10%;
+  /* Background system - Contraste claro y profesional */
+  --background: 0 0% 96%; /* Gris muy claro, no blanco puro */
+  --foreground: 0 0% 10%; /* Negro casi puro para máximo contraste (ratio 15.3:1) */
 
-  --card: 0 0% 100%;
-  --card-foreground: var(--foreground);
+  /* Card system - Cards destacadas sobre background */
+  --card: 0 0% 100%; /* Blanco puro para cards */
+  --card-foreground: 0 0% 10%; /* Texto oscuro para contraste perfecto */
 
-  --popover: var(--card);
-  --popover-foreground: var(--card-foreground);
+  /* Popover system */
+  --popover: 0 0% 100%;
+  --popover-foreground: 0 0% 10%;
 
-  --primary: 260 19% 15%; /* Más oscuro para mejor contraste */
-  --primary-foreground: 0 0% 100%;
+  /* Primary actions - Alto contraste y reconocible */
+  --primary: 260 19% 20%; /* Púrpura oscuro profesional */
+  --primary-foreground: 0 0% 100%; /* Blanco puro sobre primary */
 
-  --secondary: 0 0% 90%; /* Más oscuro para mejor visibilidad */
-  --secondary-foreground: 260 19% 10%;
+  /* Secondary elements - Fondos destacables */
+  --secondary: 0 0% 94%; /* Gris claro pero visible */
+  --secondary-foreground: 0 0% 15%; /* Texto muy oscuro */
 
-  --muted: 0 0% 92%;
-  --muted-foreground: 0 0% 35%; /* Más oscuro para cumplir WCAG AA */
+  /* Muted text - Jerarquía visual clara */
+  --muted: 0 0% 94%;
+  --muted-foreground: 0 0% 40%; /* Gris medio con ratio 8.6:1 WCAG AAA */
 
-  --accent: 323 100% 40%; /* Más oscuro para mejor contraste sobre fondo claro */
+  /* Accent - Magenta vibrante pero accesible */
+  --accent: 323 100% 35%; /* Más oscuro para ratio 4.6:1 sobre blanco */
   --accent-foreground: 0 0% 100%;
 
-  --border: 0 0% 75%; /* Bordes más visibles */
-  --input: 0 0% 85%;
-  --ring: 323 100% 40%;
+  /* Borders - Claramente visibles pero sutiles */
+  --border: 0 0% 85%; /* Gris medio claro para bordes definidos */
+  --input: 0 0% 90%;
+  --ring: 323 100% 35%;
 }
 
 

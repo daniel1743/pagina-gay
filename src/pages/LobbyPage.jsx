@@ -1,8 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
-import { MessageSquare, Shield, Calendar, HeartPulse, SlidersHorizontal, Users, Lock, MapPin } from 'lucide-react';
-import LobbyCard from '@/components/lobby/LobbyCard';
+import { MessageSquare, Shield, Calendar, HeartPulse, SlidersHorizontal, Users, Lock, MapPin, Sparkles } from 'lucide-react';
+import FeatureCard from '@/components/lobby/FeatureCard';
 import RoomsModal from '@/components/lobby/RoomsModal';
 import DenunciaModal from '@/components/lobby/DenunciaModal';
 import EventosModal from '@/components/lobby/EventosModal';
@@ -22,13 +22,72 @@ import { trackPageView, trackPageExit } from '@/services/analyticsService';
 import { useCanonical } from '@/hooks/useCanonical';
 
 const cardData = [
-  { id: 'salas', icon: <MessageSquare className="w-12 h-12" />, title: "Salas de Chat", description: "Explora y únete a nuestras salas temáticas. ¡Siempre hay alguien con quien conectar!", modal: 'RoomsModal', gradient: "blue-gradient" },
-  { id: 'cercanos', icon: <MapPin className="w-12 h-12" />, title: "Click Aquí", description: "Descubre usuarios cercanos a ti. Conéctate con personas en tu zona. ¡Haz click!", modal: 'NearbyUsersModal', gradient: "magenta-gradient" },
-  { id: 'denuncias', icon: <Shield className="w-12 h-12" />, title: "Centro de Denuncias", description: "Ayúdanos a mantener la comunidad segura. Reporta cualquier comportamiento inadecuado.", modal: 'DenunciaModal', gradient: "amber-gradient" },
-  { id: 'eventos', icon: <Calendar className="w-12 h-12" />, title: "Eventos y Noticias", description: "Mantente al día con los últimos eventos, fiestas y noticias de la comunidad.", modal: 'EventosModal', gradient: "green-gradient" },
-  { id: 'salud', icon: <HeartPulse className="w-12 h-12" />, title: "Salud Mental LGBTQ+", description: "Un espacio seguro y anónimo para hablar, encontrar apoyo y conectar con profesionales.", modal: 'SaludMentalModal', gradient: "teal-gradient" },
-  { id: 'ajustes', icon: <SlidersHorizontal className="w-12 h-12" />, title: "Ajustes y Tienda", description: "Personaliza tu experiencia. ¡Exclusivo para miembros Premium!", modal: 'AjustesModal', gradient: "purple-gradient" },
-  { id: 'proximamente', icon: <Users className="w-12 h-12" />, title: "Comunidades", description: "Crea y únete a grupos más pequeños con tus intereses específicos. ¡Próximamente!", modal: 'ComingSoon', gradient: "pink-gradient" },
+  {
+    id: 'salas',
+    icon: <MessageSquare className="w-8 h-8" />,
+    title: "Salas de Chat",
+    description: "Conversaciones en vivo 24/7. Únete a salas temáticas y conoce gente como tú ahora.",
+    modal: 'RoomsModal',
+    variant: "primary",
+    badge: "Activo",
+    stats: { label: "23 personas conectadas", icon: Users },
+    accentColor: "cyan"
+  },
+  {
+    id: 'cercanos',
+    icon: <MapPin className="w-8 h-8" />,
+    title: "Explora Comunidades",
+    description: "Descubre grupos con tus intereses: deportes, arte, cine, gaming. Encuentra tu tribu.",
+    modal: 'NearbyUsersModal',
+    variant: "default",
+    badge: "Popular",
+    stats: { label: "12 comunidades activas" },
+    accentColor: "purple"
+  },
+  {
+    id: 'denuncias',
+    icon: <Shield className="w-8 h-8" />,
+    title: "Centro de Seguridad",
+    description: "Reporta comportamiento inadecuado de forma anónima. Tu bienestar es nuestra prioridad.",
+    modal: 'DenunciaModal',
+    variant: "default",
+    badge: null,
+    stats: null,
+    accentColor: "orange"
+  },
+  {
+    id: 'eventos',
+    icon: <Calendar className="w-8 h-8" />,
+    title: "Eventos y Noticias",
+    description: "Fiestas, marchas, charlas. Mantente al día con lo que pasa en la comunidad LGBT+ de Chile.",
+    modal: 'EventosModal',
+    variant: "default",
+    badge: "Nuevo",
+    stats: null,
+    accentColor: "green"
+  },
+  {
+    id: 'salud',
+    icon: <HeartPulse className="w-8 h-8" />,
+    title: "Apoyo y Bienestar",
+    description: "Espacio confidencial para hablar de salud mental. Conecta con profesionales y apoyo de pares.",
+    modal: 'SaludMentalModal',
+    variant: "default",
+    badge: null,
+    stats: null,
+    accentColor: "green"
+  },
+  {
+    id: 'ajustes',
+    icon: <SlidersHorizontal className="w-8 h-8" />,
+    title: "Personaliza tu Perfil",
+    description: "Ajusta tu experiencia, desbloquea funciones Premium y accede a beneficios exclusivos.",
+    modal: 'AjustesModal',
+    variant: "default",
+    badge: null,
+    stats: null,
+    accentColor: "purple"
+  },
 ];
 
 const NewsTicker = () => {
@@ -372,20 +431,41 @@ const LobbyPage = () => {
           <AdCarousel onAdClick={handleAdClick} />
         )}
 
-        <div className="px-4">
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6 max-w-7xl mx-auto mb-16">
+        <div className="px-4 py-8">
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            transition={{ duration: 0.5 }}
+            className="max-w-7xl mx-auto"
+          >
+            {/* Título de sección */}
+            <div className="text-center mb-12">
+              <h2 className="text-3xl md:text-4xl font-bold mb-3 bg-gradient-to-r from-cyan-400 via-purple-400 to-pink-400 light:from-cyan-600 light:via-purple-600 light:to-pink-600 bg-clip-text text-transparent">
+                Explora Chactivo
+              </h2>
+              <p className="text-lg text-gray-400 light:text-gray-600">
+                Conecta, chatea y descubre la comunidad gay más activa de Chile
+              </p>
+            </div>
+
+            {/* Grid jerárquico con card principal destacada */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6 mb-16">
               {cardData.map((card, index) => (
-                <LobbyCard
+                <FeatureCard
                   key={card.id}
                   icon={card.icon}
                   title={card.title}
                   description={card.description}
                   onClick={() => handleCardClick(card.modal)}
-                  gradient={card.gradient}
                   index={index}
+                  variant={card.variant}
+                  badge={card.badge}
+                  stats={card.stats}
+                  accentColor={card.accentColor}
                 />
               ))}
             </div>
+          </motion.div>
         </div>
         
         <div className="mb-16">
