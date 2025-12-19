@@ -10,8 +10,9 @@ import SaludMentalModal from '@/components/lobby/SaludMentalModal';
 import AjustesModal from '@/components/lobby/AjustesModal';
 import NearbyUsersModal from '@/components/lobby/NearbyUsersModal';
 import GlobalStats from '@/components/lobby/GlobalStats';
-import AdCarousel from '@/components/lobby/AdCarousel';
-import AdModal from '@/components/lobby/AdModal';
+// TEMPORALMENTE COMENTADO - Anuncios y Promociones
+// import AdCarousel from '@/components/lobby/AdCarousel';
+// import AdModal from '@/components/lobby/AdModal';
 import PWAInstallBanner from '@/components/ui/PWAInstallBanner';
 import ComingSoonModal from '@/components/ui/ComingSoonModal';
 import { toast } from '@/components/ui/use-toast';
@@ -103,13 +104,13 @@ const NewsTicker = () => {
   ];
 
   return (
-    <div className="relative w-full overflow-hidden carousel-container py-4 my-8">
-      <div className="absolute inset-y-0 left-0 w-24 bg-gradient-to-r from-background to-transparent z-10"></div>
-      <div className="absolute inset-y-0 right-0 w-24 bg-gradient-to-l from-background to-transparent z-10"></div>
-      <div className="flex animate-marquee">
+    <div className="relative w-full overflow-hidden carousel-container py-4 sm:py-6 my-6 sm:my-8" role="region" aria-label="Noticias y eventos">
+      <div className="absolute inset-y-0 left-0 w-16 sm:w-24 bg-gradient-to-r from-background to-transparent z-10 pointer-events-none"></div>
+      <div className="absolute inset-y-0 right-0 w-16 sm:w-24 bg-gradient-to-l from-background to-transparent z-10 pointer-events-none"></div>
+      <div className="flex animate-marquee" aria-hidden="true">
         {newsItems.concat(newsItems).map((item, index) => (
-          <div key={index} className="flex-shrink-0 mx-8 flex items-center">
-            <span className="text-lg font-semibold text-muted-foreground whitespace-nowrap">{item.text}</span>
+          <div key={index} className="flex-shrink-0 mx-4 sm:mx-8 flex items-center">
+            <span className="text-sm sm:text-base md:text-lg font-semibold text-muted-foreground whitespace-nowrap">{item.text}</span>
           </div>
         ))}
       </div>
@@ -119,7 +120,12 @@ const NewsTicker = () => {
           to { transform: translateX(-50%); }
         }
         .animate-marquee {
-          animation: marquee 60s linear infinite;
+          animation: marquee 80s linear infinite;
+        }
+        @media (prefers-reduced-motion: reduce) {
+          .animate-marquee {
+            animation: none;
+          }
         }
       `}</style>
     </div>
@@ -134,15 +140,25 @@ const VideoSection = ({ onComingSoon }) => {
   ];
 
   return (
-    <div className="w-full max-w-6xl mx-auto px-4 sm:px-6 lg:px-8">
-      <h2 className="text-3xl font-bold text-center mb-8">Videos Destacados</h2>
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
+    <div className="w-full max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-8 sm:py-12">
+      <h2 className="text-2xl sm:text-3xl md:text-4xl font-bold text-center mb-8 sm:mb-12">Videos Destacados</h2>
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6 sm:gap-8">
         {videos.map(video => (
           <motion.div
             key={video.id}
-            className="glass-effect rounded-2xl p-4 cursor-pointer hover:border-accent/50 transition-colors"
-            whileHover={{ scale: 1.05, y: -5 }}
+            className="glass-effect rounded-2xl p-4 sm:p-6 cursor-pointer hover:border-accent/50 transition-all focus:outline-none focus:ring-2 focus:ring-accent/30"
+            whileHover={{ scale: 1.02, y: -3 }}
+            whileTap={{ scale: 0.98 }}
             onClick={() => onComingSoon('la sección de videos', 'Pronto podrás ver contenido educativo, entretenimiento LGBT+ y testimonios de la comunidad directamente aquí.')}
+            role="button"
+            tabIndex={0}
+            aria-label={`Ver video: ${video.title}`}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter' || e.key === ' ') {
+                e.preventDefault();
+                onComingSoon('la sección de videos', 'Pronto podrás ver contenido educativo, entretenimiento LGBT+ y testimonios de la comunidad directamente aquí.');
+              }
+            }}
           >
             <div className="aspect-video bg-gradient-to-br from-secondary to-secondary/50 rounded-lg mb-4 flex items-center justify-center border border-border">
               <span className="text-lg font-bold text-center px-4">{video.thumbnailText}</span>
@@ -165,8 +181,9 @@ const LobbyPage = () => {
   const { user } = useAuth();
   const [activeModal, setActiveModal] = useState(null);
   const [showAuthRequired, setShowAuthRequired] = useState(false);
-  const [selectedAd, setSelectedAd] = useState(null);
-  const [showAdModal, setShowAdModal] = useState(false);
+  // TEMPORALMENTE COMENTADO - Anuncios y Promociones
+  // const [selectedAd, setSelectedAd] = useState(null);
+  // const [showAdModal, setShowAdModal] = useState(false);
   const [showComingSoon, setShowComingSoon] = useState(false);
   const [comingSoonFeature, setComingSoonFeature] = useState({ name: '', description: '' });
 
@@ -210,15 +227,16 @@ const LobbyPage = () => {
     navigate('/?action=login');
   };
 
-  const handleAdClick = (ad) => {
-    setSelectedAd(ad);
-    setShowAdModal(true);
-  };
+  // TEMPORALMENTE COMENTADO - Anuncios y Promociones
+  // const handleAdClick = (ad) => {
+  //   setSelectedAd(ad);
+  //   setShowAdModal(true);
+  // };
 
-  const closeAdModal = () => {
-    setShowAdModal(false);
-    setSelectedAd(null);
-  };
+  // const closeAdModal = () => {
+  //   setShowAdModal(false);
+  //   setSelectedAd(null);
+  // };
 
   const handleFeatureComingSoon = (featureName, description = '') => {
     setComingSoonFeature({ name: featureName, description });
@@ -241,14 +259,14 @@ const LobbyPage = () => {
 
   return (
     <>
-      <div className="w-full min-h-screen pt-12 pb-20">
+      <div className="w-full min-h-screen pt-20 pb-16 sm:pt-24 sm:pb-20">
         {/* 🔥 HERO SECTION - Solo visible para usuarios no registrados o invitados */}
         {showHeroSection && (
           <motion.section
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.6 }}
-            className="relative px-4 py-12 mb-8 overflow-hidden"
+            className="relative px-4 sm:px-6 lg:px-8 py-12 sm:py-16 lg:py-20 mb-12 sm:mb-16 overflow-hidden"
           >
           {/* Fondo degradado animado */}
           <div className="absolute inset-0 bg-gradient-to-br from-purple-900/20 via-pink-900/20 to-blue-900/20 animate-pulse"></div>
@@ -279,7 +297,7 @@ const LobbyPage = () => {
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
               transition={{ delay: 0.3 }}
-              className="text-5xl md:text-7xl font-extrabold text-center mb-4 bg-gradient-to-r from-[#E4007C] via-pink-400 to-cyan-400 bg-clip-text text-transparent"
+              className="text-4xl sm:text-5xl md:text-6xl lg:text-7xl font-extrabold text-center mb-6 sm:mb-8 bg-gradient-to-r from-[#E4007C] via-pink-400 to-cyan-400 bg-clip-text text-transparent leading-tight"
             >
               Chat Gay Santiago
             </motion.h1>
@@ -289,7 +307,7 @@ const LobbyPage = () => {
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
               transition={{ delay: 0.4 }}
-              className="text-xl md:text-2xl text-center text-muted-foreground mb-8 max-w-3xl mx-auto"
+              className="text-lg sm:text-xl md:text-2xl text-center text-muted-foreground mb-10 sm:mb-12 max-w-3xl mx-auto px-4 leading-relaxed"
             >
               Gratis • Anónimo • 100% Chileno
             </motion.p>
@@ -299,16 +317,17 @@ const LobbyPage = () => {
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ delay: 0.5 }}
-              className="flex flex-col sm:flex-row gap-4 justify-center items-center mb-8"
+              className="flex flex-col sm:flex-row gap-4 justify-center items-center mb-12 sm:mb-16"
             >
               {user && !user.isAnonymous && !user.isGuest ? (
                 <button
                   onClick={() => handleCardClick('RoomsModal')}
-                  className="group relative px-12 py-5 magenta-gradient rounded-2xl font-bold text-xl text-white hover:scale-105 transition-all duration-300 shadow-2xl hover:shadow-[#E4007C]/50"
+                  className="group relative px-8 sm:px-12 py-4 sm:py-5 magenta-gradient rounded-2xl font-bold text-lg sm:text-xl text-white hover:scale-105 active:scale-95 transition-all duration-300 shadow-2xl hover:shadow-[#E4007C]/50 focus:outline-none focus:ring-4 focus:ring-[#E4007C]/30 min-h-[56px] flex items-center justify-center"
+                  aria-label="Entrar a chatear gratis"
                 >
                   <span className="relative z-10 flex items-center gap-3">
                     🔥 ENTRAR A CHATEAR GRATIS
-                    <MessageSquare className="w-6 h-6 group-hover:rotate-12 transition-transform" />
+                    <MessageSquare className="w-5 h-5 sm:w-6 sm:h-6 group-hover:rotate-12 transition-transform" />
                   </span>
                   {/* Efecto de brillo */}
                   <div className="absolute inset-0 rounded-2xl bg-gradient-to-r from-white/0 via-white/25 to-white/0 opacity-0 group-hover:opacity-100 group-hover:animate-shimmer"></div>
@@ -316,11 +335,12 @@ const LobbyPage = () => {
               ) : (
                 <button
                   onClick={() => navigate('/auth')}
-                  className="group relative px-12 py-5 magenta-gradient rounded-2xl font-bold text-xl text-white hover:scale-105 transition-all duration-300 shadow-2xl hover:shadow-[#E4007C]/50"
+                  className="group relative px-8 sm:px-12 py-4 sm:py-5 magenta-gradient rounded-2xl font-bold text-lg sm:text-xl text-white hover:scale-105 active:scale-95 transition-all duration-300 shadow-2xl hover:shadow-[#E4007C]/50 focus:outline-none focus:ring-4 focus:ring-[#E4007C]/30 min-h-[56px] flex items-center justify-center"
+                  aria-label="Regístrate para chatear"
                 >
                   <span className="relative z-10 flex items-center gap-3">
                     🔥 REGÍSTRATE PARA CHATEAR
-                    <MessageSquare className="w-6 h-6 group-hover:rotate-12 transition-transform" />
+                    <MessageSquare className="w-5 h-5 sm:w-6 sm:h-6 group-hover:rotate-12 transition-transform" />
                   </span>
                   {/* Efecto de brillo */}
                   <div className="absolute inset-0 rounded-2xl bg-gradient-to-r from-white/0 via-white/25 to-white/0 opacity-0 group-hover:opacity-100 group-hover:animate-shimmer"></div>
@@ -333,7 +353,7 @@ const LobbyPage = () => {
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
               transition={{ delay: 0.6 }}
-              className="grid grid-cols-2 md:grid-cols-4 gap-4 max-w-4xl mx-auto mb-8"
+              className="grid grid-cols-2 sm:grid-cols-4 gap-3 sm:gap-4 max-w-4xl mx-auto mb-12 sm:mb-16"
             >
               {[
                 { emoji: '🐻', name: 'Osos', count: '15', gradient: 'from-orange-500 to-red-500' },
@@ -346,11 +366,14 @@ const LobbyPage = () => {
                   initial={{ opacity: 0, y: 20 }}
                   animate={{ opacity: 1, y: 0 }}
                   transition={{ delay: 0.7 + index * 0.1 }}
-                  className={`glass-effect p-4 rounded-xl border border-border transition-all ${
+                  className={`glass-effect p-4 sm:p-5 rounded-xl border border-border transition-all ${
                     user && !user.isAnonymous && !user.isGuest 
-                      ? 'hover:border-accent/50 cursor-pointer hover:scale-105' 
+                      ? 'hover:border-accent/50 cursor-pointer hover:scale-105 active:scale-95 focus:outline-none focus:ring-2 focus:ring-accent/30' 
                       : 'cursor-default'
                   }`}
+                  tabIndex={user && !user.isAnonymous && !user.isGuest ? 0 : -1}
+                  role={user && !user.isAnonymous && !user.isGuest ? "button" : undefined}
+                  aria-label={user && !user.isAnonymous && !user.isGuest ? `Ver sala ${sala.name}` : undefined}
                   onClick={() => {
                     // Solo permitir clic si el usuario está registrado
                     if (user && !user.isAnonymous && !user.isGuest) {
@@ -412,10 +435,10 @@ const LobbyPage = () => {
             initial={{ opacity: 0, y: -20 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.5 }}
-            className="text-center mb-8 px-4"
+            className="text-center mb-10 sm:mb-12 px-4 pt-8 sm:pt-12"
           >
-            <h2 className="text-3xl md:text-4xl font-bold mb-2">Bienvenido de vuelta</h2>
-            <p className="text-lg md:text-xl text-muted-foreground max-w-3xl mx-auto">¿Qué quieres hacer hoy?</p>
+            <h2 className="text-2xl sm:text-3xl md:text-4xl font-bold mb-3 sm:mb-4">Bienvenido de vuelta</h2>
+            <p className="text-base sm:text-lg md:text-xl text-muted-foreground max-w-3xl mx-auto leading-relaxed">¿Qué quieres hacer hoy?</p>
           </motion.div>
         )}
 
@@ -426,12 +449,12 @@ const LobbyPage = () => {
           <GlobalStats />
         )}
 
-        {/* Ad Carousel - Solo visible para usuarios autenticados (no anónimos/invitados) */}
-        {user && !user.isAnonymous && !user.isGuest && (
+        {/* TEMPORALMENTE COMENTADO - Ad Carousel - Solo visible para usuarios autenticados (no anónimos/invitados) */}
+        {/* {user && !user.isAnonymous && !user.isGuest && (
           <AdCarousel onAdClick={handleAdClick} />
-        )}
+        )} */}
 
-        <div className="px-4 py-8">
+        <div className="px-4 sm:px-6 lg:px-8 py-10 sm:py-12 lg:py-16">
           <motion.div
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
@@ -439,17 +462,17 @@ const LobbyPage = () => {
             className="max-w-7xl mx-auto"
           >
             {/* Título de sección */}
-            <div className="text-center mb-12">
-              <h2 className="text-3xl md:text-4xl font-bold mb-3 bg-gradient-to-r from-cyan-400 via-purple-400 to-pink-400 light:from-cyan-600 light:via-purple-600 light:to-pink-600 bg-clip-text text-transparent">
+            <div className="text-center mb-10 sm:mb-14 lg:mb-16">
+              <h2 className="text-2xl sm:text-3xl md:text-4xl lg:text-5xl font-bold mb-4 sm:mb-6 bg-gradient-to-r from-cyan-400 via-purple-400 to-pink-400 light:from-cyan-600 light:via-purple-600 light:to-pink-600 bg-clip-text text-transparent leading-tight">
                 Explora Chactivo
               </h2>
-              <p className="text-lg text-gray-400 light:text-gray-600">
+              <p className="text-base sm:text-lg md:text-xl text-gray-400 light:text-gray-600 max-w-2xl mx-auto leading-relaxed px-4">
                 Conecta, chatea y descubre la comunidad gay más activa de Chile
               </p>
             </div>
 
             {/* Grid jerárquico con card principal destacada */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6 mb-16">
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-6 mb-12 sm:mb-16">
               {cardData.map((card, index) => (
                 <FeatureCard
                   key={card.id}
@@ -481,8 +504,8 @@ const LobbyPage = () => {
       {activeModal === 'SaludMentalModal' && <SaludMentalModal isOpen={true} onClose={closeModal} />}
       {activeModal === 'AjustesModal' && <AjustesModal isOpen={true} onClose={closeModal} />}
 
-      {/* Modal de anuncio */}
-      <AdModal ad={selectedAd} isOpen={showAdModal} onClose={closeAdModal} />
+      {/* TEMPORALMENTE COMENTADO - Modal de anuncio */}
+      {/* <AdModal ad={selectedAd} isOpen={showAdModal} onClose={closeAdModal} /> */}
 
       {/* Modal de autenticación requerida */}
       <Dialog open={showAuthRequired} onOpenChange={setShowAuthRequired}>
