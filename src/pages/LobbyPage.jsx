@@ -183,7 +183,7 @@ const LobbyPage = () => {
       modal: 'RoomsModal',
       variant: "primary",
       badge: "Activo",
-      stats: { label: `${calculateTotalUsers()} personas conectadas`, icon: Users },
+      stats: { label: `🔥 Hay conversación activa ahora`, icon: Users },
       accentColor: "cyan"
     },
     {

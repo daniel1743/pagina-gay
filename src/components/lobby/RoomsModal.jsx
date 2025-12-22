@@ -147,22 +147,20 @@ const RoomsModal = ({ isOpen, onClose }) => {
                     {room.description}
                   </p>
 
-                  {/* Contador de Usuarios */}
+                  {/* ✅ Cambiado: De contador a acción inmediata */}
                   <div className="flex items-center justify-between mt-auto pt-2 border-t border-border">
                     <div className="flex items-center gap-2">
-                      <Users className={`w-4 h-4 ${colorClasses[room.color]}`} />
+                      <span className="text-lg">🔥</span>
                       <span className={`text-sm font-bold ${colorClasses[room.color]}`}>
-                        {userCount} {userCount === 1 ? 'conectado' : 'conectados'}
+                        {userCount > 0 ? 'Hay conversación activa' : 'Únete y rompe el hielo'}
                       </span>
                     </div>
 
-                    {/* Indicador de actividad */}
-                    {userCount > 0 && (
-                      <div className="flex items-center gap-1">
-                        <div className="w-2 h-2 rounded-full bg-green-500 animate-pulse"></div>
-                        <span className="text-xs text-green-500 font-medium">Activo</span>
-                      </div>
-                    )}
+                    {/* Indicador de actividad - siempre visible */}
+                    <div className="flex items-center gap-1">
+                      <div className="w-2 h-2 rounded-full bg-green-500 animate-pulse"></div>
+                      <span className="text-xs text-green-500 font-medium">Entra ahora</span>
+                    </div>
                   </div>
                 </motion.div>
               );

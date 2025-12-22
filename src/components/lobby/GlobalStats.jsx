@@ -54,53 +54,50 @@ const GlobalStats = () => {
 
         {/* Stats Grid */}
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4 sm:gap-6">
-          {/* Total de Usuarios Online */}
+          {/* ✅ Cambiado: De estadísticas a acción inmediata */}
           <motion.div
             whileHover={{ scale: 1.02 }}
             className="flex items-center gap-3 sm:gap-4 p-4 sm:p-5 rounded-xl bg-gradient-to-r from-blue-500/10 to-cyan-500/10 border border-blue-500/20"
           >
             <div className="p-3 rounded-full bg-blue-500/20">
-              <Users className="w-8 h-8 text-blue-400" />
+              <span className="text-3xl">🔥</span>
             </div>
             <div className="flex-1 min-w-0">
-              <p className="text-xs sm:text-sm text-muted-foreground mb-1">Usuarios Conectados</p>
-              <p className="text-2xl sm:text-3xl font-bold text-blue-400">
-                <AnimatedNumber value={totalUsers} duration={1200} />
+              <p className="text-lg sm:text-xl font-bold text-blue-400 mb-1">
+                Hay conversación activa ahora
               </p>
               <div className="flex items-center gap-1 mt-1 sm:mt-2">
                 <div className="w-2 h-2 rounded-full bg-green-500 animate-pulse"></div>
-                <span className="text-xs text-green-500 font-medium">En línea ahora</span>
+                <span className="text-xs text-green-500 font-medium">Únete y empieza a chatear</span>
               </div>
             </div>
           </motion.div>
 
-          {/* Sala Más Concurrida */}
+          {/* ✅ Cambiado: De estadísticas a acción inmediata */}
           <motion.div
             whileHover={{ scale: 1.02 }}
             className="flex items-center gap-3 sm:gap-4 p-4 sm:p-5 rounded-xl bg-gradient-to-r from-purple-500/10 to-pink-500/10 border border-purple-500/20"
           >
             <div className="p-3 rounded-full bg-purple-500/20">
-              <TrendingUp className="w-8 h-8 text-purple-400" />
+              <span className="text-3xl">💬</span>
             </div>
             <div className="flex-1 min-w-0">
-              <p className="text-xs sm:text-sm text-muted-foreground mb-1">Sala Más Concurrida</p>
-              <p className="text-lg sm:text-xl font-bold text-purple-400 truncate">
-                {mostActiveRoom?.name || 'Sin salas activas'}
+              <p className="text-lg sm:text-xl font-bold text-purple-400 mb-1">
+                Únete y empieza a chatear en segundos
               </p>
               <div className="flex items-center gap-2 mt-1 sm:mt-2">
-                <Users className="w-3 h-3 sm:w-4 sm:h-4 text-pink-400 flex-shrink-0" />
-                <span className="text-xs sm:text-sm font-semibold text-pink-400 truncate">
-                  <AnimatedNumber value={mostActiveCount} duration={1000} /> personas chateando
+                <span className="text-xs sm:text-sm font-semibold text-pink-400">
+                  {mostActiveRoom?.name ? `Sala activa: ${mostActiveRoom.name}` : 'Elige una sala y comienza'}
                 </span>
               </div>
             </div>
           </motion.div>
         </div>
 
-        {/* Top 3 Salas */}
+        {/* ✅ Cambiado: De Top 3 a llamados a la acción */}
         <div className="mt-6 sm:mt-8 pt-6 sm:pt-8 border-t border-border">
           <p className="text-xs sm:text-sm text-muted-foreground mb-4 sm:mb-5 text-center font-semibold">
-            🔥 Top 3 Salas Más Activas
+            🚀 Salas Disponibles
           </p>
 
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 sm:gap-4">
@@ -110,7 +107,7 @@ const GlobalStats = () => {
                 initial={{ opacity: 0, x: -20 }}
                 animate={{ opacity: 1, x: 0 }}
                 transition={{ delay: index * 0.1 }}
-                className="flex items-center gap-3 p-3 rounded-lg bg-gradient-to-r from-primary/5 to-primary/10 border border-primary/10"
+                className="flex items-center gap-3 p-3 rounded-lg bg-gradient-to-r from-primary/5 to-primary/10 border border-primary/10 hover:border-primary/30 transition-all cursor-pointer"
               >
                 <div
                   className={`flex items-center justify-center w-8 h-8 rounded-full ${
@@ -126,12 +123,9 @@ const GlobalStats = () => {
 
                 <div className="flex-1 min-w-0">
                   <p className="text-sm font-semibold truncate">{room.name}</p>
-                  <div className="flex items-center gap-1">
-                    <Users className="w-3 h-3 text-primary" />
-                    <span className="text-xs text-green-400 font-medium">
-                      <AnimatedNumber value={room.count} duration={900} /> activos
-                    </span>
-                  </div>
+                  <span className="text-xs text-green-400 font-medium">
+                    🔥 Entra ahora
+                  </span>
                 </div>
               </motion.div>
             ))}
