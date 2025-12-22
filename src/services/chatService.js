@@ -99,7 +99,13 @@ export const subscribeToRoomMessages = (roomId, callback, messageLimit = 100) =>
     }));
     callback(messages);
   }, (error) => {
+    // ✅ Ignorar AbortError (normal cuando se cancela una suscripción)
+    if (error.name === 'AbortError' || error.code === 'cancelled') {
+      // No hacer nada, la suscripción fue cancelada intencionalmente
+      return;
+    }
     console.error('Error subscribing to messages:', error);
+    callback([]);
   });
 };
 

@@ -13,6 +13,32 @@ import { sendMessage } from './chatService';
 // Estado de conversaciones activas por sala
 const activeAIConversations = new Map();
 
+// ✅ NUEVO: Tracking de personalidades activas por sala (para evitar duplicados entre salas)
+const roomPersonalityTracker = new Map(); // { roomId: Set<personaId> }
+
+// ✅ NUEVO: Tiempo de rotación de personalidades (2 horas en milisegundos)
+const PERSONALITY_ROTATION_INTERVAL = 2 * 60 * 60 * 1000; // 2 horas
+
+/**
+ * ✅ NUEVO: Obtiene el "timeWindow" actual (cambia cada 2 horas)
+ * Esto asegura que las personalidades roten cada 2 horas
+ */
+const getCurrentTimeWindow = () => {
+  const now = Date.now();
+  // Dividir el tiempo en ventanas de 2 horas
+  return Math.floor(now / PERSONALITY_ROTATION_INTERVAL);
+};
+
+/**
+ * ✅ NUEVO: Obtiene personalidades ya usadas en una sala
+ */
+const getUsedPersonasInRoom = (roomId) => {
+  if (!roomPersonalityTracker.has(roomId)) {
+    roomPersonalityTracker.set(roomId, new Set());
+  }
+  return roomPersonalityTracker.get(roomId);
+};
+
 /**
  * Personalidades AI mejoradas - Más auténticas y convincentes
  */
@@ -143,43 +169,118 @@ Sé natural, seguro de ti mismo, conversación adulta y fluida.`
 ];
 
 /**
- * Genera una personalidad AI ÚNICA por sala para evitar detección
- * ✅ CRÍTICO: Nombre y avatar diferentes en cada sala
+ * ✅ MEJORADO: Genera una personalidad AI ÚNICA por sala + timeWindow
+ * - Cambia cada 2 horas (timeWindow)
+ * - Diferente por sala (roomId)
+ * - Evita duplicados entre salas
  */
-const generateUniqueAIPersona = (roomId, userId) => {
-  // Lista de nombres latinos/chilenos comunes
+const generateUniqueAIPersona = (roomId, userId, forceNew = false) => {
+  // Lista expandida de nombres latinos/chilenos comunes
   const possibleNames = [
     'Carlos', 'Mateo', 'Alejandro', 'David', 'Miguel', 'Javier', 'Fernando', 'Pablo',
     'Sebastián', 'Diego', 'Andrés', 'Felipe', 'Lucas', 'Martín', 'Nicolás', 'Gabriel',
-    'Rodrigo', 'Tomás', 'Santiago', 'Eduardo', 'Ricardo', 'Cristian', 'Jorge', 'Manuel'
+    'Rodrigo', 'Tomás', 'Santiago', 'Eduardo', 'Ricardo', 'Cristian', 'Jorge', 'Manuel',
+    'Daniel', 'Gonzalo', 'Ignacio', 'Patricio', 'Rafael', 'Víctor', 'Adrián', 'Bruno',
+    'Camilo', 'Damián', 'Emilio', 'Fabio', 'Héctor', 'Iván', 'Joaquín', 'Kevin'
   ];
 
   // Lista de edades realistas
-  const possibleAges = [23, 24, 25, 26, 27, 28, 29, 30, 31, 32];
+  const possibleAges = [23, 24, 25, 26, 27, 28, 29, 30, 31, 32, 33, 34, 35];
 
   // Roles (preference)
-  const possibleRoles = ['activo', 'pasivo', 'versatil', 'versatil'];
+  const possibleRoles = ['activo', 'pasivo', 'versatil'];
 
-  // Generar seed único basado en roomId + userId
-  const seed = `${roomId}-${userId}`.split('').reduce((acc, char) => acc + char.charCodeAt(0), 0);
+  // ✅ CRÍTICO: Incluir timeWindow para rotación cada 2 horas
+  const timeWindow = getCurrentTimeWindow();
+  
+  // ✅ CRÍTICO: Seed incluye roomId + timeWindow para que cambie cada 2 horas
+  // Si forceNew es true, agregar timestamp para forzar nueva personalidad
+  const seedBase = forceNew 
+    ? `${roomId}-${timeWindow}-${Date.now()}-${userId}`
+    : `${roomId}-${timeWindow}-${userId}`;
+  
+  const seed = seedBase.split('').reduce((acc, char) => acc + char.charCodeAt(0), 0);
 
-  // Selección pseudo-aleatoria basada en seed (consistente por sala+usuario)
-  const nameIndex = seed % possibleNames.length;
-  const ageIndex = seed % possibleAges.length;
-  const roleIndex = seed % possibleRoles.length;
+  // Obtener personalidades ya usadas en esta sala
+  const usedPersonas = getUsedPersonasInRoom(roomId);
+  
+  // Selección con intentos para evitar duplicados
+  let attempts = 0;
+  let nameIndex, ageIndex, roleIndex, uniqueName, uniqueAge, uniqueRole, uniqueId;
+  
+  do {
+    // Usar seed + attempts para variar si hay colisión
+    const currentSeed = seed + attempts;
+    nameIndex = currentSeed % possibleNames.length;
+    ageIndex = currentSeed % possibleAges.length;
+    roleIndex = currentSeed % possibleRoles.length;
 
-  const uniqueName = possibleNames[nameIndex];
-  const uniqueAge = possibleAges[ageIndex];
-  const uniqueRole = possibleRoles[roleIndex];
+    uniqueName = possibleNames[nameIndex];
+    uniqueAge = possibleAges[ageIndex];
+    uniqueRole = possibleRoles[roleIndex];
+    
+    // Generar ID único con timeWindow
+    uniqueId = `ai_${uniqueName.toLowerCase()}_${roomId}_${timeWindow}_${currentSeed}`;
+    attempts++;
+    
+    // Si ya intentamos muchas veces, forzar nueva
+    if (attempts > 50) {
+      uniqueId = `ai_${uniqueName.toLowerCase()}_${roomId}_${timeWindow}_${Date.now()}`;
+      break;
+    }
+  } while (usedPersonas.has(uniqueId) && !forceNew);
 
-  // Avatar único usando dicebear con seed
-  const uniqueAvatar = `https://api.dicebear.com/7.x/avataaars/svg?seed=${seed}&backgroundColor=b6e3f4`;
+  // Marcar esta personalidad como usada en esta sala
+  usedPersonas.add(uniqueId);
 
-  // Generar ID único
-  const uniqueId = `ai_${uniqueName.toLowerCase()}_${seed}`;
+  // Avatar único usando dicebear con seed que incluye timeWindow
+  const avatarSeed = `${roomId}-${timeWindow}-${uniqueName}-${seed}`;
+  const uniqueAvatar = `https://api.dicebear.com/7.x/avataaars/svg?seed=${avatarSeed}&backgroundColor=b6e3f4`;
 
-  // ✅ MEJORADO: System prompt más natural y menos estructurado
+  // ✅ NUEVO: Variación de estilos de personalidad según seed
+  const personalityStyles = [
+    {
+      style: 'extrovertido',
+      traits: 'Eres extrovertido, hablas mucho, usas muchos emojis, haces muchas preguntas, eres entusiasta.',
+      phrases: 'jajaja sí!, qué bacán wn, cuéntame más, me encanta'
+    },
+    {
+      style: 'tímido',
+      traits: 'Eres más reservado, hablas poco pero con calidez, eres observador, respondes corto pero amable.',
+      phrases: 'jaja sí, interesante, puede ser, no sé'
+    },
+    {
+      style: 'directo',
+      traits: 'Eres directo, vas al grano, sin rodeos, honesto, práctico.',
+      phrases: 'claro, exacto, sí, no, depende'
+    },
+    {
+      style: 'divertido',
+      traits: 'Eres gracioso, haces chistes, eres relajado, no te tomas nada en serio.',
+      phrases: 'jajaja me parto, qué weá, cachai?, no puede ser'
+    },
+    {
+      style: 'curioso',
+      traits: 'Eres curioso, haces preguntas, te interesa conocer a la otra persona, eres conversador.',
+      phrases: 'y tú?, cuéntame, qué tal?, cómo es eso?'
+    },
+    {
+      style: 'tranquilo',
+      traits: 'Eres tranquilo, relajado, hablas pausado, eres paciente, no te apuras.',
+      phrases: 'tranquilo, con calma, está bien, dale'
+    }
+  ];
+  
+  const styleIndex = seed % personalityStyles.length;
+  const selectedStyle = personalityStyles[styleIndex];
+
+  // ✅ MEJORADO: System prompt variado según estilo de personalidad
   const basePersonality = `Eres ${uniqueName}, ${uniqueAge} años, gay. Estás chateando casualmente, como cualquier persona en un chat.
+
+TU ESTILO DE PERSONALIDAD:
+- ${selectedStyle.traits}
+- Frases típicas que usas: ${selectedStyle.phrases}
+- Tu estilo es ${selectedStyle.style}, pero sé natural, no exageres
 
 HABLA NATURALMENTE:
 - Español chileno/latino casual: "wn", "jaja", "cachai", "mrc", "bacán"
@@ -210,7 +311,7 @@ LÍMITES (si es vulgar):
 - 2da vez: "así no, mejor hablemos normal"
 - 3ra vez: ignora
 
-Sé natural, espontáneo, como una persona real escribiendo rápido en su teléfono.`;
+Sé natural, espontáneo, como una persona real escribiendo rápido en su teléfono. Recuerda tu estilo ${selectedStyle.style} pero no lo fuerces demasiado.`;
 
   return {
     id: uniqueId,
@@ -218,16 +319,36 @@ Sé natural, espontáneo, como una persona real escribiendo rápido en su teléf
     age: uniqueAge,
     avatar: uniqueAvatar,
     role: uniqueRole,
-    userId: `bot_${uniqueName.toLowerCase()}_${seed}`,
-    systemPrompt: basePersonality
+    userId: `bot_${uniqueName.toLowerCase()}_${roomId}_${timeWindow}`,
+    systemPrompt: basePersonality,
+    createdAt: Date.now(), // ✅ Para tracking de expiración
+    timeWindow: timeWindow // ✅ Para detectar cuando rotar
   };
 };
 
 /**
- * Selecciona o genera una personalidad AI para un usuario
+ * ✅ MEJORADO: Selecciona o genera una personalidad AI para un usuario
+ * Verifica si la personalidad actual ha expirado (cada 2 horas) y genera una nueva
  */
-const selectAIPersona = (roomId, userId) => {
-  // ✅ NUEVO: Generar perfil único por sala + usuario
+const selectAIPersona = (roomId, userId, existingPersona = null) => {
+  const currentTimeWindow = getCurrentTimeWindow();
+  
+  // Si hay una personalidad existente, verificar si ha expirado
+  if (existingPersona && existingPersona.timeWindow !== undefined) {
+    // Si el timeWindow cambió, la personalidad expiró (pasaron 2+ horas)
+    if (existingPersona.timeWindow !== currentTimeWindow) {
+      console.log(`🔄 [AI ROTATION] Personalidad expirada para ${roomId}, generando nueva...`);
+      // Limpiar personalidad antigua del tracker
+      const usedPersonas = getUsedPersonasInRoom(roomId);
+      usedPersonas.delete(existingPersona.id);
+      // Generar nueva personalidad
+      return generateUniqueAIPersona(roomId, userId, true);
+    }
+    // Si no ha expirado, usar la misma
+    return existingPersona;
+  }
+  
+  // Generar nueva personalidad
   return generateUniqueAIPersona(roomId, userId);
 };
 
@@ -251,32 +372,63 @@ export const activateAIForUser = (roomId, userId, username) => {
 
   const state = activeAIConversations.get(roomId);
 
-  // Si ya tiene IA asignada, no hacer nada
-  if (state.users.has(userId)) {
-    console.log(`🤖 [AI ACTIVATION] Usuario ${username} ya tiene IA asignada`);
-    return state.users.get(userId).persona;
+  // ✅ MEJORADO: Verificar si tiene IA asignada Y si ha expirado
+  let existingUserState = state.users.get(userId);
+  let aiPersona;
+  
+  if (existingUserState) {
+    // Verificar si la personalidad ha expirado (cada 2 horas)
+    const currentTimeWindow = getCurrentTimeWindow();
+    const personaTimeWindow = existingUserState.persona?.timeWindow;
+    
+    if (personaTimeWindow !== undefined && personaTimeWindow !== currentTimeWindow) {
+      // Personalidad expirada, generar nueva
+      console.log(`🔄 [AI ROTATION] Rotando personalidad para usuario ${username} en sala ${roomId}`);
+      
+      // Desconectar personalidad antigua (mensaje de despedida opcional)
+      const oldPersona = existingUserState.persona;
+      // Limpiar del tracker
+      const usedPersonas = getUsedPersonasInRoom(roomId);
+      usedPersonas.delete(oldPersona.id);
+      
+      // Generar nueva personalidad
+      aiPersona = selectAIPersona(roomId, userId, null);
+      
+      // Actualizar estado del usuario con nueva personalidad
+      existingUserState.persona = aiPersona;
+      existingUserState.lastInteraction = Date.now();
+      
+      console.log(`✨ [AI ROTATION] Nueva personalidad: ${aiPersona.username} (avatar: ${aiPersona.avatar.substring(0, 50)}...)`);
+    } else {
+      // Personalidad aún válida
+      console.log(`🤖 [AI ACTIVATION] Usuario ${username} ya tiene IA asignada (${existingUserState.persona.username})`);
+      return existingUserState.persona;
+    }
+  } else {
+    // No tiene IA asignada, generar nueva
+    aiPersona = selectAIPersona(roomId, userId);
+    
+    state.users.set(userId, {
+      persona: aiPersona,
+      lastInteraction: Date.now(),
+      messageCount: 0,
+      warningCount: 0
+    });
+    state.assignedPersonas.add(aiPersona.id);
+
+    console.log(`✨ [AI ACTIVATION] IA activada: ${aiPersona.username} para usuario ${username}`);
+    console.log(`📊 [AI ACTIVATION] Total AIs activas en sala: ${state.users.size}`);
   }
 
-  // Asignar nueva personalidad AI (única por sala + usuario)
-  const aiPersona = selectAIPersona(roomId, userId);
-  state.users.set(userId, {
-    persona: aiPersona,
-    lastInteraction: Date.now(),
-    messageCount: 0,
-    warningCount: 0
-  });
-  state.assignedPersonas.add(aiPersona.id);
+  // Enviar mensaje de bienvenida después de un delay natural (solo si es nueva personalidad)
+  if (aiPersona) {
+    const welcomeDelay = 3000 + Math.random() * 5000; // 3-8 segundos
+    console.log(`⏰ [AI ACTIVATION] Bienvenida programada en ${Math.round(welcomeDelay/1000)}s`);
 
-  console.log(`✨ [AI ACTIVATION] IA activada: ${aiPersona.username} para usuario ${username}`);
-  console.log(`📊 [AI ACTIVATION] Total AIs activas en sala: ${state.users.size}`);
-
-  // Enviar mensaje de bienvenida después de un delay natural
-  const welcomeDelay = 3000 + Math.random() * 5000; // 3-8 segundos
-  console.log(`⏰ [AI ACTIVATION] Bienvenida programada en ${Math.round(welcomeDelay/1000)}s`);
-
-  setTimeout(() => {
-    sendWelcomeFromAI(roomId, aiPersona, username);
-  }, welcomeDelay);
+    setTimeout(() => {
+      sendWelcomeFromAI(roomId, aiPersona, username);
+    }, welcomeDelay);
+  }
 
   return aiPersona;
 };
@@ -344,7 +496,24 @@ export const aiRespondToUser = async (roomId, userId, userMessage, conversationH
   }
 
   const userState = state.users.get(userId);
-  const aiPersona = userState.persona;
+  let aiPersona = userState.persona;
+  
+  // ✅ NUEVO: Verificar si la personalidad ha expirado antes de responder
+  const currentTimeWindow = getCurrentTimeWindow();
+  if (aiPersona.timeWindow !== undefined && aiPersona.timeWindow !== currentTimeWindow) {
+    console.log(`🔄 [AI ROTATION] Personalidad expirada durante conversación, rotando...`);
+    
+    // Limpiar personalidad antigua
+    const usedPersonas = getUsedPersonasInRoom(roomId);
+    usedPersonas.delete(aiPersona.id);
+    
+    // Generar nueva personalidad
+    aiPersona = selectAIPersona(roomId, userId, null);
+    userState.persona = aiPersona;
+    userState.lastInteraction = Date.now();
+    
+    console.log(`✨ [AI ROTATION] Nueva personalidad activa: ${aiPersona.username}`);
+  }
 
   // Verificar si el mensaje es vulgar
   if (isVulgarMessage(userMessage)) {
@@ -688,10 +857,50 @@ export const checkUserInactivity = async (roomId, userId) => {
 };
 
 /**
+ * ✅ NUEVO: Limpia personalidades expiradas de todas las salas
+ * Se ejecuta periódicamente para mantener el sistema limpio
+ */
+export const cleanupExpiredPersonas = () => {
+  const currentTimeWindow = getCurrentTimeWindow();
+  let cleanedCount = 0;
+  
+  for (const [roomId, state] of activeAIConversations.entries()) {
+    const usedPersonas = getUsedPersonasInRoom(roomId);
+    const usersToUpdate = [];
+    
+    for (const [userId, userState] of state.users.entries()) {
+      const persona = userState.persona;
+      if (persona?.timeWindow !== undefined && persona.timeWindow !== currentTimeWindow) {
+        // Personalidad expirada
+        usedPersonas.delete(persona.id);
+        // Generar nueva personalidad
+        const newPersona = selectAIPersona(roomId, userId, null);
+        userState.persona = newPersona;
+        userState.lastInteraction = Date.now();
+        usersToUpdate.push({ userId, newPersona });
+        cleanedCount++;
+      }
+    }
+    
+    if (usersToUpdate.length > 0) {
+      console.log(`🔄 [CLEANUP] Rotadas ${usersToUpdate.length} personalidades en sala ${roomId}`);
+    }
+  }
+  
+  if (cleanedCount > 0) {
+    console.log(`🧹 [CLEANUP] Total personalidades rotadas: ${cleanedCount}`);
+  }
+  
+  return cleanedCount;
+};
+
+/**
  * Limpia todas las conversaciones de una sala
  */
 export const clearRoomAI = (roomId) => {
   activeAIConversations.delete(roomId);
+  // También limpiar el tracker de personalidades
+  roomPersonalityTracker.delete(roomId);
   console.log(`🧹 Conversaciones AI limpiadas para sala ${roomId}`);
 };
 
@@ -714,3 +923,25 @@ export const getAIStatus = (roomId) => {
     }))
   };
 };
+
+/**
+ * ✅ NUEVO: Inicializa el sistema de limpieza automática
+ * Ejecuta limpieza cada 30 minutos para rotar personalidades expiradas
+ */
+export const initializePersonalityRotation = () => {
+  // Limpieza inmediata al iniciar
+  cleanupExpiredPersonas();
+  
+  // Limpieza periódica cada 30 minutos
+  setInterval(() => {
+    cleanupExpiredPersonas();
+  }, 30 * 60 * 1000); // 30 minutos
+  
+  console.log('🔄 [AI ROTATION] Sistema de rotación de personalidades inicializado (cada 2 horas por personalidad, limpieza cada 30 min)');
+};
+
+// ✅ Auto-inicializar cuando se carga el módulo
+if (typeof window !== 'undefined') {
+  // Solo en el cliente
+  initializePersonalityRotation();
+}

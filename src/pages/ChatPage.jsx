@@ -183,8 +183,22 @@ const ChatPage = () => {
 
     // Guardar funciones de desuscripción
     unsubscribeRef.current = () => {
-      unsubscribeMessages();
-      unsubscribeUsers();
+      try {
+        unsubscribeMessages();
+      } catch (error) {
+        // Ignorar errores de cancelación (AbortError es normal)
+        if (error.name !== 'AbortError' && error.code !== 'cancelled') {
+          console.error('Error canceling message subscription:', error);
+        }
+      }
+      try {
+        unsubscribeUsers();
+      } catch (error) {
+        // Ignorar errores de cancelación (AbortError es normal)
+        if (error.name !== 'AbortError' && error.code !== 'cancelled') {
+          console.error('Error canceling user subscription:', error);
+        }
+      }
     };
 
     // Toast de bienvenida
@@ -197,8 +211,14 @@ const ChatPage = () => {
     return () => {
       if (unsubscribeRef.current) {
         unsubscribeRef.current();
+        unsubscribeRef.current = null; // Limpiar referencia
       }
-      leaveRoom(roomId);
+      leaveRoom(roomId).catch(error => {
+        // Ignorar errores al salir de la sala
+        if (error.name !== 'AbortError' && error.code !== 'cancelled') {
+          console.error('Error leaving room:', error);
+        }
+      });
     };
   }, [roomId, user]);
 

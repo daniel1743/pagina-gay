@@ -73,6 +73,11 @@ export const subscribeToRoomUserCount = (roomId, callback) => {
   return onSnapshot(usersRef, (snapshot) => {
     callback(snapshot.size);
   }, (error) => {
+    // ✅ Ignorar AbortError (normal cuando se cancela una suscripción)
+    if (error.name === 'AbortError' || error.code === 'cancelled') {
+      // No hacer nada, la suscripción fue cancelada intencionalmente
+      return;
+    }
     console.error('Error subscribing to room users:', error);
     callback(0);
   });
@@ -94,6 +99,11 @@ export const subscribeToRoomUsers = (roomId, callback) => {
     }));
     callback(users);
   }, (error) => {
+    // ✅ Ignorar AbortError (normal cuando se cancela una suscripción)
+    if (error.name === 'AbortError' || error.code === 'cancelled') {
+      // No hacer nada, la suscripción fue cancelada intencionalmente
+      return;
+    }
     console.error('Error subscribing to room users:', error);
     callback([]);
   });
@@ -116,6 +126,11 @@ export const subscribeToMultipleRoomCounts = (roomIds, callback) => {
       counts[roomId] = snapshot.size;
       callback({ ...counts });
     }, (error) => {
+      // ✅ Ignorar AbortError (normal cuando se cancela una suscripción)
+      if (error.name === 'AbortError' || error.code === 'cancelled') {
+        // No hacer nada, la suscripción fue cancelada intencionalmente
+        return;
+      }
       console.error(`Error subscribing to room ${roomId}:`, error);
       counts[roomId] = 0;
       callback({ ...counts });
