@@ -6,8 +6,8 @@
  */
 
 const GEMINI_API_KEY = import.meta.env.VITE_GEMINI_API_KEY;
-// Modelo Gemini 1.5 Flash (rápido y eficiente para respuestas cortas)
-const GEMINI_API_URL = 'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent';
+// Modelo Gemini 2.0 Flash Experimental (optimizado para conversaciones naturales y casuales)
+const GEMINI_API_URL = 'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash-exp:generateContent';
 
 // Validar API key de Gemini (solo si se intenta usar)
 export const validateGeminiConfig = () => {
@@ -225,21 +225,23 @@ export const generateBotResponse = async (botProfile, conversationHistory = [], 
         .join('\n');
     }
 
-    // CONSTRUCCIÓN DEL PROMPT CORREGIDA (Líneas 147 a 157)
-    // Se añade una instrucción fuerte para priorizar la respuesta al usuario real.
+    // PROMPT OPTIMIZADO PARA CONVERSACIÓN NATURAL
+    // Menos directivo, más contexto, límite claro de palabras
     const prompt = userMessage
-      ? `INSTRUCCIÓN CRÍTICA: Un usuario real acaba de escribir "${userMessage}". Tu RESPUESTA DEBE ser una interacción directa, natural y breve (máximo 2 frases) con ese mensaje, antes de intentar continuar el tema de conversación.
+      ? `${botProfile.username} está chateando casualmente en una sala gay.
+
+${userMessage ? `Alguien acaba de decir: "${userMessage}"` : ''}
 
 Conversación reciente:
 ${conversationContext}
 
-Último mensaje: ${userMessage}
+Responde como ${botProfile.username} con tu personalidad única. Mantén la conversación fluida y natural (máximo 20 palabras).`
+      : `${botProfile.username} está chateando casualmente en una sala gay.
 
-Responde como ${botProfile.username} de manera natural y breve (máximo 2 frases).`
-      : `Conversación reciente:
+Conversación reciente:
 ${conversationContext}
 
-Inicia o continúa la conversación como ${botProfile.username} de manera natural (máximo 2 frases).`;
+Inicia o continúa la conversación como ${botProfile.username}. Sé espontáneo y natural (máximo 20 palabras).`;
 
     // Llamada a Gemini API
     const response = await fetch(`${GEMINI_API_URL}?key=${GEMINI_API_KEY}`, {
@@ -258,11 +260,12 @@ Inicia o continúa la conversación como ${botProfile.username} de manera natura
           }
         ],
         generationConfig: {
-          temperature: 0.85,
-          topP: 0.9,
-          topK: 40,
-          maxOutputTokens: 400, // Aumentado: Gemini 2.5 usa muchos tokens en "thoughts"
+          temperature: 0.9,  // Aumentado: más creatividad y variabilidad
+          topP: 0.95,        // Aumentado: más variedad en respuestas
+          topK: 60,          // Aumentado: mayor pool de opciones
+          maxOutputTokens: 80, // Reducido: mensajes cortos y naturales (≈60 palabras máximo)
           candidateCount: 1,
+          stopSequences: ["\n\n", "Usuario:", "Pregunta:"] // Detener si empieza a divagar
         },
         safetySettings: SAFETY_SETTINGS
       })
@@ -325,13 +328,14 @@ export const generateInitialMessage = (botProfile) => {
 };
 
 /**
- * Calcula delay aleatorio para simular escritura humana
+ * Calcula delay aleatorio para simular escritura humana (OPTIMIZADO)
+ * Rango natural: 3-10 segundos (usuarios reales responden en 2-8 seg)
  *
  * @param {Number} min - Mínimo en segundos
  * @param {Number} max - Máximo en segundos
  * @returns {Number} - Delay en milisegundos
  */
-export const getRandomDelay = (min = 8, max = 20) => {
+export const getRandomDelay = (min = 3, max = 10) => {
   return (Math.random() * (max - min) + min) * 1000;
 };
 

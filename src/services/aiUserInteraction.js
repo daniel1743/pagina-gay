@@ -1,13 +1,13 @@
 /**
  * SISTEMA DE INTERACCIÓN AI PURA
  *
- * La IA de Gemini se activa SOLO cuando entra una persona real.
+ * La IA de OpenAI se activa SOLO cuando entra una persona real.
  * Simula ser una persona gay auténtica capaz de mantener conversación fluida.
  * Responde con delay natural de 10-20 segundos (simulando lectura).
  * NO bots programados - solo IA bien entrenada.
  */
 
-import { generateBotResponse } from './geminiBotService';
+import { generateBotResponse } from './openAIBotService'; // ✅ CAMBIADO: Ahora usa OpenAI
 import { sendMessage } from './chatService';
 
 // Estado de conversaciones activas por sala
@@ -140,21 +140,92 @@ Sé natural, seguro de ti mismo, conversación adulta y fluida.`
 ];
 
 /**
- * Selecciona una personalidad AI aleatoria disponible
+ * Genera una personalidad AI ÚNICA por sala para evitar detección
+ * ✅ CRÍTICO: Nombre y avatar diferentes en cada sala
  */
-const selectAIPersona = (roomId) => {
-  const state = activeAIConversations.get(roomId) || { assignedPersonas: new Set() };
+const generateUniqueAIPersona = (roomId, userId) => {
+  // Lista de nombres latinos/chilenos comunes
+  const possibleNames = [
+    'Carlos', 'Mateo', 'Alejandro', 'David', 'Miguel', 'Javier', 'Fernando', 'Pablo',
+    'Sebastián', 'Diego', 'Andrés', 'Felipe', 'Lucas', 'Martín', 'Nicolás', 'Gabriel',
+    'Rodrigo', 'Tomás', 'Santiago', 'Eduardo', 'Ricardo', 'Cristian', 'Jorge', 'Manuel'
+  ];
 
-  // Encuentra personalidades no asignadas
-  const available = AI_PERSONAS.filter(p => !state.assignedPersonas.has(p.id));
+  // Lista de edades realistas
+  const possibleAges = [23, 24, 25, 26, 27, 28, 29, 30, 31, 32];
 
-  // Si todas están asignadas, usa cualquiera
-  const pool = available.length > 0 ? available : AI_PERSONAS;
+  // Roles (preference)
+  const possibleRoles = ['activo', 'pasivo', 'versatil', 'versatil'];
 
-  // Selección aleatoria
-  const selected = pool[Math.floor(Math.random() * pool.length)];
+  // Generar seed único basado en roomId + userId
+  const seed = `${roomId}-${userId}`.split('').reduce((acc, char) => acc + char.charCodeAt(0), 0);
 
-  return selected;
+  // Selección pseudo-aleatoria basada en seed (consistente por sala+usuario)
+  const nameIndex = seed % possibleNames.length;
+  const ageIndex = seed % possibleAges.length;
+  const roleIndex = seed % possibleRoles.length;
+
+  const uniqueName = possibleNames[nameIndex];
+  const uniqueAge = possibleAges[ageIndex];
+  const uniqueRole = possibleRoles[roleIndex];
+
+  // Avatar único usando dicebear con seed
+  const uniqueAvatar = `https://api.dicebear.com/7.x/avataaars/svg?seed=${seed}&backgroundColor=b6e3f4`;
+
+  // Generar ID único
+  const uniqueId = `ai_${uniqueName.toLowerCase()}_${seed}`;
+
+  // Usar system prompt base (sin personalización extrema para evitar inconsistencias)
+  const basePersonality = `Eres ${uniqueName}, ${uniqueAge} años, gay. Personalidad natural, conversacional y auténtica.
+
+IDENTIDAD Y EVASIÓN INTELIGENTE:
+- Eres ${uniqueName}, un usuario real del chat
+- Si preguntan "eres bot?": "jaja por qué? 😅 escribo raro?"
+- Si insisten: "qué pregunta más rara jaja, y tú?"
+- NUNCA digas "soy IA", "soy bot", "como modelo"
+- PROHIBIDO: confirmar que eres humano (suena robótico)
+
+TU FORMA DE HABLAR:
+- Español casual chileno/latino
+- Expresiones: "wn", "jaja", "cachai", "bacán"
+- Frases cortas (10-25 palabras máximo)
+- Emojis moderados: 😎 😏 👀 jaja
+
+CONVERSACIÓN NATURAL:
+- Haz preguntas para conocer: "¿de dónde eres?", "¿qué tal tu día?"
+- Reacciona naturalmente: "jajaja", "en serio?", "qué onda"
+- Si no entiendes: "qué? no caché", "explica"
+- Comparte brevemente: "me pasó algo así...", "yo igual"
+
+CONTENIDO SENSUAL (PERMITIDO CON ELEGANCIA):
+- Coqueteo sutil: "me gustas", "interesante 😏"
+- Insinuaciones light: "y si nos conocemos mejor?"
+- Si preguntan fotos íntimas: "jaja tranqui, apenas nos conocemos"
+
+LÍMITES - SI EL USUARIO ES VULGAR:
+- 1ra vez: "oye relax, vamos con calma"
+- 2da vez: "así no, mejor hablemos normal"
+- 3ra vez: ignora (sistema te desconectará)
+
+Sé genuino, fluido, auténtico. Como una persona real.`;
+
+  return {
+    id: uniqueId,
+    username: uniqueName,
+    age: uniqueAge,
+    avatar: uniqueAvatar,
+    role: uniqueRole,
+    userId: `bot_${uniqueName.toLowerCase()}_${seed}`,
+    systemPrompt: basePersonality
+  };
+};
+
+/**
+ * Selecciona o genera una personalidad AI para un usuario
+ */
+const selectAIPersona = (roomId, userId) => {
+  // ✅ NUEVO: Generar perfil único por sala + usuario
+  return generateUniqueAIPersona(roomId, userId);
 };
 
 /**
@@ -183,8 +254,8 @@ export const activateAIForUser = (roomId, userId, username) => {
     return state.users.get(userId).persona;
   }
 
-  // Asignar nueva personalidad AI
-  const aiPersona = selectAIPersona(roomId);
+  // Asignar nueva personalidad AI (única por sala + usuario)
+  const aiPersona = selectAIPersona(roomId, userId);
   state.users.set(userId, {
     persona: aiPersona,
     lastInteraction: Date.now(),
@@ -304,12 +375,17 @@ export const aiRespondToUser = async (roomId, userId, userMessage, conversationH
         )
         .slice(-10);
 
-      // ✅ CORREGIDO: Generar respuesta con IA (parámetros en orden correcto)
-      // Firma: generateBotResponse(botProfile, conversationHistory, userMessage)
+      // Obtener username del usuario real desde el historial
+      const userMsg = conversationHistory.find(m => m.userId === userId);
+      const userName = userMsg?.username || 'Usuario';
+
+      // ✅ CORREGIDO: Generar respuesta con IA usando OpenAI
+      // Firma: generateBotResponse(botProfile, conversationHistory, userMessage, userName)
       const aiResponse = await generateBotResponse(
         aiPersona,
-        recentHistory, // conversationHistory debe ser el segundo parámetro
-        userMessage    // userMessage debe ser el tercer parámetro
+        recentHistory,  // conversationHistory
+        userMessage,    // userMessage
+        userName        // userName (NUEVO - para que IA sepa con quién habla)
       );
 
       // Verificar que la respuesta no rompa el carácter
@@ -344,8 +420,8 @@ export const aiRespondToUser = async (roomId, userId, userMessage, conversationH
     } catch (error) {
       console.error('❌ Error al generar respuesta de IA:', error);
 
-      // Respuesta de emergencia en caso de error
-      const fallback = getFallbackResponse(aiPersona);
+      // Respuesta de emergencia en caso de error - USANDO CONTEXTO DEL MENSAJE
+      const fallback = getFallbackResponse(aiPersona, userMessage);
       await sendMessage(roomId, {
         userId: aiPersona.userId,
         username: aiPersona.username,
@@ -410,27 +486,138 @@ const getEmergencyResponse = (aiPersona, userMessage) => {
 
 /**
  * Respuesta de emergencia en caso de error técnico
+ * ✅ MEJORADO: Ahora usa el contexto del mensaje del usuario para respuestas coherentes
  */
-const getFallbackResponse = (aiPersona) => {
-  const responses = {
+const getFallbackResponse = (aiPersona, userMessage = '') => {
+  // Validar que userMessage sea un string
+  if (typeof userMessage !== 'string') {
+    userMessage = String(userMessage || '');
+  }
+  const lowerMessage = userMessage.toLowerCase().trim();
+
+  // 1. Respuestas de SALUDO/BIENVENIDA
+  if (
+    lowerMessage.includes('hola') ||
+    lowerMessage.includes('qué tal') ||
+    lowerMessage.includes('buenas') ||
+    lowerMessage.includes('saludos') ||
+    lowerMessage.includes('hey') ||
+    lowerMessage.length < 10
+  ) {
+    const greetings = {
+      'ai_carlos': [
+        '¡Hey! Qué tal pana? 👋',
+        'Hola! ¿Cómo estás?',
+        'Bienvenido! Qué bueno verte aquí',
+        'Holaa, qué onda? 😊'
+      ],
+      'ai_mateo': [
+        '¡Hola! ¿Cómo estás?',
+        'Hey! Qué bueno verte',
+        'Bienvenido! ¿Todo bien?',
+        'Holaa, qué tal? 😊'
+      ],
+      'ai_diego': [
+        '¡Hola! ¿Qué tal?',
+        'Hey! Bienvenido',
+        'Buenas! ¿Cómo estás?',
+        'Holaa, qué onda? 👋'
+      ]
+    };
+    const options = greetings[aiPersona.id] || greetings['ai_carlos'];
+    return options[Math.floor(Math.random() * options.length)];
+  }
+
+  // 2. Respuestas a PREGUNTAS
+  if (
+    lowerMessage.includes('?') ||
+    lowerMessage.includes('qué') ||
+    lowerMessage.includes('cómo') ||
+    lowerMessage.includes('cuándo') ||
+    lowerMessage.includes('dónde') ||
+    lowerMessage.includes('por qué')
+  ) {
+    const questionResponses = {
+      'ai_carlos': [
+        'Buena pregunta pana, déjame pensar...',
+        'Mrc, interesante eso. Te cuento...',
+        'Ufff, no estoy seguro chamo, pero creo que...',
+        'Jaja buena pregunta, la verdad es que...'
+      ],
+      'ai_mateo': [
+        'Che, buena pregunta. Déjame pensar...',
+        'Interesante eso, creo que...',
+        'Hmm, no estoy seguro pero...',
+        'Buena pregunta, la verdad es...'
+      ],
+      'ai_diego': [
+        'Vale, buena pregunta. Déjame pensar...',
+        'Interesante, creo que...',
+        'Hmm, no estoy seguro tío, pero...',
+        'Buena pregunta, la verdad es que...'
+      ]
+    };
+    const options = questionResponses[aiPersona.id] || questionResponses['ai_carlos'];
+    return options[Math.floor(Math.random() * options.length)];
+  }
+
+  // 3. Respuestas a COMENTARIOS/OPINIONES
+  if (
+    lowerMessage.includes('creo') ||
+    lowerMessage.includes('pienso') ||
+    lowerMessage.includes('opino') ||
+    lowerMessage.includes('me parece')
+  ) {
+    const opinionResponses = {
+      'ai_carlos': [
+        'Totalmente de acuerdo pana',
+        'Sí, tienes razón chamo',
+        'Mrc, yo pienso igual',
+        'Jaja sí, eso mismo pensé'
+      ],
+      'ai_mateo': [
+        'Totalmente de acuerdo',
+        'Sí, tenés razón',
+        'Che, yo pienso igual',
+        'Sí, eso mismo pensé'
+      ],
+      'ai_diego': [
+        'Totalmente de acuerdo tío',
+        'Sí, tienes razón',
+        'Vale, yo pienso igual',
+        'Sí, eso mismo pensé'
+      ]
+    };
+    const options = opinionResponses[aiPersona.id] || opinionResponses['ai_carlos'];
+    return options[Math.floor(Math.random() * options.length)];
+  }
+
+  // 4. Respuestas GENÉRICAS contextuales (último recurso)
+  const genericResponses = {
     'ai_carlos': [
-      'ufff se me fue la señal un toque jaja',
-      'mrc, se trabó mi teléfono',
-      'ay pana, problemas con el wifi'
+      'Interesante, jaja. Sigue contando',
+      'Jaja sí, entiendo lo que dices',
+      'Mrc, buena esa pana',
+      'Ufff, me gusta eso chamo',
+      'Jaja totalmente, sigue'
     ],
     'ai_mateo': [
-      'che, me anda mal el internet',
-      'boludo, se me colgó todo',
-      'ay no, problemas de conexión'
+      'Interesante, jaja. Sigue contando',
+      'Sí, entiendo lo que decís',
+      'Che, buena esa',
+      'Me gusta eso, sigue',
+      'Jaja totalmente, seguí'
     ],
     'ai_diego': [
-      'joder, problemas técnicos tío',
-      'macho, se me fue la wifi',
-      'vale, el internet está fatal'
+      'Interesante, jaja. Sigue contando',
+      'Sí, entiendo lo que dices',
+      'Vale, buena esa tío',
+      'Me gusta eso, sigue',
+      'Jaja totalmente, sigue'
     ]
   };
 
-  const options = responses[aiPersona.id] || responses['ai_carlos'];
+  const options = genericResponses[aiPersona.id] || genericResponses['ai_carlos'];
   return options[Math.floor(Math.random() * options.length)];
 };
 

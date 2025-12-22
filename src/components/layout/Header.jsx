@@ -22,6 +22,13 @@ const Header = () => {
   const [isAdmin, setIsAdmin] = useState(false);
   const [showNotifications, setShowNotifications] = useState(false);
   const [unreadNotificationsCount, setUnreadNotificationsCount] = useState(0);
+  const [showBetaPulse, setShowBetaPulse] = useState(true);
+
+  // Desactivar animación del badge Beta después de 5 segundos
+  useEffect(() => {
+    const timer = setTimeout(() => setShowBetaPulse(false), 5000);
+    return () => clearTimeout(timer);
+  }, []);
 
   // Verificar si el usuario es admin (consulta Firestore si no está en user.role)
   useEffect(() => {
@@ -85,7 +92,7 @@ const Header = () => {
           </div>
           <div className="hidden sm:flex items-center gap-2">
             <h1 className="text-2xl font-bold text-foreground">Chactivo</h1>
-            <span className="px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider bg-gradient-to-r from-amber-400 to-orange-500 text-gray-900 rounded-md shadow-sm animate-pulse">
+            <span className={`px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider bg-gradient-to-r from-amber-400 to-orange-500 text-gray-900 rounded-md shadow-sm ${showBetaPulse ? 'animate-pulse' : ''}`}>
               Beta
             </span>
           </div>

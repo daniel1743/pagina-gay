@@ -13,7 +13,7 @@ import {
   getContextualDelay,
   containsOffensiveContent,
   generateModerationWarning
-} from './geminiBotService';
+} from './openAIBotService'; // ✅ CAMBIADO: Ahora usa OpenAI para interactuar con usuarios REALES
 import { sendMessage } from './chatService';
 import {
   schedulePeriodicConversations,

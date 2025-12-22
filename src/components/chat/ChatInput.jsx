@@ -281,7 +281,7 @@ const ChatInput = ({ onSendMessage }) => {
         <Input
           value={message}
           onChange={(e) => setMessage(e.target.value)}
-          placeholder={user.isGuest ? "Escribe hasta 3 mensajes..." : "Escribe un mensaje..."}
+          placeholder={user.isGuest ? "Escribe hasta 10 mensajes gratis..." : "Escribe un mensaje..."}
           className="flex-1 bg-secondary border-2 border-input rounded-lg px-4 py-2 text-foreground placeholder:text-muted-foreground focus:border-accent transition-all"
           aria-label="Campo de texto para escribir mensaje"
           maxLength={500}
