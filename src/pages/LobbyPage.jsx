@@ -345,7 +345,7 @@ const LobbyPage = () => {
 
   return (
     <>
-      <div className="w-full min-h-screen pt-20 pb-16 sm:pt-24 sm:pb-20">
+      <div className="w-full min-h-screen pt-16 pb-16 sm:pt-20 sm:pb-20">
         {/* 🔥 HERO SECTION - Solo visible para usuarios no registrados o invitados */}
         {showHeroSection && (
           <motion.section

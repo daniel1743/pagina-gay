@@ -502,7 +502,7 @@ const ChatPage = () => {
 
   return (
     <>
-      <div className="h-screen flex overflow-hidden bg-background pt-20">
+      <div className="h-screen flex overflow-hidden bg-background pt-16 sm:pt-20">
         <ChatSidebar
           currentRoom={currentRoom}
           setCurrentRoom={setCurrentRoom}

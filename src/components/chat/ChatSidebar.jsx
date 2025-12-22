@@ -155,10 +155,10 @@ const ChatSidebar = ({ currentRoom, setCurrentRoom, isOpen, onClose }) => {
                             <motion.span
                               initial={{ scale: 0 }}
                               animate={{ scale: 1 }}
-                              className={`text-xs font-bold px-1.5 py-0.5 rounded-full ${
+                              className={`text-sm font-extrabold px-2.5 py-1 rounded-full min-w-[2.5rem] text-center shadow-md ${
                                 isActive
-                                  ? 'bg-primary/20 ' + colorClasses[room.color]
-                                  : 'bg-accent text-muted-foreground'
+                                  ? 'bg-primary/30 text-white ' + colorClasses[room.color]
+                                  : 'bg-primary/40 text-white font-bold'
                               }`}
                             >
                               {userCount}
@@ -338,10 +338,10 @@ const ChatSidebar = ({ currentRoom, setCurrentRoom, isOpen, onClose }) => {
                               <motion.span
                                 initial={{ scale: 0 }}
                                 animate={{ scale: 1 }}
-                                className={`text-xs font-bold px-1.5 py-0.5 rounded-full ${
+                                className={`text-sm font-extrabold px-2.5 py-1 rounded-full min-w-[2.5rem] text-center shadow-md ${
                                   isActive
-                                    ? 'bg-primary/20 ' + colorClasses[room.color]
-                                    : 'bg-accent text-muted-foreground'
+                                    ? 'bg-primary/30 text-white ' + colorClasses[room.color]
+                                    : 'bg-primary/40 text-white font-bold'
                                 }`}
                               >
                                 {userCount}

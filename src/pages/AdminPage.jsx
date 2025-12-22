@@ -38,6 +38,8 @@ import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import SanctionUserModal from '@/components/sanctions/SanctionUserModal';
 import SanctionsFAQ from '@/components/sanctions/SanctionsFAQ';
+import AdminChatWindow from '@/components/admin/AdminChatWindow';
+import ReportStatusDropdown from '@/components/admin/ReportStatusDropdown';
 
 const AdminPage = () => {
   const navigate = useNavigate();
@@ -106,6 +108,10 @@ const AdminPage = () => {
   });
   const [isSendingNotification, setIsSendingNotification] = useState(false);
   const [isSendingWelcome, setIsSendingWelcome] = useState(false);
+  
+  // ✅ NUEVO: Estados para chat con usuarios
+  const [chatTarget, setChatTarget] = useState(null);
+  const [showChat, setShowChat] = useState(false);
 
   // Verificar si el usuario es admin
   useEffect(() => {
@@ -297,14 +303,11 @@ const AdminPage = () => {
   }, [isAdmin]);
 
   // Actualizar estado de reporte
-  const handleUpdateReportStatus = async (reportId, newStatus) => {
+  const handleUpdateReportStatus = async (reportId, newStatus, reporterId = null) => {
     try {
-      const reportRef = doc(db, 'reports', reportId);
-      await updateDoc(reportRef, {
-        status: newStatus,
-        reviewedBy: user.id,
-        reviewedAt: new Date()
-      });
+      // Usar el servicio actualizado que envía notificaciones
+      const { updateReportStatus } = await import('@/services/reportService');
+      await updateReportStatus(reportId, newStatus, null, reporterId);
 
       toast({
         title: "Reporte Actualizado",
@@ -318,6 +321,17 @@ const AdminPage = () => {
         variant: "destructive",
       });
     }
+  };
+
+  // ✅ NUEVO: Función para abrir chat con usuario
+  const handleOpenChat = (report) => {
+    setChatTarget({
+      userId: report.reporterId,
+      username: report.reporterUsername,
+      avatar: null, // Se puede obtener del usuario si es necesario
+      reportId: report.id,
+    });
+    setShowChat(true);
   };
 
   // Actualizar estado de ticket
@@ -754,10 +768,17 @@ const AdminPage = () => {
 
                           {report.status === 'pending' && (
                             <div className="flex flex-col gap-2">
+                              <ReportStatusDropdown
+                                report={report}
+                                onStatusUpdate={(newStatus) => {
+                                  handleUpdateReportStatus(report.id, newStatus, report.reporterId);
+                                }}
+                                onOpenChat={() => handleOpenChat(report)}
+                              />
                               <div className="flex gap-2">
                                 <Button
                                   size="sm"
-                                  onClick={() => handleUpdateReportStatus(report.id, 'resolved')}
+                                  onClick={() => handleUpdateReportStatus(report.id, 'resolved', report.reporterId)}
                                   className="bg-green-500 hover:bg-green-600 text-white"
                                 >
                                   <CheckCircle className="w-4 h-4 mr-1" />
@@ -766,7 +787,7 @@ const AdminPage = () => {
                                 <Button
                                   size="sm"
                                   variant="destructive"
-                                  onClick={() => handleUpdateReportStatus(report.id, 'rejected')}
+                                  onClick={() => handleUpdateReportStatus(report.id, 'rejected', report.reporterId)}
                                 >
                                   <XCircle className="w-4 h-4 mr-1" />
                                   Rechazar
@@ -1338,6 +1359,21 @@ const AdminPage = () => {
           }}
           user={selectedUserToSanction}
           currentAdmin={user}
+        />
+      )}
+
+      {/* ✅ NUEVO: Chat Window para administradores */}
+      {chatTarget && (
+        <AdminChatWindow
+          isOpen={showChat}
+          onClose={() => {
+            setShowChat(false);
+            setChatTarget(null);
+          }}
+          targetUserId={chatTarget.userId}
+          targetUsername={chatTarget.username}
+          targetAvatar={chatTarget.avatar}
+          reportId={chatTarget.reportId}
         />
       )}
     </div>

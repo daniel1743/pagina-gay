@@ -9,7 +9,7 @@ const ComingSoonModal = ({ isOpen, onClose, feature = "esta funcionalidad", desc
     <AnimatePresence>
       {isOpen && (
         <Dialog open={isOpen} onOpenChange={onClose}>
-          <DialogContent className="bg-gradient-to-br from-[#2C2A4A] via-[#3d3a5c] to-[#2C2A4A] border-2 border-[#E4007C]/30 text-white max-w-md rounded-3xl p-0 overflow-hidden">
+          <DialogContent className="bg-gradient-to-br from-[#2C2A4A] via-[#3d3a5c] to-[#2C2A4A] border-2 border-[#E4007C]/30 text-white max-w-md max-h-[90vh] my-4 rounded-3xl p-0 overflow-hidden flex flex-col">
             {/* Fondo animado con burbujas */}
             <div className="absolute inset-0 overflow-hidden pointer-events-none">
               <motion.div
@@ -41,8 +41,8 @@ const ComingSoonModal = ({ isOpen, onClose, feature = "esta funcionalidad", desc
               <X className="w-6 h-6" />
             </button>
 
-            {/* Contenido */}
-            <div className="relative z-10 p-8 pt-12">
+            {/* Contenido con scroll */}
+            <div className="relative z-10 p-8 pt-12 overflow-y-auto flex-1 min-h-0">
               {/* Icono principal con animación */}
               <motion.div
                 initial={{ scale: 0, rotate: -180 }}

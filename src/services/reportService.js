@@ -10,6 +10,7 @@ import {
   doc,
 } from 'firebase/firestore';
 import { db, auth } from '@/config/firebase';
+import { createSystemNotification, NOTIFICATION_TYPES } from '@/services/systemNotificationsService';
 
 /**
  * Crea una nueva denuncia en Firestore
@@ -42,6 +43,23 @@ export const createReport = async (reportData) => {
   };
 
   const docRef = await addDoc(reportsRef, report);
+  
+  // ✅ NUEVO: Enviar notificación automática al usuario que reportó
+  try {
+    await createSystemNotification(auth.currentUser.uid, {
+      type: NOTIFICATION_TYPES.ANNOUNCEMENT,
+      title: '📋 Reporte Recibido',
+      message: `Tu reporte ha sido recibido y está en manos de nuestro equipo de administradores. Te mantendremos informado sobre el progreso de tu caso.`,
+      icon: '📋',
+      link: null,
+      priority: 'high',
+      createdBy: 'system',
+    });
+  } catch (error) {
+    console.error('Error enviando notificación de reporte recibido:', error);
+    // No lanzar error, el reporte ya se creó exitosamente
+  }
+  
   return docRef.id;
 };
 
@@ -99,9 +117,10 @@ export const getUserReports = async (userId) => {
  * @param {string} reportId - ID de la denuncia
  * @param {string} newStatus - Nuevo estado
  * @param {string} reviewNotes - Notas del revisor
+ * @param {string} reporterId - ID del usuario que reportó (para enviar notificación)
  * @returns {Promise<void>}
  */
-export const updateReportStatus = async (reportId, newStatus, reviewNotes = null) => {
+export const updateReportStatus = async (reportId, newStatus, reviewNotes = null, reporterId = null) => {
   if (!auth.currentUser) {
     throw new Error('Debes estar autenticado');
   }
@@ -114,6 +133,44 @@ export const updateReportStatus = async (reportId, newStatus, reviewNotes = null
     reviewNotes: reviewNotes,
     updatedAt: serverTimestamp(),
   });
+
+  // ✅ NUEVO: Enviar notificación al usuario según el estado
+  if (reporterId) {
+    try {
+      let notificationMessage = '';
+      let notificationTitle = '';
+      
+      switch (newStatus) {
+        case 'reviewing':
+          notificationTitle = '🔍 Caso en Proceso';
+          notificationMessage = 'Tu reporte está siendo analizado por nuestro equipo. Estaremos en comunicación contigo pronto.';
+          break;
+        case 'resolved':
+          notificationTitle = '✅ Caso Resuelto';
+          notificationMessage = 'Tu reporte ha sido resuelto. Gracias por ayudarnos a mantener Chactivo seguro.';
+          break;
+        case 'rejected':
+          notificationTitle = '❌ Caso Rechazado';
+          notificationMessage = 'Tu reporte ha sido revisado y no se encontraron suficientes evidencias para proceder. Si tienes más información, puedes crear un nuevo reporte.';
+          break;
+        default:
+          return; // No enviar notificación para otros estados
+      }
+
+      await createSystemNotification(reporterId, {
+        type: NOTIFICATION_TYPES.ANNOUNCEMENT,
+        title: notificationTitle,
+        message: notificationMessage,
+        icon: newStatus === 'resolved' ? '✅' : newStatus === 'rejected' ? '❌' : '🔍',
+        link: null,
+        priority: 'high',
+        createdBy: auth.currentUser.uid,
+      });
+    } catch (error) {
+      console.error('Error enviando notificación de cambio de estado:', error);
+      // No lanzar error, el estado ya se actualizó
+    }
+  }
 };
 
 /**
