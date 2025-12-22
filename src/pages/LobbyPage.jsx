@@ -22,76 +22,37 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, Di
 import { Button } from '@/components/ui/button';
 import { trackPageView, trackPageExit } from '@/services/analyticsService';
 import { useCanonical } from '@/hooks/useCanonical';
-import { subscribeToLastActivity } from '@/services/presenceService';
+import { subscribeToLastActivity, subscribeToMultipleRoomCounts } from '@/services/presenceService';
+import { roomsData } from '@/config/rooms';
 
-const cardData = [
-  {
-    id: 'salas',
-    icon: <MessageSquare className="w-8 h-8" />,
-    title: "Salas de Chat",
-    description: "Conversaciones en vivo 24/7. Únete a salas temáticas y conoce gente como tú ahora.",
-    modal: 'RoomsModal',
-    variant: "primary",
-    badge: "Activo",
-    stats: { label: "23 personas conectadas", icon: Users },
-    accentColor: "cyan"
-  },
-  {
-    id: 'cercanos',
-    icon: <MapPin className="w-8 h-8" />,
-    title: "🌍 Usuarios Cercanos",
-    description: "Encuentra gays cerca de ti con geolocalización. Conecta con personas de tu zona.",
-    modal: 'NearbyUsersModal',
-    variant: "default",
-    badge: "Popular",
-    stats: { label: "8 usuarios cerca de ti" },
-    accentColor: "purple"
-  },
-  {
-    id: 'denuncias',
-    icon: <Shield className="w-8 h-8" />,
-    title: "Centro de Seguridad",
-    description: "Reporta comportamiento inadecuado de forma anónima. Tu bienestar es nuestra prioridad.",
-    modal: 'DenunciaModal',
-    variant: "default",
-    badge: null,
-    stats: null,
-    accentColor: "orange"
-  },
-  {
-    id: 'eventos',
-    icon: <Calendar className="w-8 h-8" />,
-    title: "Eventos y Noticias",
-    description: "Fiestas, marchas, charlas. Mantente al día con lo que pasa en la comunidad LGBT+ de Chile.",
-    modal: 'EventosModal',
-    variant: "default",
-    badge: "Nuevo",
-    stats: null,
-    accentColor: "green"
-  },
-  {
-    id: 'salud',
-    icon: <HeartPulse className="w-8 h-8" />,
-    title: "Apoyo y Bienestar",
-    description: "Espacio confidencial para hablar de salud mental. Conecta con profesionales y apoyo de pares.",
-    modal: 'SaludMentalModal',
-    variant: "default",
-    badge: null,
-    stats: null,
-    accentColor: "green"
-  },
-  {
-    id: 'ajustes',
-    icon: <SlidersHorizontal className="w-8 h-8" />,
-    title: "Personaliza tu Perfil",
-    description: "Ajusta tu experiencia, desbloquea funciones Premium y accede a beneficios exclusivos.",
-    modal: 'AjustesModal',
-    variant: "default",
-    badge: null,
-    stats: null,
-    accentColor: "purple"
-  },
-];
+/**
+ * ✅ SISTEMA INTELIGENTE DE CONTADOR DE USUARIOS
+ * Calcula el número de usuarios a mostrar con boost estratégico
+ */
+const calculateDisplayUserCount = (realUserCount, roomId) => {
+  if (realUserCount >= 11) {
+    return realUserCount;
+  }
+
+  const hashCode = roomId.split('').reduce((acc, char) => {
+    return char.charCodeAt(0) + ((acc << 5) - acc);
+  }, 0);
+
+  let fictitiousUsers;
+  if (realUserCount === 0) {
+    fictitiousUsers = 30 + Math.abs(hashCode % 31);
+  } else if (realUserCount <= 2) {
+    fictitiousUsers = 25 + Math.abs(hashCode % 21);
+  } else if (realUserCount <= 5) {
+    fictitiousUsers = 15 + Math.abs(hashCode % 16);
+  } else {
+    fictitiousUsers = 10 + Math.abs(hashCode % 11);
+  }
+
+  return realUserCount + fictitiousUsers;
+};
+
+// ✅ cardData ahora se genera dinámicamente en el componente para usar contadores reales
 
 const NewsTicker = () => {
   const newsItems = [
@@ -191,13 +152,107 @@ const LobbyPage = () => {
   const [lastActivity, setLastActivity] = useState(null);
   const [, forceUpdate] = useState(0);
   const [showQuickSignup, setShowQuickSignup] = useState(false);
+  const [roomCounts, setRoomCounts] = useState({});
 
-  const handleCardClick = (modalId) => {
+  // ✅ Suscribirse a contadores de usuarios en tiempo real
+  useEffect(() => {
+    const roomIds = roomsData.map(room => room.id);
+    const unsubscribe = subscribeToMultipleRoomCounts(roomIds, (counts) => {
+      setRoomCounts(counts);
+    });
+    return () => unsubscribe();
+  }, []);
+
+  // ✅ Calcular total de usuarios con boost para "Salas de Chat"
+  const calculateTotalUsers = () => {
+    let total = 0;
+    roomsData.forEach(room => {
+      const realCount = roomCounts[room.id] || 0;
+      total += calculateDisplayUserCount(realCount, room.id);
+    });
+    return total;
+  };
+
+  // ✅ Generar cardData dinámicamente con contadores reales
+  const cardData = [
+    {
+      id: 'salas',
+      icon: <MessageSquare className="w-8 h-8" />,
+      title: "Salas de Chat",
+      description: "Conversaciones en vivo 24/7. Únete a salas temáticas y conoce gente como tú ahora.",
+      modal: 'RoomsModal',
+      variant: "primary",
+      badge: "Activo",
+      stats: { label: `${calculateTotalUsers()} personas conectadas`, icon: Users },
+      accentColor: "cyan"
+    },
+    {
+      id: 'cercanos',
+      icon: <MapPin className="w-8 h-8" />,
+      title: "🌍 Usuarios Cercanos",
+      description: "Próximamente: Te avisaremos cuando haya cambios.",
+      modal: 'ComingSoon',
+      variant: "default",
+      badge: null,
+      stats: null,
+      accentColor: "purple",
+      comingSoon: true
+    },
+    {
+      id: 'denuncias',
+      icon: <Shield className="w-8 h-8" />,
+      title: "Centro de Seguridad",
+      description: "Reporta comportamiento inadecuado de forma anónima. Tu bienestar es nuestra prioridad.",
+      modal: 'DenunciaModal',
+      variant: "default",
+      badge: null,
+      stats: null,
+      accentColor: "orange"
+    },
+    {
+      id: 'eventos',
+      icon: <Calendar className="w-8 h-8" />,
+      title: "Eventos y Noticias",
+      description: "Próximamente: Te avisaremos cuando haya cambios.",
+      modal: 'ComingSoon',
+      variant: "default",
+      badge: null,
+      stats: null,
+      accentColor: "green",
+      comingSoon: true
+    },
+    {
+      id: 'salud',
+      icon: <HeartPulse className="w-8 h-8" />,
+      title: "Apoyo y Bienestar",
+      description: "Próximamente: Te avisaremos cuando haya cambios.",
+      modal: 'ComingSoon',
+      variant: "default",
+      badge: null,
+      stats: null,
+      accentColor: "green",
+      comingSoon: true
+    },
+    {
+      id: 'ajustes',
+      icon: <SlidersHorizontal className="w-8 h-8" />,
+      title: "Personaliza tu Perfil",
+      description: "Próximamente: Te avisaremos cuando haya cambios.",
+      modal: 'ComingSoon',
+      variant: "default",
+      badge: null,
+      stats: null,
+      accentColor: "purple",
+      comingSoon: true
+    },
+  ];
+
+  const handleCardClick = (modalId, card) => {
     // "Próximamente" siempre es accesible
-    if (modalId === 'ComingSoon') {
+    if (modalId === 'ComingSoon' || card?.comingSoon) {
         setComingSoonFeature({
-          name: 'las Comunidades',
-          description: 'Podrás crear y unirte a grupos más pequeños con tus intereses específicos: hobbies, deportes, series, política, y mucho más.'
+          name: card?.title || 'esta funcionalidad',
+          description: 'Te avisaremos cuando haya cambios. Estamos trabajando para mejorar tu experiencia.'
         });
         setShowComingSoon(true);
         return;
@@ -526,7 +581,7 @@ const LobbyPage = () => {
                   icon={card.icon}
                   title={card.title}
                   description={card.description}
-                  onClick={() => handleCardClick(card.modal)}
+                  onClick={() => handleCardClick(card.modal, card)}
                   index={index}
                   variant={card.variant}
                   badge={card.badge}

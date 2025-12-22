@@ -202,15 +202,15 @@ export const cleanInactiveUsers = async (roomId) => {
 };
 
 /**
- * Filtra usuarios activos (con actividad en los últimos 30 segundos)
- * ✅ CORREGIDO: No filtra usuarios que están en la lista pero no tienen lastSeen actualizado
+ * Filtra usuarios activos (con actividad en los últimos 5 minutos)
+ * ✅ MEJORADO: Extendido a 5 minutos para hacer que las salas parezcan más activas
  * @param {array} users - Array de usuarios
  * @returns {array} Array de usuarios activos
  */
 export const filterActiveUsers = (users) => {
   const now = Date.now();
-  const ACTIVE_THRESHOLD = 30 * 1000; // 30 segundos
-  const GRACE_PERIOD = 60 * 1000; // 60 segundos de gracia para usuarios sin lastSeen
+  const ACTIVE_THRESHOLD = 5 * 60 * 1000; // ✅ 5 minutos (antes: 30 segundos)
+  const GRACE_PERIOD = 10 * 60 * 1000; // ✅ 10 minutos de gracia para usuarios sin lastSeen (antes: 60 segundos)
 
   return users.filter(user => {
     // Si el usuario no tiene lastSeen, asumir que está activo (acaba de entrar)

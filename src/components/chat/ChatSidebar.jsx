@@ -8,6 +8,46 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { subscribeToMultipleRoomCounts } from '@/services/presenceService';
 import { roomsData, colorClasses } from '@/config/rooms';
 
+/**
+ * ✅ SISTEMA INTELIGENTE DE CONTADOR DE USUARIOS
+ * Calcula el número de usuarios a mostrar con boost estratégico para hacer que las salas parezcan activas
+ * 
+ * Estrategias:
+ * 1. Si hay 0-2 usuarios reales → Agregar 25-50 usuarios ficticios (consistente por sala)
+ * 2. Si hay 3-10 usuarios reales → Agregar 15-30 usuarios ficticios
+ * 3. Si hay 11+ usuarios reales → Solo mostrar reales (ya parece activa)
+ * 4. Usa hash del roomId para consistencia (mismo número siempre)
+ */
+const calculateDisplayUserCount = (realUserCount, roomId) => {
+  // Si ya hay muchos usuarios reales, no agregar ficticios
+  if (realUserCount >= 11) {
+    return realUserCount;
+  }
+
+  // Generar hash consistente basado en el ID de la sala
+  const hashCode = roomId.split('').reduce((acc, char) => {
+    return char.charCodeAt(0) + ((acc << 5) - acc);
+  }, 0);
+
+  // Calcular boost según cantidad de usuarios reales
+  let fictitiousUsers;
+  if (realUserCount === 0) {
+    // 0 usuarios → Agregar 30-60 ficticios
+    fictitiousUsers = 30 + Math.abs(hashCode % 31);
+  } else if (realUserCount <= 2) {
+    // 1-2 usuarios → Agregar 25-45 ficticios
+    fictitiousUsers = 25 + Math.abs(hashCode % 21);
+  } else if (realUserCount <= 5) {
+    // 3-5 usuarios → Agregar 15-30 ficticios
+    fictitiousUsers = 15 + Math.abs(hashCode % 16);
+  } else {
+    // 6-10 usuarios → Agregar 10-20 ficticios
+    fictitiousUsers = 10 + Math.abs(hashCode % 11);
+  }
+
+  return realUserCount + fictitiousUsers;
+};
+
 const ChatSidebar = ({ currentRoom, setCurrentRoom, isOpen, onClose }) => {
   const navigate = useNavigate();
   const { user, logout } = useAuth();
@@ -77,8 +117,8 @@ const ChatSidebar = ({ currentRoom, setCurrentRoom, isOpen, onClose }) => {
                 const IconComponent = room.icon;
                 const realUserCount = roomCounts[room.id] || 0;
                 
-                // Usar solo el número real de usuarios conectados
-                const userCount = realUserCount;
+                // ✅ SISTEMA INTELIGENTE: Calcular usuarios mostrados con boost estratégico
+                const userCount = calculateDisplayUserCount(realUserCount, room.id);
                 
                 const isActive = currentRoom === room.id;
 
@@ -111,20 +151,20 @@ const ChatSidebar = ({ currentRoom, setCurrentRoom, isOpen, onClose }) => {
                             <span className={`text-sm font-medium truncate ${isActive ? 'text-foreground' : 'text-foreground group-hover:text-foreground'}`}>
                               {room.name}
                             </span>
-                            {userCount > 0 && (
-                              <motion.span
-                                initial={{ scale: 0 }}
-                                animate={{ scale: 1 }}
-                                className={`text-xs font-bold px-1.5 py-0.5 rounded-full ${
-                                  isActive
-                                    ? 'bg-primary/20 ' + colorClasses[room.color]
-                                    : 'bg-accent text-muted-foreground'
-                                }`}
-                              >
-                                {userCount}
-                              </motion.span>
-                            )}
+                            {/* ✅ Siempre mostrar contador (incluso si es 0, mostrará boost) */}
+                            <motion.span
+                              initial={{ scale: 0 }}
+                              animate={{ scale: 1 }}
+                              className={`text-xs font-bold px-1.5 py-0.5 rounded-full ${
+                                isActive
+                                  ? 'bg-primary/20 ' + colorClasses[room.color]
+                                  : 'bg-accent text-muted-foreground'
+                              }`}
+                            >
+                              {userCount}
+                            </motion.span>
                           </div>
+                          {/* ✅ Siempre mostrar indicador "Activo" si hay usuarios (reales o boost) */}
                           {userCount > 0 && (
                             <div className="flex items-center gap-1 mt-0.5">
                               <motion.div
@@ -139,7 +179,9 @@ const ChatSidebar = ({ currentRoom, setCurrentRoom, isOpen, onClose }) => {
                                   ease: "easeInOut"
                                 }}
                               />
-                              <span className="text-[10px] text-green-500">Activo</span>
+                              <span className="text-[10px] text-green-500">
+                                {realUserCount > 0 ? 'Activo' : 'Reciente'}
+                              </span>
                             </div>
                           )}
                         </div>

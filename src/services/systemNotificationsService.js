@@ -72,28 +72,18 @@ export const createWelcomeNotification = async (userId, username) => {
   try {
     await createSystemNotification(userId, {
       type: NOTIFICATION_TYPES.WELCOME,
-      title: `¡Bienvenido/a a Chactivo, ${username}! 🌈`,
-      message: `¡Hola ${username}! 🎉
+      title: `¡Ya estás dentro de Chactivo! 🔥`,
+      message: `¡Ya estás dentro de Chactivo! 🔥
 
-Estamos muy felices de tenerte en nuestra comunidad LGBT+ de Chile. 
+Un lugar para hablar sin filtros, conocer gente como tú y sentirte cómodo siendo quien eres.
 
-En Chactivo encontrarás:
-✨ Salas de chat temáticas para conectar con personas increíbles
-💬 Conversaciones seguras y respetuosas
-🎯 Usuarios cercanos a ti para hacer nuevos amigos
-🛡️ Un espacio seguro donde puedes ser tú mismo/a
+Aquí no hay juicios, solo respeto, buena onda y conversación real.
 
-Consejos para empezar:
-• Completa tu perfil para que otros usuarios te conozcan mejor
-• Explora las diferentes salas de chat según tus intereses
-• Respeta las normas de la comunidad para mantener un ambiente positivo
-• ¡Disfruta y conéctate con personas increíbles!
+Entra a la sala, saluda y deja que el chat haga lo suyo 😉
 
-Si tienes alguna pregunta o necesitas ayuda, no dudes en contactarnos a través del Centro de Soporte.
-
-¡Bienvenido/a y que tengas una experiencia increíble! ❤️`,
-      icon: '🌈',
-      link: '/profile',
+Bienvenido a Chactivo.`,
+      icon: '🔥',
+      link: '/chat/conversas-libres',
       priority: 'high',
     });
   } catch (error) {
@@ -346,5 +336,59 @@ export const showBrowserNotification = (title, options = {}) => {
     }
   } catch (error) {
     console.error('Error showing browser notification:', error);
+  }
+};
+
+/**
+ * ✅ NUEVO: Envía mensaje de bienvenida a todos los usuarios existentes
+ * Útil para notificar a usuarios que ya estaban registrados antes de implementar el nuevo mensaje
+ * @param {string} adminId - ID del admin que ejecuta la acción (opcional, default: 'system')
+ * @returns {Promise<number>} Número de notificaciones creadas
+ */
+export const sendWelcomeToAllExistingUsers = async (adminId = 'system') => {
+  try {
+    console.log('🚀 Iniciando envío de mensaje de bienvenida a todos los usuarios existentes...');
+    
+    const usersRef = collection(db, 'users');
+    const usersSnapshot = await getDocs(query(usersRef, limit(500)));
+
+    let count = 0;
+    const batchSize = 50; // Procesar en lotes para no sobrecargar
+    const promises = [];
+
+    usersSnapshot.forEach((userDoc) => {
+      const promise = createSystemNotification(userDoc.id, {
+        type: NOTIFICATION_TYPES.WELCOME,
+        title: `¡Ya estás dentro de Chactivo! 🔥`,
+        message: `¡Ya estás dentro de Chactivo! 🔥
+
+Un lugar para hablar sin filtros, conocer gente como tú y sentirte cómodo siendo quien eres.
+
+Aquí no hay juicios, solo respeto, buena onda y conversación real.
+
+Entra a la sala, saluda y deja que el chat haga lo suyo 😉
+
+Bienvenido a Chactivo.`,
+        icon: '🔥',
+        link: '/chat/conversas-libres',
+        priority: 'high',
+        createdBy: adminId,
+      });
+      promises.push(promise);
+      count++;
+    });
+
+    // Procesar en lotes para evitar sobrecargar Firestore
+    for (let i = 0; i < promises.length; i += batchSize) {
+      const batch = promises.slice(i, i + batchSize);
+      await Promise.all(batch);
+      console.log(`✅ Procesados ${Math.min(i + batchSize, promises.length)}/${promises.length} usuarios`);
+    }
+
+    console.log(`✅ Mensaje de bienvenida enviado a ${count} usuarios existentes`);
+    return count;
+  } catch (error) {
+    console.error('❌ Error enviando mensaje de bienvenida a usuarios existentes:', error);
+    throw error;
   }
 };

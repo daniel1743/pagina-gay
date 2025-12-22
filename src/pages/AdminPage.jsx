@@ -29,6 +29,7 @@ import {
 } from '@/services/sanctionsService';
 import {
   createBroadcastNotification,
+  sendWelcomeToAllExistingUsers,
   NOTIFICATION_TYPES
 } from '@/services/systemNotificationsService';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
@@ -104,6 +105,7 @@ const AdminPage = () => {
     link: '',
   });
   const [isSendingNotification, setIsSendingNotification] = useState(false);
+  const [isSendingWelcome, setIsSendingWelcome] = useState(false);
 
   // Verificar si el usuario es admin
   useEffect(() => {
@@ -1029,6 +1031,67 @@ const AdminPage = () => {
 
           {/* Notificaciones Tab */}
           <TabsContent value="notifications" className="space-y-6">
+            {/* ✅ Botón especial para enviar mensaje de bienvenida a usuarios existentes */}
+            <motion.div
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              className="glass-effect rounded-2xl border border-pink-500/30 p-6 bg-gradient-to-br from-pink-500/10 to-purple-500/10"
+            >
+              <div className="flex items-center justify-between">
+                <div>
+                  <h3 className="text-xl font-bold mb-2 flex items-center gap-2">
+                    🔥 Mensaje de Bienvenida
+                  </h3>
+                  <p className="text-sm text-muted-foreground mb-4">
+                    Envía el mensaje de bienvenida oficial a todos los usuarios existentes registrados en Chactivo.
+                  </p>
+                  <div className="text-xs text-muted-foreground bg-background/50 p-3 rounded-lg">
+                    <strong>Mensaje:</strong> "¡Ya estás dentro de Chactivo! 🔥 Un lugar para hablar sin filtros, conocer gente como tú y sentirte cómodo siendo quien eres..."
+                  </div>
+                </div>
+                <Button
+                  onClick={async () => {
+                    if (!confirm('¿Estás seguro de enviar el mensaje de bienvenida a TODOS los usuarios existentes? Esta acción puede tomar varios minutos.')) {
+                      return;
+                    }
+
+                    setIsSendingWelcome(true);
+                    try {
+                      const count = await sendWelcomeToAllExistingUsers(user?.id || 'system');
+                      
+                      toast({
+                        title: "✅ Mensaje Enviado",
+                        description: `Se envió el mensaje de bienvenida a ${count} usuarios existentes`,
+                      });
+                    } catch (error) {
+                      console.error('Error:', error);
+                      toast({
+                        title: "❌ Error",
+                        description: "Hubo un error al enviar el mensaje. Revisa la consola para más detalles.",
+                        variant: "destructive",
+                      });
+                    } finally {
+                      setIsSendingWelcome(false);
+                    }
+                  }}
+                  disabled={isSendingWelcome}
+                  className="bg-gradient-to-r from-pink-500 to-purple-500 hover:from-pink-600 hover:to-purple-600 text-white font-bold px-6 py-3"
+                >
+                  {isSendingWelcome ? (
+                    <>
+                      <div className="animate-spin rounded-full h-4 w-4 border-2 border-white border-t-transparent mr-2"></div>
+                      Enviando...
+                    </>
+                  ) : (
+                    <>
+                      <Send className="w-4 h-4 mr-2" />
+                      Enviar a Todos los Usuarios
+                    </>
+                  )}
+                </Button>
+              </div>
+            </motion.div>
+
             <motion.div
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}

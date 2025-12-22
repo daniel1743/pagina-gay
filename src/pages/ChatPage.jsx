@@ -175,9 +175,9 @@ const ChatPage = () => {
 
     // 🤖 Suscribirse a usuarios de la sala (para sistema de bots)
     const unsubscribeUsers = subscribeToRoomUsers(roomId, (users) => {
-      // ✅ Filtrar solo usuarios activos (<30s inactividad)
+      // ✅ Filtrar solo usuarios activos (<5min inactividad)
       const activeUsers = filterActiveUsers(users);
-      console.log(`👥 Total usuarios en DB: ${users.length} | Activos (<30s): ${activeUsers.length}`);
+      console.log(`👥 Total usuarios en DB: ${users.length} | Activos (<5min): ${activeUsers.length}`);
       setRoomUsers(activeUsers);
     });
 
