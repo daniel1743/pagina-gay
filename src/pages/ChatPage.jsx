@@ -66,7 +66,7 @@ const ChatPage = () => {
   const unsubscribeRef = useRef(null);
   const aiActivatedRef = useRef(false); // Flag para evitar activaciones múltiples de IA
 
-  // ✅ VALIDACIÓN: Solo usuarios registrados pueden acceder a las salas de chat
+  // ✅ VALIDACIÓN: Usuarios registrados tienen acceso completo, anónimos solo a "conversas-libres"
   useEffect(() => {
     if (!user) {
       // Si no hay usuario, redirigir al auth
@@ -79,18 +79,22 @@ const ChatPage = () => {
       return;
     }
 
+    // ✅ NUEVA FUNCIONALIDAD: Permitir "conversas-libres" a usuarios anónimos/invitados
     if (user.isGuest || user.isAnonymous) {
-      // Si es invitado, redirigir al registro
-      toast({
-        title: "Registro Requerido 🔒",
-        description: "Debes registrarte para acceder a las conversaciones. ¡Es gratis y toma solo 1 minuto!",
-        variant: "destructive",
-        duration: 5000,
-      });
-      navigate('/auth');
-      return;
+      // Solo permitir acceso a "conversas-libres" (sala de prueba gratuita)
+      if (roomId !== 'conversas-libres') {
+        toast({
+          title: "Sala Solo para Registrados 🔒",
+          description: "Esta sala requiere registro. Prueba primero en 'Conversas Libres' o regístrate para acceso completo.",
+          variant: "destructive",
+          duration: 5000,
+        });
+        // Redirigir a conversas-libres en lugar de auth
+        navigate('/chat/conversas-libres');
+        return;
+      }
     }
-  }, [user, navigate]);
+  }, [user, navigate, roomId]);
 
   // SEO: Actualizar título y canonical tag dinámicamente
   React.useEffect(() => {
@@ -321,13 +325,13 @@ const ChatPage = () => {
   /**
    * Enviar mensaje
    * ✅ Guarda en Firestore en tiempo real
-   * ✅ Validación para usuarios invitados (máx 3 mensajes)
+   * ✅ Validación para usuarios invitados (máx 10 mensajes)
    * ✅ Contador persistente en Firestore para anónimos
    * 🤖 Activa respuesta de bots si están activos
    */
   const handleSendMessage = async (content, type = 'text') => {
-    // Validación: usuarios anónimos solo 3 mensajes
-    if (user.isAnonymous && guestMessageCount >= 3) {
+    // Validación: usuarios anónimos solo 10 mensajes
+    if (user.isAnonymous && guestMessageCount >= 10) {
       setShowVerificationModal(true);
       return;
     }
@@ -399,7 +403,7 @@ const ChatPage = () => {
         setShowVerificationModal(true);
         toast({
           title: "Límite alcanzado",
-          description: "Has alcanzado el límite de 3 mensajes. Por favor, regístrate para continuar.",
+          description: "Has alcanzado el límite de 10 mensajes. Por favor, regístrate para continuar chateando gratis.",
           variant: "destructive",
         });
       } else {

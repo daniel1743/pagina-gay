@@ -17,17 +17,8 @@ const RoomsModal = ({ isOpen, onClose }) => {
   const [searchTerm, setSearchTerm] = useState('');
   const [roomCounts, setRoomCounts] = useState({});
 
-  // ✅ Protección: Si el usuario es anónimo o invitado, cerrar modal y redirigir
-  useEffect(() => {
-    if (isOpen && (!user || user.isAnonymous || user.isGuest)) {
-      onClose();
-      navigate('/auth');
-      toast({
-        title: '🔒 Acceso restringido',
-        description: 'Debes registrarte para ver las salas de chat.',
-      });
-    }
-  }, [isOpen, user, onClose, navigate]);
+  // ✅ MODIFICADO: Usuarios anónimos pueden ver el modal pero solo acceder a "conversas-libres"
+  // No redirigimos automáticamente, permitimos que vean las salas disponibles
 
   // Suscribirse a contadores de usuarios en tiempo real (solo si está registrado)
   useEffect(() => {
@@ -103,21 +94,52 @@ const RoomsModal = ({ isOpen, onClose }) => {
               // Usar solo el número real de usuarios conectados
               const userCount = realUserCount;
 
+              const isAnonymousUser = user && (user.isAnonymous || user.isGuest);
+              const isConversasLibres = room.id === 'conversas-libres';
+              const canAccess = !isAnonymousUser || isConversasLibres;
+
+              const handleRoomClick = () => {
+                if (!canAccess) {
+                  // Usuario anónimo intentando acceder a sala restringida
+                  toast({
+                    title: "Sala Solo para Registrados 🔒",
+                    description: "Regístrate gratis para acceder a todas las salas. Prueba primero en 'Conversas Libres'.",
+                    variant: "destructive",
+                    duration: 5000,
+                  });
+                  return;
+                }
+                onClose();
+                navigate(`/chat/${room.id}`);
+              };
+
               return (
                 <motion.div
                   key={room.id}
                   initial={{ opacity: 0, y: 20 }}
                   animate={{ opacity: 1, y: 0 }}
                   transition={{ duration: 0.4, delay: index * 0.05 }}
-                  onClick={() => { onClose(); navigate(`/chat/${room.id}`); }}
-                  className="relative glass-effect p-5 rounded-xl flex flex-col gap-3 cursor-pointer hover:border-primary transition-all border group"
+                  onClick={handleRoomClick}
+                  className={`relative glass-effect p-5 rounded-xl flex flex-col gap-3 cursor-pointer hover:border-primary transition-all border group ${!canAccess ? 'opacity-60' : ''}`}
                 >
                   {/* Icono y Título */}
                   <div className="flex items-center gap-3">
                     <div className={`${colorClasses[room.color]} transition-transform group-hover:scale-110`}>
                       <IconComponent className="w-8 h-8" />
                     </div>
-                    <h3 className="text-lg font-bold text-foreground">{room.name}</h3>
+                    <div className="flex-1">
+                      <h3 className="text-lg font-bold text-foreground">{room.name}</h3>
+                      {!canAccess && (
+                        <span className="text-xs bg-orange-500/20 text-orange-400 px-2 py-0.5 rounded-full border border-orange-500/30 inline-block mt-1">
+                          Requiere registro
+                        </span>
+                      )}
+                      {isConversasLibres && isAnonymousUser && (
+                        <span className="text-xs bg-green-500/20 text-green-400 px-2 py-0.5 rounded-full border border-green-500/30 inline-block mt-1">
+                          ¡Prueba gratis!
+                        </span>
+                      )}
+                    </div>
                   </div>
 
                   {/* Descripción */}

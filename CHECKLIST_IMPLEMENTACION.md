@@ -12,28 +12,29 @@
 
 ### CAMBIOS SIN CÓDIGO (30 MINUTOS)
 
-- [ ] **1.1 Cambiar Meta Tags en index.html (5 min)**
-  - **Archivo:** `index.html` líneas 7-8
-  - **Acción:** Cambiar título y description
+- [x] **1.1 Cambiar Meta Tags en index.html (5 min)** ✅ **IMPLEMENTADA**
+  - **Archivo:** `index.html` líneas 17-18
+  - **Acción:** ✅ Cambió título y description
   - **De:** "sin registro, 1000+ usuarios"
   - **A:** "Regístrate en 30s, comunidad activa Chile"
-  - **Código específico:** Ver sección "CÓDIGO 1.1" abajo ⬇️
+  - **Resultado:** Título ahora dice "Alternativa Gratis a Grindr" - Más honesto y realista
 
-- [ ] **1.2 Renombrar "Click Aquí" (2 min)**
-  - **Archivo:** `src/components/lobby/LobbyPage.jsx` o donde estén las cards
-  - **Acción:** Cambiar `title: "Click Aquí"` por `title: "🌍 Usuarios Cercanos"`
-  - **Código específico:** Ver sección "CÓDIGO 1.2" abajo ⬇️
+- [x] **1.2 Renombrar "Click Aquí" (2 min)** ✅ **IMPLEMENTADA**
+  - **Archivo:** `src/pages/LobbyPage.jsx` línea 40
+  - **Acción:** ✅ Cambió "Explora Comunidades" por "🌍 Usuarios Cercanos"
+  - **Descripción:** ✅ Actualizada a "Encuentra gays cerca de ti con geolocalización"
+  - **Stats:** ✅ Cambiado a "8 usuarios cerca de ti"
 
-- [ ] **1.3 Eliminar "Próximamente" del Lobby (5 min)**
-  - **Archivo:** `src/components/lobby/LobbyPage.jsx`
-  - **Acción:** Comentar card de "Comunidades - Próximamente"
-  - **Acción:** Comentar sección "Videos" si dice "Próximamente"
-  - **Código específico:** Ver sección "CÓDIGO 1.3" abajo ⬇️
+- [x] **1.3 Eliminar "Próximamente" del Lobby (5 min)** ✅ **IMPLEMENTADA**
+  - **Archivo:** `src/pages/LobbyPage.jsx` líneas 494-497
+  - **Acción:** ✅ Comentó sección "VideoSection" que mostraba "Próximamente"
+  - **Nota:** Card de "Comunidades" no existe en el array actual (ya fue eliminada previamente)
+  - **Resultado:** Lobby sin elementos "Próximamente", más profesional
 
-- [ ] **1.4 Reordenar Cards - Salas Primero (2 min)**
-  - **Archivo:** `src/components/lobby/LobbyPage.jsx`
-  - **Acción:** Mover "Salas de Chat" a primera posición
-  - **Código específico:** Ver sección "CÓDIGO 1.4" abajo ⬇️
+- [x] **1.4 Reordenar Cards - Salas Primero (2 min)** ✅ **IMPLEMENTADA**
+  - **Archivo:** `src/pages/LobbyPage.jsx` línea 25
+  - **Resultado:** ✅ "Salas de Chat" ya estaba en primera posición del array cardData
+  - **No requirió cambios:** La card ya estaba correctamente posicionada
 
 - [ ] **1.5 Crear Instagram @chactivo.cl (20 min)**
   - **Plataforma:** Instagram móvil o web
@@ -47,50 +48,84 @@
 
 ### CAMBIOS CON CÓDIGO (6 HORAS)
 
-- [ ] **2.1 GlobalStats con Números REALES (30 min)**
+- [x] **2.1 GlobalStats con Números REALES (30 min)** ✅ **IMPLEMENTADA**
   - **Archivo:** `src/components/lobby/GlobalStats.jsx`
-  - **Acción:** Conectar a Firestore en tiempo real
-  - **Resultado:** Mostrar usuarios online REALES (no fake)
-  - **Código específico:** Ver sección "CÓDIGO 2.1" abajo ⬇️
+  - **Cambios realizados:**
+    - ✅ Eliminó hook `useLiveNumber` que simulaba fluctuaciones falsas
+    - ✅ Eliminó función `getExampleNumbers()` con números ficticios (342, 127, 156, etc.)
+    - ✅ Simplificó `getRoomStats()` para usar solo datos reales de Firestore
+    - ✅ Cambiado `totalUsers` para mostrar datos reales (fallback 0 en lugar de 342)
+    - ✅ Actualizado "Cargando..." a "Sin salas activas" cuando no hay datos
+  - **Resultado:** Componente 100% honesto, muestra contadores REALES desde `subscribeToMultipleRoomCounts`
 
-- [ ] **2.2 Contador "Última Actividad" en Hero (1 hora)**
-  - **Archivo:** `src/components/lobby/HeroSection.jsx`
-  - **Acción:** Agregar "Juan se conectó hace 32s"
-  - **Actualizar:** Cada 10 segundos desde Firestore
-  - **Código específico:** Ver sección "CÓDIGO 2.2" abajo ⬇️
+- [x] **2.2 Contador "Última Actividad" en Hero (1 hora)** ✅ **IMPLEMENTADA**
+  - **Archivos modificados:**
+    - `src/services/presenceService.js` (líneas 243-301): Agregadas funciones `recordGlobalActivity` y `subscribeToLastActivity`
+    - `src/pages/LobbyPage.jsx` (líneas 24, 190-191, 254-257, 259-262, 268-280, 318-330): Contador de última actividad
+  - **Cambios realizados:**
+    - ✅ Creada colección `globalActivity` en Firestore para registrar actividad
+    - ✅ `joinRoom` ahora registra actividad global automáticamente (línea 42)
+    - ✅ Contador visual en Hero mostrando "Usuario se conectó hace Xs"
+    - ✅ Actualización automática cada 10 segundos
+    - ✅ Helper `getTimeAgo()` para formato relativo (hace 32s, hace 2m, etc.)
+  - **Resultado:** Contador en vivo que muestra actividad REAL de usuarios conectándose
 
-- [ ] **2.3 Chat Anónimo Limitado - 10 Mensajes (3 horas)**
-  - **Archivo 1:** `src/pages/ChatPage.jsx` (handleSendMessage)
-  - **Archivo 2:** `src/components/lobby/RoomsModal.jsx` (handleRoomSelect)
-  - **Acción:** Permitir "Conversas Libres" a usuarios sin registro
-  - **Límite:** 10 mensajes, después registro obligatorio
-  - **Código específico:** Ver sección "CÓDIGO 2.3" abajo ⬇️
+- [x] **2.3 Chat Anónimo Limitado - 10 Mensajes (3 horas)** ✅ **IMPLEMENTADA**
+  - **Archivos modificados:**
+    - `src/pages/ChatPage.jsx` (líneas 69-97, 334, 406): Validación y límite de mensajes
+    - `src/components/lobby/RoomsModal.jsx` (líneas 20-21, 97-114, 132-141): Acceso parcial con badges
+    - `src/components/chat/ChatInput.jsx` (líneas 46, 160-186): Contador visual de mensajes restantes
+  - **Cambios realizados:**
+    - ✅ Usuarios anónimos pueden acceder a "conversas-libres" sin registro
+    - ✅ Límite de 10 mensajes (cambiado de 3 a 10)
+    - ✅ RoomsModal muestra todas las salas con badges "Requiere registro" / "¡Prueba gratis!"
+    - ✅ Contador visual dinámico con colores (verde→naranja→rojo)
+    - ✅ Redirección inteligente: otras salas → conversas-libres en lugar de /auth
+    - ✅ Mensajes actualizados para reflejar nuevo límite de 10
   - **IMPACTO:** Conversión esperada 30-40% (crítico para crecimiento)
 
-- [ ] **2.4 Simplificar Onboarding a 3 Pasos (1.5 horas)**
-  - **Archivo:** `src/components/auth/QuickSignupModal.jsx` (crear nuevo)
-  - **Acción:** Modal de registro rápido en overlay
-  - **Flujo:** Email/Pass → Username → ¡Chatear!
-  - **Reducción:** 13 pasos → 3 pasos
-  - **Código específico:** Ver sección "CÓDIGO 2.4" abajo ⬇️
+- [x] **2.4 Simplificar Onboarding a 3 Pasos (1.5 horas)** ✅ **IMPLEMENTADA**
+  - **Archivos creados:**
+    - `src/components/auth/QuickSignupModal.jsx` (componente nuevo de 333 líneas)
+  - **Archivos modificados:**
+    - `src/components/chat/VerificationModal.jsx` (líneas 1, 12, 16, 23-25, 39, 43-73): Botón "Registro Rápido (30s)" con modal
+    - `src/pages/LobbyPage.jsx` (líneas 18, 193, 384-394, 611-616): Botón Hero + modal integrado
+  - **Cambios realizados:**
+    - ✅ Creado modal de 3 pasos con indicador de progreso visual
+    - ✅ **Paso 1:** Email + Password con validación regex
+    - ✅ **Paso 2:** Username con reglas (3-20 chars, solo alfanumérico y _)
+    - ✅ **Paso 3:** Confirmación con animación y auto-redirect
+    - ✅ Eliminados campos innecesarios: age, phone
+    - ✅ Botón Hero cambiado a "REGÍSTRATE EN 30 SEGUNDOS"
+    - ✅ VerificationModal ahora muestra botón "Registro Rápido (30s)" destacado
+  - **Reducción:** 5 campos → 3 campos (Email, Password, Username)
 
 ### ARREGLOS TÉCNICOS CRÍTICOS (2 HORAS)
 
-- [ ] **2.5 Arreglar Memory Leak en ChatMessages.jsx (15 min)**
-  - **Archivo:** `src/components/chat/ChatMessages.jsx` líneas 19-34
-  - **Problema:** setTimeout sin cleanup
-  - **Acción:** Agregar clearTimeout en return
-  - **Código específico:** Ver sección "CÓDIGO 2.5" abajo ⬇️
+- [x] **2.5 Arreglar Memory Leak en ChatMessages.jsx (15 min)** ✅ **IMPLEMENTADA**
+  - **Archivo:** `src/components/chat/ChatMessages.jsx` líneas 19-43
+  - **Cambios realizados:**
+    - ✅ Creado array `timeouts` para almacenar IDs de setTimeout
+    - ✅ Cada setTimeout ahora guarda su ID en el array
+    - ✅ Agregado `return () => { timeouts.forEach(id => clearTimeout(id)); }`
+    - ✅ Agregado `messageChecks` a las dependencias del useEffect
+  - **Resultado:** Memory leak eliminado, no más timeouts huérfanos
 
-- [ ] **2.6 Agregar Link "Términos" en Footer (5 min)**
-  - **Archivo:** `src/components/layout/Footer.jsx` (o donde esté el footer)
-  - **Acción:** `<a href="/terminos-condiciones.html">Términos y Condiciones</a>`
-  - **Código específico:** Ver sección "CÓDIGO 2.6" abajo ⬇️
+- [x] **2.6 Agregar Link "Términos" en Footer (5 min)** ✅ **IMPLEMENTADA**
+  - **Archivo:** `src/components/layout/Footer.jsx` líneas 30-32
+  - **Cambios realizados:**
+    - ✅ Actualizado href de "#" a "/terminos-condiciones.html"
+    - ✅ Actualizado href de "#" a "/politica-privacidad.html"
+    - ✅ Agregado link adicional "/aviso-legal.html"
+    - ✅ Agregado target="_blank" y rel="noopener noreferrer" para seguridad
+  - **Resultado:** Footer con enlaces legales funcionales
 
-- [ ] **2.7 CORS Más Restrictivo en vercel.json (5 min)**
-  - **Archivo:** `vercel.json` línea 17
-  - **Acción:** Cambiar `"value": "*"` por tu dominio
-  - **Código específico:** Ver sección "CÓDIGO 2.7" abajo ⬇️
+- [x] **2.7 CORS Más Restrictivo en vercel.json (5 min)** ✅ **IMPLEMENTADA**
+  - **Archivo:** `vercel.json` línea 18
+  - **Cambios realizados:**
+    - ✅ Cambiado `"value": "*"` a `"value": "https://chactivo.com"`
+    - ✅ Mantenido "*" para /static/ y /assets/ (recursos públicos)
+  - **Resultado:** CORS más seguro, solo permite peticiones desde el dominio principal
 
 ---
 

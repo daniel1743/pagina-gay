@@ -43,7 +43,7 @@ const PREMIUM_EMOJIS = [
 
 
 const ChatInput = ({ onSendMessage }) => {
-  const { user } = useAuth();
+  const { user, guestMessageCount } = useAuth();
   const [message, setMessage] = useState('');
   const [showEmojiPicker, setShowEmojiPicker] = useState(false);
   const [showQuickPhrases, setShowQuickPhrases] = useState(false);
@@ -157,8 +157,33 @@ const ChatInput = ({ onSendMessage }) => {
     return standardCategories;
   }, [user?.isPremium]);
 
+  const remainingMessages = user?.isAnonymous ? 10 - guestMessageCount : null;
+  const showMessageLimit = user?.isAnonymous && remainingMessages !== null;
+
   return (
     <div className="bg-card border-t p-4 shrink-0 relative" ref={wrapperRef}>
+      {/* Contador de mensajes restantes para usuarios anónimos */}
+      {showMessageLimit && (
+        <motion.div
+          initial={{ opacity: 0, y: -10 }}
+          animate={{ opacity: 1, y: 0 }}
+          className={`mb-3 px-3 py-2 rounded-lg border ${
+            remainingMessages <= 3
+              ? 'bg-red-500/10 border-red-500/30 text-red-400'
+              : remainingMessages <= 5
+              ? 'bg-orange-500/10 border-orange-500/30 text-orange-400'
+              : 'bg-cyan-500/10 border-cyan-500/30 text-cyan-400'
+          }`}
+        >
+          <p className="text-sm font-semibold text-center">
+            {remainingMessages > 0 ? (
+              <>Te quedan <span className="font-bold text-lg">{remainingMessages}</span> mensajes gratis. <a href="/auth" className="underline hover:opacity-80">Regístrate</a> para chatear ilimitado.</>
+            ) : (
+              <>Límite alcanzado. <a href="/auth" className="underline hover:opacity-80">Regístrate gratis</a> para continuar chateando.</>
+            )}
+          </p>
+        </motion.div>
+      )}
       <AnimatePresence>
         {showEmojiPicker && (
           <motion.div

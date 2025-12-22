@@ -17,6 +17,8 @@ const ChatMessages = ({ messages, currentUserId, onUserClick, onReport, onPrivat
 
   // ✅ Simular doble check: 1 check → 2 checks azules después de 2 segundos
   useEffect(() => {
+    const timeouts = [];
+
     messages.forEach((message) => {
       const isOwn = message.userId === currentUserId;
 
@@ -26,12 +28,19 @@ const ChatMessages = ({ messages, currentUserId, onUserClick, onReport, onPrivat
         setMessageChecks(prev => ({ ...prev, [message.id]: 'single' }));
 
         // Después de 2 segundos, cambiar a 2 checks azules
-        setTimeout(() => {
+        const timeoutId = setTimeout(() => {
           setMessageChecks(prev => ({ ...prev, [message.id]: 'double' }));
         }, 2000);
+
+        timeouts.push(timeoutId);
       }
     });
-  }, [messages, currentUserId]);
+
+    // Cleanup: limpiar todos los timeouts cuando el componente se desmonte
+    return () => {
+      timeouts.forEach(timeoutId => clearTimeout(timeoutId));
+    };
+  }, [messages, currentUserId, messageChecks]);
 
   const findUserPremiumStatus = (userId) => {
     if (authUser.id === userId) return authUser.isPremium;

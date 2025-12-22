@@ -15,12 +15,14 @@ import GlobalStats from '@/components/lobby/GlobalStats';
 // import AdModal from '@/components/lobby/AdModal';
 import PWAInstallBanner from '@/components/ui/PWAInstallBanner';
 import ComingSoonModal from '@/components/ui/ComingSoonModal';
+import QuickSignupModal from '@/components/auth/QuickSignupModal';
 import { toast } from '@/components/ui/use-toast';
 import { useAuth } from '@/contexts/AuthContext';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { trackPageView, trackPageExit } from '@/services/analyticsService';
 import { useCanonical } from '@/hooks/useCanonical';
+import { subscribeToLastActivity } from '@/services/presenceService';
 
 const cardData = [
   {
@@ -37,12 +39,12 @@ const cardData = [
   {
     id: 'cercanos',
     icon: <MapPin className="w-8 h-8" />,
-    title: "Explora Comunidades",
-    description: "Descubre grupos con tus intereses: deportes, arte, cine, gaming. Encuentra tu tribu.",
+    title: "🌍 Usuarios Cercanos",
+    description: "Encuentra gays cerca de ti con geolocalización. Conecta con personas de tu zona.",
     modal: 'NearbyUsersModal',
     variant: "default",
     badge: "Popular",
-    stats: { label: "12 comunidades activas" },
+    stats: { label: "8 usuarios cerca de ti" },
     accentColor: "purple"
   },
   {
@@ -186,6 +188,9 @@ const LobbyPage = () => {
   // const [showAdModal, setShowAdModal] = useState(false);
   const [showComingSoon, setShowComingSoon] = useState(false);
   const [comingSoonFeature, setComingSoonFeature] = useState({ name: '', description: '' });
+  const [lastActivity, setLastActivity] = useState(null);
+  const [, forceUpdate] = useState(0);
+  const [showQuickSignup, setShowQuickSignup] = useState(false);
 
   const handleCardClick = (modalId) => {
     // "Próximamente" siempre es accesible
@@ -247,15 +252,41 @@ const LobbyPage = () => {
     document.title = "Lobby - Chactivo | Chat Gay Chile";
     // Track page view
     trackPageView('/lobby', 'Lobby - Chactivo');
-    
+
+    // Suscribirse a la última actividad global
+    const unsubscribeActivity = subscribeToLastActivity((activity) => {
+      setLastActivity(activity);
+    });
+
+    // Actualizar el contador de tiempo cada 10 segundos
+    const interval = setInterval(() => {
+      forceUpdate(prev => prev + 1);
+    }, 10000);
+
     // Track page exit
     return () => {
       trackPageExit('/lobby', 0);
+      unsubscribeActivity();
+      clearInterval(interval);
     };
   }, []);
 
   // Determinar si mostrar Hero Section (solo para usuarios no autenticados o invitados)
   const showHeroSection = !user || user.isGuest || user.isAnonymous;
+
+  // Helper para calcular el tiempo relativo
+  const getTimeAgo = (timestamp) => {
+    if (!timestamp) return null;
+
+    const now = Date.now();
+    const time = timestamp.toMillis ? timestamp.toMillis() : timestamp;
+    const diffInSeconds = Math.floor((now - time) / 1000);
+
+    if (diffInSeconds < 60) return `hace ${diffInSeconds}s`;
+    if (diffInSeconds < 3600) return `hace ${Math.floor(diffInSeconds / 60)}m`;
+    if (diffInSeconds < 86400) return `hace ${Math.floor(diffInSeconds / 3600)}h`;
+    return `hace ${Math.floor(diffInSeconds / 86400)}d`;
+  };
 
   return (
     <>
@@ -277,19 +308,35 @@ const LobbyPage = () => {
               initial={{ scale: 0.9 }}
               animate={{ scale: 1 }}
               transition={{ duration: 0.5, delay: 0.2 }}
-              className="flex items-center justify-center gap-3 mb-6"
+              className="flex flex-col items-center gap-3 mb-6"
             >
-              <div className="relative">
-                {/* Dot pulsante */}
-                <span className="absolute inline-flex h-4 w-4 rounded-full bg-green-400 opacity-75 animate-ping"></span>
-                <span className="relative inline-flex h-4 w-4 rounded-full bg-green-500"></span>
+              <div className="flex items-center gap-3">
+                <div className="relative">
+                  {/* Dot pulsante */}
+                  <span className="absolute inline-flex h-4 w-4 rounded-full bg-green-400 opacity-75 animate-ping"></span>
+                  <span className="relative inline-flex h-4 w-4 rounded-full bg-green-500"></span>
+                </div>
+                <div className="glass-effect px-6 py-3 rounded-full border border-green-500/30">
+                  <p className="text-sm text-muted-foreground">
+                    <span className="text-3xl font-bold text-green-400 mr-2">Activo</span>
+                    <span className="text-muted-foreground">Chatea con gays de Chile ahora</span>
+                  </p>
+                </div>
               </div>
-              <div className="glass-effect px-6 py-3 rounded-full border border-green-500/30">
-                <p className="text-sm text-muted-foreground">
-                  <span className="text-3xl font-bold text-green-400 mr-2">Activo</span>
-                  <span className="text-muted-foreground">Chatea con gays de Chile ahora</span>
-                </p>
-              </div>
+
+              {/* Última Actividad */}
+              {lastActivity && lastActivity.timestamp && (
+                <motion.div
+                  initial={{ opacity: 0, y: -10 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ duration: 0.4, delay: 0.3 }}
+                  className="glass-effect px-4 py-2 rounded-lg border border-cyan-500/20"
+                >
+                  <p className="text-xs sm:text-sm text-cyan-400">
+                    <span className="font-semibold">{lastActivity.username}</span> se conectó {getTimeAgo(lastActivity.timestamp)}
+                  </p>
+                </motion.div>
+              )}
             </motion.div>
 
             {/* Título principal */}
@@ -334,12 +381,12 @@ const LobbyPage = () => {
                 </button>
               ) : (
                 <button
-                  onClick={() => navigate('/auth')}
+                  onClick={() => setShowQuickSignup(true)}
                   className="group relative px-8 sm:px-12 py-4 sm:py-5 magenta-gradient rounded-2xl font-bold text-lg sm:text-xl text-white hover:scale-105 active:scale-95 transition-all duration-300 shadow-2xl hover:shadow-[#E4007C]/50 focus:outline-none focus:ring-4 focus:ring-[#E4007C]/30 min-h-[56px] flex items-center justify-center"
                   aria-label="Regístrate para chatear"
                 >
                   <span className="relative z-10 flex items-center gap-3">
-                    🔥 REGÍSTRATE PARA CHATEAR
+                    🔥 REGÍSTRATE EN 30 SEGUNDOS
                     <MessageSquare className="w-5 h-5 sm:w-6 sm:h-6 group-hover:rotate-12 transition-transform" />
                   </span>
                   {/* Efecto de brillo */}
@@ -490,10 +537,11 @@ const LobbyPage = () => {
             </div>
           </motion.div>
         </div>
-        
-        <div className="mb-16">
+
+        {/* COMENTADO - VideoSection "Próximamente" (Tarea 1.3) */}
+        {/* <div className="mb-16">
           <VideoSection onComingSoon={handleFeatureComingSoon} />
-        </div>
+        </div> */}
 
       </div>
 
@@ -558,6 +606,13 @@ const LobbyPage = () => {
         onClose={() => setShowComingSoon(false)}
         feature={comingSoonFeature.name}
         description={comingSoonFeature.description}
+      />
+
+      {/* Quick Signup Modal */}
+      <QuickSignupModal
+        isOpen={showQuickSignup}
+        onClose={() => setShowQuickSignup(false)}
+        redirectTo="/lobby"
       />
 
     </>

@@ -33,10 +33,13 @@ export const joinRoom = async (roomId, userData) => {
       joinedAt: serverTimestamp(),
       lastSeen: serverTimestamp(),
     });
-    
+
     // ✅ Asegurar que la actividad se actualice inmediatamente
     // Esto ayuda a que el usuario sea detectado como activo de inmediato
     await updateUserActivity(roomId);
+
+    // ✅ Registrar actividad global para el contador de "Última Actividad"
+    await recordGlobalActivity(userData.username, 'joined');
   } catch (error) {
     console.error('Error joining room:', error);
   }
@@ -216,14 +219,14 @@ export const filterActiveUsers = (users) => {
     }
 
     const lastSeen = user.lastSeen?.toMillis() || 0;
-    
+
     // Si lastSeen es 0 o muy antiguo pero el usuario está en la lista, darle gracia
     if (lastSeen === 0) {
       return true;
     }
 
     const timeSinceLastSeen = now - lastSeen;
-    
+
     // Si el tiempo desde lastSeen es menor al threshold, está activo
     if (timeSinceLastSeen <= ACTIVE_THRESHOLD) {
       return true;
@@ -237,5 +240,65 @@ export const filterActiveUsers = (users) => {
 
     // Usuario inactivo
     return false;
+  });
+};
+
+/**
+ * Registra actividad global del usuario (para mostrar "Última Actividad" en lobby)
+ * @param {string} username - Nombre del usuario
+ * @param {string} action - Acción realizada ('joined', 'message', 'connected')
+ */
+export const recordGlobalActivity = async (username, action = 'connected') => {
+  if (!auth.currentUser) return;
+
+  const activityRef = doc(db, 'globalActivity', auth.currentUser.uid);
+
+  try {
+    await setDoc(activityRef, {
+      userId: auth.currentUser.uid,
+      username: username,
+      action: action,
+      timestamp: serverTimestamp(),
+    }, { merge: true });
+  } catch (error) {
+    console.error('Error recording global activity:', error);
+  }
+};
+
+/**
+ * Escucha la última actividad global de usuarios
+ * @param {function} callback - Función que recibe { username, action, timestamp }
+ * @returns {function} Función para desuscribirse
+ */
+export const subscribeToLastActivity = (callback) => {
+  const activityRef = collection(db, 'globalActivity');
+
+  return onSnapshot(activityRef, (snapshot) => {
+    if (snapshot.empty) {
+      callback(null);
+      return;
+    }
+
+    // Obtener la actividad más reciente
+    const activities = snapshot.docs
+      .map(doc => ({
+        id: doc.id,
+        ...doc.data()
+      }))
+      .filter(activity => activity.timestamp) // Filtrar actividades sin timestamp
+      .sort((a, b) => {
+        const timeA = a.timestamp?.toMillis() || 0;
+        const timeB = b.timestamp?.toMillis() || 0;
+        return timeB - timeA;
+      });
+
+    if (activities.length > 0) {
+      callback(activities[0]);
+    } else {
+      callback(null);
+    }
+  }, (error) => {
+    console.error('Error subscribing to last activity:', error);
+    callback(null);
   });
 };

@@ -5,39 +5,6 @@ import { subscribeToMultipleRoomCounts } from '@/services/presenceService';
 import { roomsData } from '@/config/rooms';
 import AnimatedNumber from '@/components/ui/AnimatedNumber';
 
-/** 🔥 Hook: número vivo que fluctúa solo */
-const useLiveNumber = ({
-  base,
-  enabled = true,
-  min = 0,
-  max = 9999,
-  interval = 2500,
-  variance = 15
-}) => {
-  const [value, setValue] = useState(base ?? 0);
-
-  // si cambia el base (por ejemplo llega data real), sincroniza suave
-  useEffect(() => {
-    if (typeof base === 'number') setValue(base);
-  }, [base]);
-
-  useEffect(() => {
-    if (!enabled) return;
-
-    const timer = setInterval(() => {
-      const delta = Math.floor(Math.random() * variance * 2) - variance; // -variance .. +variance
-      setValue((prev) => {
-        const next = prev + delta;
-        return Math.max(min, Math.min(max, next));
-      });
-    }, interval);
-
-    return () => clearInterval(timer);
-  }, [enabled, interval, variance, min, max]);
-
-  return value;
-};
-
 const GlobalStats = () => {
   const [roomCounts, setRoomCounts] = useState({});
 
@@ -50,76 +17,25 @@ const GlobalStats = () => {
     return () => unsubscribe();
   }, []);
 
-  const getExampleNumbers = () => ({
-    'santiago': 127,
-    'valparaiso': 89,
-    'conversas-libres': 156,
-    'amistad': 73,
-    'osos': 45,
-    'activos-buscando': 92,
-    'pasivos-buscando': 68,
-    'lesbianas': 34,
-    'menos-30': 201,
-    'mas-30': 134,
-    'mas-40': 67,
-    'mas-50': 28,
-    'gaming': 112
-  });
-
   const getRoomStats = () => {
-    const exampleCounts = getExampleNumbers();
-
     const stats = roomsData.map((room) => {
-      const realCount = roomCounts[room.id] || 0;
-
-      // Si no hay usuarios reales, usamos números demo (estables)
-      const displayCount =
-        realCount > 0
-          ? realCount
-          : (exampleCounts[room.id] || Math.floor(Math.random() * 150) + 20);
+      const count = roomCounts[room.id] || 0;
 
       return {
         id: room.id,
         name: room.name,
-        count: realCount,       // real
-        displayCount            // lo que mostramos como base
+        count: count
       };
     });
 
-    stats.sort((a, b) => b.displayCount - a.displayCount);
+    stats.sort((a, b) => b.count - a.count);
     return stats;
   };
 
   const stats = getRoomStats();
-  const totalUsersReal = stats.reduce((sum, room) => sum + room.count, 0);
-
-  // base total: real si hay, si no, demo
-  const baseTotal = totalUsersReal > 0 ? totalUsersReal : 342;
-
+  const totalUsers = stats.reduce((sum, room) => sum + room.count, 0);
   const mostActiveRoom = stats[0];
-  const baseMostActive = mostActiveRoom?.displayCount ?? 120;
-
-  // ✅ modo “live demo” cuando NO hay usuarios reales
-  const liveDemoEnabled = totalUsersReal === 0;
-
-  // 🔥 Números vivos por sección
-  const liveTotalUsers = useLiveNumber({
-    base: baseTotal,
-    enabled: liveDemoEnabled,
-    min: 280,
-    max: 420,
-    interval: 2200,
-    variance: 12
-  });
-
-  const liveMostActive = useLiveNumber({
-    base: baseMostActive,
-    enabled: liveDemoEnabled,
-    min: Math.max(40, baseMostActive - 40),
-    max: baseMostActive + 40,
-    interval: 2600,
-    variance: 10
-  });
+  const mostActiveCount = mostActiveRoom?.count ?? 0;
 
   return (
     <div className="w-full max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 mb-8 sm:mb-12">
@@ -149,7 +65,7 @@ const GlobalStats = () => {
             <div className="flex-1 min-w-0">
               <p className="text-xs sm:text-sm text-muted-foreground mb-1">Usuarios Conectados</p>
               <p className="text-2xl sm:text-3xl font-bold text-blue-400">
-                <AnimatedNumber value={liveTotalUsers} duration={1200} />
+                <AnimatedNumber value={totalUsers} duration={1200} />
               </p>
               <div className="flex items-center gap-1 mt-1 sm:mt-2">
                 <div className="w-2 h-2 rounded-full bg-green-500 animate-pulse"></div>
@@ -169,12 +85,12 @@ const GlobalStats = () => {
             <div className="flex-1 min-w-0">
               <p className="text-xs sm:text-sm text-muted-foreground mb-1">Sala Más Concurrida</p>
               <p className="text-lg sm:text-xl font-bold text-purple-400 truncate">
-                {mostActiveRoom?.name || 'Cargando...'}
+                {mostActiveRoom?.name || 'Sin salas activas'}
               </p>
               <div className="flex items-center gap-2 mt-1 sm:mt-2">
                 <Users className="w-3 h-3 sm:w-4 sm:h-4 text-pink-400 flex-shrink-0" />
                 <span className="text-xs sm:text-sm font-semibold text-pink-400 truncate">
-                  <AnimatedNumber value={liveMostActive} duration={1000} /> personas chateando
+                  <AnimatedNumber value={mostActiveCount} duration={1000} /> personas chateando
                 </span>
               </div>
             </div>
@@ -188,48 +104,37 @@ const GlobalStats = () => {
           </p>
 
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 sm:gap-4">
-            {stats.slice(0, 3).map((room, index) => {
-              const liveRoom = useLiveNumber({
-                base: room.displayCount,
-                enabled: liveDemoEnabled,
-                min: Math.max(0, room.displayCount - 25),
-                max: room.displayCount + 25,
-                interval: 2800 + index * 500,
-                variance: 7 + index * 2
-              });
-
-              return (
-                <motion.div
-                  key={room.id}
-                  initial={{ opacity: 0, x: -20 }}
-                  animate={{ opacity: 1, x: 0 }}
-                  transition={{ delay: index * 0.1 }}
-                  className="flex items-center gap-3 p-3 rounded-lg bg-gradient-to-r from-primary/5 to-primary/10 border border-primary/10"
+            {stats.slice(0, 3).map((room, index) => (
+              <motion.div
+                key={room.id}
+                initial={{ opacity: 0, x: -20 }}
+                animate={{ opacity: 1, x: 0 }}
+                transition={{ delay: index * 0.1 }}
+                className="flex items-center gap-3 p-3 rounded-lg bg-gradient-to-r from-primary/5 to-primary/10 border border-primary/10"
+              >
+                <div
+                  className={`flex items-center justify-center w-8 h-8 rounded-full ${
+                    index === 0
+                      ? 'bg-yellow-500/20 text-yellow-400'
+                      : index === 1
+                      ? 'bg-gray-400/20 text-gray-300'
+                      : 'bg-orange-500/20 text-orange-400'
+                  } font-bold`}
                 >
-                  <div
-                    className={`flex items-center justify-center w-8 h-8 rounded-full ${
-                      index === 0
-                        ? 'bg-yellow-500/20 text-yellow-400'
-                        : index === 1
-                        ? 'bg-gray-400/20 text-gray-300'
-                        : 'bg-orange-500/20 text-orange-400'
-                    } font-bold`}
-                  >
-                    {index + 1}
-                  </div>
+                  {index + 1}
+                </div>
 
-                  <div className="flex-1 min-w-0">
-                    <p className="text-sm font-semibold truncate">{room.name}</p>
-                    <div className="flex items-center gap-1">
-                      <Users className="w-3 h-3 text-primary" />
-                      <span className="text-xs text-green-400 font-medium">
-                        <AnimatedNumber value={liveRoom} duration={900} /> activos
-                      </span>
-                    </div>
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm font-semibold truncate">{room.name}</p>
+                  <div className="flex items-center gap-1">
+                    <Users className="w-3 h-3 text-primary" />
+                    <span className="text-xs text-green-400 font-medium">
+                      <AnimatedNumber value={room.count} duration={900} /> activos
+                    </span>
                   </div>
-                </motion.div>
-              );
-            })}
+                </div>
+              </motion.div>
+            ))}
           </div>
         </div>
 
