@@ -13,6 +13,7 @@ import VerificationModal from '@/components/chat/VerificationModal';
 import TypingIndicator from '@/components/chat/TypingIndicator';
 import WelcomeTour from '@/components/onboarding/WelcomeTour';
 import { PremiumWelcomeModal } from '@/components/chat/PremiumWelcomeModal';
+import ChatRulesModal from '@/components/chat/ChatRulesModal';
 import { toast } from '@/components/ui/use-toast';
 import PrivateChatWindow from '@/components/chat/PrivateChatWindow';
 import { sendMessage, subscribeToRoomMessages, addReactionToMessage, markMessagesAsRead } from '@/services/chatService';
@@ -61,6 +62,8 @@ const ChatPage = () => {
   const [activePrivateChat, setActivePrivateChat] = useState(null);
   const [showVerificationModal, setShowVerificationModal] = useState(false);
   const [showPremiumWelcome, setShowPremiumWelcome] = useState(false);
+  const [showChatRules, setShowChatRules] = useState(false); // ✅ Modal de reglas
+  const [hasAcceptedRules, setHasAcceptedRules] = useState(false); // ✅ Flag de reglas aceptadas
   const [roomCounts, setRoomCounts] = useState({}); // Contadores de usuarios por sala
   const messagesEndRef = useRef(null);
   const unsubscribeRef = useRef(null);
@@ -156,6 +159,22 @@ const ChatPage = () => {
     true, // ✅ Sistema de bots HABILITADO (solo actúa con 1-3 usuarios reales)
     handleBotJoin // Callback para notificaciones de entrada
   );
+
+  // ✅ NUEVO: Verificar si el usuario ya aceptó las reglas del chat
+  useEffect(() => {
+    if (!user) return;
+    
+    const rulesKey = `chat_rules_accepted_${user.id}`;
+    const hasAccepted = localStorage.getItem(rulesKey) === 'true';
+    
+    if (!hasAccepted) {
+      // Mostrar modal de reglas si no las ha aceptado
+      setShowChatRules(true);
+      setHasAcceptedRules(false);
+    } else {
+      setHasAcceptedRules(true);
+    }
+  }, [user]);
 
   // Suscribirse a mensajes en tiempo real cuando cambia la sala
   useEffect(() => {
@@ -350,6 +369,17 @@ const ChatPage = () => {
    * 🤖 Activa respuesta de bots si están activos
    */
   const handleSendMessage = async (content, type = 'text') => {
+    // ✅ CRÍTICO: Verificar que el usuario haya aceptado las reglas
+    if (!hasAcceptedRules) {
+      setShowChatRules(true);
+      toast({
+        title: "Reglas del Chat",
+        description: "Debes aceptar las reglas del chat antes de enviar mensajes.",
+        variant: "destructive",
+      });
+      return;
+    }
+
     // Validación: usuarios anónimos solo 10 mensajes
     if (user.isAnonymous && guestMessageCount >= 10) {
       setShowVerificationModal(true);
@@ -589,6 +619,25 @@ const ChatPage = () => {
         <PremiumWelcomeModal
           open={showPremiumWelcome}
           onClose={handleClosePremiumWelcome}
+        />
+
+        {/* ✅ NUEVO: Modal de reglas del chat */}
+        <ChatRulesModal
+          isOpen={showChatRules}
+          onAccept={() => {
+            // Guardar que el usuario aceptó las reglas
+            if (user) {
+              const rulesKey = `chat_rules_accepted_${user.id}`;
+              localStorage.setItem(rulesKey, 'true');
+              setHasAcceptedRules(true);
+              setShowChatRules(false);
+              
+              toast({
+                title: "✅ Reglas Aceptadas",
+                description: "¡Bienvenido al chat! Ya puedes empezar a chatear.",
+              });
+            }
+          }}
         />
       </div>
     </>

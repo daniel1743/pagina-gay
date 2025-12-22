@@ -1,11 +1,60 @@
-import { doc, getDoc, setDoc, updateDoc, serverTimestamp } from 'firebase/firestore';
+import { doc, getDoc, setDoc, updateDoc, serverTimestamp, collection, query, where, getDocs } from 'firebase/firestore';
 import { db } from '@/config/firebase';
 
 /**
+ * ✅ NUEVO: Verifica si un username ya existe (case-insensitive)
+ * @param {string} username - Username a verificar
+ * @param {string} excludeUserId - ID de usuario a excluir (para actualizaciones)
+ * @returns {Promise<boolean>} true si el username está disponible, false si ya existe
+ */
+export const checkUsernameAvailability = async (username, excludeUserId = null) => {
+  try {
+    if (!username || !username.trim()) {
+      return false;
+    }
+
+    const usernameLower = username.trim().toLowerCase();
+    const usersRef = collection(db, 'users');
+    
+    // Buscar todos los usuarios (Firestore no tiene búsqueda case-insensitive nativa)
+    // Para mejor rendimiento, buscaremos por rango y luego filtraremos
+    const q = query(usersRef);
+    const snapshot = await getDocs(q);
+    
+    // Verificar cada usuario para coincidencia case-insensitive
+    for (const docSnap of snapshot.docs) {
+      // Excluir el usuario actual si se está actualizando
+      if (excludeUserId && docSnap.id === excludeUserId) {
+        continue;
+      }
+      
+      const userData = docSnap.data();
+      // Comparación case-insensitive
+      if (userData.username && userData.username.toLowerCase() === usernameLower) {
+        return false; // Username ya existe
+      }
+    }
+    
+    return true; // Username disponible
+  } catch (error) {
+    console.error('Error checking username availability:', error);
+    // En caso de error, asumir que no está disponible para ser más seguro
+    return false;
+  }
+};
+
+/**
  * Crea o actualiza el perfil de usuario en Firestore
+ * ✅ ACTUALIZADO: Ahora valida que el username sea único antes de crear
  */
 export const createUserProfile = async (uid, userData) => {
   try {
+    // ✅ VALIDAR: Verificar que el username sea único
+    const isAvailable = await checkUsernameAvailability(userData.username);
+    if (!isAvailable) {
+      throw new Error('Este nombre de usuario ya está en uso. Por favor elige otro.');
+    }
+
     const userRef = doc(db, 'users', uid);
 
     const userProfile = {
@@ -70,9 +119,18 @@ export const getUserProfile = async (uid) => {
 
 /**
  * Actualiza el perfil de usuario
+ * ✅ ACTUALIZADO: Valida username único si se está actualizando
  */
 export const updateUserProfile = async (uid, updates) => {
   try {
+    // ✅ VALIDAR: Si se está actualizando el username, verificar que sea único
+    if (updates.username) {
+      const isAvailable = await checkUsernameAvailability(updates.username, uid);
+      if (!isAvailable) {
+        throw new Error('Este nombre de usuario ya está en uso. Por favor elige otro.');
+      }
+    }
+
     const userRef = doc(db, 'users', uid);
     await updateDoc(userRef, {
       ...updates,

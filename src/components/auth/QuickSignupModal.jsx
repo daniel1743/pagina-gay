@@ -60,6 +60,53 @@ const QuickSignupModal = ({ isOpen, onClose, redirectTo = '/lobby' }) => {
     return Object.keys(newErrors).length === 0;
   };
 
+  // ✅ NUEVO: Validar username único en tiempo real mientras escribe
+  const [isCheckingUsername, setIsCheckingUsername] = React.useState(false);
+  const [usernameAvailable, setUsernameAvailable] = React.useState(null);
+
+  React.useEffect(() => {
+    const checkUsername = async () => {
+      if (!formData.username || formData.username.length < 3) {
+        setUsernameAvailable(null);
+        return;
+      }
+
+      // Solo validar si pasa las validaciones básicas
+      if (!/^[a-zA-Z0-9_]+$/.test(formData.username)) {
+        setUsernameAvailable(null);
+        return;
+      }
+
+      setIsCheckingUsername(true);
+      try {
+        const { checkUsernameAvailability } = await import('@/services/userService');
+        const available = await checkUsernameAvailability(formData.username);
+        setUsernameAvailable(available);
+        
+        if (!available) {
+          setErrors(prev => ({
+            ...prev,
+            username: 'Este nombre de usuario ya está en uso'
+          }));
+        } else {
+          setErrors(prev => {
+            const newErrors = { ...prev };
+            delete newErrors.username;
+            return newErrors;
+          });
+        }
+      } catch (error) {
+        console.error('Error verificando username:', error);
+      } finally {
+        setIsCheckingUsername(false);
+      }
+    };
+
+    // Debounce: esperar 500ms después de que el usuario deje de escribir
+    const timeoutId = setTimeout(checkUsername, 500);
+    return () => clearTimeout(timeoutId);
+  }, [formData.username]);
+
   const handleNext = () => {
     if (step === 1 && validateStep1()) {
       setStep(2);
@@ -240,10 +287,27 @@ const QuickSignupModal = ({ isOpen, onClose, redirectTo = '/lobby' }) => {
                   onChange={(e) => setFormData({ ...formData, username: e.target.value })}
                   onKeyPress={(e) => e.key === 'Enter' && handleNext()}
                   className={`bg-purple-900/30 border-purple-700 text-white ${
-                    errors.username ? 'border-red-500' : ''
+                    errors.username ? 'border-red-500' : 
+                    usernameAvailable === true ? 'border-green-500' :
+                    usernameAvailable === false ? 'border-red-500' : ''
                   }`}
                   placeholder="ej: Juan_Santiago"
                 />
+                {isCheckingUsername && formData.username && formData.username.length >= 3 && (
+                  <p className="text-yellow-400 text-xs mt-1 flex items-center gap-1">
+                    <span className="animate-spin">⏳</span> Verificando disponibilidad...
+                  </p>
+                )}
+                {!isCheckingUsername && usernameAvailable === true && formData.username && formData.username.length >= 3 && (
+                  <p className="text-green-400 text-xs mt-1 flex items-center gap-1">
+                    ✓ Este nombre de usuario está disponible
+                  </p>
+                )}
+                {!isCheckingUsername && usernameAvailable === false && formData.username && (
+                  <p className="text-red-400 text-xs mt-1 flex items-center gap-1">
+                    ✗ Este nombre de usuario ya está en uso
+                  </p>
+                )}
                 {errors.username && (
                   <p className="text-red-400 text-xs mt-1">{errors.username}</p>
                 )}

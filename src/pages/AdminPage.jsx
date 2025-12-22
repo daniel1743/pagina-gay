@@ -323,12 +323,31 @@ const AdminPage = () => {
     }
   };
 
-  // ✅ NUEVO: Función para abrir chat con usuario
+  // ✅ NUEVO: Función para abrir chat con usuario (con validación de username)
   const handleOpenChat = (report) => {
+    // ✅ CRÍTICO: Validar que haya username antes de abrir chat
+    if (!report.reporterId) {
+      toast({
+        title: "Error",
+        description: "No se puede abrir el chat: falta ID de usuario",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    if (!report.reporterUsername || !report.reporterUsername.trim()) {
+      toast({
+        title: "Error",
+        description: "No se puede abrir el chat: el usuario no tiene nombre de usuario registrado. Se intentará obtener desde la base de datos.",
+        variant: "destructive",
+      });
+      // Continuar de todas formas, el componente validará y obtendrá el username
+    }
+
     setChatTarget({
       userId: report.reporterId,
-      username: report.reporterUsername,
-      avatar: null, // Se puede obtener del usuario si es necesario
+      username: report.reporterUsername?.trim() || '', // Usar username del reporte o cadena vacía
+      avatar: null,
       reportId: report.id,
     });
     setShowChat(true);

@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
 import { Button } from '@/components/ui/button';
-import { ArrowLeft, Plus, MessageCircle, TrendingUp } from 'lucide-react';
+import { ArrowLeft, Plus, MessageCircle, TrendingUp, MessageSquare, ArrowRight, X } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { toast } from '@/components/ui/use-toast';
 // import ForumThread from '@/components/forum/ForumThread';
@@ -44,6 +44,7 @@ const AnonymousForumPage = () => {
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [selectedCategory, setSelectedCategory] = useState('Todos');
   const [sortBy, setSortBy] = useState('recent');
+  const [showChatBanner, setShowChatBanner] = useState(true); // ✅ Banner visible por defecto
 
   const filteredThreads = selectedCategory === 'Todos'
     ? threads
@@ -96,6 +97,67 @@ const AnonymousForumPage = () => {
               Un espacio seguro para compartir experiencias y encontrar apoyo. 100% anónimo.
             </p>
           </motion.div>
+
+          {/* ✅ NUEVO: Banner prominente para redirigir al chat principal */}
+          <AnimatePresence>
+            {showChatBanner && (
+              <motion.div
+                initial={{ opacity: 0, scale: 0.95, y: -20 }}
+                animate={{ opacity: 1, scale: 1, y: 0 }}
+                exit={{ opacity: 0, scale: 0.95 }}
+                className="relative mb-8 rounded-2xl overflow-hidden"
+              >
+                <div className="bg-gradient-to-r from-[#E4007C] via-purple-600 to-cyan-500 p-1 rounded-2xl">
+                  <div className="bg-card rounded-xl p-6 md:p-8">
+                    <div className="flex flex-col md:flex-row items-center justify-between gap-6">
+                      <div className="flex-1 text-center md:text-left">
+                        <div className="flex items-center justify-center md:justify-start gap-3 mb-3">
+                          <div className="w-16 h-16 rounded-full bg-gradient-to-r from-[#E4007C] to-cyan-500 flex items-center justify-center">
+                            <MessageSquare className="w-8 h-8 text-white" />
+                          </div>
+                          <div>
+                            <h2 className="text-2xl md:text-3xl font-extrabold bg-gradient-to-r from-[#E4007C] to-cyan-400 bg-clip-text text-transparent">
+                              ¡Chatea en Tiempo Real!
+                            </h2>
+                            <p className="text-sm text-muted-foreground mt-1">
+                              Únete a conversaciones en vivo con la comunidad
+                            </p>
+                          </div>
+                        </div>
+                        <p className="text-muted-foreground text-sm md:text-base max-w-2xl mx-auto md:mx-0">
+                          Conecta con personas como tú en salas de chat activas 24/7. Conversaciones en tiempo real, sin esperas.
+                        </p>
+                      </div>
+                      <div className="flex-shrink-0">
+                        <Button
+                          onClick={() => {
+                            if (user && !user.isGuest) {
+                              navigate('/chat/conversas-libres');
+                            } else {
+                              navigate('/auth');
+                            }
+                          }}
+                          size="lg"
+                          className="bg-gradient-to-r from-[#E4007C] to-cyan-500 hover:from-[#ff0087] hover:to-cyan-400 text-white font-bold text-lg px-8 py-6 rounded-xl shadow-lg hover:scale-105 transition-transform"
+                        >
+                          <MessageSquare className="w-6 h-6 mr-3" />
+                          Ir al Chat Principal
+                          <ArrowRight className="w-6 h-6 ml-3" />
+                        </Button>
+                      </div>
+                    </div>
+                    <button
+                      onClick={() => setShowChatBanner(false)}
+                      className="absolute top-4 right-4 text-muted-foreground hover:text-foreground transition-colors p-1 rounded-full hover:bg-muted"
+                      aria-label="Cerrar banner"
+                    >
+                      <X className="w-5 h-5" />
+                    </button>
+                  </div>
+                </div>
+              </motion.div>
+            )}
+          </AnimatePresence>
 
           <div className="glass-effect rounded-xl p-4 mb-6">
             <div className="flex flex-wrap gap-2 mb-4">

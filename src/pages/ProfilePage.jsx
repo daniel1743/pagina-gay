@@ -54,12 +54,14 @@ const ProfilePage = () => {
     setAvatarSelectorOpen(true);
   };
 
-  const handleAvatarSelect = (newAvatar) => {
-    updateProfile({ avatar: newAvatar });
-    toast({
-      title: "¡Avatar actualizado!",
-      description: "Tu nuevo avatar está listo. ✨",
-    });
+  const handleAvatarSelect = async (newAvatar) => {
+    // El AvatarSelector ya guarda en Firebase, solo actualizamos el estado local
+    try {
+      await updateProfile({ avatar: newAvatar });
+      // El toast ya se muestra en AvatarSelector, no es necesario duplicar
+    } catch (error) {
+      console.error('Error actualizando avatar en perfil:', error);
+    }
   };
 
   if (!user) {

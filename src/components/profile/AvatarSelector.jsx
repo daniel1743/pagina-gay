@@ -1,95 +1,94 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Avatar, AvatarImage, AvatarFallback } from '@/components/ui/avatar';
 import { Check, X, Lock, Crown, Shield } from 'lucide-react';
-import { motion } from 'framer-motion';
+import { motion, AnimatePresence } from 'framer-motion';
 import { useAuth } from '@/contexts/AuthContext';
 import { toast } from '@/components/ui/use-toast';
 import { useNavigate } from 'react-router-dom';
-
-// 30 avatares estéticos usando DiceBear API
-// Niveles: FREE (0-9), VERIFICADO (10-19), PREMIUM (20-29)
-const AVATAR_STYLES = [
-  // FREE: Avatares básicos (0-9)
-  { style: 'avataaars', seed: 'rainbow1', name: 'Arcoíris 1', tier: 'free' },
-  { style: 'avataaars', seed: 'rainbow2', name: 'Arcoíris 2', tier: 'free' },
-  { style: 'avataaars', seed: 'cool1', name: 'Cool 1', tier: 'free' },
-  { style: 'avataaars', seed: 'cool2', name: 'Cool 2', tier: 'free' },
-  { style: 'avataaars', seed: 'happy1', name: 'Feliz 1', tier: 'free' },
-  { style: 'avataaars', seed: 'happy2', name: 'Feliz 2', tier: 'free' },
-  { style: 'avataaars', seed: 'smile1', name: 'Sonrisa 1', tier: 'free' },
-  { style: 'avataaars', seed: 'smile2', name: 'Sonrisa 2', tier: 'free' },
-  { style: 'adventurer', seed: 'adv1', name: 'Aventurero 1', tier: 'free' },
-  { style: 'adventurer', seed: 'adv2', name: 'Aventurero 2', tier: 'free' },
-
-  // VERIFICADO: Avatares exclusivos para verificados (10-19)
-  { style: 'adventurer', seed: 'adv3', name: 'Aventurero 3', tier: 'verified' },
-  { style: 'adventurer', seed: 'adv4', name: 'Aventurero 4', tier: 'verified' },
-  { style: 'big-smile', seed: 'smile3', name: 'Gran Sonrisa 1', tier: 'verified' },
-  { style: 'big-smile', seed: 'smile4', name: 'Gran Sonrisa 2', tier: 'verified' },
-  { style: 'big-smile', seed: 'smile5', name: 'Gran Sonrisa 3', tier: 'verified' },
-  { style: 'bottts', seed: 'bot1', name: 'Robot 1', tier: 'verified' },
-  { style: 'bottts', seed: 'bot2', name: 'Robot 2', tier: 'verified' },
-  { style: 'bottts', seed: 'bot3', name: 'Robot 3', tier: 'verified' },
-  { style: 'croodles', seed: 'croo1', name: 'Doodle 1', tier: 'verified' },
-  { style: 'croodles', seed: 'croo2', name: 'Doodle 2', tier: 'verified' },
-
-  // PREMIUM: Avatares exclusivos para premium (20-29)
-  { style: 'croodles', seed: 'croo3', name: 'Doodle 3', tier: 'premium' },
-  { style: 'fun-emoji', seed: 'emoji1', name: 'Emoji 1', tier: 'premium' },
-  { style: 'fun-emoji', seed: 'emoji2', name: 'Emoji 2', tier: 'premium' },
-  { style: 'fun-emoji', seed: 'emoji3', name: 'Emoji 3', tier: 'premium' },
-  { style: 'lorelei', seed: 'lor1', name: 'Retro 1', tier: 'premium' },
-  { style: 'lorelei', seed: 'lor2', name: 'Retro 2', tier: 'premium' },
-  { style: 'lorelei', seed: 'lor3', name: 'Retro 3', tier: 'premium' },
-  { style: 'micah', seed: 'mic1', name: 'Moderno 1', tier: 'premium' },
-  { style: 'micah', seed: 'mic2', name: 'Moderno 2', tier: 'premium' },
-  { style: 'micah', seed: 'mic3', name: 'Moderno 3', tier: 'premium' },
-];
+import { DEFAULT_CATALOG, canUserUseAvatar, getAvatarsByTier } from '@/lib/avatars/dicebearCatalog';
+import { saveAvatarSelection } from '@/lib/avatars/avatarStorage';
 
 const AvatarSelector = ({ isOpen, onClose, currentAvatar, onSelect }) => {
   const { user } = useAuth();
   const navigate = useNavigate();
-  const [selectedAvatar, setSelectedAvatar] = useState(currentAvatar);
+  const [selectedAvatarId, setSelectedAvatarId] = useState(null);
+  const [filterTier, setFilterTier] = useState('all'); // 'all', 'free', 'verified', 'premium'
+  const [isSaving, setIsSaving] = useState(false);
 
-  const generateAvatarUrl = (avatar) => {
-    return `https://api.dicebear.com/7.x/${avatar.style}/svg?seed=${avatar.seed}`;
-  };
+  // Determinar tier del usuario
+  const userTier = useMemo(() => {
+    if (!user) return 'free';
+    // Admin puede usar todos
+    if (user.role === 'admin' || user.role === 'administrator') return 'premium';
+    if (user.isPremium) return 'premium';
+    if (user.verified) return 'verified';
+    return 'free';
+  }, [user]);
 
-  // Determinar si el usuario puede usar un avatar
-  const canUseAvatar = (avatarTier) => {
-    // Admin puede usar TODOS los avatares (sin restricciones)
+  // Filtrar avatares según el filtro seleccionado
+  const filteredAvatares = useMemo(() => {
+    if (filterTier === 'all') {
+      return DEFAULT_CATALOG;
+    }
+    return getAvatarsByTier(filterTier);
+  }, [filterTier]);
+
+  // Contar avatares disponibles por tier
+  const tierCounts = useMemo(() => {
+    const free = DEFAULT_CATALOG.filter(a => canUserUseAvatar(a, 'free', 0)).length;
+    const verified = DEFAULT_CATALOG.filter(a => canUserUseAvatar(a, 'verified', 0)).length;
+    const premium = DEFAULT_CATALOG.filter(a => canUserUseAvatar(a, 'premium', 0)).length;
+    return { free, verified, premium };
+  }, []);
+
+  // Contar avatares accesibles por el usuario actual
+  const accessibleCounts = useMemo(() => {
+    const free = DEFAULT_CATALOG.filter(a => canUserUseAvatar(a, 'free', 0)).length;
+    const verified = DEFAULT_CATALOG.filter(a => canUserUseAvatar(a, 'verified', 0)).length;
+    const premium = DEFAULT_CATALOG.filter(a => canUserUseAvatar(a, 'premium', 0)).length;
+    
+    // Contar cuántos puede usar el usuario actual
+    let userAccessible = 0;
     if (user?.role === 'admin' || user?.role === 'administrator') {
-      return true;
+      userAccessible = DEFAULT_CATALOG.length;
+    } else if (userTier === 'premium') {
+      userAccessible = free + verified + premium;
+    } else if (userTier === 'verified') {
+      userAccessible = free + verified;
+    } else {
+      userAccessible = free;
     }
+    
+    return { free, verified, premium, total: userAccessible };
+  }, [userTier, user]);
 
-    // Premium puede usar todos
-    if (user?.isPremium) return true;
-
-    // Verificados pueden usar FREE y VERIFICADO
-    if (user?.verified) {
-      return avatarTier === 'free' || avatarTier === 'verified';
+  // Establecer avatar seleccionado inicial basado en currentAvatar
+  useEffect(() => {
+    if (currentAvatar && isOpen) {
+      // Buscar avatar en el catálogo que coincida con el SVG actual
+      const found = DEFAULT_CATALOG.find(a => a.svg === currentAvatar || currentAvatar.includes(a.seed));
+      if (found) {
+        setSelectedAvatarId(found.id);
+      }
     }
-
-    // FREE solo puede usar FREE
-    return avatarTier === 'free';
-  };
+  }, [currentAvatar, isOpen]);
 
   const handleSelect = (avatar) => {
-    // Admin puede usar TODOS los avatares sin restricciones
+    // Verificar si el usuario puede usar este avatar
     const isAdmin = user?.role === 'admin' || user?.role === 'administrator';
+    const canUse = isAdmin || canUserUseAvatar(avatar, userTier, user?.level || 0);
     
-    // Verificar si el usuario puede usar este avatar (excepto admin)
-    if (!isAdmin && !canUseAvatar(avatar.tier)) {
+    if (!canUse) {
       // Mostrar toast según el tier bloqueado
-      if (avatar.tier === 'premium') {
+      if (avatar.tierRequired === 'premium') {
         toast({
           title: "Avatar Premium 👑",
           description: "Este avatar es exclusivo para usuarios Premium. ¡Hazte Premium para desbloquearlo!",
           variant: "default",
         });
-      } else if (avatar.tier === 'verified') {
+      } else if (avatar.tierRequired === 'verified') {
         toast({
           title: "Avatar Exclusivo ✅",
           description: "Este avatar es exclusivo para usuarios verificados. Conéctate 30 días seguidos para verificarte.",
@@ -99,13 +98,53 @@ const AvatarSelector = ({ isOpen, onClose, currentAvatar, onSelect }) => {
       return;
     }
 
-    const url = generateAvatarUrl(avatar);
-    setSelectedAvatar(url);
+    setSelectedAvatarId(avatar.id);
   };
 
-  const handleConfirm = () => {
-    onSelect(selectedAvatar);
-    onClose();
+  const handleConfirm = async () => {
+    if (!selectedAvatarId) {
+      toast({
+        title: "Selecciona un Avatar",
+        description: "Por favor elige un avatar antes de confirmar.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    const selectedAvatar = DEFAULT_CATALOG.find(a => a.id === selectedAvatarId);
+    if (!selectedAvatar) return;
+
+    setIsSaving(true);
+    try {
+      // Guardar en Firebase/localStorage
+      await saveAvatarSelection({
+        id: selectedAvatar.id,
+        seed: selectedAvatar.seed,
+        style: selectedAvatar.style,
+        svg: selectedAvatar.svg,
+      });
+
+      // Llamar callback con el SVG
+      if (onSelect) {
+        onSelect(selectedAvatar.svg);
+      }
+
+      toast({
+        title: "✅ Avatar Actualizado",
+        description: `Has seleccionado "${selectedAvatar.name}"`,
+      });
+
+      onClose();
+    } catch (error) {
+      console.error('Error guardando avatar:', error);
+      toast({
+        title: "Error",
+        description: "No se pudo guardar el avatar. Intenta de nuevo.",
+        variant: "destructive",
+      });
+    } finally {
+      setIsSaving(false);
+    }
   };
 
   const handleUpgrade = () => {
@@ -115,27 +154,68 @@ const AvatarSelector = ({ isOpen, onClose, currentAvatar, onSelect }) => {
 
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
-      <DialogContent className="bg-background border-border max-w-4xl w-[95vw] max-h-[90vh] rounded-2xl p-0 overflow-hidden flex flex-col">
+      <DialogContent className="bg-gradient-to-br from-[#1a0d2e] via-[#2d1b4e] to-[#1a0d2e] border-2 border-[#E4007C]/30 text-white max-w-5xl w-[95vw] max-h-[90vh] rounded-2xl p-0 overflow-hidden flex flex-col">
         <DialogHeader className="p-4 pb-3 flex-shrink-0 border-b border-border">
           <DialogTitle className="text-2xl font-extrabold text-foreground pr-8">
             Elige tu Avatar
           </DialogTitle>
           <DialogDescription className="text-muted-foreground text-sm">
             {user?.isPremium || user?.role === 'admin' || user?.role === 'administrator'
-              ? '¡Tienes acceso a todos los avatares! Elige el que más te guste 👑'
+              ? `¡Tienes acceso a todos los ${DEFAULT_CATALOG.length} avatares! Elige el que más te guste 👑`
               : user?.verified
-                ? 'Tienes 20 avatares disponibles. ¡Hazte Premium para desbloquear los 10 exclusivos! 👑'
-                : '10 avatares gratis. Verifícate (30 días) para +10 más, o hazte Premium para todos 👑'
+                ? `Tienes ${accessibleCounts.total} avatares disponibles. ¡Hazte Premium para desbloquear ${accessibleCounts.premium} más! 👑`
+                : `Tienes ${accessibleCounts.total} avatares gratis. Verifícate (30 días) para ${accessibleCounts.verified} más, o hazte Premium para todos 👑`
             }
           </DialogDescription>
         </DialogHeader>
 
-        <div className="px-4 py-4 overflow-y-auto flex-1 scrollbar-hide">
-          <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 gap-4">
-            {AVATAR_STYLES.map((avatar, index) => {
-              const url = generateAvatarUrl(avatar);
-              const isSelected = selectedAvatar === url;
-              const isLocked = !canUseAvatar(avatar.tier);
+        {/* Filtros por tier */}
+        <div className="px-4 py-3 border-b border-border bg-accent/30">
+          <div className="flex flex-wrap gap-2 justify-center">
+            <Button
+              variant={filterTier === 'all' ? 'default' : 'outline'}
+              size="sm"
+              onClick={() => setFilterTier('all')}
+              className={filterTier === 'all' ? 'bg-primary text-primary-foreground' : ''}
+            >
+              Todos ({DEFAULT_CATALOG.length})
+            </Button>
+            <Button
+              variant={filterTier === 'free' ? 'default' : 'outline'}
+              size="sm"
+              onClick={() => setFilterTier('free')}
+              className={filterTier === 'free' ? 'bg-gray-600 text-white' : ''}
+            >
+              Gratis ({tierCounts.free})
+            </Button>
+            <Button
+              variant={filterTier === 'verified' ? 'default' : 'outline'}
+              size="sm"
+              onClick={() => setFilterTier('verified')}
+              className={filterTier === 'verified' ? 'bg-[#1DA1F2] text-white' : ''}
+            >
+              <Shield className="w-3 h-3 mr-1" />
+              Verificado ({tierCounts.verified})
+            </Button>
+            <Button
+              variant={filterTier === 'premium' ? 'default' : 'outline'}
+              size="sm"
+              onClick={() => setFilterTier('premium')}
+              className={filterTier === 'premium' ? 'bg-[#FFD700] text-black' : ''}
+            >
+              <Crown className="w-3 h-3 mr-1" />
+              Premium ({tierCounts.premium})
+            </Button>
+          </div>
+        </div>
+
+        <div className="px-4 py-4 overflow-y-auto flex-1 scrollbar-hide min-h-0">
+          <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 gap-3">
+            <AnimatePresence mode="popLayout">
+              {filteredAvatares.map((avatar, index) => {
+                const isSelected = selectedAvatarId === avatar.id;
+                const isLocked = !canUserUseAvatar(avatar, userTier, user?.level || 0) && 
+                                 !(user?.role === 'admin' || user?.role === 'administrator');
 
               return (
                 <motion.div
@@ -146,21 +226,22 @@ const AvatarSelector = ({ isOpen, onClose, currentAvatar, onSelect }) => {
                   onClick={() => handleSelect(avatar)}
                   className={`relative rounded-xl p-2 transition-all ${
                     isLocked
-                      ? 'cursor-not-allowed opacity-60'
-                      : 'cursor-pointer'
+                      ? 'cursor-not-allowed'
+                      : 'cursor-pointer hover:scale-105'
                   } ${
                     isSelected
-                      ? 'bg-primary/20 border-2 border-primary'
-                      : 'bg-accent hover:bg-accent/80 border-2 border-transparent'
+                      ? 'bg-gradient-to-br from-[#E4007C]/30 to-cyan-500/30 border-2 border-[#E4007C] shadow-lg shadow-pink-500/50'
+                      : 'bg-gradient-to-br from-[#E4007C]/20 to-cyan-500/20 hover:from-[#E4007C]/30 hover:to-cyan-500/30 border-2 border-transparent hover:border-[#E4007C]/50'
                   }`}
                 >
-                  <div className={`relative ${isLocked ? 'grayscale' : ''}`}>
-                    <Avatar className="w-full aspect-square">
-                      <AvatarImage src={url} alt={avatar.name} />
-                      <AvatarFallback className="bg-secondary">
-                        {avatar.name[0]}
-                      </AvatarFallback>
-                    </Avatar>
+                  <div className={`relative ${isLocked ? 'grayscale opacity-60' : ''}`}>
+                    <div className="w-full aspect-square rounded-full overflow-hidden bg-gradient-to-br from-[#E4007C]/20 to-cyan-500/20 p-1">
+                      <img 
+                        src={avatar.svg} 
+                        alt={avatar.name}
+                        className="w-full h-full object-contain rounded-full bg-white/10"
+                      />
+                    </div>
 
                     {/* Candado si está bloqueado */}
                     {isLocked && (
@@ -178,18 +259,30 @@ const AvatarSelector = ({ isOpen, onClose, currentAvatar, onSelect }) => {
                   )}
 
                   {/* Badge de tier */}
-                  {!isLocked && avatar.tier !== 'free' && (
+                  {!isLocked && avatar.tierRequired !== 'free' && (
                     <div className="absolute top-1 left-1">
-                      {avatar.tier === 'verified' && (
-                        <div className="bg-[#1DA1F2] rounded-full p-1">
+                      {avatar.tierRequired === 'verified' && (
+                        <div className="bg-[#1DA1F2] rounded-full p-1 shadow-lg">
                           <Shield className="w-3 h-3 text-white" />
                         </div>
                       )}
-                      {avatar.tier === 'premium' && (
-                        <div className="bg-[#FFD700] rounded-full p-1">
+                      {avatar.tierRequired === 'premium' && (
+                        <div className="bg-[#FFD700] rounded-full p-1 shadow-lg">
                           <Crown className="w-3 h-3 text-black" />
                         </div>
                       )}
+                    </div>
+                  )}
+
+                  {/* Tooltip para bloqueados */}
+                  {isLocked && (
+                    <div className="absolute inset-0 flex items-center justify-center bg-black/60 rounded-xl opacity-0 hover:opacity-100 transition-opacity">
+                      <div className="text-center p-2">
+                        <Lock className="w-6 h-6 text-white mx-auto mb-1" />
+                        <p className="text-xs text-white font-semibold">
+                          {avatar.tierRequired === 'premium' ? 'Premium' : 'Verificado'}
+                        </p>
+                      </div>
                     </div>
                   )}
 
@@ -200,26 +293,10 @@ const AvatarSelector = ({ isOpen, onClose, currentAvatar, onSelect }) => {
                 </motion.div>
               );
             })}
+            </AnimatePresence>
           </div>
         </div>
 
-        {/* Leyenda de niveles */}
-        <div className="px-4 py-2 border-t border-border bg-accent/30">
-          <div className="flex flex-wrap gap-3 text-xs justify-center">
-            <div className="flex items-center gap-1">
-              <div className="w-3 h-3 bg-gray-500 rounded-full"></div>
-              <span className="text-muted-foreground">Gratis (10)</span>
-            </div>
-            <div className="flex items-center gap-1">
-              <Shield className="w-3 h-3 text-[#1DA1F2]" />
-              <span className="text-muted-foreground">Verificado (10)</span>
-            </div>
-            <div className="flex items-center gap-1">
-              <Crown className="w-3 h-3 text-[#FFD700]" />
-              <span className="text-muted-foreground">Premium (10)</span>
-            </div>
-          </div>
-        </div>
 
         {/* Footer con botones */}
         <div className="px-4 py-3 flex gap-3 border-t border-border flex-shrink-0 bg-background">
@@ -241,10 +318,17 @@ const AvatarSelector = ({ isOpen, onClose, currentAvatar, onSelect }) => {
           </Button>
           <Button
             onClick={handleConfirm}
-            className="flex-1 bg-primary hover:bg-primary/90"
-            disabled={!selectedAvatar}
+            className="flex-1 bg-gradient-to-r from-[#E4007C] to-cyan-500 hover:from-[#ff0087] hover:to-cyan-400 text-white font-bold"
+            disabled={!selectedAvatarId || isSaving}
           >
-            Confirmar
+            {isSaving ? (
+              <>
+                <div className="animate-spin rounded-full h-4 w-4 border-2 border-white border-t-transparent mr-2"></div>
+                Guardando...
+              </>
+            ) : (
+              'Confirmar'
+            )}
           </Button>
         </div>
 
