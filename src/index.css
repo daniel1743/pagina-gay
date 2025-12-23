@@ -99,6 +99,23 @@ body {
   padding: 0;
   overflow-x: hidden;
   transition: background-color 0.3s ease, color 0.3s ease;
+  /* Ocultar scrollbar pero mantener funcionalidad de scroll */
+  -ms-overflow-style: none;  /* IE y Edge */
+  scrollbar-width: none;  /* Firefox */
+}
+
+/* ✅ OCULTAR SCROLLBAR GLOBALMENTE - Aplicar a TODOS los elementos */
+* {
+  -ms-overflow-style: none;  /* IE y Edge */
+  scrollbar-width: none;  /* Firefox */
+}
+
+*::-webkit-scrollbar {
+  display: none;  /* Chrome, Safari, Opera */
+}
+
+body::-webkit-scrollbar {
+  display: none;  /* Chrome, Safari, Opera */
 }
 
 #root {
