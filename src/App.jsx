@@ -12,6 +12,9 @@ import Footer from '@/components/layout/Footer';
 import { AuthProvider, useAuth } from '@/contexts/AuthContext';
 import AnonymousChatPage from '@/pages/AnonymousChatPage';
 import AnonymousForumPage from '@/pages/AnonymousForumPage';
+import GamingLandingPage from '@/pages/GamingLandingPage';
+import Mas30LandingPage from '@/pages/Mas30LandingPage';
+import SantiagoLandingPage from '@/pages/SantiagoLandingPage';
 import { ThemeProvider } from '@/contexts/ThemeContext';
 
 function PrivateRoute({ children }) {
@@ -52,6 +55,12 @@ function App() {
           <Routes>
               <Route path="/" element={<MainLayout><LobbyPage /></MainLayout>} />
               <Route path="/auth" element={<AuthPage />} />
+
+              {/* ✅ SEO: Landing pages específicas optimizadas para CTR */}
+              <Route path="/gaming" element={<MainLayout><GamingLandingPage /></MainLayout>} />
+              <Route path="/mas-30" element={<MainLayout><Mas30LandingPage /></MainLayout>} />
+              <Route path="/santiago" element={<MainLayout><SantiagoLandingPage /></MainLayout>} />
+
               <Route path="/chat/:roomId" element={<ChatPage />} />
               <Route path="/anonymous-chat" element={<AnonymousChatPage />} />
               <Route path="/anonymous-forum" element={<AnonymousForumPage />} />

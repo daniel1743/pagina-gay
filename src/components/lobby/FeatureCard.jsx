@@ -12,6 +12,7 @@ const FeatureCard = ({
   variant = "default",
   stats = null,
   accentColor = "cyan",
+  isHorizontal = false, // ✅ Nueva prop para tarjeta horizontal
 }) => {
   const [isHovered, setIsHovered] = useState(false);
 
@@ -89,7 +90,7 @@ const FeatureCard = ({
         whileHover={{ y: -6 }}
         whileTap={{ scale: 0.98 }}
         className={`
-          relative h-full min-h-[200px] sm:min-h-[220px]
+          relative h-full ${isHorizontal ? 'min-h-[140px] sm:min-h-[160px]' : 'min-h-[200px] sm:min-h-[220px]'}
           bg-card text-foreground
           border-2 border-border
           rounded-2xl p-5 sm:p-6
@@ -112,8 +113,8 @@ const FeatureCard = ({
           }
         }}
       >
-        {/* Badge */}
-        {badge && BadgeIcon && (
+        {/* Badge - Solo para layout vertical */}
+        {!isHorizontal && badge && BadgeIcon && (
           <div
             className={`absolute top-4 right-4 px-3 py-1 rounded-full border text-xs font-semibold flex items-center gap-1.5 ${colors.badge}`}
           >
@@ -122,38 +123,82 @@ const FeatureCard = ({
           </div>
         )}
 
-        <div className="flex flex-col h-full">
-          {/* Icon */}
-          <div
-            className={`w-14 h-14 mb-4 rounded-xl flex items-center justify-center border ${colors.iconBg}`}
-          >
-            <div className={colors.iconColor}>{icon}</div>
-          </div>
+        {isHorizontal ? (
+          // ✅ Layout horizontal para tarjeta del foro
+          <div className="flex items-center gap-6 h-full relative">
+            {/* Icon */}
+            <div
+              className={`w-16 h-16 sm:w-20 sm:h-20 flex-shrink-0 rounded-xl flex items-center justify-center border ${colors.iconBg}`}
+            >
+              <div className={colors.iconColor}>{icon}</div>
+            </div>
 
-          {/* Title */}
-          <h3 className="text-lg sm:text-xl font-bold mb-3 leading-tight">{title}</h3>
-
-          {/* Description */}
-          <p className="text-sm sm:text-base text-muted-foreground mb-auto leading-relaxed">
-            {description}
-          </p>
-
-          {/* Footer */}
-          <div className="flex items-center justify-between mt-6 pt-4 border-t border-border dark:border-white/10">
-            {stats ? (
-              <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                {stats.icon && <stats.icon className="w-4 h-4" />}
-                {stats.label}
+            {/* Contenido central */}
+            <div className="flex-1 min-w-0">
+              <div className="flex items-center gap-3 mb-2">
+                <h3 className="text-xl sm:text-2xl font-bold leading-tight">{title}</h3>
+                {badge && BadgeIcon && (
+                  <div
+                    className={`px-2 py-1 rounded-full border text-xs font-semibold flex items-center gap-1.5 ${colors.badge}`}
+                  >
+                    <BadgeIcon className="w-3 h-3" />
+                    {badge}
+                  </div>
+                )}
               </div>
-            ) : (
-              <span className="text-sm text-muted-foreground">Explorar</span>
-            )}
+              <p className="text-sm sm:text-base text-muted-foreground leading-relaxed">
+                {description}
+              </p>
+            </div>
 
-            <motion.div animate={{ x: isHovered ? 4 : 0 }}>
-              <ArrowRight className={`w-5 h-5 ${colors.arrow}`} />
-            </motion.div>
+            {/* Footer derecho */}
+            <div className="flex items-center gap-4 flex-shrink-0">
+              {stats && (
+                <div className="flex items-center gap-2 text-sm sm:text-base text-muted-foreground">
+                  {stats.icon && <stats.icon className="w-5 h-5" />}
+                  {stats.label}
+                </div>
+              )}
+              <motion.div animate={{ x: isHovered ? 4 : 0 }}>
+                <ArrowRight className={`w-6 h-6 ${colors.arrow}`} />
+              </motion.div>
+            </div>
           </div>
-        </div>
+        ) : (
+          // Layout vertical normal
+          <div className="flex flex-col h-full">
+            {/* Icon */}
+            <div
+              className={`w-14 h-14 mb-4 rounded-xl flex items-center justify-center border ${colors.iconBg}`}
+            >
+              <div className={colors.iconColor}>{icon}</div>
+            </div>
+
+            {/* Title */}
+            <h3 className="text-lg sm:text-xl font-bold mb-3 leading-tight">{title}</h3>
+
+            {/* Description */}
+            <p className="text-sm sm:text-base text-muted-foreground mb-auto leading-relaxed">
+              {description}
+            </p>
+
+            {/* Footer */}
+            <div className="flex items-center justify-between mt-6 pt-4 border-t border-border dark:border-white/10">
+              {stats ? (
+                <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                  {stats.icon && <stats.icon className="w-4 h-4" />}
+                  {stats.label}
+                </div>
+              ) : (
+                <span className="text-sm text-muted-foreground">Explorar</span>
+              )}
+
+              <motion.div animate={{ x: isHovered ? 4 : 0 }}>
+                <ArrowRight className={`w-5 h-5 ${colors.arrow}`} />
+              </motion.div>
+            </div>
+          </div>
+        )}
       </motion.div>
     </motion.div>
   );

@@ -7,7 +7,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { ArrowLeft } from 'lucide-react';
+import { ArrowLeft, Mail, Eye, EyeOff } from 'lucide-react';
 import { useCanonical } from '@/hooks/useCanonical';
 
 const AuthPage = () => {
@@ -42,6 +42,8 @@ const AuthPage = () => {
     phone: ''
   });
   const [ageError, setAgeError] = useState('');
+  const [showLoginPassword, setShowLoginPassword] = useState(false);
+  const [showRegisterPassword, setShowRegisterPassword] = useState(false);
 
   const handleLogin = (e) => {
     e.preventDefault();
@@ -115,27 +117,43 @@ const AuthPage = () => {
                 <form onSubmit={handleLogin} className="space-y-4">
                   <div>
                     <Label htmlFor="login-email" className="text-purple-200">Email</Label>
-                    <Input
-                      id="login-email"
-                      type="email"
-                      required
-                      value={loginData.email}
-                      onChange={(e) => setLoginData({ ...loginData, email: e.target.value })}
-                      className="bg-purple-900/30 border-purple-700 text-white"
-                      placeholder="tu@email.com"
-                    />
+                    <div className="relative">
+                      <Input
+                        id="login-email"
+                        type="email"
+                        required
+                        value={loginData.email}
+                        onChange={(e) => setLoginData({ ...loginData, email: e.target.value })}
+                        className="bg-purple-900/30 border-purple-700 text-white pr-10"
+                        placeholder="tu@email.com"
+                      />
+                      <Mail className="absolute right-3 top-1/2 transform -translate-y-1/2 w-5 h-5 text-purple-400 pointer-events-none" />
+                    </div>
                   </div>
                   <div>
                     <Label htmlFor="login-password" className="text-purple-200">Contraseña</Label>
-                    <Input
-                      id="login-password"
-                      type="password"
-                      required
-                      value={loginData.password}
-                      onChange={(e) => setLoginData({ ...loginData, password: e.target.value })}
-                      className="bg-purple-900/30 border-purple-700 text-white"
-                      placeholder="••••••••"
-                    />
+                    <div className="relative">
+                      <Input
+                        id="login-password"
+                        type={showLoginPassword ? "text" : "password"}
+                        required
+                        value={loginData.password}
+                        onChange={(e) => setLoginData({ ...loginData, password: e.target.value })}
+                        className="bg-purple-900/30 border-purple-700 text-white pr-10"
+                        placeholder="••••••••"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => setShowLoginPassword(!showLoginPassword)}
+                        className="absolute right-3 top-1/2 transform -translate-y-1/2 text-purple-400 hover:text-purple-300 transition-colors"
+                      >
+                        {showLoginPassword ? (
+                          <EyeOff className="w-5 h-5" />
+                        ) : (
+                          <Eye className="w-5 h-5" />
+                        )}
+                      </button>
+                    </div>
                   </div>
                   <Button
                     type="submit"
@@ -161,15 +179,18 @@ const AuthPage = () => {
                   </div>
                   <div>
                     <Label htmlFor="email" className="text-purple-200">Email</Label>
-                    <Input
-                      id="email"
-                      type="email"
-                      required
-                      value={registerData.email}
-                      onChange={(e) => setRegisterData({ ...registerData, email: e.target.value })}
-                      className="bg-purple-900/30 border-purple-700 text-white"
-                      placeholder="tu@email.com"
-                    />
+                    <div className="relative">
+                      <Input
+                        id="email"
+                        type="email"
+                        required
+                        value={registerData.email}
+                        onChange={(e) => setRegisterData({ ...registerData, email: e.target.value })}
+                        className="bg-purple-900/30 border-purple-700 text-white pr-10"
+                        placeholder="tu@email.com"
+                      />
+                      <Mail className="absolute right-3 top-1/2 transform -translate-y-1/2 w-5 h-5 text-purple-400 pointer-events-none" />
+                    </div>
                   </div>
                   <div>
                     <Label htmlFor="phone" className="text-purple-200">Teléfono (opcional)</Label>
@@ -209,15 +230,28 @@ const AuthPage = () => {
                   </div>
                   <div>
                     <Label htmlFor="password" className="text-purple-200">Contraseña</Label>
-                    <Input
-                      id="password"
-                      type="password"
-                      required
-                      value={registerData.password}
-                      onChange={(e) => setRegisterData({ ...registerData, password: e.target.value })}
-                      className="bg-purple-900/30 border-purple-700 text-white"
-                      placeholder="••••••••"
-                    />
+                    <div className="relative">
+                      <Input
+                        id="password"
+                        type={showRegisterPassword ? "text" : "password"}
+                        required
+                        value={registerData.password}
+                        onChange={(e) => setRegisterData({ ...registerData, password: e.target.value })}
+                        className="bg-purple-900/30 border-purple-700 text-white pr-10"
+                        placeholder="••••••••"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => setShowRegisterPassword(!showRegisterPassword)}
+                        className="absolute right-3 top-1/2 transform -translate-y-1/2 text-purple-400 hover:text-purple-300 transition-colors"
+                      >
+                        {showRegisterPassword ? (
+                          <EyeOff className="w-5 h-5" />
+                        ) : (
+                          <Eye className="w-5 h-5" />
+                        )}
+                      </button>
+                    </div>
                   </div>
                   <Button
                     type="submit"

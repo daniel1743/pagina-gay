@@ -3070,9 +3070,12 @@ export const welcomeRealUser = async (roomId, username, activeBots) => {
 
   // Seleccionar bot aleatorio para saludar
   if (activeBots.length === 0) return;
-  
+
   const welcomeBot = activeBots[Math.floor(Math.random() * activeBots.length)];
   const welcomeMessage = WELCOME_MESSAGES[Math.floor(Math.random() * WELCOME_MESSAGES.length)];
+
+  // ✅ FIX: Agregar delay de 3 segundos para respetar rate limit
+  await new Promise(resolve => setTimeout(resolve, 3000));
 
   await sendMessage(roomId, {
     userId: welcomeBot.id,
@@ -3099,6 +3102,9 @@ export const startBotConversation = async (roomId, activeBots) => {
       messageCount: 0,
       participants: []
     };
+
+    // ✅ FIX: Agregar delay inicial de 3 segundos para respetar rate limit
+    await new Promise(resolve => setTimeout(resolve, 3000));
 
     // Bot inicia tema
     const starterBot = activeBots[0];
@@ -3208,8 +3214,8 @@ export const schedulePeriodicConversations = (roomId, activeBots, intervalMinute
     }
   }, intervalMinutes * 60 * 1000);
 
-  // Primera conversación en 5 segundos (más rápido para actividad inmediata)
-  console.log('⏰ Primera conversación en 5s...');
+  // ✅ FIX: Primera conversación en 10 segundos (dar tiempo al rate limit)
+  console.log('⏰ Primera conversación en 10s...');
   setTimeout(async () => {
     console.log('🚀 Iniciando ahora!');
     try {
@@ -3217,7 +3223,7 @@ export const schedulePeriodicConversations = (roomId, activeBots, intervalMinute
     } catch (error) {
       console.error('❌ Error primera conversación:', error);
     }
-  }, 5000);
+  }, 10000);
 
   return interval;
 };

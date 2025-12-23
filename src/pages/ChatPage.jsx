@@ -82,6 +82,18 @@ const ChatPage = () => {
       return;
     }
 
+    // ✅ SEO: Validar que la sala existe en roomsData (prevenir 404 en salas comentadas)
+    const activeSalas = roomsData.map(room => room.id);
+    if (!activeSalas.includes(roomId)) {
+      toast({
+        title: "Sala Temporalmente Cerrada",
+        description: "Esta sala no está disponible por el momento. Te redirigimos a Conversas Libres.",
+        variant: "default",
+      });
+      navigate('/chat/conversas-libres', { replace: true });
+      return;
+    }
+
     // ✅ NUEVA FUNCIONALIDAD: Permitir "conversas-libres" a usuarios anónimos/invitados
     if (user.isGuest || user.isAnonymous) {
       // Solo permitir acceso a "conversas-libres" (sala de prueba gratuita)
@@ -99,9 +111,51 @@ const ChatPage = () => {
     }
   }, [user, navigate, roomId]);
 
-  // SEO: Actualizar título y canonical tag dinámicamente
+  // ✅ SEO: Actualizar título y meta description dinámicamente por sala
   React.useEffect(() => {
-    document.title = `Chat ${roomId} - Chactivo | Chat Gay Chile`;
+    // Meta information específica por sala (SIN números dinámicos para SEO estable)
+    const roomSEO = {
+      'gaming': {
+        title: 'Sala Gaming - Chat Gay Gamers Chile | Chactivo',
+        description: '🎮 Chat gay para gamers en Chile. Comparte juegos, haz amigos LGBT+, conecta con otros gamers. Sala activa 24/7. Sin registro obligatorio, 100% gratis.'
+      },
+      'mas-30': {
+        title: 'Sala +30 - Chat Gay Mayores Chile | Chactivo',
+        description: '💪 Chat gay para mayores de 30 años en Chile. Conversación madura, sin presión. Conoce gays de tu edad en Santiago, Valparaíso y todo Chile.'
+      },
+      'santiago': {
+        title: 'Sala Santiago - Chat Gay Santiago | Chactivo',
+        description: '🏙️ Chat gay Santiago Chile. Conecta con gays de la capital en tiempo real. Salas temáticas, conversación segura, comunidad activa 24/7.'
+      },
+      'conversas-libres': {
+        title: 'Conversas Libres - Chat Gay Chile | Chactivo',
+        description: '💬 Sala de chat gay general Chile. Todos los temas bienvenidos. Conversación libre, ambiente relajado. Entra sin registro, chatea gratis ahora.'
+      }
+    };
+
+    const seoData = roomSEO[roomId] || {
+      title: `Chat ${roomId} - Chactivo | Chat Gay Chile`,
+      description: `Sala de chat gay ${roomId} en Chile. Conoce gays, chatea en vivo, comunidad LGBT+ activa. Sin registro obligatorio, 100% gratis y anónimo.`
+    };
+
+    // Actualizar title
+    document.title = seoData.title;
+
+    // Actualizar meta description
+    let metaDescription = document.querySelector('meta[name="description"]');
+    if (!metaDescription) {
+      metaDescription = document.createElement('meta');
+      metaDescription.name = 'description';
+      document.head.appendChild(metaDescription);
+    }
+    metaDescription.content = seoData.description;
+
+    return () => {
+      // Limpiar meta description al desmontar (volver a la del index.html)
+      if (metaDescription && document.head.contains(metaDescription)) {
+        metaDescription.content = '🏳️‍🌈 Chat gay chileno 100% gratis. Salas por interés: Gaming 🎮, +30 💪, Osos 🐻, Amistad 💬. Conversación real, sin presión de hookups.';
+      }
+    };
   }, [roomId]);
 
   // SEO: Canonical tag dinámico para cada sala

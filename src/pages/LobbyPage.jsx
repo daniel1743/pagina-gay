@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
-import { MessageSquare, Shield, Calendar, HeartPulse, SlidersHorizontal, Users, Lock, MapPin, Sparkles } from 'lucide-react';
+import { MessageSquare, Shield, Calendar, HeartPulse, SlidersHorizontal, Users, Lock, MapPin, Sparkles, MessageCircle } from 'lucide-react';
 import FeatureCard from '@/components/lobby/FeatureCard';
 import RoomsModal from '@/components/lobby/RoomsModal';
 import DenunciaModal from '@/components/lobby/DenunciaModal';
@@ -237,6 +237,20 @@ const LobbyPage = () => {
     },
   ];
 
+  // ✅ Tarjeta horizontal del Foro (ocupa todo el ancho)
+  const forumCard = {
+    id: 'foro',
+    icon: <MessageCircle className="w-8 h-8" />,
+    title: "Foro de Apoyo",
+    description: "Comparte experiencias, pide consejos y encuentra recursos en nuestro foro anónimo. Comunidad de apoyo mutuo 24/7.",
+    onClick: () => navigate('/anonymous-forum'),
+    variant: "default",
+    badge: "Activo",
+    stats: { label: "💬 Comunidad activa", icon: MessageCircle },
+    accentColor: "green",
+    isHorizontal: true // ✅ Flag para tarjeta horizontal
+  };
+
   const handleCardClick = (modalId, card) => {
     // Premium card - usar onClick personalizado si existe
     if (card?.onClick) {
@@ -275,12 +289,14 @@ const LobbyPage = () => {
 
   const handleGoToRegister = () => {
     setShowAuthRequired(false);
-    navigate('/?action=register');
+    // Abrir modal de registro rápido
+    setShowQuickSignup(true);
   };
 
   const handleGoToLogin = () => {
     setShowAuthRequired(false);
-    navigate('/?action=login');
+    // Navegar a la página de autenticación
+    navigate('/auth');
   };
 
   // TEMPORALMENTE COMENTADO - Anuncios y Promociones
@@ -738,6 +754,23 @@ const LobbyPage = () => {
               </p>
             </div>
 
+            {/* Tarjeta horizontal del Foro */}
+            <div className="mb-8 sm:mb-12 max-w-6xl mx-auto">
+              <FeatureCard
+                key={forumCard.id}
+                icon={forumCard.icon}
+                title={forumCard.title}
+                description={forumCard.description}
+                onClick={forumCard.onClick}
+                index={0}
+                variant={forumCard.variant}
+                badge={forumCard.badge}
+                stats={forumCard.stats}
+                accentColor={forumCard.accentColor}
+                isHorizontal={true}
+              />
+            </div>
+
             {/* Grid optimizado para 3 cards - FASE 1 */}
             <div className="grid grid-cols-1 md:grid-cols-3 gap-6 sm:gap-8 mb-12 sm:mb-16 max-w-6xl mx-auto">
               {cardData.map((card, index) => (
@@ -808,8 +841,7 @@ const LobbyPage = () => {
             </Button>
             <Button
               onClick={handleGoToLogin}
-              variant="outline"
-              className="flex-1 border-[#413e62] text-white hover:bg-[#2C2A4A]"
+              className="flex-1 bg-[#2C2A4A] border-2 border-[#413e62] text-white font-bold hover:bg-[#3a3755] hover:border-[#4a4768] transition-all"
             >
               Iniciar Sesión
             </Button>

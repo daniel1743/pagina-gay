@@ -6,7 +6,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
-import { Mail, Lock, User, CheckCircle, ArrowRight, ArrowLeft } from 'lucide-react';
+import { Mail, Lock, User, CheckCircle, ArrowRight, ArrowLeft, Eye, EyeOff } from 'lucide-react';
 import { toast } from '@/components/ui/use-toast';
 
 const QuickSignupModal = ({ isOpen, onClose, redirectTo = '/lobby' }) => {
@@ -19,6 +19,7 @@ const QuickSignupModal = ({ isOpen, onClose, redirectTo = '/lobby' }) => {
     username: ''
   });
   const [errors, setErrors] = useState({});
+  const [showPassword, setShowPassword] = useState(false);
 
   const validateStep1 = () => {
     const newErrors = {};
@@ -211,18 +212,21 @@ const QuickSignupModal = ({ isOpen, onClose, redirectTo = '/lobby' }) => {
 
               <div>
                 <Label htmlFor="email" className="text-purple-200">Email</Label>
-                <Input
-                  id="email"
-                  type="email"
-                  autoComplete="email"
-                  value={formData.email}
-                  onChange={(e) => setFormData({ ...formData, email: e.target.value })}
-                  onKeyPress={(e) => e.key === 'Enter' && handleNext()}
-                  className={`bg-purple-900/30 border-purple-700 text-white ${
-                    errors.email ? 'border-red-500' : ''
-                  }`}
-                  placeholder="tu@email.com"
-                />
+                <div className="relative">
+                  <Input
+                    id="email"
+                    type="email"
+                    autoComplete="email"
+                    value={formData.email}
+                    onChange={(e) => setFormData({ ...formData, email: e.target.value })}
+                    onKeyPress={(e) => e.key === 'Enter' && handleNext()}
+                    className={`bg-purple-900/30 border-purple-700 text-white pr-10 ${
+                      errors.email ? 'border-red-500' : ''
+                    }`}
+                    placeholder="tu@email.com"
+                  />
+                  <Mail className="absolute right-3 top-1/2 transform -translate-y-1/2 w-5 h-5 text-purple-400 pointer-events-none" />
+                </div>
                 {errors.email && (
                   <p className="text-red-400 text-xs mt-1">{errors.email}</p>
                 )}
@@ -230,18 +234,31 @@ const QuickSignupModal = ({ isOpen, onClose, redirectTo = '/lobby' }) => {
 
               <div>
                 <Label htmlFor="password" className="text-purple-200">Contraseña</Label>
-                <Input
-                  id="password"
-                  type="password"
-                  autoComplete="new-password"
-                  value={formData.password}
-                  onChange={(e) => setFormData({ ...formData, password: e.target.value })}
-                  onKeyPress={(e) => e.key === 'Enter' && handleNext()}
-                  className={`bg-purple-900/30 border-purple-700 text-white ${
-                    errors.password ? 'border-red-500' : ''
-                  }`}
-                  placeholder="Mínimo 6 caracteres"
-                />
+                <div className="relative">
+                  <Input
+                    id="password"
+                    type={showPassword ? "text" : "password"}
+                    autoComplete="new-password"
+                    value={formData.password}
+                    onChange={(e) => setFormData({ ...formData, password: e.target.value })}
+                    onKeyPress={(e) => e.key === 'Enter' && handleNext()}
+                    className={`bg-purple-900/30 border-purple-700 text-white pr-10 ${
+                      errors.password ? 'border-red-500' : ''
+                    }`}
+                    placeholder="Mínimo 6 caracteres"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowPassword(!showPassword)}
+                    className="absolute right-3 top-1/2 transform -translate-y-1/2 text-purple-400 hover:text-purple-300 transition-colors"
+                  >
+                    {showPassword ? (
+                      <EyeOff className="w-5 h-5" />
+                    ) : (
+                      <Eye className="w-5 h-5" />
+                    )}
+                  </button>
+                </div>
                 {errors.password && (
                   <p className="text-red-400 text-xs mt-1">{errors.password}</p>
                 )}
