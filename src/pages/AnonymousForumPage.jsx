@@ -66,7 +66,8 @@ const AnonymousForumPage = () => {
           console.log('🌱 Inicializando foro con 100 threads...');
           
           // Importar funciones de Firestore
-          const { collection, writeBatch, serverTimestamp, doc } = await import('firebase/firestore');
+          const firestoreModule = await import('firebase/firestore');
+          const { collection, writeBatch, serverTimestamp, doc } = firestoreModule;
           const firebaseConfig = await import('@/config/firebase');
           const db = firebaseConfig.db;
           
@@ -76,7 +77,8 @@ const AnonymousForumPage = () => {
             const chunk = forumSeedData.slice(i, i + 50);
             
             chunk.forEach((thread) => {
-              const threadRef = doc(collection(db, 'forum_threads'));
+              const threadsCollection = collection(db, 'forum_threads');
+              const threadRef = doc(threadsCollection);
               batch.set(threadRef, {
                 title: thread.title,
                 content: thread.content,
@@ -153,6 +155,41 @@ const AnonymousForumPage = () => {
   }, [selectedCategory, sortBy]);
 
   const handleCreateThread = async (threadData) => {
+    // ✅ Validar que el usuario esté autenticado y registrado
+    if (!user || user.isGuest || user.isAnonymous) {
+      toast({
+        title: "Registro Requerido",
+        description: "Debes estar registrado para publicar hilos en el foro.",
+        variant: "destructive",
+        action: (
+          <div className="flex gap-2">
+            <Button
+              size="sm"
+              onClick={() => {
+                navigate('/auth');
+              }}
+              className="bg-primary text-white"
+            >
+              Iniciar Sesión
+            </Button>
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={() => {
+                // Abrir modal de registro rápido si existe
+                const event = new CustomEvent('openQuickSignup');
+                window.dispatchEvent(event);
+              }}
+            >
+              Registrarse
+            </Button>
+          </div>
+        ),
+      });
+      setShowCreateModal(false);
+      return;
+    }
+
     try {
       const threadId = await createThread(threadData);
       
@@ -184,10 +221,13 @@ const AnonymousForumPage = () => {
               <ArrowLeft className="w-4 h-4 mr-2" />
               Volver
             </Button>
-            <Button onClick={() => setShowCreateModal(true)} className="magenta-gradient text-white font-bold">
-              <Plus className="w-4 h-4 mr-2" />
-              Nuevo Hilo
-            </Button>
+            {/* ✅ Solo mostrar botón si el usuario está autenticado y registrado */}
+            {user && !user.isGuest && !user.isAnonymous ? (
+              <Button onClick={() => setShowCreateModal(true)} className="magenta-gradient text-white font-bold">
+                <Plus className="w-4 h-4 mr-2" />
+                Nuevo Hilo
+              </Button>
+            ) : null}
           </div>
 
           <motion.div initial={{ opacity: 0, y: -20 }} animate={{ opacity: 1, y: 0 }} className="text-center mb-8">
@@ -304,7 +344,7 @@ const AnonymousForumPage = () => {
                     animate={{opacity: 1, y: 0}}
                     transition={{ delay: index * 0.02 }}
                     className="glass-effect rounded-xl p-5 cursor-pointer hover:border-cyan-400 transition-all border hover:shadow-lg"
-                    onClick={() => toast({ title: "Próximamente", description: "La página de detalle estará lista pronto" })}
+                    onClick={() => navigate(`/thread/${thread.id}`)}
                   >
                     <div className="flex items-start justify-between gap-4 mb-2">
                       <h3 className="text-lg font-bold flex-1">{thread.title}</h3>
@@ -334,13 +374,38 @@ const AnonymousForumPage = () => {
                 <div className="text-center py-12">
                   <MessageCircle className="w-16 h-16 text-muted-foreground mx-auto mb-4 opacity-50" />
                   <p className="text-muted-foreground">No hay hilos en esta categoría aún.</p>
-                  <Button 
-                    onClick={() => setShowCreateModal(true)} 
-                    className="mt-4 magenta-gradient text-white"
-                  >
-                    <Plus className="w-4 h-4 mr-2" />
-                    Crear el primer hilo
-                  </Button>
+                  {user && !user.isGuest && !user.isAnonymous ? (
+              <Button 
+                onClick={() => setShowCreateModal(true)} 
+                className="mt-4 magenta-gradient text-white"
+              >
+                <Plus className="w-4 h-4 mr-2" />
+                Crear el primer hilo
+              </Button>
+            ) : (
+              <Button 
+                onClick={() => {
+                  toast({
+                    title: "Registro Requerido",
+                    description: "Debes estar registrado para publicar hilos en el foro.",
+                    variant: "destructive",
+                    action: (
+                      <Button
+                        size="sm"
+                        onClick={() => navigate('/auth')}
+                        className="bg-primary text-white"
+                      >
+                        Iniciar Sesión
+                      </Button>
+                    ),
+                  });
+                }}
+                className="mt-4 magenta-gradient text-white"
+              >
+                <Plus className="w-4 h-4 mr-2" />
+                Registrarse para publicar
+              </Button>
+            )}
                 </div>
               )}
             </div>

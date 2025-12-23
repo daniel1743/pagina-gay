@@ -17,6 +17,7 @@ import {
   limitToLast,
 } from 'firebase/firestore';
 import { db, auth } from '@/config/firebase';
+import { trackMessageSent, trackFirstMessage } from '@/services/ga4Service';
 
 /**
  * Envía un mensaje a una sala de chat
@@ -54,6 +55,10 @@ export const sendMessage = async (roomId, messageData, isAnonymous = false) => {
       read: false, // Para doble check
     };
 
+    // Verificar si es el primer mensaje del usuario (para GA4)
+    const firstMessageKey = `firstMessage_${messageData.userId}`;
+    const hasSeenFirstMessage = localStorage.getItem(firstMessageKey);
+
     if (isAnonymous && auth.currentUser) {
       // OPTIMIZACIÓN: Enviar mensaje primero (rápido), actualizar contador después (asíncrono)
       const docRef = await addDoc(messagesRef, message);
@@ -65,10 +70,43 @@ export const sendMessage = async (roomId, messageData, isAnonymous = false) => {
         { merge: true }
       ).catch(err => console.error('Error updating guest count:', err));
 
+      // Track GA4: primer mensaje si no se ha enviado antes
+      if (!hasSeenFirstMessage) {
+        trackFirstMessage({
+          userId: messageData.userId,
+          roomId: roomId,
+          roomName: 'unknown' // Se puede pasar desde el componente si es necesario
+        });
+        localStorage.setItem(firstMessageKey, 'true');
+      } else {
+        trackMessageSent({
+          userId: messageData.userId,
+          roomId: roomId,
+          roomName: 'unknown'
+        });
+      }
+
       return { id: docRef.id, ...message };
     } else {
       // Para usuarios registrados: crear mensaje directamente
       const docRef = await addDoc(messagesRef, message);
+
+      // Track GA4: primer mensaje si no se ha enviado antes
+      if (!hasSeenFirstMessage) {
+        trackFirstMessage({
+          userId: messageData.userId,
+          roomId: roomId,
+          roomName: 'unknown'
+        });
+        localStorage.setItem(firstMessageKey, 'true');
+      } else {
+        trackMessageSent({
+          userId: messageData.userId,
+          roomId: roomId,
+          roomName: 'unknown'
+        });
+      }
+
       return { id: docRef.id, ...message };
     }
   } catch (error) {

@@ -353,6 +353,83 @@ service cloud.firestore {
     }
 
     // ===========================
+    // REGLAS DEL FORO ANÓNIMO
+    // ===========================
+
+    match /forum_threads/{threadId} {
+      // ✅ Cualquiera puede leer threads (incluso no autenticados para ver el foro)
+      allow read: if true;
+
+      // ✅ Solo usuarios autenticados (registrados, no anónimos) pueden crear threads
+      allow create: if isAuthenticated() &&
+                      request.auth.token.firebase.sign_in_provider != 'anonymous' &&
+                      'title' in request.resource.data &&
+                      request.resource.data.title is string &&
+                      request.resource.data.title.size() > 0 &&
+                      request.resource.data.title.size() <= 100 &&
+                      'content' in request.resource.data &&
+                      request.resource.data.content is string &&
+                      request.resource.data.content.size() > 0 &&
+                      request.resource.data.content.size() <= 1000 &&
+                      'category' in request.resource.data &&
+                      'authorId' in request.resource.data &&
+                      'authorDisplay' in request.resource.data;
+
+      // ✅ Solo el autor puede actualizar su thread (para editar)
+      allow update: if isAuthenticated() &&
+                      resource.data.authorId == request.auth.uid &&
+                      // No se puede cambiar el autor
+                      request.resource.data.authorId == resource.data.authorId;
+
+      // ✅ Solo el autor puede eliminar su thread
+      allow delete: if isAuthenticated() &&
+                      resource.data.authorId == request.auth.uid;
+    }
+
+    match /forum_replies/{replyId} {
+      // ✅ Cualquiera puede leer respuestas
+      allow read: if true;
+
+      // ✅ Solo usuarios autenticados (registrados) pueden crear respuestas
+      allow create: if isAuthenticated() &&
+                      request.auth.token.firebase.sign_in_provider != 'anonymous' &&
+                      'threadId' in request.resource.data &&
+                      'content' in request.resource.data &&
+                      request.resource.data.content is string &&
+                      request.resource.data.content.size() > 0 &&
+                      request.resource.data.content.size() <= 1000 &&
+                      'authorId' in request.resource.data &&
+                      'authorDisplay' in request.resource.data;
+
+      // ✅ Solo el autor puede actualizar su respuesta
+      allow update: if isAuthenticated() &&
+                      resource.data.authorId == request.auth.uid &&
+                      request.resource.data.authorId == resource.data.authorId;
+
+      // ✅ Solo el autor puede eliminar su respuesta
+      allow delete: if isAuthenticated() &&
+                      resource.data.authorId == request.auth.uid;
+    }
+
+    // ===========================
+    // REGLAS DE ACTIVIDAD GLOBAL
+    // ===========================
+
+    match /globalActivity/{userId} {
+      // ✅ Cualquiera puede leer actividad global (para mostrar en lobby)
+      allow read: if true;
+
+      // ✅ Solo usuarios autenticados pueden escribir su propia actividad
+      allow create, update: if isAuthenticated() &&
+                              request.auth.uid == userId &&
+                              'userId' in request.resource.data &&
+                              request.resource.data.userId == userId;
+
+      // No se pueden eliminar (para mantener historial)
+      allow delete: if false;
+    }
+
+    // ===========================
     // REGLAS POR DEFECTO
     // ===========================
 

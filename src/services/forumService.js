@@ -1,5 +1,6 @@
 import { collection, addDoc, getDocs, query, orderBy, where, doc, getDoc, updateDoc, increment, serverTimestamp, limit } from 'firebase/firestore';
 import { db } from '@/config/firebase';
+import { trackThreadCreated, trackForumReply, trackForumVote } from '@/services/ga4Service';
 
 /**
  * Servicio para manejar el foro anónimo
@@ -40,6 +41,12 @@ export const createThread = async (threadData, anonymousUserId = null) => {
       // No guardamos datos personales del usuario
     });
 
+    // Track GA4: creación de thread
+    trackThreadCreated({
+      userId: anonId,
+      category: threadData.category
+    });
+
     return threadRef.id;
   } catch (error) {
     console.error('Error creando thread:', error);
@@ -64,10 +71,12 @@ export const getThreads = async (category = null, sortBy = 'recent', maxResults 
     }
 
     // Ordenar
+    // ✅ Simplificado: solo ordenar por un campo para evitar índices compuestos complejos
+    // El ordenamiento secundario se hace en el cliente
     if (sortBy === 'popular') {
-      q = query(q, orderBy('likes', 'desc'), orderBy('createdAt', 'desc'));
+      q = query(q, orderBy('likes', 'desc'));
     } else if (sortBy === 'replies') {
-      q = query(q, orderBy('replies', 'desc'), orderBy('createdAt', 'desc'));
+      q = query(q, orderBy('replies', 'desc'));
     } else {
       q = query(q, orderBy('createdAt', 'desc'));
     }
@@ -87,6 +96,21 @@ export const getThreads = async (category = null, sortBy = 'recent', maxResults 
         timestamp: doc.data().createdAt?.toMillis() || Date.now(),
       });
     });
+
+    // ✅ Ordenamiento secundario en el cliente (por fecha) si es necesario
+    if (sortBy === 'popular' || sortBy === 'replies') {
+      threads.sort((a, b) => {
+        // Primero por el campo principal (likes o replies)
+        const primaryDiff = sortBy === 'popular' 
+          ? (b.likes || 0) - (a.likes || 0)
+          : (b.replies || 0) - (a.replies || 0);
+        
+        if (primaryDiff !== 0) return primaryDiff;
+        
+        // Si son iguales, ordenar por fecha (más reciente primero)
+        return (b.timestamp || 0) - (a.timestamp || 0);
+      });
+    }
 
     return threads;
   } catch (error) {
@@ -149,6 +173,12 @@ export const addReply = async (threadId, content, anonymousUserId = null) => {
       updatedAt: serverTimestamp(),
     });
 
+    // Track GA4: respuesta en foro
+    trackForumReply({
+      userId: anonId,
+      threadId: threadId
+    });
+
     return replyRef.id;
   } catch (error) {
     console.error('Error agregando respuesta:', error);
@@ -200,8 +230,42 @@ export const voteThread = async (threadId, isLike = true) => {
       likes: increment(isLike ? 1 : -1),
       updatedAt: serverTimestamp(),
     });
+
+    // Track GA4: voto en thread (solo si es like)
+    if (isLike) {
+      trackForumVote({
+        threadId: threadId,
+        voteType: 'upvote'
+      });
+    }
   } catch (error) {
     console.error('Error votando thread:', error);
+    throw error;
+  }
+};
+
+/**
+ * Vota por una respuesta (like)
+ * @param {string} replyId - ID de la respuesta
+ * @param {boolean} isLike - true para like, false para unlike
+ * @returns {Promise<void>}
+ */
+export const voteReply = async (replyId, isLike = true) => {
+  try {
+    const replyRef = doc(db, REPLIES_COLLECTION, replyId);
+    await updateDoc(replyRef, {
+      likes: increment(isLike ? 1 : -1),
+    });
+
+    // Track GA4: voto en reply (solo si es like)
+    if (isLike) {
+      trackForumVote({
+        threadId: replyId,
+        voteType: 'upvote'
+      });
+    }
+  } catch (error) {
+    console.error('Error votando respuesta:', error);
     throw error;
   }
 };

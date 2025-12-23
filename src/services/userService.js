@@ -223,3 +223,70 @@ export const upgradeToPremium = async (uid) => {
     throw error;
   }
 };
+
+/**
+ * Busca usuarios por ID o nombre de usuario (SOLO ADMIN)
+ * @param {string} searchTerm - Término de búsqueda (ID o username)
+ * @returns {Promise<Array>} Lista de usuarios que coinciden
+ */
+export const searchUsers = async (searchTerm) => {
+  try {
+    if (!searchTerm || !searchTerm.trim()) {
+      return [];
+    }
+
+    const searchTermLower = searchTerm.trim().toLowerCase();
+    const usersRef = collection(db, 'users');
+    const q = query(usersRef);
+    const snapshot = await getDocs(q);
+
+    const matchedUsers = [];
+
+    snapshot.forEach((docSnap) => {
+      const userData = docSnap.data();
+      const userId = docSnap.id.toLowerCase();
+      const username = (userData.username || '').toLowerCase();
+
+      // Buscar coincidencias parciales en ID o username
+      if (
+        userId.includes(searchTermLower) ||
+        username.includes(searchTermLower)
+      ) {
+        matchedUsers.push({
+          id: docSnap.id,
+          ...userData,
+        });
+      }
+    });
+
+    // Limitar a 20 resultados para no sobrecargar la UI
+    return matchedUsers.slice(0, 20);
+  } catch (error) {
+    console.error('Error searching users:', error);
+    return [];
+  }
+};
+
+/**
+ * Obtiene un usuario por ID (SOLO ADMIN)
+ * @param {string} userId - ID del usuario
+ * @returns {Promise<object|null>} Usuario o null si no existe
+ */
+export const getUserById = async (userId) => {
+  try {
+    const userRef = doc(db, 'users', userId);
+    const userSnap = await getDoc(userRef);
+
+    if (userSnap.exists()) {
+      return {
+        id: userSnap.id,
+        ...userSnap.data(),
+      };
+    }
+
+    return null;
+  } catch (error) {
+    console.error('Error getting user by ID:', error);
+    return null;
+  }
+};

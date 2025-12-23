@@ -40,6 +40,7 @@ import SanctionUserModal from '@/components/sanctions/SanctionUserModal';
 import SanctionsFAQ from '@/components/sanctions/SanctionsFAQ';
 import AdminChatWindow from '@/components/admin/AdminChatWindow';
 import ReportStatusDropdown from '@/components/admin/ReportStatusDropdown';
+import { searchUsers, getUserById } from '@/services/userService';
 
 const AdminPage = () => {
   const navigate = useNavigate();
@@ -52,6 +53,11 @@ const AdminPage = () => {
   const [showSanctionsFAQ, setShowSanctionsFAQ] = useState(false);
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState('dashboard');
+
+  // Estados para búsqueda de usuarios
+  const [userSearchTerm, setUserSearchTerm] = useState('');
+  const [userSearchResults, setUserSearchResults] = useState([]);
+  const [searchingUsers, setSearchingUsers] = useState(false);
   
   // Estadísticas de reportes
   const [reportStats, setReportStats] = useState({
@@ -418,6 +424,37 @@ const AdminPage = () => {
       case SANCTION_TYPES.RESTRICT: return 'bg-blue-500/20 text-blue-400 border-blue-500/30';
       default: return 'bg-gray-500/20 text-gray-400 border-gray-500/30';
     }
+  };
+
+  // Función para buscar usuarios
+  const handleUserSearch = async () => {
+    if (!userSearchTerm.trim()) {
+      setUserSearchResults([]);
+      return;
+    }
+
+    setSearchingUsers(true);
+    try {
+      const results = await searchUsers(userSearchTerm);
+      setUserSearchResults(results);
+    } catch (error) {
+      console.error('Error searching users:', error);
+      toast({
+        title: "Error",
+        description: "No se pudo buscar usuarios. Intenta de nuevo.",
+        variant: "destructive",
+      });
+    } finally {
+      setSearchingUsers(false);
+    }
+  };
+
+  // Función para seleccionar usuario y abrir modal de sanción
+  const handleSelectUserForSanction = (selectedUser) => {
+    setSelectedUserToSanction(selectedUser);
+    setShowSanctionModal(true);
+    setUserSearchTerm('');
+    setUserSearchResults([]);
   };
 
   const getReasonLabel = (reason) => {
@@ -988,6 +1025,99 @@ const AdminPage = () => {
                   <SanctionsFAQ />
                 </div>
               )}
+
+              {/* Buscador de Usuarios para Sancionar */}
+              <div className="mb-6 glass-effect p-6 rounded-xl border border-red-500/30 bg-gradient-to-br from-red-500/10 to-orange-500/10">
+                <h3 className="text-xl font-bold mb-4 flex items-center gap-2">
+                  <Search className="w-5 h-5 text-red-400" />
+                  Buscar Usuario para Sancionar
+                </h3>
+
+                <div className="flex flex-col md:flex-row gap-3">
+                  <div className="flex-1">
+                    <Input
+                      placeholder="Buscar por ID de usuario o nombre de usuario..."
+                      value={userSearchTerm}
+                      onChange={(e) => setUserSearchTerm(e.target.value)}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter') {
+                          handleUserSearch();
+                        }
+                      }}
+                      className="bg-background border-2 border-input focus:border-red-400"
+                    />
+                  </div>
+                  <Button
+                    onClick={handleUserSearch}
+                    disabled={searchingUsers || !userSearchTerm.trim()}
+                    className="bg-red-500 hover:bg-red-600 text-white font-bold"
+                  >
+                    {searchingUsers ? (
+                      <>
+                        <Search className="w-4 h-4 mr-2 animate-spin" />
+                        Buscando...
+                      </>
+                    ) : (
+                      <>
+                        <Search className="w-4 h-4 mr-2" />
+                        Buscar
+                      </>
+                    )}
+                  </Button>
+                </div>
+
+                {/* Resultados de búsqueda */}
+                {userSearchResults.length > 0 && (
+                  <div className="mt-4 space-y-2 max-h-96 overflow-y-auto">
+                    <p className="text-sm text-muted-foreground mb-2">
+                      {userSearchResults.length} usuario(s) encontrado(s):
+                    </p>
+                    {userSearchResults.map((foundUser) => (
+                      <div
+                        key={foundUser.id}
+                        className="flex items-center justify-between p-4 bg-background rounded-lg border border-border hover:border-red-500/50 transition-all"
+                      >
+                        <div className="flex items-center gap-3">
+                          <img
+                            src={foundUser.avatar || `https://api.dicebear.com/7.x/avataaars/svg?seed=${foundUser.username}`}
+                            alt={foundUser.username}
+                            className="w-10 h-10 rounded-full border-2 border-border"
+                          />
+                          <div>
+                            <p className="font-semibold">{foundUser.username}</p>
+                            <p className="text-xs text-muted-foreground">ID: {foundUser.id}</p>
+                            {foundUser.email && (
+                              <p className="text-xs text-muted-foreground">{foundUser.email}</p>
+                            )}
+                            {foundUser.isBanned && (
+                              <span className="inline-block text-xs px-2 py-0.5 rounded-full bg-red-500/20 text-red-400 border border-red-500/30 mt-1">
+                                YA BANEADO
+                              </span>
+                            )}
+                          </div>
+                        </div>
+                        <Button
+                          size="sm"
+                          variant="destructive"
+                          onClick={() => handleSelectUserForSanction(foundUser)}
+                          className="bg-red-500 hover:bg-red-600"
+                        >
+                          <AlertTriangle className="w-4 h-4 mr-1" />
+                          Aplicar Sanción
+                        </Button>
+                      </div>
+                    ))}
+                  </div>
+                )}
+
+                {userSearchResults.length === 0 && userSearchTerm && !searchingUsers && (
+                  <div className="mt-4 text-center py-8 bg-background rounded-lg border border-border">
+                    <p className="text-muted-foreground">
+                      No se encontraron usuarios con "{userSearchTerm}"
+                    </p>
+                  </div>
+                )}
+              </div>
 
               {/* Lista de Sanciones */}
               {sanctions.length === 0 ? (
