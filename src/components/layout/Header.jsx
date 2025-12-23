@@ -84,7 +84,7 @@ const Header = () => {
   }, [user]);
 
   return (
-    <header className="fixed top-0 left-0 right-0 z-50 bg-card/80 backdrop-blur-lg border-b m-0 shadow-sm">
+    <header className="fixed top-0 left-0 right-0 z-50 bg-card/80 backdrop-blur-lg border-b m-0 p-0 shadow-sm">
       <div className="container mx-auto px-4 sm:px-6 lg:px-8 flex items-center justify-between h-16 sm:h-20">
         <div className="flex items-center gap-3 cursor-pointer" onClick={() => navigate('/')}>
           <div className="w-10 h-10 flex items-center justify-center">
@@ -99,37 +99,42 @@ const Header = () => {
         </div>
 
         <div className="flex items-center gap-2 sm:gap-4">
-          <Button
-            variant="ghost"
-            size="icon"
-            className="text-muted-foreground hover:text-accent hover:bg-transparent"
-            onClick={toggleTheme}
-            aria-label={theme === 'dark' ? 'Cambiar a tema claro' : 'Cambiar a tema oscuro'}
-          >
-            {theme === 'dark' ? <Sun className="w-6 h-6" /> : <Moon className="w-6 h-6" />}
-          </Button>
+          {/* ✅ FASE URGENTE: Navbar dinámica - Solo mostrar tema/notificaciones para usuarios logueados */}
+          {user && !user.isGuest && (
+            <>
+              <Button
+                variant="ghost"
+                size="icon"
+                className="text-muted-foreground hover:text-accent hover:bg-transparent"
+                onClick={toggleTheme}
+                aria-label={theme === 'dark' ? 'Cambiar a tema claro' : 'Cambiar a tema oscuro'}
+              >
+                {theme === 'dark' ? <Sun className="w-6 h-6" /> : <Moon className="w-6 h-6" />}
+              </Button>
 
-          <Button
-            variant="ghost"
-            size="icon"
-            className="text-muted-foreground hover:text-cyan-400 hover:bg-transparent relative"
-            onClick={() => setShowNotifications(!showNotifications)}
-            aria-label="Ver notificaciones"
-          >
-            <Bell className="w-6 h-6" />
-            {unreadNotificationsCount > 0 && (
-              <AnimatePresence>
-                <motion.div
-                  initial={{ scale: 0 }}
-                  animate={{ scale: 1 }}
-                  exit={{ scale: 0 }}
-                  className="absolute -top-1 -right-1 bg-[#E4007C] text-white text-xs font-bold rounded-full w-5 h-5 flex items-center justify-center"
-                >
-                  {unreadNotificationsCount > 9 ? '9+' : unreadNotificationsCount}
-                </motion.div>
-              </AnimatePresence>
-            )}
-          </Button>
+              <Button
+                variant="ghost"
+                size="icon"
+                className="text-muted-foreground hover:text-cyan-400 hover:bg-transparent relative"
+                onClick={() => setShowNotifications(!showNotifications)}
+                aria-label="Ver notificaciones"
+              >
+                <Bell className="w-6 h-6" />
+                {unreadNotificationsCount > 0 && (
+                  <AnimatePresence>
+                    <motion.div
+                      initial={{ scale: 0 }}
+                      animate={{ scale: 1 }}
+                      exit={{ scale: 0 }}
+                      className="absolute -top-1 -right-1 bg-[#E4007C] text-white text-xs font-bold rounded-full w-5 h-5 flex items-center justify-center"
+                    >
+                      {unreadNotificationsCount > 9 ? '9+' : unreadNotificationsCount}
+                    </motion.div>
+                  </AnimatePresence>
+                )}
+              </Button>
+            </>
+          )}
 
           {user && !user.isGuest ? (
             <DropdownMenu>
@@ -200,10 +205,25 @@ const Header = () => {
               </DropdownMenuContent>
             </DropdownMenu>
           ) : (
-            <Button onClick={() => navigate('/auth')} className="magenta-gradient text-white font-bold py-2 px-4 rounded-lg">
-              <LogIn className="w-4 h-4 mr-2" />
-              Iniciar Sesión
-            </Button>
+            /* ✅ FASE URGENTE: CTAs para visitantes - Navbar que VENDE */
+            <>
+              {/* Botón secundario: Iniciar sesión */}
+              <Button
+                variant="outline"
+                onClick={() => navigate('/auth')}
+                className="hidden sm:flex border-border text-foreground hover:bg-accent/10 font-medium"
+              >
+                Iniciar sesión
+              </Button>
+
+              {/* CTA principal: Entrar gratis */}
+              <Button
+                onClick={() => navigate('/auth')}
+                className="magenta-gradient text-white font-bold px-4 sm:px-6 py-2 sm:py-2.5 rounded-lg shadow-lg hover:shadow-[#E4007C]/50 transition-all hover:scale-105"
+              >
+                🚀 <span className="ml-1.5">ENTRAR GRATIS</span>
+              </Button>
+            </>
           )}
         </div>
       </div>

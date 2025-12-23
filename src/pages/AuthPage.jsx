@@ -16,6 +16,19 @@ const AuthPage = () => {
 
   React.useEffect(() => {
     document.title = "Iniciar Sesión - Chactivo | Chat Gay Chile";
+
+    // ✅ SEO: Noindex para evitar que Google indexe la página de login
+    const metaRobots = document.createElement('meta');
+    metaRobots.name = 'robots';
+    metaRobots.content = 'noindex, nofollow';
+    document.head.appendChild(metaRobots);
+
+    return () => {
+      // Limpiar al desmontar
+      if (document.head.contains(metaRobots)) {
+        document.head.removeChild(metaRobots);
+      }
+    };
   }, []);
 
   const navigate = useNavigate();

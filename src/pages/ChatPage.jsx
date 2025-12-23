@@ -162,7 +162,7 @@ const ChatPage = () => {
 
   // ✅ NUEVO: Verificar si el usuario ya aceptó las reglas del chat
   useEffect(() => {
-    if (!user) return;
+    if (!user || !user.id) return;
     
     const rulesKey = `chat_rules_accepted_${user.id}`;
     const hasAccepted = localStorage.getItem(rulesKey) === 'true';
@@ -278,6 +278,12 @@ const ChatPage = () => {
       }).length;
     };
 
+    // ✅ CRÍTICO: Validar que el usuario existe antes de continuar
+    if (!user || !user.id || !user.username) {
+      console.warn('⏰ [CHAT PAGE] Usuario no disponible, no se puede activar IA');
+      return;
+    }
+
     const realUserCount = countRealUsers(roomUsers);
     
     // ✅ CORREGIDO: Activar IA cuando hay usuarios reales, incluso si bots no están activos
@@ -297,6 +303,10 @@ const ChatPage = () => {
 
     // Delay de 2 segundos para asegurar que todo esté inicializado
     const timer = setTimeout(() => {
+      if (!user || !user.id || !user.username) {
+        console.warn('⏰ [CHAT PAGE] Usuario no disponible para activar IA');
+        return;
+      }
       console.log('⏰ [CHAT PAGE] Activando IA después de que sistema esté listo...');
       console.log(`👤 [CHAT PAGE] Activando para usuario: ${user.username} (ID: ${user.id})`);
       activateAIForUser(user.id, user.username);
@@ -304,7 +314,7 @@ const ChatPage = () => {
     }, 2000);
 
     return () => clearTimeout(timer);
-  }, [roomUsers, activateAIForUser, user.id, user.username]);
+  }, [roomUsers, activateAIForUser, user?.id, user?.username]);
 
   // Suscribirse a contadores de todas las salas (para mensajes contextuales)
   useEffect(() => {
@@ -369,6 +379,16 @@ const ChatPage = () => {
    * 🤖 Activa respuesta de bots si están activos
    */
   const handleSendMessage = async (content, type = 'text') => {
+    // ✅ CRÍTICO: Validar que el usuario existe
+    if (!user || !user.id) {
+      toast({
+        title: "Error",
+        description: "No se puede enviar mensajes. Por favor, inicia sesión.",
+        variant: "destructive",
+      });
+      return;
+    }
+
     // ✅ CRÍTICO: Verificar que el usuario haya aceptado las reglas
     if (!hasAcceptedRules) {
       setShowChatRules(true);

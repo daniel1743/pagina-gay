@@ -2,6 +2,13 @@
 @tailwind components;
 @tailwind utilities;
 
+/* ✅ RESET COMPLETO - Eliminar todos los espacios en blanco */
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
 @import url('https://fonts.googleapis.com/css2?family=Nunito+Sans:wght@300;400;600;700;800&display=swap');
 
 :root {
@@ -90,6 +97,8 @@
 html {
   margin: 0;
   padding: 0;
+  /* Eliminar cualquier espacio en blanco arriba */
+  overflow-x: hidden;
 }
 
 body {
@@ -102,6 +111,8 @@ body {
   /* Ocultar scrollbar pero mantener funcionalidad de scroll */
   -ms-overflow-style: none;  /* IE y Edge */
   scrollbar-width: none;  /* Firefox */
+  /* Eliminar cualquier espacio en blanco arriba */
+  position: relative;
 }
 
 /* ✅ OCULTAR SCROLLBAR GLOBALMENTE - Aplicar a TODOS los elementos */
@@ -121,6 +132,15 @@ body::-webkit-scrollbar {
 #root {
   margin: 0;
   padding: 0;
+  /* Asegurar que no haya espacio arriba */
+  position: relative;
+}
+
+/* ✅ Asegurar que el header esté pegado arriba sin espacios */
+header {
+  margin-top: 0 !important;
+  padding-top: 0 !important;
+  top: 0 !important;
 }
 
 * {
