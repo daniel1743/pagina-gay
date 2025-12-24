@@ -38,8 +38,8 @@ export const sendMessage = async (roomId, messageData, isAnonymous = false) => {
       throw new Error(`Por favor espera ${waitTime} segundo(s) antes de enviar otro mensaje.`);
     }
 
-    // Actualizar timestamp del último mensaje
-    localStorage.setItem(rateLimitKey, now.toString());
+    // ✅ IMPORTANTE: NO actualizar el timestamp aquí, solo después de que el mensaje se envíe exitosamente
+    // Si el mensaje falla, no queremos bloquear al usuario
 
     const messagesRef = collection(db, 'rooms', roomId, 'messages');
 
@@ -62,6 +62,9 @@ export const sendMessage = async (roomId, messageData, isAnonymous = false) => {
     if (isAnonymous && auth.currentUser) {
       // OPTIMIZACIÓN: Enviar mensaje primero (rápido), actualizar contador después (asíncrono)
       const docRef = await addDoc(messagesRef, message);
+
+      // ✅ ACTUALIZAR timestamp del rate limiting SOLO después de que el mensaje se envíe exitosamente
+      localStorage.setItem(rateLimitKey, now.toString());
 
       // Actualizar contador en segundo plano sin bloquear
       setDoc(
@@ -90,6 +93,9 @@ export const sendMessage = async (roomId, messageData, isAnonymous = false) => {
     } else {
       // Para usuarios registrados: crear mensaje directamente
       const docRef = await addDoc(messagesRef, message);
+
+      // ✅ ACTUALIZAR timestamp del rate limiting SOLO después de que el mensaje se envíe exitosamente
+      localStorage.setItem(rateLimitKey, now.toString());
 
       // ✅ Incrementar contador de mensajes para usuarios registrados (para sistema de recompensas)
       if (messageData.userId && !isAnonymous) {

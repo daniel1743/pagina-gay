@@ -73,9 +73,20 @@ export const trackEvent = async (eventType, eventData = {}) => {
     }
 
     // Actualizar estadísticas diarias (merge para no sobrescribir)
-    await setDoc(statsRef, updates, { merge: true });
+    // ✅ IMPORTANTE: Si falla por permisos, no bloquear la aplicación
+    await setDoc(statsRef, updates, { merge: true }).catch(err => {
+      // Solo loggear si no es un error de permisos (para no spamear la consola)
+      if (err.code !== 'permission-denied') {
+        console.error('Error tracking event:', err);
+      }
+      // Silenciosamente ignorar errores de permisos (el tracking es opcional)
+    });
   } catch (error) {
-    console.error('Error tracking event:', error);
+    // Solo loggear si no es un error de permisos
+    if (error.code !== 'permission-denied') {
+      console.error('Error tracking event:', error);
+    }
+    // No lanzar el error, el tracking es opcional
   }
 };
 

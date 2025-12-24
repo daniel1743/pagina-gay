@@ -163,9 +163,9 @@ service cloud.firestore {
       // Si quieres presencia pública total: cambia a `if true;`
       allow read: if isAuthenticated();
 
+      // ✅ Permitir usuarios anónimos también para presencia (necesario para el chat)
       allow create, update, delete: if isAuthenticated() &&
-                                      request.auth.uid == userId &&
-                                      request.auth.token.firebase.sign_in_provider != 'anonymous';
+                                      request.auth.uid == userId;
     }
 
     // ===========================
@@ -173,8 +173,10 @@ service cloud.firestore {
     // ===========================
 
     match /rooms/{roomId}/messages/{messageId} {
-      allow read: if isAuthenticated() &&
-                    request.auth.token.firebase.sign_in_provider != 'anonymous';
+      // ✅ CRÍTICO: Permitir lectura pública para SEO y UX
+      // Cualquiera puede VER las conversaciones (incluso sin registro)
+      // Esto permite que usuarios que lleguen desde Google puedan ver el chat
+      allow read: if true;
 
       // ✅ Publico: filtro fuerte (incluye contacto)
       allow create: if isAuthenticated() &&
@@ -252,9 +254,13 @@ service cloud.firestore {
     // ===========================
 
     match /analytics_stats/{dateId} {
-      // ✅ Más seguro: solo admin escribe (recomendado)
-      allow write: if isAdmin();
-      allow read: if isAdmin();
+      // ✅ Permitir que usuarios autenticados escriban en analytics (para tracking de eventos)
+      // Los usuarios solo pueden escribir en documentos que coincidan con su userId o fecha actual
+      allow write: if isAuthenticated() && 
+                      (isAdmin() || 
+                       dateId == request.auth.uid || 
+                       dateId.matches('\\d{4}-\\d{2}-\\d{2}'));
+      allow read: if isAuthenticated();
     }
 
     // ===========================

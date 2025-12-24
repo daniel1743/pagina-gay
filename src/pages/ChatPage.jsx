@@ -14,6 +14,7 @@ import TypingIndicator from '@/components/chat/TypingIndicator';
 import WelcomeTour from '@/components/onboarding/WelcomeTour';
 import { PremiumWelcomeModal } from '@/components/chat/PremiumWelcomeModal';
 import ChatRulesModal from '@/components/chat/ChatRulesModal';
+import LoginGate from '@/components/chat/LoginGate';
 import { toast } from '@/components/ui/use-toast';
 import PrivateChatWindow from '@/components/chat/PrivateChatWindow';
 import { sendMessage, subscribeToRoomMessages, addReactionToMessage, markMessagesAsRead } from '@/services/chatService';
@@ -69,19 +70,17 @@ const ChatPage = () => {
   const unsubscribeRef = useRef(null);
   const aiActivatedRef = useRef(false); // Flag para evitar activaciones múltiples de IA
 
+  // ========================================
+  // 🔒 LOGIN GATE: Guard clause para user === null
+  // ========================================
+  // CRITICAL: Debe estar ANTES de cualquier lógica de Firestore/bots
+  // NO afecta a guests (user.isGuest), solo a visitantes sin sesión
+  if (!user) {
+    return <LoginGate roomSlug={roomId} />;
+  }
+
   // ✅ VALIDACIÓN: Usuarios registrados tienen acceso completo, anónimos solo a "conversas-libres"
   useEffect(() => {
-    if (!user) {
-      // Si no hay usuario, redirigir al auth
-      toast({
-        title: "Debes iniciar sesión",
-        description: "Regístrate para acceder a las salas de chat",
-        variant: "destructive",
-      });
-      navigate('/auth');
-      return;
-    }
-
     // ✅ SEO: Validar que la sala existe en roomsData (prevenir 404 en salas comentadas)
     const activeSalas = roomsData.map(room => room.id);
     if (!activeSalas.includes(roomId)) {
@@ -232,6 +231,13 @@ const ChatPage = () => {
 
   // Suscribirse a mensajes en tiempo real cuando cambia la sala
   useEffect(() => {
+    // 🔒 SAFETY: Verificar que user existe (defensa en profundidad)
+    // Aunque el guard clause previene esto, es buena práctica
+    if (!user || !user.id) {
+      console.warn('⚠️ [CHAT] useEffect de Firestore ejecutado sin user válido');
+      return;
+    }
+
     setCurrentRoom(roomId);
     aiActivatedRef.current = false; // Resetear flag de IA cuando cambia de sala
 

@@ -42,14 +42,25 @@ const AnonymousForumPage = () => {
   const [showChatBanner, setShowChatBanner] = useState(true); // ✅ Banner visible por defecto
   const [isInitialized, setIsInitialized] = useState(false);
 
+  // ✅ Filtrado: Si es "Todos", mostrar todos los threads sin filtrar
+  // Si es una categoría específica, los threads ya vienen filtrados de Firestore,
+  // pero hacemos un filtro adicional por si acaso
   const filteredThreads = selectedCategory === 'Todos'
-    ? threads
+    ? threads // Mostrar TODOS cuando es "Todos"
     : threads.filter(t => t.category === selectedCategory);
 
+  // ✅ Debug: Ver cuántos threads hay
+  React.useEffect(() => {
+    console.log(`🔍 [FORO DEBUG] Categoría seleccionada: ${selectedCategory}`);
+    console.log(`🔍 [FORO DEBUG] Total threads en estado: ${threads.length}`);
+    console.log(`🔍 [FORO DEBUG] Threads filtrados: ${filteredThreads.length}`);
+  }, [selectedCategory, threads.length, filteredThreads.length]);
+
+  // ✅ Ordenar los threads filtrados
   const sortedThreads = [...filteredThreads].sort((a, b) => {
-    if (sortBy === 'popular') return b.likes - a.likes;
-    if (sortBy === 'replies') return b.replies - a.replies;
-    return b.timestamp - a.timestamp;
+    if (sortBy === 'popular') return (b.likes || 0) - (a.likes || 0);
+    if (sortBy === 'replies') return (b.replies || 0) - (a.replies || 0);
+    return (b.timestamp || 0) - (a.timestamp || 0);
   });
 
   // ✅ Inicializar datos del foro en Firestore (solo una vez)
@@ -114,14 +125,22 @@ const AnonymousForumPage = () => {
 
   // ✅ Cargar threads desde Firestore
   useEffect(() => {
+    // Solo cargar si ya se inicializó el foro
+    if (!isInitialized) return;
+
     const loadThreads = async () => {
       setLoading(true);
       try {
-        // ✅ Sin límite: obtener TODOS los threads
-        const firestoreThreads = await getThreads(selectedCategory === 'Todos' ? null : selectedCategory, sortBy, null);
+        // ✅ CRÍTICO: Cuando es "Todos", cargar TODOS los threads sin filtro de categoría
+        // Cuando es una categoría específica, filtrar por esa categoría
+        const categoryFilter = selectedCategory === 'Todos' ? null : selectedCategory;
+        const firestoreThreads = await getThreads(categoryFilter, sortBy, null);
+        
+        console.log(`📊 [FORO] Cargando threads - Categoría seleccionada: "${selectedCategory}", Filtro aplicado: ${categoryFilter || 'NINGUNO (TODOS)'}, Threads encontrados: ${firestoreThreads.length}`);
         
         // Si no hay threads en Firestore, usar datos seed como fallback
         if (firestoreThreads.length === 0) {
+          console.log('⚠️ [FORO] No hay threads en Firestore, usando datos seed');
           const seedThreads = forumSeedData
             .filter(t => selectedCategory === 'Todos' || t.category === selectedCategory)
             .map(t => ({
@@ -135,15 +154,29 @@ const AnonymousForumPage = () => {
               timestamp: t.timestamp,
             }));
           
+          console.log(`📊 [FORO] Threads seed cargados: ${seedThreads.length} (filtro: ${selectedCategory === 'Todos' ? 'NINGUNO' : selectedCategory})`);
           setThreads(seedThreads);
         } else {
+          console.log(`✅ [FORO] Threads de Firestore cargados: ${firestoreThreads.length}`);
+          // ✅ IMPORTANTE: Asegurar que cuando es "Todos", se muestren TODOS los threads
           setThreads(firestoreThreads);
         }
       } catch (error) {
-        console.error('Error cargando threads:', error);
+        console.error('❌ [FORO] Error cargando threads:', error);
         // Fallback a datos seed (TODOS)
         const seedThreads = forumSeedData
-          .filter(t => selectedCategory === 'Todos' || t.category === selectedCategory);
+          .filter(t => selectedCategory === 'Todos' || t.category === selectedCategory)
+          .map(t => ({
+            id: t.id,
+            title: t.title,
+            content: t.content,
+            category: t.category,
+            authorDisplay: t.authorDisplay,
+            replies: t.replies,
+            likes: t.likes,
+            timestamp: t.timestamp,
+          }));
+        console.log(`📊 [FORO] Threads seed (fallback): ${seedThreads.length}`);
         setThreads(seedThreads);
       } finally {
         setLoading(false);
@@ -151,7 +184,7 @@ const AnonymousForumPage = () => {
     };
 
     loadThreads();
-  }, [selectedCategory, sortBy]);
+  }, [selectedCategory, sortBy, isInitialized]);
 
   const handleCreateThread = async (threadData) => {
     // ✅ Validar que el usuario esté autenticado y registrado
