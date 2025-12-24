@@ -602,14 +602,9 @@ const ChatPage = () => {
     });
   };
 
-  // ✅ Early return DESPUÉS de todos los hooks - Loading spinner mientras se valida usuario
-  if (!user || user.isGuest || user.isAnonymous) {
-    return (
-      <div className="flex items-center justify-center min-h-screen">
-        <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-purple-500"></div>
-      </div>
-    );
-  }
+  // ✅ NOTA: El guard clause para user === null está ANTES (línea 79-81)
+  // Este early return duplicado fue eliminado porque bloqueaba incorrectamente a guests
+  // Guests (user.isGuest || user.isAnonymous) DEBEN poder acceder al chat
 
   return (
     <>

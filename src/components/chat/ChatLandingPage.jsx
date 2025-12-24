@@ -128,10 +128,12 @@ const ChatLandingPage = ({ roomSlug }) => {
   const navigate = useNavigate();
   const content = ROOM_CONTENT[roomSlug] || ROOM_CONTENT['conversas-libres'];
 
-  // SEO: Meta description dinámica
+  // SEO: Meta tags dinámicos
   useEffect(() => {
+    // Title
     document.title = `${content.title} - Chactivo | Chat Gay Chile`;
 
+    // Meta description
     let metaDescription = document.querySelector('meta[name="description"]');
     if (!metaDescription) {
       metaDescription = document.createElement('meta');
@@ -139,6 +141,24 @@ const ChatLandingPage = ({ roomSlug }) => {
       document.head.appendChild(metaDescription);
     }
     metaDescription.content = content.description;
+
+    // Meta robots (permitir indexación)
+    let metaRobots = document.querySelector('meta[name="robots"]');
+    if (!metaRobots) {
+      metaRobots = document.createElement('meta');
+      metaRobots.name = 'robots';
+      document.head.appendChild(metaRobots);
+    }
+    metaRobots.content = 'index,follow';
+
+    // Canonical URL
+    let canonical = document.querySelector('link[rel="canonical"]');
+    if (!canonical) {
+      canonical = document.createElement('link');
+      canonical.rel = 'canonical';
+      document.head.appendChild(canonical);
+    }
+    canonical.href = `${window.location.origin}/chat/${roomSlug}`;
 
     return () => {
       // Restaurar descripción por defecto
