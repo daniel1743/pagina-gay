@@ -124,43 +124,70 @@ const FeatureCard = ({
         )}
 
         {isHorizontal ? (
-          // ✅ Layout horizontal para tarjeta del foro
-          <div className="flex items-center gap-6 h-full relative">
-            {/* Icon */}
-            <div
-              className={`w-16 h-16 sm:w-20 sm:h-20 flex-shrink-0 rounded-xl flex items-center justify-center border ${colors.iconBg}`}
-            >
-              <div className={colors.iconColor}>{icon}</div>
+          // ✅ Layout horizontal para tarjeta del foro (responsive: mejorado para móvil)
+          <div className="flex flex-col sm:flex-row items-start sm:items-center gap-4 sm:gap-6 h-full relative">
+            {/* Icon - Móvil: centrado, Desktop: izquierda */}
+            <div className="flex items-center gap-3 sm:block w-full sm:w-auto">
+              <div
+                className={`w-14 h-14 sm:w-16 sm:h-16 md:w-20 md:h-20 flex-shrink-0 rounded-xl flex items-center justify-center border ${colors.iconBg}`}
+              >
+                <div className={colors.iconColor}>{icon}</div>
+              </div>
+              {/* Badge en móvil al lado del icono */}
+              {badge && BadgeIcon && (
+                <div
+                  className={`sm:hidden px-2 py-1 rounded-full border text-xs font-semibold flex items-center gap-1.5 ${colors.badge}`}
+                >
+                  <BadgeIcon className="w-3 h-3" />
+                  {badge}
+                </div>
+              )}
             </div>
 
             {/* Contenido central */}
-            <div className="flex-1 min-w-0">
-              <div className="flex items-center gap-3 mb-2">
-                <h3 className="text-xl sm:text-2xl font-bold leading-tight">{title}</h3>
+            <div className="flex-1 min-w-0 w-full sm:w-auto">
+              <div className="flex items-start sm:items-center gap-2 sm:gap-3 mb-2">
+                <h3 className="text-lg sm:text-xl md:text-2xl font-bold leading-tight flex-1">{title}</h3>
+                {/* Badge en desktop */}
                 {badge && BadgeIcon && (
                   <div
-                    className={`px-2 py-1 rounded-full border text-xs font-semibold flex items-center gap-1.5 ${colors.badge}`}
+                    className={`hidden sm:flex px-2 py-1 rounded-full border text-xs font-semibold items-center gap-1.5 flex-shrink-0 ${colors.badge}`}
                   >
                     <BadgeIcon className="w-3 h-3" />
                     {badge}
                   </div>
                 )}
               </div>
-              <p className="text-sm sm:text-base text-muted-foreground leading-relaxed">
+              <p className="text-sm sm:text-base text-muted-foreground leading-relaxed mb-3 sm:mb-0">
                 {description}
               </p>
+              
+              {/* Stats en móvil debajo de la descripción */}
+              {stats && (
+                <div className="sm:hidden flex items-center gap-2 text-xs text-muted-foreground">
+                  {stats.icon && <stats.icon className="w-4 h-4" />}
+                  <span>{stats.label}</span>
+                </div>
+              )}
             </div>
 
-            {/* Footer derecho */}
-            <div className="flex items-center gap-4 flex-shrink-0">
+            {/* Footer derecho - Solo visible en desktop */}
+            <div className="hidden sm:flex items-center gap-4 flex-shrink-0">
               {stats && (
-                <div className="flex items-center gap-2 text-sm sm:text-base text-muted-foreground">
+                <div className="flex items-center gap-2 text-sm md:text-base text-muted-foreground">
                   {stats.icon && <stats.icon className="w-5 h-5" />}
                   {stats.label}
                 </div>
               )}
               <motion.div animate={{ x: isHovered ? 4 : 0 }}>
                 <ArrowRight className={`w-6 h-6 ${colors.arrow}`} />
+              </motion.div>
+            </div>
+
+            {/* Arrow en móvil - al final */}
+            <div className="sm:hidden flex items-center justify-end w-full pt-2 border-t border-border/50">
+              <motion.div animate={{ x: isHovered ? 4 : 0 }}>
+                <ArrowRight className={`w-5 h-5 ${colors.arrow}`} />
               </motion.div>
             </div>
           </div>

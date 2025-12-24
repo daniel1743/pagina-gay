@@ -117,13 +117,13 @@ const AnonymousForumPage = () => {
     const loadThreads = async () => {
       setLoading(true);
       try {
-        const firestoreThreads = await getThreads(selectedCategory === 'Todos' ? null : selectedCategory, sortBy, 100);
+        // ✅ Sin límite: obtener TODOS los threads
+        const firestoreThreads = await getThreads(selectedCategory === 'Todos' ? null : selectedCategory, sortBy, null);
         
         // Si no hay threads en Firestore, usar datos seed como fallback
         if (firestoreThreads.length === 0) {
           const seedThreads = forumSeedData
             .filter(t => selectedCategory === 'Todos' || t.category === selectedCategory)
-            .slice(0, 100)
             .map(t => ({
               id: t.id,
               title: t.title,
@@ -141,10 +141,9 @@ const AnonymousForumPage = () => {
         }
       } catch (error) {
         console.error('Error cargando threads:', error);
-        // Fallback a datos seed
+        // Fallback a datos seed (TODOS)
         const seedThreads = forumSeedData
-          .filter(t => selectedCategory === 'Todos' || t.category === selectedCategory)
-          .slice(0, 100);
+          .filter(t => selectedCategory === 'Todos' || t.category === selectedCategory);
         setThreads(seedThreads);
       } finally {
         setLoading(false);
@@ -193,8 +192,8 @@ const AnonymousForumPage = () => {
     try {
       const threadId = await createThread(threadData);
       
-      // Recargar threads
-      const updatedThreads = await getThreads(selectedCategory === 'Todos' ? null : selectedCategory, sortBy, 100);
+      // Recargar threads (TODOS)
+      const updatedThreads = await getThreads(selectedCategory === 'Todos' ? null : selectedCategory, sortBy, null);
       setThreads(updatedThreads);
       
       setShowCreateModal(false);

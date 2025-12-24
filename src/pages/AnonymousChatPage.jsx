@@ -1,175 +1,240 @@
-
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
 import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { Avatar, AvatarFallback } from '@/components/ui/avatar';
-import { Send, Home, Shield } from 'lucide-react';
+import { Shield, Lock, Users, MessageCircle, Heart, ArrowRight, CheckCircle, Home, MessageSquare, Zap } from 'lucide-react';
 import { motion } from 'framer-motion';
+import { toast } from '@/components/ui/use-toast';
 
 const AnonymousChatPage = () => {
-  React.useEffect(() => {
-    document.title = "Sala de Apoyo Anónima - Chactivo | Chat Gay Chile";
-  }, []);
-
   const navigate = useNavigate();
   const { user } = useAuth();
-  const [messages, setMessages] = useState([]);
-  const [newMessage, setNewMessage] = useState('');
-  const [anonymousUser, setAnonymousUser] = useState(null);
-  const messagesEndRef = useRef(null);
 
   useEffect(() => {
-    // Assign a persistent anonymous identity for the session
-    const anonymousId = sessionStorage.getItem('anonymousId');
-    if (anonymousId) {
-      setAnonymousUser(JSON.parse(anonymousId));
-    } else {
-      const newAnonymousId = `Anónimo-${Math.floor(1000 + Math.random() * 9000)}`;
-      const newAnonymousUser = { id: Date.now(), username: newAnonymousId };
-      setAnonymousUser(newAnonymousUser);
-      sessionStorage.setItem('anonymousId', JSON.stringify(newAnonymousUser));
+    document.title = "Sala de Apoyo Anónima - Chactivo | Chat Gay Chile";
+    
+    // ✅ SEO: Meta description específica
+    let metaDescription = document.querySelector('meta[name="description"]');
+    if (!metaDescription) {
+      metaDescription = document.createElement('meta');
+      metaDescription.name = 'description';
+      document.head.appendChild(metaDescription);
     }
+    metaDescription.content = '🔒 Sala de Apoyo Anónima - Espacio seguro y confidencial para la comunidad LGBT+ en Chile. Chat de apoyo emocional, consejos y recursos. 100% anónimo y protegido.';
   }, []);
 
-  useEffect(() => {
-    const storedMessages = JSON.parse(localStorage.getItem('chactivo_anonymous_chat') || '[]');
-    const welcomeMessage = {
-      id: 'welcome_anon',
-      userId: 'system',
-      username: 'Moderador',
-      content: '🔒 Bienvenido/a a la Sala de Apoyo Confidencial. Este es un espacio seguro protegido: solo usuarios registrados pueden escribir para garantizar la privacidad y seguridad de todos. Puedes leer libremente, pero necesitas registrarte para participar. Recuerda ser respetuoso y empático.',
-      timestamp: new Date().toISOString(),
-    };
-    setMessages(storedMessages.length > 0 ? storedMessages : [welcomeMessage]);
-  }, []);
-  
-  useEffect(() => {
-    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-  }, [messages]);
-  
-  const handleSendMessage = (e) => {
-    e.preventDefault();
-
-    // IMPORTANTE: Solo usuarios autenticados pueden escribir (no anónimos de Firebase)
-    if (user && user.isAnonymous) {
-      alert('⚠️ Por privacidad y seguridad, debes registrarte para escribir en la Sala de Apoyo.\n\n' +
-            'Esta sala es un espacio confidencial donde solo usuarios verificados pueden participar.');
-      return;
-    }
-
-    if (!user || user.isGuest) {
-      alert('⚠️ Debes iniciar sesión para escribir en la Sala de Apoyo.');
-      navigate('/');
-      return;
-    }
-
-    if (newMessage.trim() === '') return;
-
-    const message = {
-      id: Date.now(),
-      userId: user.id,
-      username: user.username,
-      content: newMessage,
-      timestamp: new Date().toISOString(),
-    };
-
-    const updatedMessages = [...messages, message];
-    setMessages(updatedMessages);
-    localStorage.setItem('chactivo_anonymous_chat', JSON.stringify(updatedMessages));
-    setNewMessage('');
+  const handleRegister = () => {
+    // Abrir modal de registro rápido si existe
+    const event = new CustomEvent('openQuickSignup');
+    window.dispatchEvent(event);
   };
 
-  if (!anonymousUser) {
-    return <div>Cargando...</div>;
-  }
+  const handleLogin = () => {
+    navigate('/auth');
+  };
+
+  const benefits = [
+    {
+      icon: <Shield className="w-6 h-6" />,
+      title: "Espacio 100% Seguro",
+      description: "Solo usuarios registrados pueden participar. Tu privacidad está protegida."
+    },
+    {
+      icon: <Heart className="w-6 h-6" />,
+      title: "Apoyo Emocional",
+      description: "Comparte experiencias y recibe apoyo de una comunidad comprensiva."
+    },
+    {
+      icon: <Lock className="w-6 h-6" />,
+      title: "Totalmente Anónimo",
+      description: "Tu identidad está protegida. Habla libremente sin miedo."
+    },
+    {
+      icon: <Users className="w-6 h-6" />,
+      title: "Comunidad Activa",
+      description: "Conecta con personas que entienden tu experiencia."
+    }
+  ];
+
+  const features = [
+    "Chat en tiempo real 24/7",
+    "Moderación activa para tu seguridad",
+    "Recursos de apoyo y bienestar",
+    "Comunidad empática y respetuosa",
+    "Sin censura, con respeto mutuo"
+  ];
 
   return (
-    <>
-      <div className="h-screen flex flex-col bg-[#2C2A4A] text-white">
-        <header className="bg-[#22203a] border-b border-[#413e62] p-4 flex items-center justify-between shrink-0">
-          <div className="flex items-center gap-3">
-            <Shield className="w-6 h-6 text-cyan-400" />
-            <h2 className="font-bold text-gray-100 text-lg">Sala de Apoyo Anónima</h2>
-          </div>
-          <Button
-            variant="ghost"
-            size="icon"
-            onClick={() => navigate('/')}
-            className="text-gray-300 hover:text-cyan-400"
-          >
-            <Home className="w-5 h-5" />
-          </Button>
-        </header>
-
-        <div className="flex-1 overflow-y-auto p-4 space-y-4 scrollbar-hide">
-          {messages.map((msg, index) => {
-            const isOwn = msg.userId === anonymousUser.id;
-            const isSystem = msg.userId === 'system';
-            
-            if (isSystem) {
-              return (
-                <motion.div
-                  key={msg.id}
-                  initial={{ opacity: 0, y: 10 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  transition={{ duration: 0.3 }}
-                  className="text-center text-sm text-gray-400 bg-[#22203a] px-4 py-2 rounded-full mx-auto max-w-md"
-                >
-                  {msg.content}
-                </motion.div>
-              );
-            }
-
-            return (
-              <motion.div
-                key={msg.id}
-                initial={{ opacity: 0, scale: 0.9 }}
-                animate={{ opacity: 1, scale: 1 }}
-                transition={{ duration: 0.3 }}
-                className={`flex gap-3 ${isOwn ? 'flex-row-reverse' : 'flex-row'}`}
-              >
-                <Avatar className="w-10 h-10 cursor-default">
-                  <AvatarFallback className={`bg-gray-600 border-2 ${isOwn ? 'border-cyan-400' : 'border-gray-500'}`}>
-                    <Shield className="w-5 h-5" />
-                  </AvatarFallback>
-                </Avatar>
-                <div className={`flex flex-col ${isOwn ? 'items-end' : 'items-start'} max-w-[70%]`}>
-                  <span className={`text-xs font-semibold ${isOwn ? 'text-cyan-400' : 'text-gray-300'}`}>
-                    {msg.username}
-                  </span>
-                  <div className={`chat-bubble ${isOwn ? 'cyan-gradient text-black' : 'bg-[#413e62]'}`}>
-                    <p>{msg.content}</p>
-                  </div>
-                </div>
-              </motion.div>
-            );
-          })}
-           <div ref={messagesEndRef} />
+    <div className="min-h-screen bg-gradient-to-br from-[#1a1729] via-[#2C2A4A] to-[#1a1729] text-white">
+      {/* Header */}
+      <header className="bg-[#22203a]/80 backdrop-blur-sm border-b border-[#413e62] p-4 flex items-center justify-between sticky top-0 z-50">
+        <div className="flex items-center gap-3">
+          <Shield className="w-6 h-6 text-cyan-400" />
+          <h2 className="font-bold text-gray-100 text-lg">Sala de Apoyo Anónima</h2>
         </div>
+        <Button
+          variant="ghost"
+          size="icon"
+          onClick={() => navigate('/')}
+          className="text-gray-300 hover:text-cyan-400"
+        >
+          <Home className="w-5 h-5" />
+        </Button>
+      </header>
 
-        <form onSubmit={handleSendMessage} className="bg-[#22203a] border-t border-[#413e62] p-4 shrink-0">
-          <div className="flex items-center gap-4">
-            <Input
-              value={newMessage}
-              onChange={(e) => setNewMessage(e.target.value)}
-              placeholder={user && !user.isAnonymous && !user.isGuest ? "Escribe tu mensaje..." : "🔒 Regístrate para escribir en esta sala protegida"}
-              disabled={!user || user.isAnonymous || user.isGuest}
-              className="flex-1 bg-[#2C2A4A] border-2 border-[#413e62] rounded-lg px-4 py-2 text-white placeholder:text-gray-400 focus:border-cyan-400 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
-            />
+      {/* Hero Section */}
+      <div className="max-w-6xl mx-auto px-4 py-12 md:py-20">
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.6 }}
+          className="text-center mb-16"
+        >
+          <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-cyan-500/20 border border-cyan-500/30 mb-6">
+            <Lock className="w-4 h-4 text-cyan-400" />
+            <span className="text-sm text-cyan-300">Espacio Protegido y Confidencial</span>
+          </div>
+          
+          <h1 className="text-4xl md:text-6xl font-extrabold mb-6 bg-gradient-to-r from-cyan-400 via-purple-400 to-pink-400 bg-clip-text text-transparent">
+            Sala de Apoyo Anónima
+          </h1>
+          
+          <p className="text-xl md:text-2xl text-gray-300 max-w-3xl mx-auto mb-8">
+            Un espacio seguro y confidencial donde puedes compartir, recibir apoyo y conectar con una comunidad que te entiende.
+          </p>
+
+          <div className="flex flex-col sm:flex-row gap-4 justify-center items-center mb-12">
             <Button
-              type="submit"
-              disabled={!newMessage.trim()}
-              className="cyan-gradient text-black font-bold"
-              size="icon"
+              onClick={handleRegister}
+              size="lg"
+              className="bg-gradient-to-r from-cyan-500 to-purple-500 hover:from-cyan-600 hover:to-purple-600 text-white font-bold text-lg px-8 py-6 rounded-xl shadow-lg hover:scale-105 transition-transform"
             >
-              <Send className="w-5 h-5" />
+              <Zap className="w-5 h-5 mr-2" />
+              Registrarse Gratis
+              <ArrowRight className="w-5 h-5 ml-2" />
+            </Button>
+            
+            <Button
+              onClick={handleLogin}
+              variant="outline"
+              size="lg"
+              className="border-2 border-cyan-400/50 text-cyan-400 hover:bg-cyan-400/10 font-bold text-lg px-8 py-6 rounded-xl"
+            >
+              Ya tengo cuenta
             </Button>
           </div>
-        </form>
+
+          <div className="flex items-center justify-center gap-2 text-sm text-gray-400">
+            <CheckCircle className="w-4 h-4 text-green-400" />
+            <span>Registro en menos de 30 segundos</span>
+            <span>•</span>
+            <span>100% Gratis</span>
+            <span>•</span>
+            <span>Sin tarjeta de crédito</span>
+          </div>
+        </motion.div>
+
+        {/* Benefits Grid */}
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-16">
+          {benefits.map((benefit, index) => (
+            <motion.div
+              key={index}
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.6, delay: index * 0.1 }}
+              className="glass-effect p-6 rounded-xl border border-cyan-500/20 hover:border-cyan-500/40 transition-all hover:shadow-lg hover:shadow-cyan-500/10"
+            >
+              <div className="text-cyan-400 mb-4">{benefit.icon}</div>
+              <h3 className="text-lg font-bold mb-2">{benefit.title}</h3>
+              <p className="text-sm text-gray-400">{benefit.description}</p>
+            </motion.div>
+          ))}
+        </div>
+
+        {/* Main CTA Section */}
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.6, delay: 0.4 }}
+          className="glass-effect rounded-2xl p-8 md:p-12 border-2 border-cyan-500/30 bg-gradient-to-br from-cyan-500/10 to-purple-500/10 mb-16"
+        >
+          <div className="text-center mb-8">
+            <MessageCircle className="w-16 h-16 text-cyan-400 mx-auto mb-4" />
+            <h2 className="text-3xl md:text-4xl font-extrabold mb-4">
+              ¿Por qué registrarse?
+            </h2>
+            <p className="text-gray-300 text-lg max-w-2xl mx-auto">
+              Esta sala es un espacio protegido donde solo usuarios registrados pueden participar. 
+              Esto garantiza un ambiente seguro, respetuoso y libre de spam.
+            </p>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
+            {features.map((feature, index) => (
+              <div key={index} className="flex items-start gap-3">
+                <CheckCircle className="w-5 h-5 text-green-400 mt-0.5 flex-shrink-0" />
+                <span className="text-gray-300">{feature}</span>
+              </div>
+            ))}
+          </div>
+
+          <div className="text-center">
+            <Button
+              onClick={handleRegister}
+              size="lg"
+              className="bg-gradient-to-r from-cyan-500 to-purple-500 hover:from-cyan-600 hover:to-purple-600 text-white font-bold text-xl px-12 py-6 rounded-xl shadow-lg hover:scale-105 transition-transform"
+            >
+              <Shield className="w-6 h-6 mr-3" />
+              Acceder a la Sala de Apoyo
+              <ArrowRight className="w-6 h-6 ml-3" />
+            </Button>
+          </div>
+        </motion.div>
+
+        {/* Trust Section */}
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.6, delay: 0.6 }}
+          className="text-center"
+        >
+          <div className="glass-effect rounded-xl p-6 border border-purple-500/20 inline-block">
+            <div className="flex flex-col sm:flex-row items-center justify-center gap-6">
+              <div className="flex items-center gap-2">
+                <Shield className="w-5 h-5 text-cyan-400" />
+                <span className="text-sm text-gray-300">Moderación Activa</span>
+              </div>
+              <div className="flex items-center gap-2">
+                <Lock className="w-5 h-5 text-purple-400" />
+                <span className="text-sm text-gray-300">Privacidad Garantizada</span>
+              </div>
+              <div className="flex items-center gap-2">
+                <Heart className="w-5 h-5 text-pink-400" />
+                <span className="text-sm text-gray-300">Comunidad Empática</span>
+              </div>
+            </div>
+          </div>
+        </motion.div>
+
+        {/* Alternative: Go to Main Chat */}
+        <motion.div
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          transition={{ duration: 0.6, delay: 0.8 }}
+          className="mt-12 text-center"
+        >
+          <p className="text-gray-400 mb-4">¿Prefieres chatear en tiempo real?</p>
+          <Button
+            onClick={() => navigate('/chat/conversas-libres')}
+            variant="outline"
+            className="border-2 border-purple-500/50 text-purple-400 hover:bg-purple-500/10"
+          >
+            <MessageSquare className="w-4 h-4 mr-2" />
+            Ir al Chat Principal
+          </Button>
+        </motion.div>
       </div>
-    </>
+    </div>
   );
 };
 

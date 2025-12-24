@@ -1,0 +1,281 @@
+// ======================================
+// REGLAS DE FIRESTORE - CHACTIVO
+// ACTUALIZADO: 2025-12-23
+// ======================================
+//
+// INSTRUCCIONES PARA APLICAR:
+// 1. Ve a Firebase Console: https://console.firebase.google.com
+// 2. Selecciona tu proyecto "Chactivo"
+// 3. Ve a Firestore Database → Reglas
+// 4. COPIA Y PEGA TODO EL CONTENIDO DE ABAJO
+// 5. Click en "Publicar"
+//
+// ======================================
+
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // ========================================
+    // FUNCIONES HELPER
+    // ========================================
+
+    // Verifica si el usuario está autenticado
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+
+    // Verifica si el usuario es el dueño del documento
+    function isOwner(userId) {
+      return isAuthenticated() && request.auth.uid == userId;
+    }
+
+    // Verifica si el usuario es administrador
+    function isAdmin() {
+      return isAuthenticated() &&
+             exists(/databases/$(database)/documents/users/$(request.auth.uid)) &&
+             get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role in ['admin', 'administrator'];
+    }
+
+    // Verifica si el usuario es moderador o admin
+    function isModerator() {
+      return isAuthenticated() &&
+             exists(/databases/$(database)/documents/users/$(request.auth.uid)) &&
+             get(/databases/$(database)/documents/users/$(request.auth.uid)).data.isModerator == true ||
+             isAdmin();
+    }
+
+    // ========================================
+    // COLECCIÓN: users
+    // ========================================
+    match /users/{userId} {
+      // Leer: Todos los usuarios autenticados
+      allow read: if isAuthenticated();
+
+      // Crear: Solo el propio usuario o admin
+      allow create: if isOwner(userId) || isAdmin();
+
+      // Actualizar: Solo el propio usuario o admin
+      allow update: if isOwner(userId) || isAdmin();
+
+      // Eliminar: Solo admin
+      allow delete: if isAdmin();
+
+      // Subcolección: notifications
+      match /notifications/{notificationId} {
+        allow read: if isOwner(userId);
+        allow write: if isAuthenticated(); // Cualquiera puede enviar notificaciones
+      }
+    }
+
+    // ========================================
+    // COLECCIÓN: guests (usuarios anónimos)
+    // ========================================
+    match /guests/{guestId} {
+      allow read: if isAuthenticated();
+      allow write: if isOwner(guestId) || isAdmin();
+    }
+
+    // ========================================
+    // COLECCIÓN: rooms (salas de chat)
+    // ========================================
+    match /rooms/{roomId} {
+      // Leer: Todos los usuarios autenticados
+      allow read: if isAuthenticated();
+
+      // Crear: Usuarios autenticados
+      allow create: if isAuthenticated();
+
+      // Actualizar: Owner de la sala o admin
+      allow update: if isAuthenticated();
+
+      // Eliminar: Solo admin
+      allow delete: if isAdmin();
+
+      // Subcolección: messages (mensajes de la sala)
+      match /messages/{messageId} {
+        allow read: if isAuthenticated();
+        allow create: if isAuthenticated();
+        allow update: if isOwner(resource.data.userId) || isAdmin();
+        allow delete: if isAdmin();
+      }
+
+      // Subcolección: active_users (usuarios activos)
+      match /active_users/{activeUserId} {
+        allow read: if isAuthenticated();
+        allow write: if isAuthenticated();
+      }
+    }
+
+    // ========================================
+    // COLECCIÓN: reports (reportes de usuarios)
+    // ========================================
+    match /reports/{reportId} {
+      // Leer: Solo admins y el que reportó
+      allow read: if isAdmin() || isOwner(resource.data.reporterId);
+
+      // Crear: Usuarios autenticados
+      allow create: if isAuthenticated();
+
+      // Actualizar: Solo admins
+      allow update: if isAdmin();
+
+      // Eliminar: Solo admins
+      allow delete: if isAdmin();
+    }
+
+    // ========================================
+    // COLECCIÓN: tickets (soporte)
+    // ========================================
+    match /tickets/{ticketId} {
+      // Leer: Admins y el usuario que creó el ticket
+      allow read: if isAdmin() || isOwner(resource.data.userId);
+
+      // Crear: Usuarios autenticados
+      allow create: if isAuthenticated();
+
+      // Actualizar: Admins y el usuario que creó el ticket
+      allow update: if isAdmin() || isOwner(resource.data.userId);
+
+      // Eliminar: Solo admins
+      allow delete: if isAdmin();
+    }
+
+    // ========================================
+    // COLECCIÓN: sanctions (sanciones)
+    // ========================================
+    match /sanctions/{sanctionId} {
+      // Leer: Admins y el usuario sancionado
+      allow read: if isAdmin() || isOwner(resource.data.userId);
+
+      // Crear: Solo admins
+      allow create: if isAdmin();
+
+      // Actualizar: Solo admins
+      allow update: if isAdmin();
+
+      // Eliminar: Solo admins
+      allow delete: if isAdmin();
+    }
+
+    // ========================================
+    // COLECCIÓN: rewards (recompensas) - NUEVO
+    // ========================================
+    match /rewards/{rewardId} {
+      // Leer: Admins y el usuario recompensado
+      allow read: if isAdmin() || isOwner(resource.data.userId);
+
+      // Crear: Solo admins
+      allow create: if isAdmin();
+
+      // Actualizar: Solo admins
+      allow update: if isAdmin();
+
+      // Eliminar: Solo admins
+      allow delete: if isAdmin();
+    }
+
+    // ========================================
+    // COLECCIÓN: forum_threads (foro anónimo)
+    // ========================================
+    match /forum_threads/{threadId} {
+      // Leer: Todos los usuarios autenticados
+      allow read: if isAuthenticated();
+
+      // Crear: Usuarios autenticados (no anónimos)
+      allow create: if isAuthenticated() && !request.auth.token.firebase.sign_in_provider == 'anonymous';
+
+      // Actualizar: Solo para incrementar vistas/likes
+      allow update: if isAuthenticated();
+
+      // Eliminar: Solo admins
+      allow delete: if isAdmin();
+    }
+
+    // ========================================
+    // COLECCIÓN: forum_replies (respuestas del foro)
+    // ========================================
+    match /forum_replies/{replyId} {
+      // Leer: Todos los usuarios autenticados
+      allow read: if isAuthenticated();
+
+      // Crear: Usuarios autenticados (no anónimos)
+      allow create: if isAuthenticated() && !request.auth.token.firebase.sign_in_provider == 'anonymous';
+
+      // Actualizar: Solo para incrementar likes
+      allow update: if isAuthenticated();
+
+      // Eliminar: Solo admins
+      allow delete: if isAdmin();
+    }
+
+    // ========================================
+    // COLECCIÓN: analytics (métricas del sistema)
+    // ========================================
+    match /analytics/{analyticId} {
+      // Leer: Solo admins
+      allow read: if isAdmin();
+
+      // Crear: Sistema (todos pueden escribir para tracking)
+      allow create: if isAuthenticated();
+
+      // Actualizar: Solo admins
+      allow update: if isAdmin();
+
+      // Eliminar: Solo admins
+      allow delete: if isAdmin();
+    }
+
+    // ========================================
+    // COLECCIÓN: system_notifications (notificaciones del sistema)
+    // ========================================
+    match /system_notifications/{notificationId} {
+      // Leer: Todos los usuarios autenticados
+      allow read: if isAuthenticated();
+
+      // Crear: Solo admins
+      allow create: if isAdmin();
+
+      // Actualizar: Solo admins
+      allow update: if isAdmin();
+
+      // Eliminar: Solo admins
+      allow delete: if isAdmin();
+    }
+
+    // ========================================
+    // COLECCIÓN: private_chats (chats privados)
+    // ========================================
+    match /private_chats/{chatId} {
+      // Leer: Solo los participantes del chat
+      allow read: if isAuthenticated() &&
+                    request.auth.uid in resource.data.participants;
+
+      // Crear: Usuarios autenticados
+      allow create: if isAuthenticated();
+
+      // Actualizar: Solo los participantes
+      allow update: if isAuthenticated() &&
+                      request.auth.uid in resource.data.participants;
+
+      // Eliminar: Solo admins
+      allow delete: if isAdmin();
+
+      // Subcolección: messages
+      match /messages/{messageId} {
+        allow read: if isAuthenticated() &&
+                      request.auth.uid in get(/databases/$(database)/documents/private_chats/$(chatId)).data.participants;
+        allow create: if isAuthenticated();
+        allow update: if isOwner(resource.data.userId) || isAdmin();
+        allow delete: if isAdmin();
+      }
+    }
+
+    // ========================================
+    // DENEGAR TODO LO DEMÁS
+    // ========================================
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}

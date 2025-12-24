@@ -4,7 +4,8 @@ import { motion } from 'framer-motion';
 import {
   Shield, AlertTriangle, Users, MessageSquare, TrendingUp, ArrowLeft,
   CheckCircle, XCircle, Clock, Eye, UserPlus, LogIn, BarChart3,
-  Ticket, Activity, FileText, Search, Filter, Ban, VolumeX, Bell, Send, Megaphone
+  Ticket, Activity, FileText, Search, Filter, Ban, VolumeX, Bell, Send, Megaphone,
+  Gift, Award, Star, Crown, Trophy, Zap
 } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
 import { Button } from '@/components/ui/button';
@@ -40,7 +41,15 @@ import SanctionUserModal from '@/components/sanctions/SanctionUserModal';
 import SanctionsFAQ from '@/components/sanctions/SanctionsFAQ';
 import AdminChatWindow from '@/components/admin/AdminChatWindow';
 import ReportStatusDropdown from '@/components/admin/ReportStatusDropdown';
+import RewardUserModal from '@/components/rewards/RewardUserModal';
 import { searchUsers, getUserById } from '@/services/userService';
+import {
+  subscribeToRewards,
+  getRewardStats,
+  revokeReward,
+  getTop20ActiveUsers,
+  REWARD_TYPES
+} from '@/services/rewardsService';
 
 const AdminPage = () => {
   const navigate = useNavigate();
@@ -58,6 +67,13 @@ const AdminPage = () => {
   const [userSearchTerm, setUserSearchTerm] = useState('');
   const [userSearchResults, setUserSearchResults] = useState([]);
   const [searchingUsers, setSearchingUsers] = useState(false);
+
+  // Estados para sistema de recompensas
+  const [rewards, setRewards] = useState([]);
+  const [top20Users, setTop20Users] = useState([]);
+  const [selectedUserToReward, setSelectedUserToReward] = useState(null);
+  const [showRewardModal, setShowRewardModal] = useState(false);
+  const [loadingTop20, setLoadingTop20] = useState(false);
   
   // Estadísticas de reportes
   const [reportStats, setReportStats] = useState({
@@ -94,6 +110,16 @@ const AdminPage = () => {
     tempBans: 0,
     permBans: 0,
     mutes: 0,
+  });
+
+  // Estadísticas de recompensas
+  const [rewardStats, setRewardStats] = useState({
+    total: 0,
+    active: 0,
+    premium: 0,
+    verified: 0,
+    specialAvatar: 0,
+    featured: 0,
   });
 
   // Datos de análisis
@@ -285,6 +311,51 @@ const AdminPage = () => {
     return () => unsubscribe();
   }, [isAdmin]);
 
+  // Cargar recompensas en tiempo real
+  useEffect(() => {
+    if (!isAdmin) return;
+
+    const unsubscribe = subscribeToRewards((rewardsData) => {
+      setRewards(rewardsData);
+
+      // Cargar estadísticas
+      getRewardStats().then(stats => {
+        setRewardStats(stats);
+      }).catch(error => {
+        console.error('Error loading reward stats:', error);
+        setRewardStats({
+          total: 0,
+          active: 0,
+          premium: 0,
+          verified: 0,
+          specialAvatar: 0,
+          featured: 0,
+        });
+      });
+    });
+
+    return () => unsubscribe();
+  }, [isAdmin]);
+
+  // Cargar TOP 20 usuarios más activos
+  useEffect(() => {
+    if (!isAdmin) return;
+
+    const loadTop20 = async () => {
+      setLoadingTop20(true);
+      try {
+        const top20 = await getTop20ActiveUsers();
+        setTop20Users(top20);
+      } catch (error) {
+        console.error('Error loading TOP 20 users:', error);
+      } finally {
+        setLoadingTop20(false);
+      }
+    };
+
+    loadTop20();
+  }, [isAdmin]);
+
   // Cargar análisis de uso y abandono
   useEffect(() => {
     if (!isAdmin) return;
@@ -457,6 +528,52 @@ const AdminPage = () => {
     setUserSearchResults([]);
   };
 
+  // Función para seleccionar usuario y abrir modal de recompensa
+  const handleSelectUserForReward = (selectedUser) => {
+    setSelectedUserToReward(selectedUser);
+    setShowRewardModal(true);
+  };
+
+  // Revocar recompensa
+  const handleRevokeReward = async (rewardId) => {
+    try {
+      await revokeReward(rewardId, user.id, 'Revocada por administrador');
+      toast({
+        title: "Recompensa Revocada",
+        description: "La recompensa ha sido revocada exitosamente",
+      });
+    } catch (error) {
+      console.error('Error revoking reward:', error);
+      toast({
+        title: "Error",
+        description: "No se pudo revocar la recompensa",
+        variant: "destructive",
+      });
+    }
+  };
+
+  // Recargar TOP 20
+  const handleRefreshTop20 = async () => {
+    setLoadingTop20(true);
+    try {
+      const top20 = await getTop20ActiveUsers();
+      setTop20Users(top20);
+      toast({
+        title: "TOP 20 Actualizado",
+        description: "La lista se ha recargado exitosamente",
+      });
+    } catch (error) {
+      console.error('Error refreshing TOP 20:', error);
+      toast({
+        title: "Error",
+        description: "No se pudo actualizar el TOP 20",
+        variant: "destructive",
+      });
+    } finally {
+      setLoadingTop20(false);
+    }
+  };
+
   const getReasonLabel = (reason) => {
     switch (reason) {
       case 'spam': return 'Spam';
@@ -590,11 +707,12 @@ const AdminPage = () => {
 
         {/* Tabs */}
         <Tabs value={activeTab} onValueChange={setActiveTab} className="mb-8">
-          <TabsList className="grid w-full grid-cols-6">
+          <TabsList className="grid w-full grid-cols-7">
             <TabsTrigger value="dashboard">Dashboard</TabsTrigger>
             <TabsTrigger value="reports">Reportes</TabsTrigger>
             <TabsTrigger value="tickets">Tickets</TabsTrigger>
             <TabsTrigger value="sanctions">Sanciones</TabsTrigger>
+            <TabsTrigger value="rewards">Recompensas</TabsTrigger>
             <TabsTrigger value="notifications">Notificaciones</TabsTrigger>
             <TabsTrigger value="analytics">Analytics</TabsTrigger>
           </TabsList>
@@ -1197,6 +1315,260 @@ const AdminPage = () => {
                 </div>
               )}
             </motion.div>
+          </TabsContent>
+
+          {/* Recompensas Tab */}
+          <TabsContent value="rewards" className="space-y-6">
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              className="glass-effect rounded-2xl border border-border p-6"
+            >
+              <div className="flex items-center justify-between mb-6">
+                <h2 className="text-2xl font-bold flex items-center gap-2">
+                  <Gift className="w-6 h-6 text-green-400" />
+                  Sistema de Recompensas
+                </h2>
+                <Button
+                  variant="outline"
+                  onClick={handleRefreshTop20}
+                  disabled={loadingTop20}
+                  size="sm"
+                >
+                  <Zap className="w-4 h-4 mr-2" />
+                  Actualizar TOP 20
+                </Button>
+              </div>
+
+              {/* Estadísticas de Recompensas */}
+              <div className="grid grid-cols-2 md:grid-cols-6 gap-4 mb-6">
+                <div className="glass-effect p-4 rounded-lg border border-border">
+                  <div className="text-2xl font-bold mb-1">{rewardStats.total}</div>
+                  <div className="text-xs text-muted-foreground">Total</div>
+                </div>
+                <div className="glass-effect p-4 rounded-lg border border-green-500/30">
+                  <div className="text-2xl font-bold mb-1 text-green-400">{rewardStats.active}</div>
+                  <div className="text-xs text-muted-foreground">Activas</div>
+                </div>
+                <div className="glass-effect p-4 rounded-lg border border-yellow-500/30">
+                  <div className="text-2xl font-bold mb-1 text-yellow-400">{rewardStats.premium}</div>
+                  <div className="text-xs text-muted-foreground">Premium</div>
+                </div>
+                <div className="glass-effect p-4 rounded-lg border border-blue-500/30">
+                  <div className="text-2xl font-bold mb-1 text-blue-400">{rewardStats.verified}</div>
+                  <div className="text-xs text-muted-foreground">Verificados</div>
+                </div>
+                <div className="glass-effect p-4 rounded-lg border border-purple-500/30">
+                  <div className="text-2xl font-bold mb-1 text-purple-400">{rewardStats.specialAvatar}</div>
+                  <div className="text-xs text-muted-foreground">Avatares</div>
+                </div>
+                <div className="glass-effect p-4 rounded-lg border border-pink-500/30">
+                  <div className="text-2xl font-bold mb-1 text-pink-400">{rewardStats.featured}</div>
+                  <div className="text-xs text-muted-foreground">Destacados</div>
+                </div>
+              </div>
+
+              {/* TOP 20 Usuarios Más Activos */}
+              <div className="mb-6">
+                <h3 className="text-xl font-bold mb-4 flex items-center gap-2">
+                  <Trophy className="w-5 h-5 text-yellow-400" />
+                  TOP 20 Usuarios Más Activos
+                </h3>
+                
+                {loadingTop20 ? (
+                  <div className="text-center py-12">
+                    <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-green-400 mx-auto mb-4"></div>
+                    <p className="text-muted-foreground">Cargando TOP 20...</p>
+                  </div>
+                ) : top20Users.length === 0 ? (
+                  <div className="text-center py-12 glass-effect rounded-xl border">
+                    <Trophy className="w-16 h-16 text-gray-400 mx-auto mb-4" />
+                    <p className="text-muted-foreground">No hay usuarios activos aún</p>
+                  </div>
+                ) : (
+                  <div className="overflow-x-auto">
+                    <table className="w-full">
+                      <thead>
+                        <tr className="border-b border-border">
+                          <th className="text-left py-3 px-4 text-sm font-semibold text-muted-foreground">#</th>
+                          <th className="text-left py-3 px-4 text-sm font-semibold text-muted-foreground">Usuario</th>
+                          <th className="text-left py-3 px-4 text-sm font-semibold text-muted-foreground">Mensajes</th>
+                          <th className="text-left py-3 px-4 text-sm font-semibold text-muted-foreground">Threads</th>
+                          <th className="text-left py-3 px-4 text-sm font-semibold text-muted-foreground">Respuestas</th>
+                          <th className="text-left py-3 px-4 text-sm font-semibold text-muted-foreground">Tiempo Activo</th>
+                          <th className="text-left py-3 px-4 text-sm font-semibold text-muted-foreground">Score</th>
+                          <th className="text-left py-3 px-4 text-sm font-semibold text-muted-foreground">Acciones</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {top20Users.map((topUser, index) => (
+                          <motion.tr
+                            key={topUser.id}
+                            initial={{ opacity: 0, x: -20 }}
+                            animate={{ opacity: 1, x: 0 }}
+                            transition={{ delay: index * 0.03 }}
+                            className="border-b border-border hover:bg-muted/50 transition-colors"
+                          >
+                            <td className="py-4 px-4">
+                              <div className="flex items-center justify-center w-8 h-8 rounded-full bg-gradient-to-r from-yellow-400 to-orange-400 text-black font-bold text-sm">
+                                {index + 1}
+                              </div>
+                            </td>
+                            <td className="py-4 px-4">
+                              <div className="flex items-center gap-3">
+                                <img
+                                  src={topUser.avatar || `https://api.dicebear.com/7.x/avataaars/svg?seed=${topUser.username}`}
+                                  alt={topUser.username}
+                                  className="w-10 h-10 rounded-full border-2 border-border"
+                                />
+                                <div>
+                                  <div className="flex items-center gap-2">
+                                    <span className="font-semibold">{topUser.username}</span>
+                                    {topUser.isPremium && <Crown className="w-4 h-4 text-yellow-400" />}
+                                    {topUser.verified && <Shield className="w-4 h-4 text-blue-400" />}
+                                  </div>
+                                  <p className="text-xs text-muted-foreground">ID: {topUser.id.slice(0, 8)}...</p>
+                                </div>
+                              </div>
+                            </td>
+                            <td className="py-4 px-4 text-sm">{topUser.metrics.messagesCount || 0}</td>
+                            <td className="py-4 px-4 text-sm">{topUser.metrics.threadsCount || 0}</td>
+                            <td className="py-4 px-4 text-sm">{topUser.metrics.repliesCount || 0}</td>
+                            <td className="py-4 px-4 text-sm">{topUser.metrics.totalActiveTime || 0} min</td>
+                            <td className="py-4 px-4">
+                              <span className="inline-flex items-center px-2 py-1 rounded-full bg-green-500/20 text-green-400 text-sm font-semibold">
+                                {topUser.metrics.activityScore || 0}
+                              </span>
+                            </td>
+                            <td className="py-4 px-4">
+                              <Button
+                                size="sm"
+                                onClick={() => handleSelectUserForReward(topUser)}
+                                className="bg-gradient-to-r from-green-500 to-emerald-500 hover:from-green-600 hover:to-emerald-600 text-white"
+                              >
+                                <Gift className="w-4 h-4 mr-1" />
+                                Premiar
+                              </Button>
+                            </td>
+                          </motion.tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
+              </div>
+
+              {/* Lista de Recompensas Otorgadas */}
+              <div>
+                <h3 className="text-xl font-bold mb-4 flex items-center gap-2">
+                  <Award className="w-5 h-5 text-green-400" />
+                  Recompensas Otorgadas
+                </h3>
+                
+                {rewards.length === 0 ? (
+                  <div className="text-center py-12 glass-effect rounded-xl border">
+                    <Gift className="w-16 h-16 text-gray-400 mx-auto mb-4" />
+                    <p className="text-muted-foreground">No hay recompensas registradas</p>
+                  </div>
+                ) : (
+                  <div className="space-y-4">
+                    {rewards.slice(0, 50).map((reward, index) => (
+                      <motion.div
+                        key={reward.id}
+                        initial={{ opacity: 0, x: -20 }}
+                        animate={{ opacity: 1, x: 0 }}
+                        transition={{ delay: index * 0.05 }}
+                        className="glass-effect p-5 rounded-xl border border-border hover:border-green-500/50 transition-all"
+                      >
+                        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+                          <div className="flex-1">
+                            <div className="flex items-center gap-3 mb-2">
+                              {reward.type === REWARD_TYPES.PREMIUM_1_MONTH && <Crown className="w-6 h-6 text-yellow-400" />}
+                              {reward.type === REWARD_TYPES.VERIFIED_1_MONTH && <Shield className="w-6 h-6 text-blue-400" />}
+                              {reward.type === REWARD_TYPES.SPECIAL_AVATAR && <Star className="w-6 h-6 text-purple-400" />}
+                              {reward.type === REWARD_TYPES.FEATURED_USER && <Award className="w-6 h-6 text-pink-400" />}
+                              {reward.type === REWARD_TYPES.MODERATOR_1_MONTH && <Shield className="w-6 h-6 text-cyan-400" />}
+                              <div>
+                                <h3 className="font-semibold text-lg">{reward.username}</h3>
+                                <p className="text-sm text-muted-foreground">
+                                  {reward.type === REWARD_TYPES.PREMIUM_1_MONTH && 'Premium 1 Mes'}
+                                  {reward.type === REWARD_TYPES.VERIFIED_1_MONTH && 'Verificación 1 Mes'}
+                                  {reward.type === REWARD_TYPES.SPECIAL_AVATAR && 'Avatar Especial 1 Mes'}
+                                  {reward.type === REWARD_TYPES.FEATURED_USER && 'Usuario Destacado'}
+                                  {reward.type === REWARD_TYPES.MODERATOR_1_MONTH && 'Moderador 1 Mes'}
+                                </p>
+                              </div>
+                            </div>
+                            {reward.reasonDescription && (
+                              <p className="text-sm text-muted-foreground mb-2 pl-9">
+                                {reward.reasonDescription}
+                              </p>
+                            )}
+                            <div className="flex items-center gap-4 text-xs text-muted-foreground pl-9">
+                              <span>Otorgado por: {reward.issuedByUsername}</span>
+                              {reward.expiresAt && (
+                                <>
+                                  <span>•</span>
+                                  <span>Expira: {new Date(reward.expiresAt).toLocaleDateString('es-CL')}</span>
+                                </>
+                              )}
+                              <span>•</span>
+                              <span>{new Date(reward.createdAt).toLocaleDateString('es-CL')}</span>
+                            </div>
+                          </div>
+
+                          <div className="flex flex-col items-end gap-3">
+                            <div className={`flex items-center gap-2 px-3 py-1 rounded-full border ${
+                              reward.status === 'active' 
+                                ? 'bg-green-500/20 border-green-500/30 text-green-400'
+                                : reward.status === 'revoked'
+                                ? 'bg-red-500/20 border-red-500/30 text-red-400'
+                                : 'bg-gray-500/20 border-gray-500/30 text-gray-400'
+                            }`}>
+                              {reward.status === 'active' ? (
+                                <CheckCircle className="w-4 h-4" />
+                              ) : (
+                                <XCircle className="w-4 h-4" />
+                              )}
+                              <span className="text-xs font-medium capitalize">{reward.status === 'active' ? 'Activa' : reward.status === 'revoked' ? 'Revocada' : 'Expirada'}</span>
+                            </div>
+
+                            {reward.status === 'active' && (
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                onClick={() => handleRevokeReward(reward.id)}
+                                className="border-red-500 text-red-400 hover:bg-red-500/20"
+                              >
+                                <XCircle className="w-4 h-4 mr-1" />
+                                Revocar
+                              </Button>
+                            )}
+                          </div>
+                        </div>
+                      </motion.div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </motion.div>
+
+            {/* Modal de Recompensa */}
+            {selectedUserToReward && (
+              <RewardUserModal
+                isOpen={showRewardModal}
+                onClose={() => {
+                  setShowRewardModal(false);
+                  setSelectedUserToReward(null);
+                }}
+                user={selectedUserToReward}
+                currentAdmin={user}
+                onRewardCreated={() => {
+                  // Recargar TOP 20 después de otorgar recompensa
+                  handleRefreshTop20();
+                }}
+              />
+            )}
           </TabsContent>
 
           {/* Notificaciones Tab */}

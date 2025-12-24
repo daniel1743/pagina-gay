@@ -91,6 +91,15 @@ export const sendMessage = async (roomId, messageData, isAnonymous = false) => {
       // Para usuarios registrados: crear mensaje directamente
       const docRef = await addDoc(messagesRef, message);
 
+      // ✅ Incrementar contador de mensajes para usuarios registrados (para sistema de recompensas)
+      if (messageData.userId && !isAnonymous) {
+        const userRef = doc(db, 'users', messageData.userId);
+        updateDoc(userRef, {
+          messageCount: increment(1),
+          lastMessageAt: serverTimestamp(),
+        }).catch(err => console.error('Error updating user message count:', err));
+      }
+
       // Track GA4: primer mensaje si no se ha enviado antes
       if (!hasSeenFirstMessage) {
         trackFirstMessage({

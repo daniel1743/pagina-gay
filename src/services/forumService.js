@@ -58,10 +58,10 @@ export const createThread = async (threadData, anonymousUserId = null) => {
  * Obtiene todos los threads del foro
  * @param {string} category - Categoría a filtrar (opcional)
  * @param {string} sortBy - 'recent', 'popular', 'replies'
- * @param {number} maxResults - Número máximo de resultados
+ * @param {number|null} maxResults - Número máximo de resultados (null = sin límite)
  * @returns {Promise<Array>} Array de threads
  */
-export const getThreads = async (category = null, sortBy = 'recent', maxResults = 100) => {
+export const getThreads = async (category = null, sortBy = 'recent', maxResults = null) => {
   try {
     let q = query(collection(db, FORUM_COLLECTION));
 
@@ -81,8 +81,8 @@ export const getThreads = async (category = null, sortBy = 'recent', maxResults 
       q = query(q, orderBy('createdAt', 'desc'));
     }
 
-    // Limitar resultados
-    if (maxResults) {
+    // Limitar resultados solo si se especifica un límite
+    if (maxResults && maxResults > 0) {
       q = query(q, limit(maxResults));
     }
 

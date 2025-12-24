@@ -18,55 +18,78 @@ const NotificationBell = ({ onOpenPrivateChat }) => {
   useEffect(() => {
     if (!user || user.isGuest || user.isAnonymous) return;
 
-    const unsubscribe = subscribeToNotifications(user.id, (newNotifications) => {
-      const currentCount = newNotifications.length;
-      const previousCount = previousCountRef.current;
+    // ✅ FIX: Variable para controlar si el componente está montado
+    let isMounted = true;
+    let unsubscribe = null;
 
-      // Si hay nuevas notificaciones, mostrar toast y/o abrir ventana
-      if (currentCount > previousCount && previousCount > 0) {
-        const latestNotification = newNotifications[0];
+    try {
+      unsubscribe = subscribeToNotifications(user.id, (newNotifications) => {
+        // ✅ Solo actualizar si el componente está montado
+        if (!isMounted) return;
 
-        if (latestNotification.type === 'direct_message') {
-          toast({
-            title: `💬 Nuevo mensaje de ${latestNotification.fromUsername || 'un usuario'}`,
-            description: latestNotification.content?.substring(0, 100) || '',
-            duration: 5000,
-          });
-        } else if (latestNotification.type === 'private_chat_request') {
-          toast({
-            title: `📞 Solicitud de chat privado`,
-            description: `${latestNotification.fromUsername || 'Un usuario'} quiere conectar contigo`,
-            duration: 5000,
-          });
-        } else if (latestNotification.type === 'private_chat_accepted') {
-          // Abrir automáticamente la ventana de chat privado
-          if (onOpenPrivateChat && latestNotification.chatId) {
-            onOpenPrivateChat({
-              chatId: latestNotification.chatId,
-              partner: {
-                userId: latestNotification.from,
-                username: latestNotification.fromUsername,
-                avatar: latestNotification.fromAvatar,
-                isPremium: latestNotification.fromIsPremium,
-              }
+        const currentCount = newNotifications.length;
+        const previousCount = previousCountRef.current;
+
+        // Si hay nuevas notificaciones, mostrar toast y/o abrir ventana
+        // ✅ FIX: Solo mostrar toasts si hay diferencia y es un incremento
+        if (currentCount > previousCount && previousCount > 0 && currentCount - previousCount === 1) {
+          const latestNotification = newNotifications[0];
+
+          if (latestNotification.type === 'direct_message') {
+            toast({
+              title: `💬 Nuevo mensaje de ${latestNotification.fromUsername || 'un usuario'}`,
+              description: latestNotification.content?.substring(0, 100) || '',
+              duration: 5000,
+            });
+          } else if (latestNotification.type === 'private_chat_request') {
+            toast({
+              title: `📞 Solicitud de chat privado`,
+              description: `${latestNotification.fromUsername || 'Un usuario'} quiere conectar contigo`,
+              duration: 5000,
+            });
+          } else if (latestNotification.type === 'private_chat_accepted') {
+            // Abrir automáticamente la ventana de chat privado
+            if (onOpenPrivateChat && latestNotification.chatId) {
+              onOpenPrivateChat({
+                chatId: latestNotification.chatId,
+                partner: {
+                  userId: latestNotification.from,
+                  username: latestNotification.fromUsername,
+                  avatar: latestNotification.fromAvatar,
+                  isPremium: latestNotification.fromIsPremium,
+                }
+              });
+            }
+
+            toast({
+              title: `✅ ${latestNotification.fromUsername} aceptó tu solicitud`,
+              description: 'La ventana de chat privado se ha abierto',
+              duration: 5000,
             });
           }
+        }
 
-          toast({
-            title: `✅ ${latestNotification.fromUsername} aceptó tu solicitud`,
-            description: 'La ventana de chat privado se ha abierto',
-            duration: 5000,
-          });
+        previousCountRef.current = currentCount;
+        setNotifications(newNotifications);
+        setUnreadCount(newNotifications.filter((n) => !n.read).length);
+      });
+    } catch (error) {
+      console.error('Error setting up notifications subscription:', error);
+      // Si hay error, no hacer nada más (evita loops infinitos)
+    }
+
+    return () => {
+      // ✅ Marcar como desmontado ANTES de limpiar
+      isMounted = false;
+      if (unsubscribe && typeof unsubscribe === 'function') {
+        try {
+          unsubscribe();
+        } catch (error) {
+          console.error('Error unsubscribing from notifications:', error);
         }
       }
-
-      previousCountRef.current = currentCount;
-      setNotifications(newNotifications);
-      setUnreadCount(newNotifications.filter((n) => !n.read).length);
-    });
-
-    return () => unsubscribe();
-  }, [user]);
+    };
+  }, [user, onOpenPrivateChat]);
 
   if (!user || user.isGuest || user.isAnonymous) {
     return null;
