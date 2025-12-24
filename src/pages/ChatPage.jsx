@@ -14,7 +14,7 @@ import TypingIndicator from '@/components/chat/TypingIndicator';
 import WelcomeTour from '@/components/onboarding/WelcomeTour';
 import { PremiumWelcomeModal } from '@/components/chat/PremiumWelcomeModal';
 import ChatRulesModal from '@/components/chat/ChatRulesModal';
-import LoginGate from '@/components/chat/LoginGate';
+import ChatLandingPage from '@/components/chat/ChatLandingPage';
 import { toast } from '@/components/ui/use-toast';
 import PrivateChatWindow from '@/components/chat/PrivateChatWindow';
 import { sendMessage, subscribeToRoomMessages, addReactionToMessage, markMessagesAsRead } from '@/services/chatService';
@@ -71,12 +71,13 @@ const ChatPage = () => {
   const aiActivatedRef = useRef(false); // Flag para evitar activaciones múltiples de IA
 
   // ========================================
-  // 🔒 LOGIN GATE: Guard clause para user === null
+  // 🔒 LANDING PAGE: Guard clause para user === null
   // ========================================
   // CRITICAL: Debe estar ANTES de cualquier lógica de Firestore/bots
   // NO afecta a guests (user.isGuest), solo a visitantes sin sesión
+  // Muestra landing page completa para mejor SEO y conversión
   if (!user) {
-    return <LoginGate roomSlug={roomId} />;
+    return <ChatLandingPage roomSlug={roomId} />;
   }
 
   // ✅ VALIDACIÓN: Usuarios registrados tienen acceso completo, anónimos solo a "conversas-libres"
