@@ -3,7 +3,8 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Button } from '@/components/ui/button';
 import { ScrollArea } from '@/components/ui/scroll-area';
-import { MessageSquare, Video, Check, X, ExternalLink, CheckCircle } from 'lucide-react';
+import { MessageSquare, Video, Check, X, ExternalLink, CheckCircle, Ticket, CheckCircle2 } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
 import { markNotificationAsRead, respondToPrivateChatRequest } from '@/services/socialService';
 import { toast } from '@/components/ui/use-toast';
@@ -12,6 +13,7 @@ import { es } from 'date-fns/locale';
 
 const NotificationsPanel = ({ isOpen, onClose, notifications, onOpenPrivateChat }) => {
   const { user } = useAuth();
+  const navigate = useNavigate();
 
   const handleAcceptPrivateChat = async (notification) => {
     try {
@@ -247,6 +249,43 @@ const NotificationsPanel = ({ isOpen, onClose, notifications, onOpenPrivateChat 
                               <span>Rechazada</span>
                             </div>
                           )}
+                        </div>
+                      )}
+
+                      {/* Notificación de Ticket */}
+                      {(notification.type === 'ticket_reply' || notification.type === 'ticket_resolved') && (
+                        <div 
+                          className="flex gap-3 cursor-pointer"
+                          onClick={() => {
+                            if (notification.ticketId) {
+                              navigate(`/tickets/${notification.ticketId}`);
+                              handleMarkAsRead(notification.id);
+                              onClose();
+                            }
+                          }}
+                        >
+                          {notification.type === 'ticket_resolved' ? (
+                            <CheckCircle2 className="w-5 h-5 text-green-400 flex-shrink-0 mt-1" />
+                          ) : (
+                            <Ticket className="w-5 h-5 text-purple-400 flex-shrink-0 mt-1" />
+                          )}
+                          <div className="flex-1 min-w-0">
+                            <p className="font-semibold text-sm text-foreground">
+                              {notification.title || (notification.type === 'ticket_resolved' ? 'Ticket resuelto' : 'Nueva respuesta en tu ticket')}
+                            </p>
+                            <p className="text-sm text-muted-foreground mt-1 line-clamp-2">
+                              {notification.body || notification.message}
+                            </p>
+                            <p className="text-xs text-muted-foreground mt-2">
+                              {getTimeAgo(notification.timestamp || notification.createdAt)}
+                            </p>
+                            {notification.ticketId && (
+                              <p className="text-xs text-purple-400 mt-1 flex items-center gap-1">
+                                <ExternalLink className="w-3 h-3" />
+                                Ver ticket
+                              </p>
+                            )}
+                          </div>
                         </div>
                       )}
                     </motion.div>

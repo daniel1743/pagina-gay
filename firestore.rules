@@ -21,10 +21,32 @@ service cloud.firestore {
 
     // Admin por campo role en /users/{uid}
     function isAdmin() {
-      let userData = get(/databases/$(database)/documents/users/$(request.auth.uid)).data;
       return isAuthenticated() &&
-             userData.keys().hasAny(['role']) &&
-             (userData.role == 'admin' || userData.role == 'administrator');
+             exists(/databases/$(database)/documents/users/$(request.auth.uid)) &&
+             get(/databases/$(database)/documents/users/$(request.auth.uid)).data.keys().hasAny(['role']) &&
+             (get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin' || 
+              get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'administrator');
+    }
+
+    // ✅ NUEVO: Admin o Support (para sistema de tickets)
+    function isAdminOrSupport() {
+      return isAuthenticated() &&
+             exists(/databases/$(database)/documents/users/$(request.auth.uid)) &&
+             get(/databases/$(database)/documents/users/$(request.auth.uid)).data.keys().hasAny(['role']) &&
+             (get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin' || 
+              get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'administrator' ||
+              get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'support');
+    }
+
+    // ✅ SUPER ADMIN: Verificación por email como capa extra de seguridad
+    function isSuperAdmin() {
+      return isAuthenticated() &&
+             request.auth.token.email == 'caribenosvenezolanos@gmail.com';
+    }
+
+    // ✅ Admin verificado: Debe tener rol Y ser del email autorizado
+    function isVerifiedAdmin() {
+      return isSuperAdmin() || isAdmin();
     }
 
     // Provider anonymous
@@ -124,7 +146,8 @@ service cloud.firestore {
     // ===========================
 
     match /users/{userId} {
-      allow read: if isAuthenticated();
+      // ✅ SUPER ADMIN puede leer cualquier usuario, otros solo si están autenticados
+      allow read: if isSuperAdmin() || isAuthenticated();
 
       allow create: if isOwner(userId) &&
                       request.resource.data.username is string &&
@@ -338,8 +361,12 @@ service cloud.firestore {
     // ===========================
 
     match /tickets/{ticketId} {
-      allow read: if isAdmin() ||
-                    (isAuthenticated() && resource.data.userId == request.auth.uid);
+      // ✅ CRÍTICO: Para queries a nivel de colección, admins necesitan acceso sin restricción
+      // Los usuarios normales solo pueden leer sus propios tickets (verificado en el documento)
+      allow read: if isSuperAdmin() || 
+                    isAdminOrSupport() ||
+                    (isAuthenticated() && resource.data.userId == request.auth.uid) ||
+                    (isAuthenticated() && resource.data.userUid == request.auth.uid);
 
       allow create: if isAuthenticated() &&
                       'userId' in request.resource.data &&
@@ -351,9 +378,82 @@ service cloud.firestore {
                       'status' in request.resource.data &&
                       request.resource.data.status == 'open';
 
-      allow update: if isAdmin();
+      allow update: if isSuperAdmin() || isAdminOrSupport();
 
       allow delete: if false;
+
+      // ✅ NUEVO: Mensajes del ticket (conversación)
+      match /messages/{messageId} {
+        // Leer: super admin, admin/support o dueño del ticket
+        allow read: if isSuperAdmin() ||
+                      isAdminOrSupport() ||
+                      (isAuthenticated() &&
+                       get(/databases/$(database)/documents/tickets/$(ticketId)).data.userId == request.auth.uid);
+
+        // Crear: super admin o admin/support puede enviar mensajes
+        allow create: if (isSuperAdmin() || isAdminOrSupport()) &&
+                        'type' in request.resource.data &&
+                        request.resource.data.type in ['external', 'internal'] &&
+                        'author' in request.resource.data &&
+                        'authorUid' in request.resource.data &&
+                        'authorUsername' in request.resource.data &&
+                        'body' in request.resource.data &&
+                        request.resource.data.body is string &&
+                        request.resource.data.body.size() > 0 &&
+                        'createdAt' in request.resource.data;
+
+        // No se permite editar o borrar mensajes
+        allow update, delete: if false;
+      }
+
+      // ✅ NUEVO: Logs de auditoría del ticket
+      match /logs/{logId} {
+        // Leer: super admin o admin/support
+        allow read: if isSuperAdmin() || isAdminOrSupport();
+
+        // Crear: super admin o admin/support
+        allow create: if (isSuperAdmin() || isAdminOrSupport()) &&
+                        'action' in request.resource.data &&
+                        'actorUid' in request.resource.data &&
+                        'actorRole' in request.resource.data &&
+                        'createdAt' in request.resource.data;
+
+        // No se permite editar o borrar logs
+        allow update, delete: if false;
+      }
+    }
+
+    // ===========================
+    // ÍNDICE DE USERNAMES
+    // ===========================
+
+    // ✅ NUEVO: Índice para validar disponibilidad de usernames
+    match /usernames/{usernameLower} {
+      // Leer: todos los autenticados (para validar disponibilidad)
+      allow read: if isAuthenticated();
+
+      // Crear/Actualizar/Borrar: solo admin (operaciones de cambio de username)
+      allow create, update, delete: if isAdmin();
+    }
+
+    // ===========================
+    // LOGS GLOBALES DE ADMIN
+    // ===========================
+
+    // ✅ NUEVO: Logs de todas las acciones administrativas
+    match /admin_logs/{logId} {
+      // Leer: solo admin
+      allow read: if isAdmin();
+
+      // Crear: solo admin
+      allow create: if isAdmin() &&
+                      'action' in request.resource.data &&
+                      'adminUid' in request.resource.data &&
+                      'adminUsername' in request.resource.data &&
+                      'createdAt' in request.resource.data;
+
+      // No se permite editar o borrar logs
+      allow update, delete: if false;
     }
 
     // ===========================

@@ -7,6 +7,8 @@ import ChatPage from '@/pages/ChatPage';
 import ProfilePage from '@/pages/ProfilePage';
 import PremiumPage from '@/pages/PremiumPage';
 import AdminPage from '@/pages/AdminPage';
+import AdminTicketsPage from '@/pages/AdminTicketsPage';
+import TicketDetailPage from '@/pages/TicketDetailPage';
 import Header from '@/components/layout/Header';
 import Footer from '@/components/layout/Footer';
 import { AuthProvider, useAuth } from '@/contexts/AuthContext';
@@ -87,6 +89,22 @@ function AppRoutes() {
           element={
             <PrivateRoute>
               <MainLayout><AdminPage /></MainLayout>
+            </PrivateRoute>
+          }
+        />
+        <Route
+          path="/admin/tickets"
+          element={
+            <PrivateRoute>
+              <MainLayout><AdminTicketsPage /></MainLayout>
+            </PrivateRoute>
+          }
+        />
+        <Route
+          path="/admin/tickets/:ticketId"
+          element={
+            <PrivateRoute>
+              <MainLayout><TicketDetailPage /></MainLayout>
             </PrivateRoute>
           }
         />

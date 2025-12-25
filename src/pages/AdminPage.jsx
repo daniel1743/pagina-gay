@@ -22,6 +22,8 @@ import {
   subscribeToTickets, 
   updateTicketStatus 
 } from '@/services/ticketService';
+import { setupTicketPermissionInterceptor, testTicketAccess, showFixInstructions } from '@/utils/ticketPermissionDebugger';
+import { initializeAdminDebugger } from '@/utils/adminDebugger';
 import {
   subscribeToSanctions,
   revokeSanction,
@@ -183,6 +185,16 @@ const AdminPage = () => {
     checkAdmin();
   }, [user, navigate]);
 
+  // 🔍 ADMIN DEBUGGER: Sistema de debugging automático
+  useEffect(() => {
+    if (!isAdmin) return;
+
+    // Inicializar debugger - muestra estado de admin y captura errores automáticamente
+    const cleanup = initializeAdminDebugger();
+
+    return cleanup;
+  }, [isAdmin]);
+
   // Cargar reportes en tiempo real
   useEffect(() => {
     if (!isAdmin) return;
@@ -263,6 +275,25 @@ const AdminPage = () => {
       clearTimeout(timeout);
     };
   }, [isAdmin]);
+
+  // 🔍 DEBUGGER: Interceptar errores de permisos de tickets
+  useEffect(() => {
+    const cleanup = setupTicketPermissionInterceptor();
+    
+    // Exponer funciones de debugging globalmente para uso en consola
+    if (typeof window !== 'undefined') {
+      window.testTicketAccess = testTicketAccess;
+      window.showFixInstructions = showFixInstructions;
+    }
+    
+    return () => {
+      cleanup();
+      if (typeof window !== 'undefined') {
+        delete window.testTicketAccess;
+        delete window.showFixInstructions;
+      }
+    };
+  }, []);
 
   // Cargar tickets en tiempo real
   useEffect(() => {
@@ -1000,6 +1031,13 @@ const AdminPage = () => {
                   Tickets de Soporte
                 </h2>
                 <div className="flex gap-2">
+                  <Button
+                    onClick={() => navigate('/admin/tickets')}
+                    className="bg-gradient-to-r from-purple-500 to-pink-500 hover:from-purple-600 hover:to-pink-600 text-white font-bold"
+                  >
+                    <Ticket className="w-4 h-4 mr-2" />
+                    Ir al Sistema Completo de Tickets
+                  </Button>
                   <div className={`px-3 py-1 rounded-full border ${getStatusColor('open')}`}>
                     <span className="text-xs font-medium">Abiertos: {ticketStats.openTickets}</span>
                   </div>
