@@ -16,6 +16,7 @@ import {
   Zap
 } from 'lucide-react';
 import { motion } from 'framer-motion';
+import EventsCalendar from '@/components/events/EventsCalendar';
 
 /**
  * LANDING PAGE PARA SALAS DE CHAT
@@ -359,11 +360,29 @@ const ChatLandingPage = ({ roomSlug }) => {
           </div>
         </motion.div>
 
-        {/* Final CTA */}
+        {/* Events Calendar Section */}
         <motion.div
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ delay: 1.4, duration: 0.5 }}
+          className="mb-12"
+        >
+          <h2 className="text-3xl font-bold text-center mb-4">
+            📅 Eventos de la Semana
+          </h2>
+          <p className="text-center text-gray-600 dark:text-gray-400 mb-8 max-w-2xl mx-auto">
+            Conecta en horarios específicos con gente que comparte tus intereses. ¡Crea el hábito!
+          </p>
+          <div className="max-w-3xl mx-auto">
+            <EventsCalendar roomSlug={roomSlug} />
+          </div>
+        </motion.div>
+
+        {/* Final CTA */}
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 1.6, duration: 0.5 }}
           className="text-center bg-gradient-to-r from-purple-600 to-pink-600 rounded-2xl p-12 text-white"
         >
           <h2 className="text-4xl font-bold mb-4">
