@@ -13,7 +13,7 @@ const categories = ['Apoyo Emocional', 'Recursos', 'Experiencias', 'Preguntas', 
 
 const AnonymousForumPage = () => {
   React.useEffect(() => {
-    document.title = "Foro Anónimo - Chactivo | Chat Gay Chile";
+    document.title = "Foro Gay Chile Anónimo 🔒 | Comunidad LGBT+ Sin Censura | Chactivo";
 
     // ✅ SEO: Meta description específica para el foro
     let metaDescription = document.querySelector('meta[name="description"]');
@@ -22,7 +22,7 @@ const AnonymousForumPage = () => {
       metaDescription.name = 'description';
       document.head.appendChild(metaDescription);
     }
-    metaDescription.content = '💬 Foro gay anónimo Chile. Comparte experiencias LGBT+, pide consejos, encuentra recursos de salud mental. 100% anónimo, sin censura. Comunidad de apoyo mutuo.';
+    metaDescription.content = '💬 Únete al foro gay más activo de Chile. Comparte experiencias LGBT+, pide consejos, encuentra recursos sobre salud mental, relaciones y derechos. 100% anónimo, sin censura. Comunidad de apoyo mutuo segura.';
 
     return () => {
       // Limpiar al desmontar (volver a la del index.html)
@@ -265,10 +265,13 @@ const AnonymousForumPage = () => {
           <motion.div initial={{ opacity: 0, y: -20 }} animate={{ opacity: 1, y: 0 }} className="text-center mb-8">
             <h1 className="text-4xl font-extrabold mb-2 flex items-center justify-center gap-3">
               <MessageCircle className="w-10 h-10 text-cyan-400" />
-              Foro Anónimo de Apoyo
+              Foro Gay Chile - Comunidad LGBT+ Anónima
             </h1>
-            <p className="text-muted-foreground max-w-2xl mx-auto">
-              Un espacio seguro para compartir experiencias y encontrar apoyo. 100% anónimo.
+            <p className="text-muted-foreground max-w-3xl mx-auto text-base sm:text-lg mb-4">
+              El foro gay más activo de Chile. Comparte experiencias LGBT+, pide consejos sobre salud mental, relaciones, derechos y coming out. Comunidad de apoyo mutuo 24/7, sin censura y completamente anónima.
+            </p>
+            <p className="text-sm text-cyan-300 max-w-2xl mx-auto">
+              💬 Más de 100 hilos activos • 🔒 100% anónimo • 🏳️‍🌈 Espacio seguro LGBT+ • 🇨🇱 Comunidad chilena
             </p>
           </motion.div>
 

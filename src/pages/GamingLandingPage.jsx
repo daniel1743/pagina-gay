@@ -23,7 +23,7 @@ const GamingLandingPage = () => {
       metaDescription.name = 'description';
       document.head.appendChild(metaDescription);
     }
-    metaDescription.content = '🎮 Únete al chat gay de gamers más activo de Chile. Comparte tus juegos favoritos, encuentra squad LGBT+, chatea sobre PS5, Xbox, PC, Switch y móvil. ¡100% gratis, sin registro!';
+    metaDescription.content = '🎮 Únete al chat gay de gamers más activo de Chile. Comparte tus juegos favoritos, encuentra squad LGBT+, chatea sobre PS5, Xbox, PC, Switch y móvil. ¡100% gratis, regístrate en 30 segundos!';
 
     return () => {
       if (metaDescription && document.head.contains(metaDescription)) {
@@ -72,8 +72,11 @@ const GamingLandingPage = () => {
           </h1>
 
           {/* Subtitle */}
-          <p className="text-lg sm:text-xl md:text-2xl text-muted-foreground mb-8 max-w-3xl mx-auto">
+          <p className="text-lg sm:text-xl md:text-2xl text-muted-foreground mb-6 max-w-3xl mx-auto">
             Conecta con otros gamers LGBT+ en tiempo real. Comparte juegos, forma equipos, encuentra amigos que realmente te entiendan.
+          </p>
+          <p className="text-sm sm:text-base text-cyan-300 mb-8 max-w-2xl mx-auto">
+            🎮 Jugamos: LoL, Valorant, Genshin, Minecraft, Fortnite, FIFA, GTA V, Among Us y más • 📱 Todas las plataformas: PC, PS5, Xbox, Switch, Móvil
           </p>
 
           {/* Trust Badges */}
@@ -84,7 +87,7 @@ const GamingLandingPage = () => {
             </div>
             <div className="flex items-center gap-2 text-green-300">
               <Zap className="w-5 h-5" />
-              <span className="font-semibold">Sin Registro</span>
+              <span className="font-semibold">Registro 30s</span>
             </div>
             <div className="flex items-center gap-2 text-yellow-300">
               <Clock className="w-5 h-5" />
@@ -110,7 +113,7 @@ const GamingLandingPage = () => {
 
           {/* Micro CTA copy */}
           <p className="text-sm text-muted-foreground mt-4">
-            ⚡ Entra en 30 segundos • 🎮 100% gratis • 🔒 Sin email
+            ⚡ Registro en 30 segundos • 🎮 100% gratis siempre • 🔒 Totalmente anónimo
           </p>
         </motion.div>
 
@@ -244,9 +247,9 @@ const GamingLandingPage = () => {
               <div className="w-16 h-16 mx-auto mb-4 rounded-full bg-gradient-to-br from-violet-500 to-purple-500 flex items-center justify-center text-3xl font-black text-white">
                 1
               </div>
-              <h3 className="text-xl font-bold mb-2">Entra Gratis</h3>
+              <h3 className="text-xl font-bold mb-2">Regístrate en 30s</h3>
               <p className="text-muted-foreground">
-                Sin registro, sin email, sin tarjeta. Solo elige un username.
+                Elige un username y crea tu contraseña. Sin email, sin tarjeta. 100% anónimo.
               </p>
             </div>
 
@@ -338,7 +341,7 @@ const GamingLandingPage = () => {
               </Button>
             </motion.div>
             <p className="text-sm text-muted-foreground mt-6">
-              🎮 Más de 50+ gamers activos • 🔒 100% anónimo • ⚡ Sin registro
+              🎮 Más de 50+ gamers activos • 🔒 100% anónimo • ⚡ Registro rápido gratis
             </p>
           </div>
         </motion.section>

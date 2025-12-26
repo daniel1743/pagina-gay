@@ -626,6 +626,70 @@ const LobbyPage = () => {
           </motion.section>
         )}
 
+        {/* 🔗 SECCIÓN SEO: Enlaces Internos Estratégicos */}
+        <motion.section
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.5, delay: 0.2 }}
+          className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-8 sm:py-12 mb-12"
+        >
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            {/* Enlace al Foro */}
+            <motion.div
+              whileHover={{ scale: 1.02, y: -5 }}
+              onClick={() => navigate('/anonymous-forum')}
+              className="glass-effect p-6 sm:p-8 rounded-2xl border-2 border-green-500/30 hover:border-green-500/60 cursor-pointer transition-all shadow-lg hover:shadow-green-500/20"
+            >
+              <div className="flex items-start gap-4">
+                <div className="w-12 h-12 sm:w-14 sm:h-14 rounded-full bg-gradient-to-br from-green-500 to-emerald-500 flex items-center justify-center flex-shrink-0">
+                  <MessageCircle className="w-6 h-6 sm:w-7 sm:h-7 text-white" />
+                </div>
+                <div className="flex-1">
+                  <h3 className="text-lg sm:text-xl font-bold mb-2 text-green-400">
+                    Foro Gay Chile Anónimo
+                  </h3>
+                  <p className="text-sm sm:text-base text-muted-foreground mb-3 leading-relaxed">
+                    Comparte experiencias LGBT+, pide consejos sobre salud mental, relaciones y derechos. 100% anónimo, sin censura. Comunidad de apoyo mutuo activa 24/7.
+                  </p>
+                  <div className="flex items-center gap-2 text-xs sm:text-sm font-semibold text-green-400">
+                    <span>👥 Comunidad activa</span>
+                    <span>•</span>
+                    <span>🔒 100% anónimo</span>
+                    <span>→</span>
+                  </div>
+                </div>
+              </div>
+            </motion.div>
+
+            {/* Enlace a Gaming */}
+            <motion.div
+              whileHover={{ scale: 1.02, y: -5 }}
+              onClick={() => navigate('/gaming')}
+              className="glass-effect p-6 sm:p-8 rounded-2xl border-2 border-purple-500/30 hover:border-purple-500/60 cursor-pointer transition-all shadow-lg hover:shadow-purple-500/20"
+            >
+              <div className="flex items-start gap-4">
+                <div className="w-12 h-12 sm:w-14 sm:h-14 rounded-full bg-gradient-to-br from-purple-500 to-violet-500 flex items-center justify-center flex-shrink-0">
+                  <MessageSquare className="w-6 h-6 sm:w-7 sm:h-7 text-white" />
+                </div>
+                <div className="flex-1">
+                  <h3 className="text-lg sm:text-xl font-bold mb-2 text-purple-400">
+                    Chat Gay Gamers Chile 🎮
+                  </h3>
+                  <p className="text-sm sm:text-base text-muted-foreground mb-3 leading-relaxed">
+                    Conecta con gamers LGBT+ de Chile. Comparte juegos, forma squad, chatea sobre PS5, Xbox, PC, Switch. Comunidad sin toxicidad, puro gaming y buena onda.
+                  </p>
+                  <div className="flex items-center gap-2 text-xs sm:text-sm font-semibold text-purple-400">
+                    <span>🎮 50+ gamers activos</span>
+                    <span>•</span>
+                    <span>⚡ Activo 24/7</span>
+                    <span>→</span>
+                  </div>
+                </div>
+              </div>
+            </motion.div>
+          </div>
+        </motion.section>
+
         {/* ✅ FASE URGENTE: Sección "Cómo Funciona" - Solo para visitantes */}
         {showHeroSection && (
           <motion.section

@@ -24,6 +24,7 @@ import { trackPageView, trackPageExit, trackRoomJoined, trackMessageSent } from 
 import { useCanonical } from '@/hooks/useCanonical';
 import { checkUserSanctions, SANCTION_TYPES } from '@/services/sanctionsService';
 import { roomsData } from '@/config/rooms';
+import { startEngagementTracking, hasReachedOneHourLimit, getTotalEngagementTime, hasSeenEngagementModal, markEngagementModalAsShown } from '@/services/engagementService';
 
 const roomWelcomeMessages = {
   'conversas-libres': '¡Bienvenido a Conversas Libres! Habla de lo que quieras.',
@@ -66,6 +67,7 @@ const ChatPage = () => {
   const [showChatRules, setShowChatRules] = useState(false); // ✅ Modal de reglas
   const [hasAcceptedRules, setHasAcceptedRules] = useState(false); // ✅ Flag de reglas aceptadas
   const [roomCounts, setRoomCounts] = useState({}); // Contadores de usuarios por sala
+  const [engagementTime, setEngagementTime] = useState(''); // ⏱️ Tiempo total de engagement
   const messagesEndRef = useRef(null);
   const unsubscribeRef = useRef(null);
   const aiActivatedRef = useRef(false); // Flag para evitar activaciones múltiples de IA
@@ -111,31 +113,41 @@ const ChatPage = () => {
     }
   }, [user, navigate, roomId]);
 
-  // ✅ SEO: Actualizar título y meta description dinámicamente por sala
+  // ✅ SEO: Actualizar título, meta description Y Open Graph dinámicamente por sala
   React.useEffect(() => {
     // Meta information específica por sala (SIN números dinámicos para SEO estable)
     const roomSEO = {
       'gaming': {
-        title: 'Sala Gaming - Chat Gay Gamers Chile | Chactivo',
-        description: '🎮 Chat gay para gamers en Chile. Comparte juegos, haz amigos LGBT+, conecta con otros gamers. Sala activa 24/7. Sin registro obligatorio, 100% gratis.'
+        title: 'Chat Gay Gamers Chile 🎮 | Sala Gaming LGBT+ | Chactivo',
+        description: '🎮 Únete a la sala de gaming gay más activa de Chile. Comparte LoL, Valorant, Genshin, Minecraft. Encuentra squad LGBT+, chatea sobre PS5, Xbox, PC, Switch. Comunidad gamer sin toxicidad. ¡Regístrate gratis!',
+        ogTitle: 'Chat Gay para Gamers Chile 🎮 | Comunidad Gaming LGBT+',
+        ogDescription: '🎮 Conecta con gamers LGBT+ de Chile. Sala activa 24/7 con +50 gamers. Todas las plataformas: PC, PS5, Xbox, Switch, Móvil. ¡Únete ahora!'
       },
       'mas-30': {
-        title: 'Sala +30 - Chat Gay Mayores Chile | Chactivo',
-        description: '💪 Chat gay para mayores de 30 años en Chile. Conversación madura, sin presión. Conoce gays de tu edad en Santiago, Valparaíso y todo Chile.'
+        title: 'Chat Gay +30 Años Chile 💪 | Sala Mayores LGBT+ | Chactivo',
+        description: '💪 Chat gay para mayores de 30 años en Chile. Conversación madura, sin presión. Conoce gays de tu edad en Santiago, Valparaíso y todo Chile. Comunidad LGBT+ +30 activa 24/7.',
+        ogTitle: 'Chat Gay +30 Años Chile | Comunidad Madura LGBT+',
+        ogDescription: '💪 Sala exclusiva para mayores de 30. Conversación madura, respeto y buena onda. Conoce gays de tu generación.'
       },
       'santiago': {
-        title: 'Sala Santiago - Chat Gay Santiago | Chactivo',
-        description: '🏙️ Chat gay Santiago Chile. Conecta con gays de la capital en tiempo real. Salas temáticas, conversación segura, comunidad activa 24/7.'
+        title: 'Chat Gay Santiago Chile 🏙️ | Sala LGBT+ Capital | Chactivo',
+        description: '🏙️ Chat gay Santiago Chile. Conecta con gays de la capital en tiempo real. Salas temáticas, conversación segura, comunidad LGBT+ activa 24/7. ¡Regístrate gratis!',
+        ogTitle: 'Chat Gay Santiago | Conoce LGBT+ de la Capital',
+        ogDescription: '🏙️ Sala exclusiva de Santiago. Conecta con gays de Providencia, Las Condes, Ñuñoa y toda la capital.'
       },
       'conversas-libres': {
-        title: 'Conversas Libres - Chat Gay Chile | Chactivo',
-        description: '💬 Sala de chat gay general Chile. Todos los temas bienvenidos. Conversación libre, ambiente relajado. Entra sin registro, chatea gratis ahora.'
+        title: 'Conversas Libres - Chat Gay Chile 💬 | Sala General LGBT+ | Chactivo',
+        description: '💬 Sala de chat gay general Chile. Todos los temas bienvenidos: amistad, relaciones, gaming, cultura. Conversación libre, ambiente relajado. La sala más activa de Chactivo. ¡Regístrate en 30 segundos!',
+        ogTitle: 'Conversas Libres | Chat Gay Chile General 💬',
+        ogDescription: '💬 La sala más popular de Chactivo. Todos los temas, todos bienvenidos. Ambiente relajado y conversación real.'
       }
     };
 
     const seoData = roomSEO[roomId] || {
       title: `Chat ${roomId} - Chactivo | Chat Gay Chile`,
-      description: `Sala de chat gay ${roomId} en Chile. Conoce gays, chatea en vivo, comunidad LGBT+ activa. Sin registro obligatorio, 100% gratis y anónimo.`
+      description: `Sala de chat gay ${roomId} en Chile. Conoce gays, chatea en vivo, comunidad LGBT+ activa. ¡Regístrate gratis en 30 segundos!`,
+      ogTitle: `Sala ${roomId} | Chactivo`,
+      ogDescription: `Únete a la sala ${roomId}. Comunidad gay activa de Chile.`
     };
 
     // Actualizar title
@@ -150,10 +162,55 @@ const ChatPage = () => {
     }
     metaDescription.content = seoData.description;
 
+    // ✅ CRÍTICO: Actualizar Open Graph title
+    let ogTitle = document.querySelector('meta[property="og:title"]');
+    if (!ogTitle) {
+      ogTitle = document.createElement('meta');
+      ogTitle.setAttribute('property', 'og:title');
+      document.head.appendChild(ogTitle);
+    }
+    ogTitle.setAttribute('content', seoData.ogTitle);
+
+    // ✅ CRÍTICO: Actualizar Open Graph description
+    let ogDescription = document.querySelector('meta[property="og:description"]');
+    if (!ogDescription) {
+      ogDescription = document.createElement('meta');
+      ogDescription.setAttribute('property', 'og:description');
+      document.head.appendChild(ogDescription);
+    }
+    ogDescription.setAttribute('content', seoData.ogDescription);
+
+    // ✅ CRÍTICO: Actualizar Open Graph URL (único por sala)
+    let ogUrl = document.querySelector('meta[property="og:url"]');
+    if (!ogUrl) {
+      ogUrl = document.createElement('meta');
+      ogUrl.setAttribute('property', 'og:url');
+      document.head.appendChild(ogUrl);
+    }
+    ogUrl.setAttribute('content', `https://chactivo.com/chat/${roomId}`);
+
+    // ✅ Twitter Card title
+    let twitterTitle = document.querySelector('meta[name="twitter:title"]');
+    if (!twitterTitle) {
+      twitterTitle = document.createElement('meta');
+      twitterTitle.setAttribute('name', 'twitter:title');
+      document.head.appendChild(twitterTitle);
+    }
+    twitterTitle.setAttribute('content', seoData.ogTitle);
+
+    // ✅ Twitter Card description
+    let twitterDescription = document.querySelector('meta[name="twitter:description"]');
+    if (!twitterDescription) {
+      twitterDescription = document.createElement('meta');
+      twitterDescription.setAttribute('name', 'twitter:description');
+      document.head.appendChild(twitterDescription);
+    }
+    twitterDescription.setAttribute('content', seoData.ogDescription);
+
     return () => {
       // Limpiar meta description al desmontar (volver a la del index.html)
       if (metaDescription && document.head.contains(metaDescription)) {
-        metaDescription.content = '🏳️‍🌈 Chat gay chileno 100% gratis. Salas por interés: Gaming 🎮, +30 💪, Osos 🐻, Amistad 💬. Conversación real, sin presión de hookups.';
+        metaDescription.content = '🏳️‍🌈 Únete al chat gay más activo de Chile. Salas temáticas: Gaming 🎮, +30 años, Osos 🐻, Amistad. Conversaciones reales, comunidad LGBT+ segura. ¡Regístrate en 30 segundos!';
       }
     };
   }, [roomId]);
@@ -174,6 +231,31 @@ const ChatPage = () => {
       }
     };
   }, [roomId]);
+
+  // ⏱️ ENGAGEMENT TRACKING: Sistema de 1 hora gratuita
+  useEffect(() => {
+    // Solo para usuarios guest/anonymous
+    if (!user || (!user.isGuest && !user.isAnonymous)) {
+      return;
+    }
+
+    // Iniciar tracking al montar
+    startEngagementTracking(user);
+
+    // Verificar cada 10 segundos si se alcanzó el límite
+    const checkInterval = setInterval(() => {
+      if (hasReachedOneHourLimit(user) && !hasSeenEngagementModal()) {
+        // Mostrar modal celebratorio
+        const totalTime = getTotalEngagementTime(user);
+        setEngagementTime(totalTime);
+        setShowVerificationModal(true);
+        markEngagementModalAsShown();
+        console.log('🎉 ¡1 hora alcanzada! Mostrando modal celebratorio');
+      }
+    }, 10000); // Verificar cada 10 segundos
+
+    return () => clearInterval(checkInterval);
+  }, [user]);
 
   // 🎁 Mostrar modal de bienvenida premium solo una vez
   useEffect(() => {
@@ -461,9 +543,12 @@ const ChatPage = () => {
       return;
     }
 
-    // Validación: usuarios anónimos solo 10 mensajes
-    if (user.isAnonymous && guestMessageCount >= 10) {
+    // ⏱️ Validación: usuarios anónimos - límite de 1 hora
+    if (user.isAnonymous && hasReachedOneHourLimit(user)) {
+      const totalTime = getTotalEngagementTime(user);
+      setEngagementTime(totalTime);
       setShowVerificationModal(true);
+      markEngagementModalAsShown();
       return;
     }
 
@@ -515,11 +600,6 @@ const ChatPage = () => {
       // Track message sent
       trackMessageSent(currentRoom);
 
-      // Actualizar contador local si es anónimo
-      if (user.isAnonymous) {
-        setGuestMessageCount(prev => prev + 1);
-      }
-
       // 🤖 Disparar respuesta de bot anfitrión
       if (botsActive && type === 'text') {
         triggerBotResponse(content, user.id);
@@ -531,11 +611,13 @@ const ChatPage = () => {
 
       // Mensaje específico si se excedió el límite
       if (error.code === 'permission-denied') {
+        const totalTime = getTotalEngagementTime(user);
+        setEngagementTime(totalTime);
         setShowVerificationModal(true);
         toast({
-          title: "Límite alcanzado",
-          description: "Has alcanzado el límite de 10 mensajes. Por favor, regístrate para continuar chateando gratis.",
-          variant: "destructive",
+          title: "¡Tiempo alcanzado!",
+          description: `Ya llevas ${totalTime} en el sitio. ¡Regístrate gratis para continuar!`,
+          variant: "default",
         });
       } else {
         toast({
@@ -675,7 +757,10 @@ const ChatPage = () => {
         )}
 
         {showVerificationModal && (
-          <VerificationModal onClose={() => setShowVerificationModal(false)} />
+          <VerificationModal
+            onClose={() => setShowVerificationModal(false)}
+            engagementTime={engagementTime}
+          />
         )}
 
         {activePrivateChat && (

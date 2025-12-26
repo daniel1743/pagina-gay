@@ -169,8 +169,8 @@ service cloud.firestore {
       match /notifications/{notificationId} {
         allow read: if isOwner(userId);
 
-        // ✅ Endurecido: solo el mismo usuario (auto-notif) o un admin puede crear
-        allow create: if (isOwner(userId) || isAdmin());
+        // ✅ CRÍTICO: Admin/Support pueden crear notificaciones para usuarios (respuestas a tickets, etc.)
+        allow create: if isSuperAdmin() || isAdminOrSupport() || isOwner(userId);
 
         allow update: if isOwner(userId);
 
