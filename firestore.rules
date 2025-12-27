@@ -112,11 +112,25 @@ service cloud.firestore {
              data.timestamp is timestamp;
     }
 
-    // ⚠️ SISTEMA DE BOTS/IAs DESACTIVADO
-    // SOLO se permiten mensajes de usuarios reales con userId == auth.uid
-    // Esta función está DESHABILITADA para seguridad
+    // ✅ SISTEMA DE IA: permite mensajes AI con control del usuario autenticado
     function isValidBotMessage() {
-      return false; // ❌ BLOQUEADO: No se permiten bots/IAs
+      let data = request.resource.data;
+      return isAuthenticated() &&
+             'senderUid' in data &&
+             data.senderUid == request.auth.uid &&
+             'userId' in data &&
+             data.userId is string &&
+             (data.userId.matches('bot_.*') || data.userId.matches('ai_.*')) &&
+             'username' in data &&
+             data.username is string &&
+             'content' in data &&
+             data.content is string &&
+             data.content.size() > 0 &&
+             data.content.size() <= 1000 &&
+             'type' in data &&
+             data.type in ['text', 'image', 'voice', 'system'] &&
+             'timestamp' in data &&
+             data.timestamp is timestamp;
     }
 
     function isAdult(age) {

@@ -21,7 +21,7 @@ import { sendMessage, subscribeToRoomMessages, addReactionToMessage, markMessage
 import { joinRoom, leaveRoom, subscribeToRoomUsers, subscribeToMultipleRoomCounts, updateUserActivity, cleanInactiveUsers, filterActiveUsers } from '@/services/presenceService';
 // import { useBotSystem } from '@/hooks/useBotSystem'; // ⚠️ DESACTIVADO: Sistema de bots activos deshabilitado
 import { sendModeratorWelcome } from '@/services/moderatorWelcome';
-import { updateRoomAIActivity, stopRoomAIConversation, recordHumanMessage } from '@/services/multiProviderAIConversation';
+import { updateRoomAIActivity, stopRoomAIConversation, recordHumanMessage, greetNewUser } from '@/services/multiProviderAIConversation';
 import { trackPageView, trackPageExit, trackRoomJoined, trackMessageSent } from '@/services/analyticsService';
 import { useCanonical } from '@/hooks/useCanonical';
 import { checkUserSanctions, SANCTION_TYPES } from '@/services/sanctionsService';
@@ -410,12 +410,23 @@ const ChatPage = () => {
       }, 2000); // Enviar después de 2 segundos
     }
 
-    // ⚠️ SISTEMA DE IA COMPLETAMENTE DESACTIVADO
-    // 🤖 Iniciar sistema de conversación de IAs (10 personalidades)
-    
-    
+    // 🤖 Saludo de IA cuando usuario nuevo entra (solo una vez)
+    const aiGreetKey = `ai_greeted_${roomId}_${user.id}`;
+    const hasBeenGreeted = sessionStorage.getItem(aiGreetKey);
 
-    console.log(`🚫 [GEMINI AI] Sistema de conversación DESACTIVADO - No se generarán mensajes automáticos`);
+    if (!hasBeenGreeted) {
+      setTimeout(() => {
+        greetNewUser(roomId, user.username);
+        sessionStorage.setItem(aiGreetKey, 'true');
+      }, 6000); // Enviar después de 6 segundos (después del moderador)
+    }
+
+    // Sistema multi IA: se activa segun usuarios reales activos
+
+
+
+
+    console.log(`?? [MULTI AI] Sistema listo para activarse segun usuarios reales`);
 
     // Cleanup: desuscribirse y remover presencia cuando se desmonta o cambia de sala
     return () => {
@@ -466,10 +477,11 @@ const ChatPage = () => {
     
     lastUserCountRef.current = realUserCount;
 
-    // ✅ SISTEMA DE IA GEMINI ACTIVO
-    
+    // Sistema multi IA activo
+
     updateRoomAIActivity(roomId, realUserCount);
-    console.log(`? [CHAT PAGE] ${realUserCount} usuarios reales detectados | Sistema Multi AI activo`);
+    console.log(`✅ [MULTI AI] ${realUserCount} usuarios reales en ${roomId} | Sistema ${realUserCount >= 1 && realUserCount <= 9 ? 'ACTIVO' : 'INACTIVO'}`);
+  }, [roomUsers.length, roomId, user]); // ✅ Ejecutar cuando cambian usuarios, sala o usuario
 
   // Suscribirse a contadores de todas las salas (para mensajes contextuales)
   useEffect(() => {
@@ -609,6 +621,7 @@ const ChatPage = () => {
         user.isAnonymous // Indica si es anónimo para usar transacción
       );
 
+      recordHumanMessage(currentRoom, user.username, content);
       // Track message sent
       trackMessageSent(currentRoom);
 

@@ -28,9 +28,11 @@ export const sendMessage = async (roomId, messageData, isAnonymous = false) => {
   try {
     // 🔍 RASTREADOR DE MENSAJES: Identificar tipo de remitente
     const isBot = messageData.userId?.startsWith('bot_') ||
+                  messageData.userId?.startsWith('ai_') ||
                   messageData.userId?.startsWith('static_bot_') ||
                   messageData.userId === 'system';
-    const isAI = messageData.userId?.startsWith('bot_') && !messageData.userId?.includes('join');
+    const isAI = (messageData.userId?.startsWith('bot_') || messageData.userId?.startsWith('ai_')) &&
+                 !messageData.userId?.includes('join');
     const isRealUser = !isBot;
 
     const messageType = isAI ? '🤖 IA' : (isBot ? '⚠️ BOT' : '✅ USUARIO REAL');
@@ -67,6 +69,7 @@ export const sendMessage = async (roomId, messageData, isAnonymous = false) => {
 
     const message = {
       userId: messageData.userId,
+      senderUid: auth.currentUser?.uid || messageData.senderUid || null,
       username: messageData.username,
       avatar: messageData.avatar,
       isPremium: messageData.isPremium || false,
@@ -124,7 +127,7 @@ export const sendMessage = async (roomId, messageData, isAnonymous = false) => {
       console.log(`✅ [MENSAJE ENVIADO] ${messageData.username} (${messageType}) → "${messageData.content.substring(0,30)}..."`);
 
       // ✅ Incrementar contador de mensajes para usuarios registrados (para sistema de recompensas)
-      if (messageData.userId && !isAnonymous) {
+      if (messageData.userId && !isAnonymous && !isBot) {
         const userRef = doc(db, 'users', messageData.userId);
         updateDoc(userRef, {
           messageCount: increment(1),
