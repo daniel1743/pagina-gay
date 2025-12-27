@@ -470,7 +470,13 @@ const GROUP_CONVERSATIONS = [
 
 let activeGroupConversations = new Map(); // roomId -> conversationState
 
+// ⚠️ SISTEMA DE BOTS GRUPALES COMPLETAMENTE DESACTIVADO
 export const startGroupConversation = async (roomId) => {
+  // ❌ DESACTIVADO: No iniciar conversaciones grupales de bots
+  console.log(`🚫 [BOT GROUP] startGroupConversation DESACTIVADO - No se generarán mensajes de bots grupales`);
+  return;
+  
+  /* CÓDIGO ORIGINAL COMENTADO
   // Verificar si ya hay una conversación activa
   if (activeGroupConversations.has(roomId)) {
     console.log(`⚠️ Ya hay una conversación grupal activa en ${roomId}`);
@@ -578,7 +584,20 @@ const sendNextGroupMessage = async (roomId) => {
 
 let groupConversationIntervals = new Map(); // roomId -> intervalId
 
+// ⚠️ SISTEMA DE BOTS GRUPALES COMPLETAMENTE DESACTIVADO
 export const schedulePeriodicGroupConversations = (roomId) => {
+  // ❌ DESACTIVADO: No programar conversaciones grupales de bots
+  console.log(`🚫 [BOT GROUP] schedulePeriodicGroupConversations DESACTIVADO - No se programarán conversaciones grupales`);
+  
+  // Limpiar cualquier intervalo existente
+  if (groupConversationIntervals.has(roomId)) {
+    clearInterval(groupConversationIntervals.get(roomId));
+    groupConversationIntervals.delete(roomId);
+  }
+  
+  return;
+  
+  /* CÓDIGO ORIGINAL COMENTADO
   // Evitar duplicados
   if (groupConversationIntervals.has(roomId)) {
     console.log(`⚠️ Ya hay conversaciones grupales programadas para ${roomId}`);

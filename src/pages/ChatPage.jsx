@@ -21,6 +21,7 @@ import { sendMessage, subscribeToRoomMessages, addReactionToMessage, markMessage
 import { joinRoom, leaveRoom, subscribeToRoomUsers, subscribeToMultipleRoomCounts, updateUserActivity, cleanInactiveUsers, filterActiveUsers } from '@/services/presenceService';
 // import { useBotSystem } from '@/hooks/useBotSystem'; // ⚠️ DESACTIVADO: Sistema de bots activos deshabilitado
 import { sendModeratorWelcome } from '@/services/moderatorWelcome';
+import { updateRoomAIActivity, stopRoomAIConversation, recordHumanMessage } from '@/services/multiProviderAIConversation';
 import { trackPageView, trackPageExit, trackRoomJoined, trackMessageSent } from '@/services/analyticsService';
 import { useCanonical } from '@/hooks/useCanonical';
 import { checkUserSanctions, SANCTION_TYPES } from '@/services/sanctionsService';
@@ -398,10 +399,23 @@ const ChatPage = () => {
       description: `Estás en #${roomId}`,
     });
 
-    // ⚠️ SALUDO AUTOMÁTICO DESACTIVADO
-    // Los bots estáticos no pueden escribir en Firestore (no tienen permisos)
-    // El saludo se mostrará a través de los mensajes estáticos predefinidos
-    // que ya están en el historial cuando el usuario entra
+    // 👮 Mensaje de bienvenida del moderador (solo una vez)
+    const moderatorKey = `moderator_welcome_${roomId}_${user.id}`;
+    const hasSeenModerator = sessionStorage.getItem(moderatorKey);
+
+    if (!hasSeenModerator) {
+      setTimeout(() => {
+        sendModeratorWelcome(roomId, user.username);
+        sessionStorage.setItem(moderatorKey, 'true');
+      }, 2000); // Enviar después de 2 segundos
+    }
+
+    // ⚠️ SISTEMA DE IA COMPLETAMENTE DESACTIVADO
+    // 🤖 Iniciar sistema de conversación de IAs (10 personalidades)
+    
+    
+
+    console.log(`🚫 [GEMINI AI] Sistema de conversación DESACTIVADO - No se generarán mensajes automáticos`);
 
     // Cleanup: desuscribirse y remover presencia cuando se desmonta o cambia de sala
     return () => {
@@ -409,6 +423,10 @@ const ChatPage = () => {
         unsubscribeRef.current();
         unsubscribeRef.current = null; // Limpiar referencia
       }
+
+      // 🤖 Detener conversaciones de IA
+      stopRoomAIConversation(roomId);
+
       leaveRoom(roomId).catch(error => {
         // Ignorar errores al salir de la sala
         if (error.name !== 'AbortError' && error.code !== 'cancelled') {
@@ -448,10 +466,10 @@ const ChatPage = () => {
     
     lastUserCountRef.current = realUserCount;
 
-    // ⚠️ SISTEMA DE IA DESACTIVADO
-    // Solo se muestra mensaje de moderador una vez
-    console.log(`✅ [CHAT PAGE] ${realUserCount} usuarios reales detectados`);
-  }, [roomUsers.length]); // ✅ Solo ejecutar cuando cambia el número de usuarios
+    // ✅ SISTEMA DE IA GEMINI ACTIVO
+    
+    updateRoomAIActivity(roomId, realUserCount);
+    console.log(`? [CHAT PAGE] ${realUserCount} usuarios reales detectados | Sistema Multi AI activo`);
 
   // Suscribirse a contadores de todas las salas (para mensajes contextuales)
   useEffect(() => {
@@ -594,13 +612,10 @@ const ChatPage = () => {
       // Track message sent
       trackMessageSent(currentRoom);
 
-      // 🤖 Disparar respuesta de IA conversacional
-      if (type === 'text' && aiRespondToUser) {
-        console.log(`🤖 [CHAT PAGE] Llamando a aiRespondToUser para mensaje: "${content}"`);
-        setTimeout(() => {
-          aiRespondToUser(currentRoom, user.id, content, messages);
-        }, 1000); // Delay de 1 segundo para que parezca más natural
-      }
+      // ⚠️ SISTEMA DE IA DESACTIVADO - No generar respuestas automáticas
+      // if (Math.random() < 0.3) {
+      //   aiRespondToUser(currentRoom, content, user.username);
+      // }
 
       // El listener de onSnapshot actualizará automáticamente los mensajes
     } catch (error) {

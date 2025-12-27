@@ -25,7 +25,8 @@ export const joinRoom = async (roomId, userData) => {
   // 🔍 LOG DETALLADO: Rastrear TODA creación de presencia
   const isBot = userData.userId?.startsWith('bot_') ||
                 userData.userId?.startsWith('static_bot_') ||
-                userData.userId === 'system';
+                userData.userId === 'system' ||
+                userData.userId === 'system_moderator';
 
   console.log(`
 ╔════════════════════════════════════════════════════════════╗
@@ -217,16 +218,18 @@ export const cleanInactiveUsers = async (roomId) => {
       const data = docSnap.data();
       const userId = data.userId || docSnap.id;
       
-      // ✅ CRÍTICO: Excluir bots del sistema de limpieza
+      // ✅ CRÍTICO: Excluir bots/IAs del sistema de limpieza
       const isBot = userId === 'system' ||
+                    userId === 'system_moderator' ||
                     userId.startsWith('bot_') ||
                     userId.startsWith('bot-') ||
                     userId.startsWith('static_bot_') ||
+                    userId.startsWith('ai_') || // ✅ Incluir IAs de Gemini
                     userId.includes('bot_join');
-      
+
       if (isBot) {
-        // Eliminar bots inmediatamente si existen en la DB
-        console.log(`🤖 Eliminando bot de presencia: ${data.username || userId}`);
+        // Eliminar bots/IAs inmediatamente si existen en la DB
+        console.log(`🤖 Eliminando bot/IA de presencia: ${data.username || userId}`);
         deletePromises.push(deleteDoc(docSnap.ref));
         return;
       }
@@ -284,14 +287,16 @@ export const filterActiveUsers = (users) => {
     // ✅ CRÍTICO: EXCLUIR BOTS/IAs DEL CONTEO DE USUARIOS REALES
     const userId = user.userId || user.id || '';
     const isBot = userId === 'system' ||
+                  userId === 'system_moderator' ||
                   userId.startsWith('bot_') ||
                   userId.startsWith('bot-') ||
                   userId.startsWith('static_bot_') || // ✅ Excluir bots estáticos
+                  userId.startsWith('ai_') || // ✅ Excluir nuevas IAs de Gemini
                   userId.includes('bot_join');
 
     if (isBot) {
-      console.log(`🤖 [FILTRO PRESENCIA] Excluyendo bot del conteo: ${user.username || userId}`);
-      return false; // NO contar bots como usuarios activos
+      console.log(`🤖 [FILTRO PRESENCIA] Excluyendo bot/IA del conteo: ${user.username || userId}`);
+      return false; // NO contar bots/IAs como usuarios activos
     }
 
     // Si el usuario no tiene lastSeen, asumir que está activo (acaba de entrar)

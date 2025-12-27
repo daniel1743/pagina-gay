@@ -112,20 +112,11 @@ service cloud.firestore {
              data.timestamp is timestamp;
     }
 
-    // ✅ ACTUALIZADO: Permitir mensajes bot desde cliente (sistema de IA conversacional)
-    // Seguridad: validación por patrón de userId (bot_*) y autenticación requerida
+    // ⚠️ SISTEMA DE BOTS/IAs DESACTIVADO
+    // SOLO se permiten mensajes de usuarios reales con userId == auth.uid
+    // Esta función está DESHABILITADA para seguridad
     function isValidBotMessage() {
-      let data = request.resource.data;
-      return isAuthenticated() &&
-             'userId' in data &&
-             data.userId is string &&
-             data.userId.matches('bot_.*') &&
-             'username' in data && data.username is string &&
-             'content' in data && data.content is string &&
-             data.content.size() > 0 &&
-             data.content.size() <= 1000 &&
-             'type' in data && data.type in ['text', 'image', 'voice', 'system'] &&
-             'timestamp' in data && data.timestamp is timestamp;
+      return false; // ❌ BLOQUEADO: No se permiten bots/IAs
     }
 
     function isAdult(age) {

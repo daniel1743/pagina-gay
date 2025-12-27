@@ -358,8 +358,8 @@ const LobbyPage = () => {
   return (
     <>
       <div className="w-full min-h-screen pb-16 sm:pb-20">
-        {/* 🔥 HERO SECTION - Solo visible para usuarios no registrados o invitados */}
-        {showHeroSection && (
+        {/* 🔥 HERO SECTION - Siempre visible con H1 SEO */}
+        {(
           <motion.section
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
@@ -433,184 +433,60 @@ const LobbyPage = () => {
               )}
             </motion.div>
 
-            {/* ✅ FASE URGENTE: H1 mejorado con propuesta de valor clara */}
+            {/* ✅ HERO SEO: H1 optimizado para SEO */}
             <motion.h1
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
               transition={{ delay: 0.3 }}
               className="text-3xl sm:text-4xl md:text-5xl lg:text-6xl font-extrabold text-center mb-4 sm:mb-6 leading-tight px-4"
             >
-              Chat Gay Santiago con{' '}
-              <span className="bg-gradient-to-r from-[#E4007C] via-pink-400 to-cyan-400 bg-clip-text text-transparent">
-                Personas Reales
-              </span>
+              Chats gay anónimos en Chile, en tiempo real
             </motion.h1>
 
-            {/* ✅ FASE URGENTE: Microcopy de confianza */}
+            {/* Subtítulo del Hero */}
             <motion.p
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
               transition={{ delay: 0.4 }}
-              className="text-base sm:text-lg md:text-xl text-center text-cyan-300 mb-8 sm:mb-10 max-w-3xl mx-auto px-4 font-semibold flex flex-wrap items-center justify-center gap-2 sm:gap-4"
+              className="text-base sm:text-lg md:text-xl text-center text-muted-foreground mb-8 sm:mb-10 max-w-3xl mx-auto px-4 leading-relaxed"
             >
-              <span className="flex items-center gap-1.5">
-                🔒 <span>Anónimo</span>
-              </span>
-              <span className="hidden sm:inline">•</span>
-              <span className="flex items-center gap-1.5">
-                ⚡ <span>Sin Registro</span>
-              </span>
-              <span className="hidden sm:inline">•</span>
-              <span className="flex items-center gap-1.5">
-                🇨🇱 <span>100% Chileno</span>
-              </span>
+              Entra a salas activas 24/7, conoce gente y conversa sin toxicidad.
             </motion.p>
 
-            {/* ✅ FASE URGENTE: CTA GIGANTE con contador integrado */}
+            {/* ✅ CTA PRINCIPAL DEL HERO */}
             <motion.div
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ delay: 0.5 }}
-              className="flex flex-col items-center mb-10 sm:mb-12 px-4"
+              className="flex flex-col sm:flex-row items-center justify-center gap-4 mb-8 sm:mb-10 px-4"
             >
-              {user && !user.isAnonymous && !user.isGuest ? (
-                <button
-                  onClick={() => handleCardClick('RoomsModal')}
-                  className="group relative px-12 sm:px-20 py-6 sm:py-8 magenta-gradient rounded-2xl font-extrabold text-2xl sm:text-3xl md:text-4xl text-white hover:scale-105 active:scale-95 transition-all duration-300 shadow-2xl hover:shadow-[#E4007C]/60 focus:outline-none focus:ring-4 focus:ring-[#E4007C]/30 w-full sm:w-auto max-w-3xl"
-                  aria-label="Chatear con personas activas ahora"
-                >
-                  <span className="relative z-10 flex flex-col sm:flex-row items-center justify-center gap-2 sm:gap-3">
-                    <span className="flex items-center gap-2">
-                      💬 CHATEAR CON
-                    </span>
-                    <span className="text-3xl sm:text-4xl md:text-5xl font-black bg-gradient-to-r from-yellow-300 to-yellow-100 bg-clip-text text-transparent">
-                      {calculateTotalUsers()}
-                    </span>
-                    <span>PERSONAS</span>
-                  </span>
-                  {/* Efecto de brillo */}
-                  <div className="absolute inset-0 rounded-2xl bg-gradient-to-r from-white/0 via-white/25 to-white/0 opacity-0 group-hover:opacity-100 group-hover:animate-shimmer"></div>
-                </button>
-              ) : (
-                <button
-                  onClick={() => setShowQuickSignup(true)}
-                  className="group relative px-12 sm:px-20 py-6 sm:py-8 magenta-gradient rounded-2xl font-extrabold text-2xl sm:text-3xl md:text-4xl text-white hover:scale-105 active:scale-95 transition-all duration-300 shadow-2xl hover:shadow-[#E4007C]/60 focus:outline-none focus:ring-4 focus:ring-[#E4007C]/30 w-full sm:w-auto max-w-3xl"
-                  aria-label="Entrar al chat gratis ahora"
-                >
-                  <span className="relative z-10 flex flex-col sm:flex-row items-center justify-center gap-2 sm:gap-3">
-                    <span className="flex items-center gap-2">
-                      💬 ENTRAR AL CHAT GRATIS
-                    </span>
-                    <span className="text-lg sm:text-xl font-semibold bg-yellow-300 text-gray-900 px-3 py-1 rounded-full">
-                      {calculateTotalUsers()} ONLINE
-                    </span>
-                  </span>
-                  {/* Efecto de brillo */}
-                  <div className="absolute inset-0 rounded-2xl bg-gradient-to-r from-white/0 via-white/25 to-white/0 opacity-0 group-hover:opacity-100 group-hover:animate-shimmer"></div>
-                </button>
-              )}
+              <Button
+                onClick={() => {
+                  if (user && !user.isAnonymous && !user.isGuest) {
+                    handleCardClick('RoomsModal');
+                  } else {
+                    setShowQuickSignup(true);
+                  }
+                }}
+                className="magenta-gradient text-white font-bold text-lg sm:text-xl px-8 sm:px-12 py-6 sm:py-7 rounded-xl shadow-xl hover:shadow-[#E4007C]/50 hover:scale-105 transition-all"
+              >
+                Entrar a salas de chat
+              </Button>
+              <Button
+                onClick={() => {
+                  if (user && !user.isAnonymous && !user.isGuest) {
+                    handleCardClick('RoomsModal');
+                  } else {
+                    setShowQuickSignup(true);
+                  }
+                }}
+                variant="outline"
+                className="border-2 border-cyan-500/50 text-cyan-400 font-bold text-lg sm:text-xl px-8 sm:px-12 py-6 sm:py-7 rounded-xl hover:bg-cyan-500/10 hover:border-cyan-500 transition-all"
+              >
+                Ver chats activos
+              </Button>
             </motion.div>
 
-            {/* ✅ FASE URGENTE: Beneficio claro bajo el CTA */}
-            <motion.p
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              transition={{ delay: 0.6 }}
-              className="text-center text-sm sm:text-base text-cyan-300 mb-8 sm:mb-10 font-semibold flex flex-wrap items-center justify-center gap-2 sm:gap-3"
-            >
-              <span>⬇️</span>
-              <span>Sin email</span>
-              <span className="hidden sm:inline">•</span>
-              <span>Sin tarjeta de crédito</span>
-              <span className="hidden sm:inline">•</span>
-              <span>Conecta en 30 segundos</span>
-            </motion.p>
-
-            {/* ✅ FASE URGENTE: Testimonio destacado */}
-            <motion.div
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: 0.7 }}
-              className="glass-effect p-5 sm:p-6 rounded-2xl border border-border max-w-2xl mx-auto mb-12 sm:mb-16"
-            >
-              <div className="flex items-center justify-center gap-2 mb-3">
-                <span className="text-yellow-400 text-lg">⭐⭐⭐⭐⭐</span>
-                <span className="text-xs sm:text-sm font-semibold text-yellow-400">5.0</span>
-              </div>
-              <p className="text-sm sm:text-base italic text-muted-foreground mb-3 text-center leading-relaxed">
-                "Mejor que Grindr para tener conversaciones reales. Conocí amigos increíbles aquí y el ambiente es súper respetuoso"
-              </p>
-              <p className="text-xs sm:text-sm text-muted-foreground text-center font-medium">
-                — Juan, 28 años, Providencia
-              </p>
-            </motion.div>
-
-            {/* Preview de salas activas - Solo decorativo, sin enlaces para anónimos */}
-            <motion.div
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              transition={{ delay: 0.6 }}
-              className="grid grid-cols-2 sm:grid-cols-4 gap-3 sm:gap-4 max-w-4xl mx-auto mb-12 sm:mb-16"
-            >
-              {[
-                { emoji: '🐻', name: 'Osos', count: '15', gradient: 'from-orange-500 to-red-500' },
-                { emoji: '💪', name: '+30 años', count: '23', gradient: 'from-blue-500 to-cyan-500' },
-                { emoji: '🎮', name: 'Gaming', count: '12', gradient: 'from-purple-500 to-pink-500' },
-                { emoji: '💬', name: 'Libres', count: '31', gradient: 'from-green-500 to-teal-500' }
-              ].map((sala, index) => (
-                <motion.div
-                  key={sala.name}
-                  initial={{ opacity: 0, y: 20 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  transition={{ delay: 0.7 + index * 0.1 }}
-                  className={`glass-effect p-4 sm:p-5 rounded-xl border border-border transition-all ${
-                    user && !user.isAnonymous && !user.isGuest 
-                      ? 'hover:border-accent/50 cursor-pointer hover:scale-105 active:scale-95 focus:outline-none focus:ring-2 focus:ring-accent/30' 
-                      : 'cursor-default'
-                  }`}
-                  tabIndex={user && !user.isAnonymous && !user.isGuest ? 0 : -1}
-                  role={user && !user.isAnonymous && !user.isGuest ? "button" : undefined}
-                  aria-label={user && !user.isAnonymous && !user.isGuest ? `Ver sala ${sala.name}` : undefined}
-                  onClick={() => {
-                    // Solo permitir clic si el usuario está registrado
-                    if (user && !user.isAnonymous && !user.isGuest) {
-                      handleCardClick('RoomsModal');
-                    } else {
-                      // Si es anónimo, redirigir a registro
-                      navigate('/auth');
-                    }
-                  }}
-                >
-                  <div className="text-center">
-                    <div className="text-3xl mb-2">{sala.emoji}</div>
-                    <p className="text-sm font-semibold mb-1">{sala.name}</p>
-                    <div className={`inline-block px-3 py-1 rounded-full bg-gradient-to-r ${sala.gradient} text-white text-xs font-bold`}>
-                      {sala.count} online
-                    </div>
-                  </div>
-                </motion.div>
-              ))}
-            </motion.div>
-
-            {/* Prueba social */}
-            <motion.div
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              transition={{ delay: 0.9 }}
-              className="text-center space-y-4"
-            >
-              <div className="flex items-center justify-center gap-2 text-yellow-500">
-                <span className="text-2xl">⭐⭐⭐⭐⭐</span>
-                <span className="text-sm text-muted-foreground">Comunidad activa 24/7</span>
-              </div>
-
-              <div className="max-w-2xl mx-auto glass-effect p-6 rounded-2xl border border-border">
-                <p className="text-sm italic text-muted-foreground mb-2">
-                  "Mejor que Grindr para conversación real. Conocí amigos increíbles aquí"
-                </p>
-                <p className="text-xs text-muted-foreground">- Juan, 28, Providencia</p>
-              </div>
-            </motion.div>
           </div>
 
           {/* CSS para animación shimmer */}
@@ -626,69 +502,6 @@ const LobbyPage = () => {
           </motion.section>
         )}
 
-        {/* 🔗 SECCIÓN SEO: Enlaces Internos Estratégicos */}
-        <motion.section
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.5, delay: 0.2 }}
-          className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-8 sm:py-12 mb-12"
-        >
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            {/* Enlace al Foro */}
-            <motion.div
-              whileHover={{ scale: 1.02, y: -5 }}
-              onClick={() => navigate('/anonymous-forum')}
-              className="glass-effect p-6 sm:p-8 rounded-2xl border-2 border-green-500/30 hover:border-green-500/60 cursor-pointer transition-all shadow-lg hover:shadow-green-500/20"
-            >
-              <div className="flex items-start gap-4">
-                <div className="w-12 h-12 sm:w-14 sm:h-14 rounded-full bg-gradient-to-br from-green-500 to-emerald-500 flex items-center justify-center flex-shrink-0">
-                  <MessageCircle className="w-6 h-6 sm:w-7 sm:h-7 text-white" />
-                </div>
-                <div className="flex-1">
-                  <h3 className="text-lg sm:text-xl font-bold mb-2 text-green-400">
-                    Foro Gay Chile Anónimo
-                  </h3>
-                  <p className="text-sm sm:text-base text-muted-foreground mb-3 leading-relaxed">
-                    Comparte experiencias LGBT+, pide consejos sobre salud mental, relaciones y derechos. 100% anónimo, sin censura. Comunidad de apoyo mutuo activa 24/7.
-                  </p>
-                  <div className="flex items-center gap-2 text-xs sm:text-sm font-semibold text-green-400">
-                    <span>👥 Comunidad activa</span>
-                    <span>•</span>
-                    <span>🔒 100% anónimo</span>
-                    <span>→</span>
-                  </div>
-                </div>
-              </div>
-            </motion.div>
-
-            {/* Enlace a Gaming */}
-            <motion.div
-              whileHover={{ scale: 1.02, y: -5 }}
-              onClick={() => navigate('/gaming')}
-              className="glass-effect p-6 sm:p-8 rounded-2xl border-2 border-purple-500/30 hover:border-purple-500/60 cursor-pointer transition-all shadow-lg hover:shadow-purple-500/20"
-            >
-              <div className="flex items-start gap-4">
-                <div className="w-12 h-12 sm:w-14 sm:h-14 rounded-full bg-gradient-to-br from-purple-500 to-violet-500 flex items-center justify-center flex-shrink-0">
-                  <MessageSquare className="w-6 h-6 sm:w-7 sm:h-7 text-white" />
-                </div>
-                <div className="flex-1">
-                  <h3 className="text-lg sm:text-xl font-bold mb-2 text-purple-400">
-                    Chat Gay Gamers Chile 🎮
-                  </h3>
-                  <p className="text-sm sm:text-base text-muted-foreground mb-3 leading-relaxed">
-                    Conecta con gamers LGBT+ de Chile. Comparte juegos, forma squad, chatea sobre PS5, Xbox, PC, Switch. Comunidad sin toxicidad, puro gaming y buena onda.
-                  </p>
-                  <div className="flex items-center gap-2 text-xs sm:text-sm font-semibold text-purple-400">
-                    <span>🎮 50+ gamers activos</span>
-                    <span>•</span>
-                    <span>⚡ Activo 24/7</span>
-                    <span>→</span>
-                  </div>
-                </div>
-              </div>
-            </motion.div>
-          </div>
-        </motion.section>
 
         {/* ✅ FASE URGENTE: Sección "Cómo Funciona" - Solo para visitantes */}
         {showHeroSection && (
@@ -776,18 +589,6 @@ const LobbyPage = () => {
           </motion.section>
         )}
 
-        {/* Título alternativo para usuarios autenticados (cuando no se muestra Hero Section) */}
-        {!showHeroSection && (
-          <motion.div
-            initial={{ opacity: 0, y: -20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.5 }}
-            className="text-center mb-10 sm:mb-12 px-4 pt-8 sm:pt-12"
-          >
-            <h2 className="text-2xl sm:text-3xl md:text-4xl font-bold mb-3 sm:mb-4">Bienvenido de vuelta</h2>
-            <p className="text-base sm:text-lg md:text-xl text-muted-foreground max-w-3xl mx-auto leading-relaxed">¿Qué quieres hacer hoy?</p>
-          </motion.div>
-        )}
 
         <NewsTicker />
 
@@ -796,11 +597,7 @@ const LobbyPage = () => {
           <GlobalStats />
         )}
 
-        {/* TEMPORALMENTE COMENTADO - Ad Carousel - Solo visible para usuarios autenticados (no anónimos/invitados) */}
-        {/* {user && !user.isAnonymous && !user.isGuest && (
-          <AdCarousel onAdClick={handleAdClick} />
-        )} */}
-
+        {/* ✅ SECCIÓN PRINCIPAL: Salas de Chat (inmediatamente después del Hero) */}
         <div className="px-4 sm:px-6 lg:px-8 py-10 sm:py-12 lg:py-16">
           <motion.div
             initial={{ opacity: 0 }}
@@ -808,10 +605,10 @@ const LobbyPage = () => {
             transition={{ duration: 0.5 }}
             className="max-w-7xl mx-auto"
           >
-            {/* Título de sección */}
+            {/* Título de sección: Salas de Chat */}
             <div className="text-center mb-10 sm:mb-14 lg:mb-16">
               <h2 className="text-2xl sm:text-3xl md:text-4xl lg:text-5xl font-bold mb-4 sm:mb-6 bg-gradient-to-r from-cyan-400 via-purple-400 to-pink-400 light:from-cyan-600 light:via-purple-600 light:to-pink-600 bg-clip-text text-transparent leading-tight">
-                Explora Chactivo
+                Salas de Chat
               </h2>
               <p className="text-base sm:text-lg md:text-xl text-gray-400 light:text-gray-600 max-w-2xl mx-auto leading-relaxed px-4">
                 Conecta, chatea y descubre la comunidad gay más activa de Chile
@@ -834,8 +631,88 @@ const LobbyPage = () => {
                 isHorizontal={true}
               />
             </div>
+          </motion.div>
+        </div>
 
-            {/* Grid de 3 cards: Foro, Centro de Seguridad, Premium */}
+        {/* ✅ SECCIÓN: Comunidades destacadas (Foro Gay Chile Anónimo / Chat Gay Gamers Chile) */}
+        <motion.section
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.5, delay: 0.2 }}
+          className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-8 sm:py-12 mb-12"
+        >
+          <div className="text-center mb-8 sm:mb-10">
+            <h2 className="text-2xl sm:text-3xl md:text-4xl font-bold mb-3 sm:mb-4">Comunidades destacadas</h2>
+            <p className="text-base sm:text-lg text-muted-foreground max-w-2xl mx-auto">
+              Explora nuestras comunidades especializadas
+            </p>
+          </div>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            {/* Enlace al Foro */}
+            <motion.div
+              whileHover={{ scale: 1.02, y: -5 }}
+              onClick={() => navigate('/anonymous-forum')}
+              className="glass-effect p-6 sm:p-8 rounded-2xl border-2 border-green-500/30 hover:border-green-500/60 cursor-pointer transition-all shadow-lg hover:shadow-green-500/20"
+            >
+              <div className="flex items-start gap-4">
+                <div className="w-12 h-12 sm:w-14 sm:h-14 rounded-full bg-gradient-to-br from-green-500 to-emerald-500 flex items-center justify-center flex-shrink-0">
+                  <MessageCircle className="w-6 h-6 sm:w-7 sm:h-7 text-white" />
+                </div>
+                <div className="flex-1">
+                  <h3 className="text-lg sm:text-xl font-bold mb-2 text-green-400">
+                    Foro Gay Chile Anónimo
+                  </h3>
+                  <p className="text-sm sm:text-base text-muted-foreground mb-3 leading-relaxed">
+                    Comparte experiencias LGBT+, pide consejos sobre salud mental, relaciones y derechos. 100% anónimo, sin censura. Comunidad de apoyo mutuo activa 24/7.
+                  </p>
+                  <div className="flex items-center gap-2 text-xs sm:text-sm font-semibold text-green-400">
+                    <span>👥 Comunidad activa</span>
+                    <span>•</span>
+                    <span>🔒 100% anónimo</span>
+                    <span>→</span>
+                  </div>
+                </div>
+              </div>
+            </motion.div>
+
+            {/* Enlace a Gaming */}
+            <motion.div
+              whileHover={{ scale: 1.02, y: -5 }}
+              onClick={() => navigate('/gaming')}
+              className="glass-effect p-6 sm:p-8 rounded-2xl border-2 border-purple-500/30 hover:border-purple-500/60 cursor-pointer transition-all shadow-lg hover:shadow-purple-500/20"
+            >
+              <div className="flex items-start gap-4">
+                <div className="w-12 h-12 sm:w-14 sm:h-14 rounded-full bg-gradient-to-br from-purple-500 to-violet-500 flex items-center justify-center flex-shrink-0">
+                  <MessageSquare className="w-6 h-6 sm:w-7 sm:h-7 text-white" />
+                </div>
+                <div className="flex-1">
+                  <h3 className="text-lg sm:text-xl font-bold mb-2 text-purple-400">
+                    Chat Gay Gamers Chile 🎮
+                  </h3>
+                  <p className="text-sm sm:text-base text-muted-foreground mb-3 leading-relaxed">
+                    Conecta con gamers LGBT+ de Chile. Comparte juegos, forma squad, chatea sobre PS5, Xbox, PC, Switch. Comunidad sin toxicidad, puro gaming y buena onda.
+                  </p>
+                  <div className="flex items-center gap-2 text-xs sm:text-sm font-semibold text-purple-400">
+                    <span>🎮 50+ gamers activos</span>
+                    <span>•</span>
+                    <span>⚡ Activo 24/7</span>
+                    <span>→</span>
+                  </div>
+                </div>
+              </div>
+            </motion.div>
+          </div>
+        </motion.section>
+
+        {/* ✅ SECCIÓN: Foro de Apoyo, Centro de Seguridad, Hazte Premium */}
+        <div className="px-4 sm:px-6 lg:px-8 py-10 sm:py-12 lg:py-16">
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            transition={{ duration: 0.5 }}
+            className="max-w-7xl mx-auto"
+          >
+            {/* Grid de 3 cards: Foro de Apoyo, Centro de Seguridad, Premium */}
             <div className="grid grid-cols-1 md:grid-cols-3 gap-6 sm:gap-8 mb-12 sm:mb-16 max-w-6xl mx-auto">
               {/* Foro de Apoyo */}
               <FeatureCard
