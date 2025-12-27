@@ -322,8 +322,8 @@ const LobbyPage = () => {
     // Solo actualizar si es necesario para tracking, pero mantener el SEO del index.html
     // document.title = "Chat Gay Chile 🏳️‍🌈 Conoce Gente LGBT+ Ahora | Chactivo";
     
-    // Track page view
-    trackPageView('/lobby', 'Lobby - Chactivo');
+    // Track page view (sin "Lobby" para SEO)
+    trackPageView('/lobby', 'Chat Gay Chile - Chactivo');
 
     // Suscribirse a la última actividad global
     const unsubscribeActivity = subscribeToLastActivity((activity) => {
