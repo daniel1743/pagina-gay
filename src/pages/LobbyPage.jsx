@@ -24,6 +24,7 @@ import { trackPageView, trackPageExit } from '@/services/analyticsService';
 import { useCanonical } from '@/hooks/useCanonical';
 import { subscribeToLastActivity, subscribeToMultipleRoomCounts } from '@/services/presenceService';
 import { roomsData } from '@/config/rooms';
+import ChatDemo from '@/components/landing/ChatDemo';
 
 /**
  * ✅ SISTEMA INTELIGENTE DE CONTADOR DE USUARIOS
@@ -506,6 +507,23 @@ const LobbyPage = () => {
           </motion.section>
         )}
 
+        {/* 🔥 CHAT DEMO - Vista previa con notificaciones animadas */}
+        <motion.section
+          initial={{ opacity: 0, y: 30 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.6, delay: 0.4 }}
+          className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-8 sm:py-12 mb-12 sm:mb-16"
+        >
+          <ChatDemo
+            onJoinClick={() => {
+              if (user && !user.isAnonymous && !user.isGuest) {
+                handleCardClick('RoomsModal');
+              } else {
+                setShowQuickSignup(true);
+              }
+            }}
+          />
+        </motion.section>
 
         {/* ✅ FASE URGENTE: Sección "Cómo Funciona" - Solo para visitantes */}
         {showHeroSection && (

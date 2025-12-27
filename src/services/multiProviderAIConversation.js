@@ -225,19 +225,25 @@ const buildPrompt = (personality, roomId, isResponseToUser = false, userMessage 
   // Decidir longitud del mensaje
   let messageLengthRule;
   if (isResponseToUser) {
-    // Si responde a usuario real: sin límite, depende de la intención
-    messageLengthRule = `- RESPONDE NATURAL al usuario, sin límite de palabras si es necesario para responder bien`;
+    // Si responde a usuario real: sin límite estricto, pero sé conciso
+    messageLengthRule = `- RESPONDE NATURAL al usuario, sé conciso pero completo. Máximo 15 palabras si es necesario para responder bien.`;
   } else {
-    // Distribución de longitud para conversaciones entre IAs
+    // 🔥 AHORRO DE TOKENS: Conversaciones entre IAs deben ser MUY CORTAS
+    // Distribución: 60% 4-5 palabras (ideal), 30% 3 palabras, 10% 7 palabras (máximo)
     const rand = Math.random();
     if (rand < 0.30) {
       messageLengthRule = `- MENSAJE: exactamente 3 palabras. Ejemplos: "toy bn wn", "q onda", "sisisi kajsksj"`;
-    } else if (rand < 0.50) {
-      messageLengthRule = `- MENSAJE: exactamente 4 palabras. Ejemplos: "toy aburrio wn jsjs", "hace calor aca"`;
-    } else if (rand < 0.80) {
-      messageLengthRule = `- MENSAJE: exactamente 5 palabras. Ejemplos: "q onda cabros toy bn", "alguien activo xa conversar"`;
+    } else if (rand < 0.90) {
+      // 60% de probabilidad: 4-5 palabras (IDEAL)
+      const words = Math.random() < 0.5 ? 4 : 5;
+      if (words === 4) {
+        messageLengthRule = `- MENSAJE: exactamente 4 palabras. Ejemplos: "toy aburrio wn jsjs", "hace calor aca", "q onda cabros toy"`;
+      } else {
+        messageLengthRule = `- MENSAJE: exactamente 5 palabras. Ejemplos: "q onda cabros toy bn", "alguien activo xa conversar", "toy buscando algo interesante"`;
+      }
     } else {
-      messageLengthRule = `- MENSAJE: exactamente 7 palabras. Ejemplos: "toy buscando algo interesante wn q onda", "alguien vio la ultima de la semana"`;
+      // 10% de probabilidad: 7 palabras (MÁXIMO)
+      messageLengthRule = `- MENSAJE: exactamente 7 palabras (MÁXIMO). Ejemplos: "toy buscando algo interesante wn q onda", "alguien vio la ultima de la semana"`;
     }
   }
 
@@ -322,8 +328,11 @@ const buildPrompt = (personality, roomId, isResponseToUser = false, userMessage 
           ? `- 🔥 LEY ABSOLUTA: El usuario real tiene PRIORIDAD TOTAL. Responde DIRECTAMENTE a su mensaje, no ignores lo que dijo.\n` +
             `- Si el usuario dice algo, tu respuesta DEBE estar relacionada con lo que él dijo.\n` +
             `- NUNCA cambies de tema si el usuario está hablando de algo específico.\n` +
-            `- Demuestra que leíste y entendiste su mensaje respondiendo de forma relevante.\n`
-          : `- Responde AL ULTIMO MENSAJE directo\n`) +
+            `- Demuestra que leíste y entendiste su mensaje respondiendo de forma relevante.\n` +
+            `- Máximo 15 palabras para responder al usuario (sé conciso pero completo).\n`
+          : `- Responde AL ULTIMO MENSAJE directo\n` +
+            `- 🔥 CRÍTICO: RESPETA EL LÍMITE DE PALABRAS. Cuenta tus palabras antes de responder.\n` +
+            `- NO escribas mensajes largos. Sé breve y directo. Cada palabra cuenta para ahorrar tokens.\n`) +
         `- Nada perfecto, super natural, escribe como en foros/discord/twitter con errores de tipeo\n` +
         `- SE ATREVIDO y caliente: usa doble sentido, insinuaciones, tallas picantes sin ser vulgar\n` +
         `- Puedes hablar de: citas, salir, atracción, cuerpos, sex appeal (todo con doble sentido, nada explícito)\n` +

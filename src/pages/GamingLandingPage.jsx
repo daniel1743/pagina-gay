@@ -5,6 +5,7 @@ import { Gamepad2, Users, MessageSquare, Star, ArrowRight, Check, Zap, Shield, C
 import { Button } from '@/components/ui/button';
 import { useAuth } from '@/contexts/AuthContext';
 import { useCanonical } from '@/hooks/useCanonical';
+import ChatDemo from '@/components/landing/ChatDemo';
 
 const GamingLandingPage = () => {
   // SEO: Canonical tag
@@ -116,6 +117,16 @@ const GamingLandingPage = () => {
             ⚡ Registro en 30 segundos • 🎮 100% gratis siempre • 🔒 Totalmente anónimo
           </p>
         </motion.div>
+
+        {/* 🔥 CHAT DEMO - Vista previa con notificaciones animadas */}
+        <motion.section
+          initial={{ opacity: 0, y: 30 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.6, delay: 0.3 }}
+          className="mb-16 sm:mb-20"
+        >
+          <ChatDemo onJoinClick={handleEnterChat} />
+        </motion.section>
 
         {/* Featured Games Section */}
         <motion.section

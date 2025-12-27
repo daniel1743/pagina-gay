@@ -5,6 +5,7 @@ import { Users, MessageSquare, Star, ArrowRight, Shield, Zap, Clock, Heart, Coff
 import { Button } from '@/components/ui/button';
 import { useAuth } from '@/contexts/AuthContext';
 import { useCanonical } from '@/hooks/useCanonical';
+import ChatDemo from '@/components/landing/ChatDemo';
 
 const Mas30LandingPage = () => {
   // SEO: Canonical tag
@@ -114,6 +115,16 @@ const Mas30LandingPage = () => {
             ⚡ Entra en 30 segundos • 💪 100% gratis • 🔒 Sin email
           </p>
         </motion.div>
+
+        {/* 🔥 CHAT DEMO - Vista previa con notificaciones animadas */}
+        <motion.section
+          initial={{ opacity: 0, y: 30 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.6, delay: 0.3 }}
+          className="mb-16 sm:mb-20"
+        >
+          <ChatDemo onJoinClick={handleEnterChat} />
+        </motion.section>
 
         {/* Why +30 Section */}
         <motion.section

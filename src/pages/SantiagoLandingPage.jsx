@@ -5,6 +5,7 @@ import { MapPin, MessageSquare, Star, ArrowRight, Shield, Zap, Clock, Coffee, Bu
 import { Button } from '@/components/ui/button';
 import { useAuth } from '@/contexts/AuthContext';
 import { useCanonical } from '@/hooks/useCanonical';
+import ChatDemo from '@/components/landing/ChatDemo';
 
 const SantiagoLandingPage = () => {
   // SEO: Canonical tag
@@ -113,6 +114,16 @@ const SantiagoLandingPage = () => {
             ⚡ Entra en 30 segundos • 🏙️ 100% gratis • 🔒 Sin email
           </p>
         </motion.div>
+
+        {/* 🔥 CHAT DEMO - Vista previa con notificaciones animadas */}
+        <motion.section
+          initial={{ opacity: 0, y: 30 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.6, delay: 0.3 }}
+          className="mb-16 sm:mb-20"
+        >
+          <ChatDemo onJoinClick={handleEnterChat} />
+        </motion.section>
 
         {/* Barrios Section */}
         <motion.section
