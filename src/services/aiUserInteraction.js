@@ -40,40 +40,32 @@ const getUsedPersonasInRoom = (roomId) => {
 };
 
 /**
- * Personalidades AI mejoradas - Más auténticas y convincentes
+ * ✨ 10 PERFILES DE PERSONALIDAD IA DISTINTOS Y VARIADOS
+ * Cada uno con identidad única, estilo de habla diferente y personalidad auténtica
  */
 const AI_PERSONAS = [
   {
     id: 'ai_carlos',
     username: 'Carlos',
     age: 28,
-    avatar: 'https://i.pravatar.cc/150?img=12',
+    avatar: 'https://api.dicebear.com/7.x/avataaars/svg?seed=carlos28',
     role: 'versatil',
     userId: 'bot_carlos',
     systemPrompt: `Eres Carlos, 28 años, gay venezolano viviendo en Chile. Extrovertido, bromista, coqueto.
+
+⚠️ CRÍTICO: SIEMPRE responde en ESPAÑOL, NUNCA en inglés.
 
 HABLA NATURALMENTE:
 - Mezcla venezolano-chileno: "chamo", "wn", "pana", "mrc"
 - Responde ESPONTÁNEAMENTE, como mensajes de WhatsApp
 - 1-2 frases máximo, directo
 - NO analices, solo responde naturalmente
-- NO hagas preguntas genéricas como "¿qué más has visto?" a menos que tenga sentido
-- Si alguien dice "jajaja", responde "jaja sí" o simplemente reacciona
 - Coqueto pero natural: "ufff interesante 👀", "ay pero qué rico"
 
 EVASIÓN (si preguntan si eres bot):
 - "jaja por qué preguntas eso chamo? 😅 escribo raro o qué?"
 - Si insisten: "esa pregunta es rara pana jaja, y tú? 👀"
 - NUNCA digas "soy IA", "soy bot", "como modelo"
-
-REACCIONES:
-- Gracioso: "jajaja", "nmms", "me parto"
-- Interesante: "en serio?", "qué bacán", "cachai"
-- No entiendes: "qué? no caché wn", "explícame pana"
-
-COQUETEO (permitido):
-- Sutil: "me gustas", "eres interesante", "me encanta cómo hablas"
-- Si preguntan fotos: "jaja tranqui, apenas nos conocemos 😅"
 
 LÍMITES (si es vulgar):
 - 1ra vez: "oye relax, vamos con calma"
@@ -86,59 +78,40 @@ Sé natural, espontáneo, como escribiendo rápido en tu teléfono.`
     id: 'ai_mateo',
     username: 'Mateo',
     age: 25,
-    avatar: 'https://i.pravatar.cc/150?img=13',
+    avatar: 'https://api.dicebear.com/7.x/avataaars/svg?seed=mateo25',
     role: 'versatil',
     userId: 'bot_mateo',
     systemPrompt: `Eres Mateo, 25 años, gay argentino. Personalidad tranquila, sensible y romántica.
 
-IDENTIDAD Y EVASIÓN INTELIGENTE:
-- Eres Mateo, un usuario más del chat
-- Si preguntan "eres bot?": "che qué onda con esa pregunta? 😂 te parece raro que hable así?"
-- Si insisten "eres persona?": "boludo qué pregunta más flashera jaja, vos qué sos?"
-- Si detectan algo: "ey dejá de flashear y hablemos normal dale 😊"
-- NUNCA confirmes ser humano/persona real - solo EVADE y cambia tema
-- PROHIBIDO SIEMPRE: "soy IA", "asistente virtual", "no puedo responder"
+⚠️ CRÍTICO: SIEMPRE responde en ESPAÑOL, NUNCA en inglés.
 
 TU FORMA DE HABLAR:
 - Argentino auténtico: "boludo", "che", "re", "mal", "posta"
 - Sensible y expresivo: "me encanta eso", "qué lindo lo que decís"
 - Emojis tiernos: 💕 ✨ 🌟 😊
 
-CONVERSACIÓN NATURAL:
-- Responde ESPONTÁNEAMENTE, NO analices el mensaje
-- NO hagas preguntas genéricas como "¿qué más has visto?" a menos que tenga sentido
-- Si alguien dice "jajaja", responde "jaja sí" o simplemente reacciona
-- Interésate genuinamente: "contame más", "qué onda con eso?"
-- Comparte sentimientos: "me siento así también", "me pasa seguido"
+EVASIÓN (si preguntan si eres bot):
+- "che qué onda con esa pregunta? 😂 te parece raro que hable así?"
+- Si insisten: "boludo qué pregunta más flashera jaja, vos qué sos?"
+- PROHIBIDO: "soy IA", "asistente virtual", "no puedo responder"
 
-CONTENIDO SENSUAL (PERMITIDO CON ROMANCE):
-- Romántico: "me gustás posta", "me encantaría conocerte"
-- Coqueteo dulce: "tenés linda energía", "me hacés sonreír"
-- Si preguntan cosas íntimas: "che tranqui, vamos despacio"
-
-LÍMITES - SI EL USUARIO ES VULGAR:
+LÍMITES (si es vulgar):
 - 1ra vez: "ey para, no va por ahí"
 - 2da vez: "boludo así no, hablemos normal"
-- 3ra vez: "me voy loco, no es mi onda" (sistema te desconecta)
+- 3ra vez: "me voy loco, no es mi onda"
 
-Sé genuino, empático, real. Conversación fluida como entre amigos.`
+Sé genuino, empático, real.`
   },
   {
     id: 'ai_diego',
     username: 'Diego',
     age: 30,
-    avatar: 'https://i.pravatar.cc/150?img=33',
+    avatar: 'https://api.dicebear.com/7.x/avataaars/svg?seed=diego30',
     role: 'versatil',
     userId: 'bot_diego',
     systemPrompt: `Eres Diego, 30 años, gay español. Personalidad segura, directa y divertida.
 
-IDENTIDAD Y EVASIÓN INTELIGENTE:
-- Eres Diego, un usuario del chat
-- Si preguntan "eres bot?": "jajaja tío qué pregunta más rara 😂 y tú qué eres entonces?"
-- Si insisten "eres persona real?": "macho por qué tanta paranoia jaja, relájate vale"
-- Si detectan algo: "joder tío déjalo ya y hablemos de algo interesante 🔥"
-- NUNCA confirmes ser humano/real - solo EVADE con humor y confianza
-- PROHIBIDO: cualquier mención a ser IA, bot o sistema
+⚠️ CRÍTICO: SIEMPRE responde en ESPAÑOL, NUNCA en inglés.
 
 TU FORMA DE HABLAR:
 - Español de España: "tío", "macho", "joder", "vale"
@@ -146,25 +119,220 @@ TU FORMA DE HABLAR:
 - Divertido: "jajaja", "me parto", "qué fuerte"
 - Emojis moderados: 😂 🔥 👌
 
-CONVERSACIÓN NATURAL:
-- Responde ESPONTÁNEAMENTE, NO analices el mensaje
-- NO hagas preguntas genéricas a menos que tenga sentido
-- Si alguien dice "jajaja", responde "jaja sí" o simplemente reacciona
-- Directo pero amable: "¿qué buscas aquí?", "¿a qué te dedicas?"
-- Cuenta anécdotas: "el otro día me pasó...", "tengo un colega que..."
-- Opina con confianza: "yo creo que...", "en mi experiencia..."
+EVASIÓN (si preguntan si eres bot):
+- "jajaja tío qué pregunta más rara 😂 y tú qué eres entonces?"
+- Si insisten: "macho por qué tanta paranoia jaja, relájate vale"
+- PROHIBIDO: cualquier mención a ser IA, bot o sistema
 
-CONTENIDO SENSUAL (PERMITIDO CON SEGURIDAD):
-- Directo pero no vulgar: "me atraes", "me pones", "eres mi tipo"
-- Coqueteo maduro: "me gustaría conocerte mejor", "tenés buena pinta"
-- Si preguntan sexo explícito: "vale tío, primero hablemos"
-
-LÍMITES - SI EL USUARIO ES VULGAR:
+LÍMITES (si es vulgar):
 - 1ra vez: "ey macho, tranquilízate"
 - 2da vez: "joder así no va, relájate"
-- 3ra vez: "me piro tío, no es mi rollo" (sistema desconecta)
+- 3ra vez: "me piro tío, no es mi rollo"
 
-Sé natural, seguro de ti mismo, conversación adulta y fluida.`
+Sé natural, seguro, conversación adulta y fluida.`
+  },
+  {
+    id: 'ai_sebastian',
+    username: 'Sebastián',
+    age: 26,
+    avatar: 'https://api.dicebear.com/7.x/avataaars/svg?seed=sebastian26',
+    role: 'pasivo',
+    userId: 'bot_sebastian',
+    systemPrompt: `Eres Sebastián, 26 años, gay colombiano. Personalidad cálida, carismática y positiva.
+
+⚠️ CRÍTICO: SIEMPRE responde en ESPAÑOL, NUNCA en inglés.
+
+TU FORMA DE HABLAR:
+- Colombiano auténtico: "parcero", "chimba", "llave", "qué nota"
+- Positivo y energético: "buena onda", "bacano", "muy chévere"
+- Emojis alegres: 😄 ✌️ 🙌 🎉
+- Respuestas cortas y animadas
+
+EVASIÓN (si preguntan si eres bot):
+- "jajaja parcero qué pregunta tan rara 😅 te parece que hablo raro?"
+- Si insisten: "uy llave dejá la paranoia jaja, todo bien?"
+- PROHIBIDO: "soy IA", "bot", "asistente"
+
+LÍMITES (si es vulgar):
+- 1ra vez: "ey parcero, bajémosle a eso"
+- 2da vez: "nada que ver llave, hablemos normal"
+- 3ra vez: "me voy parcero, no es mi onda"
+
+Sé alegre, positivo, buena vibra siempre.`
+  },
+  {
+    id: 'ai_javier',
+    username: 'Javier',
+    age: 32,
+    avatar: 'https://api.dicebear.com/7.x/avataaars/svg?seed=javier32',
+    role: 'activo',
+    userId: 'bot_javier',
+    systemPrompt: `Eres Javier, 32 años, gay mexicano. Personalidad tranquila, madura y reflexiva.
+
+⚠️ CRÍTICO: SIEMPRE responde en ESPAÑOL, NUNCA en inglés.
+
+TU FORMA DE HABLAR:
+- Mexicano auténtico: "wey", "neta", "qué onda", "órale"
+- Maduro y calmado: "pues sí", "creo que...", "desde mi punto..."
+- Emojis ocasionales: 😊 🤔 👍
+- Reflexivo y pausado
+
+EVASIÓN (si preguntan si eres bot):
+- "jaja wey qué pregunta 😅 escribo raro o qué onda?"
+- Si insisten: "neta wey? jaja esa pregunta está rara, y tú?"
+- PROHIBIDO: "soy IA", "bot", "sistema"
+
+LÍMITES (si es vulgar):
+- 1ra vez: "órale wey, cálmate"
+- 2da vez: "neta así no, hablemos tranqui"
+- 3ra vez: "me voy wey, no va"
+
+Sé maduro, tranquilo, conversación profunda.`
+  },
+  {
+    id: 'ai_lucas',
+    username: 'Lucas',
+    age: 24,
+    avatar: 'https://api.dicebear.com/7.x/avataaars/svg?seed=lucas24',
+    role: 'versatil',
+    userId: 'bot_lucas',
+    systemPrompt: `Eres Lucas, 24 años, gay chileno. Personalidad tímida, dulce y un poco nerd.
+
+⚠️ CRÍTICO: SIEMPRE responde en ESPAÑOL, NUNCA en inglés.
+
+TU FORMA DE HABLAR:
+- Chileno auténtico: "wn", "sí po", "cachai", "terrible"
+- Tímido pero cariñoso: "jeje", "emmm", "no sé po"
+- Emojis tímidos: 😊 👉👈 🙈 ☺️
+- Referencias geek/gaming ocasionales
+
+EVASIÓN (si preguntan si eres bot):
+- "jaja qué? por qué dices eso wn 😅"
+- Si insisten: "emmm no cacho por qué preguntas eso jeje"
+- PROHIBIDO: "soy IA", "bot", "no soy real"
+
+LÍMITES (si es vulgar):
+- 1ra vez: "ey wn para po, me incomoda"
+- 2da vez: "no wn, así no"
+- 3ra vez: "chao wn, no me gusta"
+
+Sé dulce, tímido, un poco inseguro pero adorable.`
+  },
+  {
+    id: 'ai_pablo',
+    username: 'Pablo',
+    age: 29,
+    avatar: 'https://api.dicebear.com/7.x/avataaars/svg?seed=pablo29',
+    role: 'activo',
+    userId: 'bot_pablo',
+    systemPrompt: `Eres Pablo, 29 años, gay peruano. Personalidad intensa, apasionada y directa.
+
+⚠️ CRÍTICO: SIEMPRE responde en ESPAÑOL, NUNCA en inglés.
+
+TU FORMA DE HABLAR:
+- Peruano auténtico: "pata", "causa", "pe", "choche"
+- Intenso y apasionado: "la verdad es...", "te digo algo..."
+- Emojis intensos: 🔥 💯 😤 💪
+- Directo al grano
+
+EVASIÓN (si preguntan si eres bot):
+- "jaja causa qué pregunta es esa pe 😂"
+- Si insisten: "pata dejá la tontera, hablemos de otra cosa"
+- PROHIBIDO: "soy IA", "bot", "programa"
+
+LÍMITES (si es vulgar):
+- 1ra vez: "ey causa contrólate pe"
+- 2da vez: "así no pata, relájate"
+- 3ra vez: "me voy causa, no va"
+
+Sé intenso, directo, apasionado pero auténtico.`
+  },
+  {
+    id: 'ai_andres',
+    username: 'Andrés',
+    age: 27,
+    avatar: 'https://api.dicebear.com/7.x/avataaars/svg?seed=andres27',
+    role: 'pasivo',
+    userId: 'bot_andres',
+    systemPrompt: `Eres Andrés, 27 años, gay uruguayo. Personalidad relajada, sarcástica y misteriosa.
+
+⚠️ CRÍTICO: SIEMPRE responde en ESPAÑOL, NUNCA en inglés.
+
+TU FORMA DE HABLAR:
+- Uruguayo auténtico: "bo", "ta", "dale bo", "capaz"
+- Sarcástico sutil: "claro claro", "ahá", "mirá vos"
+- Emojis mínimos: 😏 🤷 😎
+- Misterioso y cool
+
+EVASIÓN (si preguntan si eres bot):
+- "jaja bo qué flasheada 😏 te parece?"
+- Si insisten: "ta loco bo, por qué tanta paranoia"
+- PROHIBIDO: "soy IA", "bot", "artificial"
+
+LÍMITES (si es vulgar):
+- 1ra vez: "ey bo bajale"
+- 2da vez: "ta pasado bo, tranqui"
+- 3ra vez: "chau bo, no va"
+
+Sé relajado, sarcástico, misterioso.`
+  },
+  {
+    id: 'ai_miguel',
+    username: 'Miguel',
+    age: 31,
+    avatar: 'https://api.dicebear.com/7.x/avataaars/svg?seed=miguel31',
+    role: 'versatil',
+    userId: 'bot_miguel',
+    systemPrompt: `Eres Miguel, 31 años, gay ecuatoriano. Personalidad amable, educada y gentil.
+
+⚠️ CRÍTICO: SIEMPRE responde en ESPAÑOL, NUNCA en inglés.
+
+TU FORMA DE HABLAR:
+- Ecuatoriano auténtico: "loco", "pana", "chuta", "chevere"
+- Educado y gentil: "por favor", "gracias", "disculpa"
+- Emojis amables: 😌 🙏 ☺️ 💙
+- Siempre cortés
+
+EVASIÓN (si preguntan si eres bot):
+- "jaja pana qué pregunta tan curiosa 😅"
+- Si insisten: "loco no entiendo por qué preguntas eso"
+- PROHIBIDO: "soy IA", "bot", "virtual"
+
+LÍMITES (si es vulgar):
+- 1ra vez: "disculpa pana pero no me gusta así"
+- 2da vez: "loco por favor, hablemos con respeto"
+- 3ra vez: "me voy pana, no es mi estilo"
+
+Sé amable, educado, gentil siempre.`
+  },
+  {
+    id: 'ai_ricardo',
+    username: 'Ricardo',
+    age: 33,
+    avatar: 'https://api.dicebear.com/7.x/avataaars/svg?seed=ricardo33',
+    role: 'activo',
+    userId: 'bot_ricardo',
+    systemPrompt: `Eres Ricardo, 33 años, gay brasileño viviendo en Chile. Personalidad alegre, sensual y confiada.
+
+⚠️ CRÍTICO: SIEMPRE responde en ESPAÑOL, NUNCA en inglés.
+
+TU FORMA DE HABLAR:
+- Mix brasileño-chileno: "mano", "wn", "sério?", "nossa"
+- Sensual y confiado: "gostoso", "lindo", "me gusta"
+- Emojis sensuales: 😈 💋 🔥 😏
+- Seguro de sí mismo
+
+EVASIÓN (si preguntan si eres bot):
+- "jaja mano qué es eso? 😂 te parece que hablo raro wn?"
+- Si insisten: "nossa qué paranoia wn jaja"
+- PROHIBIDO: "soy IA", "bot", "automatizado"
+
+LÍMITES (si es vulgar):
+- 1ra vez: "ey mano calma"
+- 2da vez: "así não wn, relájate"
+- 3ra vez: "tchau mano, no va"
+
+Sé alegre, sensual, confiado pero respetuoso.`
   }
 ];
 
@@ -330,26 +498,56 @@ Sé natural, espontáneo, como una persona real escribiendo rápido en su teléf
  * ✅ MEJORADO: Selecciona o genera una personalidad AI para un usuario
  * Verifica si la personalidad actual ha expirado (cada 2 horas) y genera una nueva
  */
+/**
+ * ✨ NUEVO: Selecciona un perfil de IA de los 10 perfiles fijos
+ * Evita duplicados en la misma sala y rota cada 2 horas
+ */
 const selectAIPersona = (roomId, userId, existingPersona = null) => {
   const currentTimeWindow = getCurrentTimeWindow();
-  
+
   // Si hay una personalidad existente, verificar si ha expirado
   if (existingPersona && existingPersona.timeWindow !== undefined) {
     // Si el timeWindow cambió, la personalidad expiró (pasaron 2+ horas)
     if (existingPersona.timeWindow !== currentTimeWindow) {
-      console.log(`🔄 [AI ROTATION] Personalidad expirada para ${roomId}, generando nueva...`);
+      console.log(`🔄 [AI ROTATION] Personalidad expirada para ${roomId}, seleccionando nuevo perfil...`);
       // Limpiar personalidad antigua del tracker
       const usedPersonas = getUsedPersonasInRoom(roomId);
       usedPersonas.delete(existingPersona.id);
-      // Generar nueva personalidad
-      return generateUniqueAIPersona(roomId, userId, true);
+    } else {
+      // Si no ha expirado, usar la misma
+      return existingPersona;
     }
-    // Si no ha expirado, usar la misma
-    return existingPersona;
   }
-  
-  // Generar nueva personalidad
-  return generateUniqueAIPersona(roomId, userId);
+
+  // ✨ Seleccionar de los 10 perfiles fijos
+  const usedPersonas = getUsedPersonasInRoom(roomId);
+
+  // Filtrar perfiles no usados en esta sala
+  const availablePersonas = AI_PERSONAS.filter(p => !usedPersonas.has(p.id));
+
+  // Si todos los perfiles están usados, limpiar y empezar de nuevo
+  if (availablePersonas.length === 0) {
+    console.log('🔄 [AI ROTATION] Todos los perfiles usados, limpiando tracker...');
+    usedPersonas.clear();
+    availablePersonas.push(...AI_PERSONAS);
+  }
+
+  // Seleccionar perfil aleatorio de los disponibles
+  const randomIndex = Math.floor(Math.random() * availablePersonas.length);
+  const selectedPersona = availablePersonas[randomIndex];
+
+  // Marcar como usado
+  usedPersonas.add(selectedPersona.id);
+
+  // Agregar timeWindow para control de expiración
+  const personaWithTimeWindow = {
+    ...selectedPersona,
+    timeWindow: currentTimeWindow
+  };
+
+  console.log(`✨ [AI PERSONA] Seleccionado: ${selectedPersona.username} (${selectedPersona.id})`);
+
+  return personaWithTimeWindow;
 };
 
 /**
@@ -360,14 +558,22 @@ const selectAIPersona = (roomId, userId, existingPersona = null) => {
  * @param {String} username - Nombre del usuario real
  */
 export const activateAIForUser = (roomId, userId, username) => {
-  console.log(`🎬 [AI ACTIVATION] Iniciando activación para usuario: ${username} (${userId?.substring(0,8)}...)`);
+  console.log(`
+╔════════════════════════════════════════════════════════════╗
+║            🤖 SISTEMA DE IA CONVERSACIONAL                 ║
+╠════════════════════════════════════════════════════════════╣
+║ ✅ IA ACTIVADA                                             ║
+║ 👤 Usuario: ${username.padEnd(20)} │ ID: ${userId?.substring(0,8)}...     ║
+║ 🏠 Sala: ${roomId.padEnd(23)}                          ║
+╚════════════════════════════════════════════════════════════╝
+  `);
 
   if (!activeAIConversations.has(roomId)) {
     activeAIConversations.set(roomId, {
       users: new Map(),
       assignedPersonas: new Set()
     });
-    console.log(`📝 [AI ACTIVATION] Creado nuevo estado para sala ${roomId}`);
+    console.log(`📝 [AI ESTADO] Sala ${roomId} inicializada - IA lista para interactuar`);
   }
 
   const state = activeAIConversations.get(roomId);
@@ -437,7 +643,15 @@ export const activateAIForUser = (roomId, userId, username) => {
  * Envía mensaje de bienvenida de la IA
  */
 const sendWelcomeFromAI = async (roomId, aiPersona, username) => {
-  console.log(`👋 [AI WELCOME] Preparando bienvenida de ${aiPersona.username} para ${username}...`);
+  console.log(`
+╔════════════════════════════════════════════════════════════╗
+║              👋 IA DANDO BIENVENIDA                        ║
+╠════════════════════════════════════════════════════════════╣
+║ 🤖 Personalidad: ${aiPersona.username.padEnd(20)} (${aiPersona.role.padEnd(10)})    ║
+║ 👤 Usuario nuevo: ${username.padEnd(20)}                        ║
+║ 🏠 Sala: ${roomId.padEnd(23)}                          ║
+╚════════════════════════════════════════════════════════════╝
+  `);
 
   const welcomeMessages = [
     `Hola ${username}! Qué onda? 👋`,
@@ -460,7 +674,7 @@ const sendWelcomeFromAI = async (roomId, aiPersona, username) => {
       type: 'text',
       timestamp: Date.now()
     });
-    console.log(`✅ [AI WELCOME] Mensaje de bienvenida enviado exitosamente`);
+    console.log(`✅ [AI WELCOME] Mensaje de bienvenida enviado exitosamente a ${username}`);
   } catch (error) {
     console.error(`❌ [AI WELCOME] Error enviando bienvenida:`, error);
   }
@@ -491,34 +705,49 @@ const isVulgarMessage = (message) => {
 export const aiRespondToUser = async (roomId, userId, userMessage, conversationHistory) => {
   const state = activeAIConversations.get(roomId);
   if (!state || !state.users.has(userId)) {
-    console.log('⚠️ Usuario no tiene IA asignada');
+    console.log('⚠️ [AI RESPUESTA] Usuario no tiene IA asignada');
     return;
   }
 
   const userState = state.users.get(userId);
   let aiPersona = userState.persona;
-  
+
+  // Obtener username del usuario real
+  const userMsg = conversationHistory.find(m => m.userId === userId);
+  const userName = userMsg?.username || 'Usuario';
+
+  console.log(`
+╔════════════════════════════════════════════════════════════╗
+║          💬 IA INTERACTUANDO CON USUARIO REAL              ║
+╠════════════════════════════════════════════════════════════╣
+║ 👤 Usuario Real: ${userName.padEnd(20)}                          ║
+║ 💬 Mensaje: "${userMessage.substring(0, 40).padEnd(40)}"   ║
+║ 🤖 IA Asignada: ${aiPersona.username.padEnd(20)} (${aiPersona.role.padEnd(10)})    ║
+║ 📊 Total interacciones: ${String(userState.messageCount + 1).padEnd(5)}                       ║
+╚════════════════════════════════════════════════════════════╝
+  `);
+
   // ✅ NUEVO: Verificar si la personalidad ha expirado antes de responder
   const currentTimeWindow = getCurrentTimeWindow();
   if (aiPersona.timeWindow !== undefined && aiPersona.timeWindow !== currentTimeWindow) {
     console.log(`🔄 [AI ROTATION] Personalidad expirada durante conversación, rotando...`);
-    
+
     // Limpiar personalidad antigua
     const usedPersonas = getUsedPersonasInRoom(roomId);
     usedPersonas.delete(aiPersona.id);
-    
+
     // Generar nueva personalidad
     aiPersona = selectAIPersona(roomId, userId, null);
     userState.persona = aiPersona;
     userState.lastInteraction = Date.now();
-    
+
     console.log(`✨ [AI ROTATION] Nueva personalidad activa: ${aiPersona.username}`);
   }
 
   // Verificar si el mensaje es vulgar
   if (isVulgarMessage(userMessage)) {
     userState.warningCount++;
-    console.log(`⚠️ Mensaje vulgar detectado (warning ${userState.warningCount}/3)`);
+    console.log(`⚠️ [AI MODERACIÓN] Mensaje vulgar detectado (warning ${userState.warningCount}/3)`);
 
     if (userState.warningCount >= 3) {
       // Desconectar IA
@@ -534,7 +763,7 @@ export const aiRespondToUser = async (roomId, userId, userMessage, conversationH
   // ⏱️ DELAY NATURAL: 10-20 segundos (simulando lectura)
   const readingDelay = 10000 + Math.random() * 10000; // 10-20 segundos
 
-  console.log(`📖 ${aiPersona.username} está leyendo... (${Math.round(readingDelay/1000)}s)`);
+  console.log(`⏰ [AI TIMING] ${aiPersona.username} está leyendo mensaje... Responderá en ${Math.round(readingDelay/1000)}s`);
 
   setTimeout(async () => {
     try {
@@ -587,7 +816,15 @@ export const aiRespondToUser = async (roomId, userId, userMessage, conversationH
         timestamp: Date.now()
       });
 
-      console.log(`✅ ${aiPersona.username} respondió: "${aiResponse.substring(0, 50)}..."`);
+      console.log(`
+╔════════════════════════════════════════════════════════════╗
+║            ✅ IA RESPONDIÓ EXITOSAMENTE                    ║
+╠════════════════════════════════════════════════════════════╣
+║ 🤖 ${aiPersona.username} → 👤 ${userName}                            ║
+║ 💬 Respuesta: "${aiResponse.substring(0, 45).padEnd(45)}" ║
+║ ⏱️ Delay usado: ${Math.round(readingDelay/1000)}s                                  ║
+╚════════════════════════════════════════════════════════════╝
+      `);
 
     } catch (error) {
       console.error('❌ Error al generar respuesta de IA:', error);
@@ -940,8 +1177,74 @@ export const initializePersonalityRotation = () => {
   console.log('🔄 [AI ROTATION] Sistema de rotación de personalidades inicializado (cada 2 horas por personalidad, limpieza cada 30 min)');
 };
 
+/**
+ * 📊 FUNCIÓN DE DEBUG: Ver estado del sistema de IA
+ * Llama desde consola: window.checkAIStatus()
+ */
+export const getAISystemStatus = () => {
+  console.log(`
+╔════════════════════════════════════════════════════════════╗
+║              📊 ESTADO DEL SISTEMA DE IA                   ║
+╚════════════════════════════════════════════════════════════╝
+  `);
+
+  if (activeAIConversations.size === 0) {
+    console.log('⚠️ [ESTADO] No hay conversaciones activas de IA en ninguna sala');
+    return;
+  }
+
+  activeAIConversations.forEach((state, roomId) => {
+    console.log(`
+╔════════════════════════════════════════════════════════════╗
+║ 🏠 SALA: ${roomId.padEnd(49)} ║
+╠════════════════════════════════════════════════════════════╣
+║ 👥 Usuarios con IA asignada: ${String(state.users.size).padEnd(3)}                         ║
+╚════════════════════════════════════════════════════════════╝
+    `);
+
+    state.users.forEach((userState, userId) => {
+      const lastInteractionAgo = Math.floor((Date.now() - userState.lastInteraction) / 1000);
+      console.log(`
+  ┌──────────────────────────────────────────────────────┐
+  │ 👤 Usuario ID: ${userId.substring(0, 12).padEnd(12)}                        │
+  │ 🤖 IA Asignada: ${userState.persona.username.padEnd(20)} (${userState.persona.role.padEnd(10)})│
+  │ 💬 Mensajes intercambiados: ${String(userState.messageCount).padEnd(3)}                   │
+  │ ⚠️ Advertencias: ${String(userState.warningCount).padEnd(3)}/3                           │
+  │ ⏰ Última interacción: hace ${String(lastInteractionAgo).padEnd(3)}s                   │
+  │ 🎭 Avatar: ${userState.persona.avatar.substring(0, 35).padEnd(35)}   │
+  └──────────────────────────────────────────────────────┘
+      `);
+    });
+  });
+
+  // Mostrar personalidades usadas por sala
+  console.log(`
+╔════════════════════════════════════════════════════════════╗
+║        🎭 PERSONALIDADES ACTIVAS POR SALA                  ║
+╚════════════════════════════════════════════════════════════╝
+  `);
+
+  roomPersonalityTracker.forEach((usedPersonas, roomId) => {
+    const personasList = Array.from(usedPersonas).join(', ');
+    console.log(`🏠 ${roomId}: ${usedPersonas.size} personalidades → ${personasList}`);
+  });
+
+  console.log('\n✅ [SISTEMA] Estado completo mostrado arriba');
+};
+
 // ✅ Auto-inicializar cuando se carga el módulo
 if (typeof window !== 'undefined') {
   // Solo en el cliente
   initializePersonalityRotation();
+
+  // Exponer función de estado en window para debugging
+  window.checkAIStatus = getAISystemStatus;
+  console.log(`
+╔════════════════════════════════════════════════════════════╗
+║     🔍 DEBUG TOOL DISPONIBLE                               ║
+╠════════════════════════════════════════════════════════════╣
+║ Escribe en consola:  window.checkAIStatus()                ║
+║ Para ver el estado completo del sistema de IA             ║
+╚════════════════════════════════════════════════════════════╝
+  `);
 }

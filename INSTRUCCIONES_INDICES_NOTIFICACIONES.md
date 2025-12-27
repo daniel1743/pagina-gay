@@ -210,3 +210,5 @@ Para verificar el estado de tus índices:
 **¿Necesitas ayuda?** Revisa la documentación oficial:
 https://firebase.google.com/docs/firestore/query-data/indexing
 
+
+

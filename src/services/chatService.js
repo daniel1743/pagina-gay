@@ -26,6 +26,28 @@ import { trackMessageSent, trackFirstMessage } from '@/services/ga4Service';
  */
 export const sendMessage = async (roomId, messageData, isAnonymous = false) => {
   try {
+    // 🔍 RASTREADOR DE MENSAJES: Identificar tipo de remitente
+    const isBot = messageData.userId?.startsWith('bot_') ||
+                  messageData.userId?.startsWith('static_bot_') ||
+                  messageData.userId === 'system';
+    const isAI = messageData.userId?.startsWith('bot_') && !messageData.userId?.includes('join');
+    const isRealUser = !isBot;
+
+    const messageType = isAI ? '🤖 IA' : (isBot ? '⚠️ BOT' : '✅ USUARIO REAL');
+
+    console.log(`
+╔════════════════════════════════════════════════════════════╗
+║           📤 RASTREADOR DE MENSAJES                        ║
+╠════════════════════════════════════════════════════════════╣
+║ 📍 FUNCIÓN: sendMessage()                                  ║
+║ 🏠 Sala: ${roomId.padEnd(20)}                          ║
+║ 👤 Remitente: ${messageData.username.padEnd(16)} │ Tipo: ${messageType.padEnd(15)} ║
+║ 💬 Mensaje: "${messageData.content.substring(0,40).padEnd(40)}" ║
+║ 🆔 UserID: ${messageData.userId.substring(0,20).padEnd(20)}                  ║
+║ 👻 Anónimo: ${(isAnonymous ? 'SÍ' : 'NO').padEnd(18)}          ║
+╚════════════════════════════════════════════════════════════╝
+    `);
+
     // ✅ Rate Limiting: Verificar última vez que envió mensaje
     const rateLimitKey = `lastMessage_${messageData.userId}`;
     const lastMessageTime = parseInt(localStorage.getItem(rateLimitKey) || '0');
@@ -66,6 +88,8 @@ export const sendMessage = async (roomId, messageData, isAnonymous = false) => {
       // ✅ ACTUALIZAR timestamp del rate limiting SOLO después de que el mensaje se envíe exitosamente
       localStorage.setItem(rateLimitKey, now.toString());
 
+      console.log(`✅ [MENSAJE ENVIADO] ${messageData.username} (anónimo) → "${messageData.content.substring(0,30)}..."`);
+
       // Actualizar contador en segundo plano sin bloquear
       setDoc(
         doc(db, 'guests', auth.currentUser.uid),
@@ -96,6 +120,8 @@ export const sendMessage = async (roomId, messageData, isAnonymous = false) => {
 
       // ✅ ACTUALIZAR timestamp del rate limiting SOLO después de que el mensaje se envíe exitosamente
       localStorage.setItem(rateLimitKey, now.toString());
+
+      console.log(`✅ [MENSAJE ENVIADO] ${messageData.username} (${messageType}) → "${messageData.content.substring(0,30)}..."`);
 
       // ✅ Incrementar contador de mensajes para usuarios registrados (para sistema de recompensas)
       if (messageData.userId && !isAnonymous) {

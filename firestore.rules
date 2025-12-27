@@ -112,10 +112,11 @@ service cloud.firestore {
              data.timestamp is timestamp;
     }
 
-    // Si en algún punto quieres permitir mensajes bot, hazlo solo por Admin:
+    // ✅ ACTUALIZADO: Permitir mensajes bot desde cliente (sistema de IA conversacional)
+    // Seguridad: validación por patrón de userId (bot_*) y autenticación requerida
     function isValidBotMessage() {
       let data = request.resource.data;
-      return isAdmin() &&
+      return isAuthenticated() &&
              'userId' in data &&
              data.userId is string &&
              data.userId.matches('bot_.*') &&
@@ -195,6 +196,15 @@ service cloud.firestore {
     // REGLAS DE SALAS Y MENSAJES (PUBLICO)
     // ===========================
 
+    // ✅ CRÍTICO: Permitir lectura de documentos de sala
+    match /rooms/{roomId} {
+      // Cualquiera puede leer información de la sala (nombre, descripción, etc.)
+      allow read: if true;
+
+      // Solo admins pueden crear/modificar salas
+      allow write: if isAdmin();
+    }
+
     match /rooms/{roomId}/messages/{messageId} {
       // ✅ CRÍTICO: Permitir lectura pública para SEO y UX
       // Cualquiera puede VER las conversaciones (incluso sin registro)
@@ -202,13 +212,13 @@ service cloud.firestore {
       allow read: if true;
 
       // ✅ Publico: filtro fuerte (incluye contacto)
+      // ✅ ACTUALIZADO: Permitir usuarios anónimos (limitados por sistema de 1 hora en cliente)
       allow create: if isAuthenticated() &&
-                      request.auth.token.firebase.sign_in_provider != 'anonymous' &&
                       (
                         (isValidMessage() &&
                          hasNoProhibitedWordsPublic(request.resource.data.content.lower()))
                         ||
-                        // opcional: si usas bots desde admin
+                        // Bot messages: cualquier usuario autenticado puede enviar bots
                         (isValidBotMessage() &&
                          hasNoProhibitedWordsPublic(request.resource.data.content.lower()))
                       );

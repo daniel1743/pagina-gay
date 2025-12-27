@@ -19,7 +19,8 @@ import { toast } from '@/components/ui/use-toast';
 import PrivateChatWindow from '@/components/chat/PrivateChatWindow';
 import { sendMessage, subscribeToRoomMessages, addReactionToMessage, markMessagesAsRead } from '@/services/chatService';
 import { joinRoom, leaveRoom, subscribeToRoomUsers, subscribeToMultipleRoomCounts, updateUserActivity, cleanInactiveUsers, filterActiveUsers } from '@/services/presenceService';
-import { useBotSystem } from '@/hooks/useBotSystem';
+// import { useBotSystem } from '@/hooks/useBotSystem'; // ⚠️ DESACTIVADO: Sistema de bots activos deshabilitado
+import { sendModeratorWelcome } from '@/services/moderatorWelcome';
 import { trackPageView, trackPageExit, trackRoomJoined, trackMessageSent } from '@/services/analyticsService';
 import { useCanonical } from '@/hooks/useCanonical';
 import { checkUserSanctions, SANCTION_TYPES } from '@/services/sanctionsService';
@@ -71,6 +72,8 @@ const ChatPage = () => {
   const messagesEndRef = useRef(null);
   const unsubscribeRef = useRef(null);
   const aiActivatedRef = useRef(false); // Flag para evitar activaciones múltiples de IA
+  const lastUserCountRef = useRef(0); // Para evitar ejecuciones innecesarias del useEffect
+  const lastUserCountsRef = useRef({ total: 0, active: 0, real: 0 }); // Para rastrear conteos de usuarios
 
   // ========================================
   // 🔒 LANDING PAGE: Guard clause para user === null
@@ -285,16 +288,14 @@ const ChatPage = () => {
     });
   };
 
-  // 🤖 SISTEMA DE BOTS: Hook para gestionar bots automáticamente
-  // ✅ ACTIVADO 2025-12-16: Bots inteligentes para mantener salas activas
-  // ✨ NUEVO: Sistema de IA pura para interactuar con usuarios reales
-  const { botStatus, triggerBotResponse, activateAIForUser, isActive: botsActive } = useBotSystem(
-    roomId,
-    roomUsers,
-    messages,
-    true, // ✅ Sistema de bots HABILITADO (solo actúa con 1-3 usuarios reales)
-    handleBotJoin // Callback para notificaciones de entrada
-  );
+  // 🤖 SISTEMA DE BOTS: DESACTIVADO COMPLETAMENTE
+  // ⚠️ Los bots activos están desactivados para evitar que se cuenten como usuarios reales
+  // ✅ PERO la IA conversacional SÍ está activa (importada directamente)
+
+  // Valores por defecto para evitar errores
+  const botStatus = { active: false, botCount: 0, bots: [] };
+  const triggerBotResponse = () => {}; // Función vacía
+  const botsActive = false;
 
   // ✅ NUEVO: Verificar si el usuario ya aceptó las reglas del chat
   useEffect(() => {
@@ -330,21 +331,47 @@ const ChatPage = () => {
     // Registrar presencia del usuario en la sala
     joinRoom(roomId, user);
 
-    // Suscribirse a mensajes de Firestore en tiempo real
+    // ✅ Suscribirse a mensajes de Firebase (SOLO mensajes reales, sin estáticos)
     const unsubscribeMessages = subscribeToRoomMessages(roomId, (newMessages) => {
-      setMessages(newMessages);
+      console.log(`📝 [CHAT] Mensajes recibidos: ${newMessages.length} mensajes reales`);
+      setMessages(newMessages); // ✅ SOLO mensajes reales
     });
 
     // 🤖 Suscribirse a usuarios de la sala (para sistema de bots)
     const unsubscribeUsers = subscribeToRoomUsers(roomId, (users) => {
       // ✅ Filtrar solo usuarios activos (<5min inactividad)
       const activeUsers = filterActiveUsers(users);
-      console.log(`👥 Total usuarios en DB: ${users.length} | Activos (<5min): ${activeUsers.length}`);
+      
+      // ✅ Contar solo usuarios reales (excluir bots)
+      const realUsers = activeUsers.filter(u => {
+        const userId = u.userId || u.id;
+        return userId !== 'system' && 
+               !userId?.startsWith('bot_') && 
+               !userId?.startsWith('static_bot_');
+      });
+      
+      // ✅ Solo loggear cuando hay cambios significativos (evitar spam)
+      const currentCounts = {
+        total: users.length,
+        active: activeUsers.length,
+        real: realUsers.length
+      };
+      
+      const hasChanged = 
+        currentCounts.total !== lastUserCountsRef.current.total ||
+        currentCounts.active !== lastUserCountsRef.current.active ||
+        currentCounts.real !== lastUserCountsRef.current.real;
+      
+      if (hasChanged) {
+        console.log(`👥 Sala ${roomId}: ${currentCounts.real} usuario(s) real(es) activo(s) | ${currentCounts.total} total en DB (incluye inactivos)`);
+        lastUserCountsRef.current = currentCounts;
+      }
+      
       setRoomUsers(activeUsers);
     });
 
     // Guardar funciones de desuscripción
-    unsubscribeRef.current = () => {
+    const baseCleanup = () => {
       try {
         unsubscribeMessages();
       } catch (error) {
@@ -362,12 +389,19 @@ const ChatPage = () => {
         }
       }
     };
+    
+    unsubscribeRef.current = baseCleanup;
 
     // Toast de bienvenida
     toast({
       title: `👋 ¡${user.username} se ha unido a la sala!`,
       description: `Estás en #${roomId}`,
     });
+
+    // ⚠️ SALUDO AUTOMÁTICO DESACTIVADO
+    // Los bots estáticos no pueden escribir en Firestore (no tienen permisos)
+    // El saludo se mostrará a través de los mensajes estáticos predefinidos
+    // que ya están en el historial cuando el usuario entra
 
     // Cleanup: desuscribirse y remover presencia cuando se desmonta o cambia de sala
     return () => {
@@ -386,29 +420,6 @@ const ChatPage = () => {
 
   // 💓 Heartbeat: Actualizar presencia cada 10 segundos + Limpiar inactivos cada 30s
   useEffect(() => {
-    if (!roomId || !user) return;
-
-    // Actualizar presencia inmediatamente
-    updateUserActivity(roomId);
-
-    // Heartbeat cada 10 segundos
-    const heartbeatInterval = setInterval(() => {
-      updateUserActivity(roomId);
-    }, 10000);
-
-    // Limpieza de usuarios inactivos cada 30 segundos
-    const cleanupInterval = setInterval(() => {
-      cleanInactiveUsers(roomId);
-    }, 30000);
-
-    return () => {
-      clearInterval(heartbeatInterval);
-      clearInterval(cleanupInterval);
-    };
-  }, [roomId, user]);
-
-  // ✨ Activar IA cuando el sistema esté listo y usuarios cargados
-  useEffect(() => {
     // Función auxiliar para contar usuarios reales (excluyendo bots)
     const countRealUsers = (users) => {
       if (!users || users.length === 0) return 0;
@@ -417,47 +428,30 @@ const ChatPage = () => {
         return userId !== 'system' && 
                !userId?.startsWith('bot_') && 
                !userId?.startsWith('bot-') &&
+               !userId?.startsWith('static_bot_') && // ? Excluir bots estáticos
                !userId?.includes('bot_join');
       }).length;
     };
 
-    // ✅ CRÍTICO: Validar que el usuario existe antes de continuar
+    // ? CRÍTICO: Validar que el usuario existe antes de continuar
     if (!user || !user.id || !user.username) {
-      console.warn('⏰ [CHAT PAGE] Usuario no disponible, no se puede activar IA');
+      console.warn('? [CHAT PAGE] Usuario no disponible, no se puede activar IA');
       return;
     }
 
     const realUserCount = countRealUsers(roomUsers);
     
-    // ✅ CORREGIDO: Activar IA cuando hay usuarios reales, incluso si bots no están activos
-    // Esperar a que:
-    // 1. Tengamos al menos 1 usuario REAL cargado (no bots)
-    // 2. Función de activación esté disponible
-    // 3. No se haya activado ya
-    // NOTA: Ya no requerimos que botsActive sea true, la IA puede activarse independientemente
-    if (realUserCount === 0 || !activateAIForUser || aiActivatedRef.current) {
-      if (realUserCount === 0) {
-        console.log('⏳ [CHAT PAGE] Esperando usuarios reales... (actual:', roomUsers?.length || 0, 'usuarios totales)');
-      }
-      return;
+    // ? Solo ejecutar cuando realmente cambia el número de usuarios reales
+    if (realUserCount === lastUserCountRef.current) {
+      return; // No hacer nada si el conteo no cambió
     }
+    
+    lastUserCountRef.current = realUserCount;
 
-    console.log(`✅ [CHAT PAGE] Condiciones cumplidas: ${realUserCount} usuarios reales, activando IA...`);
-
-    // Delay de 2 segundos para asegurar que todo esté inicializado
-    const timer = setTimeout(() => {
-      if (!user || !user.id || !user.username) {
-        console.warn('⏰ [CHAT PAGE] Usuario no disponible para activar IA');
-        return;
-      }
-      console.log('⏰ [CHAT PAGE] Activando IA después de que sistema esté listo...');
-      console.log(`👤 [CHAT PAGE] Activando para usuario: ${user.username} (ID: ${user.id})`);
-      activateAIForUser(user.id, user.username);
-      aiActivatedRef.current = true; // Marcar como activado
-    }, 2000);
-
-    return () => clearTimeout(timer);
-  }, [roomUsers, activateAIForUser, user?.id, user?.username]);
+    // ⚠️ SISTEMA DE IA DESACTIVADO
+    // Solo se muestra mensaje de moderador una vez
+    console.log(`✅ [CHAT PAGE] ${realUserCount} usuarios reales detectados`);
+  }, [roomUsers.length]); // ✅ Solo ejecutar cuando cambia el número de usuarios
 
   // Suscribirse a contadores de todas las salas (para mensajes contextuales)
   useEffect(() => {
@@ -600,9 +594,12 @@ const ChatPage = () => {
       // Track message sent
       trackMessageSent(currentRoom);
 
-      // 🤖 Disparar respuesta de bot anfitrión
-      if (botsActive && type === 'text') {
-        triggerBotResponse(content, user.id);
+      // 🤖 Disparar respuesta de IA conversacional
+      if (type === 'text' && aiRespondToUser) {
+        console.log(`🤖 [CHAT PAGE] Llamando a aiRespondToUser para mensaje: "${content}"`);
+        setTimeout(() => {
+          aiRespondToUser(currentRoom, user.id, content, messages);
+        }, 1000); // Delay de 1 segundo para que parezca más natural
       }
 
       // El listener de onSnapshot actualizará automáticamente los mensajes

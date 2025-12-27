@@ -49,10 +49,13 @@ const BOT_MESSAGE_INTERVAL = { min: 30, max: 60 }; // Intervalo entre mensajes (
  * @returns {Object} - Configuración de bots { botsCount, intervalMin, intervalMax, strategy }
  */
 const getBotConfigDynamic = (realUserCount) => {
+  // ⚠️ BOTS DE FONDO DESACTIVADOS TEMPORALMENTE
+  // Solo se usará el sistema de IA conversacional puro
+
   // 🎯 FASE 1: SALA VACÍA (0 usuarios)
-  // Sin bots para ahorrar recursos - Esperamos a que entre alguien
+  // Sin bots - IA también desactivada
   if (realUserCount === 0) {
-    console.log('🔵 FASE 1: Sala vacía - Bots en standby');
+    console.log('🔵 [BOT SYSTEM] Sala vacía - Sistema en standby (solo IA activa con usuarios)');
     return {
       botsCount: 0,
       intervalMin: 0,
@@ -61,51 +64,15 @@ const getBotConfigDynamic = (realUserCount) => {
     };
   }
 
-  // 🎯 FASE 2: COLD START (1 usuario)
-  // 2 bots + IA activa para romper el hielo
-  // Usuario siente que hay comunidad activa
-  if (realUserCount === 1) {
-    console.log('🟢 FASE 2: Cold Start - 1 usuario real → Activando 2 bots + IA');
-    return {
-      botsCount: 2,
-      intervalMin: BOT_MESSAGE_INTERVAL.min,
-      intervalMax: BOT_MESSAGE_INTERVAL.max,
-      strategy: 'cold_start'
-    };
-  }
-
-  // 🎯 FASE 3: CRECIMIENTO INICIAL (2-3 usuarios)
-  // 2 bots pero menos activos - Usuarios empiezan a hablar entre ellos
-  if (realUserCount >= 2 && realUserCount <= 3) {
-    console.log('🟡 FASE 3: Crecimiento - 2-3 usuarios reales → Reduciendo actividad bots');
-    return {
-      botsCount: 2,
-      intervalMin: BOT_MESSAGE_INTERVAL.min + 15,
-      intervalMax: BOT_MESSAGE_INTERVAL.max + 20,
-      strategy: 'growth'
-    };
-  }
-
-  // 🎯 FASE 4: TRANSICIÓN (4-5 usuarios)
-  // 1 bot muy discreto - Ya hay conversación natural
-  if (realUserCount >= 4 && realUserCount <= 5) {
-    console.log('🟠 FASE 4: Transición - 4-5 usuarios reales → Solo 1 bot discreto');
-    return {
-      botsCount: 1,
-      intervalMin: BOT_MESSAGE_INTERVAL.min + 30,
-      intervalMax: BOT_MESSAGE_INTERVAL.max + 40,
-      strategy: 'transition'
-    };
-  }
-
-  // 🎯 FASE 5: MASA CRÍTICA (6+ usuarios)
-  // 0 bots - La comunidad ya es autosuficiente 🎉
-  console.log('🔴 FASE 5: Masa Crítica - 6+ usuarios reales → Bots DESACTIVADOS ✅');
+  // 🎯 FASE 2: CON USUARIOS (1+ usuarios)
+  // ⚠️ BOTS COMPLETAMENTE DESACTIVADOS - Sistema en standby
+  // Los bots ahora son estáticos (solo muestran mensajes predefinidos sin conectarse)
+  console.log(`🟢 [BOT SYSTEM] ${realUserCount} usuarios reales → BOTS DESACTIVADOS (sistema en standby, solo mensajes estáticos)`);
   return {
-    botsCount: 0,
+    botsCount: 0, // ⚠️ DESACTIVADO COMPLETAMENTE
     intervalMin: 0,
     intervalMax: 0,
-    strategy: 'community_active'
+    strategy: 'standby' // Sistema en standby
   };
 };
 
@@ -138,6 +105,7 @@ const countRealUsers = (users) => {
     const isBot = userId === 'system' ||
                   userId?.startsWith('bot_') ||
                   userId?.startsWith('bot-') ||
+                  userId?.startsWith('static_bot_') || // ✅ Excluir bots estáticos
                   userId?.includes('bot_join');
     return !isBot;
   });
@@ -340,6 +308,8 @@ const updateBotActivity = (roomId, realUserCount, getConversationHistory) => {
   // Actualizar timestamp de último usuario detectado
   roomState.lastUserCount = realUserCount;
   roomState.lastUserCountTime = Date.now();
+  roomState.isActive = true;
+  roomBotStates.set(roomId, roomState);
 
   // Si ya hay el número correcto de bots, no hacer nada
   if (roomState.activeBots.length === config.botsCount && roomState.isActive) {
@@ -380,28 +350,26 @@ const startBotsForRoom = (roomId, botCount, getConversationHistory) => {
   // Obtener perfiles de bots aleatorios
   const botProfiles = getRandomBotProfiles(botCount);
 
-  // ⚠️ DESACTIVADO - Ya no usar startBotActivity individual
-  // Los bots SOLO conversan vía orquestador
+  // ⚠️ COMPLETAMENTE DESACTIVADO - TODAS LAS CONVERSACIONES DE BOTS
+  // Solo el sistema de IA conversacional debe estar activo
 
-  // 🆕 SOLO USAR CONVERSACIONES PROGRAMADAS - MÁS ACTIVAS
-  // Conversaciones cada 30-45 segundos para más actividad
-  const conversationInterval = schedulePeriodicConversations(roomId, botProfiles, 0.5); // Cada 30 segundos
+  // ⚠️ DESACTIVADO: Conversaciones programadas
+  // const conversationInterval = schedulePeriodicConversations(roomId, botProfiles, 0.5);
 
-  // 🎭 NUEVO: Conversaciones grupales coherentes (3 bots) - MÁS FRECUENTES
-  schedulePeriodicGroupConversations(roomId); // Cada 2-3 minutos
+  // ⚠️ DESACTIVADO: Conversaciones grupales (bots fingiendo ser usuarios reales)
+  // schedulePeriodicGroupConversations(roomId);
 
   roomBotStates.set(roomId, {
-    activeBots: botProfiles,
-    intervals: [], // Sin intervals individuales
-    conversationInterval: conversationInterval,
-    isActive: true,
+    activeBots: [], // ⚠️ Sin bots activos
+    intervals: [],
+    conversationInterval: null, // ⚠️ Sin conversaciones
+    isActive: true, //  ⚠️ Sistema desactivado
     lastUserCount: 0,
     lastUserCountTime: Date.now()
   });
 
-  console.log(`✅ ${botCount} bots iniciados en sala ${roomId}`);
-  console.log(`🎭 Conversaciones programadas cada 30 segundos (PLENO HABLADERA)`);
-  console.log(`👥 Conversaciones grupales (3 bots) programadas cada 2-3 minutos`);
+  console.log(`⚠️ [BOT COORDINATOR] Sistema de bots DESACTIVADO en sala ${roomId}`);
+  console.log(`✅ [BOT COORDINATOR] Solo IA conversacional activa (sin bots falsos)`);
 };
 
 /**
@@ -436,6 +404,14 @@ export const initializeBots = (roomId, currentUsers = [], getConversationHistory
   // Iniciar bots por primera vez (siempre hay al menos 1)
   if (config.botsCount > 0) {
     startBotsForRoom(roomId, config.botsCount, getConversationHistory);
+  } else if (realUserCount > 0 && !roomBotStates.has(roomId)) {
+    roomBotStates.set(roomId, {
+      activeBots: [],
+      intervals: [],
+      isActive: true,
+      lastUserCount: realUserCount,
+      lastUserCountTime: Date.now()
+    });
   }
 };
 
@@ -541,10 +517,13 @@ export const activateAIWhenUserEnters = (roomId, userId, username) => {
     roomBotStates.set(roomId, {
       activeBots: [],
       intervals: [],
-      isActive: false,
+      isActive: true,
       lastUserCount: 0,
       lastUserCountTime: Date.now()
     });
+  } else {
+    roomState.isActive = true;
+    roomBotStates.set(roomId, roomState);
   }
 
   console.log(`✨ [AI ACTIVATION] Activando IA para usuario ${username} en sala ${roomId}`);

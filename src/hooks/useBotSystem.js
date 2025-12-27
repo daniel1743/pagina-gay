@@ -76,16 +76,18 @@ export const useBotSystem = (roomId, users = [], messages = [], enabled = true, 
 
   }, [roomId, users, messages, enabled]);
 
-  // 🆕 Iniciar simulador de entradas (bots que se "conectan" cada 2-3 min)
-  useEffect(() => {
-    if (!enabled || !roomId || joinSimulatorStartedRef.current) return;
+  // ⚠️ DESACTIVADO: Simulador de entradas (generaba bots falsos como "Mario", "Raúl")
+  // useEffect(() => {
+  //   if (!enabled || !roomId || joinSimulatorStartedRef.current) return;
 
-    console.log('🎬 Iniciando simulador de entradas de bots...');
-    startJoinSimulator(roomId, onBotJoin);
-    joinSimulatorStartedRef.current = true;
+  //   console.log('🎬 Iniciando simulador de entradas de bots...');
+  //   startJoinSimulator(roomId, onBotJoin);
+  //   joinSimulatorStartedRef.current = true;
 
-    // NO limpiar en cada render, solo al desmontar completamente
-  }, [roomId, enabled]); // ⚠️ Removido onBotJoin de dependencias para evitar ciclo
+  //   // NO limpiar en cada render, solo al desmontar completamente
+  // }, [roomId, enabled]); // ⚠️ Removido onBotJoin de dependencias para evitar ciclo
+
+  console.log('⚠️ [BOT JOIN SIMULATOR] DESACTIVADO - Solo sistema de IA conversacional activo');
 
   // Limpiar bots cuando se desmonta el componente
   useEffect(() => {

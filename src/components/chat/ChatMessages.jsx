@@ -9,8 +9,28 @@ const ChatMessages = ({ messages, currentUserId, onUserClick, onReport, onPrivat
   // 📱 Sistema de doble check dinámico (like WhatsApp)
   const [messageChecks, setMessageChecks] = useState({});
   const formatTime = (timestamp) => {
-    const date = new Date(timestamp);
-    return date.toLocaleTimeString('es-CL', { hour: '2-digit', minute: '2-digit' });
+    try {
+      let date;
+      if (typeof timestamp === 'number') {
+        date = new Date(timestamp);
+      } else if (timestamp?.toMillis) {
+        date = new Date(timestamp.toMillis());
+      } else if (timestamp?.toDate) {
+        date = timestamp.toDate();
+      } else if (timestamp?.seconds) {
+        date = new Date(timestamp.seconds * 1000);
+      } else {
+        return ''; // Si no se puede parsear, no mostrar fecha
+      }
+      
+      if (isNaN(date.getTime())) {
+        return ''; // Fecha inválida
+      }
+      
+      return date.toLocaleTimeString('es-CL', { hour: '2-digit', minute: '2-digit' });
+    } catch (error) {
+      return ''; // Error al formatear, no mostrar fecha
+    }
   };
   
   const { user: authUser } = useAuth();
@@ -151,8 +171,8 @@ const ChatMessages = ({ messages, currentUserId, onUserClick, onReport, onPrivat
                     <CheckCircle className="w-2.5 h-2.5 text-[#1DA1F2]" />
                   )}
                 </span>
-                {/* Ocultar hora solo para bots */}
-                {!message.userId.startsWith('bot_') && (
+                {/* Ocultar hora para bots (incluyendo bots estáticos) */}
+                {!message.userId.startsWith('bot_') && !message.userId.startsWith('static_bot_') && (
                   <span className="text-[10px] text-muted-foreground flex items-center gap-0.5">
                     {formatTime(message.timestamp)}
                     {isOwn && (

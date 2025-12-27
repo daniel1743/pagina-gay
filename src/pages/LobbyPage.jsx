@@ -818,8 +818,26 @@ const LobbyPage = () => {
               </p>
             </div>
 
-            {/* Tarjeta horizontal del Foro */}
+            {/* ✅ TARJETA PRINCIPAL: Salas de Chat (horizontal, destacada) */}
             <div className="mb-8 sm:mb-12 max-w-6xl mx-auto">
+              <FeatureCard
+                key={cardData[0].id}
+                icon={cardData[0].icon}
+                title={cardData[0].title}
+                description={cardData[0].description}
+                onClick={() => handleCardClick(cardData[0].modal, cardData[0])}
+                index={0}
+                variant={cardData[0].variant}
+                badge={cardData[0].badge}
+                stats={cardData[0].stats}
+                accentColor={cardData[0].accentColor}
+                isHorizontal={true}
+              />
+            </div>
+
+            {/* Grid de 3 cards: Foro, Centro de Seguridad, Premium */}
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-6 sm:gap-8 mb-12 sm:mb-16 max-w-6xl mx-auto">
+              {/* Foro de Apoyo */}
               <FeatureCard
                 key={forumCard.id}
                 icon={forumCard.icon}
@@ -831,20 +849,17 @@ const LobbyPage = () => {
                 badge={forumCard.badge}
                 stats={forumCard.stats}
                 accentColor={forumCard.accentColor}
-                isHorizontal={true}
               />
-            </div>
-
-            {/* Grid optimizado para 3 cards - FASE 1 */}
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-6 sm:gap-8 mb-12 sm:mb-16 max-w-6xl mx-auto">
-              {cardData.map((card, index) => (
+              
+              {/* Centro de Seguridad y Premium */}
+              {cardData.slice(1).map((card, index) => (
                 <FeatureCard
                   key={card.id}
                   icon={card.icon}
                   title={card.title}
                   description={card.description}
                   onClick={() => handleCardClick(card.modal, card)}
-                  index={index}
+                  index={index + 1}
                   variant={card.variant}
                   badge={card.badge}
                   stats={card.stats}
