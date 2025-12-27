@@ -30,7 +30,7 @@ const PERSONALITIES = [
     username: 'Mateo',
     avatar: 'https://api.dicebear.com/7.x/avataaars/svg?seed=mateo-ai',
     provider: 'openai',
-    systemPrompt: 'Eres Mateo, 26 años. Hablas super casual como chileno: "wn", "po", "ajaja", "ctm". Escribes rapido, a veces mal escrito, sin acentos. USA emojis: 😂🔥👀😈😏. Eres coqueto y jugueton, sabes tirar tallas con doble sentido. Puedes halagar casual: "tienes onda", "eres lindo", "tas guapo". Nada explicito, solo jugueton.'
+    systemPrompt: 'Eres Mateo, 26 años. Hablas super casual como chileno: "wn", "po", "ajaja", "ctm". Escribes rapido, a veces mal escrito, sin acentos. Eres coqueto y jugueton, sabes tirar tallas con doble sentido. Puedes halagar casual: "tienes onda", "eres lindo", "tas guapo". Nada explicito, solo jugueton.'
   },
   {
     id: 'ai_nico',
@@ -38,7 +38,7 @@ const PERSONALITIES = [
     username: 'Nico',
     avatar: 'https://api.dicebear.com/7.x/avataaars/svg?seed=nico-ai',
     provider: 'openai',
-    systemPrompt: 'Eres Nico, 29 años, fan de series y salir. Escribes rapido, coloquial, usas diminutivos: "amigui", "cosita", "amorsh". USA emojis: 😈🔥😏💦👀. Eres atrevido y te gusta coquetear con doble sentido. Hablas de citas, gente linda, planes nocturnos. Onda gay casual picante pero sin ser vulgar.'
+    systemPrompt: 'Eres Nico, 29 años, fan de series y salir. Escribes rapido, coloquial, usas diminutivos: "amigui", "cosita", "amorsh". Eres atrevido y te gusta coquetear con doble sentido. Hablas de citas, gente linda, planes nocturnos. Onda gay casual picante pero sin ser vulgar.'
   },
   {
     id: 'ai_simon',
@@ -46,7 +46,7 @@ const PERSONALITIES = [
     username: 'Simon',
     avatar: 'https://api.dicebear.com/7.x/avataaars/svg?seed=simon-ai',
     provider: 'deepseek',
-    systemPrompt: 'Eres Simon, 24 años, tranqui y atrevido. Hablas como gamer: "gg", "god", "izi". USA emojis: 😈👀🔥💦😏. Eres directo y te gusta el doble sentido. Comentas sobre gente atractiva, cuerpos, sex appeal casual. A veces escribes mal aposta: "ke", "xa", "bn". Harta risa: jajaja, jsjs, xd. Cero formal, bien picante sin ser vulgar.'
+    systemPrompt: 'Eres Simon, 24 años, tranqui y atrevido. Hablas como gamer: "gg", "god", "izi". Eres directo y te gusta el doble sentido. Comentas sobre gente atractiva, cuerpos, sex appeal casual. A veces escribes mal aposta: "ke", "xa", "bn". Harta risa: jajaja, jsjs, xd. Cero formal, bien picante sin ser vulgar.'
   },
   {
     id: 'ai_rafa',
@@ -54,7 +54,7 @@ const PERSONALITIES = [
     username: 'Rafa',
     avatar: 'https://api.dicebear.com/7.x/avataaars/svg?seed=rafa-ai',
     provider: 'openai',
-    systemPrompt: 'Eres Rafa, 31, sociable y directo. NO usas emojis, solo texto. Te interesan viajes, comida y series actuales. Eres coqueto y sabes cómo halagar: "tienes buena onda", "me caes bien", "eres cute". Puedes llevar conversaciones juguetonas sin ser explicito.'
+    systemPrompt: 'Eres Rafa, 31, sociable y directo. Te interesan viajes, comida y series actuales. Eres coqueto y sabes cómo halagar: "tienes buena onda", "me caes bien", "eres cute". Puedes llevar conversaciones juguetonas sin ser explicito.'
   },
   {
     id: 'ai_vale',
@@ -62,7 +62,7 @@ const PERSONALITIES = [
     username: 'Vale',
     avatar: 'https://api.dicebear.com/7.x/avataaars/svg?seed=vale-ai',
     provider: 'deepseek',
-    systemPrompt: 'Eres Vale, 27, carismatica y atrevida. USA emojis: 😈🔥👀💦😏. Hablas de tendencias, redes, debates LGBT, citas y atracción. Eres directa y sin filtro, te gusta hablar de sex appeal y gente linda con doble sentido. Picante pero inteligente.'
+    systemPrompt: 'Eres Vale, 27, carismatica y atrevida. Hablas de tendencias, redes, debates LGBT, citas y atracción. Eres directa y sin filtro, te gusta hablar de sex appeal y gente linda con doble sentido. Picante pero inteligente.'
   },
   {
     id: 'ai_luka',
@@ -70,7 +70,7 @@ const PERSONALITIES = [
     username: 'Luka',
     avatar: 'https://api.dicebear.com/7.x/avataaars/svg?seed=luka-ai',
     provider: 'deepseek',
-    systemPrompt: 'Eres Luka, 22, gamer geek atrevido. USA emojis: 😈🔥👀. Te gustan anime, series y cultura digital. Eres directo y sin pelos en la lengua, hablas de personajes atractivos de anime/series con doble sentido. Comentas sobre físicos, waifus/husbandos. Picante pero geek.'
+    systemPrompt: 'Eres Luka, 22, gamer geek atrevido. Te gustan anime, series y cultura digital. Eres directo y sin pelos en la lengua, hablas de personajes atractivos de anime/series con doble sentido. Comentas sobre físicos, waifus/husbandos. Picante pero geek.'
   },
   {
     id: 'ai_alan',
@@ -78,7 +78,7 @@ const PERSONALITIES = [
     username: 'Alan',
     avatar: 'https://api.dicebear.com/7.x/avataaars/svg?seed=alan-ai',
     provider: 'openai',
-    systemPrompt: 'Eres Alan, 33, maduro y relajado. NO usas emojis, solo texto. Conversas sobre relaciones y planes tranquilos.'
+    systemPrompt: 'Eres Alan, 33, maduro y relajado. Conversas sobre relaciones y planes tranquilos.'
   },
   {
     id: 'ai_julian',
@@ -86,7 +86,7 @@ const PERSONALITIES = [
     username: 'Julian',
     avatar: 'https://api.dicebear.com/7.x/avataaars/svg?seed=julian-ai',
     provider: 'openai',
-    systemPrompt: 'Eres Julian, 25, creativo y curioso. NO usas emojis, solo texto. Te gusta comentar noticias culturales y series.'
+    systemPrompt: 'Eres Julian, 25, creativo y curioso. Te gusta comentar noticias culturales y series.'
   },
   {
     id: 'ai_ivan',
@@ -94,7 +94,7 @@ const PERSONALITIES = [
     username: 'Ivan',
     avatar: 'https://api.dicebear.com/7.x/avataaars/svg?seed=ivan-ai',
     provider: 'deepseek',
-    systemPrompt: 'Eres Ivan, 28, bromista y espontaneo. NO usas emojis, solo texto. Te gustan deportes ligeros y planes sociales. Eres coqueto y jugueton, te gusta tirar tallas con doble sentido. Sabes coquetear casual: "eres simpatico", "que onda contigo", "tienes flow".'
+    systemPrompt: 'Eres Ivan, 28, bromista y espontaneo. Te gustan deportes ligeros y planes sociales. Eres coqueto y jugueton, te gusta tirar tallas con doble sentido. Sabes coquetear casual: "eres simpatico", "que onda contigo", "tienes flow".'
   },
   {
     id: 'ai_dante',
@@ -102,7 +102,7 @@ const PERSONALITIES = [
     username: 'Dante',
     avatar: 'https://api.dicebear.com/7.x/avataaars/svg?seed=dante-ai',
     provider: 'openai',
-    systemPrompt: 'Eres Dante, 30, cinéfilo y fan de series. NO usas emojis, solo texto. Das recomendaciones sin sonar experto.'
+    systemPrompt: 'Eres Dante, 30, cinéfilo y fan de series. Das recomendaciones sin sonar experto.'
   },
   {
     id: 'ai_bruno',
@@ -110,7 +110,7 @@ const PERSONALITIES = [
     username: 'Bruno',
     avatar: 'https://api.dicebear.com/7.x/avataaars/svg?seed=bruno-ai',
     provider: 'deepseek',
-    systemPrompt: 'Eres Bruno, 26, fiestero y buena onda. USA emojis: 😈🔥😏💦. Te gusta hablar de nightlife y planes. Eres coqueto y directo, te gusta halagar: "tas bueno", "tienes pinta", "me caes re bien". Puedes llevar conversaciones con tono jugueton sin ser explicito.'
+    systemPrompt: 'Eres Bruno, 26, fiestero y buena onda. Te gusta hablar de nightlife y planes. Eres coqueto y directo, te gusta halagar: "tas bueno", "tienes pinta", "me caes re bien". Puedes llevar conversaciones con tono jugueton sin ser explicito.'
   },
   {
     id: 'ai_emilio',
@@ -118,7 +118,7 @@ const PERSONALITIES = [
     username: 'Emilio',
     avatar: 'https://api.dicebear.com/7.x/avataaars/svg?seed=emilio-ai',
     provider: 'deepseek',
-    systemPrompt: 'Eres Emilio, 23, relajado pero atrevido. USA emojis: 😏🔥😈👀. Conversas de musica, streaming, trends y salidas nocturnas. Te gusta hablar de gente atractiva, citas por app, planes calientes. Usas doble sentido casual. Onda chill pero picante.'
+    systemPrompt: 'Eres Emilio, 23, relajado pero atrevido. Conversas de musica, streaming, trends y salidas nocturnas. Te gusta hablar de gente atractiva, citas por app, planes calientes. Usas doble sentido casual. Onda chill pero picante.'
   },
   {
     id: 'ai_tomas',
@@ -126,7 +126,7 @@ const PERSONALITIES = [
     username: 'Tomas',
     avatar: 'https://api.dicebear.com/7.x/avataaars/svg?seed=tomas-ai',
     provider: 'openai',
-    systemPrompt: 'Eres Tomas, 34, serio pero cercano. NO usas emojis, solo texto. Te interesan conversaciones con contenido.'
+    systemPrompt: 'Eres Tomas, 34, serio pero cercano. Te interesan conversaciones con contenido.'
   },
   {
     id: 'ai_sebas',
@@ -134,7 +134,7 @@ const PERSONALITIES = [
     username: 'Sebas',
     avatar: 'https://api.dicebear.com/7.x/avataaars/svg?seed=sebas-ai',
     provider: 'openai',
-    systemPrompt: 'Eres Sebas, 21, estudiante y muy online. NO usas emojis, solo texto puro. Hablas de memes y cultura pop.'
+    systemPrompt: 'Eres Sebas, 21, estudiante y muy online. Hablas de memes y cultura pop.'
   },
   {
     id: 'ai_milo',
@@ -142,7 +142,7 @@ const PERSONALITIES = [
     username: 'Milo',
     avatar: 'https://api.dicebear.com/7.x/avataaars/svg?seed=milo-ai',
     provider: 'deepseek',
-    systemPrompt: 'Eres Milo, 27, optimista y atrevido. USA emojis: 😈🔥😏💦👀. Te gustan planes de finde, series nuevas y salir a carretear. Hablas de citas, gente linda, encuentros casuales con doble sentido. Eres directo pero divertido, nada vulgar.'
+    systemPrompt: 'Eres Milo, 27, optimista y atrevido. Te gustan planes de finde, series nuevas y salir a carretear. Hablas de citas, gente linda, encuentros casuales con doble sentido. Eres directo pero divertido, nada vulgar.'
   }
 ];
 
@@ -169,6 +169,7 @@ const FALLBACKS = [
 
 const roomHistories = new Map();
 const roomStates = new Map();
+const lastSpeakers = new Map(); // Guardar el último que habló en cada sala
 
 const getHistory = (roomId) => {
   if (!roomHistories.has(roomId)) {
@@ -177,16 +178,33 @@ const getHistory = (roomId) => {
   return roomHistories.get(roomId);
 };
 
-const addToHistory = (roomId, role, content) => {
+const addToHistory = (roomId, role, content, speakerId = null) => {
   const history = getHistory(roomId);
-  history.push({ role, content, timestamp: Date.now() });
+  history.push({ role, content, timestamp: Date.now(), speakerId });
   if (history.length > HISTORY_LIMIT) {
     history.shift();
   }
+
+  // Guardar quién habló último
+  if (speakerId) {
+    lastSpeakers.set(roomId, speakerId);
+  }
 };
 
-const pickRandom = (items, count = 1) => {
-  const pool = [...items];
+const getLastSpeaker = (roomId) => {
+  return lastSpeakers.get(roomId) || null;
+};
+
+const pickRandom = (items, count = 1, excludeIds = []) => {
+  // Filtrar items excluyendo los IDs especificados
+  const pool = [...items].filter(item => !excludeIds.includes(item.userId));
+
+  // Si después de filtrar no hay opciones, usar todos
+  if (pool.length === 0) {
+    console.warn('[MULTI AI] ⚠️ No hay personalidades disponibles después de filtrar, usando todas');
+    pool.push(...items);
+  }
+
   const selected = [];
   while (pool.length > 0 && selected.length < count) {
     const index = Math.floor(Math.random() * pool.length);
@@ -195,16 +213,94 @@ const pickRandom = (items, count = 1) => {
   return selected;
 };
 
-const buildPrompt = (personality, roomId) => {
-  const history = getHistory(roomId);
-  const recent = history.slice(-10).map(h => h.content).join('\n');
-  const context = recent || 'La conversacion acaba de empezar.';
+const pickRandomExcludingLast = (roomId, count = 1) => {
+  const lastSpeaker = getLastSpeaker(roomId);
+  const excludeIds = lastSpeaker ? [lastSpeaker] : [];
+  return pickRandom(PERSONALITIES, count, excludeIds);
+};
 
-  // Decidir si este mensaje será largo (5% probabilidad = 1 de cada 20)
-  const isLongMessage = Math.random() < 0.05;
-  const messageLengthRule = isLongMessage
-    ? `- Este mensaje puede ser MAS LARGO: 2-3 oraciones, explica más tu punto`
-    : `- MENSAJE SUPER CORTO: 3-8 palabras máximo, como mensaje de chat rápido. Ejemplos: "toy bn wn", "q onda", "sisisi kajsksj", "hace calor aca 😈"`;
+const buildPrompt = (personality, roomId, isResponseToUser = false, userMessage = null, userName = null) => {
+  const history = getHistory(roomId);
+  
+  // Decidir longitud del mensaje
+  let messageLengthRule;
+  if (isResponseToUser) {
+    // Si responde a usuario real: sin límite, depende de la intención
+    messageLengthRule = `- RESPONDE NATURAL al usuario, sin límite de palabras si es necesario para responder bien`;
+  } else {
+    // Distribución de longitud para conversaciones entre IAs
+    const rand = Math.random();
+    if (rand < 0.30) {
+      messageLengthRule = `- MENSAJE: exactamente 3 palabras. Ejemplos: "toy bn wn", "q onda", "sisisi kajsksj"`;
+    } else if (rand < 0.50) {
+      messageLengthRule = `- MENSAJE: exactamente 4 palabras. Ejemplos: "toy aburrio wn jsjs", "hace calor aca"`;
+    } else if (rand < 0.80) {
+      messageLengthRule = `- MENSAJE: exactamente 5 palabras. Ejemplos: "q onda cabros toy bn", "alguien activo xa conversar"`;
+    } else {
+      messageLengthRule = `- MENSAJE: exactamente 7 palabras. Ejemplos: "toy buscando algo interesante wn q onda", "alguien vio la ultima de la semana"`;
+    }
+  }
+
+  // Decidir si usa emojis: 40% sí, 60% no
+  const useEmojis = Math.random() < 0.40;
+  const emojiRule = useEmojis
+    ? `- USA emojis normales y atrevidos: 😂🔥👀💀😈😏💦🍑👅 (casual, no formal)`
+    : `- NO USES EMOJIS en este mensaje, solo texto puro`;
+
+  // 🔥 PRIORIDAD ABSOLUTA: Si es respuesta a usuario real, enfocarse SOLO en su mensaje
+  let contextForPrompt = '';
+  
+  if (isResponseToUser && userMessage && userName) {
+    // Usar el mensaje del usuario que se pasó directamente (más confiable)
+    contextForPrompt = `🔥 PRIORIDAD ABSOLUTA: Un usuario real llamado "${userName}" acaba de escribir: "${userMessage}"\n\n` +
+      `TU MISIÓN ES RESPONDER DIRECTAMENTE A ESTE MENSAJE. El usuario real tiene PRIORIDAD ABSOLUTA sobre todo lo demás.\n\n` +
+      `REGLAS CRÍTICAS:\n` +
+      `- Si el usuario dice "hola" o "que pasa", salúdalo y pregúntale cómo está\n` +
+      `- Si el usuario dice que la sala está "fome" o "aburrida", reconoce su sentimiento y trata de animarlo\n` +
+      `- Si el usuario dice "nadie responde", responde inmediatamente reconociendo que estás ahí\n` +
+      `- Si el usuario pregunta algo, responde su pregunta directamente\n` +
+      `- Si el usuario hace un comentario, reacciona a ese comentario específico\n` +
+      `- NUNCA ignores el mensaje del usuario real para hablar de otros temas\n` +
+      `- NUNCA respondas sobre algo que el usuario no mencionó\n` +
+      `- SIEMPRE demuestra que leíste y entendiste su mensaje\n` +
+      `- Tu respuesta DEBE estar relacionada con lo que el usuario dijo: "${userMessage}"\n\n` +
+      `Contexto de la sala (para referencia, pero el mensaje del usuario es lo más importante):\n` +
+      history.slice(-5).map(h => h.content).join('\n');
+  } else if (isResponseToUser) {
+    // Fallback: buscar en el historial si no se pasó directamente
+    const userMessages = history.filter(h => h.speakerId === null && h.role === 'user');
+    const lastUserMsg = userMessages[userMessages.length - 1];
+    
+    if (lastUserMsg) {
+      // Extraer el nombre del usuario y su mensaje
+      const match = lastUserMsg.content.match(/^([^:]+):\s*(.+)$/);
+      if (match) {
+        const userNameFromHistory = match[1];
+        const userMessageFromHistory = match[2];
+        contextForPrompt = `🔥 PRIORIDAD ABSOLUTA: Un usuario real llamado "${userNameFromHistory}" acaba de escribir: "${userMessageFromHistory}"\n\n` +
+          `TU MISIÓN ES RESPONDER DIRECTAMENTE A ESTE MENSAJE. El usuario real tiene PRIORIDAD ABSOLUTA sobre todo lo demás.\n\n` +
+          `- Si el usuario dice "hola" o "que pasa", salúdalo y pregúntale cómo está\n` +
+          `- Si el usuario dice que la sala está "fome" o "aburrida", reconoce su sentimiento y trata de animarlo\n` +
+          `- Si el usuario dice "nadie responde", responde inmediatamente reconociendo que estás ahí\n` +
+          `- Si el usuario pregunta algo, responde su pregunta directamente\n` +
+          `- Si el usuario hace un comentario, reacciona a ese comentario específico\n` +
+          `- NUNCA ignores el mensaje del usuario real para hablar de otros temas\n` +
+          `- NUNCA respondas sobre algo que el usuario no mencionó\n` +
+          `- SIEMPRE demuestra que leíste y entendiste su mensaje\n\n` +
+          `Contexto de la sala (para referencia, pero el mensaje del usuario es lo más importante):\n` +
+          history.slice(-5).map(h => h.content).join('\n');
+      } else {
+        contextForPrompt = `Últimos mensajes del chat:\n${history.slice(-10).map(h => h.content).join('\n')}\n\nResponde SOLO tu mensaje (sin tu nombre, sin etiquetas):`;
+      }
+    } else {
+      contextForPrompt = `Últimos mensajes del chat:\n${history.slice(-10).map(h => h.content).join('\n')}\n\nResponde SOLO tu mensaje (sin tu nombre, sin etiquetas):`;
+    }
+  } else {
+    // Conversación normal entre IAs
+    const recent = history.slice(-10).map(h => h.content).join('\n');
+    contextForPrompt = recent || 'La conversacion acaba de empezar.';
+    contextForPrompt = `Últimos mensajes del chat:\n${contextForPrompt}\n\nResponde SOLO tu mensaje (sin tu nombre, sin etiquetas):`;
+  }
 
   return [
     {
@@ -213,6 +309,7 @@ const buildPrompt = (personality, roomId) => {
         `${personality.systemPrompt}\n\n` +
         `REGLAS IMPORTANTES:\n` +
         messageLengthRule + `\n` +
+        emojiRule + `\n` +
         `- Habla SUPER casual como chileno: "wn", "po", "cachai", "ajaja", "jsjs"\n` +
         `- JAMAS NUNCA uses signos de exclamación (¡!) en ningún contexto - están prohibidos\n` +
         `- Escribe RAPIDO con errores naturales: sin acentos, sin mayúsculas, letras repetidas, typos\n` +
@@ -221,7 +318,12 @@ const buildPrompt = (personality, roomId) => {
         `- NO repitas tu nombre ni pongas nombre: antes\n` +
         `- Diminutivos gay: "amigui", "cosita", "amorsh" (de vez en cuando)\n` +
         `- RISAS MODERNAS variadas: jajaja, ajaja, jsjs, jsjsjs, xd, kajsksj, kkkk, laksljd, jsjajaj, skjskjs, ashdjah, lmao (usa distintas cada vez)\n` +
-        `- Responde AL ULTIMO MENSAJE directo\n` +
+        (isResponseToUser 
+          ? `- 🔥 LEY ABSOLUTA: El usuario real tiene PRIORIDAD TOTAL. Responde DIRECTAMENTE a su mensaje, no ignores lo que dijo.\n` +
+            `- Si el usuario dice algo, tu respuesta DEBE estar relacionada con lo que él dijo.\n` +
+            `- NUNCA cambies de tema si el usuario está hablando de algo específico.\n` +
+            `- Demuestra que leíste y entendiste su mensaje respondiendo de forma relevante.\n`
+          : `- Responde AL ULTIMO MENSAJE directo\n`) +
         `- Nada perfecto, super natural, escribe como en foros/discord/twitter con errores de tipeo\n` +
         `- SE ATREVIDO y caliente: usa doble sentido, insinuaciones, tallas picantes sin ser vulgar\n` +
         `- Puedes hablar de: citas, salir, atracción, cuerpos, sex appeal (todo con doble sentido, nada explícito)\n` +
@@ -234,7 +336,7 @@ const buildPrompt = (personality, roomId) => {
     },
     {
       role: 'user',
-      content: `Últimos mensajes del chat:\n${context}\n\nResponde SOLO tu mensaje (sin tu nombre, sin etiquetas):`
+      content: contextForPrompt
     }
   ];
 };
@@ -242,42 +344,59 @@ const buildPrompt = (personality, roomId) => {
 const fetchChatCompletion = async (providerKey, messages) => {
   const provider = PROVIDERS[providerKey];
   if (!provider?.apiKey || !provider?.apiUrl) {
-    throw new Error('Missing provider configuration');
+    console.error(`[MULTI AI] ERROR: Provider ${providerKey} sin configuración`);
+    throw new Error(`Missing provider configuration: ${providerKey}`);
   }
 
-  const response = await fetch(provider.apiUrl, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      Authorization: `Bearer ${provider.apiKey}`
-    },
-    body: JSON.stringify({
-      model: provider.model,
-      messages,
-      temperature: 0.9,
-      max_tokens: 120
-    })
-  });
+  console.log(`[MULTI AI] 🚀 Llamando a ${providerKey} (${provider.model})...`);
 
-  if (!response.ok) {
-    const errorText = await response.text();
-    throw new Error(`Provider error: ${response.status} ${errorText}`);
+  try {
+    const response = await fetch(provider.apiUrl, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${provider.apiKey}`
+      },
+      body: JSON.stringify({
+        model: provider.model,
+        messages,
+        temperature: 0.9,
+        max_tokens: 120
+      })
+    });
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      console.error(`[MULTI AI] ❌ Error ${providerKey}: ${response.status}`, errorText);
+      throw new Error(`Provider ${providerKey} error: ${response.status} - ${errorText.substring(0, 200)}`);
+    }
+
+    const data = await response.json();
+    const content = data?.choices?.[0]?.message?.content?.trim() || '';
+    console.log(`[MULTI AI] ✅ Respuesta de ${providerKey}:`, content.substring(0, 50) + '...');
+    return content;
+  } catch (error) {
+    console.error(`[MULTI AI] ❌ Fetch error desde ${providerKey}:`, error.message);
+    throw error;
   }
-
-  const data = await response.json();
-  return data?.choices?.[0]?.message?.content?.trim() || '';
 };
 
-const generateAIMessage = async (roomId, personality) => {
+const generateAIMessage = async (roomId, personality, isResponseToUser = false, userMessage = null, userName = null) => {
   try {
-    const prompt = buildPrompt(personality, roomId);
+    console.log(`[MULTI AI] 💬 Generando mensaje para ${personality.username}${isResponseToUser ? ' (respondiendo a usuario real)' : ''}...`);
+    if (isResponseToUser && userMessage) {
+      console.log(`[MULTI AI] 🎯 Contexto del usuario: "${userMessage}"`);
+    }
+    const prompt = buildPrompt(personality, roomId, isResponseToUser, userMessage, userName);
     const text = await fetchChatCompletion(personality.provider, prompt);
     if (!text) {
+      console.warn(`[MULTI AI] ⚠️ Respuesta vacía de ${personality.username}, usando fallback`);
       throw new Error('Empty response');
     }
     return text;
   } catch (error) {
-    console.error('AI message fallback:', error);
+    console.error(`[MULTI AI] ❌ Error generando mensaje para ${personality.username}:`, error.message);
+    console.log(`[MULTI AI] 🔄 Usando mensaje fallback para ${personality.username}`);
     return FALLBACKS[Math.floor(Math.random() * FALLBACKS.length)];
   }
 };
@@ -297,14 +416,20 @@ const sendAIMessage = async (roomId, personality, content) => {
     senderUid: auth.currentUser.uid
   });
 
-  addToHistory(roomId, 'assistant', `${personality.username}: ${content}`);
+  // Registrar en historial con el ID del que habló
+  addToHistory(roomId, 'assistant', `${personality.username}: ${content}`, personality.userId);
 };
 
 const runConversationPulse = (roomId) => {
-  const participants = pickRandom(PERSONALITIES, 2 + Math.floor(Math.random() * 2));
+  const numParticipants = 2 + Math.floor(Math.random() * 2);
   let delay = 0;
+  let lastPersonality = getLastSpeaker(roomId);
 
-  participants.forEach((personality) => {
+  // Seleccionar participantes uno por uno, asegurando que no se repita el anterior
+  for (let i = 0; i < numParticipants; i++) {
+    const excludeIds = lastPersonality ? [lastPersonality] : [];
+    const [personality] = pickRandom(PERSONALITIES, 1, excludeIds);
+
     const timeoutId = setTimeout(async () => {
       const content = await generateAIMessage(roomId, personality);
       await sendAIMessage(roomId, personality, content);
@@ -315,8 +440,10 @@ const runConversationPulse = (roomId) => {
       state.timeouts.push(timeoutId);
     }
 
+    // El próximo no puede ser este
+    lastPersonality = personality.userId;
     delay += 3000 + Math.random() * 5000;
-  });
+  }
 };
 
 const getPulseIntervalMs = () => 90000 + Math.floor(Math.random() * 70000);
@@ -365,21 +492,69 @@ export const stopRoomAIConversation = (roomId) => {
 };
 
 /**
- * Registra mensaje de humano y opcionalmente hace que IA responda
+ * Registra mensaje de humano y hace que SOLO 2 IAs respondan
+ * 🔥 PRIORIDAD ABSOLUTA: El usuario real tiene prioridad, pero solo 2 IAs responden
+ * Las demás IAs siguen conversando normalmente entre ellas para mantener el flujo natural
  */
 export const recordHumanMessage = (roomId, username, content) => {
   const name = username || 'Usuario';
-  addToHistory(roomId, 'user', `${name}: ${content}`);
+  console.log(`[MULTI AI] 📥 Usuario real escribió: ${name} → "${content.substring(0, 50)}..."`);
+  console.log(`[MULTI AI] 🔥 PRIORIDAD: Solo 2 IAs responderán al usuario, las demás siguen conversando normalmente`);
+  
+  // Guardar el mensaje del usuario real con metadata especial
+  addToHistory(roomId, 'user', `${name}: ${content}`, null); // null = usuario humano
 
-  // 40% probabilidad de que una IA responda a un usuario real
-  if (Math.random() < 0.4) {
-    setTimeout(async () => {
-      const personality = pickRandom(PERSONALITIES, 1)[0];
-      const response = await generateAIMessage(roomId, personality);
+  // 🔥 SOLO 2 IAs RESPONDEN AL USUARIO REAL (no todas)
+  // Delay más rápido cuando el usuario dice algo urgente (ej: "nadie responde")
+  const isUrgent = content.toLowerCase().includes('nadie') || 
+                   content.toLowerCase().includes('respond') ||
+                   content.toLowerCase().includes('fome') ||
+                   content.toLowerCase().includes('aburrid');
+  
+  // Elegir 2 personalidades diferentes que NO sean la última que habló
+  const respondingPersonalities = pickRandomExcludingLast(roomId, 2);
+  console.log(`[MULTI AI] 👥 ${respondingPersonalities.length} IAs responderán: ${respondingPersonalities.map(p => p.username).join(', ')}`);
+
+  // Primera respuesta: más rápida
+  const delay1 = isUrgent ? 1000 + Math.random() * 1500 : 2000 + Math.random() * 2500; // 1-2.5s urgente, 2-4.5s normal
+  setTimeout(async () => {
+    try {
+      const personality = respondingPersonalities[0];
+      console.log(`[MULTI AI] 👤 ${personality.username} va a responder a ${name} (1/2)`);
+      console.log(`[MULTI AI] 📝 Mensaje del usuario: "${content}"`);
+      console.log(`[MULTI AI] 🎯 La respuesta DEBE estar relacionada con: "${content}"`);
+
+      const response = await generateAIMessage(roomId, personality, true, content, name);
       await sendAIMessage(roomId, personality, response);
-      console.log(`[MULTI AI] ${personality.username} respondió a ${name}`);
-    }, 3000 + Math.random() * 4000); // 3-7 segundos
-  }
+      console.log(`[MULTI AI] ✅ ${personality.username} respondió exitosamente a ${name}`);
+      console.log(`[MULTI AI] 💬 Respuesta: "${response.substring(0, 100)}..."`);
+    } catch (error) {
+      console.error(`[MULTI AI] ❌ Error al responder a ${name}:`, error);
+    }
+  }, delay1);
+
+  // Segunda respuesta: con delay adicional para que no sea simultánea
+  const delay2 = delay1 + (isUrgent ? 2000 + Math.random() * 2000 : 3000 + Math.random() * 3000); // 2-4s después de la primera
+  setTimeout(async () => {
+    try {
+      if (respondingPersonalities.length > 1) {
+        const personality = respondingPersonalities[1];
+        console.log(`[MULTI AI] 👤 ${personality.username} va a responder a ${name} (2/2)`);
+        console.log(`[MULTI AI] 📝 Mensaje del usuario: "${content}"`);
+        console.log(`[MULTI AI] 🎯 La respuesta DEBE estar relacionada con: "${content}"`);
+
+        const response = await generateAIMessage(roomId, personality, true, content, name);
+        await sendAIMessage(roomId, personality, response);
+        console.log(`[MULTI AI] ✅ ${personality.username} respondió exitosamente a ${name}`);
+        console.log(`[MULTI AI] 💬 Respuesta: "${response.substring(0, 100)}..."`);
+      }
+    } catch (error) {
+      console.error(`[MULTI AI] ❌ Error al responder a ${name}:`, error);
+    }
+  }, delay2);
+
+  console.log(`[MULTI AI] ✅ 2 IAs programadas para responder (primera en ${Math.round(delay1/1000)}s, segunda en ${Math.round(delay2/1000)}s)`);
+  console.log(`[MULTI AI] 💡 Las demás IAs seguirán conversando normalmente entre ellas`);
 };
 
 /**
@@ -390,7 +565,8 @@ export const greetNewUser = async (roomId, username) => {
 
   // Esperar 2-5 segundos para que parezca natural
   setTimeout(async () => {
-    const personality = pickRandom(PERSONALITIES, 1)[0];
+    // Elegir una personalidad que NO sea la última que habló
+    const [personality] = pickRandomExcludingLast(roomId, 1);
 
     // Saludos casuales atrevidos en chileno (sin exclamaciones)
     const greetings = [
@@ -414,7 +590,7 @@ export const greetNewUser = async (roomId, username) => {
     const greeting = greetings[Math.floor(Math.random() * greetings.length)];
 
     await sendAIMessage(roomId, personality, greeting);
-    addToHistory(roomId, 'assistant', `${personality.username}: ${greeting}`);
+    // No necesito addToHistory aquí porque sendAIMessage ya lo hace
 
     console.log(`[MULTI AI] ${personality.username} saludó a ${username}`);
   }, 2000 + Math.random() * 3000);

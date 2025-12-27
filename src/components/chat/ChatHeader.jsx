@@ -21,13 +21,13 @@ const ChatHeader = ({ currentRoom, onMenuClick, onOpenPrivateChat }) => {
   const navigate = useNavigate();
 
   return (
-    <header className="bg-card border-b p-4 flex items-center justify-between shrink-0">
-      <div className="flex items-center gap-3">
+    <header className="bg-card border-b p-3 sm:p-4 flex items-center justify-between shrink-0">
+      <div className="flex items-center gap-2 sm:gap-3 min-w-0 flex-1">
         <Button
           variant="ghost"
           size="icon"
           onClick={() => navigate(-1)}
-          className="text-muted-foreground hover:text-cyan-400"
+          className="text-muted-foreground hover:text-cyan-400 min-w-[44px] min-h-[44px] sm:min-w-0 sm:min-h-0 flex-shrink-0"
           aria-label="Volver a la página anterior"
         >
           <ArrowLeft className="w-5 h-5" />
@@ -36,25 +36,25 @@ const ChatHeader = ({ currentRoom, onMenuClick, onOpenPrivateChat }) => {
           variant="ghost"
           size="icon"
           onClick={onMenuClick}
-          className="lg:hidden text-muted-foreground"
+          className="lg:hidden text-muted-foreground hover:text-foreground hover:bg-accent/50 min-w-[44px] min-h-[44px] sm:min-w-0 sm:min-h-0 flex-shrink-0"
           aria-label="Abrir menú de salas"
         >
-          <Menu className="w-5 h-5" />
+          <Menu className="w-6 h-6" />
         </Button>
-        <div>
-          <h2 className="font-bold text-foreground text-lg">
+        <div className="min-w-0 flex-1">
+          <h2 className="font-bold text-foreground text-base sm:text-lg truncate">
             # {roomNames[currentRoom] || 'Sala de Chat'}
           </h2>
         </div>
       </div>
 
-      <div className="flex items-center gap-2">
+      <div className="flex items-center gap-1.5 sm:gap-2 flex-shrink-0">
         <NotificationBell onOpenPrivateChat={onOpenPrivateChat} />
         <Button
           variant="ghost"
           size="icon"
           onClick={() => navigate('/')}
-          className="text-muted-foreground hover:text-cyan-400"
+          className="text-muted-foreground hover:text-cyan-400 min-w-[44px] min-h-[44px] sm:min-w-0 sm:min-h-0"
           aria-label="Ir al inicio"
         >
           <Home className="w-5 h-5" />

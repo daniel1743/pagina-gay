@@ -316,7 +316,11 @@ const LobbyPage = () => {
   };
 
   useEffect(() => {
-    document.title = "Lobby - Chactivo | Chat Gay Chile";
+    // ✅ SEO: Título optimizado para búsquedas (NO sobrescribir el del index.html)
+    // El título del index.html ya es perfecto: "Chat Gay Chile 🏳️‍🌈 Conoce Gente LGBT+ Ahora | Chactivo"
+    // Solo actualizar si es necesario para tracking, pero mantener el SEO del index.html
+    // document.title = "Chat Gay Chile 🏳️‍🌈 Conoce Gente LGBT+ Ahora | Chactivo";
+    
     // Track page view
     trackPageView('/lobby', 'Lobby - Chactivo');
 
@@ -400,7 +404,7 @@ const LobbyPage = () => {
                         damping: 20,
                         delay: 0.4
                       }}
-                      className="text-5xl sm:text-6xl font-extrabold bg-gradient-to-r from-green-400 to-emerald-400 bg-clip-text text-transparent mb-1"
+                      className="text-4xl sm:text-5xl md:text-6xl font-extrabold bg-gradient-to-r from-green-400 to-emerald-400 bg-clip-text text-transparent mb-1"
                     >
                       {calculateTotalUsers()}
                     </motion.div>
@@ -440,7 +444,7 @@ const LobbyPage = () => {
               transition={{ delay: 0.3 }}
               className="text-3xl sm:text-4xl md:text-5xl lg:text-6xl font-extrabold text-center mb-4 sm:mb-6 leading-tight px-4"
             >
-              Chats gay anónimos en Chile, en tiempo real
+              Chat Gay Chile: Entra en 30 Segundos ⚡
             </motion.h1>
 
             {/* Subtítulo del Hero */}
@@ -450,7 +454,7 @@ const LobbyPage = () => {
               transition={{ delay: 0.4 }}
               className="text-base sm:text-lg md:text-xl text-center text-muted-foreground mb-8 sm:mb-10 max-w-3xl mx-auto px-4 leading-relaxed"
             >
-              Entra a salas activas 24/7, conoce gente y conversa sin toxicidad.
+              Solo username, sin email, sin tarjeta. Cientos de chicos gays chateando ahora. Salas activas 24/7, conversación real, sin toxicidad.
             </motion.p>
 
             {/* ✅ CTA PRINCIPAL DEL HERO */}
@@ -468,7 +472,7 @@ const LobbyPage = () => {
                     setShowQuickSignup(true);
                   }
                 }}
-                className="magenta-gradient text-white font-bold text-lg sm:text-xl px-8 sm:px-12 py-6 sm:py-7 rounded-xl shadow-xl hover:shadow-[#E4007C]/50 hover:scale-105 transition-all"
+                className="magenta-gradient text-white font-bold text-base sm:text-lg md:text-xl px-6 sm:px-8 md:px-12 py-5 sm:py-6 md:py-7 rounded-xl shadow-xl hover:shadow-[#E4007C]/50 hover:scale-105 transition-all w-full sm:w-auto min-h-[48px]"
               >
                 Entrar a salas de chat
               </Button>
@@ -481,7 +485,7 @@ const LobbyPage = () => {
                   }
                 }}
                 variant="outline"
-                className="border-2 border-cyan-500/50 text-cyan-400 font-bold text-lg sm:text-xl px-8 sm:px-12 py-6 sm:py-7 rounded-xl hover:bg-cyan-500/10 hover:border-cyan-500 transition-all"
+                className="border-2 border-cyan-500/50 text-cyan-400 font-bold text-base sm:text-lg md:text-xl px-6 sm:px-8 md:px-12 py-5 sm:py-6 md:py-7 rounded-xl hover:bg-cyan-500/10 hover:border-cyan-500 transition-all w-full sm:w-auto min-h-[48px]"
               >
                 Ver chats activos
               </Button>
@@ -529,9 +533,9 @@ const LobbyPage = () => {
                 <div className="w-16 h-16 mx-auto mb-5 rounded-full bg-gradient-to-br from-[#E4007C] to-pink-500 flex items-center justify-center text-3xl font-black text-white shadow-lg">
                   1
                 </div>
-                <h3 className="text-xl sm:text-2xl font-bold mb-3">Entra Sin Registro</h3>
+                <h3 className="text-xl sm:text-2xl font-bold mb-3">Entra en 30 Segundos</h3>
                 <p className="text-sm sm:text-base text-muted-foreground leading-relaxed mb-4">
-                  No necesitas email ni tarjeta. Solo elige un nombre de usuario y listo.
+                  Solo username y contraseña. Sin email, sin tarjeta, sin complicaciones. ¡Empieza a chatear al instante!
                 </p>
                 <div className="inline-block px-4 py-2 bg-green-500/20 border border-green-500/30 rounded-full">
                   <p className="text-xs sm:text-sm font-semibold text-green-400">⚡ 30 segundos</p>

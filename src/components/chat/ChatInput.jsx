@@ -161,7 +161,7 @@ const ChatInput = ({ onSendMessage }) => {
   const showMessageLimit = user?.isAnonymous && remainingMessages !== null;
 
   return (
-    <div className="bg-card border-t p-4 shrink-0 relative" ref={wrapperRef}>
+    <div className="bg-card border-t p-3 sm:p-4 shrink-0 relative" ref={wrapperRef}>
       {/* Contador de mensajes restantes para usuarios anónimos */}
       {showMessageLimit && (
         <motion.div
@@ -190,26 +190,28 @@ const ChatInput = ({ onSendMessage }) => {
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
               exit={{ opacity: 0, y: 20 }}
-              className="absolute bottom-full right-4 mb-2 z-10"
+              className="absolute bottom-full right-0 sm:right-4 mb-2 z-10 w-[calc(100vw-2rem)] sm:w-[300px] max-w-[300px]"
           >
             <Suspense fallback={
-              <div className="bg-secondary p-4 rounded-lg border border-input w-[300px] h-[350px] flex items-center justify-center">
+              <div className="bg-secondary p-4 rounded-lg border border-input w-full h-[280px] sm:h-[350px] flex items-center justify-center">
                 <div className="flex flex-col items-center gap-2">
                   <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-cyan-400"></div>
                   <p className="text-sm text-muted-foreground">Cargando emojis...</p>
                 </div>
               </div>
             }>
-              <EmojiPicker
-                onEmojiClick={handleEmojiClick}
-                theme="dark"
-                height={350}
-                width={300}
-                emojiStyle={EmojiStyle.NATIVE}
-                customEmojis={user?.isPremium ? PREMIUM_EMOJIS : []}
-                categories={emojiPickerCategories}
-                preload={true}
-              />
+              <div className="w-full overflow-hidden rounded-lg border border-input bg-secondary">
+                <EmojiPicker
+                  onEmojiClick={handleEmojiClick}
+                  theme="dark"
+                  height={280}
+                  width="100%"
+                  emojiStyle={EmojiStyle.NATIVE}
+                  customEmojis={user?.isPremium ? PREMIUM_EMOJIS : []}
+                  categories={emojiPickerCategories}
+                  preload={true}
+                />
+              </div>
             </Suspense>
           </motion.div>
         )}
@@ -218,7 +220,7 @@ const ChatInput = ({ onSendMessage }) => {
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
               exit={{ opacity: 0, y: 20 }}
-              className="absolute bottom-full left-4 mb-2 z-10 w-64 bg-secondary p-2 rounded-lg shadow-lg border border-input"
+              className="absolute bottom-full left-0 sm:left-4 mb-2 z-10 w-[calc(100vw-2rem)] sm:w-64 max-w-[16rem] bg-secondary p-2 rounded-lg shadow-lg border border-input"
             >
                 {(user.quickPhrases && user.quickPhrases.length > 0) ? user.quickPhrases.map((phrase, i) => (
                     <div key={i} onClick={() => handleQuickPhraseClick(phrase)} className="p-2 hover:bg-background rounded cursor-pointer text-sm">{phrase}</div>
@@ -226,26 +228,27 @@ const ChatInput = ({ onSendMessage }) => {
             </motion.div>
         )}
       </AnimatePresence>
-      <form onSubmit={handleSubmit} className="flex items-center gap-2">
+      <form onSubmit={handleSubmit} className="flex items-center gap-1.5 sm:gap-2">
+        {/* ✅ Botones con tamaño mínimo táctil (44px) para móvil */}
         <Button
           type="button"
           variant="ghost"
           size="icon"
           onClick={() => { setShowQuickPhrases(prev => !prev); setShowEmojiPicker(false);}}
-          className="text-muted-foreground hover:text-cyan-400"
+          className="text-muted-foreground hover:text-cyan-400 min-w-[44px] min-h-[44px] sm:min-w-0 sm:min-h-0"
           title="Frases Rápidas"
           disabled={!user.isPremium}
           aria-label="Abrir frases rápidas (Premium)"
           aria-pressed={showQuickPhrases}
         >
-            <MessageSquarePlus className="w-5 h-5" />
+            <MessageSquarePlus className="w-5 h-5 sm:w-5 sm:h-5" />
         </Button>
         <Button
           type="button"
           variant="ghost"
           size="icon"
           onClick={() => { setShowEmojiPicker(prev => !prev); setShowQuickPhrases(false);}}
-          className="text-muted-foreground hover:text-cyan-400"
+          className="text-muted-foreground hover:text-cyan-400 min-w-[44px] min-h-[44px] sm:min-w-0 sm:min-h-0"
           title="Selector de Emojis"
           aria-label={showEmojiPicker ? "Cerrar selector de emojis" : "Abrir selector de emojis"}
           aria-pressed={showEmojiPicker}
@@ -259,7 +262,7 @@ const ChatInput = ({ onSendMessage }) => {
           variant="ghost"
           size="icon"
           onClick={() => handlePremiumFeature("fotos", "Selector de imágenes")}
-          className={`text-muted-foreground hover:text-cyan-400 ${!user.isPremium ? 'opacity-50' : ''}`}
+          className={`text-muted-foreground hover:text-cyan-400 min-w-[44px] min-h-[44px] sm:min-w-0 sm:min-h-0 ${!user.isPremium ? 'opacity-50' : ''}`}
           title="Enviar Imagen (Premium)"
           aria-label="Enviar imagen (función Premium)"
         >
@@ -271,7 +274,7 @@ const ChatInput = ({ onSendMessage }) => {
           variant="ghost"
           size="icon"
           onClick={() => handlePremiumFeature("mensajes de voz", "Grabadora de voz")}
-          className={`text-muted-foreground hover:text-cyan-400 ${!user.isPremium ? 'opacity-50' : ''}`}
+          className={`text-muted-foreground hover:text-cyan-400 min-w-[44px] min-h-[44px] sm:min-w-0 sm:min-h-0 ${!user.isPremium ? 'opacity-50' : ''}`}
           title="Enviar Mensaje de Voz (Premium)"
           aria-label="Enviar mensaje de voz (función Premium)"
         >
@@ -282,7 +285,7 @@ const ChatInput = ({ onSendMessage }) => {
           value={message}
           onChange={(e) => setMessage(e.target.value)}
           placeholder={user.isGuest ? "Escribe hasta 10 mensajes gratis..." : "Escribe un mensaje..."}
-          className="flex-1 bg-secondary border-2 border-input rounded-lg px-4 py-2 text-foreground placeholder:text-muted-foreground focus:border-accent transition-all"
+          className="flex-1 bg-secondary border-2 border-input rounded-lg px-3 sm:px-4 py-2.5 sm:py-2 text-sm sm:text-base text-foreground placeholder:text-muted-foreground focus:border-accent transition-all min-h-[44px]"
           aria-label="Campo de texto para escribir mensaje"
           maxLength={500}
           autoComplete="off"
@@ -295,7 +298,7 @@ const ChatInput = ({ onSendMessage }) => {
           <Button
             type="submit"
             disabled={!message.trim() || isSending}
-            className="magenta-gradient text-white rounded-lg relative overflow-hidden"
+            className="magenta-gradient text-white rounded-lg relative overflow-hidden min-w-[44px] min-h-[44px] sm:min-w-0 sm:min-h-0"
             size="icon"
             aria-label={isSending ? "Enviando mensaje..." : "Enviar mensaje"}
           >

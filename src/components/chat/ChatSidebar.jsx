@@ -69,7 +69,10 @@ const ChatSidebar = ({ currentRoom, setCurrentRoom, isOpen, onClose }) => {
 
   const handleRoomChange = (roomId) => {
     setCurrentRoom(roomId);
-    onClose();
+    // ✅ Cerrar sidebar automáticamente en móvil al cambiar de sala
+    if (typeof window !== 'undefined' && window.innerWidth < 1024) {
+      onClose();
+    }
   };
   
   const handleLogout = () => {
@@ -79,14 +82,17 @@ const ChatSidebar = ({ currentRoom, setCurrentRoom, isOpen, onClose }) => {
 
   return (
     <>
+      {/* Overlay/Backdrop para móvil - Solo visible cuando sidebar está abierto */}
       <AnimatePresence>
         {isOpen && (
           <motion.div
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
-            className="fixed inset-0 bg-black/60 z-40 lg:hidden"
+            transition={{ duration: 0.2 }}
+            className="fixed inset-0 bg-black/70 backdrop-blur-sm z-40 lg:hidden"
             onClick={onClose}
+            onTouchStart={onClose}
           />
         )}
       </AnimatePresence>
@@ -261,12 +267,13 @@ const ChatSidebar = ({ currentRoom, setCurrentRoom, isOpen, onClose }) => {
         </div>
       </aside>
 
-      {/* Mobile: sidebar deslizable */}
+      {/* Mobile: sidebar deslizable - Oculto por defecto, se muestra solo cuando isOpen=true */}
       <motion.aside
         initial={false}
         animate={{ x: isOpen ? 0 : '-100%' }}
         transition={{ type: 'spring', stiffness: 300, damping: 30 }}
-        className="lg:hidden fixed w-72 h-full bg-card border-r border-border flex flex-col z-50"
+        className="lg:hidden fixed left-0 top-0 w-72 h-full bg-card border-r border-border flex flex-col z-50 shadow-2xl"
+        style={{ willChange: 'transform' }}
       >
         <div className="p-4 border-b border-border flex items-center justify-between">
           <motion.div

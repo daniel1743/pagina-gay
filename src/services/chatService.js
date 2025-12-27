@@ -22,7 +22,7 @@ import { trackMessageSent, trackFirstMessage } from '@/services/ga4Service';
 /**
  * Envía un mensaje a una sala de chat
  * Para usuarios anónimos, usa transacción para incrementar contador
- * ✅ AÑADIDO 2025-12-11: Rate limiting implementado (máx 1 mensaje cada 2 segundos)
+ * ✅ AÑADIDO 2025-12-11: Rate limiting implementado (máx 1 mensaje cada 3 segundos)
  */
 export const sendMessage = async (roomId, messageData, isAnonymous = false) => {
   try {
@@ -56,9 +56,9 @@ export const sendMessage = async (roomId, messageData, isAnonymous = false) => {
     const now = Date.now();
     const timeSinceLastMessage = now - lastMessageTime;
 
-    // Permitir máximo 1 mensaje cada 2 segundos (30 mensajes/minuto)
-    if (timeSinceLastMessage < 2000) {
-      const waitTime = Math.ceil((2000 - timeSinceLastMessage) / 1000);
+    // Permitir máximo 1 mensaje cada 3 segundos (20 mensajes/minuto)
+    if (timeSinceLastMessage < 3000) {
+      const waitTime = Math.ceil((3000 - timeSinceLastMessage) / 1000);
       throw new Error(`Por favor espera ${waitTime} segundo(s) antes de enviar otro mensaje.`);
     }
 

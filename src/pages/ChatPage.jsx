@@ -62,6 +62,30 @@ const ChatPage = () => {
     }
     return false; // Valor por defecto para SSR
   });
+
+  // ✅ Cerrar sidebar automáticamente en móvil cuando cambia el tamaño de ventana
+  useEffect(() => {
+    const handleResize = () => {
+      if (window.innerWidth < 1024) {
+        setSidebarOpen(false);
+      } else {
+        setSidebarOpen(true);
+      }
+    };
+
+    window.addEventListener('resize', handleResize);
+    // Verificar al montar
+    handleResize();
+
+    return () => window.removeEventListener('resize', handleResize);
+  }, []);
+
+  // ✅ Cerrar sidebar automáticamente cuando se cambia de sala en móvil
+  useEffect(() => {
+    if (typeof window !== 'undefined' && window.innerWidth < 1024) {
+      setSidebarOpen(false);
+    }
+  }, [currentRoom]);
   const [privateChatRequest, setPrivateChatRequest] = useState(null);
   const [activePrivateChat, setActivePrivateChat] = useState(null);
   const [showVerificationModal, setShowVerificationModal] = useState(false);
@@ -715,7 +739,7 @@ const ChatPage = () => {
 
   return (
     <>
-      <div className="h-screen flex overflow-hidden bg-background pt-16 sm:pt-20">
+      <div className="h-screen flex overflow-hidden bg-background pt-14 sm:pt-16 md:pt-20">
         <ChatSidebar
           currentRoom={currentRoom}
           setCurrentRoom={setCurrentRoom}

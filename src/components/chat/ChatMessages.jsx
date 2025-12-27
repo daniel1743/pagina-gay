@@ -93,7 +93,7 @@ const ChatMessages = ({ messages, currentUserId, onUserClick, onReport, onPrivat
   }
 
   return (
-    <div className="flex-1 overflow-y-auto p-3 space-y-2 scrollbar-hide">
+    <div className="flex-1 overflow-y-auto p-2 sm:p-3 space-y-2 sm:space-y-2 scrollbar-hide">
       {messages.map((message) => {
         const isOwn = message.userId === currentUserId;
         const isSystem = message.userId === 'system';
@@ -131,7 +131,7 @@ const ChatMessages = ({ messages, currentUserId, onUserClick, onReport, onPrivat
             className={`flex gap-2 ${isOwn ? 'flex-row-reverse' : 'flex-row'}`}
           >
             <motion.div
-              className={`w-8 h-8 rounded-full flex-shrink-0 ${
+              className={`w-10 h-10 sm:w-8 sm:h-8 rounded-full flex-shrink-0 ${
                 userRole === 'admin'
                   ? 'admin-avatar-ring'
                   : isUserVerified
@@ -160,26 +160,26 @@ const ChatMessages = ({ messages, currentUserId, onUserClick, onReport, onPrivat
                 </Avatar>
             </motion.div>
 
-            <div className={`group flex flex-col ${isOwn ? 'items-end' : 'items-start'} max-w-[85%] sm:max-w-[75%] md:max-w-[65%] min-w-0`}>
+            <div className={`group flex flex-col ${isOwn ? 'items-end' : 'items-start'} max-w-[80%] sm:max-w-[75%] md:max-w-[65%] min-w-0`}>
               <div className="flex items-center gap-1.5 mb-0.5 flex-wrap">
-                <span className="text-[10px] font-semibold text-foreground flex items-center gap-1">
+                <span className="text-xs sm:text-[10px] font-semibold text-foreground flex items-center gap-1">
                   {message.username}
                   {(isUserPremium || userRole === 'admin') && (
-                    <CheckCircle className="w-2.5 h-2.5 text-[#FFD700]" />
+                    <CheckCircle className="w-3 h-3 sm:w-2.5 sm:h-2.5 text-[#FFD700]" />
                   )}
                   {isUserVerified && !isUserPremium && userRole !== 'admin' && (
-                    <CheckCircle className="w-2.5 h-2.5 text-[#1DA1F2]" />
+                    <CheckCircle className="w-3 h-3 sm:w-2.5 sm:h-2.5 text-[#1DA1F2]" />
                   )}
                 </span>
                 {/* Ocultar hora para bots (incluyendo bots estáticos) */}
                 {!message.userId.startsWith('bot_') && !message.userId.startsWith('static_bot_') && (
-                  <span className="text-[10px] text-muted-foreground flex items-center gap-0.5">
+                  <span className="text-xs sm:text-[10px] text-muted-foreground flex items-center gap-0.5">
                     {formatTime(message.timestamp)}
                     {isOwn && (
                       messageChecks[message.id] === 'double' ? (
-                        <CheckCheck className="w-3 h-3 text-blue-400" />
+                        <CheckCheck className="w-3.5 h-3.5 sm:w-3 sm:h-3 text-blue-400" />
                       ) : (
-                        <Check className="w-3 h-3 text-muted-foreground" />
+                        <Check className="w-3.5 h-3.5 sm:w-3 sm:h-3 text-muted-foreground" />
                       )
                     )}
                   </span>
@@ -198,19 +198,19 @@ const ChatMessages = ({ messages, currentUserId, onUserClick, onReport, onPrivat
 
               <motion.div
                 style={isOwn ? getBubbleStyle() : {}}
-                className={`relative rounded-xl px-3 py-2 w-full break-words text-sm leading-relaxed ${isOwn ? 'magenta-gradient text-white' : 'bg-secondary text-foreground border border-border'} ${!isOwn ? 'group-hover:border-cyan-400 border-2 transition-all duration-200' : ''}`}
+                className={`relative rounded-xl px-3.5 sm:px-3 py-2.5 sm:py-2 w-full break-words text-base sm:text-sm leading-relaxed ${isOwn ? 'magenta-gradient text-white' : 'bg-secondary text-foreground border border-border'} ${!isOwn ? 'group-hover:border-cyan-400 border-2 transition-all duration-200' : ''}`}
                 whileHover={!isOwn ? { scale: 1.01, borderColor: 'rgb(34, 211, 238)' } : {}}
                 transition={{ type: 'spring', stiffness: 400 }}
               >
                 <div
-                  className="cursor-pointer break-words overflow-wrap-anywhere"
+                  className="cursor-pointer break-words overflow-wrap-anywhere min-h-[44px] flex items-center"
                   onClick={() => onPrivateChat({ username: message.username, avatar: message.avatar, userId: message.userId, isPremium: isUserPremium })}
                 >
                   {message.type === 'text' && (
-                    <p className="text-sm whitespace-pre-wrap break-words">{message.content}</p>
+                    <p className="text-base sm:text-sm whitespace-pre-wrap break-words">{message.content}</p>
                   )}
                   {message.type === 'gif' && (
-                    <img src={message.content} alt="GIF" className="rounded-lg max-w-xs" />
+                    <img src={message.content} alt="GIF" className="rounded-lg max-w-full sm:max-w-xs" />
                   )}
                 </div>
 

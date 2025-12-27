@@ -90,10 +90,10 @@ const FeatureCard = ({
         whileHover={{ y: -6 }}
         whileTap={{ scale: 0.98 }}
         className={`
-          relative h-full ${isHorizontal ? 'min-h-[140px] sm:min-h-[160px]' : 'min-h-[200px] sm:min-h-[220px]'}
+          relative h-full ${isHorizontal ? 'min-h-[120px] sm:min-h-[140px] md:min-h-[160px]' : 'min-h-[180px] sm:min-h-[200px] md:min-h-[220px]'}
           bg-card text-foreground
           border-2 border-border
-          rounded-2xl p-5 sm:p-6
+          rounded-2xl p-4 sm:p-5 md:p-6
           transition-all duration-300
           hover:border-primary/60
           shadow-sm hover:shadow-xl
