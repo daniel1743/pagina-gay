@@ -19,6 +19,7 @@ import {
 import { db, auth } from '@/config/firebase';
 import { trackMessageSent, trackFirstMessage } from '@/services/ga4Service';
 import { checkRateLimit, recordMessage } from '@/services/rateLimitService';
+import { recordUserMessageOrder } from '@/services/multiProviderAIConversation';
 
 /**
  * Envía un mensaje a una sala de chat
@@ -153,6 +154,11 @@ export const sendMessage = async (roomId, messageData, isAnonymous = false) => {
       // ✅ Registrar mensaje enviado en cache de rate limiting (con contenido para detectar duplicados)
       recordMessage(messageData.userId, messageData.content);
 
+      // 🔥 NUEVO: Registrar mensaje en orden para que IAs también esperen su turno
+      if (isRealUser) {
+        recordUserMessageOrder(roomId, messageData.userId);
+      }
+
       console.log(`✅ [MENSAJE ENVIADO] ${messageData.username} (anónimo) → "${messageData.content.substring(0,30)}..."`);
 
       // Actualizar contador en segundo plano sin bloquear
@@ -185,6 +191,11 @@ export const sendMessage = async (roomId, messageData, isAnonymous = false) => {
 
       // ✅ Registrar mensaje enviado en cache de rate limiting (con contenido para detectar duplicados)
       recordMessage(messageData.userId, messageData.content);
+
+      // 🔥 NUEVO: Registrar mensaje en orden para que IAs también esperen su turno
+      if (isRealUser) {
+        recordUserMessageOrder(roomId, messageData.userId);
+      }
 
       console.log(`✅ [MENSAJE ENVIADO] ${messageData.username} (${messageType}) → "${messageData.content.substring(0,30)}..."`)
 
