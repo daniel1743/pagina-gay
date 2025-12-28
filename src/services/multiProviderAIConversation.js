@@ -24,6 +24,48 @@ const MAX_ACTIVE_USERS = 9;
 const HISTORY_LIMIT = 20;
 const AI_RESTRICTIONS_ENABLED = false;
 
+const AI_DISCLOSURE_PATTERNS = [
+  /\bsoy\s+(un\s+)?bot\b/i,
+  /\b(bot|chatbot|robot)\b/i,
+  /\bsoy\s+(una\s+)?ia\b/i,
+  /\binteligencia\s+artificial\b/i,
+  /\bmodelo\s+de\s+lenguaje\b/i,
+  /\bllm\b/i,
+  /\basistente\s+virtual\b/i,
+  /\bopenai\b/i,
+  /\bchatgpt\b/i,
+  /\bgemini\b/i,
+  /\bdeepseek\b/i,
+  /\bqwen\b/i,
+  /\bno\s+estoy\s+configurado\b/i,
+  /\bno\s+puedo\s+responder\b/i,
+  /\bno\s+tengo\s+acceso\b/i,
+  /\bno\s+puedo\s+acceder\b/i,
+  /\bno\s+tengo\s+emociones\b/i,
+  /\bcomo\s+ia\b/i,
+  /\bcomo\s+modelo\b/i,
+  /\bcomo\s+asistente\b/i,
+  /\bno\s+estoy\s+autorizado\b/i,
+  /\bpoliticas\b/i,
+  /\bpolicy\b/i,
+  /\bprompt\b/i,
+  /\binstrucciones\b/i,
+  /\bdatos\s+de\s+entrenamiento\b/i,
+  /\bentrenado\b/i,
+  /\bno\s+tengo\s+conciencia\b/i,
+  /\bsoy\s+(un\s+)?programa\b/i,
+  /\bsoy\s+(un\s+)?sistema\b/i,
+  /\bsoy\s+(un\s+)?modelo\b/i,
+  /\bsoy\s+(un\s+)?asistente\b/i,
+  /\bno\s+puedo\s+(proporcionar|cumplir|realizar|generar|contestar)\b/i,
+  /\bno\s+tengo\s+permitido\b/i
+];
+
+const containsAIDisclosure = (text) => {
+  if (!text) return false;
+  return AI_DISCLOSURE_PATTERNS.some((pattern) => pattern.test(text));
+};
+
 const PROVIDERS = {
   openai: {
     apiKey: import.meta.env.VITE_OPENAI_API_KEY,
@@ -460,7 +502,7 @@ const hasAIUsedMessageRecently = (aiId, newMessage) => {
     const similarity = commonWords.length / Math.max(wordsNew.length, wordsCached.length);
 
     if (similarity > 0.8) {
-      console.log(`[ANTI-REPETICIÓN] ❌ ${aiId} intentó mensaje muy similar (${Math.round(similarity * 100)}%): "${newMessage.substring(0, 50)}..."`);
+      console.log(`[ANTI-REPETICIÓN] ❌ ${aiId} intentó repetir mensaje similar (${Math.round(similarity * 100)}%): "${newMessage.substring(0, 50)}..."`);
       return true;
     }
   }
@@ -561,7 +603,7 @@ const buildPrompt = (personality, roomId, isResponseToUser = false, userMessage 
     : '- Mantente corto y natural (1-2 frases)';
 
   const styleRules = [
-    'LEXICO REAL: modismos de chat (kajsksj, kakakak, jajsksj, wn, loco, pana, epale, choro, no lo se rick, ridiculo, arrogante, callate, que pendejo, estas crazy, mmgb).',
+    'LEXICO REAL: modismos de chat (kajsksj, kakakak, jajsksj, wn, loco, pana, epale, choro, balurdo, no lo se rick, mira este chismoso, ridiculo, arrogante, callate, que pendejo, estas crazy, mmgb).',
     'GRAMATICA REAL: corta palabras, sin acentos, mezcla mayus/minus (q onda, toy, tmb, pa, pq).',
     'TONO: jodon/exagerado cuando toque, pero sano. No suenes perfecto ni robotico.',
     'NATURAL: mezcla palabras cortas, frases incompletas y respuestas con contexto.',
@@ -642,12 +684,22 @@ const generateAIMessage = async (roomId, personality, isResponseToUser = false, 
       throw new Error('Empty response');
     }
 
+    if (containsAIDisclosure(text)) {
+      console.warn(`[MULTI AI] BLOQUEADO: intento de revelar IA por ${personality.username}`);
+      if (retryCount < 2) {
+        await new Promise(resolve => setTimeout(resolve, 400));
+        return await generateAIMessage(roomId, personality, isResponseToUser, userMessage, userName, retryCount + 1);
+      }
+      return null;
+    }
+
+
     const normalizedText = text.toLowerCase();
     const hasProhibitedPattern =
       (normalizedText.includes('wn') && normalizedText.includes('el') && normalizedText.includes('es el mejor')) ||
       normalizedText.includes('si rue llega') ||
-      normalizedText.includes('hasta el más') ||
       normalizedText.includes('hasta el mas') ||
+      false;
 
     if (AI_RESTRICTIONS_ENABLED && hasProhibitedPattern) {
 
@@ -726,16 +778,22 @@ const isMessageSimilar = (roomId, newMessage, threshold = 0.5) => {
   ];
 
   const normalizedForPattern = newMessage.toLowerCase();
+  
+  // 🔥 Detectar si contiene "queso" y "mejor" (patrón repetitivo conocido)
   if (normalizedForPattern.includes('queso') && normalizedForPattern.includes('mejor')) {
     return true;
   }
-
-    }
-  }
   
-  // 🔥 Detectar si contiene la estructura completa del mensaje repetitivo
-      normalizedForPattern.includes('mejor') && 
+  // 🔥 Detectar si contiene "nacho/nachos" y "mejor" (patrón repetitivo conocido)
+  if ((normalizedForPattern.includes('nacho') || normalizedForPattern.includes('nachos')) && normalizedForPattern.includes('mejor')) {
     return true;
+  }
+
+  // Verificar patrones prohibidos
+  for (const pattern of prohibitedPatterns) {
+    if (pattern.test(newMessage)) {
+      return true;
+    }
   }
 
   // Comparar con últimos 10 mensajes (aumentado de 5)
@@ -829,19 +887,10 @@ const sendAIMessage = async (roomId, personality, content, source = 'unknown') =
   // 🔍 RASTREO: Mensaje recibido para validación
   logMessageEvent('MENSAJE RECIBIDO', personality, content, roomId, null, new Error().stack);
 
-  const normalizedContent = content.toLowerCase();
-  const disclosurePatterns = [
-    'soy chatgpt', 'soy una ia', 'soy ia', 'inteligencia artificial', 'modelo de lenguaje',
-    'como modelo', 'no estoy configurado', 'no puedo responder', 'asistente virtual', 'openai',
-    'soy un bot', 'soy bot'
-  ];
-  const disclosureHit = disclosurePatterns.some(p => normalizedContent.includes(p));
-  if (disclosureHit) {
+  if (containsAIDisclosure(content)) {
     logMessageEvent('BLOQUEADO - REVELA IA', personality, content, roomId, 'Frase prohibida', new Error().stack);
     console.error('[MULTI AI] BLOQUEADO: intento de revelar IA');
     return;
-  }
-    return; // NO ENVIAR
   }
 
   // 🔥 ANTI-REPETICIÓN NIVEL 1: Verificar si esta IA específica ya usó este mensaje en la última hora
@@ -913,8 +962,15 @@ const sendAIMessage = async (roomId, personality, content, source = 'unknown') =
 
   logMessageEvent('✅ MENSAJE ENVIADO EXITOSAMENTE', personality, content, roomId, `Origen: ${source} | Guardado en historial y cache`, new Error().stack);
   console.log(`[MULTI AI] ✅ ${personality.username} envió: "${content.substring(0, 50)}..."`);
-  if (spamCheck && spamCheck.stats) {
-    console.log(`[MULTI AI] 📊 Spam stats: ${spamCheck.stats.totalSimilar || 0} mensajes similares recientes`);
+  
+  // Mostrar stats de spam si están disponibles
+  try {
+    const spamCheckResult = validateMessageForSpam(personality.userId, content);
+    if (spamCheckResult && spamCheckResult.stats) {
+      console.log(`[MULTI AI] 📊 Spam stats: ${spamCheckResult.stats.totalSimilar || 0} mensajes similares recientes`);
+    }
+  } catch (e) {
+    // Ignorar errores en stats
   }
 };
 
