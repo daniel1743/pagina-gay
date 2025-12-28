@@ -27,11 +27,25 @@ class NotificationSounds {
     if (!this.audioContext) {
       try {
         this.audioContext = new (window.AudioContext || window.webkitAudioContext)();
-        console.log('[SOUNDS] 🔊 Sistema de sonidos inicializado');
+        console.log('[SOUNDS] 🔊 Sistema de sonidos inicializado correctamente');
+        console.log('[SOUNDS] 📊 Estado de AudioContext:', this.audioContext.state);
+        console.log('[SOUNDS] 🔇 Mute:', this.isMuted);
+        return true;
       } catch (error) {
         console.error('[SOUNDS] ❌ Error al inicializar AudioContext:', error);
+        return false;
       }
+    } else {
+      console.log('[SOUNDS] ✅ AudioContext ya estaba inicializado');
+      return true;
     }
+  }
+
+  /**
+   * Verifica si el AudioContext está inicializado
+   */
+  isInitialized() {
+    return this.audioContext !== null;
   }
 
   /**
@@ -84,7 +98,28 @@ class NotificationSounds {
    * Genera un sonido "pluc" sutil (tono corto descendente)
    */
   playMessageSound() {
-    if (this.isMuted || !this.audioContext) return;
+    if (this.isMuted) {
+      console.log('[SOUNDS] 🔇 Sonido de mensaje bloqueado: MUTED');
+      return;
+    }
+
+    if (!this.audioContext) {
+      console.warn('[SOUNDS] ⚠️ Sonido de mensaje bloqueado: AudioContext NO INICIALIZADO');
+      console.warn('[SOUNDS] 💡 Intentando inicializar AudioContext automáticamente...');
+      this.init();
+      if (!this.audioContext) {
+        console.error('[SOUNDS] ❌ No se pudo inicializar AudioContext');
+        return;
+      }
+    }
+
+    // Verificar si el AudioContext está suspendido (común en Chrome/Safari)
+    if (this.audioContext.state === 'suspended') {
+      console.log('[SOUNDS] 🔄 AudioContext suspendido, reanudando...');
+      this.audioContext.resume().then(() => {
+        console.log('[SOUNDS] ✅ AudioContext reanudado correctamente');
+      });
+    }
 
     const now = Date.now();
     this.messagesInWindow++;
@@ -141,7 +176,28 @@ class NotificationSounds {
    * Genera un sonido "clap" sutil (ruido breve con ataque rápido)
    */
   playDisconnectSound() {
-    if (this.isMuted || !this.audioContext) return;
+    if (this.isMuted) {
+      console.log('[SOUNDS] 🔇 Sonido de desconexión bloqueado: MUTED');
+      return;
+    }
+
+    if (!this.audioContext) {
+      console.warn('[SOUNDS] ⚠️ Sonido de desconexión bloqueado: AudioContext NO INICIALIZADO');
+      console.warn('[SOUNDS] 💡 Intentando inicializar AudioContext automáticamente...');
+      this.init();
+      if (!this.audioContext) {
+        console.error('[SOUNDS] ❌ No se pudo inicializar AudioContext');
+        return;
+      }
+    }
+
+    // Verificar si el AudioContext está suspendido (común en Chrome/Safari)
+    if (this.audioContext.state === 'suspended') {
+      console.log('[SOUNDS] 🔄 AudioContext suspendido, reanudando...');
+      this.audioContext.resume().then(() => {
+        console.log('[SOUNDS] ✅ AudioContext reanudado correctamente');
+      });
+    }
 
     try {
       const bufferSize = this.audioContext.sampleRate * 0.15; // 150ms

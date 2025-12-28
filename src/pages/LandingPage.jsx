@@ -1,10 +1,19 @@
-import React from 'react';
+import React, { useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import ChatDemo from '../components/landing/ChatDemo';
+import { useAuth } from '@/contexts/AuthContext';
 
 export default function LandingPage() {
   const navigate = useNavigate();
+  const { user } = useAuth();
+
+  // Redirigir usuarios autenticados (no guests) directamente al lobby
+  useEffect(() => {
+    if (user && !user.isGuest && !user.isAnonymous) {
+      navigate('/lobby', { replace: true });
+    }
+  }, [user, navigate]);
 
   const handleJoinClick = () => {
     navigate('/lobby');

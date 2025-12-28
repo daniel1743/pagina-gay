@@ -9,6 +9,7 @@ Allow: /
 Allow: /chat/
 Allow: /anonymous-chat
 Allow: /anonymous-forum
+Allow: /global
 Allow: /gaming
 Allow: /mas-30
 Allow: /santiago

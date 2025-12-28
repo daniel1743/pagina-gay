@@ -4,17 +4,24 @@ import { useNavigate } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
 import { Button } from '@/components/ui/button';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
-import { ArrowLeft, Crown, Shield, Camera, Edit, MessageSquare, CheckCircle, HelpCircle, Ticket } from 'lucide-react';
+import { ArrowLeft, Crown, Shield, Camera, Edit, MessageSquare, CheckCircle, HelpCircle, Ticket, Upload, Image as ImageIcon } from 'lucide-react';
 import { toast } from '@/components/ui/use-toast';
 import ComingSoonModal from '@/components/ui/ComingSoonModal';
 import EditProfileModal from '@/components/profile/EditProfileModal';
 import AvatarSelector from '@/components/profile/AvatarSelector';
+import PhotoUploadModal from '@/components/profile/PhotoUploadModal';
 import ProfileComments from '@/components/profile/ProfileComments';
 import CreateTicketModal from '@/components/tickets/CreateTicketModal';
 import VerificationExplanationModal from '@/components/verification/VerificationExplanationModal';
 import VerificationFAQ from '@/components/verification/VerificationFAQ';
 import { getUserVerificationStatus } from '@/services/verificationService';
 import { useCanonical } from '@/hooks/useCanonical';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
 
 const ProfilePage = () => {
   // SEO: Canonical tag para página de perfil
@@ -28,6 +35,7 @@ const ProfilePage = () => {
   const { user, logout, updateProfile } = useAuth();
   const [isEditModalOpen, setEditModalOpen] = useState(false);
   const [isAvatarSelectorOpen, setAvatarSelectorOpen] = useState(false);
+  const [isPhotoUploadOpen, setPhotoUploadOpen] = useState(false);
   const [showComingSoon, setShowComingSoon] = useState(false);
   const [comingSoonFeature, setComingSoonFeature] = useState({ name: '', description: '' });
   const [showTicketModal, setShowTicketModal] = useState(false);
@@ -52,6 +60,20 @@ const ProfilePage = () => {
 
   const handleChangePicture = () => {
     setAvatarSelectorOpen(true);
+  };
+
+  const handleUploadPhoto = () => {
+    setPhotoUploadOpen(true);
+  };
+
+  const handlePhotoUploadSuccess = async (photoURL) => {
+    // La foto ya se actualizó en el perfil a través de updateProfile en PhotoUploadModal
+    // Solo necesitamos actualizar el estado local si es necesario
+    try {
+      await updateProfile({ avatar: photoURL });
+    } catch (error) {
+      console.error('Error actualizando foto en perfil:', error);
+    }
   };
 
   const handleAvatarSelect = async (newAvatar) => {
@@ -105,9 +127,23 @@ const ProfilePage = () => {
                     </AvatarFallback>
                     </Avatar>
                 </div>
-                <Button onClick={handleChangePicture} size="icon" className="absolute bottom-1 right-1 rounded-full magenta-gradient">
-                  <Camera className="w-5 h-5" />
-                </Button>
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <Button size="icon" className="absolute bottom-1 right-1 rounded-full magenta-gradient">
+                      <Camera className="w-5 h-5" />
+                    </Button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="end" className="bg-card border-border text-foreground min-w-[200px]">
+                    <DropdownMenuItem onClick={handleUploadPhoto} className="cursor-pointer">
+                      <Upload className="w-4 h-4 mr-2" />
+                      Subir Foto
+                    </DropdownMenuItem>
+                    <DropdownMenuItem onClick={handleChangePicture} className="cursor-pointer">
+                      <ImageIcon className="w-4 h-4 mr-2" />
+                      Elegir Avatar
+                    </DropdownMenuItem>
+                  </DropdownMenuContent>
+                </DropdownMenu>
               </div>
 
               <div className="flex-1 text-center md:text-left">
@@ -236,6 +272,14 @@ const ProfilePage = () => {
           onClose={() => setAvatarSelectorOpen(false)}
           currentAvatar={user.avatar}
           onSelect={handleAvatarSelect}
+        />
+      )}
+
+      {isPhotoUploadOpen && (
+        <PhotoUploadModal
+          isOpen={isPhotoUploadOpen}
+          onClose={() => setPhotoUploadOpen(false)}
+          onUploadSuccess={handlePhotoUploadSuccess}
         />
       )}
 

@@ -19,12 +19,21 @@ import ThreadDetailPage from '@/pages/ThreadDetailPage';
 import GamingLandingPage from '@/pages/GamingLandingPage';
 import Mas30LandingPage from '@/pages/Mas30LandingPage';
 import SantiagoLandingPage from '@/pages/SantiagoLandingPage';
+import GlobalLandingPage from '@/pages/GlobalLandingPage';
 import { ThemeProvider } from '@/contexts/ThemeContext';
 
 // ✅ Componentes que usan useAuth deben estar dentro del AuthProvider
 function PrivateRoute({ children }) {
   const { user } = useAuth();
   return user && !user.isGuest ? children : <Navigate to="/auth" />;
+}
+
+function LandingRoute({ children, redirectTo }) {
+  const { user } = useAuth();
+  if (user) {
+    return <Navigate to={redirectTo} replace />;
+  }
+  return children;
 }
 
 function MainLayout({ children }) {
@@ -61,9 +70,10 @@ function AppRoutes() {
         <Route path="/auth" element={<AuthPage />} />
 
         {/* ✅ SEO: Landing pages específicas optimizadas para CTR */}
-        <Route path="/gaming" element={<MainLayout><GamingLandingPage /></MainLayout>} />
-        <Route path="/mas-30" element={<MainLayout><Mas30LandingPage /></MainLayout>} />
-        <Route path="/santiago" element={<MainLayout><SantiagoLandingPage /></MainLayout>} />
+        <Route path="/global" element={<LandingRoute redirectTo="/chat/global"><MainLayout><GlobalLandingPage /></MainLayout></LandingRoute>} />
+        <Route path="/gaming" element={<LandingRoute redirectTo="/chat/gaming"><MainLayout><GamingLandingPage /></MainLayout></LandingRoute>} />
+        <Route path="/mas-30" element={<LandingRoute redirectTo="/chat/mas-30"><MainLayout><Mas30LandingPage /></MainLayout></LandingRoute>} />
+        <Route path="/santiago" element={<LandingRoute redirectTo="/chat/santiago"><MainLayout><SantiagoLandingPage /></MainLayout></LandingRoute>} />
 
         {/* ✅ REDIRECCIÓN: conversas-libres → global (sala limpia sin spam) */}
         <Route

@@ -474,6 +474,26 @@ const normalizeMessage = (text) => {
     .trim();
 };
 
+const MIN_WORDS = 3; // 🔥 MODO AHORRADOR: Mínimo 3 palabras
+const MAX_WORDS = 10; // 🔥 MODO AHORRADOR: Máximo 10 palabras para IAs entre ellas
+const MAX_WORDS_USER_RESPONSE = 15; // 🔥 MODO AHORRADOR: Máximo 15 palabras para respuestas a usuarios
+
+const countWords = (text) => {
+  if (!text) return 0;
+  return text
+    .trim()
+    .split(/\s+/)
+    .filter(Boolean).length;
+};
+
+const trimToMaxWords = (text, maxWords = MAX_WORDS) => {
+  const words = text.trim().split(/\s+/).filter(Boolean);
+  if (words.length <= maxWords) {
+    return text.trim();
+  }
+  return words.slice(0, maxWords).join(' ');
+};
+
 /**
  * Verifica si una IA ya usó este mensaje (o uno muy similar) en la última hora
  */
@@ -599,8 +619,8 @@ const buildPrompt = (personality, roomId, isResponseToUser = false, userMessage 
     : '- Este mensaje va sin emojis';
 
   const messageLengthRule = isResponseToUser
-    ? '- Responde natural y directo al usuario'
-    : '- Mantente corto y natural (1-2 frases)';
+    ? '- MÁXIMO 15 palabras. Sé conciso y directo. Responde al usuario y haz una pregunta corta.'
+    : '- MÁXIMO 10 palabras. Mensajes ultra cortos. Una frase, una pregunta, o un comentario breve. NUNCA más de 10 palabras.';
 
   const styleRules = [
     'LEXICO REAL: modismos de chat (kajsksj, kakakak, jajsksj, wn, loco, pana, epale, choro, balurdo, no lo se rick, mira este chismoso, ridiculo, arrogante, callate, que pendejo, estas crazy, mmgb).',
@@ -651,7 +671,7 @@ const fetchChatCompletion = async (providerKey, messages) => {
         model: provider.model,
         messages,
         temperature: 1.0, // ✅ OPCIÓN C: Más creatividad y variedad
-        max_tokens: 100 // ✅ OPCIÓN C: Respuestas más largas y naturales (antes 120)
+        max_tokens: 30 // 🔥 MODO AHORRADOR: Máximo 30 tokens (mensajes cortos)
       })
     });
 
@@ -662,7 +682,16 @@ const fetchChatCompletion = async (providerKey, messages) => {
     }
 
     const data = await response.json();
-    const content = data?.choices?.[0]?.message?.content?.trim() || '';
+    let content = data?.choices?.[0]?.message?.content?.trim() || '';
+    
+    // 🔥 MODO AHORRADOR: Truncar mensajes largos (máximo 15 palabras para usuarios, 10 para IAs)
+    const words = content.split(/\s+/).filter(w => w.length > 0);
+    const maxWords = isResponseToUser ? 15 : 10;
+    if (words.length > maxWords) {
+      content = words.slice(0, maxWords).join(' ') + '...';
+      console.log(`[MULTI AI] ⚠️ Mensaje truncado de ${words.length} a ${maxWords} palabras para ahorrar tokens`);
+    }
+    
     console.log(`[MULTI AI] ✅ Respuesta de ${providerKey}:`, content.substring(0, 50) + '...');
     return content;
   } catch (error) {
@@ -678,7 +707,7 @@ const generateAIMessage = async (roomId, personality, isResponseToUser = false, 
       console.log(`[MULTI AI] 🎯 Contexto del usuario: "${userMessage}"`);
     }
     const prompt = buildPrompt(personality, roomId, isResponseToUser, userMessage, userName);
-    const text = await fetchChatCompletion(personality.provider, prompt);
+    const text = await fetchChatCompletion(personality.provider, prompt, isResponseToUser);
     if (!text) {
       console.warn(`[MULTI AI] ⚠️ Respuesta vacía de ${personality.username}, reintentando...`);
       throw new Error('Empty response');
@@ -692,6 +721,25 @@ const generateAIMessage = async (roomId, personality, isResponseToUser = false, 
       }
       return null;
     }
+    // 🔥 MODO AHORRADOR: Truncar mensajes largos ANTES de validar
+    const maxWordsAllowed = isResponseToUser ? MAX_WORDS_USER_RESPONSE : MAX_WORDS;
+    let wordCount = countWords(text);
+    
+    if (wordCount > maxWordsAllowed) {
+      text = trimToMaxWords(text, maxWordsAllowed);
+      wordCount = countWords(text);
+      console.log(`[MULTI AI] 🔥 [AHORRADOR] Mensaje truncado a ${wordCount} palabras (máximo ${maxWordsAllowed}) para ${personality.username}`);
+    }
+    
+    if (wordCount < MIN_WORDS) {
+      console.warn(`[MULTI AI] BLOQUEADO: mensaje muy corto (${wordCount} palabras) por ${personality.username}`);
+      if (retryCount < 2) {
+        await new Promise(resolve => setTimeout(resolve, 400));
+        return await generateAIMessage(roomId, personality, isResponseToUser, userMessage, userName, retryCount + 1);
+      }
+      return null;
+    }
+
 
 
     const normalizedText = text.toLowerCase();
@@ -892,6 +940,24 @@ const sendAIMessage = async (roomId, personality, content, source = 'unknown') =
     console.error('[MULTI AI] BLOQUEADO: intento de revelar IA');
     return;
   }
+
+  // 🔥 MODO AHORRADOR: Truncar si excede límite en lugar de bloquear
+  let contentWordCount = countWords(content);
+  const maxWordsAllowed = source === 'AI_RESPONSE_TO_USER' ? MAX_WORDS_USER_RESPONSE : MAX_WORDS;
+  
+  if (contentWordCount > maxWordsAllowed) {
+    const originalCount = contentWordCount;
+    content = trimToMaxWords(content, maxWordsAllowed);
+    contentWordCount = countWords(content);
+    console.log(`[MULTI AI] 🔥 [AHORRADOR] Mensaje truncado de ${originalCount} a ${contentWordCount} palabras en sendAIMessage`);
+  }
+  
+  if (contentWordCount < MIN_WORDS) {
+    logMessageEvent('BLOQUEADO - LIMITE PALABRAS', personality, content, roomId, `Palabras: ${contentWordCount} (mínimo ${MIN_WORDS})`, new Error().stack);
+    console.error(`[MULTI AI] BLOQUEADO: mensaje muy corto (${contentWordCount} palabras)`);
+    return;
+  }
+
 
   // 🔥 ANTI-REPETICIÓN NIVEL 1: Verificar si esta IA específica ya usó este mensaje en la última hora
   if (AI_RESTRICTIONS_ENABLED && hasAIUsedMessageRecently(personality.userId, content)) {
@@ -1177,29 +1243,25 @@ export const greetNewUser = async (roomId, username) => {
     // Saludos casuales atrevidos en chileno (sin exclamaciones)
   // Si es invitado, usar saludos genéricos sin nombre
   const greetings = isGuest ? [
-    `hola, que tal`,
-    `que onda, como estas`,
-    `ey, como andas`,
-    `hola, que hay`,
-    `que onda wn`,
-    `holi ajaja`,
-    `llegaste justo 😈`,
-    `tienes buena pinta ajaja 😏`,
-    `bienvenido, estaba aburrido po`,
-    `hola, como estas`,
-    `que tal, todo bien?`
+    `hola, que tal, como va todo hoy`,
+    `que onda wn, como va tu noche`,
+    `ey, como andas hoy, todo bien`,
+    `hola, llegaste justo, cuentanos algo po`,
+    `que hay, andamos conversando, sumate po`,
+    `holi, aqui estamos activos, que cuentas`,
+    `bienvenido, estabamos aburridos, llega con tema`,
+    `que onda, cae con tu mejor historia hoy`
   ] : [
-      `hola ${username}, que tal`,
-      `bienvenido ${username} 👋`,
-      `hola ${username}, como andas`,
-      `que onda ${username}`,
-      `ey ${username} 👀`,
-      `que hay ${username}`,
-      `${username} wn hola`,
-      `holi ${username} ajaja`,
-      `${username} bienvenido, estaba aburrido po`,
-      `que onda ${username}, andas buscando algo? 😈`,
+      `hola ${username}, que tal, como va hoy`,
+      `bienvenido ${username}, llega con tema bueno`,
+      `que onda ${username}, cuentanos algo interesante`,
+      `hola ${username}, estabamos conversando aqui`,
+      `ey ${username}, como va tu noche po`,
+      `${username} wn hola, que se cuenta`,
+      `hola ${username}, suma tu opinion al chat`,
+      `que onda ${username}, andas buscando conversa hoy`
     ];
+
 
   // Primera IA saluda (2-5 segundos)
   setTimeout(async () => {

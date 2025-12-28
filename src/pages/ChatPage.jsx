@@ -327,16 +327,54 @@ const ChatPage = () => {
   // ✅ NUEVO: Verificar si el usuario ya aceptó las reglas del chat
   useEffect(() => {
     if (!user || !user.id) return;
-    
+
     const rulesKey = `chat_rules_accepted_${user.id}`;
     const hasAccepted = localStorage.getItem(rulesKey) === 'true';
-    
+
     if (!hasAccepted) {
       // Mostrar modal de reglas si no las ha aceptado
       setShowChatRules(true);
       setHasAcceptedRules(false);
     } else {
       setHasAcceptedRules(true);
+    }
+  }, [user]);
+
+  // 🔊 INICIALIZACIÓN DE SONIDOS: Forzar inicialización al montar componente
+  useEffect(() => {
+    if (!user) return;
+
+    console.log('[CHAT] 🔊 Inicializando sistema de sonidos...');
+
+    // Intentar inicializar inmediatamente (funcionará si el usuario ya interactuó)
+    const initialized = notificationSounds.init();
+
+    if (!initialized) {
+      console.log('[CHAT] ⏳ AudioContext requiere interacción del usuario, esperando...');
+
+      // Si no se pudo inicializar, agregar listener para el primer click/touch
+      const handleFirstInteraction = () => {
+        console.log('[CHAT] 👆 Primera interacción detectada, inicializando sonidos...');
+        const success = notificationSounds.init();
+        if (success) {
+          console.log('[CHAT] ✅ Sistema de sonidos listo');
+          document.removeEventListener('click', handleFirstInteraction);
+          document.removeEventListener('touchstart', handleFirstInteraction);
+          document.removeEventListener('keydown', handleFirstInteraction);
+        }
+      };
+
+      document.addEventListener('click', handleFirstInteraction, { once: true });
+      document.addEventListener('touchstart', handleFirstInteraction, { once: true });
+      document.addEventListener('keydown', handleFirstInteraction, { once: true });
+
+      return () => {
+        document.removeEventListener('click', handleFirstInteraction);
+        document.removeEventListener('touchstart', handleFirstInteraction);
+        document.removeEventListener('keydown', handleFirstInteraction);
+      };
+    } else {
+      console.log('[CHAT] ✅ Sistema de sonidos inicializado correctamente');
     }
   }, [user]);
 

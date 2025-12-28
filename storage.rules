@@ -1,0 +1,32 @@
+rules_version = '2';
+
+service firebase.storage {
+  match /b/{bucket}/o {
+    // ⚠️ IMPORTANTE: Este archivo contiene SOLO las reglas para profile_photos
+    // Si ya tienes reglas de Storage desplegadas, NO uses este archivo directamente.
+    // En su lugar, usa el archivo storage.rules.to-add.txt y añade esas reglas
+    // a tus reglas existentes en Firebase Console.
+    
+    // Reglas para fotos de perfil
+    match /profile_photos/{userId}/{allPaths=**} {
+      // Cualquiera puede leer las fotos de perfil (públicas)
+      allow read: if true;
+      
+      // Solo el usuario autenticado puede escribir en su propia carpeta
+      allow write: if request.auth != null && request.auth.uid == userId
+        && request.resource.size < 100 * 1024  // Máximo 100 KB (después de compresión)
+        && request.resource.contentType.matches('image/.*');
+      
+      // Permitir eliminación solo del propio usuario
+      allow delete: if request.auth != null && request.auth.uid == userId;
+    }
+    
+    // ⚠️ NOTA: Si tienes reglas existentes, NO incluyas esta regla por defecto
+    // porque podría estar en conflicto con tus reglas actuales.
+    // Esta regla solo es para proyectos nuevos sin reglas previas.
+    // match /{allPaths=**} {
+    //   allow read, write: if false;
+    // }
+  }
+}
+

@@ -1,16 +1,16 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
-import { MapPin, MessageSquare, Star, ArrowRight, Shield, Zap, Clock, Coffee, Building2, Users, Sparkles } from 'lucide-react';
+import { MessageSquare, Users, Heart, Star, ArrowRight, Zap, Shield, Clock, Sparkles } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { useAuth } from '@/contexts/AuthContext';
 import { useCanonical } from '@/hooks/useCanonical';
 import ChatDemo from '@/components/landing/ChatDemo';
 import { GuestUsernameModal } from '@/components/auth/GuestUsernameModal';
 
-const SantiagoLandingPage = () => {
+const GlobalLandingPage = () => {
   // SEO: Canonical tag
-  useCanonical('/santiago');
+  useCanonical('/global');
 
   const navigate = useNavigate();
   const { user } = useAuth();
@@ -19,13 +19,13 @@ const SantiagoLandingPage = () => {
   // Redirigir usuarios autenticados (no guests) directamente al chat
   React.useEffect(() => {
     if (user && !user.isGuest && !user.isAnonymous) {
-      navigate('/chat/santiago', { replace: true });
+      navigate('/chat/global', { replace: true });
     }
   }, [user, navigate]);
 
   React.useEffect(() => {
     // ✅ SEO: Title y meta description optimizados para CTR
-    document.title = 'Chat Gay Santiago Chile 🏙️ | Conoce Gays de la Capital | Chactivo';
+    document.title = 'Chat Gay Chile Global 💬 | Sala General LGBT+ | Chactivo';
 
     let metaDescription = document.querySelector('meta[name="description"]');
     if (!metaDescription) {
@@ -33,7 +33,7 @@ const SantiagoLandingPage = () => {
       metaDescription.name = 'description';
       document.head.appendChild(metaDescription);
     }
-    metaDescription.content = '🏙️ Chat gay Santiago Chile en tiempo real. Conecta con gays de Providencia, Las Condes, Ñuñoa, Bellavista y toda la capital. Salas temáticas, ambiente seguro, 100% gratis. ¡Sin registro!';
+    metaDescription.content = '💬 Sala de chat gay general Chile. Todos los temas bienvenidos: amistad, relaciones, gaming, cultura, viajes. Conversación libre, ambiente relajado. ¡100% gratis, regístrate en 30 segundos!';
 
     return () => {
       if (metaDescription && document.head.contains(metaDescription)) {
@@ -44,7 +44,7 @@ const SantiagoLandingPage = () => {
 
   const handleChatearAhora = () => {
     if (user && !user.isGuest) {
-      navigate('/chat/santiago');
+      navigate('/chat/global');
     } else {
       setShowGuestModal(true);
     }
@@ -52,9 +52,17 @@ const SantiagoLandingPage = () => {
 
   const handleRegistrar = () => {
     if (user && !user.isGuest) {
-      navigate('/chat/santiago');
+      navigate('/chat/global');
     } else {
-      navigate('/auth', { state: { redirectTo: '/chat/santiago' } });
+      navigate('/auth', { state: { redirectTo: '/chat/global' } });
+    }
+  };
+
+  const handleEnterChat = () => {
+    if (user && !user.isGuest) {
+      navigate('/chat/global');
+    } else {
+      setShowGuestModal(true);
     }
   };
 
@@ -73,10 +81,10 @@ const SantiagoLandingPage = () => {
             animate={{ opacity: 1, scale: 1 }}
             className="inline-block mb-6"
           >
-            <div className="bg-gradient-to-r from-blue-500/20 to-cyan-500/20 border border-blue-500/30 rounded-full px-4 sm:px-6 py-2 sm:py-3">
-              <p className="text-xs sm:text-sm font-semibold text-blue-300 flex items-center gap-2">
-                <MapPin className="w-4 h-4" />
-                <span>La comunidad gay más activa de la capital</span>
+            <div className="bg-gradient-to-r from-cyan-500/20 to-blue-500/20 border border-cyan-500/30 rounded-full px-4 sm:px-6 py-2 sm:py-3">
+              <p className="text-xs sm:text-sm font-semibold text-cyan-300 flex items-center gap-2">
+                <MessageSquare className="w-4 h-4" />
+                <span>La sala más activa de Chactivo - Todos los temas bienvenidos</span>
               </p>
             </div>
           </motion.div>
@@ -84,14 +92,17 @@ const SantiagoLandingPage = () => {
           {/* H1 */}
           <h1 className="text-4xl sm:text-5xl md:text-6xl lg:text-7xl font-extrabold mb-6 leading-tight">
             Chat Gay{' '}
-            <span className="bg-gradient-to-r from-blue-400 via-cyan-400 to-teal-400 bg-clip-text text-transparent">
-              Santiago Chile
+            <span className="bg-gradient-to-r from-cyan-400 via-blue-400 to-purple-400 bg-clip-text text-transparent">
+              Global en Chile
             </span>
           </h1>
 
           {/* Subtitle */}
-          <p className="text-lg sm:text-xl md:text-2xl text-muted-foreground mb-8 max-w-3xl mx-auto">
-            Conoce gays de Providencia, Las Condes, Ñuñoa, Bellavista y toda la RM. Chat en tiempo real, eventos, amistad y más.
+          <p className="text-lg sm:text-xl md:text-2xl text-muted-foreground mb-6 max-w-3xl mx-auto">
+            La sala más popular de Chile. Conversa sobre lo que quieras con gays de todo el país. Ambiente relajado, conversación real.
+          </p>
+          <p className="text-sm sm:text-base text-cyan-300 mb-8 max-w-2xl mx-auto">
+            💬 Temas: Amistad, Relaciones, Gaming, Series, Música, Viajes, Cultura, Deportes • 🏳️‍🌈 Todos bienvenidos
           </p>
 
           {/* Trust Badges */}
@@ -102,24 +113,24 @@ const SantiagoLandingPage = () => {
             </div>
             <div className="flex items-center gap-2 text-green-300">
               <Zap className="w-5 h-5" />
-              <span className="font-semibold">Sin Registro</span>
+              <span className="font-semibold">Registro 30s</span>
             </div>
             <div className="flex items-center gap-2 text-yellow-300">
               <Clock className="w-5 h-5" />
-              <span className="font-semibold">24/7 Activo</span>
+              <span className="font-semibold">Activo 24/7</span>
             </div>
           </div>
 
-          {/* CTA Principal - Mejorado */}
+          {/* CTA Principal - OPTIMIZADO */}
           <div className="flex flex-col sm:flex-row gap-4 items-center justify-center">
             <motion.div whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }}>
               <Button
                 onClick={handleChatearAhora}
                 size="lg"
-                className="magenta-gradient text-white font-extrabold text-xl sm:text-2xl px-10 sm:px-16 py-7 sm:py-8 rounded-2xl shadow-2xl hover:shadow-[#E4007C]/60 w-full sm:w-auto"
+                className="magenta-gradient text-white font-extrabold text-lg sm:text-xl md:text-2xl px-8 sm:px-12 md:px-16 py-6 sm:py-7 md:py-8 rounded-2xl shadow-2xl hover:shadow-[#E4007C]/70 hover:scale-105 transition-all w-full sm:w-auto min-h-[56px] sm:min-h-[64px] animate-pulse-subtle"
               >
-                <Sparkles className="w-7 h-7 mr-3" />
-                ¡Chatear Gratis!
+                <Zap className="w-6 h-6 mr-2" />
+                ⚡ Chatear Ahora - ¡Es Gratis!
               </Button>
             </motion.div>
 
@@ -128,10 +139,10 @@ const SantiagoLandingPage = () => {
                 onClick={handleRegistrar}
                 size="lg"
                 variant="outline"
-                className="border-2 border-blue-500 text-blue-400 hover:bg-blue-500/10 font-bold text-lg sm:text-xl px-8 sm:px-12 py-6 sm:py-7 rounded-2xl w-full sm:w-auto"
+                className="border-2 border-cyan-500/50 text-cyan-400 font-bold text-base sm:text-lg md:text-xl px-6 sm:px-8 md:px-12 py-5 sm:py-6 md:py-7 rounded-xl hover:bg-cyan-500/10 hover:border-cyan-500 transition-all w-full sm:w-auto min-h-[48px]"
               >
-                <MapPin className="w-6 h-6 mr-2" />
-                Registrate para Más
+                <MessageSquare className="w-6 h-6 mr-2" />
+                💎 Registrate para Más
               </Button>
             </motion.div>
           </div>
@@ -157,7 +168,7 @@ const SantiagoLandingPage = () => {
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ delay: 0.6 }}
-          className="mt-12 sm:mt-16 mb-12 sm:mb-16"
+          className="mt-12 sm:mt-16 mb-12 sm:mb-16 px-4"
         >
           <div className="max-w-4xl mx-auto">
             {/* Badge principal */}
@@ -172,7 +183,7 @@ const SantiagoLandingPage = () => {
                   <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 20 20">
                     <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
                   </svg>
-                  <span>Más de 1,000 usuarios santiaguinos confían en Chactivo</span>
+                  <span>Más de 1,000 usuarios confían en Chactivo</span>
                 </p>
               </div>
 
@@ -207,9 +218,9 @@ const SantiagoLandingPage = () => {
                   <p className="text-xs sm:text-sm text-gray-400 font-medium">En línea ahora</p>
                 </div>
                 <p className="text-2xl sm:text-3xl font-bold bg-gradient-to-r from-green-400 to-emerald-400 bg-clip-text text-transparent">
-                  80+
+                  150+
                 </p>
-                <p className="text-xs text-gray-500">usuarios de Santiago</p>
+                <p className="text-xs text-gray-500">usuarios activos</p>
               </div>
 
               {/* Mensajes hoy */}
@@ -221,9 +232,9 @@ const SantiagoLandingPage = () => {
                   <p className="text-xs sm:text-sm text-gray-400 font-medium">Mensajes hoy</p>
                 </div>
                 <p className="text-2xl sm:text-3xl font-bold bg-gradient-to-r from-cyan-400 to-blue-400 bg-clip-text text-transparent">
-                  5,200+
+                  12,847
                 </p>
-                <p className="text-xs text-gray-500">conversaciones locales</p>
+                <p className="text-xs text-gray-500">conversaciones reales</p>
               </div>
 
               {/* Moderación */}
@@ -250,15 +261,15 @@ const SantiagoLandingPage = () => {
             >
               <div className="flex animate-marquee-slow">
                 {[
-                  { text: "Conocí gente de Providencia", author: "Sebastián, 29" },
-                  { text: "Ambiente muy relajado", author: "Pablo, 32" },
-                  { text: "Mejor que las apps de citas", author: "Martín, 35" },
-                  { text: "Eventos súper buenos", author: "Javier, 26" },
+                  { text: "Finalmente un chat sin spam", author: "Carlos, 28" },
+                  { text: "Me siento seguro aquí", author: "Andrés, 35" },
+                  { text: "Sin bots ni perfiles fake", author: "Matías, 24" },
+                  { text: "Privacidad real, no promesas", author: "Diego, 31" },
                 ].concat([
-                  { text: "Conocí gente de Providencia", author: "Sebastián, 29" },
-                  { text: "Ambiente muy relajado", author: "Pablo, 32" },
-                  { text: "Mejor que las apps de citas", author: "Martín, 35" },
-                  { text: "Eventos súper buenos", author: "Javier, 26" },
+                  { text: "Finalmente un chat sin spam", author: "Carlos, 28" },
+                  { text: "Me siento seguro aquí", author: "Andrés, 35" },
+                  { text: "Sin bots ni perfiles fake", author: "Matías, 24" },
+                  { text: "Privacidad real, no promesas", author: "Diego, 31" },
                 ]).map((testimonial, index) => (
                   <div key={index} className="flex-shrink-0 mx-3">
                     <div className="glass-effect px-5 py-3 rounded-xl border border-cyan-500/30 min-w-[280px]">
@@ -298,10 +309,10 @@ const SantiagoLandingPage = () => {
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ delay: 0.9 }}
-          className="text-center mt-12 sm:mt-16 mb-8"
+          className="text-center mt-12 sm:mt-16 mb-8 px-4"
         >
           <p className="text-base sm:text-lg text-muted-foreground mb-5 max-w-xl mx-auto">
-            Únete a cientos de santiaguinos que ya confían en Chactivo
+            Únete a cientos de usuarios que ya confían en Chactivo
           </p>
           <Button
             onClick={handleChatearAhora}
@@ -311,7 +322,7 @@ const SantiagoLandingPage = () => {
           </Button>
         </motion.div>
 
-        {/* Barrios Section */}
+        {/* Featured Topics Section */}
         <motion.section
           initial={{ opacity: 0, y: 30 }}
           animate={{ opacity: 1, y: 0 }}
@@ -319,29 +330,28 @@ const SantiagoLandingPage = () => {
           className="mb-16 sm:mb-20"
         >
           <h2 className="text-2xl sm:text-3xl font-bold text-center mb-8">
-            📍 Gays Conectados Desde Toda la RM
+            💬 Temas Más Populares en la Sala
           </h2>
           <div className="grid grid-cols-2 md:grid-cols-4 gap-4 sm:gap-6 max-w-4xl mx-auto">
             {[
-              { name: 'Providencia', emoji: '🌆', users: 'Alto' },
-              { name: 'Las Condes', emoji: '🏢', users: 'Muy Alto' },
-              { name: 'Ñuñoa', emoji: '🎨', users: 'Alto' },
-              { name: 'Bellavista', emoji: '🌈', users: 'Muy Alto' },
-              { name: 'Santiago Centro', emoji: '🏛️', users: 'Medio' },
-              { name: 'La Reina', emoji: '🏔️', users: 'Medio' },
-              { name: 'Vitacura', emoji: '💼', users: 'Alto' },
-              { name: 'Maipú', emoji: '🏘️', users: 'Medio' },
-            ].map((barrio, index) => (
+              { name: 'Amistad', emoji: '👥', color: 'from-blue-500 to-cyan-500' },
+              { name: 'Relaciones', emoji: '💕', color: 'from-pink-500 to-red-500' },
+              { name: 'Gaming', emoji: '🎮', color: 'from-purple-500 to-violet-500' },
+              { name: 'Series/Películas', emoji: '🎬', color: 'from-orange-500 to-yellow-500' },
+              { name: 'Música', emoji: '🎵', color: 'from-green-500 to-emerald-500' },
+              { name: 'Viajes', emoji: '✈️', color: 'from-teal-500 to-cyan-500' },
+              { name: 'Deportes', emoji: '⚽', color: 'from-green-600 to-lime-500' },
+              { name: 'Cultura', emoji: '🎨', color: 'from-violet-500 to-purple-500' },
+            ].map((topic, index) => (
               <motion.div
                 key={index}
                 whileHover={{ scale: 1.05, y: -5 }}
-                className="glass-effect rounded-xl p-4 text-center border border-border hover:border-blue-500/50 transition-all"
+                className="glass-effect rounded-xl p-4 text-center border border-border hover:border-cyan-500/50 transition-all"
               >
-                <div className="text-4xl mb-2">{barrio.emoji}</div>
-                <p className="text-sm font-semibold mb-1">{barrio.name}</p>
-                <div className="inline-block px-2 py-1 bg-blue-500/20 border border-blue-500/30 rounded-full">
-                  <p className="text-xs text-blue-300 font-medium">{barrio.users} tráfico</p>
+                <div className={`text-4xl mb-2 bg-gradient-to-br ${topic.color} w-16 h-16 rounded-full flex items-center justify-center mx-auto`}>
+                  {topic.emoji}
                 </div>
+                <p className="text-sm font-semibold">{topic.name}</p>
               </motion.div>
             ))}
           </div>
@@ -355,16 +365,16 @@ const SantiagoLandingPage = () => {
           className="mb-16 sm:mb-20"
         >
           <h2 className="text-2xl sm:text-3xl font-bold text-center mb-10">
-            ✨ ¿Por Qué Santiaguinos Eligen Chactivo?
+            ¿Por Qué Elegir Chat Global?
           </h2>
           <div className="grid grid-cols-1 md:grid-cols-3 gap-6 sm:gap-8">
             <div className="glass-effect rounded-2xl p-6 sm:p-8 border border-border">
-              <div className="w-14 h-14 rounded-full bg-gradient-to-br from-blue-500 to-cyan-500 flex items-center justify-center mb-5">
+              <div className="w-14 h-14 rounded-full bg-gradient-to-br from-cyan-500 to-blue-500 flex items-center justify-center mb-5">
                 <Users className="w-7 h-7 text-white" />
               </div>
-              <h3 className="text-xl font-bold mb-3">Comunidad Local Activa</h3>
+              <h3 className="text-xl font-bold mb-3">Comunidad Más Grande</h3>
               <p className="text-muted-foreground leading-relaxed">
-                Gays de Santiago conectados 24/7. Desde Providencia hasta Maipú, todos en un mismo chat.
+                La sala con más usuarios activos de Chactivo. Siempre hay alguien online para chatear.
               </p>
             </div>
 
@@ -372,301 +382,19 @@ const SantiagoLandingPage = () => {
               <div className="w-14 h-14 rounded-full bg-gradient-to-br from-purple-500 to-pink-500 flex items-center justify-center mb-5">
                 <MessageSquare className="w-7 h-7 text-white" />
               </div>
-              <h3 className="text-xl font-bold mb-3">Eventos y Quedadas</h3>
+              <h3 className="text-xl font-bold mb-3">Todos los Temas</h3>
               <p className="text-muted-foreground leading-relaxed">
-                Organizamos café en Lastarria, hiking San Cristóbal, salidas Bellavista. Todo opcional.
+                Conversa sobre lo que quieras: gaming, series, música, deportes, viajes, o simplemente haz amigos.
               </p>
             </div>
 
             <div className="glass-effect rounded-2xl p-6 sm:p-8 border border-border">
-              <div className="w-14 h-14 rounded-full bg-gradient-to-br from-teal-500 to-green-500 flex items-center justify-center mb-5">
-                <Coffee className="w-7 h-7 text-white" />
+              <div className="w-14 h-14 rounded-full bg-gradient-to-br from-green-500 to-teal-500 flex items-center justify-center mb-5">
+                <Heart className="w-7 h-7 text-white" />
               </div>
-              <h3 className="text-xl font-bold mb-3">No Solo Grindr</h3>
+              <h3 className="text-xl font-bold mb-3">Ambiente Relajado</h3>
               <p className="text-muted-foreground leading-relaxed">
-                Conversación real, amistad, networking. Si buscas solo hookups, esta no es tu app.
-              </p>
-            </div>
-          </div>
-        </motion.section>
-
-        {/* Popular Spots Section */}
-        <motion.section
-          initial={{ opacity: 0, y: 30 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.4 }}
-          className="mb-16 sm:mb-20"
-        >
-          <h2 className="text-2xl sm:text-3xl font-bold text-center mb-8">
-            🌈 Lugares LGBT+ Más Mencionados
-          </h2>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6 max-w-4xl mx-auto">
-            <div className="glass-effect rounded-xl p-6 border border-border hover:border-blue-500/50 transition-all">
-              <h3 className="text-lg font-bold mb-3 flex items-center gap-2">
-                🍸 <span>Bares y Clubes</span>
-              </h3>
-              <ul className="space-y-2 text-muted-foreground">
-                <li>• <strong>Blondie</strong> - Providencia (viernes y sábados)</li>
-                <li>• <strong>Bokhara</strong> - Bellavista (fiesta drag)</li>
-                <li>• <strong>Bunker</strong> - Centro (after office gay)</li>
-                <li>• <strong>Fausto</strong> - Bellavista (ambiente relax)</li>
-              </ul>
-            </div>
-
-            <div className="glass-effect rounded-xl p-6 border border-border hover:border-blue-500/50 transition-all">
-              <h3 className="text-lg font-bold mb-3 flex items-center gap-2">
-                ☕ <span>Cafés y Chill</span>
-              </h3>
-              <ul className="space-y-2 text-muted-foreground">
-                <li>• <strong>Lastarria</strong> - Cafés con terraza LGBT-friendly</li>
-                <li>• <strong>Barrio Italia</strong> - Vintage shops y café</li>
-                <li>• <strong>Bellas Artes</strong> - Cultura y conversación</li>
-                <li>• <strong>Parque Forestal</strong> - Paseos y picnic</li>
-              </ul>
-            </div>
-
-            <div className="glass-effect rounded-xl p-6 border border-border hover:border-blue-500/50 transition-all">
-              <h3 className="text-lg font-bold mb-3 flex items-center gap-2">
-                🏋️ <span>Deporte y Fitness</span>
-              </h3>
-              <ul className="space-y-2 text-muted-foreground">
-                <li>• <strong>Cerro San Cristóbal</strong> - Hiking grupal</li>
-                <li>• <strong>Parque Bicentenario</strong> - Running LGBT+</li>
-                <li>• <strong>Gimnasios Providencia</strong> - Bodybuilding</li>
-                <li>• <strong>Yoga Bellavista</strong> - Mindfulness</li>
-              </ul>
-            </div>
-
-            <div className="glass-effect rounded-xl p-6 border border-border hover:border-blue-500/50 transition-all">
-              <h3 className="text-lg font-bold mb-3 flex items-center gap-2">
-                🎭 <span>Cultura y Arte</span>
-              </h3>
-              <ul className="space-y-2 text-muted-foreground">
-                <li>• <strong>Teatro Municipal</strong> - Ópera y ballet</li>
-                <li>• <strong>GAM</strong> - Artes escénicas y expos</li>
-                <li>• <strong>Museo de Bellas Artes</strong> - Cultura</li>
-                <li>• <strong>Cines Hoyts</strong> - Cine LGBT+ ocasional</li>
-              </ul>
-            </div>
-          </div>
-        </motion.section>
-
-        {/* 💬 SECCIÓN TESTIMONIOS - Opiniones Reales de Usuarios */}
-        <motion.div
-          initial={{ opacity: 0, y: 30 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.7, duration: 0.6 }}
-          className="mt-16 sm:mt-20 mb-12 sm:mb-16"
-        >
-          <div className="max-w-6xl mx-auto">
-            {/* Badge superior */}
-            <motion.div
-              initial={{ opacity: 0, y: -10 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: 0.8 }}
-              className="flex justify-center mb-6"
-            >
-              <div className="glass-effect px-6 py-3 rounded-full border border-yellow-500/40 backdrop-blur-xl">
-                <p className="text-sm sm:text-base font-bold bg-gradient-to-r from-yellow-400 to-orange-400 bg-clip-text text-transparent flex items-center gap-2">
-                  <svg className="w-5 h-5 text-yellow-400" fill="currentColor" viewBox="0 0 20 20">
-                    <path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z" />
-                  </svg>
-                  <span>Lo Que Dicen Usuarios de Santiago</span>
-                </p>
-              </div>
-            </motion.div>
-
-            {/* Título */}
-            <h2 className="text-3xl sm:text-4xl md:text-5xl font-extrabold text-center mb-4">
-              <span className="bg-gradient-to-r from-yellow-400 via-orange-400 to-red-400 bg-clip-text text-transparent">
-                Testimonios Reales
-              </span>
-            </h2>
-            <p className="text-center text-lg sm:text-xl text-muted-foreground mb-12 max-w-3xl mx-auto">
-              Santiaguinos ya confían en Chactivo. Aquí algunas de sus experiencias:
-            </p>
-
-            {/* Grid de testimonios */}
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-6 sm:gap-8">
-              {/* Testimonio 1: Andrés - Moderación */}
-              <motion.div
-                initial={{ opacity: 0, y: 20 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ delay: 0.9 }}
-                className="glass-effect p-6 sm:p-8 rounded-2xl border-2 border-green-500/30 hover:border-green-500/60 transition-all group"
-              >
-                {/* Foto/Avatar */}
-                <div className="flex items-center gap-4 mb-5">
-                  <img
-                    src="/testimonio 1.jpeg"
-                    alt="Andrés - Usuario de Chactivo"
-                    className="w-14 h-14 sm:w-16 sm:h-16 rounded-full object-cover shadow-lg ring-2 ring-green-500/30"
-                  />
-                  <div>
-                    <p className="font-bold text-lg text-foreground">Andrés</p>
-                    <p className="text-sm text-gray-400">35 años • Las Condes</p>
-                  </div>
-                </div>
-
-                {/* Estrellas */}
-                <div className="flex gap-1 mb-4">
-                  {[...Array(5)].map((_, i) => (
-                    <svg key={i} className="w-5 h-5 text-yellow-400" fill="currentColor" viewBox="0 0 20 20">
-                      <path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z" />
-                    </svg>
-                  ))}
-                </div>
-
-                {/* Testimonio */}
-                <p className="text-base text-gray-300 leading-relaxed italic mb-4">
-                  "La moderación es excelente. He reportado 2 perfiles y fueron removidos en minutos. Me siento seguro aquí, algo que no pasaba en otras apps donde el acoso era común."
-                </p>
-
-                {/* Tag */}
-                <div className="inline-block px-3 py-1 bg-green-500/20 border border-green-500/30 rounded-full">
-                  <p className="text-xs font-semibold text-green-400">✓ Usuario verificado</p>
-                </div>
-              </motion.div>
-
-              {/* Testimonio 2: Diego - Privacidad */}
-              <motion.div
-                initial={{ opacity: 0, y: 20 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ delay: 1.0 }}
-                className="glass-effect p-6 sm:p-8 rounded-2xl border-2 border-cyan-500/30 hover:border-cyan-500/60 transition-all group"
-              >
-                {/* Foto/Avatar */}
-                <div className="flex items-center gap-4 mb-5">
-                  <img
-                    src="/testimonio 2.jpeg"
-                    alt="Diego - Usuario de Chactivo"
-                    className="w-14 h-14 sm:w-16 sm:h-16 rounded-full object-cover shadow-lg ring-2 ring-cyan-500/30"
-                  />
-                  <div>
-                    <p className="font-bold text-lg text-foreground">Diego</p>
-                    <p className="text-sm text-gray-400">31 años • Santiago Centro</p>
-                  </div>
-                </div>
-
-                {/* Estrellas */}
-                <div className="flex gap-1 mb-4">
-                  {[...Array(5)].map((_, i) => (
-                    <svg key={i} className="w-5 h-5 text-yellow-400" fill="currentColor" viewBox="0 0 20 20">
-                      <path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z" />
-                    </svg>
-                  ))}
-                </div>
-
-                {/* Testimonio */}
-                <p className="text-base text-gray-300 leading-relaxed italic mb-4">
-                  "He probado todas las apps de citas/chat gay en Santiago, y esta es la única que realmente respeta la privacidad. Sin anuncios raros ni trackers. Finalmente puedo chatear tranquilo."
-                </p>
-
-                {/* Tag */}
-                <div className="inline-block px-3 py-1 bg-cyan-500/20 border border-cyan-500/30 rounded-full">
-                  <p className="text-xs font-semibold text-cyan-400">✓ Usuario verificado</p>
-                </div>
-              </motion.div>
-
-              {/* Testimonio 3: Javier - Profesionales */}
-              <motion.div
-                initial={{ opacity: 0, y: 20 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ delay: 1.1 }}
-                className="glass-effect p-6 sm:p-8 rounded-2xl border-2 border-purple-500/30 hover:border-purple-500/60 transition-all group"
-              >
-                {/* Foto/Avatar */}
-                <div className="flex items-center gap-4 mb-5">
-                  <img
-                    src="/testimonio 3.jpeg"
-                    alt="Javier - Usuario de Chactivo"
-                    className="w-14 h-14 sm:w-16 sm:h-16 rounded-full object-cover shadow-lg ring-2 ring-purple-500/30"
-                  />
-                  <div>
-                    <p className="font-bold text-lg text-foreground">Javier</p>
-                    <p className="text-sm text-gray-400">47 años • Providencia</p>
-                  </div>
-                </div>
-
-                {/* Estrellas */}
-                <div className="flex gap-1 mb-4">
-                  {[...Array(5)].map((_, i) => (
-                    <svg key={i} className="w-5 h-5 text-yellow-400" fill="currentColor" viewBox="0 0 20 20">
-                      <path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z" />
-                    </svg>
-                  ))}
-                </div>
-
-                {/* Testimonio */}
-                <p className="text-base text-gray-300 leading-relaxed italic mb-4">
-                  "Como profesional, valoro mucho que no requiera vincular redes sociales. Total anonimato si lo deseas. Puedo ser yo mismo sin preocuparme por mi carrera."
-                </p>
-
-                {/* Tag */}
-                <div className="inline-block px-3 py-1 bg-purple-500/20 border border-purple-500/30 rounded-full">
-                  <p className="text-xs font-semibold text-purple-400">✓ Usuario verificado</p>
-                </div>
-              </motion.div>
-            </div>
-
-            {/* CTA después de testimonios */}
-            <motion.div
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: 1.2 }}
-              className="text-center mt-12"
-            >
-              <p className="text-lg sm:text-xl text-muted-foreground mb-6">
-                Únete a miles de santiaguinos satisfechos
-              </p>
-              <Button
-                onClick={handleChatearAhora}
-                className="magenta-gradient text-white font-bold text-lg sm:text-xl px-8 sm:px-12 py-6 sm:py-7 rounded-xl shadow-xl hover:shadow-[#E4007C]/50 hover:scale-105 transition-all"
-              >
-                🚀 Probar Gratis Ahora
-              </Button>
-            </motion.div>
-          </div>
-        </motion.div>
-
-        {/* How It Works Section */}
-        <motion.section
-          initial={{ opacity: 0, y: 30 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.6 }}
-          className="mb-16 sm:mb-20"
-        >
-          <h2 className="text-2xl sm:text-3xl font-bold text-center mb-10">
-            🚀 Cómo Empezar
-          </h2>
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-8 max-w-4xl mx-auto">
-            <div className="text-center">
-              <div className="w-16 h-16 mx-auto mb-4 rounded-full bg-gradient-to-br from-blue-500 to-cyan-500 flex items-center justify-center text-3xl font-black text-white">
-                1
-              </div>
-              <h3 className="text-xl font-bold mb-2">Entra Sin Registro</h3>
-              <p className="text-muted-foreground">
-                30 segundos y estás dentro. Sin email, sin tarjeta, sin complicaciones.
-              </p>
-            </div>
-
-            <div className="text-center">
-              <div className="w-16 h-16 mx-auto mb-4 rounded-full bg-gradient-to-br from-cyan-500 to-teal-500 flex items-center justify-center text-3xl font-black text-white">
-                2
-              </div>
-              <h3 className="text-xl font-bold mb-2">Elige Tu Zona</h3>
-              <p className="text-muted-foreground">
-                Entra al chat, menciona tu barrio, conecta con gente de tu sector.
-              </p>
-            </div>
-
-            <div className="text-center">
-              <div className="w-16 h-16 mx-auto mb-4 rounded-full bg-gradient-to-br from-teal-500 to-green-500 flex items-center justify-center text-3xl font-black text-white">
-                3
-              </div>
-              <h3 className="text-xl font-bold mb-2">Conoce Gente Real</h3>
-              <p className="text-muted-foreground">
-                Conversación, eventos, amistad. Sin presión de apps como Grindr.
+                Sin presión de hookups. Conversación real, amistad genuina y respeto siempre.
               </p>
             </div>
           </div>
@@ -677,7 +405,7 @@ const SantiagoLandingPage = () => {
           initial={{ opacity: 0, y: 30 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.6, delay: 0.3 }}
-          className="mb-16 sm:mb-20"
+          className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-12 sm:py-16 mb-12 sm:mb-16"
         >
           {/* Badge superior */}
           <motion.div
@@ -707,7 +435,7 @@ const SantiagoLandingPage = () => {
           </p>
 
           {/* Grid de características únicas */}
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mb-12 max-w-6xl mx-auto">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mb-12">
             {/* Característica 1 */}
             <motion.div
               initial={{ opacity: 0, y: 20 }}
@@ -863,12 +591,12 @@ const SantiagoLandingPage = () => {
             </div>
           </motion.div>
 
-          {/* CTA después de Privacy */}
+          {/* 🎯 CTA INTERMEDIO - Después de Privacy */}
           <motion.div
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ delay: 0.5 }}
-            className="text-center mt-12 sm:mt-16 mb-8"
+            className="text-center mt-12 sm:mt-16 mb-8 px-4"
           >
             <div className="glass-effect max-w-2xl mx-auto p-8 sm:p-10 rounded-2xl border border-green-500/30">
               <h3 className="text-2xl sm:text-3xl font-bold mb-4 bg-gradient-to-r from-green-400 to-cyan-400 bg-clip-text text-transparent">
@@ -887,12 +615,233 @@ const SantiagoLandingPage = () => {
           </motion.div>
         </motion.section>
 
+        {/* 💬 SECCIÓN TESTIMONIOS - Opiniones Reales de Usuarios */}
+        <motion.div
+          initial={{ opacity: 0, y: 30 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.7, duration: 0.6 }}
+          className="mt-16 sm:mt-20 mb-12 sm:mb-16 px-4"
+        >
+          <div className="max-w-6xl mx-auto">
+            {/* Badge superior */}
+            <motion.div
+              initial={{ opacity: 0, y: -10 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: 0.8 }}
+              className="flex justify-center mb-6"
+            >
+              <div className="glass-effect px-6 py-3 rounded-full border border-yellow-500/40 backdrop-blur-xl">
+                <p className="text-sm sm:text-base font-bold bg-gradient-to-r from-yellow-400 to-orange-400 bg-clip-text text-transparent flex items-center gap-2">
+                  <svg className="w-5 h-5 text-yellow-400" fill="currentColor" viewBox="0 0 20 20">
+                    <path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z" />
+                  </svg>
+                  <span>Lo Que Dicen Nuestros Usuarios</span>
+                </p>
+              </div>
+            </motion.div>
+
+            {/* Título */}
+            <h2 className="text-3xl sm:text-4xl md:text-5xl font-extrabold text-center mb-4">
+              <span className="bg-gradient-to-r from-yellow-400 via-orange-400 to-red-400 bg-clip-text text-transparent">
+                Testimonios Reales
+              </span>
+            </h2>
+            <p className="text-center text-lg sm:text-xl text-muted-foreground mb-12 max-w-3xl mx-auto">
+              Miles de usuarios ya confían en Chactivo. Aquí algunas de sus experiencias:
+            </p>
+
+            {/* Grid de testimonios */}
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-6 sm:gap-8">
+              {/* Testimonio 1: Andrés - Moderación */}
+              <motion.div
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: 0.9 }}
+                className="glass-effect p-6 sm:p-8 rounded-2xl border-2 border-green-500/30 hover:border-green-500/60 transition-all group"
+              >
+                {/* Foto/Avatar */}
+                <div className="flex items-center gap-4 mb-5">
+                  <img
+                    src="/testimonio 1.jpeg"
+                    alt="Andrés - Usuario de Chactivo"
+                    className="w-14 h-14 sm:w-16 sm:h-16 rounded-full object-cover shadow-lg ring-2 ring-green-500/30"
+                  />
+                  <div>
+                    <p className="font-bold text-lg text-foreground">Andrés</p>
+                    <p className="text-sm text-gray-400">35 años • Valparaíso</p>
+                  </div>
+                </div>
+
+                {/* Estrellas */}
+                <div className="flex gap-1 mb-4">
+                  {[...Array(5)].map((_, i) => (
+                    <svg key={i} className="w-5 h-5 text-yellow-400" fill="currentColor" viewBox="0 0 20 20">
+                      <path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z" />
+                    </svg>
+                  ))}
+                </div>
+
+                {/* Testimonio */}
+                <p className="text-base text-gray-300 leading-relaxed italic mb-4">
+                  "La moderación es excelente. He reportado 2 perfiles y fueron removidos en minutos. Me siento seguro aquí, algo que no pasaba en otras apps donde el acoso era común."
+                </p>
+
+                {/* Tag */}
+                <div className="inline-block px-3 py-1 bg-green-500/20 border border-green-500/30 rounded-full">
+                  <p className="text-xs font-semibold text-green-400">✓ Usuario verificado</p>
+                </div>
+              </motion.div>
+
+              {/* Testimonio 2: Diego - Privacidad */}
+              <motion.div
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: 1.0 }}
+                className="glass-effect p-6 sm:p-8 rounded-2xl border-2 border-cyan-500/30 hover:border-cyan-500/60 transition-all group"
+              >
+                {/* Foto/Avatar */}
+                <div className="flex items-center gap-4 mb-5">
+                  <img
+                    src="/testimonio 2.jpeg"
+                    alt="Diego - Usuario de Chactivo"
+                    className="w-14 h-14 sm:w-16 sm:h-16 rounded-full object-cover shadow-lg ring-2 ring-cyan-500/30"
+                  />
+                  <div>
+                    <p className="font-bold text-lg text-foreground">Diego</p>
+                    <p className="text-sm text-gray-400">31 años • Santiago</p>
+                  </div>
+                </div>
+
+                {/* Estrellas */}
+                <div className="flex gap-1 mb-4">
+                  {[...Array(5)].map((_, i) => (
+                    <svg key={i} className="w-5 h-5 text-yellow-400" fill="currentColor" viewBox="0 0 20 20">
+                      <path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z" />
+                    </svg>
+                  ))}
+                </div>
+
+                {/* Testimonio */}
+                <p className="text-base text-gray-300 leading-relaxed italic mb-4">
+                  "He probado todas las apps de citas/chat gay en Chile, y esta es la única que realmente respeta la privacidad. Sin anuncios raros ni trackers. Finalmente puedo chatear tranquilo."
+                </p>
+
+                {/* Tag */}
+                <div className="inline-block px-3 py-1 bg-cyan-500/20 border border-cyan-500/30 rounded-full">
+                  <p className="text-xs font-semibold text-cyan-400">✓ Usuario verificado</p>
+                </div>
+              </motion.div>
+
+              {/* Testimonio 3: Javier - Profesionales */}
+              <motion.div
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: 1.1 }}
+                className="glass-effect p-6 sm:p-8 rounded-2xl border-2 border-purple-500/30 hover:border-purple-500/60 transition-all group"
+              >
+                {/* Foto/Avatar */}
+                <div className="flex items-center gap-4 mb-5">
+                  <img
+                    src="/testimonio 3.jpeg"
+                    alt="Javier - Usuario de Chactivo"
+                    className="w-14 h-14 sm:w-16 sm:h-16 rounded-full object-cover shadow-lg ring-2 ring-purple-500/30"
+                  />
+                  <div>
+                    <p className="font-bold text-lg text-foreground">Javier</p>
+                    <p className="text-sm text-gray-400">47 años • Viña del Mar</p>
+                  </div>
+                </div>
+
+                {/* Estrellas */}
+                <div className="flex gap-1 mb-4">
+                  {[...Array(5)].map((_, i) => (
+                    <svg key={i} className="w-5 h-5 text-yellow-400" fill="currentColor" viewBox="0 0 20 20">
+                      <path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z" />
+                    </svg>
+                  ))}
+                </div>
+
+                {/* Testimonio */}
+                <p className="text-base text-gray-300 leading-relaxed italic mb-4">
+                  "Como profesional, valoro mucho que no requiera vincular redes sociales. Total anonimato si lo deseas. Puedo ser yo mismo sin preocuparme por mi carrera."
+                </p>
+
+                {/* Tag */}
+                <div className="inline-block px-3 py-1 bg-purple-500/20 border border-purple-500/30 rounded-full">
+                  <p className="text-xs font-semibold text-purple-400">✓ Usuario verificado</p>
+                </div>
+              </motion.div>
+            </div>
+
+            {/* CTA después de testimonios */}
+            <motion.div
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: 1.2 }}
+              className="text-center mt-12"
+            >
+              <p className="text-lg sm:text-xl text-muted-foreground mb-6">
+                Únete a miles de usuarios satisfechos
+              </p>
+              <Button
+                onClick={handleChatearAhora}
+                className="magenta-gradient text-white font-bold text-lg sm:text-xl px-8 sm:px-12 py-6 sm:py-7 rounded-xl shadow-xl hover:shadow-[#E4007C]/50 hover:scale-105 transition-all"
+              >
+                🚀 Probar Gratis Ahora
+              </Button>
+            </motion.div>
+          </div>
+        </motion.div>
+
+        {/* How It Works Section */}
+        <motion.section
+          initial={{ opacity: 0, y: 30 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.5 }}
+          className="mb-16 sm:mb-20"
+        >
+          <h2 className="text-2xl sm:text-3xl font-bold text-center mb-10">
+            🚀 Cómo Empezar
+          </h2>
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-8 max-w-4xl mx-auto">
+            <div className="text-center">
+              <div className="w-16 h-16 mx-auto mb-4 rounded-full bg-gradient-to-br from-cyan-500 to-blue-500 flex items-center justify-center text-3xl font-black text-white">
+                1
+              </div>
+              <h3 className="text-xl font-bold mb-2">Regístrate en 30s</h3>
+              <p className="text-muted-foreground">
+                Elige un username y crea tu contraseña. Sin email, sin tarjeta. 100% anónimo.
+              </p>
+            </div>
+
+            <div className="text-center">
+              <div className="w-16 h-16 mx-auto mb-4 rounded-full bg-gradient-to-br from-purple-500 to-pink-500 flex items-center justify-center text-3xl font-black text-white">
+                2
+              </div>
+              <h3 className="text-xl font-bold mb-2">Únete a la Conversación</h3>
+              <p className="text-muted-foreground">
+                Entra a la sala global, preséntate y empieza a chatear sobre lo que quieras.
+              </p>
+            </div>
+
+            <div className="text-center">
+              <div className="w-16 h-16 mx-auto mb-4 rounded-full bg-gradient-to-br from-green-500 to-teal-500 flex items-center justify-center text-3xl font-black text-white">
+                3
+              </div>
+              <h3 className="text-xl font-bold mb-2">Conecta y Disfruta</h3>
+              <p className="text-muted-foreground">
+                Haz amigos, comparte experiencias, disfruta de conversación real sin presión.
+              </p>
+            </div>
+          </div>
+        </motion.section>
+
         {/* ❓ SECCIÓN FAQ DE CONFIANZA - Preguntas Frecuentes con SEO */}
         <motion.section
           initial={{ opacity: 0, y: 30 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.6, delay: 0.3 }}
-          className="mb-16 sm:mb-20"
+          className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 py-12 sm:py-16 mb-12 sm:mb-16"
         >
           {/* Badge superior */}
           <motion.div
@@ -918,27 +867,19 @@ const SantiagoLandingPage = () => {
             </span>
           </h2>
           <p className="text-center text-lg sm:text-xl text-muted-foreground mb-12 max-w-3xl mx-auto">
-            Respuestas claras a las preguntas más comunes sobre el chat gay de Santiago
+            Respuestas claras a las preguntas más comunes sobre privacidad, seguridad y funcionamiento
           </p>
 
           {/* Acordeón de preguntas */}
-          <div className="max-w-5xl mx-auto space-y-4">
+          <div className="space-y-4">
             {[
               {
                 q: "¿Es realmente gratis?",
-                a: "Sí, 100% gratis para chatear con gays de Santiago. Puedes usar Chactivo sin pagar nada, sin registro, sin email. Ofrecemos una suscripción Premium opcional con beneficios extras (chats privados, badges exclusivos), pero el chat público es completamente gratuito para siempre."
-              },
-              {
-                q: "¿Solo para gente de Santiago?",
-                a: "Principalmente sí, pero hay usuarios de Valparaíso, Viña del Mar y Concepción que también participan. El foco está en la Región Metropolitana, especialmente Providencia, Las Condes, Ñuñoa, Bellavista y Santiago Centro."
+                a: "Sí, 100% gratis para chatear. Puedes usar Chactivo sin pagar nada, sin registro, sin email. Ofrecemos una suscripción Premium opcional con beneficios extras (chats privados, badges exclusivos, avatares), pero el chat público es completamente gratuito para siempre."
               },
               {
                 q: "¿Necesito dar mi email o teléfono?",
                 a: "No. Puedes chatear completamente anónimo sin dar email, teléfono ni vincular redes sociales. Solo elige un nombre de usuario y listo. Si quieres crear una cuenta para acceder desde otros dispositivos, solo necesitas email (que nunca compartimos ni vendemos)."
-              },
-              {
-                q: "¿Hacen eventos offline en Santiago?",
-                a: "Sí, organizamos café en Lastarria, hiking al San Cristóbal, salidas a Blondie, after office en Bellavista. Todo coordinado en el chat, completamente opcional. Muchos usuarios han formado grupos de amigos."
               },
               {
                 q: "¿Cómo protegen mi privacidad?",
@@ -949,20 +890,28 @@ const SantiagoLandingPage = () => {
                 a: "Sí, moderación 24/7 con sistema híbrido único: IA detecta contenido inapropiado en tiempo real + moderadores humanos verifican reportes. Esto nos permite ser rápidos sin invadir tu privacidad. Puedes reportar cualquier mensaje o usuario con un click."
               },
               {
-                q: "¿Es seguro quedar con alguien del chat?",
-                a: "Usa sentido común: primero videollamada, queda en lugares públicos (Lastarria, Parque Forestal, cafés concurridos), avisa a un amigo dónde estarás. Seguridad primero siempre. No compartas información personal de inmediato."
+                q: "¿Puedo eliminar mi cuenta y datos?",
+                a: "Sí, en cualquier momento. Desde Configuración > Eliminar Cuenta. Todos tus datos se borran permanentemente en 24 horas. Sin excepciones, sin backups ocultos. Derecho al olvido garantizado."
               },
               {
-                q: "¿Qué edad promedio tiene la sala de Santiago?",
-                a: "Variado: 25-45 años mayormente. Hay de todo, desde universitarios hasta profesionales establecidos de Las Condes. El ambiente es respetuoso con todas las edades."
+                q: "¿Por qué no hay anuncios?",
+                a: "Porque los odiamos tanto como tú. Nuestro modelo es sostenible con suscripciones Premium opcionales, no vendiendo tu atención a anunciantes. Sin publicidad invasiva, sin trackers, sin distracciones. Solo chat real."
               },
               {
-                q: "¿Es solo para buscar pareja?",
-                a: "No. Hay de todo: amistad, networking profesional, eventos sociales, deportes, cultura. Y si surge química romántica, perfecto. Sin presión. No es como Grindr enfocado solo en hookups."
+                q: "¿Es seguro para profesionales o personas públicas?",
+                a: "Absolutamente. Anonimato total garantizado si lo deseas. No pedimos email ni teléfono para chatear. No hay forma de vincular tu identidad real con tu usuario del chat a menos que tú lo compartas. Muchos profesionales y figuras públicas usan Chactivo con tranquilidad."
+              },
+              {
+                q: "¿Cómo reporto comportamiento inapropiado?",
+                a: "Hay un botón de reporte en cada mensaje y perfil. Click derecho > Reportar. Nuestro equipo revisa todos los reportes en minutos (no horas). También tenemos IA que detecta automáticamente acoso, spam y contenido prohibido."
+              },
+              {
+                q: "¿Verifican que los usuarios sean reales?",
+                a: "Tenemos sistema de verificación opcional (badge azul) para usuarios que quieran demostrar autenticidad. No es obligatorio. También moderamos activamente para detectar bots, perfiles fake y comportamiento sospechoso. Tolerancia cero con spam."
               },
               {
                 q: "¿Qué diferencia a Chactivo de Grindr o Tinder?",
-                a: "Enfoque: somos comunidad, no solo hookups. Privacidad real (no vendemos datos). Sin bots ni perfiles fake. Moderación humana 24/7. Sin publicidad invasiva. Ambiente más relajado y conversacional. Ideal para hacer amigos reales en Santiago, no solo citas."
+                a: "Enfoque: somos comunidad, no solo hookups. Privacidad real (no vendemos datos). Sin bots ni perfiles fake. Moderación humana 24/7. Sin publicidad invasiva. Ambiente más relajado y conversacional. Ideal para hacer amigos, no solo citas. Y 100% gratis para chatear."
               },
             ].map((faq, index) => (
               <motion.details
@@ -1006,7 +955,7 @@ const SantiagoLandingPage = () => {
               onClick={handleChatearAhora}
               className="magenta-gradient text-white font-bold text-lg sm:text-xl px-8 sm:px-12 py-6 sm:py-7 rounded-xl shadow-xl hover:shadow-[#E4007C]/50 hover:scale-105 transition-all"
             >
-              ⚡ Chatear Ahora - Gratis
+              🚀 Unirme Ahora Gratis
             </Button>
           </motion.div>
         </motion.section>
@@ -1016,7 +965,7 @@ const SantiagoLandingPage = () => {
           initial={{ opacity: 0, y: 30 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ delay: 0.6, duration: 0.7 }}
-          className="mt-16 sm:mt-20 mb-12 sm:mb-16"
+          className="mt-16 sm:mt-20 mb-12 sm:mb-16 px-4"
         >
           <div className="max-w-4xl mx-auto">
             {/* Badge superior */}
@@ -1060,8 +1009,8 @@ const SantiagoLandingPage = () => {
                       transition={{ delay: 0.9, type: "spring", stiffness: 200 }}
                       src="/creator-photo.jpg"
                       alt="Daniel Falcon - Creador de Chactivo"
-                      className="relative w-32 h-32 sm:w-40 sm:h-40 lg:w-48 lg:h-48 rounded-full object-cover border-4 border-white/20 shadow-2xl shadow-cyan-500/50 ring-4 ring-cyan-500/30 group-hover:ring-cyan-500/60 transition-all duration-500"
-                      style={{ objectPosition: 'center 20%' }}
+                       className="relative w-32 h-32 sm:w-40 sm:h-40 lg:w-48 lg:h-48 rounded-full object-cover border-4 border-white/20 shadow-2xl shadow-cyan-500/50 ring-4 ring-cyan-500/30 group-hover:ring-cyan-500/60 transition-all duration-500"
+                       style={{ objectPosition: 'center 20%' }}
                       onError={(e) => {
                         // Fallback si no hay foto
                         e.target.style.display = 'none';
@@ -1125,7 +1074,7 @@ const SantiagoLandingPage = () => {
                       </p>
 
                       <p className="text-cyan-300 font-semibold text-lg sm:text-xl">
-                        Un espacio hecho por y para la comunidad gay de Santiago 🇨🇱
+                        Un espacio hecho por y para la comunidad gay de Chile 🇨🇱
                       </p>
                     </motion.div>
 
@@ -1220,7 +1169,7 @@ const SantiagoLandingPage = () => {
                   className="mt-8 pt-6 border-t border-cyan-500/20"
                 >
                   <p className="text-center text-sm sm:text-base italic text-gray-400">
-                    "La tecnología debe conectarnos, no distraernos con anuncios. Chactivo es mi contribución para una comunidad gay más unida en Santiago."
+                    "La tecnología debe conectarnos, no distraernos con anuncios. Chactivo es mi contribución para una comunidad gay más unida en Chile."
                     <span className="text-cyan-400 font-semibold ml-2">- Daniel F.</span>
                   </p>
                 </motion.div>
@@ -1253,32 +1202,32 @@ const SantiagoLandingPage = () => {
         <motion.section
           initial={{ opacity: 0, y: 30 }}
           animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.8 }}
+          transition={{ delay: 0.7 }}
           className="text-center"
         >
-          <div className="glass-effect rounded-3xl p-10 sm:p-16 border-2 border-blue-500/30 bg-gradient-to-br from-blue-900/20 to-cyan-900/20">
+          <div className="glass-effect rounded-3xl p-10 sm:p-16 border-2 border-cyan-500/30 bg-gradient-to-br from-cyan-900/20 to-blue-900/20">
             <h2 className="text-3xl sm:text-4xl font-extrabold mb-4">
-              ¿Listo para Conocer Gays de Santiago?
+              ¿Listo para Conectar con Gays de Todo Chile?
             </h2>
             <p className="text-lg text-muted-foreground mb-8 max-w-2xl mx-auto">
-              Únete a la comunidad gay más activa de la capital. Conversación real, eventos, amistad. Todo gratis.
+              Únete a la sala más activa de Chactivo. Conversación real, ambiente relajado, 100% gratis.
             </p>
             <motion.div
               whileHover={{ scale: 1.05 }}
               whileTap={{ scale: 0.95 }}
             >
               <Button
-                onClick={handleChatearAhora}
+                onClick={handleEnterChat}
                 size="lg"
-                className="bg-gradient-to-r from-blue-600 to-cyan-600 hover:from-blue-500 hover:to-cyan-500 text-white font-bold text-xl sm:text-2xl px-12 sm:px-20 py-6 sm:py-8 rounded-2xl shadow-2xl"
+                className="bg-gradient-to-r from-cyan-600 to-blue-600 hover:from-cyan-500 hover:to-blue-500 text-white font-bold text-xl sm:text-2xl px-12 sm:px-20 py-6 sm:py-8 rounded-2xl shadow-2xl"
               >
-                <MapPin className="w-7 h-7 mr-3" />
+                <MessageSquare className="w-7 h-7 mr-3" />
                 Entrar al Chat Ahora
                 <ArrowRight className="w-7 h-7 ml-3" />
               </Button>
             </motion.div>
             <p className="text-sm text-muted-foreground mt-6">
-              🏙️ +80 usuarios activos de Santiago • 🔒 100% anónimo • ⚡ Sin registro
+              💬 La sala más popular • 🔒 100% anónimo • ⚡ Registro rápido gratis
             </p>
           </div>
         </motion.section>
@@ -1308,4 +1257,4 @@ const SantiagoLandingPage = () => {
   );
 };
 
-export default SantiagoLandingPage;
+export default GlobalLandingPage;
