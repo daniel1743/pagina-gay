@@ -62,16 +62,19 @@ const ChatDemo = ({ onJoinClick }) => {
   const messageKeyCounter = useRef(0); // Contador único para keys
 
   const scrollToBottom = () => {
-    // Solo hacer scroll dentro del contenedor, no en toda la página
-    messagesEndRef.current?.scrollIntoView({
-      behavior: 'smooth',
-      block: 'nearest', // No hacer scroll en la página entera
-      inline: 'nearest'
-    });
+    // Hacer scroll SOLO dentro del contenedor del chat, sin afectar la página
+    const container = messagesEndRef.current?.parentElement;
+    if (container) {
+      container.scrollTop = container.scrollHeight;
+    }
   };
 
   useEffect(() => {
-    scrollToBottom();
+    // Pequeño delay para asegurar que el DOM se actualizó
+    const timer = setTimeout(() => {
+      scrollToBottom();
+    }, 50);
+    return () => clearTimeout(timer);
   }, [visibleMessages]);
 
   useEffect(() => {

@@ -169,6 +169,11 @@ const recordMessage = (userId, message) => {
 };
 
 const sendBotMessage = async (roomId, botProfile, conversationHistory, userMessage = null, useGemini = true) => {
+  // 🚫 DESACTIVADO: No enviar mensajes de bots automáticamente
+  console.log(`🚫 [BOT COORDINATOR] sendBotMessage DESACTIVADO - No se enviarán mensajes de bots (bot=${botProfile?.username}, roomId=${roomId})`);
+  return;
+  
+  /* CÓDIGO ORIGINAL COMENTADO
   try {
     let response;
 
@@ -203,12 +208,18 @@ const sendBotMessage = async (roomId, botProfile, conversationHistory, userMessa
   } catch (error) {
     console.error(`Error enviando mensaje de bot ${botProfile.username}:`, error);
   }
+  */
 };
 
 /**
  * Inicia actividad de un bot específico en una sala
  */
 const startBotActivity = (roomId, botProfile, getConversationHistory, config) => {
+  // 🚫 DESACTIVADO: No iniciar actividad de bots automáticamente
+  console.log(`🚫 [BOT COORDINATOR] startBotActivity DESACTIVADO - No se iniciará actividad de bots (bot=${botProfile?.username}, roomId=${roomId})`);
+  return null;
+  
+  /* CÓDIGO ORIGINAL COMENTADO
   let messageCount = 0; // Contador de mensajes enviados por este bot
 
   const sendRandomMessage = async () => {
@@ -242,6 +253,7 @@ const startBotActivity = (roomId, botProfile, getConversationHistory, config) =>
   const timeoutId = setTimeout(sendRandomMessage, initialDelay);
 
   return timeoutId;
+  */
 };
 
 /**
@@ -447,9 +459,11 @@ export const botRespondToUser = async (roomId, userMessage, conversationHistory,
     return;
   }
 
+  // 🚫 DESACTIVADO: No responder automáticamente a usuarios
   // ✨ SISTEMA AI PURO: La IA responde con delay natural (10-20 segundos)
   // Los bots de fondo siguen conversando entre ellos
-  await aiRespondToUser(roomId, userId, userMessage, conversationHistory);
+  // await aiRespondToUser(roomId, userId, userMessage, conversationHistory);
+  console.log(`🚫 [BOT COORDINATOR] aiRespondToUser DESACTIVADO - No se enviarán respuestas automáticas`);
 
   // Verificar inactividad después de 5 minutos
   setTimeout(() => {
@@ -528,9 +542,11 @@ export const activateAIWhenUserEnters = (roomId, userId, username) => {
 
   console.log(`✨ [AI ACTIVATION] Activando IA para usuario ${username} en sala ${roomId}`);
   
+  // 🚫 DESACTIVADO: No activar IA automáticamente (evitar spam)
   // ✨ Activar IA para este usuario
   // La IA enviará automáticamente un mensaje de bienvenida
-  activateAIForUser(roomId, userId, username);
+  // activateAIForUser(roomId, userId, username);
+  console.log(`🚫 [AI ACTIVATION] activateAIForUser DESACTIVADO - No se activará IA automáticamente`);
 };
 
 /**

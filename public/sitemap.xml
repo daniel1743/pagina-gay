@@ -36,12 +36,20 @@
     <mobile:mobile/>
   </url>
   <url>
+    <loc>https://chactivo.com/chat/global</loc>
+    <lastmod>2025-12-28</lastmod>
+    <changefreq>hourly</changefreq>
+    <priority>0.95</priority>
+    <mobile:mobile/>
+  </url>
+  <!-- URL antigua redirige a /chat/global automáticamente -->
+  <!-- <url>
     <loc>https://chactivo.com/chat/conversas-libres</loc>
     <lastmod>2025-12-26</lastmod>
     <changefreq>hourly</changefreq>
     <priority>0.95</priority>
     <mobile:mobile/>
-  </url>
+  </url> -->
   <url>
     <loc>https://chactivo.com/chat/gaming</loc>
     <lastmod>2025-12-26</lastmod>

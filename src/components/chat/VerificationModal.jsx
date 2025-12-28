@@ -139,7 +139,7 @@ const VerificationModal = ({ onClose, engagementTime }) => {
             setShowQuickSignup(false);
             onClose();
           }}
-          redirectTo="/chat/conversas-libres"
+          redirectTo="/chat/global"
         />
       )}
     </>

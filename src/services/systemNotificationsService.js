@@ -83,7 +83,7 @@ Entra a la sala, saluda y deja que el chat haga lo suyo 😉
 
 Bienvenido a Chactivo.`,
       icon: '🔥',
-      link: '/chat/conversas-libres',
+      link: '/chat/global',
       priority: 'high',
     });
   } catch (error) {
@@ -370,7 +370,7 @@ Entra a la sala, saluda y deja que el chat haga lo suyo 😉
 
 Bienvenido a Chactivo.`,
         icon: '🔥',
-        link: '/chat/conversas-libres',
+        link: '/chat/global',
         priority: 'high',
         createdBy: adminId,
       });

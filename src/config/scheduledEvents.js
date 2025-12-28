@@ -15,7 +15,7 @@
  * Formato de horarios: 24h formato Chile (UTC-3)
  */
 export const SCHEDULED_EVENTS = {
-  'conversas-libres': [
+  'global': [
     {
       id: 'conversas_lunes_cine',
       day: 1, // Lunes (0=domingo, 1=lunes, etc)

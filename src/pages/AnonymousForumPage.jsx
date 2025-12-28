@@ -309,7 +309,7 @@ const AnonymousForumPage = () => {
                         <Button
                           onClick={() => {
                             if (user && !user.isGuest) {
-                              navigate('/chat/conversas-libres');
+                              navigate('/chat/global');
                             } else {
                               navigate('/auth');
                             }

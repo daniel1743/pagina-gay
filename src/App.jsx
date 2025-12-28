@@ -9,6 +9,7 @@ import PremiumPage from '@/pages/PremiumPage';
 import AdminPage from '@/pages/AdminPage';
 import AdminTicketsPage from '@/pages/AdminTicketsPage';
 import TicketDetailPage from '@/pages/TicketDetailPage';
+import AdminCleanup from '@/pages/AdminCleanup';
 import Header from '@/components/layout/Header';
 import Footer from '@/components/layout/Footer';
 import { AuthProvider, useAuth } from '@/contexts/AuthContext';
@@ -64,6 +65,12 @@ function AppRoutes() {
         <Route path="/mas-30" element={<MainLayout><Mas30LandingPage /></MainLayout>} />
         <Route path="/santiago" element={<MainLayout><SantiagoLandingPage /></MainLayout>} />
 
+        {/* ✅ REDIRECCIÓN: conversas-libres → global (sala limpia sin spam) */}
+        <Route
+          path="/chat/conversas-libres"
+          element={<Navigate to="/chat/global" replace />}
+        />
+
         <Route path="/chat/:roomId" element={<ChatPage />} />
         <Route path="/anonymous-chat" element={<AnonymousChatPage />} />
         <Route path="/anonymous-forum" element={<AnonymousForumPage />} />
@@ -105,6 +112,14 @@ function AppRoutes() {
           element={
             <PrivateRoute>
               <MainLayout><TicketDetailPage /></MainLayout>
+            </PrivateRoute>
+          }
+        />
+        <Route
+          path="/admin/cleanup"
+          element={
+            <PrivateRoute>
+              <AdminCleanup />
             </PrivateRoute>
           }
         />

@@ -6,6 +6,7 @@ import { Button } from '@/components/ui/button';
 import { useAuth } from '@/contexts/AuthContext';
 import { useCanonical } from '@/hooks/useCanonical';
 import ChatDemo from '@/components/landing/ChatDemo';
+import { GuestUsernameModal } from '@/components/auth/GuestUsernameModal';
 
 const Mas30LandingPage = () => {
   // SEO: Canonical tag
@@ -13,6 +14,7 @@ const Mas30LandingPage = () => {
 
   const navigate = useNavigate();
   const { user } = useAuth();
+  const [showGuestModal, setShowGuestModal] = React.useState(false);
 
   React.useEffect(() => {
     // ✅ SEO: Title y meta description optimizados para CTR
@@ -33,7 +35,15 @@ const Mas30LandingPage = () => {
     };
   }, []);
 
-  const handleEnterChat = () => {
+  const handleChatearAhora = () => {
+    if (user && !user.isGuest) {
+      navigate('/chat/mas-30');
+    } else {
+      setShowGuestModal(true);
+    }
+  };
+
+  const handleRegistrar = () => {
     if (user && !user.isGuest) {
       navigate('/chat/mas-30');
     } else {
@@ -94,25 +104,35 @@ const Mas30LandingPage = () => {
             </div>
           </div>
 
-          {/* CTA Principal */}
-          <motion.div
-            whileHover={{ scale: 1.05 }}
-            whileTap={{ scale: 0.95 }}
-          >
-            <Button
-              onClick={handleEnterChat}
-              size="lg"
-              className="bg-gradient-to-r from-amber-600 to-orange-600 hover:from-amber-500 hover:to-orange-500 text-white font-bold text-xl sm:text-2xl px-10 sm:px-16 py-6 sm:py-8 rounded-2xl shadow-2xl"
-            >
-              <Users className="w-6 h-6 sm:w-7 sm:h-7 mr-3" />
-              Entrar a la Sala +30
-              <ArrowRight className="w-6 h-6 sm:w-7 sm:h-7 ml-3" />
-            </Button>
-          </motion.div>
+          {/* CTA Principal - Dos opciones */}
+          <div className="flex flex-col sm:flex-row gap-4 items-center justify-center">
+            <motion.div whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }}>
+              <Button
+                onClick={handleChatearAhora}
+                size="lg"
+                className="bg-gradient-to-r from-amber-600 to-orange-600 hover:from-amber-500 hover:to-orange-500 text-white font-bold text-lg sm:text-xl px-8 sm:px-12 py-6 sm:py-7 rounded-2xl shadow-2xl w-full sm:w-auto"
+              >
+                <Zap className="w-6 h-6 mr-2" />
+                Chatear Ahora
+              </Button>
+            </motion.div>
+
+            <motion.div whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }}>
+              <Button
+                onClick={handleRegistrar}
+                size="lg"
+                variant="outline"
+                className="border-2 border-amber-500 text-amber-400 hover:bg-amber-500/10 font-bold text-lg sm:text-xl px-8 sm:px-12 py-6 sm:py-7 rounded-2xl w-full sm:w-auto"
+              >
+                <Users className="w-6 h-6 mr-2" />
+                Registrate para Más
+              </Button>
+            </motion.div>
+          </div>
 
           {/* Micro CTA copy */}
           <p className="text-sm text-muted-foreground mt-4">
-            ⚡ Entra en 30 segundos • 💪 100% gratis • 🔒 Sin email
+            ⚡ Sin registro: Chatea gratis 1 mes • 💎 Con registro: Chats privados, likes y más
           </p>
         </motion.div>
 
@@ -123,7 +143,7 @@ const Mas30LandingPage = () => {
           transition={{ duration: 0.6, delay: 0.3 }}
           className="mb-16 sm:mb-20"
         >
-          <ChatDemo onJoinClick={handleEnterChat} />
+          <ChatDemo onJoinClick={handleChatearAhora} />
         </motion.section>
 
         {/* Why +30 Section */}
@@ -429,6 +449,12 @@ const Mas30LandingPage = () => {
           </div>
         </motion.section>
       </div>
+
+      {/* Guest Username Modal (Sin Registro) */}
+      <GuestUsernameModal
+        open={showGuestModal}
+        onClose={() => setShowGuestModal(false)}
+      />
     </div>
   );
 };

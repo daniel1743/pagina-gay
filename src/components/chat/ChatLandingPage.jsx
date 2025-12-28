@@ -31,7 +31,7 @@ import EventsCalendar from '@/components/events/EventsCalendar';
 
 // Contenido personalizado por sala
 const ROOM_CONTENT = {
-  'conversas-libres': {
+  'global': {
     title: 'Conversas Libres',
     subtitle: 'Chat gay chileno sin filtros',
     description: 'La sala más activa de Chile. Conoce gays de todo el país, conversa de cualquier tema sin presión. Ambiente relajado, sin juicios.',

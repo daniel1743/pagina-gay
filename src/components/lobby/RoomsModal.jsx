@@ -95,15 +95,15 @@ const RoomsModal = ({ isOpen, onClose }) => {
               const userCount = realUserCount;
 
               const isAnonymousUser = user && (user.isAnonymous || user.isGuest);
-              const isConversasLibres = room.id === 'conversas-libres';
-              const canAccess = !isAnonymousUser || isConversasLibres;
+              const isGlobalRoom = room.id === 'global'; // Sala principal nueva
+              const canAccess = !isAnonymousUser || isGlobalRoom;
 
               const handleRoomClick = () => {
                 if (!canAccess) {
                   // Usuario anónimo intentando acceder a sala restringida
                   toast({
                     title: "Sala Solo para Registrados 🔒",
-                    description: "Regístrate gratis para acceder a todas las salas. Prueba primero en 'Conversas Libres'.",
+                    description: "Regístrate gratis para acceder a todas las salas. Prueba primero en 'Chat Global'.",
                     variant: "destructive",
                     duration: 5000,
                   });
@@ -134,7 +134,7 @@ const RoomsModal = ({ isOpen, onClose }) => {
                           Requiere registro
                         </span>
                       )}
-                      {isConversasLibres && isAnonymousUser && (
+                      {isGlobalRoom && isAnonymousUser && (
                         <span className="text-xs bg-green-500/20 text-green-400 px-2 py-0.5 rounded-full border border-green-500/30 inline-block mt-1">
                           ¡Prueba gratis!
                         </span>

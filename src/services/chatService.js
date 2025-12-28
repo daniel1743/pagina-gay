@@ -18,6 +18,7 @@ import {
 } from 'firebase/firestore';
 import { db, auth } from '@/config/firebase';
 import { trackMessageSent, trackFirstMessage } from '@/services/ga4Service';
+import { checkRateLimit, recordMessage } from '@/services/rateLimitService';
 
 /**
  * Envía un mensaje a una sala de chat
@@ -37,6 +38,10 @@ export const sendMessage = async (roomId, messageData, isAnonymous = false) => {
 
     const messageType = isAI ? '🤖 IA' : (isBot ? '⚠️ BOT' : '✅ USUARIO REAL');
 
+    // 🔍 RASTREADOR MEJORADO: Incluir stack trace para identificar origen
+    const stackTrace = new Error().stack;
+    const callerLine = stackTrace.split('\n')[2] || 'unknown';
+    
     console.log(`
 ╔════════════════════════════════════════════════════════════╗
 ║           📤 RASTREADOR DE MENSAJES                        ║
@@ -47,25 +52,81 @@ export const sendMessage = async (roomId, messageData, isAnonymous = false) => {
 ║ 💬 Mensaje: "${messageData.content.substring(0,40).padEnd(40)}" ║
 ║ 🆔 UserID: ${messageData.userId.substring(0,20).padEnd(20)}                  ║
 ║ 👻 Anónimo: ${(isAnonymous ? 'SÍ' : 'NO').padEnd(18)}          ║
+║ 📍 Origen: ${callerLine.substring(0, 50).padEnd(50)} ║
 ╚════════════════════════════════════════════════════════════╝
     `);
-
-    // ✅ Rate Limiting: Verificar última vez que envió mensaje
-    const rateLimitKey = `lastMessage_${messageData.userId}`;
-    const lastMessageTime = parseInt(localStorage.getItem(rateLimitKey) || '0');
-    const now = Date.now();
-    const timeSinceLastMessage = now - lastMessageTime;
-
-    // Permitir máximo 1 mensaje cada 3 segundos (20 mensajes/minuto)
-    if (timeSinceLastMessage < 3000) {
-      const waitTime = Math.ceil((3000 - timeSinceLastMessage) / 1000);
-      throw new Error(`Por favor espera ${waitTime} segundo(s) antes de enviar otro mensaje.`);
+    
+    // 🚨 ALERTA ESPECIAL: Si es un mensaje de IA/Bot, mostrar stack completo
+    if (isAI || isBot) {
+      console.group(`🚨 MENSAJE DE IA/BOT DETECTADO - STACK TRACE COMPLETO`);
+      console.log(`Remitente: ${messageData.username} (${messageData.userId})`);
+      console.log(`Mensaje: "${messageData.content}"`);
+      console.log(`Stack trace completo:`, stackTrace);
+      console.groupEnd();
     }
 
-    // ✅ IMPORTANTE: NO actualizar el timestamp aquí, solo después de que el mensaje se envíe exitosamente
-    // Si el mensaje falla, no queremos bloquear al usuario
+    // 🛡️ RATE LIMITING PROFESIONAL: Máximo 3 mensajes cada 10 segundos
+    // 🔥 DETECCIÓN DE DUPLICADOS: Si repite 1 mensaje → MUTE INMEDIATO
+    const rateLimitCheck = await checkRateLimit(messageData.userId, roomId, messageData.content);
+
+    if (!rateLimitCheck.allowed) {
+      console.warn(`🚫 [RATE LIMIT] Mensaje bloqueado de ${messageData.username} (${messageData.userId})`);
+      console.warn(`Razón: ${rateLimitCheck.error}`);
+
+      throw new Error(rateLimitCheck.error);
+    }
+
+    console.log(`✅ [RATE LIMIT] Usuario ${messageData.username} pasó verificación`);
+
+    // ✅ IMPORTANTE: Registrar mensaje SOLO después de que se envíe exitosamente (ver abajo)
 
     const messagesRef = collection(db, 'rooms', roomId, 'messages');
+
+    // 🔍 TRAZABILIDAD: Determinar origen del mensaje
+    let trace = messageData.trace;
+    
+    // Si no viene trace, crear uno (mensaje humano)
+    if (!trace) {
+      const isBot = messageData.userId?.startsWith('bot_') ||
+                    messageData.userId?.startsWith('ai_') ||
+                    messageData.userId?.startsWith('static_bot_') ||
+                    messageData.userId === 'system';
+      
+      if (isBot) {
+        // Mensaje de bot/legacy sin trace - marcar como LEGACY_BOT
+        trace = {
+          origin: 'SYSTEM',
+          source: 'LEGACY_BOT',
+          actorId: messageData.userId,
+          actorType: 'BOT',
+          system: 'unknown',
+          traceId: crypto.randomUUID(),
+          createdAt: Date.now()
+        };
+      } else {
+        // Mensaje humano real
+        trace = {
+          origin: 'HUMAN',
+          source: 'USER_INPUT',
+          actorId: messageData.userId,
+          actorType: 'HUMAN',
+          system: 'chatService',
+          traceId: crypto.randomUUID(),
+          createdAt: Date.now()
+        };
+      }
+    }
+    
+    // 🚨 VALIDACIÓN: Rechazar mensajes sin trace (regla de oro)
+    if (!trace || !trace.origin || !trace.source || !trace.actorId) {
+      console.error('🚨 MENSAJE BLOQUEADO: Sin trazabilidad completa', {
+        userId: messageData.userId,
+        username: messageData.username,
+        content: messageData.content?.substring(0, 50),
+        trace: messageData.trace
+      });
+      throw new Error('Mensaje sin trazabilidad bloqueado: falta metadata de origen');
+    }
 
     const message = {
       userId: messageData.userId,
@@ -78,6 +139,7 @@ export const sendMessage = async (roomId, messageData, isAnonymous = false) => {
       timestamp: serverTimestamp(),
       reactions: { like: 0, dislike: 0 },
       read: false, // Para doble check
+      trace, // 🔍 TRAZABILIDAD: Incluir metadata completa
     };
 
     // Verificar si es el primer mensaje del usuario (para GA4)
@@ -88,8 +150,8 @@ export const sendMessage = async (roomId, messageData, isAnonymous = false) => {
       // OPTIMIZACIÓN: Enviar mensaje primero (rápido), actualizar contador después (asíncrono)
       const docRef = await addDoc(messagesRef, message);
 
-      // ✅ ACTUALIZAR timestamp del rate limiting SOLO después de que el mensaje se envíe exitosamente
-      localStorage.setItem(rateLimitKey, now.toString());
+      // ✅ Registrar mensaje enviado en cache de rate limiting (con contenido para detectar duplicados)
+      recordMessage(messageData.userId, messageData.content);
 
       console.log(`✅ [MENSAJE ENVIADO] ${messageData.username} (anónimo) → "${messageData.content.substring(0,30)}..."`);
 
@@ -121,10 +183,10 @@ export const sendMessage = async (roomId, messageData, isAnonymous = false) => {
       // Para usuarios registrados: crear mensaje directamente
       const docRef = await addDoc(messagesRef, message);
 
-      // ✅ ACTUALIZAR timestamp del rate limiting SOLO después de que el mensaje se envíe exitosamente
-      localStorage.setItem(rateLimitKey, now.toString());
+      // ✅ Registrar mensaje enviado en cache de rate limiting (con contenido para detectar duplicados)
+      recordMessage(messageData.userId, messageData.content);
 
-      console.log(`✅ [MENSAJE ENVIADO] ${messageData.username} (${messageType}) → "${messageData.content.substring(0,30)}..."`);
+      console.log(`✅ [MENSAJE ENVIADO] ${messageData.username} (${messageType}) → "${messageData.content.substring(0,30)}..."`)
 
       // ✅ Incrementar contador de mensajes para usuarios registrados (para sistema de recompensas)
       if (messageData.userId && !isAnonymous && !isBot) {

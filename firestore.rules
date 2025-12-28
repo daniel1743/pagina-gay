@@ -570,6 +570,26 @@ service cloud.firestore {
     }
 
     // ===========================
+    // RATE LIMITING - USUARIOS MUTEADOS
+    // ===========================
+
+    match /muted_users/{userId} {
+      // Leer: cualquier usuario autenticado puede verificar si está muteado
+      allow read: if isAuthenticated();
+
+      // Crear/Actualizar: cualquier usuario autenticado puede mutear (sistema automático)
+      // El userId del documento DEBE coincidir con el campo userId en los datos
+      allow create, update: if isAuthenticated() &&
+                              'userId' in request.resource.data &&
+                              request.resource.data.userId is string &&
+                              'muteEnd' in request.resource.data &&
+                              'reason' in request.resource.data;
+
+      // Borrar: solo admin puede eliminar mutes manualmente
+      allow delete: if isAdmin();
+    }
+
+    // ===========================
     // DEFAULT: CERRADO
     // ===========================
 

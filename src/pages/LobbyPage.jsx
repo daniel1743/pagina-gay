@@ -16,6 +16,7 @@ import GlobalStats from '@/components/lobby/GlobalStats';
 import PWAInstallBanner from '@/components/ui/PWAInstallBanner';
 import ComingSoonModal from '@/components/ui/ComingSoonModal';
 import QuickSignupModal from '@/components/auth/QuickSignupModal';
+import { GuestUsernameModal } from '@/components/auth/GuestUsernameModal';
 import { toast } from '@/components/ui/use-toast';
 import { useAuth } from '@/contexts/AuthContext';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog';
@@ -179,6 +180,7 @@ const LobbyPage = () => {
   const [lastActivity, setLastActivity] = useState(null);
   const [, forceUpdate] = useState(0);
   const [showQuickSignup, setShowQuickSignup] = useState(false);
+  const [showGuestModal, setShowGuestModal] = useState(false);
   const [roomCounts, setRoomCounts] = useState({});
 
   // ✅ Suscribirse a contadores de usuarios en tiempo real
@@ -419,7 +421,7 @@ const LobbyPage = () => {
               {/* Tagline */}
               <div className="glass-effect px-6 py-2 rounded-full border border-cyan-500/30">
                 <p className="text-sm sm:text-base text-cyan-300 font-medium">
-                  Conecta en menos de 30 segundos
+                  Acceso rápido y sin registro
                 </p>
               </div>
 
@@ -445,7 +447,7 @@ const LobbyPage = () => {
               transition={{ delay: 0.3 }}
               className="text-3xl sm:text-4xl md:text-5xl lg:text-6xl font-extrabold text-center mb-4 sm:mb-6 leading-tight px-4"
             >
-              Chat Gay Chile: Entra en 30 Segundos ⚡
+              Chat Gay Chile: Chatea Gratis y Conecta con Personas Reales 🏳️‍🌈
             </motion.h1>
 
             {/* Subtítulo del Hero */}
@@ -455,7 +457,7 @@ const LobbyPage = () => {
               transition={{ delay: 0.4 }}
               className="text-base sm:text-lg md:text-xl text-center text-muted-foreground mb-8 sm:mb-10 max-w-3xl mx-auto px-4 leading-relaxed"
             >
-              Solo username, sin email, sin tarjeta. Cientos de chicos gays chateando ahora. Salas activas 24/7, conversación real, sin toxicidad.
+              Entra como invitado y chatea gratis por 1 mes, o regístrate para desbloquear chats privados, likes, avatares y más. ¡Cientos de chicos activos ahora!
             </motion.p>
 
             {/* ✅ CTA PRINCIPAL DEL HERO */}
@@ -465,18 +467,21 @@ const LobbyPage = () => {
               transition={{ delay: 0.5 }}
               className="flex flex-col sm:flex-row items-center justify-center gap-4 mb-8 sm:mb-10 px-4"
             >
+              {/* Botón 1: Chatear Ahora (sin registro) */}
               <Button
                 onClick={() => {
                   if (user && !user.isAnonymous && !user.isGuest) {
                     handleCardClick('RoomsModal');
                   } else {
-                    setShowQuickSignup(true);
+                    setShowGuestModal(true);
                   }
                 }}
                 className="magenta-gradient text-white font-bold text-base sm:text-lg md:text-xl px-6 sm:px-8 md:px-12 py-5 sm:py-6 md:py-7 rounded-xl shadow-xl hover:shadow-[#E4007C]/50 hover:scale-105 transition-all w-full sm:w-auto min-h-[48px]"
               >
-                Entrar a salas de chat
+                ⚡ Chatear Ahora
               </Button>
+
+              {/* Botón 2: Registrate (acceso completo) */}
               <Button
                 onClick={() => {
                   if (user && !user.isAnonymous && !user.isGuest) {
@@ -488,7 +493,7 @@ const LobbyPage = () => {
                 variant="outline"
                 className="border-2 border-cyan-500/50 text-cyan-400 font-bold text-base sm:text-lg md:text-xl px-6 sm:px-8 md:px-12 py-5 sm:py-6 md:py-7 rounded-xl hover:bg-cyan-500/10 hover:border-cyan-500 transition-all w-full sm:w-auto min-h-[48px]"
               >
-                Ver chats activos
+                💎 Registrate para Más
               </Button>
             </motion.div>
 
@@ -507,23 +512,25 @@ const LobbyPage = () => {
           </motion.section>
         )}
 
-        {/* 🔥 CHAT DEMO - Vista previa con notificaciones animadas */}
-        <motion.section
-          initial={{ opacity: 0, y: 30 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.6, delay: 0.4 }}
-          className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-8 sm:py-12 mb-12 sm:mb-16"
-        >
-          <ChatDemo
-            onJoinClick={() => {
-              if (user && !user.isAnonymous && !user.isGuest) {
-                handleCardClick('RoomsModal');
-              } else {
-                setShowQuickSignup(true);
-              }
-            }}
-          />
-        </motion.section>
+        {/* 🔥 CHAT DEMO - Vista previa con notificaciones animadas - Solo para visitantes */}
+        {showHeroSection && (
+          <motion.section
+            initial={{ opacity: 0, y: 30 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.6, delay: 0.4 }}
+            className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-8 sm:py-12 mb-12 sm:mb-16"
+          >
+            <ChatDemo
+              onJoinClick={() => {
+                if (user && !user.isAnonymous && !user.isGuest) {
+                  handleCardClick('RoomsModal');
+                } else {
+                  setShowQuickSignup(true);
+                }
+              }}
+            />
+          </motion.section>
+        )}
 
         {/* ✅ FASE URGENTE: Sección "Cómo Funciona" - Solo para visitantes */}
         {showHeroSection && (
@@ -551,12 +558,12 @@ const LobbyPage = () => {
                 <div className="w-16 h-16 mx-auto mb-5 rounded-full bg-gradient-to-br from-[#E4007C] to-pink-500 flex items-center justify-center text-3xl font-black text-white shadow-lg">
                   1
                 </div>
-                <h3 className="text-xl sm:text-2xl font-bold mb-3">Entra en 30 Segundos</h3>
+                <h3 className="text-xl sm:text-2xl font-bold mb-3">Acceso Rápido y Gratis</h3>
                 <p className="text-sm sm:text-base text-muted-foreground leading-relaxed mb-4">
-                  Solo username y contraseña. Sin email, sin tarjeta, sin complicaciones. ¡Empieza a chatear al instante!
+                  Sin registro, sin email, sin tarjeta. Conecta al instante y chatea gratis. Comunidad activa 24/7.
                 </p>
                 <div className="inline-block px-4 py-2 bg-green-500/20 border border-green-500/30 rounded-full">
-                  <p className="text-xs sm:text-sm font-semibold text-green-400">⚡ 30 segundos</p>
+                  <p className="text-xs sm:text-sm font-semibold text-green-400">⚡ Acceso rápido</p>
                 </div>
               </motion.div>
 
@@ -843,6 +850,12 @@ const LobbyPage = () => {
         isOpen={showQuickSignup}
         onClose={() => setShowQuickSignup(false)}
         redirectTo="/lobby"
+      />
+
+      {/* Guest Username Modal (Sin Registro) */}
+      <GuestUsernameModal
+        open={showGuestModal}
+        onClose={() => setShowGuestModal(false)}
       />
 
     </>

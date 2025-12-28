@@ -16,7 +16,7 @@ import {
   removeQuickPhrase as removeQuickPhraseService,
   upgradeToPremium as upgradeToPremiumService,
 } from '@/services/userService';
-import { doc, getDoc } from 'firebase/firestore';
+import { doc, getDoc, setDoc } from 'firebase/firestore';
 import { db } from '@/config/firebase';
 import { toast } from '@/components/ui/use-toast';
 import { trackUserRegister, trackUserLogin } from '@/services/analyticsService';
@@ -47,30 +47,44 @@ export const AuthProvider = ({ children }) => {
       if (firebaseUser) {
         try {
           if (firebaseUser.isAnonymous) {
-            // Usuario anónimo - crear perfil temporal
+            // Usuario anónimo - cargar datos desde Firestore
             const guestRef = doc(db, 'guests', firebaseUser.uid);
             const guestSnap = await getDoc(guestRef);
 
-            const guestUser = {
-              id: firebaseUser.uid,
-              username: 'Invitado',
-              isGuest: true,
-              isAnonymous: true,
-              isPremium: false,
-              verified: false,
-              avatar: 'https://api.dicebear.com/7.x/pixel-art/svg?seed=guest',
-              quickPhrases: [],
-              theme: {},
-            };
+            let guestUser;
 
-            setUser(guestUser);
-
-            // Cargar contador de mensajes
             if (guestSnap.exists()) {
-              setGuestMessageCount(guestSnap.data().messageCount || 0);
+              // Guest con datos personalizados
+              const guestData = guestSnap.data();
+              guestUser = {
+                id: firebaseUser.uid,
+                username: guestData.username || 'Invitado',
+                isGuest: true,
+                isAnonymous: true,
+                isPremium: false,
+                verified: false,
+                avatar: guestData.avatar || 'https://api.dicebear.com/7.x/pixel-art/svg?seed=guest',
+                quickPhrases: [],
+                theme: {},
+              };
+              setGuestMessageCount(guestData.messageCount || 0);
             } else {
+              // Guest sin datos (sesión anónima antigua)
+              guestUser = {
+                id: firebaseUser.uid,
+                username: 'Invitado',
+                isGuest: true,
+                isAnonymous: true,
+                isPremium: false,
+                verified: false,
+                avatar: 'https://api.dicebear.com/7.x/pixel-art/svg?seed=guest',
+                quickPhrases: [],
+                theme: {},
+              };
               setGuestMessageCount(0);
             }
+
+            setUser(guestUser);
           } else {
             // Usuario registrado - obtener perfil de Firestore
             const userProfile = await getUserProfile(firebaseUser.uid);
@@ -306,13 +320,57 @@ export const AuthProvider = ({ children }) => {
   };
 
   /**
+   * Iniciar sesión como invitado (guest)
+   * Solo requiere username y avatar
+   */
+  const signInAsGuest = async (username, avatarUrl) => {
+    try {
+      // Crear usuario anónimo en Firebase
+      const userCredential = await signInAnonymously(auth);
+
+      // Guardar datos del guest en Firestore
+      const guestData = {
+        username: username,
+        avatar: avatarUrl,
+        createdAt: new Date().toISOString(),
+        messageCount: 0,
+        expiresAt: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString() // 30 días
+      };
+
+      const guestRef = doc(db, 'guests', userCredential.user.uid);
+      await setDoc(guestRef, guestData);
+
+      // Actualizar estado del usuario
+      const guestUser = {
+        id: userCredential.user.uid,
+        username: username,
+        isGuest: true,
+        isAnonymous: true,
+        isPremium: false,
+        verified: false,
+        avatar: avatarUrl,
+        quickPhrases: [],
+        theme: {},
+      };
+
+      setUser(guestUser);
+      setGuestMessageCount(0);
+
+      return true;
+    } catch (error) {
+      console.error('Error signing in as guest:', error);
+      throw error;
+    }
+  };
+
+  /**
    * Cerrar sesión
    */
   const logout = async () => {
   try {
     // Simplemente cierra la sesión. El useEffect se encargará del resto.
-    await signOut(auth); 
-    
+    await signOut(auth);
+
     toast({
       title: "Sesión cerrada",
       description: "¡Hasta pronto! 👋",
@@ -428,6 +486,7 @@ export const AuthProvider = ({ children }) => {
     setShowWelcomeTour,
     login,
     register,
+    signInAsGuest,
     logout,
     updateProfile,
     upgradeToPremium,

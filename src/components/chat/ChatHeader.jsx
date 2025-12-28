@@ -5,7 +5,7 @@ import { Menu, Home, ArrowLeft } from 'lucide-react';
 import NotificationBell from '@/components/notifications/NotificationBell';
 
 const roomNames = {
-  'conversas-libres': 'Conversas Libres',
+  'global': 'Chat Global', // Sala principal nueva
   'gaming': 'Gaming',
   'mas-30': '+30',
   'amistad': 'Amistad',
@@ -15,6 +15,7 @@ const roomNames = {
   'quedar-ya': 'Quedar Ya',
   'hablar-primero': 'Hablar Primero',
   'morbosear': 'Morbosear',
+  // 'conversas-libres' → redirige a 'global'
 };
 
 const ChatHeader = ({ currentRoom, onMenuClick, onOpenPrivateChat }) => {

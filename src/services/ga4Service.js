@@ -20,15 +20,26 @@ const isGA4Available = () => {
  */
 const trackEvent = (eventName, params = {}) => {
   if (!isGA4Available()) {
-    console.warn('GA4 no está disponible. Evento no enviado:', eventName);
+    // Silenciosamente ignorar si GA4 no está disponible (no es crítico)
     return;
   }
 
   try {
-    window.gtag('event', eventName, params);
-    console.log(`[GA4] Evento enviado: ${eventName}`, params);
+    // Usar setTimeout para evitar bloquear el hilo principal
+    setTimeout(() => {
+      try {
+        window.gtag('event', eventName, params);
+        // Solo loggear en desarrollo (opcional)
+        if (process.env.NODE_ENV === 'development') {
+          console.log(`[GA4] Evento enviado: ${eventName}`, params);
+        }
+      } catch (error) {
+        // Silenciosamente ignorar errores de GA4 (no son críticos para la funcionalidad)
+        // Los errores de fetch de GA4 son comunes (bloqueadores de anuncios, problemas de red, etc.)
+      }
+    }, 0);
   } catch (error) {
-    console.error('Error enviando evento a GA4:', error);
+    // Silenciosamente ignorar errores de GA4
   }
 };
 

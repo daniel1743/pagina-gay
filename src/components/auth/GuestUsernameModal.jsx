@@ -92,8 +92,8 @@ export const GuestUsernameModal = ({ open, onClose }) => {
         description: `Hola ${username.trim()}, ya puedes chatear`,
       });
 
-      // Redirigir a la sala principal
-      navigate('/chat/conversas-libres');
+      // Redirigir a la sala principal nueva (sin spam)
+      navigate('/chat/global');
 
       onClose();
     } catch (error) {
@@ -288,16 +288,30 @@ export const GuestUsernameModal = ({ open, onClose }) => {
             </button>
           </div>
 
-          {/* ℹ️ Beneficios de registrarse */}
+          {/* ℹ️ Como invitado puedes: */}
+          <div className="bg-green-900/20 rounded-lg p-3 border border-green-500/30 mb-3">
+            <p className="text-xs font-semibold text-green-300 mb-1">
+              ✅ Como invitado puedes:
+            </p>
+            <div className="space-y-0.5 text-xs text-gray-300">
+              <div>✓ Chatear en salas públicas gratis por 1 mes</div>
+              <div>✓ Ver conversaciones en tiempo real</div>
+              <div>✓ Avatar con tu inicial (sin foto personalizada)</div>
+            </div>
+          </div>
+
+          {/* ℹ️ Regístrate para desbloquear */}
           <div className="bg-[#2a2740] rounded-lg p-3 border border-[#413e62]">
             <p className="text-xs font-semibold text-yellow-300 mb-1">
-              💡 ¿Por qué registrarse?
+              💎 Regístrate para desbloquear:
             </p>
             <div className="space-y-0.5 text-xs text-gray-400">
-              <div>✓ Acceso a 50+ avatares personalizados</div>
-              <div>✓ Badge de verificación (30 días)</div>
-              <div>✓ Perfil personalizable y guardado</div>
-              <div>✓ Sin límite de mensajes nunca</div>
+              <div>✓ Chats privados 1 a 1</div>
+              <div>✓ Dar likes y reacciones a mensajes</div>
+              <div>✓ 50+ avatares personalizados</div>
+              <div>✓ Crear y administrar salas propias</div>
+              <div>✓ Badge de verificación</div>
+              <div>✓ Acceso ilimitado sin expiración</div>
             </div>
           </div>
           </div>

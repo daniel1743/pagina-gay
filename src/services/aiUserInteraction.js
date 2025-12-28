@@ -626,15 +626,16 @@ export const activateAIForUser = (roomId, userId, username) => {
     console.log(`📊 [AI ACTIVATION] Total AIs activas en sala: ${state.users.size}`);
   }
 
-  // Enviar mensaje de bienvenida después de un delay natural (solo si es nueva personalidad)
-  if (aiPersona) {
-    const welcomeDelay = 3000 + Math.random() * 5000; // 3-8 segundos
-    console.log(`⏰ [AI ACTIVATION] Bienvenida programada en ${Math.round(welcomeDelay/1000)}s`);
+  // 🚫 DESACTIVADO: No enviar bienvenidas automáticas
+  // if (aiPersona) {
+  //   const welcomeDelay = 3000 + Math.random() * 5000; // 3-8 segundos
+  //   console.log(`⏰ [AI ACTIVATION] Bienvenida programada en ${Math.round(welcomeDelay/1000)}s`);
 
-    setTimeout(() => {
-      sendWelcomeFromAI(roomId, aiPersona, username);
-    }, welcomeDelay);
-  }
+  //   setTimeout(() => {
+  //     sendWelcomeFromAI(roomId, aiPersona, username);
+  //   }, welcomeDelay);
+  // }
+  console.log(`🚫 [AI ACTIVATION] Bienvenidas automáticas DESACTIVADAS`);
 
   return aiPersona;
 };
@@ -653,7 +654,20 @@ const sendWelcomeFromAI = async (roomId, aiPersona, username) => {
 ╚════════════════════════════════════════════════════════════╝
   `);
 
-  const welcomeMessages = [
+  // 🔥 IMPORTANTE: Si el usuario es "Invitado", NO mencionar el nombre
+  const isGuest = username?.toLowerCase().includes('invitado') || 
+                 username?.toLowerCase() === 'guest' ||
+                 username?.toLowerCase() === 'invitado';
+
+  const welcomeMessages = isGuest ? [
+    `Hola! Qué onda? 👋`,
+    `Ey, bienvenido! 😊`,
+    `Hola! Soy ${aiPersona.username}, ¿cómo estás?`,
+    `Hey! Qué tal todo? ✨`,
+    `Buenas! Qué cuentas?`,
+    `Hola, como estas?`,
+    `Que onda, todo bien?`
+  ] : [
     `Hola ${username}! Qué onda? 👋`,
     `Ey ${username}, bienvenido! 😊`,
     `Hola! Soy ${aiPersona.username}, ¿cómo estás ${username}?`,
@@ -703,6 +717,12 @@ const isVulgarMessage = (message) => {
  * @param {Array} conversationHistory - Historial de mensajes
  */
 export const aiRespondToUser = async (roomId, userId, userMessage, conversationHistory) => {
+  // 🚫 DESACTIVADO: No responder automáticamente a usuarios
+  console.log(`🚫 [AI RESPUESTA] aiRespondToUser DESACTIVADO - No se enviarán respuestas automáticas`);
+  console.log(`🚫 [AI RESPUESTA] Parámetros recibidos pero ignorados: roomId=${roomId}, userId=${userId?.substring(0,8)}..., userMessage="${userMessage?.substring(0,30)}..."`);
+  return;
+  
+  /* CÓDIGO ORIGINAL COMPLETAMENTE COMENTADO PARA EVITAR SPAM
   const state = activeAIConversations.get(roomId);
   if (!state || !state.users.has(userId)) {
     console.log('⚠️ [AI RESPUESTA] Usuario no tiene IA asignada');
@@ -841,6 +861,7 @@ export const aiRespondToUser = async (roomId, userId, userMessage, conversationH
       });
     }
   }, readingDelay);
+  */
 };
 
 /**
@@ -1232,19 +1253,20 @@ export const getAISystemStatus = () => {
   console.log('\n✅ [SISTEMA] Estado completo mostrado arriba');
 };
 
-// ✅ Auto-inicializar cuando se carga el módulo
-if (typeof window !== 'undefined') {
-  // Solo en el cliente
-  initializePersonalityRotation();
+// 🚫 DESACTIVADO: No auto-inicializar sistema de rotación
+// if (typeof window !== 'undefined') {
+//   // Solo en el cliente
+//   initializePersonalityRotation();
 
-  // Exponer función de estado en window para debugging
-  window.checkAIStatus = getAISystemStatus;
-  console.log(`
-╔════════════════════════════════════════════════════════════╗
-║     🔍 DEBUG TOOL DISPONIBLE                               ║
-╠════════════════════════════════════════════════════════════╣
-║ Escribe en consola:  window.checkAIStatus()                ║
-║ Para ver el estado completo del sistema de IA             ║
-╚════════════════════════════════════════════════════════════╝
-  `);
-}
+//   // Exponer función de estado en window para debugging
+//   window.checkAIStatus = getAISystemStatus;
+//   console.log(`
+// ╔════════════════════════════════════════════════════════════╗
+// ║     🔍 DEBUG TOOL DISPONIBLE                               ║
+// ╠════════════════════════════════════════════════════════════╣
+// ║ Escribe en consola:  window.checkAIStatus()                ║
+// ║ Para ver el estado completo del sistema de IA             ║
+// ╚════════════════════════════════════════════════════════════╝
+//   `);
+// }
+console.log(`🚫 [AI INTERACTION] Sistema de rotación de personalidades DESACTIVADO`);

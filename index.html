@@ -14,8 +14,8 @@
 		<meta name="google-site-verification" content="m4Wrv1KeHpGhpLDkbmTpQerXSbWIjF7_a02YdmQp0rM" />
 
 		<!-- SEO Básico -->
-		<title>Chat Gay Chile 🏳️‍🌈 Entra en 30 Segundos | Chactivo</title>
-		<meta name="description" content="🔥 Chat gay Chile 100% gratis. Cientos de chicos gays chateando ahora. Entra en 30 segundos: solo username, sin email, sin tarjeta. Salas: Gaming, +30, Osos, Amistad. Conversación real, sin presión. ¡Empieza ya!" />
+		<title>Chat Gay Chile Gratis 🏳️‍🌈 Sin Registro - Entra Ahora | Chactivo</title>
+		<meta name="description" content="Chat gay en Chile 100% gratis y anónimo. Entra en segundos sin email ni tarjeta. Salas +30, Osos y por ciudades. Chatea ahora." />
 		<meta name="keywords" content="chat gay santiago gratis, salas chat gay santiago, chat gay chile 2025, conocer gays santiago, chat gay santiago sin registro, chat homosexual santiago gratis, salas gay chile, chat gay valparaíso, chat gay viña del mar, comunidad gay santiago, chat lgbt santiago gratis, gays santiago online, app chat gay chile, chat gay providencia, chat gay las condes, chat gay ñuñoa, gays chilenos online, chat gay concepción, chat gay la serena, chat gay temuco, salas chat lgbt chile" />
 		<meta name="author" content="Chactivo" />
 		<meta name="robots" content="index, follow, max-snippet:-1, max-image-preview:large, max-video-preview:-1" />
@@ -33,8 +33,8 @@
 		<!-- Open Graph (Facebook, WhatsApp) -->
 		<meta property="og:type" content="website" />
 		<meta property="og:site_name" content="Chactivo" />
-		<meta property="og:title" content="Chat Gay Chile 🏳️‍🌈 Entra en 30 Segundos | Chactivo" />
-		<meta property="og:description" content="🔥 Chat gay Chile 100% gratis. Cientos de chicos gays chateando ahora. Entra en 30 segundos: solo username, sin email, sin tarjeta. Salas temáticas, conversación real. ¡Empieza ya!" />
+		<meta property="og:title" content="Chat Gay Chile Gratis 🏳️‍🌈 Sin Registro - Entra Ahora | Chactivo" />
+		<meta property="og:description" content="Chat gay en Chile 100% gratis y anónimo. Entra en segundos sin email ni tarjeta. Salas +30, Osos y por ciudades. Chatea ahora." />
 		<meta property="og:url" content="https://chactivo.com" />
 		<meta property="og:image" content="https://chactivo.com/icon-512.png" />
 		<meta property="og:image:alt" content="Chactivo - Chat Gay Chile LGBT+" />
@@ -48,8 +48,8 @@
 		<meta name="twitter:card" content="summary_large_image" />
 		<meta name="twitter:site" content="@Chactivo" />
 		<meta name="twitter:creator" content="@Chactivo" />
-		<meta name="twitter:title" content="Chat Gay Chile 🏳️‍🌈 Entra en 30 Segundos | Chactivo" />
-		<meta name="twitter:description" content="🔥 Chat gay Chile 100% gratis. Cientos de chicos gays chateando ahora. Entra en 30 segundos: solo username, sin email, sin tarjeta. Salas temáticas, conversación real. ¡Empieza ya!" />
+		<meta name="twitter:title" content="Chat Gay Chile Gratis 🏳️‍🌈 Sin Registro - Entra Ahora | Chactivo" />
+		<meta name="twitter:description" content="Chat gay en Chile 100% gratis y anónimo. Entra en segundos sin email ni tarjeta. Salas +30, Osos y por ciudades. Chatea ahora." />
 		<meta name="twitter:image" content="https://chactivo.com/icon-512.png" />
 		<meta name="twitter:image:alt" content="Chactivo - Chat Gay Chile LGBT+ 2025" />
 
@@ -73,6 +73,94 @@
 
 		<!-- Google Analytics 4 (GA4) -->
 		<!-- INSTRUCCIONES: Reemplaza 'G-XXXXXXXXXX' con tu ID de medición real de GA4 -->
+		<script>
+			// 🔇 INTERCEPTOR GLOBAL: Silenciar errores de GA4 ANTES de que se cargue el script
+			(function() {
+				// Interceptar console.error ANTES de que GA4 se cargue
+				const originalConsoleError = console.error;
+				console.error = function(...args) {
+					const message = args.length > 0 ? String(args[0]) : '';
+					const fullMessage = args.map(arg => String(arg)).join(' ');
+					
+					// Silenciar errores relacionados con Google Analytics
+					if (
+						fullMessage.includes('Fetch error from') ||
+						fullMessage.includes('Fetch error') ||
+						message.includes('Fetch error') ||
+						fullMessage.includes('google-analytics.com') ||
+						fullMessage.includes('googletagmanager.com') ||
+						fullMessage.includes('analytics.google.com') ||
+						fullMessage.includes('generativelanguage.googleapis.com') ||
+						fullMessage.includes('G-PZQQL7WH39') ||
+						(message.includes('gtag') && (message.includes('error') || message.includes('fetch'))) ||
+						// Capturar errores de fetch genéricos que vienen de GA4
+						(args.some(arg => arg && typeof arg === 'object' && arg.stack && arg.stack.includes('gtag')))
+					) {
+						// Silenciosamente ignorar errores de GA4 (no son críticos)
+						return;
+					}
+					// Para otros errores, mostrar normalmente
+					originalConsoleError.apply(console, args);
+				};
+				
+				// Interceptar window.fetch para capturar errores de red de GA4
+				const originalFetch = window.fetch;
+				window.fetch = function(...args) {
+					const url = args[0];
+					return originalFetch.apply(this, args).catch(error => {
+						// Silenciar errores de fetch relacionados con Google Analytics
+						if (
+							typeof url === 'string' && (
+								url.includes('google-analytics.com') ||
+								url.includes('googletagmanager.com') ||
+								url.includes('analytics.google.com') ||
+								url.includes('generativelanguage.googleapis.com') ||
+								url.includes('G-PZQQL7WH39')
+							)
+						) {
+							// Silenciosamente ignorar (no lanzar error a consola)
+							return Promise.reject(error);
+						}
+						// Para otros errores, lanzar normalmente
+						throw error;
+					});
+				};
+				
+				// Interceptar errores no capturados (unhandled errors) de GA4
+				window.addEventListener('error', function(event) {
+					if (
+						event.message && (
+							event.message.includes('Fetch error') ||
+							event.message.includes('google-analytics.com') ||
+							event.message.includes('googletagmanager.com') ||
+							event.message.includes('analytics.google.com') ||
+							event.message.includes('generativelanguage.googleapis.com')
+						)
+					) {
+						event.preventDefault();
+						event.stopPropagation();
+						return false;
+					}
+				}, true);
+				
+				// Interceptar promesas rechazadas no manejadas (unhandled promise rejections)
+				window.addEventListener('unhandledrejection', function(event) {
+					const reason = event.reason;
+					const reasonStr = reason ? String(reason) : '';
+					if (
+						reasonStr.includes('Fetch error') ||
+						reasonStr.includes('google-analytics.com') ||
+						reasonStr.includes('googletagmanager.com') ||
+						reasonStr.includes('analytics.google.com') ||
+						reasonStr.includes('generativelanguage.googleapis.com') ||
+						(reason && reason.stack && reason.stack.includes('gtag'))
+					) {
+						event.preventDefault();
+						return false;
+					}
+				});
+			})();
+		</script>
 		<script async src="https://www.googletagmanager.com/gtag/js?id=G-PZQQL7WH39
 "></script>
 		<script>
@@ -96,7 +184,7 @@
 			"@id": "https://chactivo.com/#webapp",
 			"name": "Chactivo - Chat Gay Chile",
 			"alternateName": ["Chat Gay Santiago", "Chactivo LGBT+"],
-			"description": "Chat gay Chile 100% gratis. Cientos de chicos gays chateando ahora. Entra en 30 segundos: solo username, sin email, sin tarjeta. Salas temáticas: Gaming, +30, Osos, Amistad. Conversación real, sin presión.",
+			"description": "Chat gay Chile 100% gratis. Cientos de chicos gays chateando ahora. Acceso rápido, sin registro, comunidad activa 24/7. Salas temáticas: Gaming, +30, Osos, Amistad. Conecta rápido y chatea gratis.",
 			"url": "https://chactivo.com",
 			"applicationCategory": "SocialNetworkingApplication",
 			"operatingSystem": "Web, iOS, Android",
@@ -167,7 +255,7 @@
 			"@id": "https://chactivo.com/#website",
 			"url": "https://chactivo.com",
 			"name": "Chactivo - Chat Gay Chile",
-			"description": "Chat gay Chile 100% gratis. Cientos de chicos gays chateando ahora. Entra en 30 segundos: solo username, sin email, sin tarjeta. Salas temáticas, conversación real.",
+			"description": "Chat gay Chile 100% gratis. Cientos de chicos gays chateando ahora. Acceso rápido, sin registro, comunidad activa 24/7. Salas temáticas, conversación real.",
 			"publisher": {
 				"@id": "https://chactivo.com/#organization"
 			},
@@ -273,7 +361,7 @@
 			"@id": "https://chactivo.com/#local-business",
 			"name": "Chactivo - Chat Gay Santiago Chile",
 			"image": "https://chactivo.com/icon-512.png",
-			"description": "Chat gay Chile 100% gratis. Cientos de chicos gays de Santiago y Chile chateando ahora. Entra en 30 segundos: solo username, sin email, sin tarjeta. Salas temáticas, conversación real, sin presión.",
+			"description": "Chat gay Chile 100% gratis. Cientos de chicos gays de Santiago y Chile chateando ahora. Acceso rápido, sin registro, comunidad activa 24/7. Salas temáticas, conversación real, sin presión.",
 			"address": {
 				"@type": "PostalAddress",
 				"addressLocality": "Santiago",

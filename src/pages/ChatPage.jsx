@@ -29,7 +29,7 @@ import { roomsData } from '@/config/rooms';
 import { startEngagementTracking, hasReachedOneHourLimit, getTotalEngagementTime, hasSeenEngagementModal, markEngagementModalAsShown } from '@/services/engagementService';
 
 const roomWelcomeMessages = {
-  'conversas-libres': '¡Bienvenido a Conversas Libres! Habla de lo que quieras.',
+  'global': '¡Bienvenido a Chat Global! Habla de lo que quieras.',
   'gaming': '¡Gamers, uníos! ¿A qué están jugando?',
   'mas-30': 'Espacio para mayores de 30. ¡Comparte tus experiencias!',
   'amistad': '¿Buscas nuevos amigos? ¡Este es el lugar!',
@@ -117,25 +117,25 @@ const ChatPage = () => {
     if (!activeSalas.includes(roomId)) {
       toast({
         title: "Sala Temporalmente Cerrada",
-        description: "Esta sala no está disponible por el momento. Te redirigimos a Conversas Libres.",
+        description: "Esta sala no está disponible por el momento. Te redirigimos a Chat Global.",
         variant: "default",
       });
-      navigate('/chat/conversas-libres', { replace: true });
+      navigate('/chat/global', { replace: true });
       return;
     }
 
     // ✅ NUEVA FUNCIONALIDAD: Permitir "conversas-libres" a usuarios anónimos/invitados
     if (user.isGuest || user.isAnonymous) {
       // Solo permitir acceso a "conversas-libres" (sala de prueba gratuita)
-      if (roomId !== 'conversas-libres') {
+      if (roomId !== 'global') {
         toast({
           title: "Sala Solo para Registrados 🔒",
-          description: "Esta sala requiere registro. Prueba primero en 'Conversas Libres' o regístrate para acceso completo.",
+          description: "Esta sala requiere registro. Prueba primero en 'Chat Global' o regístrate para acceso completo.",
           variant: "destructive",
           duration: 5000,
         });
         // Redirigir a conversas-libres en lugar de auth
-        navigate('/chat/conversas-libres');
+        navigate('/chat/global');
         return;
       }
     }
@@ -163,10 +163,10 @@ const ChatPage = () => {
         ogTitle: 'Chat Gay Santiago | Conoce LGBT+ de la Capital',
         ogDescription: '🏙️ Sala exclusiva de Santiago. Conecta con gays de Providencia, Las Condes, Ñuñoa y toda la capital.'
       },
-      'conversas-libres': {
-        title: 'Conversas Libres - Chat Gay Chile 💬 | Sala General LGBT+ | Chactivo',
+      'global': {
+        title: 'Chat Global - Chat Gay Chile 💬 | Sala General LGBT+ | Chactivo',
         description: '💬 Sala de chat gay general Chile. Todos los temas bienvenidos: amistad, relaciones, gaming, cultura. Conversación libre, ambiente relajado. La sala más activa de Chactivo. ¡Regístrate en 30 segundos!',
-        ogTitle: 'Conversas Libres | Chat Gay Chile General 💬',
+        ogTitle: 'Chat Global | Chat Gay Chile General 💬',
         ogDescription: '💬 La sala más popular de Chactivo. Todos los temas, todos bienvenidos. Ambiente relajado y conversación real.'
       }
     };
@@ -267,22 +267,21 @@ const ChatPage = () => {
       return;
     }
 
-    // Iniciar tracking al montar
-    startEngagementTracking(user);
+    // 🔥 DESHABILITADO: Invitados pueden chatear sin límite de tiempo
+    // startEngagementTracking(user);
 
-    // Verificar cada 10 segundos si se alcanzó el límite
-    const checkInterval = setInterval(() => {
-      if (hasReachedOneHourLimit(user) && !hasSeenEngagementModal()) {
-        // Mostrar modal celebratorio
-        const totalTime = getTotalEngagementTime(user);
-        setEngagementTime(totalTime);
-        setShowVerificationModal(true);
-        markEngagementModalAsShown();
-        console.log('🎉 ¡1 hora alcanzada! Mostrando modal celebratorio');
-      }
-    }, 10000); // Verificar cada 10 segundos
+    // 🔥 DESHABILITADO: Ya no verificamos límite de 1 hora para invitados
+    // const checkInterval = setInterval(() => {
+    //   if (hasReachedOneHourLimit(user) && !hasSeenEngagementModal()) {
+    //     const totalTime = getTotalEngagementTime(user);
+    //     setEngagementTime(totalTime);
+    //     setShowVerificationModal(true);
+    //     markEngagementModalAsShown();
+    //     console.log('🎉 ¡1 hora alcanzada! Mostrando modal celebratorio');
+    //   }
+    // }, 10000);
 
-    return () => clearInterval(checkInterval);
+    // return () => clearInterval(checkInterval);
   }, [user]);
 
   // 🎁 Mostrar modal de bienvenida premium solo una vez
@@ -591,14 +590,14 @@ const ChatPage = () => {
       return;
     }
 
-    // ⏱️ Validación: usuarios anónimos - límite de 1 hora
-    if (user.isAnonymous && hasReachedOneHourLimit(user)) {
-      const totalTime = getTotalEngagementTime(user);
-      setEngagementTime(totalTime);
-      setShowVerificationModal(true);
-      markEngagementModalAsShown();
-      return;
-    }
+    // 🔥 DESHABILITADO: Invitados pueden chatear sin límite de tiempo
+    // if (user.isAnonymous && hasReachedOneHourLimit(user)) {
+    //   const totalTime = getTotalEngagementTime(user);
+    //   setEngagementTime(totalTime);
+    //   setShowVerificationModal(true);
+    //   markEngagementModalAsShown();
+    //   return;
+    // }
 
     // Verificar si el usuario está silenciado o baneado
     if (!user.isAnonymous && !user.isGuest) {
@@ -658,23 +657,23 @@ const ChatPage = () => {
     } catch (error) {
       console.error('Error sending message:', error);
 
-      // Mensaje específico si se excedió el límite
-      if (error.code === 'permission-denied') {
-        const totalTime = getTotalEngagementTime(user);
-        setEngagementTime(totalTime);
-        setShowVerificationModal(true);
-        toast({
-          title: "¡Tiempo alcanzado!",
-          description: `Ya llevas ${totalTime} en el sitio. ¡Regístrate gratis para continuar!`,
-          variant: "default",
-        });
-      } else {
-        toast({
-          title: "Error",
-          description: "No se pudo enviar el mensaje",
-          variant: "destructive",
-        });
-      }
+      // 🔥 DESHABILITADO: No mostrar modal de tiempo
+      // if (error.code === 'permission-denied') {
+      //   const totalTime = getTotalEngagementTime(user);
+      //   setEngagementTime(totalTime);
+      //   setShowVerificationModal(true);
+      //   toast({
+      //     title: "¡Tiempo alcanzado!",
+      //     description: `Ya llevas ${totalTime} en el sitio. ¡Regístrate gratis para continuar!`,
+      //     variant: "default",
+      //   });
+      // } else {
+      toast({
+        title: "Error",
+        description: "No se pudo enviar el mensaje",
+        variant: "destructive",
+      });
+      // }
     }
   };
 
@@ -683,7 +682,11 @@ const ChatPage = () => {
    */
   const handlePrivateChatRequest = (targetUser) => {
     if (user.isGuest) {
-      setShowVerificationModal(true);
+      toast({
+        title: "Función Premium 💎",
+        description: "Los chats privados requieren registro. ¡Es gratis y toma solo 30 segundos!",
+        variant: "default",
+      });
       return;
     }
     if (targetUser.userId === user.id) return;
@@ -739,7 +742,7 @@ const ChatPage = () => {
 
   return (
     <>
-      <div className="h-screen flex overflow-hidden bg-background pt-14 sm:pt-16 md:pt-20">
+      <div className="h-screen flex overflow-hidden bg-background">
         <ChatSidebar
           currentRoom={currentRoom}
           setCurrentRoom={setCurrentRoom}
@@ -805,12 +808,13 @@ const ChatPage = () => {
           />
         )}
 
-        {showVerificationModal && (
+        {/* 🔥 DESHABILITADO: Modal de tiempo eliminado para invitados */}
+        {/* {showVerificationModal && (
           <VerificationModal
             onClose={() => setShowVerificationModal(false)}
             engagementTime={engagementTime}
           />
-        )}
+        )} */}
 
         {activePrivateChat && (
           <PrivateChatWindow
