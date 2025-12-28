@@ -829,29 +829,23 @@ const SantiagoLandingPage = () => {
             </h3>
             <div className="space-y-4">
               {[
-                { feature: "Venden tus datos", other: true, chactivo: false },
-                { feature: "Spam y bots", other: true, chactivo: false },
-                { feature: "Publicidad invasiva", other: true, chactivo: false },
-                { feature: "Perfiles fake", other: true, chactivo: false },
-                { feature: "Moderación 24/7", other: false, chactivo: true },
-                { feature: "Anonimato real", other: false, chactivo: true },
-                { feature: "Sin trackers", other: false, chactivo: true },
+                { feature: "Venden tus datos", other: "❌ Si", chactivo: "✅ No" },
+                { feature: "Bots y cuentas falsas", other: "❌ Frecuente", chactivo: "✅ Control estricto" },
+                { feature: "Publicidad invasiva", other: "❌ Si", chactivo: "✅ No" },
+                { feature: "Mensajes spam", other: "❌ Alto", chactivo: "✅ Mínimo" },
+                { feature: "Moderación real 24/7", other: "❌ Limitada", chactivo: "✅ Humana y constante" },
+                { feature: "Anonimato real", other: "❌ Parcial", chactivo: "✅ Total" },
+                { feature: "Sin trackers externos", other: "❌ No", chactivo: "✅ Si" },
+                { feature: "Experiencia limpia", other: "❌ Saturada", chactivo: "✅ Enfocada" },
+                { feature: "Privacidad primero", other: "❌ No", chactivo: "✅ Si" },
               ].map((item, index) => (
                 <div key={index} className="grid grid-cols-3 gap-4 items-center py-3 border-b border-border/50 last:border-0">
                   <p className="text-sm sm:text-base text-gray-300">{item.feature}</p>
                   <div className="text-center">
-                    {item.other ? (
-                      <span className="text-2xl">❌</span>
-                    ) : (
-                      <span className="text-2xl">✅</span>
-                    )}
+                    <span className="text-xs sm:text-sm text-red-300">{item.other}</span>
                   </div>
                   <div className="text-center">
-                    {item.chactivo ? (
-                      <span className="text-2xl">✅</span>
-                    ) : (
-                      <span className="text-2xl">❌</span>
-                    )}
+                    <span className="text-xs sm:text-sm text-green-300 font-medium">{item.chactivo}</span>
                   </div>
                 </div>
               ))}

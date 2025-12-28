@@ -345,8 +345,8 @@ const LobbyPage = () => {
     };
   }, []);
 
-  // Determinar si mostrar Hero Section (solo para usuarios no autenticados o invitados)
-  const showHeroSection = !user || user.isGuest || user.isAnonymous;
+  // Determinar si mostrar Hero Section (SOLO para usuarios NO logueados)
+  const showHeroSection = !user;
 
   // Helper para calcular el tiempo relativo
   const getTimeAgo = (timestamp) => {
@@ -365,8 +365,8 @@ const LobbyPage = () => {
   return (
     <>
       <div className="w-full min-h-screen pb-16 sm:pb-20">
-        {/* 🔥 HERO SECTION - Siempre visible con H1 SEO */}
-        {(
+        {/* 🔥 HERO SECTION - Solo para visitantes */}
+        {showHeroSection && (
           <motion.section
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
@@ -1107,13 +1107,14 @@ const LobbyPage = () => {
           </motion.section>
         )}
 
-        {/* 🔒 SECCIÓN PRIVACIDAD COMO DIFERENCIADOR - CARACTERÍSTICA ÚNICA */}
-        <motion.section
-          initial={{ opacity: 0, y: 30 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.6, delay: 0.3 }}
-          className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-12 sm:py-16 mb-12 sm:mb-16"
-        >
+        {/* 🔒 SECCIÓN PRIVACIDAD COMO DIFERENCIADOR - CARACTERÍSTICA ÚNICA - Solo para visitantes */}
+        {showHeroSection && (
+          <motion.section
+            initial={{ opacity: 0, y: 30 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.6, delay: 0.3 }}
+            className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-12 sm:py-16 mb-12 sm:mb-16"
+          >
           {/* Badge superior */}
           <motion.div
             initial={{ opacity: 0, y: -10 }}
@@ -1264,29 +1265,23 @@ const LobbyPage = () => {
             </h3>
             <div className="space-y-4">
               {[
-                { feature: "Venden tus datos", other: true, chactivo: false },
-                { feature: "Spam y bots", other: true, chactivo: false },
-                { feature: "Publicidad invasiva", other: true, chactivo: false },
-                { feature: "Perfiles fake", other: true, chactivo: false },
-                { feature: "Moderación 24/7", other: false, chactivo: true },
-                { feature: "Anonimato real", other: false, chactivo: true },
-                { feature: "Sin trackers", other: false, chactivo: true },
+                { feature: "Venden tus datos", other: "❌ Si", chactivo: "✅ No" },
+                { feature: "Bots y cuentas falsas", other: "❌ Frecuente", chactivo: "✅ Control estricto" },
+                { feature: "Publicidad invasiva", other: "❌ Si", chactivo: "✅ No" },
+                { feature: "Mensajes spam", other: "❌ Alto", chactivo: "✅ Mínimo" },
+                { feature: "Moderación real 24/7", other: "❌ Limitada", chactivo: "✅ Humana y constante" },
+                { feature: "Anonimato real", other: "❌ Parcial", chactivo: "✅ Total" },
+                { feature: "Sin trackers externos", other: "❌ No", chactivo: "✅ Si" },
+                { feature: "Experiencia limpia", other: "❌ Saturada", chactivo: "✅ Enfocada" },
+                { feature: "Privacidad primero", other: "❌ No", chactivo: "✅ Si" },
               ].map((item, index) => (
                 <div key={index} className="grid grid-cols-3 gap-4 items-center py-3 border-b border-border/50 last:border-0">
                   <p className="text-sm sm:text-base text-gray-300">{item.feature}</p>
                   <div className="text-center">
-                    {item.other ? (
-                      <span className="text-2xl">❌</span>
-                    ) : (
-                      <span className="text-2xl">✅</span>
-                    )}
+                    <span className="text-xs sm:text-sm text-red-300">{item.other}</span>
                   </div>
                   <div className="text-center">
-                    {item.chactivo ? (
-                      <span className="text-2xl">✅</span>
-                    ) : (
-                      <span className="text-2xl">❌</span>
-                    )}
+                    <span className="text-xs sm:text-sm text-green-300 font-medium">{item.chactivo}</span>
                   </div>
                 </div>
               ))}
@@ -1320,7 +1315,8 @@ const LobbyPage = () => {
               </Button>
             </div>
           </motion.div>
-        </motion.section>
+          </motion.section>
+        )}
 
         {/* ✅ FASE URGENTE: Sección "Cómo Funciona" - Solo para visitantes */}
         {showHeroSection && (
@@ -1408,13 +1404,14 @@ const LobbyPage = () => {
           </motion.section>
         )}
 
-        {/* ❓ SECCIÓN FAQ DE CONFIANZA - Preguntas Frecuentes con SEO */}
-        <motion.section
-          initial={{ opacity: 0, y: 30 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.6, delay: 0.3 }}
-          className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 py-12 sm:py-16 mb-12 sm:mb-16"
-        >
+        {/* ❓ SECCIÓN FAQ DE CONFIANZA - Preguntas Frecuentes con SEO - Solo para visitantes */}
+        {showHeroSection && (
+          <motion.section
+            initial={{ opacity: 0, y: 30 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.6, delay: 0.3 }}
+            className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 py-12 sm:py-16 mb-12 sm:mb-16"
+          >
           {/* Badge superior */}
           <motion.div
             initial={{ opacity: 0, y: -10 }}
@@ -1530,9 +1527,13 @@ const LobbyPage = () => {
               ⚡ Chatear Ahora - Gratis
             </Button>
           </motion.div>
-        </motion.section>
+          </motion.section>
+        )}
 
-        <NewsTicker />
+        {/* NewsTicker - Solo para visitantes */}
+        {showHeroSection && (
+          <NewsTicker />
+        )}
 
         {/* Estadísticas Globales - Solo visible para usuarios NO registrados */}
         {showHeroSection && (

@@ -712,7 +712,7 @@ const ChatPage = () => {
 
       recordHumanMessage(currentRoom, user.username, content);
       // Track message sent
-      trackMessageSent(currentRoom);
+      trackMessageSent(currentRoom, user.id);
 
       // ⚠️ SISTEMA DE IA DESACTIVADO - No generar respuestas automáticas
       // if (Math.random() < 0.3) {

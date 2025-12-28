@@ -19,21 +19,17 @@ import { db, auth } from '@/config/firebase';
  */
 
 /**
- * Registra un evento de analytics
- * OPTIMIZADO: Solo actualiza agregaciones diarias, NO guarda eventos individuales
- * Esto reduce escrituras de Firestore en ~50%
+ * Registra un evento de analytics con segmentación avanzada
+ * OPTIMIZADO: Actualiza agregaciones diarias + guarda eventos clave para análisis de usuarios únicos
  * @param {string} eventType - Tipo de evento (page_view, user_register, user_login, etc.)
- * @param {object} eventData - Datos adicionales del evento
+ * @param {object} eventData - Datos adicionales del evento (debe incluir userId cuando sea posible)
  */
 export const trackEvent = async (eventType, eventData = {}) => {
   try {
     const timestamp = new Date();
     const dateKey = timestamp.toISOString().split('T')[0]; // YYYY-MM-DD
-
-    // OPTIMIZACIÓN: Solo actualizar agregaciones diarias, NO guardar eventos individuales
-    // Esto reduce escrituras de Firestore significativamente
     const statsRef = doc(db, 'analytics_stats', dateKey);
-    
+
     const updates = {
       date: dateKey,
       lastUpdated: serverTimestamp(),
@@ -43,9 +39,18 @@ export const trackEvent = async (eventType, eventData = {}) => {
     switch (eventType) {
       case 'page_view':
         updates.pageViews = increment(1);
-        // Guardar página más visitada (solo para análisis de salidas)
         if (eventData.pagePath) {
           updates.lastPagePath = eventData.pagePath;
+        }
+        // Guardar timeOnPage si está disponible
+        if (eventData.timeOnPage !== undefined) {
+          // Agregar a array de tiempos para análisis posterior
+          const timeBucket = getTimeBucket(eventData.timeOnPage);
+          updates[`timeDistribution.${timeBucket}`] = increment(1);
+        }
+        // Guardar fuente de tráfico (UTM)
+        if (eventData.source) {
+          updates[`trafficSources.${eventData.source}`] = increment(1);
         }
         break;
       case 'user_register':
@@ -65,29 +70,55 @@ export const trackEvent = async (eventType, eventData = {}) => {
         break;
       case 'page_exit':
         updates.pageExits = increment(1);
-        // Guardar página de salida para análisis
         if (eventData.pagePath) {
           updates.lastExitPage = eventData.pagePath;
+        }
+        if (eventData.timeOnPage !== undefined) {
+          const timeBucket = getTimeBucket(eventData.timeOnPage);
+          updates[`exitTimeDistribution.${timeBucket}`] = increment(1);
         }
         break;
     }
 
     // Actualizar estadísticas diarias (merge para no sobrescribir)
-    // ✅ IMPORTANTE: Si falla por permisos, no bloquear la aplicación
     await setDoc(statsRef, updates, { merge: true }).catch(err => {
-      // Solo loggear si no es un error de permisos (para no spamear la consola)
       if (err.code !== 'permission-denied') {
         console.error('Error tracking event:', err);
       }
-      // Silenciosamente ignorar errores de permisos (el tracking es opcional)
     });
+
+    // NUEVO: Guardar eventos individuales SOLO para análisis de usuarios únicos
+    // Solo guardamos eventos clave (login, register, message_sent) para reducir escrituras
+    if (['user_login', 'user_register', 'message_sent'].includes(eventType) && eventData.userId) {
+      const eventRef = doc(collection(db, 'analytics_events'), `${dateKey}_${eventType}_${eventData.userId}_${Date.now()}`);
+      await setDoc(eventRef, {
+        type: eventType,
+        userId: eventData.userId,
+        date: dateKey,
+        timestamp: serverTimestamp(),
+      }).catch(() => {}); // Silenciar errores, no es crítico
+    }
+
   } catch (error) {
-    // Solo loggear si no es un error de permisos
     if (error.code !== 'permission-denied') {
       console.error('Error tracking event:', error);
     }
-    // No lanzar el error, el tracking es opcional
   }
+};
+
+/**
+ * Obtiene el bucket de tiempo para análisis de distribución
+ * @param {number} seconds - Tiempo en segundos
+ * @returns {string} Bucket de tiempo
+ */
+const getTimeBucket = (seconds) => {
+  if (seconds < 3) return '0-3s';
+  if (seconds < 10) return '3-10s';
+  if (seconds < 30) return '10-30s';
+  if (seconds < 60) return '30-60s';
+  if (seconds < 180) return '1-3m';
+  if (seconds < 300) return '3-5m';
+  return '5m+';
 };
 
 /**
@@ -129,10 +160,12 @@ export const trackUserLogin = async (userId, method = 'email') => {
 /**
  * Trackea el envío de un mensaje
  * @param {string} roomId - ID de la sala
+ * @param {string} userId - ID del usuario (opcional para retrocompatibilidad)
  */
-export const trackMessageSent = async (roomId) => {
+export const trackMessageSent = async (roomId, userId = null) => {
   await trackEvent('message_sent', {
     roomId,
+    userId,
   });
 };
 
@@ -196,6 +229,51 @@ export const getTodayStats = async () => {
     console.error('Error getting today stats:', error);
     return null;
   }
+};
+
+/**
+ * Obtiene estadísticas de ayer para comparaciones
+ * @returns {Promise<object>} Estadísticas de ayer
+ */
+export const getYesterdayStats = async () => {
+  try {
+    const yesterday = new Date();
+    yesterday.setDate(yesterday.getDate() - 1);
+    const yesterdayKey = yesterday.toISOString().split('T')[0];
+    const statsRef = doc(db, 'analytics_stats', yesterdayKey);
+    const statsSnap = await getDoc(statsRef);
+
+    if (statsSnap.exists()) {
+      return statsSnap.data();
+    }
+
+    return {
+      date: yesterdayKey,
+      pageViews: 0,
+      registrations: 0,
+      logins: 0,
+      messagesSent: 0,
+      roomsCreated: 0,
+      roomsJoined: 0,
+      pageExits: 0,
+    };
+  } catch (error) {
+    console.error('Error getting yesterday stats:', error);
+    return null;
+  }
+};
+
+/**
+ * Calcula el porcentaje de cambio entre dos valores
+ * @param {number} current - Valor actual
+ * @param {number} previous - Valor anterior
+ * @returns {number} Porcentaje de cambio
+ */
+export const calculatePercentageChange = (current, previous) => {
+  if (previous === 0) {
+    return current > 0 ? 100 : 0;
+  }
+  return ((current - previous) / previous) * 100;
 };
 
 /**
@@ -395,5 +473,236 @@ export const subscribeToTodayStats = (callback, errorCallback) => {
       });
     }
   });
+};
+
+/**
+ * 🆕 Obtiene usuarios únicos para cada tipo de evento del día actual
+ * @returns {Promise<object>} Usuarios únicos por evento
+ */
+export const getUniqueUsersToday = async () => {
+  try {
+    const today = new Date().toISOString().split('T')[0];
+    const eventsRef = collection(db, 'analytics_events');
+
+    // Query para eventos de hoy
+    const q = query(
+      eventsRef,
+      where('date', '==', today)
+    );
+
+    const snapshot = await getDocs(q);
+
+    const uniqueUsers = {
+      logins: new Set(),
+      registrations: new Set(),
+      messagesSent: new Set(),
+    };
+
+    snapshot.forEach((doc) => {
+      const data = doc.data();
+      if (data.type === 'user_login' && data.userId) {
+        uniqueUsers.logins.add(data.userId);
+      }
+      if (data.type === 'user_register' && data.userId) {
+        uniqueUsers.registrations.add(data.userId);
+      }
+      if (data.type === 'message_sent' && data.userId) {
+        uniqueUsers.messagesSent.add(data.userId);
+      }
+    });
+
+    return {
+      uniqueLogins: uniqueUsers.logins.size,
+      uniqueRegistrations: uniqueUsers.registrations.size,
+      uniqueMessageSenders: uniqueUsers.messagesSent.size,
+    };
+  } catch (error) {
+    console.error('Error getting unique users:', error);
+    return {
+      uniqueLogins: 0,
+      uniqueRegistrations: 0,
+      uniqueMessageSenders: 0,
+    };
+  }
+};
+
+/**
+ * 🆕 Obtiene distribución de tiempo en sitio
+ * @returns {Promise<object>} Distribución de tiempo
+ */
+export const getTimeDistribution = async () => {
+  try {
+    const today = new Date().toISOString().split('T')[0];
+    const statsRef = doc(db, 'analytics_stats', today);
+    const statsSnap = await getDoc(statsRef);
+
+    if (statsSnap.exists()) {
+      const data = statsSnap.data();
+      return {
+        timeDistribution: data.timeDistribution || {},
+        exitTimeDistribution: data.exitTimeDistribution || {},
+      };
+    }
+
+    return {
+      timeDistribution: {},
+      exitTimeDistribution: {},
+    };
+  } catch (error) {
+    console.error('Error getting time distribution:', error);
+    return {
+      timeDistribution: {},
+      exitTimeDistribution: {},
+    };
+  }
+};
+
+/**
+ * 🆕 Obtiene fuentes de tráfico del día
+ * @returns {Promise<object>} Fuentes de tráfico
+ */
+export const getTrafficSources = async () => {
+  try {
+    const today = new Date().toISOString().split('T')[0];
+    const statsRef = doc(db, 'analytics_stats', today);
+    const statsSnap = await getDoc(statsRef);
+
+    if (statsSnap.exists()) {
+      const data = statsSnap.data();
+      return data.trafficSources || {};
+    }
+
+    return {};
+  } catch (error) {
+    console.error('Error getting traffic sources:', error);
+    return {};
+  }
+};
+
+/**
+ * 🆕 Obtiene usuarios conectados en tiempo real (últimos 5 minutos)
+ * @returns {Promise<number>} Número de usuarios activos
+ */
+export const getActiveUsersNow = async () => {
+  try {
+    const fiveMinutesAgo = new Date(Date.now() - 5 * 60 * 1000);
+
+    // Query en la colección de presencia de usuarios
+    const presenceRef = collection(db, 'presence');
+    const q = query(
+      presenceRef,
+      where('lastActive', '>=', fiveMinutesAgo)
+    );
+
+    const snapshot = await getDocs(q);
+    return snapshot.size;
+  } catch (error) {
+    console.error('Error getting active users:', error);
+    return 0;
+  }
+};
+
+/**
+ * 🆕 Suscripción en tiempo real a usuarios activos
+ * @param {function} callback - Función callback que recibe el número de usuarios
+ * @returns {function} Función para desuscribirse
+ */
+export const subscribeToActiveUsers = (callback) => {
+  const fiveMinutesAgo = new Date(Date.now() - 5 * 60 * 1000);
+  const presenceRef = collection(db, 'presence');
+  const q = query(
+    presenceRef,
+    where('lastActive', '>=', fiveMinutesAgo)
+  );
+
+  return onSnapshot(q, (snapshot) => {
+    callback(snapshot.size);
+  }, (error) => {
+    console.error('Error subscribing to active users:', error);
+    callback(0);
+  });
+};
+
+/**
+ * 🆕 Exporta datos de analytics a CSV
+ * @param {Array} historicalStats - Datos históricos
+ * @param {object} todayStats - Estadísticas de hoy
+ * @returns {string} Datos en formato CSV
+ */
+export const exportToCSV = (historicalStats, todayStats) => {
+  try {
+    // Headers
+    const headers = [
+      'Fecha',
+      'Visualizaciones',
+      'Registros',
+      'Logins',
+      'Mensajes',
+      'Salas Creadas',
+      'Salas Unidas',
+      'Salidas',
+      'Tasa Conversión (%)'
+    ].join(',');
+
+    // Datos
+    const rows = historicalStats.map(day => {
+      const conversionRate = day.pageViews > 0
+        ? ((day.registrations / day.pageViews) * 100).toFixed(2)
+        : '0.00';
+
+      return [
+        day.date,
+        day.pageViews || 0,
+        day.registrations || 0,
+        day.logins || 0,
+        day.messagesSent || 0,
+        day.roomsCreated || 0,
+        day.roomsJoined || 0,
+        day.pageExits || 0,
+        conversionRate
+      ].join(',');
+    });
+
+    // Agregar fila de hoy
+    const todayConversionRate = todayStats.pageViews > 0
+      ? ((todayStats.registrations / todayStats.pageViews) * 100).toFixed(2)
+      : '0.00';
+
+    const todayRow = [
+      new Date().toISOString().split('T')[0] + ' (HOY)',
+      todayStats.pageViews || 0,
+      todayStats.registrations || 0,
+      todayStats.logins || 0,
+      todayStats.messagesSent || 0,
+      todayStats.roomsCreated || 0,
+      todayStats.roomsJoined || 0,
+      todayStats.pageExits || 0,
+      todayConversionRate
+    ].join(',');
+
+    return [headers, ...rows, todayRow].join('\n');
+  } catch (error) {
+    console.error('Error exporting to CSV:', error);
+    return '';
+  }
+};
+
+/**
+ * 🆕 Descarga archivo CSV
+ * @param {string} csvContent - Contenido CSV
+ * @param {string} filename - Nombre del archivo
+ */
+export const downloadCSV = (csvContent, filename = 'analytics-chactivo.csv') => {
+  const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+  const link = document.createElement('a');
+  const url = URL.createObjectURL(blob);
+
+  link.setAttribute('href', url);
+  link.setAttribute('download', filename);
+  link.style.visibility = 'hidden';
+
+  document.body.appendChild(link);
+  link.click();
+  document.body.removeChild(link);
 };
 

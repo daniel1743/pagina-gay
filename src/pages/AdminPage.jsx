@@ -5,19 +5,29 @@ import {
   Shield, AlertTriangle, Users, MessageSquare, TrendingUp, ArrowLeft,
   CheckCircle, XCircle, Clock, Eye, UserPlus, LogIn, BarChart3,
   Ticket, Activity, FileText, Search, Filter, Ban, VolumeX, Bell, Send, Megaphone,
-  Gift, Award, Star, Crown, Trophy, Zap
+  Gift, Award, Star, Crown, Trophy, Zap, Download
 } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
 import { Button } from '@/components/ui/button';
 import { toast } from '@/components/ui/use-toast';
 import { collection, query, orderBy, onSnapshot, doc, updateDoc, getDoc, limit } from 'firebase/firestore';
 import { db } from '@/config/firebase';
-import { 
-  subscribeToTodayStats, 
-  getStatsForDays, 
-  getMostUsedFeatures, 
-  getExitPages 
+import {
+  subscribeToTodayStats,
+  getStatsForDays,
+  getMostUsedFeatures,
+  getExitPages,
+  getYesterdayStats,
+  calculatePercentageChange,
+  exportToCSV,
+  downloadCSV
 } from '@/services/analyticsService';
+import { TrendLineChart, ComparisonBarChart, KPICard } from '@/components/admin/AnalyticsCharts';
+import SmartAlertsPanel from '@/components/admin/SmartAlerts';
+import SegmentedKPICard from '@/components/admin/SegmentedKPICard';
+import ActiveUsersCounter from '@/components/admin/ActiveUsersCounter';
+import TimeDistributionChart from '@/components/admin/TimeDistributionChart';
+import TrafficSourcesChart from '@/components/admin/TrafficSourcesChart';
 import { 
   subscribeToTickets, 
   updateTicketStatus 
@@ -87,6 +97,17 @@ const AdminPage = () => {
 
   // Estadísticas de analytics (tiempo real)
   const [analyticsStats, setAnalyticsStats] = useState({
+    pageViews: 0,
+    registrations: 0,
+    logins: 0,
+    messagesSent: 0,
+    roomsCreated: 0,
+    roomsJoined: 0,
+    pageExits: 0,
+  });
+
+  // Estadísticas de ayer (para comparaciones)
+  const [yesterdayStats, setYesterdayStats] = useState({
     pageViews: 0,
     registrations: 0,
     logins: 0,
@@ -238,6 +259,28 @@ const AdminPage = () => {
       setLoading(false);
       return;
     }
+
+    // Cargar estadísticas de ayer para comparaciones
+    const loadYesterdayStats = async () => {
+      try {
+        const stats = await getYesterdayStats();
+        if (stats) {
+          setYesterdayStats({
+            pageViews: stats.pageViews || 0,
+            registrations: stats.registrations || 0,
+            logins: stats.logins || 0,
+            messagesSent: stats.messagesSent || 0,
+            roomsCreated: stats.roomsCreated || 0,
+            roomsJoined: stats.roomsJoined || 0,
+            pageExits: stats.pageExits || 0,
+          });
+        }
+      } catch (error) {
+        console.error('Error loading yesterday stats:', error);
+      }
+    };
+
+    loadYesterdayStats();
 
     const unsubscribe = subscribeToTodayStats((stats) => {
       setAnalyticsStats({
@@ -605,6 +648,25 @@ const AdminPage = () => {
     }
   };
 
+  // Handler para exportar datos a CSV
+  const handleExportToCSV = () => {
+    try {
+      const csv = exportToCSV(historicalStats, analyticsStats);
+      downloadCSV(csv);
+      toast({
+        title: "Exportación Exitosa",
+        description: "Los datos se han descargado en formato CSV",
+      });
+    } catch (error) {
+      console.error('Error exporting to CSV:', error);
+      toast({
+        title: "Error al Exportar",
+        description: "No se pudo generar el archivo CSV",
+        variant: "destructive",
+      });
+    }
+  };
+
   const getReasonLabel = (reason) => {
     switch (reason) {
       case 'spam': return 'Spam';
@@ -750,67 +812,86 @@ const AdminPage = () => {
 
           {/* Dashboard Tab */}
           <TabsContent value="dashboard" className="space-y-6">
-            {/* Estadísticas Principales - Analytics */}
+            {/* 🚨 Alertas Inteligentes */}
+            <SmartAlertsPanel
+              analyticsStats={analyticsStats}
+              yesterdayStats={yesterdayStats}
+              reportStats={reportStats}
+              ticketStats={ticketStats}
+              sanctionStats={sanctionStats}
+            />
+
+            {/* Estadísticas Principales - Analytics con Comparaciones */}
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
               <motion.div
                 initial={{ opacity: 0, y: 20 }}
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ delay: 0.1 }}
-                className="glass-effect p-6 rounded-2xl border border-blue-500/30"
               >
-                <div className="flex items-center justify-between mb-2">
-                  <Eye className="w-8 h-8 text-blue-400" />
-                  <TrendingUp className="w-5 h-5 text-blue-400" />
-                </div>
-                <h3 className="text-3xl font-bold mb-1">{analyticsStats.pageViews}</h3>
-                <p className="text-sm text-muted-foreground">Visualizaciones Hoy</p>
+                <KPICard
+                  icon={Eye}
+                  value={analyticsStats.pageViews.toLocaleString()}
+                  label="Visualizaciones Hoy"
+                  change={calculatePercentageChange(analyticsStats.pageViews, yesterdayStats.pageViews)}
+                  color="blue"
+                  trendData={historicalStats.slice(-7).map(d => ({ value: d.pageViews || 0 }))}
+                />
               </motion.div>
 
               <motion.div
                 initial={{ opacity: 0, y: 20 }}
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ delay: 0.2 }}
-                className="glass-effect p-6 rounded-2xl border border-green-500/30"
               >
-                <div className="flex items-center justify-between mb-2">
-                  <UserPlus className="w-8 h-8 text-green-400" />
-                  <TrendingUp className="w-5 h-5 text-green-400" />
-                </div>
-                <h3 className="text-3xl font-bold mb-1">{analyticsStats.registrations}</h3>
-                <p className="text-sm text-muted-foreground">Registros Hoy</p>
+                <SegmentedKPICard
+                  icon={UserPlus}
+                  value={analyticsStats.registrations}
+                  label="Registros Hoy"
+                  change={calculatePercentageChange(analyticsStats.registrations, yesterdayStats.registrations)}
+                  color="green"
+                  trendData={historicalStats.slice(-7).map(d => ({ value: d.registrations || 0 }))}
+                  eventType="registrations"
+                  showSegmentation={true}
+                />
               </motion.div>
 
               <motion.div
                 initial={{ opacity: 0, y: 20 }}
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ delay: 0.3 }}
-                className="glass-effect p-6 rounded-2xl border border-purple-500/30"
               >
-                <div className="flex items-center justify-between mb-2">
-                  <LogIn className="w-8 h-8 text-purple-400" />
-                  <TrendingUp className="w-5 h-5 text-purple-400" />
-                </div>
-                <h3 className="text-3xl font-bold mb-1">{analyticsStats.logins}</h3>
-                <p className="text-sm text-muted-foreground">Logins Hoy</p>
+                <SegmentedKPICard
+                  icon={LogIn}
+                  value={analyticsStats.logins}
+                  label="Logins Hoy"
+                  change={calculatePercentageChange(analyticsStats.logins, yesterdayStats.logins)}
+                  color="purple"
+                  trendData={historicalStats.slice(-7).map(d => ({ value: d.logins || 0 }))}
+                  eventType="logins"
+                  showSegmentation={true}
+                />
               </motion.div>
 
               <motion.div
                 initial={{ opacity: 0, y: 20 }}
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ delay: 0.4 }}
-                className="glass-effect p-6 rounded-2xl border border-cyan-500/30"
               >
-                <div className="flex items-center justify-between mb-2">
-                  <MessageSquare className="w-8 h-8 text-cyan-400" />
-                  <TrendingUp className="w-5 h-5 text-cyan-400" />
-                </div>
-                <h3 className="text-3xl font-bold mb-1">{analyticsStats.messagesSent}</h3>
-                <p className="text-sm text-muted-foreground">Mensajes Enviados</p>
+                <SegmentedKPICard
+                  icon={MessageSquare}
+                  value={analyticsStats.messagesSent}
+                  label="Mensajes Enviados"
+                  change={calculatePercentageChange(analyticsStats.messagesSent, yesterdayStats.messagesSent)}
+                  color="cyan"
+                  trendData={historicalStats.slice(-7).map(d => ({ value: d.messagesSent || 0 }))}
+                  eventType="messagesSent"
+                  showSegmentation={true}
+                />
               </motion.div>
             </div>
 
             {/* Estadísticas Secundarias */}
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
               <motion.div
                 initial={{ opacity: 0, y: 20 }}
                 animate={{ opacity: 1, y: 0 }}
@@ -848,6 +929,15 @@ const AdminPage = () => {
                 </div>
                 <h3 className="text-3xl font-bold mb-1">{analyticsStats.pageExits}</h3>
                 <p className="text-sm text-muted-foreground">Salidas de Página</p>
+              </motion.div>
+
+              {/* Usuarios Activos en Tiempo Real */}
+              <motion.div
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: 0.8 }}
+              >
+                <ActiveUsersCounter />
               </motion.div>
             </div>
 
@@ -905,6 +995,24 @@ const AdminPage = () => {
               ) : (
                 <p className="text-muted-foreground text-center py-8">No hay datos disponibles aún</p>
               )}
+            </motion.div>
+
+            {/* Análisis de Tiempo en Sitio */}
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              transition={{ delay: 1.2 }}
+            >
+              <TimeDistributionChart />
+            </motion.div>
+
+            {/* Fuentes de Tráfico */}
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              transition={{ delay: 1.3 }}
+            >
+              <TrafficSourcesChart />
             </motion.div>
           </TabsContent>
 
@@ -1858,8 +1966,148 @@ const AdminPage = () => {
             </motion.div>
           </TabsContent>
 
-          {/* Analytics Tab */}
+          {/* Analytics Tab - Mejorado con Gráficos */}
           <TabsContent value="analytics" className="space-y-6">
+            {/* Header con botón de exportar */}
+            <div className="flex items-center justify-between mb-4">
+              <div>
+                <h2 className="text-2xl font-bold">Análisis Detallado</h2>
+                <p className="text-sm text-muted-foreground">Métricas avanzadas y tendencias</p>
+              </div>
+              <Button
+                onClick={handleExportToCSV}
+                variant="outline"
+                className="gap-2"
+              >
+                <Download className="w-4 h-4" />
+                Exportar a CSV
+              </Button>
+            </div>
+
+            {/* KPIs Calculados */}
+            <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
+              <motion.div
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                className="glass-effect p-6 rounded-2xl border border-green-500/30"
+              >
+                <h4 className="text-sm text-muted-foreground mb-2">Tasa de Conversión</h4>
+                <h3 className="text-3xl font-bold text-green-400 mb-1">
+                  {analyticsStats.pageViews > 0
+                    ? ((analyticsStats.registrations / analyticsStats.pageViews) * 100).toFixed(1)
+                    : '0.0'}%
+                </h3>
+                <p className="text-xs text-muted-foreground">
+                  {analyticsStats.registrations} de {analyticsStats.pageViews} visitantes
+                </p>
+              </motion.div>
+
+              <motion.div
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: 0.1 }}
+                className="glass-effect p-6 rounded-2xl border border-blue-500/30"
+              >
+                <h4 className="text-sm text-muted-foreground mb-2">Tasa de Activación</h4>
+                <h3 className="text-3xl font-bold text-blue-400 mb-1">
+                  {analyticsStats.registrations > 0
+                    ? ((analyticsStats.messagesSent / analyticsStats.registrations) * 100).toFixed(1)
+                    : '0.0'}%
+                </h3>
+                <p className="text-xs text-muted-foreground">
+                  Usuarios que envían mensajes
+                </p>
+              </motion.div>
+
+              <motion.div
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: 0.2 }}
+                className="glass-effect p-6 rounded-2xl border border-yellow-500/30"
+              >
+                <h4 className="text-sm text-muted-foreground mb-2">Bounce Rate</h4>
+                <h3 className="text-3xl font-bold text-yellow-400 mb-1">
+                  {analyticsStats.pageViews > 0
+                    ? ((analyticsStats.pageExits / analyticsStats.pageViews) * 100).toFixed(1)
+                    : '0.0'}%
+                </h3>
+                <p className="text-xs text-muted-foreground">
+                  Visitantes que salen
+                </p>
+              </motion.div>
+
+              <motion.div
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: 0.3 }}
+                className="glass-effect p-6 rounded-2xl border border-purple-500/30"
+              >
+                <h4 className="text-sm text-muted-foreground mb-2">Engagement</h4>
+                <h3 className="text-3xl font-bold text-purple-400 mb-1">
+                  {analyticsStats.logins > 0
+                    ? (analyticsStats.messagesSent / analyticsStats.logins).toFixed(1)
+                    : '0.0'}
+                </h3>
+                <p className="text-xs text-muted-foreground">
+                  Mensajes promedio por usuario
+                </p>
+              </motion.div>
+            </div>
+
+            {/* Gráficos de Tendencias */}
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+              <motion.div
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                className="glass-effect rounded-2xl border border-border p-6"
+              >
+                <TrendLineChart
+                  data={historicalStats}
+                  dataKeys={[
+                    { key: 'pageViews', name: 'Visualizaciones' },
+                    { key: 'registrations', name: 'Registros' }
+                  ]}
+                  colors={['#60a5fa', '#4ade80']}
+                  title="Tráfico y Conversión - Últimos 7 días"
+                />
+              </motion.div>
+
+              <motion.div
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                className="glass-effect rounded-2xl border border-border p-6"
+              >
+                <TrendLineChart
+                  data={historicalStats}
+                  dataKeys={[
+                    { key: 'logins', name: 'Logins' },
+                    { key: 'messagesSent', name: 'Mensajes' }
+                  ]}
+                  colors={['#c084fc', '#22d3ee']}
+                  title="Actividad de Usuarios - Últimos 7 días"
+                />
+              </motion.div>
+            </div>
+
+            {/* Gráfico de Barras Comparativo */}
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              className="glass-effect rounded-2xl border border-border p-6"
+            >
+              <ComparisonBarChart
+                data={historicalStats}
+                dataKeys={[
+                  { key: 'registrations', name: 'Registros' },
+                  { key: 'logins', name: 'Logins' },
+                  { key: 'messagesSent', name: 'Mensajes' }
+                ]}
+                colors={['#4ade80', '#c084fc', '#22d3ee']}
+                title="Comparativa Diaria - Últimos 7 días"
+              />
+            </motion.div>
+
+            {/* Tabla de Datos Históricos */}
             <motion.div
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
@@ -1867,33 +2115,40 @@ const AdminPage = () => {
             >
               <h2 className="text-2xl font-bold mb-6 flex items-center gap-2">
                 <BarChart3 className="w-6 h-6 text-purple-400" />
-                Estadísticas Históricas (Últimos 7 días)
+                Datos Históricos Detallados
               </h2>
               {historicalStats.length > 0 ? (
-                <div className="space-y-4">
-                  {historicalStats.map((day, index) => (
-                    <div key={day.date} className="p-4 rounded-lg bg-background/50">
-                      <h3 className="font-semibold mb-3">{new Date(day.date).toLocaleDateString('es-CL', { weekday: 'long', day: 'numeric', month: 'long' })}</h3>
-                      <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
-                        <div>
-                          <span className="text-muted-foreground">Visualizaciones:</span>
-                          <span className="ml-2 font-bold">{day.pageViews || 0}</span>
-                        </div>
-                        <div>
-                          <span className="text-muted-foreground">Registros:</span>
-                          <span className="ml-2 font-bold">{day.registrations || 0}</span>
-                        </div>
-                        <div>
-                          <span className="text-muted-foreground">Logins:</span>
-                          <span className="ml-2 font-bold">{day.logins || 0}</span>
-                        </div>
-                        <div>
-                          <span className="text-muted-foreground">Mensajes:</span>
-                          <span className="ml-2 font-bold">{day.messagesSent || 0}</span>
-                        </div>
-                      </div>
-                    </div>
-                  ))}
+                <div className="overflow-x-auto">
+                  <table className="w-full">
+                    <thead>
+                      <tr className="border-b border-border">
+                        <th className="text-left p-3 text-sm text-muted-foreground">Fecha</th>
+                        <th className="text-right p-3 text-sm text-muted-foreground">Vistas</th>
+                        <th className="text-right p-3 text-sm text-muted-foreground">Registros</th>
+                        <th className="text-right p-3 text-sm text-muted-foreground">Logins</th>
+                        <th className="text-right p-3 text-sm text-muted-foreground">Mensajes</th>
+                        <th className="text-right p-3 text-sm text-muted-foreground">Conv. %</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {historicalStats.map((day) => (
+                        <tr key={day.date} className="border-b border-border/50 hover:bg-background/50">
+                          <td className="p-3 text-sm">
+                            {new Date(day.date).toLocaleDateString('es-CL', { weekday: 'short', day: 'numeric', month: 'short' })}
+                          </td>
+                          <td className="text-right p-3 font-medium">{day.pageViews || 0}</td>
+                          <td className="text-right p-3 font-medium text-green-400">{day.registrations || 0}</td>
+                          <td className="text-right p-3 font-medium text-purple-400">{day.logins || 0}</td>
+                          <td className="text-right p-3 font-medium text-cyan-400">{day.messagesSent || 0}</td>
+                          <td className="text-right p-3 font-medium text-yellow-400">
+                            {day.pageViews > 0
+                              ? ((day.registrations / day.pageViews) * 100).toFixed(1)
+                              : '0.0'}%
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
                 </div>
               ) : (
                 <p className="text-muted-foreground text-center py-8">No hay datos históricos disponibles aún</p>
