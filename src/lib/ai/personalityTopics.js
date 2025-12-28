@@ -148,10 +148,11 @@ const normalize = (s = "") =>
 /**
  * ✅ Validación fuerte:
  * - Prohíbe temas spam
- * - Obliga a tocar al menos 1 topic keyword
+ * - Obliga a tocar al menos 1 topic keyword (solo para mensajes largos entre IAs)
  * - Evita estructuras plantilla
+ * - 🔥 FLEXIBLE: No requiere temas para respuestas cortas a usuarios reales
  */
-export const validateMessageForPersonality = (message, personality) => {
+export const validateMessageForPersonality = (message, personality, isResponseToUser = false, userMessage = null) => {
   const topicData = getPersonalityTopics(personality.username);
   const text = normalize(message);
 
@@ -174,10 +175,24 @@ export const validateMessageForPersonality = (message, personality) => {
     return { valid: false, reason: "TEMPLATE_START" };
   }
 
-  // 3) require topic hit (si no es mensaje ultra corto)
-  if (text.length >= 25 && topicData.topics.length > 0) {
-    const hit = topicData.topics.some(t => text.includes(normalize(t)));
-    if (!hit) return { valid: false, reason: `NO_TOPIC_HIT:${topicData.main}` };
+  // 3) require topic hit - 🔥 FLEXIBLE PARA RESPUESTAS A USUARIOS
+  // Si es respuesta a usuario real y el mensaje del usuario es un saludo simple, no requerir temas
+  const isSimpleGreeting = userMessage && normalize(userMessage).match(/^(hola|hi|hey|que tal|que onda|como estas|como andas|buenos dias|buenas tardes|buenas noches)$/);
+  const isShortResponse = text.length < 40; // Mensajes cortos no requieren temas
+  
+  // Solo requerir temas para:
+  // - Mensajes largos (>= 40 caracteres) Y
+  // - NO es respuesta a saludo simple Y
+  // - NO es respuesta corta a usuario
+  if (text.length >= 40 && topicData.topics.length > 0) {
+    // Si es respuesta a usuario con saludo simple, no requerir temas
+    if (isResponseToUser && (isSimpleGreeting || isShortResponse)) {
+      // Permitir respuesta natural sin temas
+    } else {
+      // Para mensajes largos entre IAs o respuestas largas, sí requerir temas
+      const hit = topicData.topics.some(t => text.includes(normalize(t)));
+      if (!hit) return { valid: false, reason: `NO_TOPIC_HIT:${topicData.main}` };
+    }
   }
 
   // 4) anti-emoji spam

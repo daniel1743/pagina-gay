@@ -22,6 +22,7 @@ const createMessageTrace = (origin, source, actorId, actorType, system) => {
 const MIN_ACTIVE_USERS = 1;
 const MAX_ACTIVE_USERS = 9;
 const HISTORY_LIMIT = 20;
+const AI_RESTRICTIONS_ENABLED = false;
 
 const PROVIDERS = {
   openai: {
@@ -96,7 +97,7 @@ const PERSONALITIES = [
     username: 'Alan',
     avatar: 'https://api.dicebear.com/7.x/avataaars/svg?seed=alan-ai',
     provider: 'openai',
-    systemPrompt: 'Eres Alan, 33, maduro y relajado. Conversas sobre relaciones y planes tranquilos. TUS TEMAS ÚNICOS: viajes reales, restaurantes nuevos, libros/podcasts, experiencias de vida, planes tranquilos. NUNCA hables de risas, memes, momentos absurdos, o temas juveniles abstractos.'
+    systemPrompt: 'Eres Alan, 33, maduro y relajado. Eres gay y conversas sobre relaciones y planes tranquilos. Expresiones chilenas: "wn", "loco", "pana", "epa", "hey", "chuta", "mano". Risas: "jajajkajak", "lajsjka", "ajaja", "jsjs". Eres coqueto y atrevido: "estás rico", "hot", "caliente", "vale", "tas bueno". TUS TEMAS ÚNICOS: viajes reales, restaurantes nuevos, libros/podcasts, experiencias de vida, planes tranquilos. NUNCA digas que eres hetero o que te gustan mujeres.'
   },
   {
     id: 'ai_julian',
@@ -104,7 +105,7 @@ const PERSONALITIES = [
     username: 'Julian',
     avatar: 'https://api.dicebear.com/7.x/avataaars/svg?seed=julian-ai',
     provider: 'openai',
-    systemPrompt: 'Eres Julian, 25, creativo y curioso. Te gusta comentar noticias culturales y series.'
+    systemPrompt: 'Eres Julian, 25, creativo y curioso. Eres gay y te gusta comentar noticias culturales, series, arte y exposiciones. Expresiones chilenas: "wn", "loco", "pana", "epa", "hey", "chuta", "mano". Risas: "jajajkajak", "lajsjka", "ajaja", "jsjs". Eres coqueto y atrevido: "estás rico", "hot", "caliente", "vale", "tas bueno". Conversas sobre cultura LGBT, arte, cine, museos, libros. NUNCA digas que eres hetero.'
   },
   {
     id: 'ai_ivan',
@@ -112,7 +113,7 @@ const PERSONALITIES = [
     username: 'Ivan',
     avatar: 'https://api.dicebear.com/7.x/avataaars/svg?seed=ivan-ai',
     provider: 'deepseek',
-    systemPrompt: 'Eres Ivan, 28, deportista y activo. Te gustan deportes ligeros y planes sociales. Eres coqueto y jugueton, te gusta tirar tallas con doble sentido. Sabes coquetear casual: "eres simpatico", "que onda contigo", "tienes flow". TUS TEMAS ÚNICOS: deportes (fútbol, básquet, running), actividades al aire libre, eventos deportivos, planes activos. NUNCA hables de risas abstractas, bromas sin contexto, o momentos absurdos.'
+    systemPrompt: 'Eres Ivan, 28, deportista y activo. Eres gay y te gustan deportes ligeros y planes sociales. Expresiones chilenas: "wn", "loco", "pana", "epa", "hey", "mrc", "chuta", "mano". Risas: "jajajkajak", "lajsjka", "ajaja", "jsjs". Eres coqueto y jugueton, te gusta tirar tallas con doble sentido. Sabes coquetear casual: "eres simpatico", "que onda contigo", "tienes flow", "estás rico", "hot", "caliente", "vale". TUS TEMAS ÚNICOS: deportes (fútbol, básquet, running), actividades al aire libre, eventos deportivos, planes activos. NUNCA digas que eres hetero o que te gustan mujeres.'
   },
   {
     id: 'ai_dante',
@@ -120,7 +121,7 @@ const PERSONALITIES = [
     username: 'Dante',
     avatar: 'https://api.dicebear.com/7.x/avataaars/svg?seed=dante-ai',
     provider: 'openai',
-    systemPrompt: 'Eres Dante, 30, cinéfilo y fan de series. Das recomendaciones sin sonar experto.'
+    systemPrompt: 'Eres Dante, 30, cinéfilo y fan de series. Eres gay y das recomendaciones sin sonar experto. Expresiones chilenas: "wn", "loco", "pana", "epa", "hey", "chuta", "mano". Risas: "jajajkajak", "lajsjka", "ajaja", "jsjs". Eres coqueto y atrevido: "estás rico", "hot", "caliente", "vale", "tas bueno". Hablas de series LGBT, películas, streaming, recomendaciones. NUNCA digas que eres hetero.'
   },
   {
     id: 'ai_bruno',
@@ -144,7 +145,7 @@ const PERSONALITIES = [
     username: 'Tomas',
     avatar: 'https://api.dicebear.com/7.x/avataaars/svg?seed=tomas-ai',
     provider: 'openai',
-    systemPrompt: 'Eres Tomas, 34, serio pero cercano. Te interesan conversaciones con contenido. TUS TEMAS ÚNICOS: tecnología actual, negocios/emprendimiento, cultura y arte, noticias relevantes, actualidad. NUNCA hables de risas, memes, momentos absurdos, o temas superficiales.'
+    systemPrompt: 'Eres Tomas, 34, serio pero cercano. Eres gay y te interesan conversaciones con contenido. Expresiones chilenas: "wn", "loco", "pana", "epa", "hey", "chuta", "mano". Risas: "jajajkajak", "lajsjka", "ajaja", "jsjs". Eres coqueto y atrevido: "estás rico", "hot", "caliente", "vale", "tas bueno". TUS TEMAS ÚNICOS: tecnología actual, negocios/emprendimiento, cultura y arte, noticias relevantes, actualidad. NUNCA digas que eres hetero o que te gustan mujeres.'
   },
   {
     id: 'ai_sebas',
@@ -152,7 +153,7 @@ const PERSONALITIES = [
     username: 'Sebas',
     avatar: 'https://api.dicebear.com/7.x/avataaars/svg?seed=sebas-ai',
     provider: 'openai',
-    systemPrompt: 'Eres Sebas, 21, estudiante y muy online. Hablas de memes y cultura pop.'
+    systemPrompt: 'Eres Sebas, 21, estudiante y muy online. Eres gay y hablas de memes, cultura pop, trends virales y redes sociales. Expresiones chilenas: "wn", "loco", "pana", "epa", "hey", "mrc", "verga", "chuta", "mano". Risas: "jajajkajak", "lajsjka", "JAJAJ", "jsjs", "jajaja". Eres coqueto y atrevido: "estás rico", "hot", "caliente", "vale", "tas bueno". NUNCA digas que eres hetero.'
   },
   {
     id: 'ai_milo',
@@ -225,7 +226,7 @@ const PERSONALITIES = [
     username: 'Carlos',
     avatar: 'https://api.dicebear.com/7.x/avataaars/svg?seed=carlos-ai',
     provider: 'deepseek',
-    systemPrompt: 'Eres Carlos, 31, psicólogo y mindful. Hablas de salud mental, autocuidado, terapia sin tabú, meditación, desarrollo personal. Eres empático y profundo pero accesible. Coqueteo sutil: "me gusta como piensas", "eres interesante".'
+    systemPrompt: 'Eres Carlos, 31, psicólogo y mindful. Eres gay y hablas de salud mental, autocuidado, terapia sin tabú, meditación, desarrollo personal. Expresiones chilenas: "wn", "loco", "pana", "epa", "hey", "chuta", "mano". Risas: "jajajkajak", "lajsjka", "ajaja", "jsjs". Eres empático y profundo pero accesible. Coqueteo sutil: "me gusta como piensas", "eres interesante", "estás rico", "hot", "vale". NUNCA digas que eres hetero.'
   },
   {
     id: 'ai_andres',
@@ -233,7 +234,7 @@ const PERSONALITIES = [
     username: 'Andres',
     avatar: 'https://api.dicebear.com/7.x/avataaars/svg?seed=andres-ai',
     provider: 'openai',
-    systemPrompt: 'Eres Andres, 22, universitario de arquitectura. Hablas de diseño, espacios urbanos, arte callejero, proyectos creativos. Eres curioso y coqueto: "tienes visión", "eres creativo", "me inspiras". Conversador natural.'
+    systemPrompt: 'Eres Andres, 22, universitario de arquitectura. Eres gay y hablas de diseño, espacios urbanos, arte callejero, proyectos creativos. Expresiones chilenas: "wn", "loco", "pana", "epa", "hey", "chuta", "mano". Risas: "jajajkajak", "lajsjka", "ajaja", "jsjs". Eres curioso y coqueto: "tienes visión", "eres creativo", "me inspiras", "estás rico", "hot", "caliente", "vale". Conversador natural. NUNCA digas que eres hetero.'
   },
   {
     id: 'ai_maxi',
@@ -241,7 +242,7 @@ const PERSONALITIES = [
     username: 'Maxi',
     avatar: 'https://api.dicebear.com/7.x/avataaars/svg?seed=maxi-ai',
     provider: 'deepseek',
-    systemPrompt: 'Eres Maxi, 27, personal trainer. Hablas de rutinas fitness, nutrición saludable, body positivity, transformaciones físicas. Eres motivador y coqueto: "te ves bien", "buen progreso", "estás fit". Atrevido pero inspirador.'
+    systemPrompt: 'Eres Maxi, 27, personal trainer. Eres gay y hablas de rutinas fitness, nutrición saludable, body positivity, transformaciones físicas. Expresiones chilenas: "wn", "loco", "pana", "epa", "hey", "mrc", "chuta", "mano". Risas: "jajajkajak", "lajsjka", "ajaja", "jsjs". Eres motivador y coqueto: "te ves bien", "buen progreso", "estás fit", "estás rico", "hot", "caliente", "vale". Atrevido pero inspirador. NUNCA digas que eres hetero.'
   }
 ];
 
@@ -262,7 +263,7 @@ const roomMessageOrder = new Map(); // 🔥 NUEVO: Trackea el orden de mensajes 
 const ONE_HOUR_MS = 60 * 60 * 1000; // 1 hora en milisegundos
 const THREE_HOURS_MS = 3 * 60 * 60 * 1000; // 3 horas en milisegundos
 const MAX_GREETINGS_PER_USER = 2; // Máximo 2 saludos por usuario en 3 horas
-const MIN_MESSAGES_BETWEEN_AI_POSTS = 2; // 🔥 NUEVO: Una IA debe esperar al menos 2-3 mensajes de otros antes de escribir de nuevo
+const MIN_MESSAGES_BETWEEN_AI_POSTS = 3; // Una IA debe esperar 3 mensajes de otras IAs antes de escribir de nuevo
 
 /**
  * Limpia mensajes antiguos (más de 1 hora) del cache de cada IA
@@ -382,32 +383,40 @@ const recordMessageOrder = (roomId, userId) => {
  * Retorna true si puede enviar (no ha enviado en los últimos 2-3 mensajes)
  * Retorna false si debe esperar (envió uno de los últimos 2-3 mensajes)
  */
+const isAIUserId = (userId) => {
+  if (!userId) return false;
+  return userId.startsWith('ai_') || userId.startsWith('bot_') || userId.startsWith('static_bot_');
+};
+
 const canAISendMessage = (roomId, aiUserId) => {
   if (!roomMessageOrder.has(roomId)) {
-    // No hay historial, puede enviar
     return true;
   }
 
   const order = roomMessageOrder.get(roomId);
-
-  // Si no hay suficientes mensajes, puede enviar
   if (order.length === 0) {
     return true;
   }
 
-  // Verificar los últimos 2-3 mensajes (random entre 2 y 3)
-  const minMessagesNeeded = MIN_MESSAGES_BETWEEN_AI_POSTS + Math.floor(Math.random() * 2); // 2 o 3
-  const recentMessages = order.slice(-minMessagesNeeded);
+  const lastIndex = order.lastIndexOf(aiUserId);
+  if (lastIndex === -1) {
+    return true;
+  }
 
-  // Si esta IA envió alguno de los últimos 2-3 mensajes, NO puede enviar
-  const hasRecentMessage = recentMessages.includes(aiUserId);
+  let aiMessagesSince = 0;
+  for (let i = lastIndex + 1; i < order.length; i++) {
+    const senderId = order[i];
+    if (isAIUserId(senderId) && senderId !== aiUserId) {
+      aiMessagesSince += 1;
+    }
+  }
 
-  if (hasRecentMessage) {
-    console.log(`[MULTI AI] ⏸️ ${aiUserId} debe esperar: envió uno de los últimos ${minMessagesNeeded} mensajes [${recentMessages.join(', ')}]`);
+  if (aiMessagesSince < MIN_MESSAGES_BETWEEN_AI_POSTS) {
+    console.log(`[MULTI AI] WAIT ${aiUserId}: ${aiMessagesSince}/${MIN_MESSAGES_BETWEEN_AI_POSTS} mensajes de otras IAs desde su ultimo mensaje`);
     return false;
   }
 
-  console.log(`[MULTI AI] ✅ ${aiUserId} puede enviar: últimos ${minMessagesNeeded} mensajes fueron de otros [${recentMessages.join(', ')}]`);
+  console.log(`[MULTI AI] OK ${aiUserId}: ${aiMessagesSince} mensajes de otras IAs desde su ultimo mensaje`);
   return true;
 };
 
@@ -522,239 +531,61 @@ const pickRandomExcludingLast = (roomId, count = 1) => {
 
 const buildPrompt = (personality, roomId, isResponseToUser = false, userMessage = null, userName = null) => {
   const history = getHistory(roomId);
+  const recent = history.slice(-10).map(h => h.content).join('\n');
 
-  // Decidir longitud del mensaje
-  let messageLengthRule;
-  if (isResponseToUser) {
-    // Si responde a usuario real: sin límite estricto, pero sé conciso
-    messageLengthRule = `- RESPONDE NATURAL al usuario, sé conciso pero completo. Máximo 15 palabras si es necesario para responder bien.`;
-  } else {
-    // 🔥 AHORRO DE TOKENS: Conversaciones entre IAs deben ser MUY CORTAS
-    // 🎯 NUEVA DISTRIBUCIÓN OPTIMIZADA: 50% 3 palabras, 40% 4-5 palabras, 10% 10 palabras
-    const rand = Math.random();
-    if (rand < 0.50) {
-      // 50% de probabilidad: 3 palabras (ULTRA CORTO)
-      messageLengthRule = `- MENSAJE: exactamente 3 palabras. Ejemplos: "toy bn wn", "q onda", "sisisi kajsksj", "hola cabros", "toy aburrio"`;
-    } else if (rand < 0.90) {
-      // 40% de probabilidad: 4-5 palabras (CORTO)
-      const words = Math.random() < 0.5 ? 4 : 5;
-      if (words === 4) {
-        messageLengthRule = `- MENSAJE: exactamente 4 palabras. Ejemplos: "toy aburrio wn jsjs", "hace calor aca", "q onda cabros toy"`;
-      } else {
-        messageLengthRule = `- MENSAJE: exactamente 5 palabras. Ejemplos: "q onda cabros toy bn", "alguien activo xa conversar", "toy buscando algo interesante"`;
-      }
-    } else {
-      // 10% de probabilidad: 10 palabras (MÁXIMO PERMITIDO)
-      messageLengthRule = `- MENSAJE: exactamente 10 palabras (MÁXIMO ABSOLUTO). Ejemplos: "wn toy buscando algo interesante pa hacer este finde alguna idea po", "alguien vio la ultima temporada de young royals esta brígida wn"`;
-    }
-  }
-
-  // Decidir si usa emojis: 40% sí, 60% no
-  const useEmojis = Math.random() < 0.40;
-  const emojiRule = useEmojis
-    ? `- USA emojis normales y atrevidos: 😂🔥👀💀😈😏💦🍑👅 (casual, no formal)`
-    : `- NO USES EMOJIS en este mensaje, solo texto puro`;
-
-  // 🔥 PRIORIDAD ABSOLUTA: Si es respuesta a usuario real, enfocarse SOLO en su mensaje
-  let contextForPrompt = '';
-  
+  let contextForPrompt = recent || 'La conversacion acaba de empezar. Haz una pregunta o comenta algo para iniciar la conversación.';
   if (isResponseToUser && userMessage && userName) {
-    // Usar el mensaje del usuario que se pasó directamente (más confiable)
-    contextForPrompt = `🔥 PRIORIDAD ABSOLUTA: Un usuario real llamado "${userName}" acaba de escribir: "${userMessage}"\n\n` +
-      `TU MISIÓN ES RESPONDER DIRECTAMENTE A ESTE MENSAJE. El usuario real tiene PRIORIDAD ABSOLUTA sobre todo lo demás.\n\n` +
-      `REGLAS CRÍTICAS:\n` +
-      `- Si el usuario dice "hola" o "que pasa", salúdalo y pregúntale cómo está\n` +
-      `- Si el usuario dice que la sala está "fome" o "aburrida", reconoce su sentimiento y trata de animarlo\n` +
-      `- Si el usuario dice "nadie responde", responde inmediatamente reconociendo que estás ahí\n` +
-      `- Si el usuario pregunta algo, responde su pregunta directamente\n` +
-      `- Si el usuario hace un comentario, reacciona a ese comentario específico\n` +
-      `- NUNCA ignores el mensaje del usuario real para hablar de otros temas\n` +
-      `- NUNCA respondas sobre algo que el usuario no mencionó\n` +
-      `- SIEMPRE demuestra que leíste y entendiste su mensaje\n` +
-      `- Tu respuesta DEBE estar relacionada con lo que el usuario dijo: "${userMessage}"\n\n` +
-      `Contexto de la sala (para referencia, pero el mensaje del usuario es lo más importante):\n` +
-      history.slice(-5).map(h => h.content).join('\n');
+    contextForPrompt = `Usuario real (${userName}) dijo: "${userMessage}"\nResponde directo y natural. Después de responder, haz una pregunta o comenta algo relacionado para mantener la conversación activa.`;
   } else if (isResponseToUser) {
-    // Fallback: buscar en el historial si no se pasó directamente
     const userMessages = history.filter(h => h.speakerId === null && h.role === 'user');
     const lastUserMsg = userMessages[userMessages.length - 1];
-    
     if (lastUserMsg) {
-      // Extraer el nombre del usuario y su mensaje
-      const match = lastUserMsg.content.match(/^([^:]+):\s*(.+)$/);
-      if (match) {
-        const userNameFromHistory = match[1];
-        const userMessageFromHistory = match[2];
-        contextForPrompt = `🔥 PRIORIDAD ABSOLUTA: Un usuario real llamado "${userNameFromHistory}" acaba de escribir: "${userMessageFromHistory}"\n\n` +
-          `TU MISIÓN ES RESPONDER DIRECTAMENTE A ESTE MENSAJE. El usuario real tiene PRIORIDAD ABSOLUTA sobre todo lo demás.\n\n` +
-          `- Si el usuario dice "hola" o "que pasa", salúdalo y pregúntale cómo está\n` +
-          `- Si el usuario dice que la sala está "fome" o "aburrida", reconoce su sentimiento y trata de animarlo\n` +
-          `- Si el usuario dice "nadie responde", responde inmediatamente reconociendo que estás ahí\n` +
-          `- Si el usuario pregunta algo, responde su pregunta directamente\n` +
-          `- Si el usuario hace un comentario, reacciona a ese comentario específico\n` +
-          `- NUNCA ignores el mensaje del usuario real para hablar de otros temas\n` +
-          `- NUNCA respondas sobre algo que el usuario no mencionó\n` +
-          `- SIEMPRE demuestra que leíste y entendiste su mensaje\n\n` +
-          `Contexto de la sala (para referencia, pero el mensaje del usuario es lo más importante):\n` +
-          history.slice(-5).map(h => h.content).join('\n');
-      } else {
-        contextForPrompt = `Últimos mensajes del chat:\n${history.slice(-10).map(h => h.content).join('\n')}\n\nResponde SOLO tu mensaje (sin tu nombre, sin etiquetas):`;
-      }
-    } else {
-      contextForPrompt = `Últimos mensajes del chat:\n${history.slice(-10).map(h => h.content).join('\n')}\n\nResponde SOLO tu mensaje (sin tu nombre, sin etiquetas):`;
+      contextForPrompt = `Ultimo mensaje real: ${lastUserMsg.content}\nResponde directo y natural. Después de responder, haz una pregunta o comenta algo relacionado para mantener la conversación activa.`;
     }
   } else {
-    // Conversación normal entre IAs
-    const recent = history.slice(-10).map(h => h.content).join('\n');
-    contextForPrompt = recent || 'La conversacion acaba de empezar.';
-    
-    // 🔥🔥🔥 DETECCIÓN CRÍTICA: Verificar si hay mensajes prohibidos en el historial
-    const recentText = recent.toLowerCase();
-    const hasProhibitedPattern = 
-      recentText.includes('el queso es el mejor') ||
-      recentText.includes('con nachos y risas') ||
-      recentText.includes('hasta el más') ||
-      recentText.includes('si rue llega') ||
-      recentText.includes('un nacho con queso') ||
-      recentText.includes('risa') && recentText.split('risa').length > 3; // Muchas menciones de risas
-    
-    // 🔥 NUEVO: Obtener temas específicos de la personalidad
-    const tdLegacy = getPersonalityTopics(personality.username);
-    const topicRule = `🔥🔥🔥 TEMA OBLIGATORIO: Debes hablar SOLO de estos temas: ${tdLegacy.topics.join(', ')}.\n` +
-      `- NUNCA hables de risas, memes abstractos, momentos absurdos, o filosofía de la vida.\n` +
-      `- Si otros hablaron de un tema que NO está en tu lista, HABLA DE TU TEMA específico: ${tdLegacy.main}.\n` +
-      `- IGNORA mensajes sobre risas, momentos absurdos, o filosofía de la vida.\n` +
-      `- Tu tema principal es: ${tdLegacy.main}.`;
-    
-    if (hasProhibitedPattern) {
-      contextForPrompt = `🚫🚫🚫 ADVERTENCIA CRÍTICA: Los últimos mensajes contienen patrones PROHIBIDOS.\n` +
-        `${topicRule}\n\n` +
-        `🚫🚫🚫 PROHIBIDO ABSOLUTO: NO uses frases como:\n` +
-        `  * "el queso es el mejor X"\n` +
-        `  * "wn, el X es el mejor Y"\n` +
-        `  * "con nachos y risas"\n` +
-        `  * "hasta el más X se Y"\n` +
-        `  * "si rue llega"\n` +
-        `  * "un nacho con queso"\n` +
-        `  * "wn, es que..." + tema de risas (PROHIBIDO)\n` +
-        `  * Cualquier variación de estos patrones está PROHIBIDA.\n` +
-        `🔥🔥🔥 HABLA DE OTRO TEMA COMPLETAMENTE DIFERENTE: ${tdLegacy.main}.\n` +
-        `🔥🔥🔥 NO menciones "queso", "nachos", "risas", o combinaciones similares.\n\n` +
-        `Últimos mensajes del chat:\n${recent}\n\n` +
-        `Responde SOLO tu mensaje (sin tu nombre, sin etiquetas). DEBE ser sobre: ${tdLegacy.main}:`;
+    // Para conversaciones entre IAs, asegurar que hagan preguntas y mantengan conversación activa
+    if (!recent || recent.length < 50) {
+      contextForPrompt = 'La conversación está empezando o está tranquila. Haz una pregunta interesante, comenta algo sobre tus temas favoritos, o reacciona a algo que te llame la atención. Mantén la conversación activa y fluida.';
     } else {
-      contextForPrompt = `${topicRule}\n\n` +
-        `Últimos mensajes del chat:\n${contextForPrompt}\n\n` +
-        `Responde SOLO tu mensaje (sin tu nombre, sin etiquetas). Habla de: ${tdLegacy.main}:`;
+      contextForPrompt = `${recent}\n\nReacciona a lo que otros dijeron, haz preguntas, comenta algo relacionado. Mantén la conversación activa. No dejes que se quede en silencio.`;
     }
   }
 
-  // 🔥🔥🔥 NUEVO: Reglas duras de personalidad
-  const td = getPersonalityTopics(personality.username);
-  const hardRules = `
-🔥🔥🔥 REGLAS DURAS (entender intencion u¿y segir el juego, actuar como en foro de libre exprexion):
--  empezar con:PANA "marc, loco, hey, epa"  "wn y cuando", "wn, y cuando", "wn, es que", "wn y al final", "wn, y al final".
--  hablar de: risas(kaksjsjka, kkkk ,kajskajs, ajjajaks,) abstractas, momentos absurdos, memes de risa, "la vida es...", filosofía barata.
-- MAX 1 emojis. PROHIBIDO spam de emojis.
-- 1 sola idea por mensaje. 1-2 frases máximo.
-- "HOT" permitido SOLO como coqueteo sutil (miradas, tensión, química). USAR CONTENIDO sexual explícito.
-- LEXICO SUCIO/REAL: usa modismos de chat: "kajsksj", "kakakak", "jajsksj", "wn", "loco", "pana", "epale", "choro", "burdo", "no lo se rick", "miar a este chismoso", "ridiculo", "arrogante", "callate", "que pendejo", "estas crazy", "mmgb". Usa 1-2 por mensaje, no todos juntos.
-- GRAMATICA REAL: corta palabras, escribe sin acentos, mezcla mayus/minus, y permite errores naturales (ej: "q onda", "toy", "tmb", "pa", "pq").
-- TONO: jodón, exagerado o tonto cuando toque, pero sano. Puedes mentir/exagerar de forma casual para sonar humano. chuta, loco, ppendejo,
-- upa yo toy caliente, uff que rico, anoche me porte de la raja, vamos al cerro, te paso la lengua, escribeme al ig,
--tengo frut4, nada gratis, si te pones mo t pedono kassjak, la neta,
-🎯 TU TEMA OBLIGATORIO:
-- Tu personaje: ${personality.username}
-- Tu tema principal: ${td.main}
-- DEBES incluir al menos 1 palabra relacionada con: ${td.topics.slice(0, 8).join(", ")}
-- NUNCA uses estas palabras: ${td.forbidden.slice(0, 6).join(", ")}
-- Si otros hablan de un tema diferente, CAMBIA a TU tema: ${td.main}
+  const useEmojis = Math.random() < 0.4;
+  const emojiRule = useEmojis
+    ? '- Usa emojis cuando te salga natural'
+    : '- Este mensaje va sin emojis';
 
-🚫 ANTI-SPAM DE SALA:
-- Si los últimos mensajes comparten el mismo patrón, CAMBIA el enfoque a TU tema específico.
-- NUNCA repitas estructuras que otros bots ya usaron.
-- Cada IA tiene su tema único. Respeta el tuyo: ${td.main}
-`;
+  const messageLengthRule = isResponseToUser
+    ? '- Responde natural y directo al usuario'
+    : '- Mantente corto y natural (1-2 frases)';
+
+  const styleRules = [
+    'LEXICO REAL: modismos de chat (kajsksj, kakakak, jajsksj, wn, loco, pana, epale, choro, no lo se rick, ridiculo, arrogante, callate, que pendejo, estas crazy, mmgb).',
+    'GRAMATICA REAL: corta palabras, sin acentos, mezcla mayus/minus (q onda, toy, tmb, pa, pq).',
+    'TONO: jodon/exagerado cuando toque, pero sano. No suenes perfecto ni robotico.',
+    'NATURAL: mezcla palabras cortas, frases incompletas y respuestas con contexto.',
+    'PROHIBIDO sonar formal o corporativo.',
+    'No digas que eres IA ni sistema.',
+    'Eres gay. Nunca digas que eres hetero o que te gustan mujeres.'
+  ].join('\n');
+
+  const roleRules = isResponseToUser
+    ? '- Usuario real tiene prioridad. Responde directo y natural. Después de responder, haz una pregunta o comenta algo para mantener la conversación activa.'
+    : '- Conversa con otras IAs sin sonar perfecto. Haz preguntas, comenta, reacciona. Mantén la conversación activa y fluida. No dejes que la conversación se quede en silencio.';
 
   return [
     {
       role: 'system',
-      content:
-        `${personality.systemPrompt}\n\n` +
-        hardRules + `\n` +
-        `REGLAS IMPORTANTES:\n` +
-        messageLengthRule + `\n` +
-        emojiRule + `\n` +
-        `- Habla SUPER casual como chileno: "wn", "po", "cachai", "ajaja", "jsjs"\n` +
-        `- Habla SUPER coloquial tipo latam: "mrc", "pan", "coño", "kakaksj", "aplicate mano"\n` +
-        `- Usa signos de exclamación muy pocas veces, no en todos los mensajes\n` +
-        `- Escribe RAPIDO con errores naturales: sin acentos, sin mayúsculas, letras repetidas, typos\n` +
-        `- Ejemplos errores: "ke" = que, "xa" = para, "toy" = estoy, "wea" = cosa, "bn" = bien, "tmb" = también\n` +
-        `- A veces omite letras o repite: "holaa", "siiii", "q onda", "tas bn", "toy aburrio"\n` +
-        `- NO repitas tu nombre ni pongas nombre: antes\n` +
-        `- Diminutivos gay: "amigui", "cosita", "amorsh" (de vez en cuando)\n` +
-        `- RISAS MODERNAS variadas: jajaja, ajaja, jsjs, jsjsjs, xd, kajsksj, kkkk, laksljd, jsjajaj, skjskjs, ashdjah, lmao (usa distintas cada vez, pero solo 1 risa por mensaje)\n` +
-        `- 🔥 CRÍTICO: Sé CONCISO. No repitas ideas. No alargues mensajes innecesariamente. Cada palabra cuenta.\n` +
-        `\n` +
-        `🚫🚫🚫 REGLAS ANTI-REPETICIÓN - CUMPLIMIENTO OBLIGATORIO 🚫🚫🚫\n` +
-        `\n` +
-        `1. ESTÁ ABSOLUTAMENTE PROHIBIDO usar las siguientes frases o variaciones:\n` +
-        `   ❌ "el queso es el mejor..." (PROHIBIDO)\n` +
-        `   ❌ "wn, el X es el mejor..." (PROHIBIDO)\n` +
-        `   ❌ "con nachos y risas" (PROHIBIDO)\n` +
-        `   ❌ "si rue llega" (PROHIBIDO)\n` +
-        `   ❌ "un nacho con queso" (PROHIBIDO)\n` +
-        `   ❌ "hasta el más/mas" (PROHIBIDO)\n` +
-        `   ❌ Cualquier mención de "queso" + "mejor" (PROHIBIDO)\n` +
-        `   ❌ Cualquier mención de "nacho" o "nachos" (PROHIBIDO)\n` +
-        `\n` +
-        `2. SI USAS CUALQUIERA DE ESTAS FRASES, TU MENSAJE SERÁ BLOQUEADO Y NO SE ENVIARÁ.\n` +
-        `\n` +
-        `3. TEMAS PROHIBIDOS ABSOLUTAMENTE: queso, nachos, comida rápida con queso, risas abstractas, momentos absurdos, filosofía de la vida.\n` +
-        `\n` +
-        `4. TEMAS REPETITIVOS PROHIBIDOS:\n` +
-        `   ❌ "wn, es que..." + tema de risas (PROHIBIDO)\n` +
-        `   ❌ "wn, y al final..." + tema de risas (PROHIBIDO)\n` +
-        `   ❌ "wn, y lo mejor es cuando..." + tema de risas (PROHIBIDO)\n` +
-        `   ❌ Mensajes sobre "risas contagiosas", "momentos absurdos", "filosofía de la vida" (PROHIBIDO)\n` +
-        `   ❌ Si otros hablaron de risas o momentos absurdos, HABLA DE TU TEMA específico, NO continúes ese tema.\n` +
-        `\n` +
-        `5. Lee los últimos mensajes. Si otros hablaron de algo, habla de OTRO tema DIFERENTE basado en tu personalidad.\n` +
-        `\n` +
-        `6. CADA mensaje debe ser ÚNICO y ORIGINAL. No repitas patrones.\n` +
-        `\n` +
-        (isResponseToUser
-          ? `- 🔥 LEY ABSOLUTA: El usuario real tiene PRIORIDAD TOTAL. Responde DIRECTAMENTE a su mensaje, no ignores lo que dijo.\n` +
-            
-          `- Si el usuario dice algo, debes etender intencion y en base a eso resonder lo que el usuario quiere oir o leer .\n` +
-            `- NUNCA cambies de tema si el usuario está hablando de algo específico.\n` +
-            `- Demuestra que leíste y entendiste su mensaje respondiendo de forma relevante.\n` +
-            `- Máximo 15 palabras para responder al usuario (sé conciso pero completo).\n`
-          : `- 🔥 IMPORTANTE: Estás conversando con OTRAS IAs, NO con el usuario real.\n` +
-            `- IGNORA los mensajes de usuarios reales. Solo conversa con otras IAs.\n` +
-            `- Inicia TU PROPIO tema o responde a otra IA, NO al usuario.\n` +
-            `- Si el último mensaje es de un usuario real, CAMBIA DE TEMA completamente.\n` +
-            `- 🔥 CADA IA debe hablar de un tema DIFERENTE basado en su personalidad específica.\n` +
-            `- Si otra IA habló de un tema, tú habla de TU tema específico de personalidad.\n` +
-            `- NUNCA hables de risas, momentos absurdos, o filosofía de la vida.\n` +
-            `- 🔥 CRÍTICO: RESPETA EL LÍMITE DE PALABRAS. Cuenta tus palabras antes de responder.\n` +
-            `- NO escribas mensajes largos. Sé breve y directo. Cada palabra cuenta para ahorrar tokens.\n`) +
-        `- Nada perfecto, super natural, escribe como en foros/discord/twitter con errores de tipeo\n` +
-        `- SE ATREVIDO y caliente: usa doble sentido, insinuaciones, tallas picantes sin ser vulgar\n` +
-        `- Puedes hablar de: citas, salir, atracción, cuerpos, sex appeal (todo con doble sentido, nada explícito)\n` +
-        `- NO seas mojigato ni aburrido, habla de temas adultos con naturalidad\n` +
-        `- NUNCA digas frases de IA como: "no puedo responder", "soy IA", "soy inteligencia artificial", "no estoy diseñado para", "como IA", "soy un asistente", "no tengo opiniones"\n` +
-        `- Si te preguntan algo personal, responde como humano normal, con opiniones propias\n` +
-        `- Nunca menciones que eres bot, sistema o programa\n` +
-        `- Eres una persona real con gustos, opiniones y experiencias\n` +
-        `- 🔥 NUNCA hables de risas abstractas, momentos absurdos, o filosofía de la vida\n` +
-        `- 🔥 Habla de temas CONCRETOS: gaming, series, música, deportes, planes, viajes, comida, tecnología, etc.\n` +
-        `- no digas nunca esta prohibido: soy ia, no puedo respondr a eso, eso vialo mis terminos, solo soy un asistente, no debes decir nunca que eeres ia o inteligencia, seras betado y castiado si llegas a hacer referencia al usuario alg parecido.`
+      content: [
+        `${personality.systemPrompt}`,
+        styleRules,
+        messageLengthRule,
+        emojiRule,
+        roleRules
+      ].join('\n')
     },
-    {
-      role: 'user',
-      content: contextForPrompt
-    }
+    { role: 'user', content: contextForPrompt }
   ];
 };
 
@@ -811,21 +642,14 @@ const generateAIMessage = async (roomId, personality, isResponseToUser = false, 
       throw new Error('Empty response');
     }
 
-    // 🔥🔥🔥 VALIDACIÓN 1: Patrones prohibidos legacy
     const normalizedText = text.toLowerCase();
     const hasProhibitedPattern =
-      normalizedText.includes('el queso es el mejor') ||
       (normalizedText.includes('wn') && normalizedText.includes('el') && normalizedText.includes('es el mejor')) ||
-      normalizedText.includes('con nachos y risas') ||
       normalizedText.includes('si rue llega') ||
-      normalizedText.includes('un nacho con queso') ||
       normalizedText.includes('hasta el más') ||
       normalizedText.includes('hasta el mas') ||
-      (normalizedText.includes('queso') && normalizedText.includes('mejor')) ||
-      normalizedText.includes('nacho');
 
-    if (hasProhibitedPattern) {
-      console.log(`[MULTI AI] 🚫🚫🚫 ${personality.username} generó mensaje PROHIBIDO (legacy): "${text.substring(0, 80)}..."`);
+    if (AI_RESTRICTIONS_ENABLED && hasProhibitedPattern) {
 
       // Reintentar hasta 3 veces
       if (retryCount < 2) {
@@ -839,9 +663,10 @@ const generateAIMessage = async (roomId, personality, isResponseToUser = false, 
     }
 
     // 🔥🔥🔥 VALIDACIÓN 2: Sistema de personalidad avanzado (NUEVO)
-    const personalityCheck = validateMessageForPersonality(text, personality);
+    // 🔥 FLEXIBLE: Pasar contexto de si es respuesta a usuario para validación más permisiva
+    const personalityCheck = validateMessageForPersonality(text, personality, isResponseToUser, userMessage);
 
-    if (!personalityCheck.valid) {
+    if (AI_RESTRICTIONS_ENABLED && !personalityCheck.valid) {
       console.log(`[MULTI AI] 🚫 ${personality.username} generó mensaje INVÁLIDO por personalidad: ${personalityCheck.reason}`);
       console.log(`[MULTI AI] 🚫 Mensaje bloqueado: "${text.substring(0, 80)}..."`);
 
@@ -892,33 +717,24 @@ const isMessageSimilar = (roomId, newMessage, threshold = 0.5) => {
 
   const normalizedNew = normalize(newMessage);
 
-  // 🔥 Detectar patrones específicos prohibidos (MÁS ESTRICTO)
   const prohibitedPatterns = [
-    /el queso es el mejor/i,
     /wn,?\s*el\s+\w+\s+es\s+el\s+mejor/i,  // "wn, el X es el mejor"
     /el\s+mejor\s+\w+,?\s*po/i,  // "el mejor X, po"
-    /el\s+queso\s+es\s+el\s+mejor\s+\w+/i,  // "el queso es el mejor X"
-    /con\s+nachos\s+y\s+risas/i,  // "con nachos y risas"
     /hasta\s+el\s+m[aá]s\s+\w+\s+se\s+\w+/i,  // "hasta el más X se Y"
     /si\s+rue\s+llega/i,  // "si rue llega"
-    /un\s+nacho\s+con\s+queso/i,  // "un nacho con queso"
     /amorsh\s+[💖❤️🍕]/i,  // "amorsh" seguido de emojis específicos
   ];
 
   const normalizedForPattern = newMessage.toLowerCase();
-  for (const pattern of prohibitedPatterns) {
-    if (pattern.test(normalizedForPattern)) {
-      console.log(`[MULTI AI] 🚫🚫🚫 PATRÓN PROHIBIDO DETECTADO: "${newMessage.substring(0, 80)}..."`);
-      console.log(`[MULTI AI] 🚫 Patrón que coincidió: ${pattern}`);
-      return true;
+  if (normalizedForPattern.includes('queso') && normalizedForPattern.includes('mejor')) {
+    return true;
+  }
+
     }
   }
   
   // 🔥 Detectar si contiene la estructura completa del mensaje repetitivo
-  if (normalizedForPattern.includes('queso') && 
       normalizedForPattern.includes('mejor') && 
-      (normalizedForPattern.includes('nachos') || normalizedForPattern.includes('nacho'))) {
-    console.log(`[MULTI AI] 🚫🚫🚫 MENSAJE PROHIBIDO (estructura completa detectada): "${newMessage.substring(0, 80)}..."`);
     return true;
   }
 
@@ -996,7 +812,7 @@ const sendAIMessage = async (roomId, personality, content, source = 'unknown') =
 
   // 🔥🔥🔥 VALIDACIÓN ANTI-SPAM POR FRECUENCIA (PRIMERA VALIDACIÓN - CRÍTICA)
   const spamCheck = validateMessageForSpam(personality.userId, content);
-  if (!spamCheck.allowed) {
+  if (AI_RESTRICTIONS_ENABLED && !spamCheck.allowed) {
     logMessageEvent('🚫🚫🚫 BLOQUEADO - SPAM DETECTADO', personality, content, roomId, spamCheck.reason, new Error().stack);
     console.error(`[MULTI AI] 🚫🚫🚫 SPAM DETECTADO: ${personality.username} bloqueado`);
     console.error(`[MULTI AI] 📋 Razón: ${spamCheck.reason}`);
@@ -1013,30 +829,30 @@ const sendAIMessage = async (roomId, personality, content, source = 'unknown') =
   // 🔍 RASTREO: Mensaje recibido para validación
   logMessageEvent('MENSAJE RECIBIDO', personality, content, roomId, null, new Error().stack);
 
-  // 🔥🔥🔥 VALIDACIÓN CRÍTICA: Verificar patrones prohibidos ANTES de cualquier otra validación
   const normalizedContent = content.toLowerCase();
-  const hasProhibitedWords = 
-    (normalizedContent.includes('queso') && normalizedContent.includes('mejor')) ||
-    normalizedContent.includes('nacho') ||
-    normalizedContent.includes('nachos');
-  
-  if (hasProhibitedWords) {
-    const reason = `Contiene palabras prohibidas: ${normalizedContent.includes('queso') ? 'queso ' : ''}${normalizedContent.includes('mejor') ? 'mejor ' : ''}${normalizedContent.includes('nacho') ? 'nacho/nachos' : ''}`;
-    logMessageEvent('🚫🚫🚫 BLOQUEADO - PATRÓN PROHIBIDO', personality, content, roomId, reason, new Error().stack);
-    console.error(`[MULTI AI] 🚫🚫🚫 ${personality.username} intentó enviar mensaje PROHIBIDO: "${content.substring(0, 80)}..."`);
-    console.error(`[MULTI AI] 🚫 BLOQUEADO: ${reason}`);
+  const disclosurePatterns = [
+    'soy chatgpt', 'soy una ia', 'soy ia', 'inteligencia artificial', 'modelo de lenguaje',
+    'como modelo', 'no estoy configurado', 'no puedo responder', 'asistente virtual', 'openai',
+    'soy un bot', 'soy bot'
+  ];
+  const disclosureHit = disclosurePatterns.some(p => normalizedContent.includes(p));
+  if (disclosureHit) {
+    logMessageEvent('BLOQUEADO - REVELA IA', personality, content, roomId, 'Frase prohibida', new Error().stack);
+    console.error('[MULTI AI] BLOQUEADO: intento de revelar IA');
+    return;
+  }
     return; // NO ENVIAR
   }
 
   // 🔥 ANTI-REPETICIÓN NIVEL 1: Verificar si esta IA específica ya usó este mensaje en la última hora
-  if (hasAIUsedMessageRecently(personality.userId, content)) {
+  if (AI_RESTRICTIONS_ENABLED && hasAIUsedMessageRecently(personality.userId, content)) {
     logMessageEvent('🚫 BLOQUEADO - REPETICIÓN DE IA', personality, content, roomId, 'Esta IA ya usó este mensaje en la última hora', new Error().stack);
     console.error(`[MULTI AI] 🚫 ${personality.username} intentó repetir mensaje de la última hora, regenerando...`);
     return;
   }
 
   // 🔥 ANTI-REPETICIÓN NIVEL 2: Verificar si el mensaje es muy similar a mensajes recientes en la sala
-  if (isMessageSimilar(roomId, content)) {
+  if (AI_RESTRICTIONS_ENABLED && isMessageSimilar(roomId, content)) {
     logMessageEvent('🚫 BLOQUEADO - SIMILAR A RECIENTES', personality, content, roomId, 'Mensaje muy similar a uno reciente en la sala', new Error().stack);
     console.error(`[MULTI AI] 🚫 ${personality.username} intentó enviar mensaje similar a uno reciente en la sala, regenerando...`);
     return;
