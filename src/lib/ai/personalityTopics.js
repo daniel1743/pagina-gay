@@ -9,67 +9,67 @@ export const getPersonalityTopics = (username) => {
     Mateo: {
       main: "fitness",
       topics: ["gym", "entreno", "pesas", "rutina", "prote", "gains", "comida", "restaurantes", "reggaeton", "carrete"],
-      forbidden: ["risa", "risas", "jsjs", "jaj", "ajaja", "momento absurdo", "la vida es", "filosofía", "meme del"]
+      forbidden: ["momento absurdo", "la vida es", "filosofía", "meme del"]
     },
     Nico: {
       main: "series/citas",
       topics: ["series", "streaming", "estreno", "capítulo", "citas", "plan nocturno", "bar", "evento"],
-      forbidden: ["risa", "risas", "jsjs", "jaj", "ajaja", "momento absurdo", "meme del"]
+      forbidden: ["momento absurdo", "meme del"]
     },
     Simon: {
       main: "gaming",
       topics: ["gaming", "videojuegos", "ranked", "mmr", "esports", "stream", "gg", "clutch"],
-      forbidden: ["risa", "risas", "jsjs", "jaj", "ajaja", "momento absurdo", "meme del"]
+      forbidden: ["momento absurdo", "meme del"]
     },
     Rafa: {
       main: "viajes/comida",
       topics: ["viaje", "destino", "hotel", "ruta", "comida", "restaurante", "café", "bar"],
-      forbidden: ["risa", "risas", "jsjs", "jaj", "ajaja", "momento absurdo", "meme del"]
+      forbidden: ["momento absurdo", "meme del"]
     },
     Vale: {
       main: "tendencias",
       topics: ["tendencia", "redes", "viral", "debate", "lgbt", "cultura", "cita", "look"],
-      forbidden: ["risa", "risas", "jsjs", "jaj", "ajaja", "momento absurdo", "meme del"]
+      forbidden: ["momento absurdo", "meme del"]
     },
     Luka: {
       main: "anime/geek",
       topics: ["anime", "manga", "waifu", "husbando", "streaming", "cultura digital", "cosplay"],
-      forbidden: ["risa", "risas", "jsjs", "jaj", "ajaja", "momento absurdo", "meme del"]
+      forbidden: ["momento absurdo", "meme del"]
     },
     Alan: {
       main: "vino/viajes",
       topics: ["vino", "viaje", "gastronomía", "libro", "podcast", "restaurante", "cultura"],
-      forbidden: ["meme", "jsjs", "ajaja", "momento absurdo", "temas juveniles"]
+      forbidden: ["momento absurdo", "temas juveniles"]
     },
     Julian: {
       main: "cultura/arte",
       topics: ["arte", "expo", "cine", "cultura", "museo", "libro", "serie", "festival"],
-      forbidden: ["risa", "risas", "jsjs", "jaj", "ajaja", "momento absurdo", "meme del"]
+      forbidden: ["momento absurdo", "meme del"]
     },
     Ivan: {
       main: "deportes",
       topics: ["fútbol", "básquet", "partido", "entreno", "carrera", "outdoor", "evento deportivo"],
-      forbidden: ["broma", "risas", "jsjs", "ajaja", "momento absurdo"]
+      forbidden: ["momento absurdo"]
     },
     Dante: {
       main: "cine",
       topics: ["cine", "película", "director", "escena", "actor", "thriller", "drama"],
-      forbidden: ["risa", "risas", "jsjs", "jaj", "ajaja", "momento absurdo", "meme del"]
+      forbidden: ["momento absurdo", "meme del"]
     },
     Bruno: {
       main: "nightlife",
       topics: ["bar", "antro", "fiesta", "after", "cocktail", "baile", "evento"],
-      forbidden: ["risa", "risas", "jsjs", "jaj", "ajaja", "momento absurdo", "meme del"]
+      forbidden: ["momento absurdo", "meme del"]
     },
     Emilio: {
       main: "música",
       topics: ["música", "playlist", "concierto", "artista", "streaming", "club", "vibes"],
-      forbidden: ["risa", "risas", "jsjs", "jaj", "ajaja", "momento absurdo", "meme del"]
+      forbidden: ["momento absurdo", "meme del"]
     },
     Tomas: {
       main: "tech/negocios",
       topics: ["ia", "startup", "producto", "negocio", "tendencia", "análisis", "estrategia"],
-      forbidden: ["risa", "risas", "jsjs", "ajaja", "momento absurdo", "superficial", "meme del"]
+      forbidden: ["momento absurdo", "superficial", "meme del"]
     },
     Sebas: {
       main: "internet",
@@ -79,7 +79,58 @@ export const getPersonalityTopics = (username) => {
     Milo: {
       main: "planes",
       topics: ["plan", "panorama", "evento", "cita", "cine", "bar", "terraza"],
-      forbidden: ["risa", "risas", "jsjs", "jaj", "ajaja", "momento absurdo", "meme del"]
+      forbidden: ["momento absurdo", "meme del"]
+    },
+    // 🔥 NUEVAS PERSONALIDADES
+    Diego: {
+      main: "k-pop/cultura asiática",
+      topics: ["k-pop", "drama coreano", "idol", "k-beauty", "comida asiática", "asia", "corea"],
+      forbidden: ["momento absurdo", "meme del"]
+    },
+    Felipe: {
+      main: "vino/gastronomía",
+      topics: ["vino", "gastronomía", "viaje", "hotel", "restaurante", "cena", "degustación"],
+      forbidden: ["momento absurdo", "meme del"]
+    },
+    Lucas: {
+      main: "streaming/redes",
+      topics: ["twitch", "tiktok", "youtube", "streamer", "viral", "trend", "redes"],
+      forbidden: ["momento absurdo", "meme del"]
+    },
+    Pablo: {
+      main: "moda/fashion",
+      topics: ["moda", "outfit", "marca", "tendencia", "instagram", "aesthetic", "estilo"],
+      forbidden: ["momento absurdo", "meme del"]
+    },
+    Marco: {
+      main: "música indie",
+      topics: ["música", "concierto", "festival", "banda", "indie", "spotify", "playlist"],
+      forbidden: ["momento absurdo", "meme del"]
+    },
+    Santi: {
+      main: "fotografía/urbano",
+      topics: ["foto", "fotografía", "santiago", "café", "sunset", "urbano", "aesthetic"],
+      forbidden: ["momento absurdo", "meme del"]
+    },
+    Gabo: {
+      main: "nightlife/bartender",
+      topics: ["bar", "cocktail", "nightlife", "fiesta", "lgbt", "evento", "carrete"],
+      forbidden: ["momento absurdo", "meme del"]
+    },
+    Carlos: {
+      main: "psicología/salud mental",
+      topics: ["salud mental", "terapia", "autocuidado", "meditación", "desarrollo personal", "bienestar"],
+      forbidden: ["momento absurdo", "meme del"]
+    },
+    Andres: {
+      main: "arquitectura/diseño",
+      topics: ["arquitectura", "diseño", "urbano", "arte", "proyecto", "creativo", "espacio"],
+      forbidden: ["momento absurdo", "meme del"]
+    },
+    Maxi: {
+      main: "fitness/personal trainer",
+      topics: ["fitness", "rutina", "nutrición", "entreno", "gym", "transformación", "body"],
+      forbidden: ["momento absurdo", "meme del"]
     }
   };
 

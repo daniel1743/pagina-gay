@@ -27,6 +27,7 @@ import { useCanonical } from '@/hooks/useCanonical';
 import { checkUserSanctions, SANCTION_TYPES } from '@/services/sanctionsService';
 import { roomsData } from '@/config/rooms';
 import { startEngagementTracking, hasReachedOneHourLimit, getTotalEngagementTime, hasSeenEngagementModal, markEngagementModalAsShown } from '@/services/engagementService';
+import { notificationSounds } from '@/services/notificationSounds';
 
 const roomWelcomeMessages = {
   'global': '¡Bienvenido a Chat Global! Habla de lo que quieras.',
@@ -98,7 +99,9 @@ const ChatPage = () => {
   const unsubscribeRef = useRef(null);
   const aiActivatedRef = useRef(false); // Flag para evitar activaciones múltiples de IA
   const lastUserCountRef = useRef(0); // Para evitar ejecuciones innecesarias del useEffect
+  const previousMessageCountRef = useRef(0); // Para detectar nuevos mensajes y reproducir sonido
   const lastUserCountsRef = useRef({ total: 0, active: 0, real: 0 }); // Para rastrear conteos de usuarios
+  const previousRealUserCountRef = useRef(0); // Para detectar cuando usuarios se desconectan y reproducir sonido
 
   // ========================================
   // 🔒 LANDING PAGE: Guard clause para user === null
@@ -358,6 +361,21 @@ const ChatPage = () => {
     // ✅ Suscribirse a mensajes de Firebase (SOLO mensajes reales, sin estáticos)
     const unsubscribeMessages = subscribeToRoomMessages(roomId, (newMessages) => {
       console.log(`📝 [CHAT] Mensajes recibidos: ${newMessages.length} mensajes reales`);
+
+      // 🔊 Reproducir sonido si llegaron mensajes nuevos (no en carga inicial)
+      if (previousMessageCountRef.current > 0 && newMessages.length > previousMessageCountRef.current) {
+        const newMessageCount = newMessages.length - previousMessageCountRef.current;
+        console.log(`🔊 [SOUNDS] ${newMessageCount} mensaje(s) nuevo(s), reproduciendo sonido`);
+
+        // Reproducir sonido por cada mensaje nuevo (el servicio agrupa automáticamente si son 4+)
+        for (let i = 0; i < newMessageCount; i++) {
+          notificationSounds.playMessageSound();
+        }
+      }
+
+      // Actualizar contador de mensajes
+      previousMessageCountRef.current = newMessages.length;
+
       setMessages(newMessages); // ✅ SOLO mensajes reales
     });
 
@@ -388,9 +406,19 @@ const ChatPage = () => {
       
       if (hasChanged) {
         console.log(`👥 Sala ${roomId}: ${currentCounts.real} usuario(s) real(es) activo(s) | ${currentCounts.total} total en DB (incluye inactivos)`);
+
+        // 🔊 Reproducir sonido de salida si un usuario real se desconectó
+        if (previousRealUserCountRef.current > 0 && currentCounts.real < previousRealUserCountRef.current) {
+          const usersLeft = previousRealUserCountRef.current - currentCounts.real;
+          console.log(`🔊 [SOUNDS] ${usersLeft} usuario(s) se desconectó/desconectaron, reproduciendo sonido de salida`);
+          notificationSounds.playDisconnectSound();
+        }
+
+        // Actualizar contador de usuarios reales
+        previousRealUserCountRef.current = currentCounts.real;
         lastUserCountsRef.current = currentCounts;
       }
-      
+
       setRoomUsers(activeUsers);
     });
 

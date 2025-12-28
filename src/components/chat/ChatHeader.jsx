@@ -1,8 +1,9 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
-import { Menu, Home, ArrowLeft } from 'lucide-react';
+import { Menu, Home, ArrowLeft, Volume2, VolumeX } from 'lucide-react';
 import NotificationBell from '@/components/notifications/NotificationBell';
+import { notificationSounds } from '@/services/notificationSounds';
 
 const roomNames = {
   'global': 'Chat Global', // Sala principal nueva
@@ -20,6 +21,12 @@ const roomNames = {
 
 const ChatHeader = ({ currentRoom, onMenuClick, onOpenPrivateChat }) => {
   const navigate = useNavigate();
+  const [isMuted, setIsMuted] = useState(notificationSounds.getMuteState());
+
+  const handleToggleMute = () => {
+    const newMuteState = notificationSounds.toggleMute();
+    setIsMuted(newMuteState);
+  };
 
   return (
     <header className="bg-card border-b p-3 sm:p-4 flex items-center justify-between shrink-0">
@@ -51,6 +58,20 @@ const ChatHeader = ({ currentRoom, onMenuClick, onOpenPrivateChat }) => {
 
       <div className="flex items-center gap-1.5 sm:gap-2 flex-shrink-0">
         <NotificationBell onOpenPrivateChat={onOpenPrivateChat} />
+        <Button
+          variant="ghost"
+          size="icon"
+          onClick={handleToggleMute}
+          className={`min-w-[44px] min-h-[44px] sm:min-w-0 sm:min-h-0 ${
+            isMuted
+              ? 'text-muted-foreground hover:text-foreground'
+              : 'text-cyan-400 hover:text-cyan-300'
+          }`}
+          aria-label={isMuted ? 'Activar sonidos' : 'Silenciar sonidos'}
+          title={isMuted ? 'Activar sonidos de notificación' : 'Silenciar sonidos'}
+        >
+          {isMuted ? <VolumeX className="w-5 h-5" /> : <Volume2 className="w-5 h-5" />}
+        </Button>
         <Button
           variant="ghost"
           size="icon"

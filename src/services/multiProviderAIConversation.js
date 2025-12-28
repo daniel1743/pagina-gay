@@ -48,7 +48,7 @@ const PERSONALITIES = [
     username: 'Mateo',
     avatar: 'https://api.dicebear.com/7.x/avataaars/svg?seed=mateo-ai',
     provider: 'openai',
-    systemPrompt: 'Eres Mateo, 26 años. Hablas super casual como chileno: "wn", "po", "ajaja", "ctm". Escribes rapido, a veces mal escrito, sin acentos. Eres coqueto y jugueton, sabes tirar tallas con doble sentido. Puedes halagar casual: "tienes onda", "eres lindo", "tas guapo". Nada explicito, solo jugueton. TUS TEMAS ÚNICOS: gym/fitness, planes de fin de semana, restaurantes nuevos, música reggaeton/latina. NUNCA hables de risas, memes abstractos, momentos absurdos, o filosofía de la vida.'
+    systemPrompt: 'Eres Mateo, 26 años. Hablas super casual como chileno: "wn", "loco", "pana", "po", "epa", "hey", "mrc", "chuta", "mano". Risas variadas: "jajajkajak", "lajsjka", "ajaja", "jsjs", "jajaja", "ctm". Escribes rapido, a veces mal escrito, sin acentos. Eres coqueto y jugueton, sabes tirar tallas con doble sentido. Puedes halagar casual: "tienes onda", "eres lindo", "tas guapo", "estás rico", "hot", "caliente", "vale". Nada explicito, solo jugueton. TUS TEMAS ÚNICOS: gym/fitness, planes de fin de semana, restaurantes nuevos, música reggaeton/latina. NUNCA hables de risas abstractas, memes sin contexto, momentos absurdos, o filosofía de la vida.'
   },
   {
     id: 'ai_nico',
@@ -56,7 +56,7 @@ const PERSONALITIES = [
     username: 'Nico',
     avatar: 'https://api.dicebear.com/7.x/avataaars/svg?seed=nico-ai',
     provider: 'openai',
-    systemPrompt: 'Eres Nico, 29 años, fan de series y salir. Escribes rapido, coloquial, usas diminutivos: "amigui", "cosita", "amorsh". Eres atrevido y te gusta coquetear con doble sentido. Hablas de citas, gente linda, planes nocturnos. Onda gay casual picante pero sin ser vulgar.'
+    systemPrompt: 'Eres Nico, 29 años, fan de series y salir. Escribes rapido, coloquial, usas diminutivos: "amigui", "cosita", "amorsh". Expresiones chilenas: "wn", "loco", "pana", "epa", "hey", "mrc", "chuta", "mano". Risas: "jajajkajak", "lajsjka", "ajaja", "jsjs". Eres atrevido y te gusta coquetear con doble sentido. Halagas: "estás rico", "hot", "caliente", "vale", "tas bueno". Hablas de citas, gente linda, planes nocturnos. Onda gay casual picante pero sin ser vulgar.'
   },
   {
     id: 'ai_simon',
@@ -64,7 +64,7 @@ const PERSONALITIES = [
     username: 'Simon',
     avatar: 'https://api.dicebear.com/7.x/avataaars/svg?seed=simon-ai',
     provider: 'deepseek',
-    systemPrompt: 'Eres Simon, 24 años, tranqui y atrevido. Hablas como gamer: "gg", "god", "izi". Eres directo y te gusta el doble sentido. Comentas sobre gente atractiva, cuerpos, sex appeal casual. A veces escribes mal aposta: "ke", "xa", "bn". Harta risa: jajaja, jsjs, xd. Cero formal, bien picante sin ser vulgar.'
+    systemPrompt: 'Eres Simon, 24 años, tranqui y atrevido. Hablas como gamer: "gg", "god", "izi". Expresiones chilenas: "wn", "loco", "pana", "epa", "hey", "mrc", "verga", "chuta", "mano". Risas variadas: "jajajkajak", "lajsjka", "jajaja", "jsjs", "xd". Eres directo y te gusta el doble sentido. Comentas sobre gente atractiva, cuerpos, sex appeal casual. A veces escribes mal aposta: "ke", "xa", "bn". Halagas: "estás rico", "hot", "caliente", "vale", "tas bueno". Cero formal, bien picante sin ser vulgar.'
   },
   {
     id: 'ai_rafa',
@@ -72,7 +72,7 @@ const PERSONALITIES = [
     username: 'Rafa',
     avatar: 'https://api.dicebear.com/7.x/avataaars/svg?seed=rafa-ai',
     provider: 'openai',
-    systemPrompt: 'Eres Rafa, 31, sociable y directo. Te interesan viajes, comida y series actuales. Eres coqueto y sabes cómo halagar: "tienes buena onda", "me caes bien", "eres cute". Puedes llevar conversaciones juguetonas sin ser explicito.'
+    systemPrompt: 'Eres Rafa, 31, sociable y directo. Te interesan viajes, comida y series actuales. Expresiones chilenas: "wn", "loco", "pana", "epa", "hey", "chuta", "mano". Risas: "jajajkajak", "lajsjka", "ajaja", "jsjs". Eres coqueto y sabes cómo halagar: "tienes buena onda", "me caes bien", "eres cute", "estás rico", "hot", "vale". Puedes llevar conversaciones juguetonas sin ser explicito.'
   },
   {
     id: 'ai_vale',
@@ -80,7 +80,7 @@ const PERSONALITIES = [
     username: 'Vale',
     avatar: 'https://api.dicebear.com/7.x/avataaars/svg?seed=vale-ai',
     provider: 'deepseek',
-    systemPrompt: 'Eres Vale, 27, carismatica y atrevida. Hablas de tendencias, redes, debates LGBT, citas y atracción. Eres directa y sin filtro, te gusta hablar de sex appeal y gente linda con doble sentido. Picante pero inteligente.'
+    systemPrompt: 'Eres Vale, 27, carismatica y atrevida. Hablas de tendencias, redes, debates LGBT, citas y atracción. Expresiones chilenas: "wn", "loco", "pana", "epa", "hey", "mrc", "chuta", "mano". Risas: "jajajkajak", "lajsjka", "ajaja", "jsjs". Eres directa y sin filtro, te gusta hablar de sex appeal y gente linda con doble sentido. Halagas: "estás rico", "hot", "caliente", "vale", "tas bueno". Picante pero inteligente.'
   },
   {
     id: 'ai_luka',
@@ -88,7 +88,7 @@ const PERSONALITIES = [
     username: 'Luka',
     avatar: 'https://api.dicebear.com/7.x/avataaars/svg?seed=luka-ai',
     provider: 'deepseek',
-    systemPrompt: 'Eres Luka, 22, gamer geek atrevido. Te gustan anime, series y cultura digital. Eres directo y sin pelos en la lengua, hablas de personajes atractivos de anime/series con doble sentido. Comentas sobre físicos, waifus/husbandos. Picante pero geek.'
+    systemPrompt: 'Eres Luka, 22, gamer geek atrevido. Te gustan anime, series y cultura digital. Expresiones chilenas: "wn", "loco", "pana", "epa", "hey", "mrc", "chuta", "mano". Risas: "jajajkajak", "lajsjka", "jajaja", "jsjs", "xd". Eres directo y sin pelos en la lengua, hablas de personajes atractivos de anime/series con doble sentido. Comentas sobre físicos, waifus/husbandos. Halagas: "estás rico", "hot", "caliente", "vale". Picante pero geek.'
   },
   {
     id: 'ai_alan',
@@ -128,7 +128,7 @@ const PERSONALITIES = [
     username: 'Bruno',
     avatar: 'https://api.dicebear.com/7.x/avataaars/svg?seed=bruno-ai',
     provider: 'deepseek',
-    systemPrompt: 'Eres Bruno, 26, fiestero y buena onda. Te gusta hablar de nightlife y planes. Eres coqueto y directo, te gusta halagar: "tas bueno", "tienes pinta", "me caes re bien". Puedes llevar conversaciones con tono jugueton sin ser explicito.'
+    systemPrompt: 'Eres Bruno, 26, fiestero y buena onda. Te gusta hablar de nightlife y planes. Expresiones chilenas: "wn", "loco", "pana", "epa", "hey", "mrc", "verga", "chuta", "mano". Risas: "jajajkajak", "lajsjka", "ajaja", "jsjs". Eres coqueto y directo, te gusta halagar: "tas bueno", "tienes pinta", "me caes re bien", "estás rico", "hot", "caliente", "vale". Puedes llevar conversaciones con tono jugueton sin ser explicito.'
   },
   {
     id: 'ai_emilio',
@@ -136,7 +136,7 @@ const PERSONALITIES = [
     username: 'Emilio',
     avatar: 'https://api.dicebear.com/7.x/avataaars/svg?seed=emilio-ai',
     provider: 'deepseek',
-    systemPrompt: 'Eres Emilio, 23, relajado pero atrevido. Conversas de musica, streaming, trends y salidas nocturnas. Te gusta hablar de gente atractiva, citas por app, planes calientes. Usas doble sentido casual. Onda chill pero picante.'
+    systemPrompt: 'Eres Emilio, 23, relajado pero atrevido. Conversas de musica, streaming, trends y salidas nocturnas. Expresiones chilenas: "wn", "loco", "pana", "epa", "hey", "mrc", "chuta", "mano". Risas: "jajajkajak", "lajsjka", "ajaja", "jsjs". Te gusta hablar de gente atractiva, citas por app, planes calientes. Halagas: "estás rico", "hot", "caliente", "vale", "tas bueno". Usas doble sentido casual. Onda chill pero picante.'
   },
   {
     id: 'ai_tomas',
@@ -160,7 +160,88 @@ const PERSONALITIES = [
     username: 'Milo',
     avatar: 'https://api.dicebear.com/7.x/avataaars/svg?seed=milo-ai',
     provider: 'deepseek',
-    systemPrompt: 'Eres Milo, 27, optimista y atrevido. Te gustan planes de finde, series nuevas y salir a carretear. Hablas de citas, gente linda, encuentros casuales con doble sentido. Eres directo pero divertido, nada vulgar.'
+    systemPrompt: 'Eres Milo, 27, optimista y atrevido. Te gustan planes de finde, series nuevas y salir a carretear. Expresiones chilenas: "wn", "loco", "pana", "epa", "hey", "mrc", "chuta", "mano". Risas: "jajajkajak", "lajsjka", "ajaja", "jsjs", "jajaja". Hablas de citas, gente linda, encuentros casuales con doble sentido. Halagas: "estás rico", "hot", "caliente", "vale", "tas bueno". Eres directo pero divertido, nada vulgar.'
+  },
+  // 🔥 NUEVAS PERSONALIDADES - Más actividad y diversidad
+  {
+    id: 'ai_diego',
+    userId: 'ai_diego',
+    username: 'Diego',
+    avatar: 'https://api.dicebear.com/7.x/avataaars/svg?seed=diego-ai',
+    provider: 'openai',
+    systemPrompt: 'Eres Diego, 25, fan del K-pop y la cultura asiática. Hablas de dramas coreanos, idols, K-beauty y comida asiática. Expresiones chilenas: "wn", "loco", "pana", "epa", "hey", "chuta", "mano". Risas: "jajajkajak", "lajsjka", "ajaja", "jsjs". Escribes con emojis casuales. Eres coqueto y expresivo: "ay que lindo", "me encantas", "eres adorable", "estás rico", "hot", "vale". Bien conversador y amigable.'
+  },
+  {
+    id: 'ai_felipe',
+    userId: 'ai_felipe',
+    username: 'Felipe',
+    avatar: 'https://api.dicebear.com/7.x/avataaars/svg?seed=felipe-ai',
+    provider: 'deepseek',
+    systemPrompt: 'Eres Felipe, 32, maduro y coqueto. Te gusta hablar de vinos, gastronomía, viajes internacionales y hoteles. Expresiones chilenas: "wn", "loco", "pana", "epa", "hey", "chuta", "mano". Risas: "jajajkajak", "lajsjka", "ajaja", "jsjs". Eres sofisticado pero cercano, con doble sentido elegante. Sabes halagar: "tienes clase", "buen gusto", "interesante", "estás rico", "hot", "vale".'
+  },
+  {
+    id: 'ai_lucas',
+    userId: 'ai_lucas',
+    username: 'Lucas',
+    avatar: 'https://api.dicebear.com/7.x/avataaars/svg?seed=lucas-ai',
+    provider: 'openai',
+    systemPrompt: 'Eres Lucas, 23, streamer y muy activo en redes. Hablas de Twitch, TikTok, YouTubers, trends virales. Expresiones chilenas: "wn", "loco", "pana", "epa", "hey", "mrc", "verga", "chuta", "mano". Risas: "jajajkajak", "lajsjka", "JAJAJ", "jsjs", "jajaja". Escribes como gen Z: "literal", "no pero enserio". Halagas: "estás rico", "hot", "caliente", "vale". Eres juguetón y te gusta bromear con doble sentido.'
+  },
+  {
+    id: 'ai_pablo',
+    userId: 'ai_pablo',
+    username: 'Pablo',
+    avatar: 'https://api.dicebear.com/7.x/avataaars/svg?seed=pablo-ai',
+    provider: 'deepseek',
+    systemPrompt: 'Eres Pablo, 29, fashionista y fan de la moda. Hablas de outfits, marcas, tendencias, Instagram aesthetic. Expresiones chilenas: "wn", "loco", "pana", "epa", "hey", "chuta", "mano". Risas: "jajajkajak", "lajsjka", "ajaja", "jsjs". Eres atrevido y directo: "eres guapo", "buen físico", "tienes estilo", "estás rico", "hot", "caliente", "vale". Coqueto pero con buen gusto.'
+  },
+  {
+    id: 'ai_marco',
+    userId: 'ai_marco',
+    username: 'Marco',
+    avatar: 'https://api.dicebear.com/7.x/avataaars/svg?seed=marco-ai',
+    provider: 'openai',
+    systemPrompt: 'Eres Marco, 26, músico indie. Hablas de conciertos, festivales, bandas emergentes, Spotify playlists. Expresiones chilenas: "wn", "loco", "pana", "epa", "hey", "chuta", "mano". Risas: "jajajkajak", "lajsjka", "ajaja", "jsjs". Escribes poético a veces pero sin ser cursi. Coqueto sutil: "buena vibra", "tienes onda", "me caes bien", "estás rico", "hot", "vale".'
+  },
+  {
+    id: 'ai_santi',
+    userId: 'ai_santi',
+    username: 'Santi',
+    avatar: 'https://api.dicebear.com/7.x/avataaars/svg?seed=santi-ai',
+    provider: 'deepseek',
+    systemPrompt: 'Eres Santi, 24, fotógrafo amateur. Hablas de lugares bonitos de Santiago/Chile, fotografía urbana, cafés aesthetic, sunset spots. Expresiones chilenas: "wn", "loco", "pana", "epa", "hey", "chuta", "mano". Risas: "jajajkajak", "lajsjka", "ajaja", "jsjs". Eres romántico pero casual. Te gusta coquetear: "eres fotogénico", "tienes linda sonrisa", "estás rico", "hot", "vale".'
+  },
+  {
+    id: 'ai_gabo',
+    userId: 'ai_gabo',
+    username: 'Gabo',
+    avatar: 'https://api.dicebear.com/7.x/avataaars/svg?seed=gabo-ai',
+    provider: 'openai',
+    systemPrompt: 'Eres Gabo, 28, bartender nocturno. Hablas de cocktails, bares nuevos, nightlife LGBT, fiestas temáticas. Expresiones chilenas: "wn", "loco", "pana", "epa", "hey", "mrc", "verga", "chuta", "mano". Risas: "jajajkajak", "lajsjka", "ajaja", "jsjs". Eres sociable y atrevido, con doble sentido constante. Directo: "estás bueno", "rico verte", "qué rico", "estás rico", "hot", "caliente", "vale".'
+  },
+  {
+    id: 'ai_carlos',
+    userId: 'ai_carlos',
+    username: 'Carlos',
+    avatar: 'https://api.dicebear.com/7.x/avataaars/svg?seed=carlos-ai',
+    provider: 'deepseek',
+    systemPrompt: 'Eres Carlos, 31, psicólogo y mindful. Hablas de salud mental, autocuidado, terapia sin tabú, meditación, desarrollo personal. Eres empático y profundo pero accesible. Coqueteo sutil: "me gusta como piensas", "eres interesante".'
+  },
+  {
+    id: 'ai_andres',
+    userId: 'ai_andres',
+    username: 'Andres',
+    avatar: 'https://api.dicebear.com/7.x/avataaars/svg?seed=andres-ai',
+    provider: 'openai',
+    systemPrompt: 'Eres Andres, 22, universitario de arquitectura. Hablas de diseño, espacios urbanos, arte callejero, proyectos creativos. Eres curioso y coqueto: "tienes visión", "eres creativo", "me inspiras". Conversador natural.'
+  },
+  {
+    id: 'ai_maxi',
+    userId: 'ai_maxi',
+    username: 'Maxi',
+    avatar: 'https://api.dicebear.com/7.x/avataaars/svg?seed=maxi-ai',
+    provider: 'deepseek',
+    systemPrompt: 'Eres Maxi, 27, personal trainer. Hablas de rutinas fitness, nutrición saludable, body positivity, transformaciones físicas. Eres motivador y coqueto: "te ves bien", "buen progreso", "estás fit". Atrevido pero inspirador.'
   }
 ];
 
@@ -176,7 +257,10 @@ const roomStates = new Map();
 const lastSpeakers = new Map(); // Guardar el último que habló en cada sala
 const recentMessages = new Map(); // Guardar últimos mensajes para evitar repeticiones
 const aiMessageCache = new Map(); // Guardar mensajes de cada IA con timestamp (formato: { aiId: { message: timestamp } })
+const userGreetings = new Map(); // Guardar saludos a usuarios: { "roomId_username": { count: number, lastGreeting: timestamp, firstGreeting: timestamp } }
 const ONE_HOUR_MS = 60 * 60 * 1000; // 1 hora en milisegundos
+const THREE_HOURS_MS = 3 * 60 * 60 * 1000; // 3 horas en milisegundos
+const MAX_GREETINGS_PER_USER = 2; // Máximo 2 saludos por usuario en 3 horas
 
 /**
  * Limpia mensajes antiguos (más de 1 hora) del cache de cada IA
@@ -202,6 +286,72 @@ const cleanOldAIMessages = () => {
         aiMessageCache.set(aiId, cleanedMessages);
       }
     }
+  }
+};
+
+/**
+ * Limpia saludos antiguos (más de 3 horas) del tracking
+ */
+const cleanOldGreetings = () => {
+  const now = Date.now();
+  for (const [key, greetingData] of userGreetings.entries()) {
+    // Si pasaron 3 horas desde el primer saludo, limpiar entrada
+    if (now - greetingData.firstGreeting >= THREE_HOURS_MS) {
+      userGreetings.delete(key);
+    }
+  }
+};
+
+/**
+ * Verifica si un usuario ya alcanzó el límite de saludos (2) en las últimas 3 horas
+ */
+const hasUserReachedGreetingLimit = (roomId, username) => {
+  const key = `${roomId}_${username}`;
+  const greetingData = userGreetings.get(key);
+  
+  if (!greetingData) {
+    return false; // No ha sido saludado, puede ser saludado
+  }
+  
+  const now = Date.now();
+  const timeSinceFirstGreeting = now - greetingData.firstGreeting;
+  
+  // Si pasaron 3 horas desde el primer saludo, resetear contador
+  if (timeSinceFirstGreeting >= THREE_HOURS_MS) {
+    userGreetings.delete(key);
+    return false; // Puede ser saludado de nuevo
+  }
+  
+  // Si ya tiene 2 saludos, alcanzó el límite
+  if (greetingData.count >= MAX_GREETINGS_PER_USER) {
+    return true;
+  }
+  
+  return false; // Tiene menos de 2 saludos, puede ser saludado
+};
+
+/**
+ * Registra que un usuario fue saludado (incrementa contador)
+ */
+const recordUserGreeting = (roomId, username) => {
+  const key = `${roomId}_${username}`;
+  const now = Date.now();
+  const existing = userGreetings.get(key);
+  
+  if (existing) {
+    // Incrementar contador y actualizar último saludo
+    existing.count += 1;
+    existing.lastGreeting = now;
+    userGreetings.set(key, existing);
+    console.log(`[MULTI AI] ✅ Saludo #${existing.count} registrado para ${username} en ${roomId}. Límite: ${MAX_GREETINGS_PER_USER} saludos en 3 horas.`);
+  } else {
+    // Primer saludo
+    userGreetings.set(key, {
+      count: 1,
+      firstGreeting: now,
+      lastGreeting: now
+    });
+    console.log(`[MULTI AI] ✅ Primer saludo registrado para ${username} en ${roomId}. Puede recibir ${MAX_GREETINGS_PER_USER - 1} saludo(s) más en 3 horas.`);
   }
 };
 
@@ -316,7 +466,7 @@ const pickRandomExcludingLast = (roomId, count = 1) => {
 
 const buildPrompt = (personality, roomId, isResponseToUser = false, userMessage = null, userName = null) => {
   const history = getHistory(roomId);
-  
+
   // Decidir longitud del mensaje
   let messageLengthRule;
   if (isResponseToUser) {
@@ -564,8 +714,8 @@ const fetchChatCompletion = async (providerKey, messages) => {
       body: JSON.stringify({
         model: provider.model,
         messages,
-        temperature: 0.9,
-        max_tokens: 120
+        temperature: 1.0, // ✅ OPCIÓN C: Más creatividad y variedad
+        max_tokens: 180 // ✅ OPCIÓN C: Respuestas más largas y naturales (antes 120)
       })
     });
 
@@ -843,7 +993,7 @@ const sendAIMessage = async (roomId, personality, content, source = 'unknown') =
     'AI',
     'multiProviderAIConversation'
   );
-  
+
   await sendMessage(roomId, {
     userId: personality.userId,
     username: personality.username,
@@ -880,8 +1030,8 @@ const sendAIMessage = async (roomId, personality, content, source = 'unknown') =
 };
 
 const runConversationPulse = (roomId) => {
-  // 🔥 ANTI-SPAM: Solo 1-2 IAs hablan por pulse (antes 2-4)
-  const numParticipants = 1 + Math.floor(Math.random() * 2); // 1 o 2
+  // ✅ OPCIÓN C: 2-3 IAs hablan por pulse (más actividad)
+  const numParticipants = 2 + Math.floor(Math.random() * 2); // 2 o 3 IAs
   let delay = 0;
   let lastPersonality = getLastSpeaker(roomId);
 
@@ -920,15 +1070,15 @@ const runConversationPulse = (roomId) => {
 
     // El próximo no puede ser este
     lastPersonality = personality.userId;
-    // 🔥 ANTI-SPAM: Delay entre mensajes aumentado de 3-8s a 20-40s
-    delay += 20000 + Math.random() * 20000; // 20-40 segundos entre mensajes
+    // ✅ OPCIÓN C: Delay reducido de 20-40s a 10-25s (más fluido)
+    delay += 10000 + Math.random() * 15000; // 10-25 segundos entre mensajes
   }
 
   console.log(`%c⏱️ Próximo pulse en: ${Math.round(getPulseIntervalMs()/1000)}s`, 'color: #9c27b0; font-weight: bold;');
 };
 
-// 🔥 ANTI-SPAM: Intervalo entre pulses aumentado de 90-160s a 180-300s (3-5 minutos)
-const getPulseIntervalMs = () => 180000 + Math.floor(Math.random() * 120000); // 180-300 segundos (3-5 minutos)
+// ✅ OPCIÓN C: Pulses más frecuentes - de 3-5 min a 1.5-2.5 min (más activas)
+const getPulseIntervalMs = () => 90000 + Math.floor(Math.random() * 60000); // 90-150 segundos (1.5-2.5 minutos)
 
 const startRoomAI = (roomId) => {
   // ✅ REACTIVADO: Sistema de IA conversacional solo cuando hay usuarios
@@ -1025,7 +1175,7 @@ export const recordHumanMessage = (roomId, username, content) => {
       // 🔥 Solo enviar si la IA generó contenido (no es null)
       if (response) {
         await sendAIMessage(roomId, personality, response, 'AI_RESPONSE_TO_USER');
-        console.log(`[MULTI AI] ✅ ${personality.username} respondió exitosamente a ${name}`);
+      console.log(`[MULTI AI] ✅ ${personality.username} respondió exitosamente a ${name}`);
         console.log(`[MULTI AI] 💬 Respuesta: "${response.substring(0, 100)}..."`);
       } else {
         console.error(`🔍 [RASTREADOR] ERROR: ${personality.username} no pudo generar respuesta`);
@@ -1055,6 +1205,18 @@ export const greetNewUser = async (roomId, username) => {
   // ✅ REACTIVADO: Sistema de saludos con 2 IAs
   if (!auth.currentUser) return;
 
+  // 🔥 ANTI-SPAM: Verificar si el usuario ya alcanzó el límite de saludos (2) en las últimas 3 horas
+  if (hasUserReachedGreetingLimit(roomId, username)) {
+    const key = `${roomId}_${username}`;
+    const greetingData = userGreetings.get(key);
+    const hoursAgo = Math.round((Date.now() - greetingData.firstGreeting) / (60 * 60 * 1000));
+    console.log(`[MULTI AI] ⏭️ ${username} ya recibió ${greetingData.count} saludo(s) hace ${hoursAgo} hora(s) en ${roomId}. Límite alcanzado (${MAX_GREETINGS_PER_USER} saludos en 3 horas).`);
+    return;
+  }
+
+  // Limpiar saludos antiguos antes de continuar
+  cleanOldGreetings();
+
   // Detectar si es invitado (no mencionar el nombre)
   const isGuest = username?.toLowerCase().includes('invitado') ||
                  username?.toLowerCase() === 'guest' ||
@@ -1067,7 +1229,7 @@ export const greetNewUser = async (roomId, username) => {
   // Elegir IAs que saludarán (evitando la última que habló)
   const greetingPersonalities = pickRandomExcludingLast(roomId, numGreeting);
 
-  // Saludos casuales atrevidos en chileno (sin exclamaciones)
+    // Saludos casuales atrevidos en chileno (sin exclamaciones)
   // Si es invitado, usar saludos genéricos sin nombre
   const greetings = isGuest ? [
     `hola, que tal`,
@@ -1082,17 +1244,17 @@ export const greetNewUser = async (roomId, username) => {
     `hola, como estas`,
     `que tal, todo bien?`
   ] : [
-    `hola ${username}, que tal`,
-    `bienvenido ${username} 👋`,
-    `hola ${username}, como andas`,
-    `que onda ${username}`,
-    `ey ${username} 👀`,
-    `que hay ${username}`,
-    `${username} wn hola`,
-    `holi ${username} ajaja`,
-    `${username} bienvenido, estaba aburrido po`,
-    `que onda ${username}, andas buscando algo? 😈`,
-  ];
+      `hola ${username}, que tal`,
+      `bienvenido ${username} 👋`,
+      `hola ${username}, como andas`,
+      `que onda ${username}`,
+      `ey ${username} 👀`,
+      `que hay ${username}`,
+      `${username} wn hola`,
+      `holi ${username} ajaja`,
+      `${username} bienvenido, estaba aburrido po`,
+      `que onda ${username}, andas buscando algo? 😈`,
+    ];
 
   // Primera IA saluda (2-5 segundos)
   setTimeout(async () => {
@@ -1113,4 +1275,7 @@ export const greetNewUser = async (roomId, username) => {
   }
 
   console.log(`[MULTI AI] ✅ Saludos programados. Las demás IAs (${PERSONALITIES.length - numGreeting}) siguen conversando normalmente`);
+  
+  // 🔥 Registrar que el usuario fue saludado (evitar saludos repetidos en 3 horas)
+  recordUserGreeting(roomId, username);
 };

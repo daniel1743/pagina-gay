@@ -21,17 +21,19 @@ import {
 } from 'firebase/firestore';
 import { db } from '@/config/firebase';
 
-// Configuración del rate limiting
+// Configuración del rate limiting (AJUSTADO: Más permisivo para usuarios reales)
 const RATE_LIMIT = {
-  MAX_MESSAGES: 3,        // Máximo de mensajes permitidos
-  WINDOW_SECONDS: 10,     // En ventana de 10 segundos
-  MUTE_DURATION: 10 * 60  // Mute por 10 minutos (600 segundos)
+  MAX_MESSAGES: 10,       // Máximo de mensajes permitidos (aumentado de 3 a 10)
+  WINDOW_SECONDS: 30,     // En ventana de 30 segundos (aumentado de 10 a 30)
+  MUTE_DURATION: 2 * 60,  // Mute por 2 minutos (reducido de 10 a 2 minutos)
+  MAX_DUPLICATES: 3       // Máximo de mensajes duplicados antes de mutear (nuevo)
 };
 
 // Cache en memoria para rendimiento (evita leer Firestore constantemente)
 const messageCache = new Map(); // userId → array de timestamps
 const muteCache = new Map();    // userId → timestamp de fin de mute
-const contentCache = new Map(); // userId → último contenido enviado (para detectar duplicados)
+const contentCache = new Map(); // userId → array de últimos contenidos (para detectar duplicados repetidos)
+const duplicateCount = new Map(); // userId → contador de duplicados consecutivos
 
 /**
  * Verifica si un usuario está muteado
@@ -113,6 +115,34 @@ export const muteUser = async (userId, durationSeconds = RATE_LIMIT.MUTE_DURATIO
 };
 
 /**
+ * Desmutea un usuario (limpia mute de cache y Firestore)
+ */
+export const unmuteUser = async (userId) => {
+  if (!userId) return;
+
+  try {
+    // Limpiar de Firestore
+    const muteDocRef = doc(db, 'muted_users', userId);
+    const muteDoc = await getDoc(muteDocRef);
+    if (muteDoc.exists()) {
+      await setDoc(muteDocRef, {
+        muteEnd: new Date(Date.now() - 1000), // Establecer en el pasado para que expire
+        reason: 'MANUAL_UNMUTE'
+      }, { merge: true });
+    }
+
+    // Limpiar cache
+    muteCache.delete(userId);
+    contentCache.delete(userId); // También limpiar contenido duplicado
+    duplicateCount.delete(userId);
+
+    console.log(`✅ [RATE LIMIT] Usuario ${userId} DESMUTEADO manualmente`);
+  } catch (error) {
+    console.error('Error desmuteando usuario:', error);
+  }
+};
+
+/**
  * Verifica rate limit ANTES de enviar mensaje
  *
  * @param {string} userId - ID del usuario
@@ -125,19 +155,28 @@ export const checkRateLimit = async (userId, roomId, content = '') => {
     return { allowed: false, error: 'Usuario no identificado' };
   }
 
-  // 0. 🔥 NUEVO: Detectar mensajes duplicados (si repite 1 mensaje → MUTE INMEDIATO)
-  const lastContent = contentCache.get(userId);
-  if (lastContent && content && lastContent.trim().toLowerCase() === content.trim().toLowerCase()) {
-    console.error(`🚨 [DUPLICATE DETECTED] Usuario ${userId} envió mensaje duplicado: "${content.substring(0, 50)}"`);
+  // 0. 🔥 DETECCIÓN DE DUPLICADOS MEJORADA: Permite hasta 3 repeticiones antes de mutear
+  const recentContents = contentCache.get(userId) || [];
+  const normalizedContent = content ? content.trim().toLowerCase() : '';
+  
+  if (normalizedContent && recentContents.length > 0) {
+    // Contar cuántas veces se repitió este contenido en los últimos mensajes
+    const duplicateCount = recentContents.filter(c => c === normalizedContent).length;
+    
+    if (duplicateCount >= RATE_LIMIT.MAX_DUPLICATES) {
+      console.error(`🚨 [DUPLICATE SPAM] Usuario ${userId} envió mensaje duplicado ${duplicateCount + 1} veces: "${content.substring(0, 50)}"`);
 
-    // MUTEAR INMEDIATAMENTE por spam
-    await muteUser(userId, RATE_LIMIT.MUTE_DURATION);
+      // MUTEAR solo si repite más de MAX_DUPLICATES veces
+      await muteUser(userId, RATE_LIMIT.MUTE_DURATION);
 
-    return {
-      allowed: false,
-      error: `No puedes enviar el mismo mensaje dos veces. Espera ${RATE_LIMIT.MUTE_DURATION / 60} minutos.`,
-      remainingSeconds: RATE_LIMIT.MUTE_DURATION
-    };
+      return {
+        allowed: false,
+        error: `Has repetido el mismo mensaje muchas veces. Espera ${RATE_LIMIT.MUTE_DURATION / 60} minutos.`,
+        remainingSeconds: RATE_LIMIT.MUTE_DURATION
+      };
+    } else if (duplicateCount > 0) {
+      console.warn(`⚠️ [DUPLICATE WARNING] Usuario ${userId} repitió mensaje ${duplicateCount + 1} vez(es). Límite: ${RATE_LIMIT.MAX_DUPLICATES}`);
+    }
   }
 
   // 1. Verificar si está muteado
@@ -227,9 +266,20 @@ export const recordMessage = (userId, content = '') => {
     messages.shift();
   }
 
-  // 🔥 NUEVO: Guardar contenido del mensaje para detectar duplicados
+  // 🔥 MEJORADO: Guardar últimos contenidos para detectar duplicados repetidos
   if (content) {
-    contentCache.set(userId, content);
+    const normalizedContent = content.trim().toLowerCase();
+    if (!contentCache.has(userId)) {
+      contentCache.set(userId, []);
+    }
+    
+    const contents = contentCache.get(userId);
+    contents.push(normalizedContent);
+    
+    // Mantener solo los últimos 5 contenidos para detectar repeticiones
+    if (contents.length > 5) {
+      contents.shift();
+    }
   }
 };
 
