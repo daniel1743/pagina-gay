@@ -931,12 +931,7 @@ const runConversationPulse = (roomId) => {
 const getPulseIntervalMs = () => 180000 + Math.floor(Math.random() * 120000); // 180-300 segundos (3-5 minutos)
 
 const startRoomAI = (roomId) => {
-  // 🚫 AI COMPLETAMENTE DESACTIVADAS - NO INICIAR
-  console.log(`[MULTI AI] ⛔ AI DESACTIVADAS - No se iniciará en ${roomId}`);
-  return;
-
-  // CODIGO ORIGINAL COMENTADO (para reactivar después):
-  /*
+  // ✅ REACTIVADO: Sistema de IA conversacional solo cuando hay usuarios
   if (roomStates.has(roomId)) {
     return;
   }
@@ -951,8 +946,7 @@ const startRoomAI = (roomId) => {
   state.intervalId = setInterval(() => runConversationPulse(roomId), getPulseIntervalMs());
 
   roomStates.set(roomId, state);
-  console.log(`[MULTI AI] Activado en ${roomId}`);
-  */
+  console.log(`[MULTI AI] ✅ Activado en ${roomId} (con validación anti-spam)`);
 };
 
 const stopRoomAI = (roomId) => {
@@ -969,17 +963,14 @@ const stopRoomAI = (roomId) => {
 };
 
 export const updateRoomAIActivity = (roomId, realUserCount) => {
-  // 🚫 DESACTIVADO: No activar sistema de IAs automáticamente
-  console.log(`🚫 [MULTI AI] updateRoomAIActivity DESACTIVADO - No se activará sistema de IAs (roomId=${roomId}, realUserCount=${realUserCount})`);
-  return;
-  
-  /* CÓDIGO ORIGINAL COMENTADO
+  // ✅ REACTIVADO: Sistema de IA solo cuando hay 1-9 usuarios reales conectados
   if (realUserCount >= MIN_ACTIVE_USERS && realUserCount <= MAX_ACTIVE_USERS) {
     startRoomAI(roomId);
+    console.log(`[MULTI AI] ✅ Activando IA en ${roomId} (${realUserCount} usuarios reales)`);
   } else {
     stopRoomAI(roomId);
+    console.log(`[MULTI AI] ⏹️ Deteniendo IA en ${roomId} (${realUserCount} usuarios - fuera del rango 1-9)`);
   }
-  */
 };
 
 export const stopRoomAIConversation = (roomId) => {
@@ -993,12 +984,7 @@ export const stopRoomAIConversation = (roomId) => {
  * Las demás IAs siguen conversando normalmente entre ellas para mantener el flujo natural
  */
 export const recordHumanMessage = (roomId, username, content) => {
-  // 🚫 AI COMPLETAMENTE DESACTIVADAS - NO RESPONDER A USUARIOS
-  console.log(`[MULTI AI] ⛔ AI DESACTIVADAS - No se responderá a usuarios`);
-  return;
-
-  // CODIGO ORIGINAL COMENTADO:
-  /*
+  // ✅ REACTIVADO: IAs responden a usuarios reales (con validación anti-spam activa)
   const name = username || 'Usuario';
   console.log(`[MULTI AI] 📥 Usuario real escribió: ${name} → "${content.substring(0, 50)}..."`);
   console.log(`[MULTI AI] 🔥 ANTI-REPETICIÓN: Solo 1 IA responderá al usuario para evitar contenido duplicado`);
@@ -1057,7 +1043,6 @@ export const recordHumanMessage = (roomId, username, content) => {
   console.log(`[MULTI AI] ✅ 1 IA programada para responder en ${Math.round(delay1/1000)}s`);
   console.log(`[MULTI AI] 💡 Las demás IAs seguirán conversando normalmente entre ellas`);
   console.log(`[MULTI AI] 🎯 FIX: Eliminada segunda respuesta para evitar contenido repetido`);
-  */
 };
 
 /**
@@ -1067,12 +1052,7 @@ export const recordHumanMessage = (roomId, username, content) => {
  * 🔥 Las demás IAs siguen conversando entre ellas normalmente
  */
 export const greetNewUser = async (roomId, username) => {
-  // 🚫 AI COMPLETAMENTE DESACTIVADAS - NO SALUDAR A USUARIOS
-  console.log(`[MULTI AI] ⛔ AI DESACTIVADAS - No se saludará a usuarios nuevos`);
-  return;
-
-  // CODIGO ORIGINAL COMENTADO:
-  /*
+  // ✅ REACTIVADO: Sistema de saludos con 2 IAs
   if (!auth.currentUser) return;
 
   // Detectar si es invitado (no mencionar el nombre)
@@ -1080,8 +1060,8 @@ export const greetNewUser = async (roomId, username) => {
                  username?.toLowerCase() === 'guest' ||
                  username?.toLowerCase() === 'invitado';
 
-  // 🔥 Decidir cuántas IAs saludarán: 60% solo 1, 40% dos IAs
-  const numGreeting = Math.random() < 0.6 ? 1 : 2;
+  // ✅ FIJO: Siempre 2 IAs saludan (como pediste)
+  const numGreeting = 2;
   console.log(`[MULTI AI] 👋 ${numGreeting} IA(s) saludarán a ${username}, las demás seguirán conversando entre ellas`);
 
   // Elegir IAs que saludarán (evitando la última que habló)
@@ -1133,5 +1113,4 @@ export const greetNewUser = async (roomId, username) => {
   }
 
   console.log(`[MULTI AI] ✅ Saludos programados. Las demás IAs (${PERSONALITIES.length - numGreeting}) siguen conversando normalmente`);
-  */
 };
