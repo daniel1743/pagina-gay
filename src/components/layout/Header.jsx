@@ -4,7 +4,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import { useTheme } from '@/contexts/ThemeContext';
 import { Button } from '@/components/ui/button';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
-import { Bell, LogIn, ChevronDown, Circle, HeartPulse, Sun, Moon, CheckCircle, Shield } from 'lucide-react';
+import { Bell, LogIn, ChevronDown, Circle, Sun, Moon, CheckCircle, Shield } from 'lucide-react';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import ComingSoonModal from '@/components/ui/ComingSoonModal';
 import SystemNotificationsPanel from '@/components/notifications/SystemNotificationsPanel';
@@ -88,7 +88,7 @@ const Header = () => {
       <div className="container mx-auto px-4 sm:px-6 lg:px-8 flex items-center justify-between h-16 sm:h-20">
         <div className="flex items-center gap-3 cursor-pointer" onClick={() => navigate('/')}>
           <div className="w-10 h-10 flex items-center justify-center">
-            <HeartPulse className="w-9 h-9 text-[#E4007C]"/>
+            <img src="/LOGO-TRASPARENTE.png" alt="Chactivo Logo" className="w-10 h-10 object-contain" />
           </div>
           <div className="hidden sm:flex items-center gap-2">
             <h1 className="text-2xl font-bold text-foreground">Chactivo</h1>

@@ -70,7 +70,7 @@ export const SegmentedKPICard = ({
       >
         <KPICard
           icon={icon}
-          value={value}
+          value={typeof value === 'number' ? value.toLocaleString() : value}
           label={label}
           change={change}
           changeLabel={changeLabel}
@@ -89,54 +89,69 @@ export const SegmentedKPICard = ({
               <span className="text-xs text-muted-foreground">Hoy</span>
             </div>
 
-            {/* Total eventos */}
-            <div className="flex items-center justify-between">
-              <span className="text-sm text-muted-foreground">Total de {segmentationData.label}:</span>
-              <span className="font-bold text-lg">{segmentationData.total.toLocaleString()}</span>
-            </div>
-
-            {/* Usuarios únicos */}
-            <div className="flex items-center justify-between bg-primary/10 rounded-lg p-2">
-              <span className="text-sm font-medium">Usuarios únicos:</span>
-              <span className="font-bold text-lg text-primary">{segmentationData.unique.toLocaleString()}</span>
-            </div>
-
-            {/* Promedio por usuario */}
-            {segmentationData.unique > 0 && (
-              <div className="flex items-center justify-between">
-                <span className="text-sm text-muted-foreground">Promedio por usuario:</span>
-                <span className="font-semibold">{(segmentationData.total / segmentationData.unique).toFixed(1)}</span>
+            {/* Verificar si hay datos */}
+            {segmentationData.unique === 0 && segmentationData.total > 0 ? (
+              <div className="p-3 rounded-lg bg-yellow-500/10 border border-yellow-500/30">
+                <p className="text-xs text-yellow-400 mb-2">⏳ Recopilando datos...</p>
+                <p className="text-xs text-muted-foreground">
+                  Los datos de segmentación estarán disponibles para los nuevos {segmentationData.label} que se generen de ahora en adelante.
+                </p>
+                <p className="text-xs text-muted-foreground mt-2">
+                  Total registrado hoy: <strong>{segmentationData.total}</strong>
+                </p>
               </div>
-            )}
+            ) : (
+              <>
+                {/* Total eventos */}
+                <div className="flex items-center justify-between">
+                  <span className="text-sm text-muted-foreground">Total de {segmentationData.label}:</span>
+                  <span className="font-bold text-lg">{segmentationData.total.toLocaleString()}</span>
+                </div>
 
-            {/* Descripción interpretativa */}
-            <div className="pt-2 border-t border-primary/20">
-              <p className="text-xs text-muted-foreground leading-relaxed">
-                {segmentationData.unique === 1 && segmentationData.total > 1 ? (
-                  <span className="text-yellow-400">⚠️ Todos los {segmentationData.label} fueron realizados por <strong>1 solo usuario</strong></span>
-                ) : segmentationData.unique === segmentationData.total ? (
-                  <span className="text-green-400">✅ Cada {segmentationData.label.slice(0, -1)} fue realizado por un <strong>usuario diferente</strong></span>
-                ) : (
-                  <span>
-                    {segmentationData.total} {segmentationData.label} fueron realizados por <strong>{segmentationData.unique} {segmentationData.unique === 1 ? 'persona' : 'personas'}</strong>
-                  </span>
+                {/* Usuarios únicos */}
+                <div className="flex items-center justify-between bg-primary/10 rounded-lg p-2">
+                  <span className="text-sm font-medium">Usuarios únicos:</span>
+                  <span className="font-bold text-lg text-primary">{segmentationData.unique.toLocaleString()}</span>
+                </div>
+
+                {/* Promedio por usuario */}
+                {segmentationData.unique > 0 && (
+                  <div className="flex items-center justify-between">
+                    <span className="text-sm text-muted-foreground">Promedio por usuario:</span>
+                    <span className="font-semibold">{(segmentationData.total / segmentationData.unique).toFixed(1)}</span>
+                  </div>
                 )}
-              </p>
-            </div>
 
-            {/* Indicador visual */}
-            <div className="space-y-1">
-              <div className="flex items-center justify-between text-xs">
-                <span className="text-muted-foreground">Distribución</span>
-                <span className="font-medium">{segmentationData.unique > 0 ? ((segmentationData.unique / segmentationData.total) * 100).toFixed(0) : 0}% únicos</span>
-              </div>
-              <div className="h-2 bg-background/50 rounded-full overflow-hidden">
-                <div
-                  className="h-full bg-gradient-to-r from-primary to-primary/50 rounded-full transition-all"
-                  style={{ width: `${segmentationData.unique > 0 ? (segmentationData.unique / segmentationData.total) * 100 : 0}%` }}
-                />
-              </div>
-            </div>
+                {/* Descripción interpretativa */}
+                <div className="pt-2 border-t border-primary/20">
+                  <p className="text-xs text-muted-foreground leading-relaxed">
+                    {segmentationData.unique === 1 && segmentationData.total > 1 ? (
+                      <span className="text-yellow-400">⚠️ Todos los {segmentationData.label} fueron realizados por <strong>1 solo usuario</strong></span>
+                    ) : segmentationData.unique === segmentationData.total ? (
+                      <span className="text-green-400">✅ Cada {segmentationData.label.slice(0, -1)} fue realizado por un <strong>usuario diferente</strong></span>
+                    ) : (
+                      <span>
+                        {segmentationData.total} {segmentationData.label} fueron realizados por <strong>{segmentationData.unique} {segmentationData.unique === 1 ? 'persona' : 'personas'}</strong>
+                      </span>
+                    )}
+                  </p>
+                </div>
+
+                {/* Indicador visual */}
+                <div className="space-y-1">
+                  <div className="flex items-center justify-between text-xs">
+                    <span className="text-muted-foreground">Distribución</span>
+                    <span className="font-medium">{segmentationData.unique > 0 ? ((segmentationData.unique / segmentationData.total) * 100).toFixed(0) : 0}% únicos</span>
+                  </div>
+                  <div className="h-2 bg-background/50 rounded-full overflow-hidden">
+                    <div
+                      className="h-full bg-gradient-to-r from-primary to-primary/50 rounded-full transition-all"
+                      style={{ width: `${segmentationData.unique > 0 ? (segmentationData.unique / segmentationData.total) * 100 : 0}%` }}
+                    />
+                  </div>
+                </div>
+              </>
+            )}
           </div>
 
           {/* Flecha del tooltip */}

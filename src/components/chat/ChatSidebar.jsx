@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
 import { Button } from '@/components/ui/button';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
-import { Hash, Gamepad2, Users, Heart, User, LogIn, X, UserCheck, GitFork, UserMinus, Cake, HeartPulse, CheckCircle } from 'lucide-react';
+import { Hash, Gamepad2, Users, Heart, User, LogIn, X, UserCheck, GitFork, UserMinus, Cake, CheckCircle } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { subscribeToMultipleRoomCounts } from '@/services/presenceService';
 import { roomsData, colorClasses } from '@/config/rooms';
@@ -107,7 +107,7 @@ const ChatSidebar = ({ currentRoom, setCurrentRoom, isOpen, onClose }) => {
             whileTap={{ scale: 0.98 }}
           >
              <div className="w-10 h-10 flex items-center justify-center">
-              <HeartPulse className="w-8 h-8 text-accent"/>
+              <img src="/LOGO-TRASPARENTE.png" alt="Chactivo Logo" className="w-10 h-10 object-contain" />
             </div>
             <div>
               <h2 className="font-bold text-foreground">Chactivo</h2>
@@ -283,7 +283,7 @@ const ChatSidebar = ({ currentRoom, setCurrentRoom, isOpen, onClose }) => {
             whileTap={{ scale: 0.98 }}
           >
              <div className="w-10 h-10 flex items-center justify-center">
-              <HeartPulse className="w-8 h-8 text-accent"/>
+              <img src="/LOGO-TRASPARENTE.png" alt="Chactivo Logo" className="w-10 h-10 object-contain" />
             </div>
             <div>
               <h2 className="font-bold text-foreground">Chactivo</h2>

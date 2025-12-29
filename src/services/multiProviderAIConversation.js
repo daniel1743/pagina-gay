@@ -651,7 +651,7 @@ const buildPrompt = (personality, roomId, isResponseToUser = false, userMessage 
   ];
 };
 
-const fetchChatCompletion = async (providerKey, messages) => {
+const fetchChatCompletion = async (providerKey, messages, isResponseToUser = false) => {
   const provider = PROVIDERS[providerKey];
   if (!provider?.apiKey || !provider?.apiUrl) {
     console.error(`[MULTI AI] ERROR: Provider ${providerKey} sin configuración`);

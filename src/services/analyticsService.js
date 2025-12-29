@@ -538,21 +538,47 @@ export const getTimeDistribution = async () => {
 
     if (statsSnap.exists()) {
       const data = statsSnap.data();
+      const distribution = data.timeDistribution || {};
+
+      // Calcular total de usuarios
+      const totalUsers = Object.values(distribution).reduce((sum, count) => sum + count, 0);
+
+      // Calcular tiempo promedio aproximado
+      const bucketAverages = {
+        '0-3s': 1.5,
+        '3-10s': 6.5,
+        '10-30s': 20,
+        '30-60s': 45,
+        '1-3m': 120,
+        '3-5m': 240,
+        '5m+': 360
+      };
+
+      let totalSeconds = 0;
+      Object.entries(distribution).forEach(([bucket, count]) => {
+        totalSeconds += (bucketAverages[bucket] || 0) * count;
+      });
+
+      const averageSeconds = totalUsers > 0 ? Math.round(totalSeconds / totalUsers) : 0;
+
       return {
-        timeDistribution: data.timeDistribution || {},
-        exitTimeDistribution: data.exitTimeDistribution || {},
+        distribution,
+        totalUsers,
+        averageSeconds
       };
     }
 
     return {
-      timeDistribution: {},
-      exitTimeDistribution: {},
+      distribution: {},
+      totalUsers: 0,
+      averageSeconds: 0
     };
   } catch (error) {
     console.error('Error getting time distribution:', error);
     return {
-      timeDistribution: {},
-      exitTimeDistribution: {},
+      distribution: {},
+      totalUsers: 0,
+      averageSeconds: 0
     };
   }
 };
@@ -569,13 +595,31 @@ export const getTrafficSources = async () => {
 
     if (statsSnap.exists()) {
       const data = statsSnap.data();
-      return data.trafficSources || {};
+      const sources = data.trafficSources || {};
+      const campaigns = data.campaigns || {};
+
+      // Calcular total de usuarios
+      const totalUsers = Object.values(sources).reduce((sum, count) => sum + count, 0);
+
+      return {
+        sources,
+        campaigns,
+        totalUsers
+      };
     }
 
-    return {};
+    return {
+      sources: {},
+      campaigns: {},
+      totalUsers: 0
+    };
   } catch (error) {
     console.error('Error getting traffic sources:', error);
-    return {};
+    return {
+      sources: {},
+      campaigns: {},
+      totalUsers: 0
+    };
   }
 };
 
@@ -692,7 +736,12 @@ export const exportToCSV = (historicalStats, todayStats) => {
  * @param {string} csvContent - Contenido CSV
  * @param {string} filename - Nombre del archivo
  */
-export const downloadCSV = (csvContent, filename = 'analytics-chactivo.csv') => {
+export const downloadCSV = (csvContent, filename) => {
+  // Generar nombre con fecha si no se proporciona
+  if (!filename) {
+    const today = new Date().toISOString().split('T')[0];
+    filename = `analytics_export_${today}.csv`;
+  }
   const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
   const link = document.createElement('a');
   const url = URL.createObjectURL(blob);
