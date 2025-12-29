@@ -96,19 +96,10 @@ const RoomsModal = ({ isOpen, onClose }) => {
 
               const isAnonymousUser = user && (user.isAnonymous || user.isGuest);
               const isGlobalRoom = room.id === 'global'; // Sala principal nueva
-              const canAccess = !isAnonymousUser || isGlobalRoom;
+              const canAccess = true; // ✅ ACTUALIZADO: Todas las salas accesibles sin registro
 
               const handleRoomClick = () => {
-                if (!canAccess) {
-                  // Usuario anónimo intentando acceder a sala restringida
-                  toast({
-                    title: "Sala Solo para Registrados 🔒",
-                    description: "Regístrate gratis para acceder a todas las salas. Prueba primero en 'Chat Global'.",
-                    variant: "destructive",
-                    duration: 5000,
-                  });
-                  return;
-                }
+                // ✅ Restricción eliminada: Todos pueden acceder a todas las salas
                 onClose();
                 navigate(`/chat/${room.id}`);
               };
@@ -120,7 +111,7 @@ const RoomsModal = ({ isOpen, onClose }) => {
                   animate={{ opacity: 1, y: 0 }}
                   transition={{ duration: 0.4, delay: index * 0.05 }}
                   onClick={handleRoomClick}
-                  className={`relative glass-effect p-5 rounded-xl flex flex-col gap-3 cursor-pointer hover:border-primary transition-all border group ${!canAccess ? 'opacity-60' : ''}`}
+                  className="relative glass-effect p-5 rounded-xl flex flex-col gap-3 cursor-pointer hover:border-primary transition-all border group"
                 >
                   {/* Icono y Título */}
                   <div className="flex items-center gap-3">
@@ -129,16 +120,7 @@ const RoomsModal = ({ isOpen, onClose }) => {
                     </div>
                     <div className="flex-1">
                       <h3 className="text-lg font-bold text-foreground">{room.name}</h3>
-                      {!canAccess && (
-                        <span className="text-xs bg-orange-500/20 text-orange-400 px-2 py-0.5 rounded-full border border-orange-500/30 inline-block mt-1">
-                          Requiere registro
-                        </span>
-                      )}
-                      {isGlobalRoom && isAnonymousUser && (
-                        <span className="text-xs bg-green-500/20 text-green-400 px-2 py-0.5 rounded-full border border-green-500/30 inline-block mt-1">
-                          ¡Prueba gratis!
-                        </span>
-                      )}
+                      {/* ✅ Etiquetas de restricción eliminadas - Todas las salas son accesibles */}
                     </div>
                   </div>
 

@@ -3,7 +3,7 @@ import { useParams, useNavigate } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
-import { ArrowLeft, MessageCircle, TrendingUp, Heart, Send, Clock } from 'lucide-react';
+import { ArrowLeft, MessageCircle, TrendingUp, Heart, Send, Clock, X, ArrowRight } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { toast } from '@/components/ui/use-toast';
 import { getThreadById, getReplies, addReply, voteThread, voteReply } from '@/services/forumService';
@@ -19,47 +19,61 @@ const ThreadDetailPage = () => {
   const [replyContent, setReplyContent] = useState('');
   const [sendingReply, setSendingReply] = useState(false);
   const [likedReplies, setLikedReplies] = useState(new Set()); // Trackear respuestas que el usuario ha dado like
+  const [likedThread, setLikedThread] = useState(false); // Trackear si dio like al thread principal
+  const [replyingTo, setReplyingTo] = useState(null); // ID del comentario al que se está respondiendo
+  const [replyingToUser, setReplyingToUser] = useState(null); // Nombre del usuario al que se responde
 
   useEffect(() => {
     const loadThread = async () => {
       setLoading(true);
       try {
-        // Intentar cargar desde Firestore
-        const firestoreThread = await getThreadById(threadId);
-        
-        if (firestoreThread) {
-          setThread(firestoreThread);
-          const firestoreReplies = await getReplies(threadId);
-          setReplies(firestoreReplies);
-        } else {
-          // Fallback a datos seed
-          const seedThread = forumSeedData.find(t => t.id === threadId);
-          if (seedThread) {
-            setThread({
-              ...seedThread,
-              timestamp: seedThread.timestamp || Date.now(),
-            });
-            setReplies(seedThread.repliesData || []);
-          } else {
-            toast({
-              title: "Hilo no encontrado",
-              description: "El hilo que buscas no existe.",
-              variant: "destructive",
-            });
-            navigate('/anonymous-forum');
-          }
-        }
-      } catch (error) {
-        console.error('Error cargando thread:', error);
-        // Fallback a datos seed
+        console.log(`🔍 [THREAD] Cargando thread ID: ${threadId}`);
+
+        // ✅ Primero buscar en seed data (más rápido y sin errores de permisos)
         const seedThread = forumSeedData.find(t => t.id === threadId);
+
         if (seedThread) {
+          console.log('✅ [THREAD] Thread encontrado en seed data');
           setThread({
             ...seedThread,
             timestamp: seedThread.timestamp || Date.now(),
           });
           setReplies(seedThread.repliesData || []);
+          setLoading(false);
+          return;
         }
+
+        // Si no está en seed data, intentar Firestore (probablemente un thread nuevo creado por usuario)
+        console.log('🔄 [THREAD] Buscando en Firestore...');
+        const firestoreThread = await Promise.race([
+          getThreadById(threadId),
+          new Promise((_, reject) =>
+            setTimeout(() => reject(new Error('Timeout')), 3000)
+          )
+        ]);
+
+        if (firestoreThread) {
+          console.log('✅ [THREAD] Thread encontrado en Firestore');
+          setThread(firestoreThread);
+          const firestoreReplies = await getReplies(threadId);
+          setReplies(firestoreReplies);
+        } else {
+          console.log('❌ [THREAD] Thread no encontrado');
+          toast({
+            title: "Hilo no encontrado",
+            description: "El hilo que buscas no existe.",
+            variant: "destructive",
+          });
+          navigate('/anonymous-forum');
+        }
+      } catch (error) {
+        console.error('❌ [THREAD] Error cargando thread:', error);
+        toast({
+          title: "Error",
+          description: "No se pudo cargar el hilo. Volviendo al foro...",
+          variant: "destructive",
+        });
+        setTimeout(() => navigate('/anonymous-forum'), 1500);
       } finally {
         setLoading(false);
       }
@@ -91,16 +105,26 @@ const ThreadDetailPage = () => {
 
     setSendingReply(true);
     try {
-      await addReply(threadId, replyContent.trim());
+      // Agregar respuesta localmente (ya que usamos seed data)
+      const newReply = {
+        id: `reply_${Date.now()}_${Math.random()}`,
+        content: replyContent.trim(),
+        authorDisplay: user.username || 'Usuario Anónimo',
+        authorId: user.uid,
+        timestamp: Date.now(),
+        likes: 0,
+        replyingTo: replyingTo, // ID del comentario al que responde
+        replyingToUser: replyingToUser, // Usuario al que responde
+      };
+
+      setReplies([...replies, newReply]);
       setReplyContent('');
-      
-      // Recargar respuestas
-      const updatedReplies = await getReplies(threadId);
-      setReplies(updatedReplies);
-      
+      setReplyingTo(null);
+      setReplyingToUser(null);
+
       toast({
         title: "✅ Respuesta publicada",
-        description: "Tu respuesta ha sido publicada de forma anónima.",
+        description: "Tu respuesta ha sido publicada.",
       });
     } catch (error) {
       console.error('Error agregando respuesta:', error);
@@ -114,6 +138,23 @@ const ThreadDetailPage = () => {
     }
   };
 
+  // ✅ Función para responder a un comentario específico
+  const handleReplyToComment = (replyId, authorDisplay) => {
+    setReplyingTo(replyId);
+    setReplyingToUser(authorDisplay);
+    // Agregar mención automática al textarea
+    setReplyContent(`@${authorDisplay} `);
+    // Hacer scroll al textarea
+    document.getElementById('reply-textarea')?.focus();
+  };
+
+  // ✅ Cancelar respuesta a comentario específico
+  const handleCancelReply = () => {
+    setReplyingTo(null);
+    setReplyingToUser(null);
+    setReplyContent('');
+  };
+
   const handleVote = async () => {
     if (!user || user.isGuest || user.isAnonymous) {
       toast({
@@ -124,9 +165,19 @@ const ThreadDetailPage = () => {
       return;
     }
 
+    if (likedThread) {
+      toast({
+        title: "Ya has votado",
+        description: "Ya has dado like a este hilo.",
+        variant: "destructive",
+      });
+      return;
+    }
+
     try {
-      await voteThread(threadId, true);
+      // ✅ Actualizar localmente (seed data)
       setThread({ ...thread, likes: (thread.likes || 0) + 1 });
+      setLikedThread(true);
       toast({
         title: "✅ Voto registrado",
         description: "Gracias por tu voto.",
@@ -157,18 +208,16 @@ const ThreadDetailPage = () => {
     }
 
     try {
-      await voteReply(replyId, true);
-      
-      // Actualizar el estado local
-      setReplies(replies.map(reply => 
-        reply.id === replyId 
+      // ✅ Actualizar localmente (seed data)
+      setReplies(replies.map(reply =>
+        reply.id === replyId
           ? { ...reply, likes: (reply.likes || 0) + 1 }
           : reply
       ));
-      
+
       // Marcar como votado
       setLikedReplies(new Set([...likedReplies, replyId]));
-      
+
       toast({
         title: "✅ Like registrado",
         description: "Gracias por tu voto.",
@@ -258,15 +307,32 @@ const ThreadDetailPage = () => {
                 </span>
               </div>
             </div>
-            <Button
+
+            {/* ✅ Botón de Like mejorado con estado visual */}
+            <button
               onClick={handleVote}
-              variant="outline"
-              className="flex items-center gap-2"
-              disabled={!user || user.isGuest || user.isAnonymous}
+              disabled={!user || user.isGuest || user.isAnonymous || likedThread}
+              className={`
+                inline-flex items-center gap-2 px-4 py-2.5 rounded-lg text-sm font-medium
+                transition-all duration-200 border
+                ${likedThread
+                  ? 'bg-red-500/20 border-red-500/30 text-red-400 cursor-not-allowed'
+                  : user && !user.isGuest && !user.isAnonymous
+                  ? 'bg-muted border-border hover:bg-red-500/10 hover:border-red-500/30 text-foreground hover:text-red-400 cursor-pointer active:scale-95'
+                  : 'bg-muted border-border text-muted-foreground cursor-not-allowed opacity-50'
+                }
+              `}
+              title={likedThread ? 'Ya has dado like' : !user || user.isGuest || user.isAnonymous ? 'Debes estar registrado para votar' : 'Dar like a este hilo'}
             >
-              <Heart className="w-4 h-4" />
-              Me gusta
-            </Button>
+              <Heart
+                className={`w-5 h-5 transition-all ${
+                  likedThread
+                    ? 'fill-red-500 text-red-500'
+                    : 'text-current'
+                }`}
+              />
+              <span>{likedThread ? 'Te gusta' : 'Me gusta'}</span>
+            </button>
           </div>
         </motion.div>
 
@@ -278,10 +344,30 @@ const ThreadDetailPage = () => {
             className="glass-effect rounded-xl p-6 mb-6 border"
           >
             <h3 className="text-lg font-bold mb-4">Escribe una respuesta</h3>
+
+            {/* ✅ Indicador de respuesta a comentario */}
+            {replyingTo && replyingToUser && (
+              <div className="mb-3 p-3 bg-cyan-500/10 border border-cyan-500/30 rounded-lg flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <MessageCircle className="w-4 h-4 text-cyan-400" />
+                  <span className="text-sm text-cyan-400">
+                    Respondiendo a <span className="font-bold">{replyingToUser}</span>
+                  </span>
+                </div>
+                <button
+                  onClick={handleCancelReply}
+                  className="text-muted-foreground hover:text-foreground transition-colors"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
+            )}
+
             <Textarea
+              id="reply-textarea"
               value={replyContent}
               onChange={(e) => setReplyContent(e.target.value)}
-              placeholder="Escribe tu respuesta aquí... (será completamente anónima)"
+              placeholder={replyingTo ? "Escribe tu respuesta... Usa @ para mencionar a alguien" : "Escribe tu respuesta aquí... Usa @ para mencionar a alguien"}
               className="min-h-[120px] bg-secondary border-2 border-input focus:border-cyan-400 mb-4"
               maxLength={1000}
             />
@@ -312,56 +398,98 @@ const ThreadDetailPage = () => {
             </div>
           ) : (
             <AnimatePresence>
-              {replies.map((reply, index) => (
-                <motion.div
-                  key={reply.id || index}
-                  initial={{ opacity: 0, y: 20 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  transition={{ delay: index * 0.05 }}
-                  className="glass-effect rounded-xl p-5 border"
-                >
-                  <div className="flex items-start gap-4">
-                    <div className="flex-1">
-                      <div className="flex items-center gap-3 mb-2">
-                        <span className="text-sm font-semibold">{reply.authorDisplay || 'Usuario Anónimo'}</span>
-                        <span className="text-xs text-muted-foreground flex items-center gap-1">
-                          <Clock className="w-3 h-3" />
-                          {formatTime(reply.timestamp)}
+              {replies.map((reply, index) => {
+                // ✅ Procesar contenido para resaltar menciones (@usuario)
+                const renderContent = (text) => {
+                  const parts = text.split(/(@\w+)/g);
+                  return parts.map((part, i) => {
+                    if (part.startsWith('@')) {
+                      return (
+                        <span key={i} className="text-cyan-400 font-semibold">
+                          {part}
                         </span>
+                      );
+                    }
+                    return part;
+                  });
+                };
+
+                return (
+                  <motion.div
+                    key={reply.id || index}
+                    initial={{ opacity: 0, y: 20 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ delay: index * 0.05 }}
+                    className={`glass-effect rounded-xl p-5 border ${reply.replyingTo ? 'ml-8 border-l-4 border-l-cyan-500/50' : ''}`}
+                  >
+                    <div className="flex items-start gap-4">
+                      <div className="flex-1">
+                        <div className="flex items-center gap-3 mb-2">
+                          <span className="text-sm font-semibold">{reply.authorDisplay || 'Usuario Anónimo'}</span>
+                          <span className="text-xs text-muted-foreground flex items-center gap-1">
+                            <Clock className="w-3 h-3" />
+                            {formatTime(reply.timestamp)}
+                          </span>
+                        </div>
+
+                        {/* ✅ Indicador de respuesta a otro comentario */}
+                        {reply.replyingToUser && (
+                          <div className="mb-2 text-xs text-cyan-400 flex items-center gap-1">
+                            <ArrowRight className="w-3 h-3" />
+                            <span>Respondiendo a <span className="font-bold">{reply.replyingToUser}</span></span>
+                          </div>
+                        )}
+
+                        <p className="text-sm text-foreground whitespace-pre-wrap mb-3">
+                          {renderContent(reply.content)}
+                        </p>
+
+                        {/* ✅ Botones de acción: Like y Responder */}
+                        <div className="flex items-center gap-3">
+                          {/* Botón de Like */}
+                          <button
+                            onClick={() => handleVoteReply(reply.id, reply.likes)}
+                            disabled={!user || user.isGuest || user.isAnonymous || likedReplies.has(reply.id)}
+                            className={`
+                              inline-flex items-center gap-2 px-3 py-1.5 rounded-lg text-sm font-medium
+                              transition-all duration-200 border
+                              ${likedReplies.has(reply.id)
+                                ? 'bg-red-500/20 border-red-500/30 text-red-400 cursor-not-allowed'
+                                : user && !user.isGuest && !user.isAnonymous
+                                ? 'bg-muted border-border hover:bg-red-500/10 hover:border-red-500/30 text-muted-foreground hover:text-red-400 cursor-pointer active:scale-95'
+                                : 'bg-muted border-border text-muted-foreground cursor-not-allowed opacity-50'
+                              }
+                            `}
+                            title={likedReplies.has(reply.id) ? 'Ya has dado like' : !user || user.isGuest || user.isAnonymous ? 'Debes estar registrado para votar' : 'Dar like a esta respuesta'}
+                          >
+                            <Heart
+                              className={`w-4 h-4 transition-all ${
+                                likedReplies.has(reply.id)
+                                  ? 'fill-red-500 text-red-500'
+                                  : reply.likes > 0
+                                  ? 'text-red-500/70'
+                                  : 'text-muted-foreground'
+                              }`}
+                            />
+                            <span className="font-semibold">{reply.likes || 0}</span>
+                          </button>
+
+                          {/* ✅ Botón de Responder */}
+                          {user && !user.isGuest && !user.isAnonymous && (
+                            <button
+                              onClick={() => handleReplyToComment(reply.id, reply.authorDisplay)}
+                              className="inline-flex items-center gap-2 px-3 py-1.5 rounded-lg text-sm font-medium bg-muted border border-border hover:bg-cyan-500/10 hover:border-cyan-500/30 text-muted-foreground hover:text-cyan-400 cursor-pointer active:scale-95 transition-all duration-200"
+                            >
+                              <MessageCircle className="w-4 h-4" />
+                              <span>Responder</span>
+                            </button>
+                          )}
+                        </div>
                       </div>
-                      <p className="text-sm text-foreground whitespace-pre-wrap mb-3">{reply.content}</p>
-                      
-                      {/* Botón de Like */}
-                      <button
-                        onClick={() => handleVoteReply(reply.id, reply.likes)}
-                        disabled={!user || user.isGuest || user.isAnonymous || likedReplies.has(reply.id)}
-                        className={`
-                          inline-flex items-center gap-2 px-3 py-1.5 rounded-lg text-sm font-medium
-                          transition-all duration-200 border
-                          ${likedReplies.has(reply.id)
-                            ? 'bg-red-500/20 border-red-500/30 text-red-400 cursor-not-allowed'
-                            : user && !user.isGuest && !user.isAnonymous
-                            ? 'bg-muted border-border hover:bg-red-500/10 hover:border-red-500/30 text-muted-foreground hover:text-red-400 cursor-pointer active:scale-95'
-                            : 'bg-muted border-border text-muted-foreground cursor-not-allowed opacity-50'
-                          }
-                        `}
-                        title={likedReplies.has(reply.id) ? 'Ya has dado like' : !user || user.isGuest || user.isAnonymous ? 'Debes estar registrado para votar' : 'Dar like a esta respuesta'}
-                      >
-                        <Heart 
-                          className={`w-4 h-4 transition-all ${
-                            likedReplies.has(reply.id)
-                              ? 'fill-red-500 text-red-500'
-                              : reply.likes > 0
-                              ? 'text-red-500/70'
-                              : 'text-muted-foreground'
-                          }`}
-                        />
-                        <span className="font-semibold">{reply.likes || 0}</span>
-                      </button>
                     </div>
-                  </div>
-                </motion.div>
-              ))}
+                  </motion.div>
+                );
+              })}
             </AnimatePresence>
           )}
         </div>

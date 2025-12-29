@@ -43,7 +43,7 @@ const GlobalStats = () => {
         initial={{ opacity: 0, y: -20 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.6 }}
-        className="glass-effect rounded-2xl p-5 sm:p-6 lg:p-8 border border-primary/20"
+        className="glassmorphism-card rounded-2xl p-5 sm:p-6 lg:p-8"
       >
         {/* Header */}
         <div className="flex items-center justify-center gap-2 sm:gap-3 mb-6 sm:mb-8">

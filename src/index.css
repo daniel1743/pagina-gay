@@ -436,3 +436,342 @@ header {
     }
   }
 }
+
+
+/* ========================================
+   PREMIUM GLASSMORPHISM STYLES
+   ======================================== */
+
+/* ========================================
+   PREMIUM DARK MODE DESIGN SYSTEM
+   ======================================== */
+:root {
+  --design-primary: #8B5CF6; /* Violeta vibrante para acciones */
+  --design-secondary: #10B981; /* Verde para estados 'Activo' */
+  --design-background: #0F172A; /* Azul oscuro profundo (Slate-900) */
+  /* ✅ Glassmorphism - Modo Oscuro */
+  --design-card-bg: rgba(30, 41, 59, 0.7);
+  --design-card-border: rgba(255, 255, 255, 0.1);
+  --design-card-shadow: rgba(0, 0, 0, 0.37);
+  --design-card-hover-shadow: rgba(139, 92, 246, 0.3);
+  --design-card-hover-border: rgba(139, 92, 246, 0.3);
+  --design-border-radius: 16px;
+  --design-blur: 12px;
+}
+
+/* ✅ Glassmorphism para Modo Claro */
+.light {
+  --design-card-bg: rgba(255, 255, 255, 0.8);
+  --design-card-border: rgba(0, 0, 0, 0.1);
+  --design-card-shadow: rgba(0, 0, 0, 0.1);
+  --design-card-hover-shadow: rgba(139, 92, 246, 0.2);
+  --design-card-hover-border: rgba(139, 92, 246, 0.4);
+}
+
+/* ✅ Glassmorphism Card - Compatible con Modo Claro y Oscuro */
+.glassmorphism-card {
+  background: var(--design-card-bg);
+  backdrop-filter: blur(var(--design-blur));
+  -webkit-backdrop-filter: blur(var(--design-blur));
+  border: 1px solid var(--design-card-border);
+  border-radius: var(--design-border-radius);
+  box-shadow: 0 8px 32px 0 var(--design-card-shadow);
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.glassmorphism-card:hover {
+  transform: translateY(-5px);
+  box-shadow: 0 10px 25px -5px var(--design-card-hover-shadow);
+  border-color: var(--design-card-hover-border);
+}
+
+/* ✅ PREMIUM BUTTONS - Microinteracciones en Modo Claro y Oscuro */
+
+/* Primary Button - Gradiente Premium */
+.btn-premium-primary {
+  background: linear-gradient(135deg, #8B5CF6 0%, #7C3AED 100%);
+  color: #ffffff;
+  border: 1px solid rgba(139, 92, 246, 0.3);
+  box-shadow: 0 4px 14px 0 rgba(139, 92, 246, 0.3);
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  position: relative;
+  overflow: hidden;
+}
+
+.btn-premium-primary::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(135deg, rgba(255, 255, 255, 0.2) 0%, transparent 100%);
+  opacity: 0;
+  transition: opacity 0.3s ease;
+}
+
+.btn-premium-primary:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 8px 20px 0 rgba(139, 92, 246, 0.4);
+  border-color: rgba(139, 92, 246, 0.5);
+}
+
+.btn-premium-primary:hover::before {
+  opacity: 1;
+}
+
+.btn-premium-primary:active {
+  transform: translateY(0);
+  box-shadow: 0 2px 8px 0 rgba(139, 92, 246, 0.3);
+}
+
+/* Secondary Button - Glassmorphism */
+.btn-premium-secondary {
+  background: var(--design-card-bg);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border: 1px solid var(--design-card-border);
+  box-shadow: 0 4px 14px 0 var(--design-card-shadow);
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  position: relative;
+}
+
+.btn-premium-secondary:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 8px 20px 0 var(--design-card-hover-shadow);
+  border-color: var(--design-card-hover-border);
+}
+
+.btn-premium-secondary:active {
+  transform: translateY(0);
+  box-shadow: 0 2px 8px 0 var(--design-card-shadow);
+}
+
+/* Success Button - Verde Esmeralda */
+.btn-premium-success {
+  background: linear-gradient(135deg, #10B981 0%, #059669 100%);
+  color: #ffffff;
+  border: 1px solid rgba(16, 185, 129, 0.3);
+  box-shadow: 0 4px 14px 0 rgba(16, 185, 129, 0.3);
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.btn-premium-success:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 8px 20px 0 rgba(16, 185, 129, 0.4);
+}
+
+.btn-premium-success:active {
+  transform: translateY(0);
+}
+
+/* Modo Claro - Ajustes de contraste */
+.light .btn-premium-primary {
+  box-shadow: 0 4px 14px 0 rgba(139, 92, 246, 0.25);
+}
+
+.light .btn-premium-primary:hover {
+  box-shadow: 0 8px 20px 0 rgba(139, 92, 246, 0.35);
+}
+
+.light .btn-premium-secondary {
+  background: rgba(255, 255, 255, 0.9);
+  border: 1px solid rgba(0, 0, 0, 0.15);
+  box-shadow: 0 4px 14px 0 rgba(0, 0, 0, 0.08);
+}
+
+.light .btn-premium-secondary:hover {
+  box-shadow: 0 8px 20px 0 rgba(139, 92, 246, 0.15);
+}
+
+/* Animated gradient border */
+@keyframes gradient-rotate {
+  0% {
+    background-position: 0% 50%;
+  }
+  50% {
+    background-position: 100% 50%;
+  }
+  100% {
+    background-position: 0% 50%;
+  }
+}
+
+/* Pulse animation para llamadas a la acción */
+@keyframes pulse-glow {
+  0%, 100% {
+    box-shadow: 0 0 0 0 rgba(139, 92, 246, 0.4);
+  }
+  50% {
+    box-shadow: 0 0 0 8px rgba(139, 92, 246, 0);
+  }
+}
+
+.btn-pulse {
+  animation: pulse-glow 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+}
+
+.gradient-border-animated {
+  background: linear-gradient(135deg, #4F46E5 0%, #7C3AED 50%, #4F46E5 100%);
+  background-size: 200% 200%;
+  animation: gradient-rotate 3s ease infinite;
+}
+
+
+/* ✅ PREMIUM ANIMATIONS - Fade In, Slide, Scale */
+
+@keyframes fadeInUp {
+  from {
+    opacity: 0;
+    transform: translateY(30px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes slideInRight {
+  from {
+    opacity: 0;
+    transform: translateX(30px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+@keyframes scaleIn {
+  from {
+    opacity: 0;
+    transform: scale(0.95);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+@keyframes shimmerSweep {
+  0% {
+    background-position: -1000px 0;
+  }
+  100% {
+    background-position: 1000px 0;
+  }
+}
+
+/* Animation Classes */
+.animate-fade-in-up {
+  animation: fadeInUp 0.6s cubic-bezier(0.4, 0, 0.2, 1) forwards;
+}
+
+.animate-fade-in {
+  animation: fadeIn 0.5s ease-out forwards;
+}
+
+.animate-slide-in-right {
+  animation: slideInRight 0.5s cubic-bezier(0.4, 0, 0.2, 1) forwards;
+}
+
+.animate-scale-in {
+  animation: scaleIn 0.4s cubic-bezier(0.4, 0, 0.2, 1) forwards;
+}
+
+/* Stagger animations - delay utilities */
+.delay-100 { animation-delay: 100ms; }
+.delay-200 { animation-delay: 200ms; }
+.delay-300 { animation-delay: 300ms; }
+.delay-400 { animation-delay: 400ms; }
+.delay-500 { animation-delay: 500ms; }
+
+/* Hover lift effect para tarjetas */
+.hover-lift {
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.hover-lift:hover {
+  transform: translateY(-8px);
+}
+
+/* Shimmer effect para textos destacados */
+.text-shimmer {
+  background: linear-gradient(
+    90deg,
+    rgba(139, 92, 246, 0.8) 0%,
+    rgba(255, 255, 255, 1) 50%,
+    rgba(139, 92, 246, 0.8) 100%
+  );
+  background-size: 200% auto;
+  background-clip: text;
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  animation: shimmerSweep 3s linear infinite;
+}
+
+/* Modo claro - ajuste de shimmer */
+.light .text-shimmer {
+  background: linear-gradient(
+    90deg,
+    rgba(139, 92, 246, 1) 0%,
+    rgba(16, 185, 129, 1) 50%,
+    rgba(139, 92, 246, 1) 100%
+  );
+  background-size: 200% auto;
+  background-clip: text;
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+}
+
+/* Glow effect para elementos destacados */
+.glow-primary {
+  box-shadow: 0 0 20px rgba(139, 92, 246, 0.5);
+  transition: box-shadow 0.3s ease;
+}
+
+.glow-primary:hover {
+  box-shadow: 0 0 30px rgba(139, 92, 246, 0.7);
+}
+
+.light .glow-primary {
+  box-shadow: 0 0 15px rgba(139, 92, 246, 0.3);
+}
+
+.light .glow-primary:hover {
+  box-shadow: 0 0 25px rgba(139, 92, 246, 0.5);
+}
+
+/* Floating animation para elementos */
+@keyframes floating {
+  0%, 100% {
+    transform: translateY(0px);
+  }
+  50% {
+    transform: translateY(-10px);
+  }
+}
+
+.animate-floating {
+  animation: floating 3s ease-in-out infinite;
+}
+
+/* Responsive grid premium */
+.premium-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+  gap: 24px;
+}
+
+@media (max-width: 768px) {
+  .premium-grid {
+    grid-template-columns: 1fr;
+    gap: 16px;
+  }
+}

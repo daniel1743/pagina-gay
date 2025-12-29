@@ -127,21 +127,9 @@ const ChatPage = () => {
       return;
     }
 
-    // ✅ NUEVA FUNCIONALIDAD: Permitir "conversas-libres" a usuarios anónimos/invitados
-    if (user.isGuest || user.isAnonymous) {
-      // Solo permitir acceso a "conversas-libres" (sala de prueba gratuita)
-      if (roomId !== 'global') {
-        toast({
-          title: "Sala Solo para Registrados 🔒",
-          description: "Esta sala requiere registro. Prueba primero en 'Chat Global' o regístrate para acceso completo.",
-          variant: "destructive",
-          duration: 5000,
-        });
-        // Redirigir a conversas-libres en lugar de auth
-        navigate('/chat/global');
-        return;
-      }
-    }
+    // ✅ ACTUALIZADO: Permitir acceso a TODAS las salas sin necesidad de registro
+    // Los usuarios guest/anónimos pueden chatear libremente en cualquier sala
+    // (Restricción de salas eliminada por solicitud del usuario)
   }, [user, navigate, roomId]);
 
   // ✅ SEO: Actualizar título, meta description Y Open Graph dinámicamente por sala

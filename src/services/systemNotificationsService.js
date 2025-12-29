@@ -174,39 +174,108 @@ export const subscribeToSystemNotifications = (userId, callback) => {
     );
 
     let fallbackUnsubscribe = null;
+    let isUnsubscribed = false;
 
     const unsubscribe = onSnapshot(q, (snapshot) => {
-      const notifications = snapshot.docs.map((doc) => ({
-        id: doc.id,
-        ...doc.data(),
-        createdAt: doc.data().createdAt?.toDate?.()?.toISOString() || new Date().toISOString(),
-      }));
+      if (isUnsubscribed) return;
+      
+      try {
+        const notifications = snapshot.docs.map((doc) => ({
+          id: doc.id,
+          ...doc.data(),
+          createdAt: doc.data().createdAt?.toDate?.()?.toISOString() || new Date().toISOString(),
+        }));
 
-      callback(notifications);
+        callback(notifications);
+      } catch (callbackError) {
+        console.error('Error processing notifications:', callbackError);
+        callback([]);
+      }
     }, (error) => {
+      // ✅ Ignorar errores internos de Firestore
+      if (error?.message?.includes('INTERNAL ASSERTION FAILED') || 
+          error?.message?.includes('Unexpected state')) {
+        console.warn('Firestore internal error in notifications, using fallback...');
+        // Intentar fallback silenciosamente
+        try {
+          const fallbackQ = query(
+            notificationsRef,
+            where('userId', '==', userId),
+            limit(50)
+          );
+          
+          fallbackUnsubscribe = onSnapshot(fallbackQ, (snapshot) => {
+            if (isUnsubscribed) return;
+            
+            try {
+              const notifications = snapshot.docs.map((doc) => ({
+                id: doc.id,
+                ...doc.data(),
+                createdAt: doc.data().createdAt?.toDate?.()?.toISOString() || new Date().toISOString(),
+              }));
+              
+              notifications.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
+              callback(notifications);
+            } catch (callbackError) {
+              console.error('Error processing fallback notifications:', callbackError);
+              callback([]);
+            }
+          }, (fallbackError) => {
+            // Ignorar errores internos también en fallback
+            if (fallbackError?.message?.includes('INTERNAL ASSERTION FAILED')) {
+              console.warn('Firestore internal error in fallback, returning empty array');
+              callback([]);
+              return;
+            }
+            console.error('Error in notifications subscription (fallback):', fallbackError);
+            callback([]);
+          });
+        } catch (fallbackSetupError) {
+          console.error('Error setting up fallback query:', fallbackSetupError);
+          callback([]);
+        }
+        return;
+      }
+      
       // Si falla por falta de índice, usar query simplificada
       if (error?.code === 'failed-precondition' || error?.message?.includes('index')) {
         console.warn('Index missing for notifications, using fallback query');
-        const fallbackQ = query(
-          notificationsRef,
-          where('userId', '==', userId),
-          limit(50)
-        );
-        
-        fallbackUnsubscribe = onSnapshot(fallbackQ, (snapshot) => {
-          const notifications = snapshot.docs.map((doc) => ({
-            id: doc.id,
-            ...doc.data(),
-            createdAt: doc.data().createdAt?.toDate?.()?.toISOString() || new Date().toISOString(),
-          }));
+        try {
+          const fallbackQ = query(
+            notificationsRef,
+            where('userId', '==', userId),
+            limit(50)
+          );
           
-          // Ordenar en memoria
-          notifications.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
-          callback(notifications);
-        }, (fallbackError) => {
-          console.error('Error in notifications subscription (fallback):', fallbackError);
+          fallbackUnsubscribe = onSnapshot(fallbackQ, (snapshot) => {
+            if (isUnsubscribed) return;
+            
+            try {
+              const notifications = snapshot.docs.map((doc) => ({
+                id: doc.id,
+                ...doc.data(),
+                createdAt: doc.data().createdAt?.toDate?.()?.toISOString() || new Date().toISOString(),
+              }));
+              
+              notifications.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
+              callback(notifications);
+            } catch (callbackError) {
+              console.error('Error processing fallback notifications:', callbackError);
+              callback([]);
+            }
+          }, (fallbackError) => {
+            if (fallbackError?.message?.includes('INTERNAL ASSERTION FAILED')) {
+              console.warn('Firestore internal error in fallback, returning empty array');
+              callback([]);
+              return;
+            }
+            console.error('Error in notifications subscription (fallback):', fallbackError);
+            callback([]);
+          });
+        } catch (fallbackSetupError) {
+          console.error('Error setting up fallback query:', fallbackSetupError);
           callback([]);
-        });
+        }
       } else {
         console.error('Error in notifications subscription:', error);
         callback([]);
@@ -215,8 +284,17 @@ export const subscribeToSystemNotifications = (userId, callback) => {
 
     // Retornar función que desuscribe tanto la query principal como el fallback
     return () => {
-      if (unsubscribe) unsubscribe();
-      if (fallbackUnsubscribe) fallbackUnsubscribe();
+      isUnsubscribed = true;
+      try {
+        if (unsubscribe) unsubscribe();
+      } catch (error) {
+        console.warn('Error unsubscribing from notifications:', error);
+      }
+      try {
+        if (fallbackUnsubscribe) fallbackUnsubscribe();
+      } catch (error) {
+        console.warn('Error unsubscribing from fallback notifications:', error);
+      }
     };
   } catch (error) {
     console.error('Error subscribing to notifications:', error);

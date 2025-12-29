@@ -26,6 +26,7 @@ import { useCanonical } from '@/hooks/useCanonical';
 import { subscribeToLastActivity, subscribeToMultipleRoomCounts } from '@/services/presenceService';
 import { roomsData } from '@/config/rooms';
 import ChatDemo from '@/components/landing/ChatDemo';
+import { SkeletonCard, SkeletonRoomsGrid } from '@/components/ui/SkeletonLoader';
 
 /**
  * ✅ SISTEMA INTELIGENTE DE CONTADOR DE USUARIOS
@@ -347,6 +348,9 @@ const LobbyPage = () => {
 
   // Determinar si mostrar Hero Section (SOLO para usuarios NO logueados)
   const showHeroSection = !user;
+  
+  // Determinar si mostrar Welcome Back Banner (SOLO para usuarios logueados)
+  const showWelcomeBack = user && !user.isGuest && !user.isAnonymous;
 
   // Helper para calcular el tiempo relativo
   const getTimeAgo = (timestamp) => {
@@ -1540,6 +1544,35 @@ const LobbyPage = () => {
           <GlobalStats />
         )}
 
+        {/* ✅ WELCOME BACK BANNER - Solo para usuarios logueados */}
+        {showWelcomeBack && (
+          <motion.section
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.6 }}
+            className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 sm:py-12 mb-8 sm:mb-12"
+          >
+            <div className="glassmorphism-card rounded-2xl p-6 sm:p-8 border border-primary/20">
+              <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+                <div className="flex-1">
+                  <h2 className="text-2xl sm:text-3xl md:text-4xl font-bold mb-2 bg-gradient-to-r from-primary via-purple-400 to-pink-400 bg-clip-text text-transparent">
+                    ¡Bienvenido de vuelta{user?.username ? `, ${user.username}` : ''}! 👋
+                  </h2>
+                  <p className="text-base sm:text-lg text-muted-foreground leading-relaxed" style={{ lineHeight: '1.6' }}>
+                    ¿Qué quieres hacer hoy? Explora las salas, conéctate con la comunidad o descubre nuevas funcionalidades.
+                  </p>
+                </div>
+                <div className="flex items-center gap-3">
+                  <div className="flex items-center gap-2 px-4 py-2 rounded-lg bg-secondary/50 border border-secondary">
+                    <div className="w-2 h-2 rounded-full bg-green-500 animate-pulse"></div>
+                    <span className="text-sm font-semibold text-green-400">En línea</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </motion.section>
+        )}
+
         {/* ✅ SECCIÓN PRINCIPAL: Salas de Chat (inmediatamente después del Hero) */}
         <div className="px-4 sm:px-6 lg:px-8 py-10 sm:py-12 lg:py-16">
           <motion.div
@@ -1595,7 +1628,8 @@ const LobbyPage = () => {
             <motion.div
               whileHover={{ scale: 1.02, y: -5 }}
               onClick={() => navigate('/anonymous-forum')}
-              className="glass-effect p-6 sm:p-8 rounded-2xl border-2 border-green-500/30 hover:border-green-500/60 cursor-pointer transition-all shadow-lg hover:shadow-green-500/20"
+              className="glassmorphism-card p-6 sm:p-8 rounded-2xl cursor-pointer"
+              style={{ borderColor: 'rgba(16, 185, 129, 0.3)' }}
             >
               <div className="flex items-start gap-4">
                 <div className="w-12 h-12 sm:w-14 sm:h-14 rounded-full bg-gradient-to-br from-green-500 to-emerald-500 flex items-center justify-center flex-shrink-0">
@@ -1622,7 +1656,8 @@ const LobbyPage = () => {
             <motion.div
               whileHover={{ scale: 1.02, y: -5 }}
               onClick={() => navigate('/gaming')}
-              className="glass-effect p-6 sm:p-8 rounded-2xl border-2 border-purple-500/30 hover:border-purple-500/60 cursor-pointer transition-all shadow-lg hover:shadow-purple-500/20"
+              className="glassmorphism-card p-6 sm:p-8 rounded-2xl cursor-pointer"
+              style={{ borderColor: 'rgba(139, 92, 246, 0.3)' }}
             >
               <div className="flex items-start gap-4">
                 <div className="w-12 h-12 sm:w-14 sm:h-14 rounded-full bg-gradient-to-br from-purple-500 to-violet-500 flex items-center justify-center flex-shrink-0">
@@ -1655,8 +1690,8 @@ const LobbyPage = () => {
             transition={{ duration: 0.5 }}
             className="max-w-7xl mx-auto"
           >
-            {/* Grid de 3 cards: Foro de Apoyo, Centro de Seguridad, Premium */}
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-6 sm:gap-8 mb-12 sm:mb-16 max-w-6xl mx-auto">
+            {/* Grid de 3 cards: Foro de Apoyo, Centro de Seguridad, Premium - Responsive Grid System */}
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 sm:gap-8 mb-12 sm:mb-16 max-w-6xl mx-auto" style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(320px, 1fr))', gap: '24px' }}>
               {/* Foro de Apoyo */}
               <FeatureCard
                 key={forumCard.id}

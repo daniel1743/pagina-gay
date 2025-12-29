@@ -62,6 +62,17 @@ import {
   getTop20ActiveUsers,
   REWARD_TYPES
 } from '@/services/rewardsService';
+import {
+  getAllThreadsAsAdmin,
+  getAllRepliesAsAdmin,
+  createThreadAsAdmin,
+  updateThreadAsAdmin,
+  deleteThreadAsAdmin,
+  addReplyAsAdmin,
+  updateReplyAsAdmin,
+  deleteReplyAsAdmin,
+  getReplies
+} from '@/services/forumService';
 
 const AdminPage = () => {
   const navigate = useNavigate();
@@ -161,8 +172,77 @@ const AdminPage = () => {
     priority: 'normal',
     link: '',
   });
+  const [updateVersion, setUpdateVersion] = useState('');
+  const [extraExplanation, setExtraExplanation] = useState('');
   const [isSendingNotification, setIsSendingNotification] = useState(false);
   const [isSendingWelcome, setIsSendingWelcome] = useState(false);
+
+  // Estados para gestión del foro
+  const [forumThreads, setForumThreads] = useState([]);
+  const [forumReplies, setForumReplies] = useState([]);
+  const [loadingForum, setLoadingForum] = useState(false);
+  const [selectedThread, setSelectedThread] = useState(null);
+  const [selectedReply, setSelectedReply] = useState(null);
+  const [forumFormMode, setForumFormMode] = useState('thread'); // 'thread' o 'reply'
+  const [forumFormData, setForumFormData] = useState({
+    title: '',
+    content: '',
+    category: 'Preguntas',
+    anonymousId: '',
+    threadId: '',
+  });
+
+  // Cargar datos del foro cuando se abre la pestaña
+  useEffect(() => {
+    if (activeTab === 'forum' && isAdmin) {
+      const loadForumData = async () => {
+        setLoadingForum(true);
+        try {
+          const [threads, replies] = await Promise.all([
+            getAllThreadsAsAdmin(),
+            getAllRepliesAsAdmin()
+          ]);
+          setForumThreads(threads);
+          setForumReplies(replies);
+        } catch (error) {
+          console.error('Error cargando foro:', error);
+          toast({
+            title: "Error",
+            description: "No se pudieron cargar los datos del foro",
+            variant: "destructive",
+          });
+        } finally {
+          setLoadingForum(false);
+        }
+      };
+      loadForumData();
+    }
+  }, [activeTab, isAdmin]);
+
+  // Generar mensaje automáticamente para actualizaciones
+  useEffect(() => {
+    if (notificationForm.type === NOTIFICATION_TYPES.UPDATE) {
+      const version = updateVersion || 'X.X.X';
+      const baseMessage = `¡Nueva actualización disponible! Versión ${version}\n\n`;
+      const explanation = extraExplanation ? `${extraExplanation}\n\n` : '';
+      const fullMessage = `${baseMessage}${explanation}Descubre todas las mejoras y nuevas funcionalidades que hemos preparado para ti.`;
+      
+      setNotificationForm(prev => {
+        // Solo actualizar si los valores realmente cambiaron
+        if (prev.title === `🔄 Nueva Actualización v${version}` && 
+            prev.message === fullMessage && 
+            prev.icon === '🔄') {
+          return prev;
+        }
+        return {
+          ...prev,
+          title: `🔄 Nueva Actualización v${version}`,
+          message: fullMessage,
+          icon: '🔄',
+        };
+      });
+    }
+  }, [updateVersion, extraExplanation, notificationForm.type]);
   
   // ✅ NUEVO: Estados para chat con usuarios
   const [chatTarget, setChatTarget] = useState(null);
@@ -193,6 +273,28 @@ const AdminPage = () => {
           navigate('/');
         }
       } catch (error) {
+        // ✅ Ignorar errores internos de Firestore
+        if (error?.message?.includes('INTERNAL ASSERTION FAILED') || 
+            error?.message?.includes('Unexpected state')) {
+          console.warn('Firestore internal error checking admin, retrying...');
+          // Intentar una vez más después de un breve delay
+          setTimeout(async () => {
+            try {
+              const userDoc = await getDoc(doc(db, 'users', user.id));
+              const userData = userDoc.data();
+              const role = userData?.role;
+              if (role === 'admin' || role === 'administrator') {
+                setIsAdmin(true);
+              } else {
+                navigate('/');
+              }
+            } catch (retryError) {
+              console.error('Error checking admin (retry):', retryError);
+              navigate('/');
+            }
+          }, 1000);
+          return;
+        }
         console.error('Error checking admin:', error);
         toast({
           title: "Error",
@@ -800,12 +902,13 @@ const AdminPage = () => {
 
         {/* Tabs */}
         <Tabs value={activeTab} onValueChange={setActiveTab} className="mb-8">
-          <TabsList className="grid w-full grid-cols-7">
+          <TabsList className="grid w-full grid-cols-8">
             <TabsTrigger value="dashboard">Dashboard</TabsTrigger>
             <TabsTrigger value="reports">Reportes</TabsTrigger>
             <TabsTrigger value="tickets">Tickets</TabsTrigger>
             <TabsTrigger value="sanctions">Sanciones</TabsTrigger>
             <TabsTrigger value="rewards">Recompensas</TabsTrigger>
+            <TabsTrigger value="forum">Foro</TabsTrigger>
             <TabsTrigger value="notifications">Notificaciones</TabsTrigger>
             <TabsTrigger value="analytics">Analytics</TabsTrigger>
           </TabsList>
@@ -1717,6 +1820,528 @@ const AdminPage = () => {
             )}
           </TabsContent>
 
+          {/* Foro Tab - Gestión del Foro Anónimo */}
+          <TabsContent value="forum" className="space-y-6">
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              className="glass-effect rounded-2xl border border-border p-6"
+            >
+              <div className="flex items-center justify-between mb-6">
+                <h2 className="text-2xl font-bold flex items-center gap-2">
+                  <MessageSquare className="w-6 h-6 text-cyan-400" />
+                  Gestión del Foro Anónimo
+                </h2>
+                <Button
+                  variant="outline"
+                  onClick={async () => {
+                    setLoadingForum(true);
+                    try {
+                      const [threads, replies] = await Promise.all([
+                        getAllThreadsAsAdmin(),
+                        getAllRepliesAsAdmin()
+                      ]);
+                      setForumThreads(threads);
+                      setForumReplies(replies);
+                      toast({
+                        title: "Foro Actualizado",
+                        description: `${threads.length} threads y ${replies.length} respuestas cargadas`,
+                      });
+                    } catch (error) {
+                      console.error('Error cargando foro:', error);
+                      toast({
+                        title: "Error",
+                        description: "No se pudieron cargar los datos del foro",
+                        variant: "destructive",
+                      });
+                    } finally {
+                      setLoadingForum(false);
+                    }
+                  }}
+                  disabled={loadingForum}
+                  size="sm"
+                >
+                  <Zap className="w-4 h-4 mr-2" />
+                  Actualizar
+                </Button>
+              </div>
+
+              {/* Tabs internos para Threads y Replies */}
+              <Tabs defaultValue="threads" className="w-full">
+                <TabsList className="grid w-full grid-cols-2 mb-6">
+                  <TabsTrigger value="threads">Threads ({forumThreads.length})</TabsTrigger>
+                  <TabsTrigger value="replies">Respuestas ({forumReplies.length})</TabsTrigger>
+                </TabsList>
+
+                {/* Tab de Threads */}
+                <TabsContent value="threads" className="space-y-6">
+                  {/* Formulario para crear/editar thread */}
+                  <div className="glass-effect rounded-xl border border-border p-6">
+                    <h3 className="text-xl font-bold mb-4">
+                      {selectedThread ? 'Editar Thread' : 'Crear Nuevo Thread'}
+                    </h3>
+                    <div className="space-y-4">
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div>
+                          <label className="text-sm font-medium mb-2 block">Título</label>
+                          <Input
+                            value={forumFormData.title}
+                            onChange={(e) => setForumFormData({ ...forumFormData, title: e.target.value })}
+                            placeholder="Título del thread"
+                            className="bg-background border-border"
+                          />
+                        </div>
+                        <div>
+                          <label className="text-sm font-medium mb-2 block">Categoría</label>
+                          <Select
+                            value={forumFormData.category}
+                            onValueChange={(value) => setForumFormData({ ...forumFormData, category: value })}
+                          >
+                            <SelectTrigger className="bg-background border-border">
+                              <SelectValue />
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="Apoyo Emocional">Apoyo Emocional</SelectItem>
+                              <SelectItem value="Recursos">Recursos</SelectItem>
+                              <SelectItem value="Experiencias">Experiencias</SelectItem>
+                              <SelectItem value="Preguntas">Preguntas</SelectItem>
+                              <SelectItem value="Logros">Logros</SelectItem>
+                            </SelectContent>
+                          </Select>
+                        </div>
+                      </div>
+                      <div>
+                        <label className="text-sm font-medium mb-2 block">Contenido</label>
+                        <Textarea
+                          value={forumFormData.content}
+                          onChange={(e) => setForumFormData({ ...forumFormData, content: e.target.value })}
+                          placeholder="Contenido del thread"
+                          className="bg-background border-border min-h-[120px]"
+                        />
+                      </div>
+                      <div className="flex items-center gap-4">
+                        <div className="flex-1">
+                          <label className="text-sm font-medium mb-2 block">ID Anónimo (opcional)</label>
+                          <div className="flex gap-2">
+                            <Input
+                              value={forumFormData.anonymousId}
+                              onChange={(e) => setForumFormData({ ...forumFormData, anonymousId: e.target.value })}
+                              placeholder="anon_123456"
+                              className="bg-background border-border"
+                            />
+                            <Button
+                              variant="outline"
+                              onClick={() => {
+                                const newId = `anon_${Math.floor(Math.random() * 1000000)}`;
+                                setForumFormData({ ...forumFormData, anonymousId: newId });
+                              }}
+                              size="sm"
+                            >
+                              Generar ID
+                            </Button>
+                          </div>
+                        </div>
+                      </div>
+                      <div className="flex gap-3">
+                        <Button
+                          onClick={async () => {
+                            if (!forumFormData.title || !forumFormData.content) {
+                              toast({
+                                title: "Campos Incompletos",
+                                description: "Debes completar el título y el contenido",
+                                variant: "destructive",
+                              });
+                              return;
+                            }
+                            try {
+                              if (selectedThread) {
+                                await updateThreadAsAdmin(selectedThread.id, {
+                                  title: forumFormData.title,
+                                  content: forumFormData.content,
+                                  category: forumFormData.category,
+                                });
+                                toast({
+                                  title: "Thread Actualizado",
+                                  description: "El thread ha sido actualizado exitosamente",
+                                });
+                              } else {
+                                await createThreadAsAdmin(
+                                  {
+                                    title: forumFormData.title,
+                                    content: forumFormData.content,
+                                    category: forumFormData.category,
+                                  },
+                                  forumFormData.anonymousId || null
+                                );
+                                toast({
+                                  title: "Thread Creado",
+                                  description: "El thread ha sido creado exitosamente",
+                                });
+                              }
+                              // Recargar threads
+                              const threads = await getAllThreadsAsAdmin();
+                              setForumThreads(threads);
+                              // Limpiar formulario
+                              setForumFormData({
+                                title: '',
+                                content: '',
+                                category: 'Preguntas',
+                                anonymousId: '',
+                                threadId: '',
+                              });
+                              setSelectedThread(null);
+                            } catch (error) {
+                              console.error('Error:', error);
+                              toast({
+                                title: "Error",
+                                description: "No se pudo guardar el thread",
+                                variant: "destructive",
+                              });
+                            }
+                          }}
+                          className="bg-cyan-500 hover:bg-cyan-600 text-white"
+                        >
+                          {selectedThread ? 'Actualizar Thread' : 'Crear Thread'}
+                        </Button>
+                        {selectedThread && (
+                          <Button
+                            variant="outline"
+                            onClick={() => {
+                              setSelectedThread(null);
+                              setForumFormData({
+                                title: '',
+                                content: '',
+                                category: 'Preguntas',
+                                anonymousId: '',
+                                threadId: '',
+                              });
+                            }}
+                          >
+                            Cancelar
+                          </Button>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Lista de threads */}
+                  <div className="space-y-4">
+                    <h3 className="text-lg font-bold">Threads Existentes</h3>
+                    {loadingForum ? (
+                      <div className="text-center py-8">
+                        <div className="animate-spin rounded-full h-8 w-8 border-2 border-cyan-400 border-t-transparent mx-auto"></div>
+                      </div>
+                    ) : forumThreads.length === 0 ? (
+                      <div className="text-center py-8 text-muted-foreground">
+                        No hay threads. Crea uno nuevo arriba.
+                      </div>
+                    ) : (
+                      <div className="space-y-3">
+                        {forumThreads.map((thread) => (
+                          <div
+                            key={thread.id}
+                            className="glass-effect rounded-lg border border-border p-4 hover:border-cyan-500/50 transition-all"
+                          >
+                            <div className="flex items-start justify-between gap-4">
+                              <div className="flex-1">
+                                <div className="flex items-center gap-2 mb-2">
+                                  <h4 className="font-bold text-foreground">{thread.title}</h4>
+                                  <span className="text-xs px-2 py-1 rounded bg-cyan-500/20 text-cyan-400 border border-cyan-500/30">
+                                    {thread.category}
+                                  </span>
+                                </div>
+                                <p className="text-sm text-muted-foreground mb-2 line-clamp-2">{thread.content}</p>
+                                <div className="flex items-center gap-4 text-xs text-muted-foreground">
+                                  <span>👤 {thread.authorDisplay}</span>
+                                  <span>💬 {thread.replies || 0} respuestas</span>
+                                  <span>❤️ {thread.likes || 0} likes</span>
+                                  <span>👁️ {thread.views || 0} vistas</span>
+                                </div>
+                              </div>
+                              <div className="flex gap-2">
+                                <Button
+                                  variant="outline"
+                                  size="sm"
+                                  onClick={() => {
+                                    setSelectedThread(thread);
+                                    setForumFormData({
+                                      title: thread.title,
+                                      content: thread.content,
+                                      category: thread.category,
+                                      anonymousId: thread.authorId,
+                                      threadId: thread.id,
+                                    });
+                                  }}
+                                >
+                                  Editar
+                                </Button>
+                                <Button
+                                  variant="outline"
+                                  size="sm"
+                                  onClick={async () => {
+                                    if (confirm('¿Estás seguro de eliminar este thread? También se eliminarán todas sus respuestas.')) {
+                                      try {
+                                        await deleteThreadAsAdmin(thread.id);
+                                        toast({
+                                          title: "Thread Eliminado",
+                                          description: "El thread y sus respuestas han sido eliminados",
+                                        });
+                                        const threads = await getAllThreadsAsAdmin();
+                                        setForumThreads(threads);
+                                      } catch (error) {
+                                        console.error('Error:', error);
+                                        toast({
+                                          title: "Error",
+                                          description: "No se pudo eliminar el thread",
+                                          variant: "destructive",
+                                        });
+                                      }
+                                    }
+                                  }}
+                                  className="text-red-400 hover:text-red-500"
+                                >
+                                  Eliminar
+                                </Button>
+                              </div>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                </TabsContent>
+
+                {/* Tab de Replies */}
+                <TabsContent value="replies" className="space-y-6">
+                  {/* Formulario para crear/editar reply */}
+                  <div className="glass-effect rounded-xl border border-border p-6">
+                    <h3 className="text-xl font-bold mb-4">
+                      {selectedReply ? 'Editar Respuesta' : 'Crear Nueva Respuesta'}
+                    </h3>
+                    <div className="space-y-4">
+                      <div>
+                        <label className="text-sm font-medium mb-2 block">Thread ID</label>
+                        <div className="flex gap-2">
+                          <Input
+                            value={forumFormData.threadId}
+                            onChange={(e) => setForumFormData({ ...forumFormData, threadId: e.target.value })}
+                            placeholder="ID del thread al que responder"
+                            className="bg-background border-border flex-1"
+                          />
+                          <Select
+                            value={forumFormData.threadId}
+                            onValueChange={(value) => setForumFormData({ ...forumFormData, threadId: value })}
+                          >
+                            <SelectTrigger className="bg-background border-border w-64">
+                              <SelectValue placeholder="Seleccionar thread" />
+                            </SelectTrigger>
+                            <SelectContent>
+                              {forumThreads.map((thread) => (
+                                <SelectItem key={thread.id} value={thread.id}>
+                                  {thread.title.substring(0, 40)}...
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                        </div>
+                      </div>
+                      <div>
+                        <label className="text-sm font-medium mb-2 block">Contenido de la Respuesta</label>
+                        <Textarea
+                          value={forumFormData.content}
+                          onChange={(e) => setForumFormData({ ...forumFormData, content: e.target.value })}
+                          placeholder="Escribe tu respuesta aquí"
+                          className="bg-background border-border min-h-[120px]"
+                        />
+                      </div>
+                      <div className="flex items-center gap-4">
+                        <div className="flex-1">
+                          <label className="text-sm font-medium mb-2 block">ID Anónimo (opcional)</label>
+                          <div className="flex gap-2">
+                            <Input
+                              value={forumFormData.anonymousId}
+                              onChange={(e) => setForumFormData({ ...forumFormData, anonymousId: e.target.value })}
+                              placeholder="anon_123456"
+                              className="bg-background border-border"
+                            />
+                            <Button
+                              variant="outline"
+                              onClick={() => {
+                                const newId = `anon_${Math.floor(Math.random() * 1000000)}`;
+                                setForumFormData({ ...forumFormData, anonymousId: newId });
+                              }}
+                              size="sm"
+                            >
+                              Generar ID
+                            </Button>
+                          </div>
+                        </div>
+                      </div>
+                      <div className="flex gap-3">
+                        <Button
+                          onClick={async () => {
+                            if (!forumFormData.threadId || !forumFormData.content) {
+                              toast({
+                                title: "Campos Incompletos",
+                                description: "Debes completar el Thread ID y el contenido",
+                                variant: "destructive",
+                              });
+                              return;
+                            }
+                            try {
+                              if (selectedReply) {
+                                await updateReplyAsAdmin(selectedReply.id, {
+                                  content: forumFormData.content,
+                                });
+                                toast({
+                                  title: "Respuesta Actualizada",
+                                  description: "La respuesta ha sido actualizada exitosamente",
+                                });
+                              } else {
+                                await addReplyAsAdmin(
+                                  forumFormData.threadId,
+                                  forumFormData.content,
+                                  forumFormData.anonymousId || null
+                                );
+                                toast({
+                                  title: "Respuesta Creada",
+                                  description: "La respuesta ha sido creada exitosamente",
+                                });
+                              }
+                              // Recargar replies
+                              const replies = await getAllRepliesAsAdmin();
+                              setForumReplies(replies);
+                              // Limpiar formulario
+                              setForumFormData({
+                                title: '',
+                                content: '',
+                                category: 'Preguntas',
+                                anonymousId: '',
+                                threadId: '',
+                              });
+                              setSelectedReply(null);
+                            } catch (error) {
+                              console.error('Error:', error);
+                              toast({
+                                title: "Error",
+                                description: "No se pudo guardar la respuesta",
+                                variant: "destructive",
+                              });
+                            }
+                          }}
+                          className="bg-purple-500 hover:bg-purple-600 text-white"
+                        >
+                          {selectedReply ? 'Actualizar Respuesta' : 'Crear Respuesta'}
+                        </Button>
+                        {selectedReply && (
+                          <Button
+                            variant="outline"
+                            onClick={() => {
+                              setSelectedReply(null);
+                              setForumFormData({
+                                title: '',
+                                content: '',
+                                category: 'Preguntas',
+                                anonymousId: '',
+                                threadId: '',
+                              });
+                            }}
+                          >
+                            Cancelar
+                          </Button>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Lista de replies */}
+                  <div className="space-y-4">
+                    <h3 className="text-lg font-bold">Respuestas Existentes</h3>
+                    {loadingForum ? (
+                      <div className="text-center py-8">
+                        <div className="animate-spin rounded-full h-8 w-8 border-2 border-purple-400 border-t-transparent mx-auto"></div>
+                      </div>
+                    ) : forumReplies.length === 0 ? (
+                      <div className="text-center py-8 text-muted-foreground">
+                        No hay respuestas. Crea una nueva arriba.
+                      </div>
+                    ) : (
+                      <div className="space-y-3">
+                        {forumReplies.map((reply) => {
+                          const thread = forumThreads.find(t => t.id === reply.threadId);
+                          return (
+                            <div
+                              key={reply.id}
+                              className="glass-effect rounded-lg border border-border p-4 hover:border-purple-500/50 transition-all"
+                            >
+                              <div className="flex items-start justify-between gap-4">
+                                <div className="flex-1">
+                                  <div className="flex items-center gap-2 mb-2">
+                                    <span className="text-xs text-muted-foreground">Thread: {thread?.title || reply.threadId}</span>
+                                  </div>
+                                  <p className="text-sm text-foreground mb-2">{reply.content}</p>
+                                  <div className="flex items-center gap-4 text-xs text-muted-foreground">
+                                    <span>👤 {reply.authorDisplay}</span>
+                                    <span>❤️ {reply.likes || 0} likes</span>
+                                  </div>
+                                </div>
+                                <div className="flex gap-2">
+                                  <Button
+                                    variant="outline"
+                                    size="sm"
+                                    onClick={() => {
+                                      setSelectedReply(reply);
+                                      setForumFormData({
+                                        title: '',
+                                        content: reply.content,
+                                        category: 'Preguntas',
+                                        anonymousId: reply.authorId,
+                                        threadId: reply.threadId,
+                                      });
+                                    }}
+                                  >
+                                    Editar
+                                  </Button>
+                                  <Button
+                                    variant="outline"
+                                    size="sm"
+                                    onClick={async () => {
+                                      if (confirm('¿Estás seguro de eliminar esta respuesta?')) {
+                                        try {
+                                          await deleteReplyAsAdmin(reply.id, reply.threadId);
+                                          toast({
+                                            title: "Respuesta Eliminada",
+                                            description: "La respuesta ha sido eliminada",
+                                          });
+                                          const replies = await getAllRepliesAsAdmin();
+                                          setForumReplies(replies);
+                                        } catch (error) {
+                                          console.error('Error:', error);
+                                          toast({
+                                            title: "Error",
+                                            description: "No se pudo eliminar la respuesta",
+                                            variant: "destructive",
+                                          });
+                                        }
+                                      }
+                                    }}
+                                    className="text-red-400 hover:text-red-500"
+                                  >
+                                    Eliminar
+                                  </Button>
+                                </div>
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    )}
+                  </div>
+                </TabsContent>
+              </Tabs>
+            </motion.div>
+          </TabsContent>
+
           {/* Notificaciones Tab */}
           <TabsContent value="notifications" className="space-y-6">
             {/* ✅ Botón especial para enviar mensaje de bienvenida a usuarios existentes */}
@@ -1798,7 +2423,14 @@ const AdminPage = () => {
                     <label className="text-sm font-medium text-foreground">Tipo de Notificación</label>
                     <Select
                       value={notificationForm.type}
-                      onValueChange={(value) => setNotificationForm({ ...notificationForm, type: value })}
+                      onValueChange={(value) => {
+                        setNotificationForm({ ...notificationForm, type: value });
+                        // Resetear campos de actualización si cambia el tipo
+                        if (value !== NOTIFICATION_TYPES.UPDATE) {
+                          setUpdateVersion('');
+                          setExtraExplanation('');
+                        }
+                      }}
                     >
                       <SelectTrigger className="bg-background border-border">
                         <SelectValue />
@@ -1857,6 +2489,42 @@ const AdminPage = () => {
                   </div>
                 </div>
 
+                {/* Campos especiales para Actualización */}
+                {notificationForm.type === NOTIFICATION_TYPES.UPDATE && (
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6 p-4 rounded-lg bg-cyan-500/10 border border-cyan-500/30">
+                    <div className="space-y-2">
+                      <label className="text-sm font-medium text-foreground">
+                        Versión <span className="text-cyan-400">*</span>
+                      </label>
+                      <Input
+                        value={updateVersion}
+                        onChange={(e) => setUpdateVersion(e.target.value)}
+                        placeholder="1.2.3"
+                        className="bg-background border-border"
+                        maxLength={20}
+                      />
+                      <p className="text-xs text-muted-foreground">
+                        Solo puedes editar la versión
+                      </p>
+                    </div>
+                    <div className="space-y-2">
+                      <label className="text-sm font-medium text-foreground">
+                        Explicación Extra (Opcional)
+                      </label>
+                      <Textarea
+                        value={extraExplanation}
+                        onChange={(e) => setExtraExplanation(e.target.value)}
+                        placeholder="Ej: Mejoras en rendimiento, nuevas funciones de chat, correcciones de bugs..."
+                        className="bg-background border-border min-h-[80px]"
+                        maxLength={200}
+                      />
+                      <p className="text-xs text-muted-foreground text-right">
+                        {extraExplanation.length}/200 caracteres
+                      </p>
+                    </div>
+                  </div>
+                )}
+
                 {/* Título */}
                 <div className="space-y-2">
                   <label className="text-sm font-medium text-foreground">Título de la Notificación</label>
@@ -1866,7 +2534,13 @@ const AdminPage = () => {
                     placeholder="¡Nueva actualización disponible!"
                     className="bg-background border-border"
                     maxLength={100}
+                    disabled={notificationForm.type === NOTIFICATION_TYPES.UPDATE}
                   />
+                  {notificationForm.type === NOTIFICATION_TYPES.UPDATE && (
+                    <p className="text-xs text-muted-foreground">
+                      El título se genera automáticamente con la versión
+                    </p>
+                  )}
                 </div>
 
                 {/* Mensaje */}
@@ -1878,10 +2552,16 @@ const AdminPage = () => {
                     placeholder="Hemos agregado nuevas funcionalidades increíbles a Chactivo..."
                     className="bg-background border-border min-h-[120px]"
                     maxLength={500}
+                    disabled={notificationForm.type === NOTIFICATION_TYPES.UPDATE}
                   />
                   <p className="text-xs text-muted-foreground text-right">
                     {notificationForm.message.length}/500 caracteres
                   </p>
+                  {notificationForm.type === NOTIFICATION_TYPES.UPDATE && (
+                    <p className="text-xs text-cyan-400">
+                      El mensaje se genera automáticamente con la versión y explicación extra
+                    </p>
+                  )}
                 </div>
 
                 {/* Vista previa */}
@@ -1908,6 +2588,18 @@ const AdminPage = () => {
                   </p>
                   <Button
                     onClick={async () => {
+                      // Validación especial para actualizaciones
+                      if (notificationForm.type === NOTIFICATION_TYPES.UPDATE) {
+                        if (!updateVersion) {
+                          toast({
+                            title: "Campo Requerido",
+                            description: "Debes ingresar la versión de la actualización",
+                            variant: "destructive",
+                          });
+                          return;
+                        }
+                      }
+                      
                       if (!notificationForm.title || !notificationForm.message) {
                         toast({
                           title: "Campos Incompletos",
@@ -1935,6 +2627,8 @@ const AdminPage = () => {
                           priority: 'normal',
                           link: '',
                         });
+                        setUpdateVersion('');
+                        setExtraExplanation('');
                       } catch (error) {
                         console.error('Error sending notification:', error);
                         toast({
@@ -1946,7 +2640,12 @@ const AdminPage = () => {
                         setIsSendingNotification(false);
                       }
                     }}
-                    disabled={isSendingNotification || !notificationForm.title || !notificationForm.message}
+                    disabled={
+                      isSendingNotification || 
+                      !notificationForm.title || 
+                      !notificationForm.message ||
+                      (notificationForm.type === NOTIFICATION_TYPES.UPDATE && !updateVersion)
+                    }
                     className="bg-cyan-500 hover:bg-cyan-600 text-white"
                   >
                     {isSendingNotification ? (

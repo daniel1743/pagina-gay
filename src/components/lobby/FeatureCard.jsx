@@ -90,17 +90,11 @@ const FeatureCard = ({
         whileHover={{ y: -6 }}
         whileTap={{ scale: 0.98 }}
         className={`
+          glassmorphism-card
           relative h-full ${isHorizontal ? 'min-h-[120px] sm:min-h-[140px] md:min-h-[160px]' : 'min-h-[180px] sm:min-h-[200px] md:min-h-[220px]'}
-          bg-card text-foreground
-          border-2 border-border
+          text-foreground
           rounded-2xl p-4 sm:p-5 md:p-6
-          transition-all duration-300
-          hover:border-primary/60
-          shadow-sm hover:shadow-xl
           focus:outline-none focus:ring-4 focus:ring-primary/20
-          dark:bg-gradient-to-br dark:from-white/[0.03] dark:to-white/[0.01]
-          dark:border dark:border-white/10 dark:hover:border-white/20
-          dark:shadow-none
           ${colors.glow}
         `}
         tabIndex={0}
@@ -158,7 +152,7 @@ const FeatureCard = ({
                   </div>
                 )}
               </div>
-              <p className="text-sm sm:text-base text-muted-foreground leading-relaxed mb-3 sm:mb-0">
+              <p className="text-sm sm:text-base text-muted-foreground mb-3 sm:mb-0" style={{ lineHeight: '1.6' }}>
                 {description}
               </p>
               
@@ -205,7 +199,7 @@ const FeatureCard = ({
             <h3 className="text-lg sm:text-xl font-bold mb-3 leading-tight">{title}</h3>
 
             {/* Description */}
-            <p className="text-sm sm:text-base text-muted-foreground mb-auto leading-relaxed">
+            <p className="text-sm sm:text-base text-muted-foreground mb-auto" style={{ lineHeight: '1.6' }}>
               {description}
             </p>
 

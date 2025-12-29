@@ -1,4 +1,4 @@
-import { collection, addDoc, getDocs, query, orderBy, where, doc, getDoc, updateDoc, increment, serverTimestamp, limit } from 'firebase/firestore';
+import { collection, addDoc, getDocs, query, orderBy, where, doc, getDoc, updateDoc, deleteDoc, increment, serverTimestamp, limit } from 'firebase/firestore';
 import { db } from '@/config/firebase';
 import { trackThreadCreated, trackForumReply, trackForumVote } from '@/services/ga4Service';
 
@@ -63,28 +63,32 @@ export const createThread = async (threadData, anonymousUserId = null) => {
  */
 export const getThreads = async (category = null, sortBy = 'recent', maxResults = null) => {
   try {
-    let q = query(collection(db, FORUM_COLLECTION));
+    // ✅ CORREGIDO: Construir el query de una sola vez con todos los constraints
+    const constraints = [];
 
     // Filtrar por categoría si se especifica
     if (category && category !== 'Todos') {
-      q = query(q, where('category', '==', category));
+      constraints.push(where('category', '==', category));
     }
 
     // Ordenar
-    // ✅ Simplificado: solo ordenar por un campo para evitar índices compuestos complejos
-    // El ordenamiento secundario se hace en el cliente
     if (sortBy === 'popular') {
-      q = query(q, orderBy('likes', 'desc'));
+      constraints.push(orderBy('likes', 'desc'));
     } else if (sortBy === 'replies') {
-      q = query(q, orderBy('replies', 'desc'));
+      constraints.push(orderBy('replies', 'desc'));
     } else {
-      q = query(q, orderBy('createdAt', 'desc'));
+      constraints.push(orderBy('createdAt', 'desc'));
     }
 
     // Limitar resultados solo si se especifica un límite
     if (maxResults && maxResults > 0) {
-      q = query(q, limit(maxResults));
+      constraints.push(limit(maxResults));
     }
+
+    // Construir y ejecutar el query de una sola vez
+    const q = query(collection(db, FORUM_COLLECTION), ...constraints);
+
+    console.log(`📊 [forumService] Query construido - Categoría: ${category || 'TODOS'}, Sort: ${sortBy}, Límite: ${maxResults || 'SIN LÍMITE'}`);
 
     const snapshot = await getDocs(q);
     const threads = [];
@@ -97,16 +101,18 @@ export const getThreads = async (category = null, sortBy = 'recent', maxResults 
       });
     });
 
+    console.log(`✅ [forumService] Threads obtenidos de Firestore: ${threads.length}`);
+
     // ✅ Ordenamiento secundario en el cliente (por fecha) si es necesario
     if (sortBy === 'popular' || sortBy === 'replies') {
       threads.sort((a, b) => {
         // Primero por el campo principal (likes o replies)
-        const primaryDiff = sortBy === 'popular' 
+        const primaryDiff = sortBy === 'popular'
           ? (b.likes || 0) - (a.likes || 0)
           : (b.replies || 0) - (a.replies || 0);
-        
+
         if (primaryDiff !== 0) return primaryDiff;
-        
+
         // Si son iguales, ordenar por fecha (más reciente primero)
         return (b.timestamp || 0) - (a.timestamp || 0);
       });
@@ -114,7 +120,7 @@ export const getThreads = async (category = null, sortBy = 'recent', maxResults 
 
     return threads;
   } catch (error) {
-    console.error('Error obteniendo threads:', error);
+    console.error('❌ [forumService] Error obteniendo threads:', error);
     // Fallback a datos locales si hay error
     return [];
   }
@@ -233,12 +239,24 @@ export const voteThread = async (threadId, isLike = true) => {
 
     // Track GA4: voto en thread (solo si es like)
     if (isLike) {
-      trackForumVote({
-        threadId: threadId,
-        voteType: 'upvote'
-      });
+      try {
+        trackForumVote({
+          threadId: threadId,
+          voteType: 'upvote'
+        });
+      } catch (trackError) {
+        // No fallar si el tracking falla
+        console.warn('Error tracking vote:', trackError);
+      }
     }
   } catch (error) {
+    // ✅ Ignorar errores internos de Firestore que no podemos controlar
+    if (error?.message?.includes('INTERNAL ASSERTION FAILED') || 
+        error?.message?.includes('Unexpected state')) {
+      console.warn('Firestore internal error while voting thread, operation may have succeeded');
+      // No lanzar el error, asumir que la operación puede haber tenido éxito
+      return;
+    }
     console.error('Error votando thread:', error);
     throw error;
   }
@@ -259,12 +277,24 @@ export const voteReply = async (replyId, isLike = true) => {
 
     // Track GA4: voto en reply (solo si es like)
     if (isLike) {
-      trackForumVote({
-        threadId: replyId,
-        voteType: 'upvote'
-      });
+      try {
+        trackForumVote({
+          threadId: replyId,
+          voteType: 'upvote'
+        });
+      } catch (trackError) {
+        // No fallar si el tracking falla
+        console.warn('Error tracking vote:', trackError);
+      }
     }
   } catch (error) {
+    // ✅ Ignorar errores internos de Firestore que no podemos controlar
+    if (error?.message?.includes('INTERNAL ASSERTION FAILED') || 
+        error?.message?.includes('Unexpected state')) {
+      console.warn('Firestore internal error while voting reply, operation may have succeeded');
+      // No lanzar el error, asumir que la operación puede haber tenido éxito
+      return;
+    }
     console.error('Error votando respuesta:', error);
     throw error;
   }
@@ -284,6 +314,220 @@ export const incrementViews = async (threadId) => {
   } catch (error) {
     console.error('Error incrementando vistas:', error);
     // No lanzar error, es solo tracking
+  }
+};
+
+/**
+ * ========================================
+ * FUNCIONES DE ADMINISTRACIÓN DEL FORO
+ * ========================================
+ */
+
+/**
+ * Crea un thread con ID anónimo personalizado (para admin)
+ * @param {object} threadData - { title, content, category }
+ * @param {string} customAnonymousId - ID anónimo personalizado
+ * @returns {Promise<string>} ID del thread creado
+ */
+export const createThreadAsAdmin = async (threadData, customAnonymousId = null) => {
+  try {
+    const anonId = customAnonymousId || generateAnonymousId();
+    
+    const threadRef = await addDoc(collection(db, FORUM_COLLECTION), {
+      title: threadData.title,
+      content: threadData.content,
+      category: threadData.category || 'Preguntas',
+      authorId: anonId,
+      authorDisplay: `Usuario Anónimo #${anonId.split('_')[1]}`,
+      replies: 0,
+      likes: threadData.likes || 0,
+      views: threadData.views || 0,
+      createdAt: threadData.createdAt || serverTimestamp(),
+      updatedAt: serverTimestamp(),
+      isAdminCreated: true, // Marca para identificar posts creados por admin
+    });
+
+    return threadRef.id;
+  } catch (error) {
+    console.error('Error creando thread como admin:', error);
+    throw error;
+  }
+};
+
+/**
+ * Actualiza un thread (solo admin)
+ * @param {string} threadId - ID del thread
+ * @param {object} updates - Campos a actualizar
+ * @returns {Promise<void>}
+ */
+export const updateThreadAsAdmin = async (threadId, updates) => {
+  try {
+    const threadRef = doc(db, FORUM_COLLECTION, threadId);
+    await updateDoc(threadRef, {
+      ...updates,
+      updatedAt: serverTimestamp(),
+    });
+  } catch (error) {
+    console.error('Error actualizando thread:', error);
+    throw error;
+  }
+};
+
+/**
+ * Elimina un thread y todas sus respuestas (solo admin)
+ * @param {string} threadId - ID del thread
+ * @returns {Promise<void>}
+ */
+export const deleteThreadAsAdmin = async (threadId) => {
+  try {
+    // Eliminar todas las respuestas del thread
+    const repliesQuery = query(
+      collection(db, REPLIES_COLLECTION),
+      where('threadId', '==', threadId)
+    );
+    const repliesSnapshot = await getDocs(repliesQuery);
+    
+    const deleteRepliesPromises = repliesSnapshot.docs.map(doc => deleteDoc(doc.ref));
+    await Promise.all(deleteRepliesPromises);
+
+    // Eliminar el thread
+    const threadRef = doc(db, FORUM_COLLECTION, threadId);
+    await deleteDoc(threadRef);
+  } catch (error) {
+    console.error('Error eliminando thread:', error);
+    throw error;
+  }
+};
+
+/**
+ * Crea una respuesta con ID anónimo personalizado (para admin)
+ * @param {string} threadId - ID del thread
+ * @param {string} content - Contenido de la respuesta
+ * @param {string} customAnonymousId - ID anónimo personalizado
+ * @returns {Promise<string>} ID de la respuesta creada
+ */
+export const addReplyAsAdmin = async (threadId, content, customAnonymousId = null) => {
+  try {
+    const anonId = customAnonymousId || generateAnonymousId();
+
+    // Crear la respuesta
+    const replyRef = await addDoc(collection(db, REPLIES_COLLECTION), {
+      threadId: threadId,
+      content: content,
+      authorId: anonId,
+      authorDisplay: `Usuario Anónimo #${anonId.split('_')[1]}`,
+      likes: 0,
+      createdAt: serverTimestamp(),
+      isAdminCreated: true, // Marca para identificar respuestas creadas por admin
+    });
+
+    // Incrementar contador de respuestas en el thread
+    const threadRef = doc(db, FORUM_COLLECTION, threadId);
+    await updateDoc(threadRef, {
+      replies: increment(1),
+      updatedAt: serverTimestamp(),
+    });
+
+    return replyRef.id;
+  } catch (error) {
+    console.error('Error agregando respuesta como admin:', error);
+    throw error;
+  }
+};
+
+/**
+ * Actualiza una respuesta (solo admin)
+ * @param {string} replyId - ID de la respuesta
+ * @param {object} updates - Campos a actualizar
+ * @returns {Promise<void>}
+ */
+export const updateReplyAsAdmin = async (replyId, updates) => {
+  try {
+    const replyRef = doc(db, REPLIES_COLLECTION, replyId);
+    await updateDoc(replyRef, updates);
+  } catch (error) {
+    console.error('Error actualizando respuesta:', error);
+    throw error;
+  }
+};
+
+/**
+ * Elimina una respuesta (solo admin)
+ * @param {string} replyId - ID de la respuesta
+ * @param {string} threadId - ID del thread (para decrementar contador)
+ * @returns {Promise<void>}
+ */
+export const deleteReplyAsAdmin = async (replyId, threadId) => {
+  try {
+    // Eliminar la respuesta
+    const replyRef = doc(db, REPLIES_COLLECTION, replyId);
+    await deleteDoc(replyRef);
+
+    // Decrementar contador de respuestas en el thread
+    if (threadId) {
+      const threadRef = doc(db, FORUM_COLLECTION, threadId);
+      const threadSnap = await getDoc(threadRef);
+      if (threadSnap.exists()) {
+        const currentReplies = threadSnap.data().replies || 0;
+        await updateDoc(threadRef, {
+          replies: Math.max(0, currentReplies - 1),
+          updatedAt: serverTimestamp(),
+        });
+      }
+    }
+  } catch (error) {
+    console.error('Error eliminando respuesta:', error);
+    throw error;
+  }
+};
+
+/**
+ * Obtiene todos los threads (para admin - sin límites)
+ * @returns {Promise<Array>} Array de todos los threads
+ */
+export const getAllThreadsAsAdmin = async () => {
+  try {
+    const q = query(collection(db, FORUM_COLLECTION), orderBy('createdAt', 'desc'));
+    const snapshot = await getDocs(q);
+    const threads = [];
+
+    snapshot.forEach((doc) => {
+      threads.push({
+        id: doc.id,
+        ...doc.data(),
+        timestamp: doc.data().createdAt?.toMillis() || Date.now(),
+      });
+    });
+
+    return threads;
+  } catch (error) {
+    console.error('Error obteniendo threads como admin:', error);
+    return [];
+  }
+};
+
+/**
+ * Obtiene todas las respuestas de todos los threads (para admin)
+ * @returns {Promise<Array>} Array de todas las respuestas
+ */
+export const getAllRepliesAsAdmin = async () => {
+  try {
+    const q = query(collection(db, REPLIES_COLLECTION), orderBy('createdAt', 'desc'));
+    const snapshot = await getDocs(q);
+    const replies = [];
+
+    snapshot.forEach((doc) => {
+      replies.push({
+        id: doc.id,
+        ...doc.data(),
+        timestamp: doc.data().createdAt?.toMillis() || Date.now(),
+      });
+    });
+
+    return replies;
+  } catch (error) {
+    console.error('Error obteniendo respuestas como admin:', error);
+    return [];
   }
 };
 

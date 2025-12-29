@@ -112,6 +112,13 @@ export const getUserProfile = async (uid) => {
       return basicProfile;
     }
   } catch (error) {
+    // ✅ Ignorar errores internos de Firestore que no podemos controlar
+    if (error?.message?.includes('INTERNAL ASSERTION FAILED') || 
+        error?.message?.includes('Unexpected state')) {
+      console.warn('Firestore internal error getting user profile, returning null');
+      // Retornar null en lugar de lanzar error para evitar romper la app
+      return null;
+    }
     console.error('Error getting user profile:', error);
     throw error;
   }

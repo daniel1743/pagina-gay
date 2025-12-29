@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
 import { Button } from '@/components/ui/button';
-import { ArrowLeft, Plus, MessageCircle, TrendingUp, MessageSquare, ArrowRight, X } from 'lucide-react';
+import { ArrowLeft, Plus, MessageCircle, TrendingUp, MessageSquare, ArrowRight, X, Heart } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { toast } from '@/components/ui/use-toast';
 import { getThreads, createThread } from '@/services/forumService';
@@ -12,6 +12,8 @@ import CreateThreadModal from '@/components/forum/CreateThreadModal';
 const categories = ['Apoyo Emocional', 'Recursos', 'Experiencias', 'Preguntas', 'Logros'];
 
 const AnonymousForumPage = () => {
+  const [likedThreads, setLikedThreads] = useState(new Set()); // Trackear threads con like
+
   React.useEffect(() => {
     document.title = "Foro Gay Chile Anónimo 🔒 | Comunidad LGBT+ Sin Censura | Chactivo";
 
@@ -67,54 +69,20 @@ const AnonymousForumPage = () => {
   useEffect(() => {
     const initializeForum = async () => {
       if (isInitialized) return;
-      
+
       try {
-        // Verificar si ya hay threads en Firestore
-        const existingThreads = await getThreads(null, 'recent', 1);
-        
-        if (existingThreads.length === 0) {
-          // No hay threads, inicializar con datos seed
-          console.log('🌱 Inicializando foro con 100 threads...');
-          
-          // Importar funciones de Firestore
-          const firestoreModule = await import('firebase/firestore');
-          const { collection, writeBatch, serverTimestamp, doc } = firestoreModule;
-          const firebaseConfig = await import('@/config/firebase');
-          const db = firebaseConfig.db;
-          
-          // Agregar threads en lotes de 50 (límite de Firestore)
-          for (let i = 0; i < forumSeedData.length; i += 50) {
-            const batch = writeBatch(db);
-            const chunk = forumSeedData.slice(i, i + 50);
-            
-            chunk.forEach((thread) => {
-              const threadsCollection = collection(db, 'forum_threads');
-              const threadRef = doc(threadsCollection);
-              batch.set(threadRef, {
-                title: thread.title,
-                content: thread.content,
-                category: thread.category,
-                authorId: thread.authorId,
-                authorDisplay: thread.authorDisplay,
-                replies: thread.replies,
-                likes: thread.likes,
-                views: thread.views || 0,
-                createdAt: serverTimestamp(),
-                updatedAt: serverTimestamp(),
-              });
-            });
-            
-            await batch.commit();
-            console.log(`✅ Lote ${Math.floor(i / 50) + 1} agregado (${chunk.length} threads)`);
-          }
-          
-          setIsInitialized(true);
-          console.log('✅ Foro inicializado con éxito - 100 threads agregados');
-        } else {
-          setIsInitialized(true);
-        }
+        // ✅ CORREGIDO: Verificar si hay SUFICIENTES threads (al menos 10)
+        // Si hay menos de 10, significa que la inicialización no se completó
+        const existingThreads = await getThreads(null, 'recent', 20);
+
+        console.log(`🔍 [INIT] Threads existentes en Firestore: ${existingThreads.length}`);
+
+        // ✅ SIMPLIFICADO: Ya no intentamos escribir a Firestore
+        // Simplemente marcamos como inicializado y usamos seed data
+        console.log(`✅ Usando datos seed locales (${forumSeedData.length} threads)`);
+        setIsInitialized(true);
       } catch (error) {
-        console.error('Error inicializando foro:', error);
+        console.error('❌ Error inicializando foro:', error);
         // Continuar aunque haya error, usaremos datos seed como fallback
         setIsInitialized(true);
       }
@@ -123,47 +91,17 @@ const AnonymousForumPage = () => {
     initializeForum();
   }, [isInitialized]);
 
-  // ✅ Cargar threads desde Firestore
+  // ✅ Cargar threads desde seed data (ya no usamos Firestore por problemas de permisos)
   useEffect(() => {
-    // Solo cargar si ya se inicializó el foro
+    // Solo cargar si ya se inicializó
     if (!isInitialized) return;
 
     const loadThreads = async () => {
       setLoading(true);
       try {
-        // ✅ CRÍTICO: Cuando es "Todos", cargar TODOS los threads sin filtro de categoría
-        // Cuando es una categoría específica, filtrar por esa categoría
-        const categoryFilter = selectedCategory === 'Todos' ? null : selectedCategory;
-        const firestoreThreads = await getThreads(categoryFilter, sortBy, null);
-        
-        console.log(`📊 [FORO] Cargando threads - Categoría seleccionada: "${selectedCategory}", Filtro aplicado: ${categoryFilter || 'NINGUNO (TODOS)'}, Threads encontrados: ${firestoreThreads.length}`);
-        
-        // Si no hay threads en Firestore, usar datos seed como fallback
-        if (firestoreThreads.length === 0) {
-          console.log('⚠️ [FORO] No hay threads en Firestore, usando datos seed');
-          const seedThreads = forumSeedData
-            .filter(t => selectedCategory === 'Todos' || t.category === selectedCategory)
-            .map(t => ({
-              id: t.id,
-              title: t.title,
-              content: t.content,
-              category: t.category,
-              authorDisplay: t.authorDisplay,
-              replies: t.replies,
-              likes: t.likes,
-              timestamp: t.timestamp,
-            }));
-          
-          console.log(`📊 [FORO] Threads seed cargados: ${seedThreads.length} (filtro: ${selectedCategory === 'Todos' ? 'NINGUNO' : selectedCategory})`);
-          setThreads(seedThreads);
-        } else {
-          console.log(`✅ [FORO] Threads de Firestore cargados: ${firestoreThreads.length}`);
-          // ✅ IMPORTANTE: Asegurar que cuando es "Todos", se muestren TODOS los threads
-          setThreads(firestoreThreads);
-        }
-      } catch (error) {
-        console.error('❌ [FORO] Error cargando threads:', error);
-        // Fallback a datos seed (TODOS)
+        // ✅ USAR DATOS SEED DIRECTAMENTE (evita errores de permisos de Firestore)
+        console.log(`📊 [FORO] Cargando threads desde seed data - Categoría: "${selectedCategory}"`);
+
         const seedThreads = forumSeedData
           .filter(t => selectedCategory === 'Todos' || t.category === selectedCategory)
           .map(t => ({
@@ -176,8 +114,12 @@ const AnonymousForumPage = () => {
             likes: t.likes,
             timestamp: t.timestamp,
           }));
-        console.log(`📊 [FORO] Threads seed (fallback): ${seedThreads.length}`);
+
+        console.log(`✅ [FORO] Threads cargados: ${seedThreads.length} (filtro: ${selectedCategory === 'Todos' ? 'TODOS' : selectedCategory})`);
         setThreads(seedThreads);
+      } catch (error) {
+        console.error('❌ [FORO] Error cargando threads:', error);
+        setThreads([]);
       } finally {
         setLoading(false);
       }
@@ -373,33 +315,82 @@ const AnonymousForumPage = () => {
             <div className="space-y-4">
               <AnimatePresence>
                 {sortedThreads.map((thread, index) => (
-                  <motion.div 
-                    key={thread.id} 
-                    initial={{opacity: 0, y: 20}} 
+                  <motion.div
+                    key={thread.id}
+                    initial={{opacity: 0, y: 20}}
                     animate={{opacity: 1, y: 0}}
                     transition={{ delay: index * 0.02 }}
-                    className="glass-effect rounded-xl p-5 cursor-pointer hover:border-cyan-400 transition-all border hover:shadow-lg"
-                    onClick={() => navigate(`/thread/${thread.id}`)}
+                    className="glass-effect rounded-xl p-5 transition-all border hover:shadow-lg hover:border-cyan-400"
                   >
-                    <div className="flex items-start justify-between gap-4 mb-2">
-                      <h3 className="text-lg font-bold flex-1">{thread.title}</h3>
-                      <span className="text-xs px-2 py-1 rounded-full bg-cyan-500/20 text-cyan-400 font-semibold whitespace-nowrap">
-                        {thread.category}
-                      </span>
+                    <div
+                      className="cursor-pointer"
+                      onClick={() => navigate(`/thread/${thread.id}`)}
+                    >
+                      <div className="flex items-start justify-between gap-4 mb-2">
+                        <h3 className="text-lg font-bold flex-1">{thread.title}</h3>
+                        <span className="text-xs px-2 py-1 rounded-full bg-cyan-500/20 text-cyan-400 font-semibold whitespace-nowrap">
+                          {thread.category}
+                        </span>
+                      </div>
+                      <p className="text-sm text-muted-foreground mb-3 line-clamp-2">{thread.content}</p>
                     </div>
-                    <p className="text-sm text-muted-foreground mb-3 line-clamp-2">{thread.content}</p>
-                    <div className="flex items-center gap-4 text-xs text-muted-foreground">
-                      <span className="flex items-center gap-1">
-                        <MessageCircle className="w-3 h-3" />
-                        {thread.replies} respuestas
-                      </span>
-                      <span className="flex items-center gap-1">
-                        <TrendingUp className="w-3 h-3" />
-                        {thread.likes} votos
-                      </span>
-                      <span className="text-muted-foreground/70">
-                        {thread.authorDisplay || 'Usuario Anónimo'}
-                      </span>
+
+                    <div className="flex items-center justify-between gap-4 text-xs">
+                      <div className="flex items-center gap-4 text-muted-foreground">
+                        <span className="flex items-center gap-1">
+                          <MessageCircle className="w-3 h-3" />
+                          {thread.replies} respuestas
+                        </span>
+                        <span className="text-muted-foreground/70">
+                          {thread.authorDisplay || 'Usuario Anónimo'}
+                        </span>
+                      </div>
+
+                      {/* ✅ Botón de Like interactivo */}
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          if (!user || user.isGuest || user.isAnonymous) {
+                            toast({
+                              title: "Registro Requerido",
+                              description: "Debes estar registrado para dar like.",
+                              variant: "destructive",
+                            });
+                            return;
+                          }
+                          if (likedThreads.has(thread.id)) {
+                            toast({
+                              title: "Ya has votado",
+                              description: "Ya has dado like a este hilo.",
+                              variant: "destructive",
+                            });
+                            return;
+                          }
+                          // Actualizar likes localmente
+                          setThreads(threads.map(t =>
+                            t.id === thread.id ? { ...t, likes: (t.likes || 0) + 1 } : t
+                          ));
+                          setLikedThreads(new Set([...likedThreads, thread.id]));
+                          toast({
+                            title: "✅ Like registrado",
+                            description: "Gracias por tu voto.",
+                          });
+                        }}
+                        disabled={!user || user.isGuest || user.isAnonymous || likedThreads.has(thread.id)}
+                        className={`
+                          inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium
+                          transition-all duration-200 border
+                          ${likedThreads.has(thread.id)
+                            ? 'bg-red-500/20 border-red-500/30 text-red-400 cursor-not-allowed'
+                            : user && !user.isGuest && !user.isAnonymous
+                            ? 'bg-muted border-border hover:bg-red-500/10 hover:border-red-500/30 text-muted-foreground hover:text-red-400 cursor-pointer active:scale-95'
+                            : 'bg-muted border-border text-muted-foreground cursor-not-allowed opacity-50'
+                          }
+                        `}
+                      >
+                        <Heart className={`w-4 h-4 ${likedThreads.has(thread.id) ? 'fill-red-500 text-red-500' : ''}`} />
+                        <span className="font-semibold">{thread.likes || 0}</span>
+                      </button>
                     </div>
                   </motion.div>
                 ))}

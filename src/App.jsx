@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 import { Toaster } from '@/components/ui/toaster';
 import LobbyPage from '@/pages/LobbyPage';
@@ -21,6 +21,8 @@ import Mas30LandingPage from '@/pages/Mas30LandingPage';
 import SantiagoLandingPage from '@/pages/SantiagoLandingPage';
 import GlobalLandingPage from '@/pages/GlobalLandingPage';
 import { ThemeProvider } from '@/contexts/ThemeContext';
+import PWASplashScreen from '@/components/pwa/PWASplashScreen';
+import ErrorBoundary from '@/components/ui/ErrorBoundary';
 
 // ✅ Componentes que usan useAuth deben estar dentro del AuthProvider
 function PrivateRoute({ children }) {
@@ -141,12 +143,41 @@ function AppRoutes() {
 }
 
 function App() {
+  const [showSplash, setShowSplash] = useState(false);
+  const [splashCompleted, setSplashCompleted] = useState(false);
+
+  useEffect(() => {
+    // Detectar si está corriendo como PWA
+    const isPWA = window.matchMedia('(display-mode: standalone)').matches ||
+                  window.navigator.standalone ||
+                  document.referrer.includes('android-app://');
+
+    // Mostrar splash solo en PWA y solo la primera vez en cada sesión
+    const hasShownSplash = sessionStorage.getItem('splashShown');
+
+    if (isPWA && !hasShownSplash) {
+      setShowSplash(true);
+      sessionStorage.setItem('splashShown', 'true');
+    } else {
+      setSplashCompleted(true);
+    }
+  }, []);
+
+  const handleSplashComplete = () => {
+    setSplashCompleted(true);
+  };
+
   return (
-    <ThemeProvider>
-      <AuthProvider>
-        <AppRoutes />
-      </AuthProvider>
-    </ThemeProvider>
+    <ErrorBoundary>
+      <ThemeProvider>
+        <AuthProvider>
+          {showSplash && !splashCompleted && (
+            <PWASplashScreen onComplete={handleSplashComplete} />
+          )}
+          {splashCompleted && <AppRoutes />}
+        </AuthProvider>
+      </ThemeProvider>
+    </ErrorBoundary>
   );
 }
 

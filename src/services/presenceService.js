@@ -151,30 +151,59 @@ export const subscribeToRoomUsers = (roomId, callback) => {
 export const subscribeToMultipleRoomCounts = (roomIds, callback) => {
   const counts = {};
   const unsubscribers = [];
+  let isUnsubscribed = false;
 
   roomIds.forEach(roomId => {
-    const usersRef = collection(db, 'roomPresence', roomId, 'users');
+    try {
+      const usersRef = collection(db, 'roomPresence', roomId, 'users');
 
-    const unsubscribe = onSnapshot(usersRef, (snapshot) => {
-      counts[roomId] = snapshot.size;
-      callback({ ...counts });
-    }, (error) => {
-      // ✅ Ignorar AbortError (normal cuando se cancela una suscripción)
-      if (error.name === 'AbortError' || error.code === 'cancelled') {
-        // No hacer nada, la suscripción fue cancelada intencionalmente
-        return;
-      }
-      console.error(`Error subscribing to room ${roomId}:`, error);
+      const unsubscribe = onSnapshot(usersRef, (snapshot) => {
+        // ✅ Prevenir callbacks después de desuscribirse
+        if (isUnsubscribed) return;
+        
+        try {
+          counts[roomId] = snapshot.size;
+          callback({ ...counts });
+        } catch (callbackError) {
+          console.error(`Error in callback for room ${roomId}:`, callbackError);
+        }
+      }, (error) => {
+        // ✅ Ignorar errores específicos de Firestore
+        if (error.name === 'AbortError' || error.code === 'cancelled') {
+          return;
+        }
+        
+        // ✅ Ignorar errores internos de Firestore que no podemos controlar
+        if (error?.message?.includes('INTERNAL ASSERTION FAILED') || 
+            error?.message?.includes('Unexpected state')) {
+          console.warn(`Firestore internal error for room ${roomId}, ignoring...`);
+          return;
+        }
+        
+        console.error(`Error subscribing to room ${roomId}:`, error);
+        if (!isUnsubscribed) {
+          counts[roomId] = 0;
+          callback({ ...counts });
+        }
+      });
+
+      unsubscribers.push(unsubscribe);
+    } catch (error) {
+      console.error(`Error setting up listener for room ${roomId}:`, error);
       counts[roomId] = 0;
-      callback({ ...counts });
-    });
-
-    unsubscribers.push(unsubscribe);
+    }
   });
 
   // Retornar función para desuscribirse de todos
   return () => {
-    unsubscribers.forEach(unsub => unsub());
+    isUnsubscribed = true;
+    unsubscribers.forEach(unsub => {
+      try {
+        unsub();
+      } catch (error) {
+        console.warn('Error unsubscribing:', error);
+      }
+    });
   };
 };
 

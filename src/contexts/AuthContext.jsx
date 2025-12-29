@@ -87,7 +87,35 @@ export const AuthProvider = ({ children }) => {
             setUser(guestUser);
           } else {
             // Usuario registrado - obtener perfil de Firestore
-            const userProfile = await getUserProfile(firebaseUser.uid);
+            let userProfile;
+            try {
+              userProfile = await getUserProfile(firebaseUser.uid);
+              // Si getUserProfile retorna null por error interno, crear perfil básico
+              if (!userProfile) {
+                console.warn('getUserProfile returned null, creating basic profile');
+                userProfile = {
+                  id: firebaseUser.uid,
+                  username: `Usuario${firebaseUser.uid.slice(0, 6)}`,
+                  email: firebaseUser.email || 'email@example.com',
+                  isPremium: false,
+                  verified: false,
+                  isGuest: false,
+                  avatar: `https://api.dicebear.com/7.x/avataaars/svg?seed=${firebaseUser.uid}`,
+                };
+              }
+            } catch (profileError) {
+              // Si hay error, crear perfil básico local
+              console.error('Error getting user profile, using basic profile:', profileError);
+              userProfile = {
+                id: firebaseUser.uid,
+                username: `Usuario${firebaseUser.uid.slice(0, 6)}`,
+                email: firebaseUser.email || 'email@example.com',
+                isPremium: false,
+                verified: false,
+                isGuest: false,
+                avatar: `https://api.dicebear.com/7.x/avataaars/svg?seed=${firebaseUser.uid}`,
+              };
+            }
             
             // Verificar sanciones antes de permitir acceso
             const sanctions = await checkUserSanctions(firebaseUser.uid);

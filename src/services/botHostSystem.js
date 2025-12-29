@@ -12,32 +12,65 @@
  */
 
 import { sendMessage } from './chatService';
-import { getRandomBotProfiles } from '@/config/botProfiles';
+import { getRandomBotProfiles, BOT_PROFILES } from '@/config/botProfiles';
 import { generateBotResponse } from './geminiBotService';
+import {
+  getBotProfileForRoom,
+  isBotAssigned,
+  getBotCurrentRoom,
+  cleanupBotFromRoom,
+  assignBotToRoom
+} from './botRoomAssignment';
 
 /**
  * Estado global del sistema de anfitriones
- * Estructura: { roomId: { hosts: Map<userId, botData>, lastActivity: Map<userId, timestamp> } }
+ * Estructura: {
+ *   roomId: {
+ *     hosts: Map<userId, botData>,
+ *     lastActivity: Map<userId, timestamp>,
+ *     assignedBots: Set<botId>,
+ *     botMetadata: Map<botId, { username, avatar }> // ✅ Para cleanup
+ *   }
+ * }
  */
 const roomHostStates = new Map();
 
 /**
  * Bots disponibles para rotar (excluye los ya asignados)
+ * ✅ ACTUALIZADO: Verifica que el bot no esté en otra sala
  */
 const getAvailableBots = (roomId, excludeBotIds = []) => {
-  const allBots = getRandomBotProfiles(10); // Pool de 10 bots
-  return allBots.filter(bot => !excludeBotIds.includes(bot.userId));
+  // Obtener bots disponibles (no asignados a otras salas o ya usados en esta sala)
+  const availableBotIds = BOT_PROFILES
+    .filter(bot => {
+      const botId = bot.id;
+
+      // Si ya está excluido en esta sala, no usarlo
+      if (excludeBotIds.includes(botId)) return false;
+
+      // Si el bot NO está asignado a ninguna sala, está disponible
+      if (!isBotAssigned(botId)) return true;
+
+      // Si está asignado pero es a ESTA sala, está disponible (puede rotar dentro de la misma sala)
+      const currentRoom = getBotCurrentRoom(botId);
+      return currentRoom === roomId;
+    })
+    .map(bot => bot.id);
+
+  return availableBotIds.map(botId => getBotProfileForRoom(botId, roomId));
 };
 
 /**
  * Inicializa el estado de una sala
+ * ✅ ACTUALIZADO: Incluye metadata para cleanup
  */
 const initRoomState = (roomId) => {
   if (!roomHostStates.has(roomId)) {
     roomHostStates.set(roomId, {
       hosts: new Map(),           // userId -> botData
       lastActivity: new Map(),    // userId -> timestamp
-      assignedBots: new Set()     // Set de botIds asignados
+      assignedBots: new Set(),    // Set de botIds asignados
+      botMetadata: new Map()      // botId -> { username, avatar } para cleanup
     });
   }
   return roomHostStates.get(roomId);
@@ -45,6 +78,7 @@ const initRoomState = (roomId) => {
 
 /**
  * Asigna un bot anfitrión a un usuario específico
+ * ✅ ACTUALIZADO: Usa perfiles únicos por sala y guarda metadata
  *
  * @param {String} roomId - ID de la sala
  * @param {String} userId - ID del usuario real
@@ -58,7 +92,7 @@ export const assignHostBot = (roomId, userId) => {
     return state.hosts.get(userId);
   }
 
-  // Obtener bot disponible (no asignado a otro usuario)
+  // Obtener bot disponible (no asignado a otro usuario en esta sala, ni en otras salas)
   const assignedBotIds = Array.from(state.assignedBots);
   const availableBots = getAvailableBots(roomId, assignedBotIds);
 
@@ -68,13 +102,21 @@ export const assignHostBot = (roomId, userId) => {
   }
 
   const selectedBot = availableBots[0];
+  const botId = selectedBot.id;
 
-  // Asignar bot
+  // ✅ Asignar bot con perfil personalizado para esta sala
   state.hosts.set(userId, selectedBot);
-  state.assignedBots.add(selectedBot.userId);
+  state.assignedBots.add(botId);
   state.lastActivity.set(userId, Date.now());
 
-  console.log(`🎯 Bot anfitrión asignado: ${selectedBot.username} → Usuario ${userId.substring(0, 8)}`);
+  // ✅ Guardar metadata para cleanup (nombre y avatar únicos de esta sala)
+  state.botMetadata.set(botId, {
+    username: selectedBot.username,
+    avatar: selectedBot.avatar
+  });
+
+  console.log(`🎯 Bot anfitrión asignado: ${selectedBot.username} (ID: ${botId}) → Usuario ${userId.substring(0, 8)} en sala ${roomId}`);
+  console.log(`✅ Bot profile personalizado para sala ${roomId}: nombre="${selectedBot.username}", avatar="${selectedBot.avatar.substring(0, 50)}..."`);
 
   // Enviar mensaje de bienvenida del bot
   sendWelcomeMessage(roomId, selectedBot, userId);
@@ -185,6 +227,7 @@ export const hostBotRespond = async (roomId, userId, userMessage, conversationHi
 
 /**
  * Rota el bot anfitrión (cuando falla o no puede responder)
+ * ✅ ACTUALIZADO: Hace cleanup del bot saliente
  *
  * @param {String} roomId - ID de la sala
  * @param {String} userId - ID del usuario
@@ -195,9 +238,10 @@ export const rotateHostBot = async (roomId, userId, reason = null) => {
   if (!state || !state.hosts.has(userId)) return;
 
   const oldBot = state.hosts.get(userId);
+  const oldBotId = oldBot.id;
 
   console.log(`🔄 Rotando bot anfitrión para usuario ${userId.substring(0, 8)}`);
-  console.log(`   Saliente: ${oldBot.username}`);
+  console.log(`   Saliente: ${oldBot.username} (ID: ${oldBotId})`);
 
   // Mensaje de sistema: bot abandona sala
   await sendMessage(roomId, {
@@ -208,9 +252,19 @@ export const rotateHostBot = async (roomId, userId, reason = null) => {
     type: 'system'
   });
 
-  // Remover bot anterior
+  // ✅ Obtener metadata del bot (nombre y avatar usados en esta sala)
+  const botMetadata = state.botMetadata.get(oldBotId);
+
+  // ✅ Cleanup: Liberar nombre y avatar del bot en esta sala
+  if (botMetadata) {
+    cleanupBotFromRoom(oldBotId, roomId, botMetadata.username, botMetadata.avatar);
+    console.log(`✅ Cleanup realizado: Bot ${oldBotId} liberado de sala ${roomId}`);
+  }
+
+  // Remover bot anterior del estado local
   state.hosts.delete(userId);
-  state.assignedBots.delete(oldBot.userId);
+  state.assignedBots.delete(oldBotId);
+  state.botMetadata.delete(oldBotId);
 
   // Asignar nuevo bot
   const newBot = assignHostBot(roomId, userId);
@@ -220,7 +274,7 @@ export const rotateHostBot = async (roomId, userId, reason = null) => {
     return;
   }
 
-  console.log(`   Entrante: ${newBot.username}`);
+  console.log(`   Entrante: ${newBot.username} (ID: ${newBot.id})`);
 
   // Mensaje de sistema: nuevo bot entra
   await sendMessage(roomId, {
@@ -244,7 +298,7 @@ export const rotateHostBot = async (roomId, userId, reason = null) => {
 
   setTimeout(async () => {
     await sendMessage(roomId, {
-      userId: newBot.userId,
+      userId: newBot.id,
       username: newBot.username,
       avatar: newBot.avatar,
       isPremium: newBot.isPremium || false,
