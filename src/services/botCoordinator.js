@@ -6,7 +6,7 @@
  * Se desactiva gradualmente cuando entran más personas
  */
 
-import { getRandomBotProfiles } from '@/config/botProfiles';
+import { getRandomBotProfiles, BOT_PROFILES } from '@/config/botProfiles';
 import {
   generateBotResponse,
   generateInitialMessage,
@@ -29,6 +29,13 @@ import {
   checkUserInactivity as checkAIUserInactivity,
   clearRoomAI
 } from './aiUserInteraction';
+import {
+  getBotProfileForRoom,
+  isBotAssigned,
+  getBotCurrentRoom,
+  cleanupBotFromRoom,
+  getBotAssignmentStats
+} from './botRoomAssignment';
 
 /**
  * CONFIGURACIÓN DE ACTIVACIÓN DE BOTS
@@ -258,10 +265,22 @@ const startBotActivity = (roomId, botProfile, getConversationHistory, config) =>
 
 /**
  * Detiene todos los bots de una sala
+ * ✅ ACTUALIZADO: Hace cleanup de todos los bots asignados
  */
 const stopAllBots = (roomId) => {
   const roomState = roomBotStates.get(roomId);
   if (!roomState) return;
+
+  // ✅ Cleanup: Liberar todos los bots de esta sala
+  if (roomState.activeBots && roomState.activeBots.length > 0) {
+    roomState.activeBots.forEach(bot => {
+      const botId = bot.id;
+      const username = bot.username;
+      const avatar = bot.avatar;
+      cleanupBotFromRoom(botId, roomId, username, avatar);
+      console.log(`✅ Cleanup: Bot ${botId} (${username}) liberado de sala ${roomId}`);
+    });
+  }
 
   // 🆕 Detener conversaciones programadas
   if (roomState.conversationInterval) {
@@ -357,10 +376,25 @@ const updateBotActivity = (roomId, realUserCount, getConversationHistory) => {
 
 /**
  * Inicia bots para una sala específica
+ * ✅ ACTUALIZADO: Usa perfiles únicos por sala
  */
 const startBotsForRoom = (roomId, botCount, getConversationHistory) => {
-  // Obtener perfiles de bots aleatorios
-  const botProfiles = getRandomBotProfiles(botCount);
+  // ✅ Obtener bots disponibles que NO estén en otras salas
+  const availableBotIds = BOT_PROFILES
+    .filter(bot => {
+      const botId = bot.id;
+      // Solo usar bots que NO están asignados, o que están en ESTA sala
+      if (!isBotAssigned(botId)) return true;
+      const currentRoom = getBotCurrentRoom(botId);
+      return currentRoom === roomId;
+    })
+    .map(bot => bot.id)
+    .slice(0, botCount);
+
+  // ✅ Crear perfiles personalizados para esta sala
+  const botProfiles = availableBotIds.map(botId => getBotProfileForRoom(botId, roomId));
+
+  console.log(`✅ [BOT COORDINATOR] Bots asignados a sala ${roomId}:`, botProfiles.map(b => `${b.username} (ID: ${b.id})`));
 
   // ⚠️ COMPLETAMENTE DESACTIVADO - TODAS LAS CONVERSACIONES DE BOTS
   // Solo el sistema de IA conversacional debe estar activo
@@ -372,7 +406,7 @@ const startBotsForRoom = (roomId, botCount, getConversationHistory) => {
   // schedulePeriodicGroupConversations(roomId);
 
   roomBotStates.set(roomId, {
-    activeBots: [], // ⚠️ Sin bots activos
+    activeBots: botProfiles, // ✅ Guardar bots con perfiles personalizados
     intervals: [],
     conversationInterval: null, // ⚠️ Sin conversaciones
     isActive: true, //  ⚠️ Sistema desactivado

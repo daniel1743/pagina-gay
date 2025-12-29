@@ -1,12 +1,18 @@
 /**
- * SERVICIO DE GEMINI API PARA BOTS
+ * SERVICIO DE GEMINI API PARA BOTS HUMANOS
  *
- * Sistema de conversación con moderación automática
- * y advertencias para respuestas inapropiadas
+ * ⚠️ CRÍTICO: Conversaciones 100% naturales que parecen humanas
+ * - System prompts mejorados con análisis contextual
+ * - Humanización automática (typos, delays, emojis)
+ * - Banco de 700+ respuestas únicas como fallback
+ * - Parámetros dinámicos por personalidad
  */
 
+import { humanizeMessage } from '@/utils/humanize';
+import { getContextualResponse, HUMAN_RESPONSES } from '@/data/humanResponses';
+
 const GEMINI_API_KEY = import.meta.env.VITE_GEMINI_API_KEY;
-// Modelo Gemini 2.0 Flash Experimental (optimizado para conversaciones naturales y casuales)
+// Modelo Gemini 2.0 Flash Experimental (optimizado para conversaciones naturales)
 const GEMINI_API_URL = 'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash-exp:generateContent';
 
 // Validar API key de Gemini (solo si se intenta usar)
@@ -111,72 +117,31 @@ const logBotWarning = (botName, inappropriateResponse) => {
  * Genera respuesta de fallback cuando el bot falla
  */
 /**
- * Genera respuesta de fallback inteligente y coloquial cuando el bot falla.
- * Elige la respuesta más coherente según el mensaje del usuario,
- * usando jerga informal (chamo, wn, mmgvo, pana).
+ * Genera respuesta de fallback inteligente usando el banco de 700+ respuestas
  *
  * @param {Object} botProfile - Perfil del bot
  * @param {String} userMessage - Mensaje del usuario que causó el fallo
- * @returns {String} - Respuesta de fallback
+ * @returns {String} - Respuesta de fallback humanizada
  */
 const getSmartFallbackResponse = (botProfile, userMessage = '') => {
-  // ✅ CORREGIDO: Validar que userMessage sea un string
-  if (typeof userMessage !== 'string') {
-    userMessage = String(userMessage || '');
-  }
-  const lowerMessage = userMessage.toLowerCase().trim();
+  // ✅ Usar banco de respuestas variadas en vez de repetir las mismas frases
+  const contextualResponse = getContextualResponse(userMessage, 'neutral');
 
-  // 1. Respuestas de SALUDO/BIENVENIDA (Más directas y abiertas)
-  if (
-    lowerMessage.includes('hola') ||
-    lowerMessage.includes('qué tal') ||
-    lowerMessage.includes('buenas') ||
-    lowerMessage.includes('saludos') ||
-    lowerMessage.includes('entré') ||
-    lowerMessage.length < 10 // Mensajes muy cortos suelen ser saludos
-  ) {
-    const greetings = [
-      '¡Hey! Bienvenid@, ¿qué tal? 👀',
-      '¡Hola! ¿Cómo estás? Qué bueno que te uniste',
-      '¡Hola hola! Siéntete en casa, ¿qué cuentas?',
-      'Bienvenido! ¿Todo bien? Dale, únete a la conversa',
-      'Holaa, qué onda? 😊',
-      'Hey! Qué bueno verte por aquí'
-    ];
-    return greetings[Math.floor(Math.random() * greetings.length)];
+  if (contextualResponse) {
+    // Humanizar la respuesta con la personalidad del bot
+    const personality = botProfile?.personality || 'extrovertido';
+    const humanized = humanizeMessage(contextualResponse, personality, {
+      enableTypos: true,
+      enableSplit: false, // No dividir fallbacks
+      enableEmojis: true
+    });
+
+    return humanized.messages[0];
   }
 
-  // 2. Respuestas de OPINIÓN/PREGUNTA (Interés y chismorreo)
-  if (
-    lowerMessage.includes('qué piensas') ||
-    lowerMessage.includes('cuéntame') ||
-    lowerMessage.includes('alguien') ||
-    lowerMessage.includes('vieron') ||
-    lowerMessage.includes('escucharon') ||
-    lowerMessage.includes('qué onda')
-  ) {
-    const opinions = [
-      '¡Dale! Cuéntanos más de eso, me interesa',
-      'Tienes razón, ¿y tú qué opinas?',
-      'Me gusta cómo piensas, ¿algún detalle más?',
-      '¡Totalmente! ¿Qué pasó con eso? No me enteré',
-      'Interesante punto, cuenta más',
-      '¿En serio? No sabía eso'
-    ];
-    return opinions[Math.floor(Math.random() * opinions.length)];
-  }
-
-  // 3. Respuesta GENÉRICA (último recurso)
-  const fallbacks = [
-    'Interesante, jaja. Sigue contando',
-    '¿Y a ti qué te trae por acá?',
-    '😂 Totalmente de acuerdo, me pasa igual',
-    'Puede ser, quién sabe jaja',
-    'Jajaja good point',
-    'Sí, entiendo lo que dices'
-  ];
-
-  return fallbacks[Math.floor(Math.random() * fallbacks.length)];
+  // Fallback del fallback (muy raro que llegue aquí)
+  const greetings = botProfile?.greetings || ['hola', 'qué tal?', 'buenas'];
+  return greetings[Math.floor(Math.random() * greetings.length)];
 };
 
 /**
@@ -184,6 +149,85 @@ const getSmartFallbackResponse = (botProfile, userMessage = '') => {
  */
 const getFallbackResponse = (botProfile, userMessage = '') => {
   return getSmartFallbackResponse(botProfile, userMessage);
+};
+
+/**
+ * Obtiene parámetros de generación dinámicos según personalidad
+ *
+ * @param {Object} botProfile - Perfil del bot
+ * @returns {Object} - Configuración de generación para Gemini
+ */
+const getPersonalityParams = (botProfile) => {
+  const personality = botProfile?.personality || 'extrovertido';
+
+  const configs = {
+    extrovertido: {
+      temperature: 1.2,      // Muy creativo, espontáneo
+      topP: 0.95,
+      topK: 70,
+      maxOutputTokens: 80,
+      candidateCount: 1,
+      stopSequences: ["\n\n", "Usuario:", "Pregunta:"]
+    },
+    sensible: {
+      temperature: 0.9,      // Más conservador, emocional
+      topP: 0.88,
+      topK: 50,
+      maxOutputTokens: 70,
+      candidateCount: 1,
+      stopSequences: ["\n\n", "Usuario:"]
+    },
+    irónico: {
+      temperature: 1.1,      // Creativo con estructura
+      topP: 0.92,
+      topK: 65,
+      maxOutputTokens: 75,
+      candidateCount: 1,
+      stopSequences: ["\n\n"]
+    },
+    expresivo: {
+      temperature: 1.3,      // MUY creativo, energético
+      topP: 0.96,
+      topK: 75,
+      maxOutputTokens: 85,
+      candidateCount: 1,
+      stopSequences: ["\n\n"]
+    },
+    tranquilo: {
+      temperature: 0.8,      // Calmado, predecible
+      topP: 0.85,
+      topK: 45,
+      maxOutputTokens: 65,
+      candidateCount: 1,
+      stopSequences: ["\n\n", "Usuario:"]
+    },
+    geek: {
+      temperature: 1.0,      // Balanceado
+      topP: 0.90,
+      topK: 60,
+      maxOutputTokens: 75,
+      candidateCount: 1,
+      stopSequences: ["\n\n"]
+    },
+    seguro: {
+      temperature: 0.95,     // Directo, confiado
+      topP: 0.88,
+      topK: 55,
+      maxOutputTokens: 70,
+      candidateCount: 1,
+      stopSequences: ["\n\n"]
+    },
+    fiestero: {
+      temperature: 1.4,      // MÁXIMA creatividad y caos
+      topP: 0.97,
+      topK: 80,
+      maxOutputTokens: 90,
+      candidateCount: 1,
+      stopSequences: ["\n\n"]
+    }
+  };
+
+  return configs[personality] || configs.extrovertido;
 };
 
 /**
@@ -225,23 +269,35 @@ export const generateBotResponse = async (botProfile, conversationHistory = [], 
         .join('\n');
     }
 
-    // PROMPT OPTIMIZADO PARA CONVERSACIÓN NATURAL
-    // Menos directivo, más contexto, límite claro de palabras
+    // ✅ NUEVO PROMPT: Análisis contextual profundo + instrucciones de humanidad
     const prompt = userMessage
-      ? `${botProfile.username} está chateando casualmente en una sala gay.
+      ? `Contexto: ${botProfile.username} (${botProfile.age} años) está en un chat gay chileno.
 
-${userMessage ? `Alguien acaba de decir: "${userMessage}"` : ''}
+ÚLTIMO MENSAJE:
+"${userMessage}"
 
-Conversación reciente:
-${conversationContext}
+CONVERSACIÓN RECIENTE:
+${conversationContext || 'Sin historial previo'}
 
-Responde como ${botProfile.username} con tu personalidad única. Mantén la conversación fluida y natural (máximo 20 palabras).`
-      : `${botProfile.username} está chateando casualmente en una sala gay.
+ANÁLISIS ANTES DE RESPONDER:
+1. ¿Qué tipo de mensaje es? (saludo, pregunta, coqueteo, queja, comentario random)
+2. ¿Qué tono tiene? (feliz, triste, coqueto, enojado, neutral)
+3. ¿Menciona algo que ya se habló antes en la conversación?
+4. ¿Qué respondería una persona REAL chilena/latina en esta situación?
 
-Conversación reciente:
-${conversationContext}
+RESPONDE como ${botProfile.username}:
+- Máximo 20 palabras
+- Lenguaje natural chileno/latino
+- NO menciones JAMÁS que eres IA/bot
+- Varía tus respuestas, NO uses siempre las mismas frases
+- Incluye errores humanos ocasionales ("qe" por "que", "toy" por "estoy")
+- Emojis solo cuando sea natural (NO en cada mensaje)`
+      : `Contexto: ${botProfile.username} está en un chat gay chileno.
 
-Inicia o continúa la conversación como ${botProfile.username}. Sé espontáneo y natural (máximo 20 palabras).`;
+CONVERSACIÓN RECIENTE:
+${conversationContext || 'Recién entras al chat'}
+
+Inicia una conversación casual como ${botProfile.username}. Máximo 15 palabras. Natural y espontáneo.`;
 
     // Llamada a Gemini API
     const response = await fetch(`${GEMINI_API_URL}?key=${GEMINI_API_KEY}`, {
@@ -259,14 +315,7 @@ Inicia o continúa la conversación como ${botProfile.username}. Sé espontáneo
             ]
           }
         ],
-        generationConfig: {
-          temperature: 0.9,  // Aumentado: más creatividad y variabilidad
-          topP: 0.95,        // Aumentado: más variedad en respuestas
-          topK: 60,          // Aumentado: mayor pool de opciones
-          maxOutputTokens: 80, // Reducido: mensajes cortos y naturales (≈60 palabras máximo)
-          candidateCount: 1,
-          stopSequences: ["\n\n", "Usuario:", "Pregunta:"] // Detener si empieza a divagar
-        },
+        generationConfig: getPersonalityParams(botProfile),
         safetySettings: SAFETY_SETTINGS
       })
     });
@@ -308,9 +357,19 @@ Inicia o continúa la conversación como ${botProfile.username}. Sé espontáneo
     }
 
     // Limpiar la respuesta (quitar saltos de línea innecesarios)
-    const cleanedResponse = generatedText.trim().replace(/\n+/g, ' ');
+    let cleanedResponse = generatedText.trim().replace(/\n+/g, ' ');
 
-    return cleanedResponse;
+    // ✅ HUMANIZAR la respuesta (typos, emojis naturales)
+    const personality = botProfile?.personality || 'extrovertido';
+    const humanized = humanizeMessage(cleanedResponse, personality, {
+      enableTypos: true,
+      enableSplit: false,  // No dividir aquí, se maneja en otro lugar
+      enableEmojis: true,
+      typoProbability: 0.12,  // 12% chance de typos
+      emojiProbability: 0.25  // 25% chance de emoji
+    });
+
+    return humanized.messages[0];
 
   } catch (error) {
     console.error('Error generando respuesta del bot:', error);

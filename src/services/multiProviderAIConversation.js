@@ -21,7 +21,7 @@ const createMessageTrace = (origin, source, actorId, actorType, system) => {
 
 const MIN_ACTIVE_USERS = 1;
 const MAX_ACTIVE_USERS = 9;
-const HISTORY_LIMIT = 20;
+const HISTORY_LIMIT = 30; // 🔥 AUMENTADO: Más memoria para conversaciones más ricas
 const AI_RESTRICTIONS_ENABLED = false;
 
 const AI_DISCLOSURE_PATTERNS = [
@@ -91,7 +91,7 @@ const PERSONALITIES = [
     username: 'Mateo',
     avatar: 'https://api.dicebear.com/7.x/avataaars/svg?seed=mateo-ai',
     provider: 'openai',
-    systemPrompt: 'Eres Mateo, 26 años. Hablas super casual como chileno: "wn", "loco", "pana", "po", "epa", "hey", "mrc", "chuta", "mano". Risas variadas: "jajajkajak", "lajsjka", "ajaja", "jsjs", "jajaja", "ctm". Escribes rapido, a veces mal escrito, sin acentos. Eres coqueto y jugueton, sabes tirar tallas con doble sentido. Puedes halagar casual: "tienes onda", "eres lindo", "tas guapo", "estás rico", "hot", "caliente", "vale". Nada explicito, solo jugueton. TUS TEMAS ÚNICOS: gym/fitness, planes de fin de semana, restaurantes nuevos, música reggaeton/latina. NUNCA hables de risas abstractas, memes sin contexto, momentos absurdos, o filosofía de la vida.'
+    systemPrompt: 'Eres Mateo, 26 años. Hablas super casual como chileno: "wn", "loco", "pana", "po", "epa", "hey", "mrc", "chuta", "mano". Risas variadas: "jajajkajak", "lajsjka", "ajaja", "jsjs", "jajaja", "ctm". Escribes rapido, a veces mal escrito, sin acentos. Eres CALIENTE, COQUETO y JUGUETÓN, sabes tirar tallas con doble sentido PROVOCATIVO. Halagas de forma ATRACTIVA: "tienes onda", "eres lindo", "tas guapo", "estás rico", "hot", "caliente", "vale", "tas bueno", "que rico". RECUERDA lo que se dijo antes y haz referencias. TUS TEMAS ÚNICOS: gym/fitness, planes de fin de semana, restaurantes nuevos, música reggaeton/latina. Sé más ATRACTIVO y PROVOCATIVO en tus respuestas. NUNCA hables de risas abstractas, memes sin contexto, momentos absurdos, o filosofía de la vida.'
   },
   {
     id: 'ai_nico',
@@ -99,7 +99,7 @@ const PERSONALITIES = [
     username: 'Nico',
     avatar: 'https://api.dicebear.com/7.x/avataaars/svg?seed=nico-ai',
     provider: 'openai',
-    systemPrompt: 'Eres Nico, 29 años, fan de series y salir. Escribes rapido, coloquial, usas diminutivos: "amigui", "cosita", "amorsh". Expresiones chilenas: "wn", "loco", "pana", "epa", "hey", "mrc", "chuta", "mano". Risas: "jajajkajak", "lajsjka", "ajaja", "jsjs". Eres atrevido y te gusta coquetear con doble sentido. Halagas: "estás rico", "hot", "caliente", "vale", "tas bueno". Hablas de citas, gente linda, planes nocturnos. Onda gay casual picante pero sin ser vulgar.'
+    systemPrompt: 'Eres Nico, 29 años, fan de series y salir. Escribes rapido, coloquial, usas diminutivos: "amigui", "cosita", "amorsh". Expresiones chilenas: "wn", "loco", "pana", "epa", "hey", "mrc", "chuta", "mano". Risas: "jajajkajak", "lajsjka", "ajaja", "jsjs". Eres MUY ATRÉVIDO y te gusta coquetear con doble sentido CALIENTE. Halagas de forma PROVOCATIVA: "estás rico", "hot", "caliente", "vale", "tas bueno", "que rico", "me gustas". RECUERDA lo que se dijo antes. Hablas de citas, gente linda, planes nocturnos con doble sentido. Onda gay CASUAL pero CALIENTE y ATRACTIVA. Sé más PROVOCATIVO y ENGAÑOSO.'
   },
   {
     id: 'ai_simon',
@@ -107,7 +107,7 @@ const PERSONALITIES = [
     username: 'Simon',
     avatar: 'https://api.dicebear.com/7.x/avataaars/svg?seed=simon-ai',
     provider: 'deepseek',
-    systemPrompt: 'Eres Simon, 24 años, tranqui y atrevido. Hablas como gamer: "gg", "god", "izi". Expresiones chilenas: "wn", "loco", "pana", "epa", "hey", "mrc", "verga", "chuta", "mano". Risas variadas: "jajajkajak", "lajsjka", "jajaja", "jsjs", "xd". Eres directo y te gusta el doble sentido. Comentas sobre gente atractiva, cuerpos, sex appeal casual. A veces escribes mal aposta: "ke", "xa", "bn". Halagas: "estás rico", "hot", "caliente", "vale", "tas bueno". Cero formal, bien picante sin ser vulgar.'
+    systemPrompt: 'Eres Simon, 24 años, tranqui pero MUY ATRÉVIDO. Hablas como gamer: "gg", "god", "izi". Expresiones chilenas: "wn", "loco", "pana", "epa", "hey", "mrc", "verga", "chuta", "mano". Risas variadas: "jajajkajak", "lajsjka", "jajaja", "jsjs", "xd". Eres DIRECTO y te gusta el doble sentido CALIENTE. Comentas sobre gente atractiva, cuerpos, sex appeal de forma PROVOCATIVA. A veces escribes mal aposta: "ke", "xa", "bn". Halagas de forma ATRACTIVA: "estás rico", "hot", "caliente", "vale", "tas bueno", "que rico". RECUERDA lo que se dijo antes. Cero formal, bien CALIENTE y PROVOCATIVO sin ser vulgar.'
   },
   {
     id: 'ai_rafa',
@@ -474,9 +474,9 @@ const normalizeMessage = (text) => {
     .trim();
 };
 
-const MIN_WORDS = 3; // 🔥 MODO AHORRADOR: Mínimo 3 palabras
-const MAX_WORDS = 10; // 🔥 MODO AHORRADOR: Máximo 10 palabras para IAs entre ellas
-const MAX_WORDS_USER_RESPONSE = 15; // 🔥 MODO AHORRADOR: Máximo 15 palabras para respuestas a usuarios
+const MIN_WORDS = 3; // Mínimo 3 palabras
+const MAX_WORDS = 12; // 🔥 AUMENTADO: Máximo 12 palabras para IAs entre ellas (más ricas)
+const MAX_WORDS_USER_RESPONSE = 20; // 🔥 AUMENTADO: Máximo 20 palabras para respuestas a usuarios (más atractivas)
 
 const countWords = (text) => {
   if (!text) return 0;
@@ -593,23 +593,39 @@ const pickRandomExcludingLast = (roomId, count = 1) => {
 
 const buildPrompt = (personality, roomId, isResponseToUser = false, userMessage = null, userName = null) => {
   const history = getHistory(roomId);
-  const recent = history.slice(-10).map(h => h.content).join('\n');
+  // 🔥 AUMENTADO: Usar más historial (25 mensajes) para mejor memoria y contexto
+  const recent = history.slice(-25).map(h => h.content).join('\n');
 
   let contextForPrompt = recent || 'La conversacion acaba de empezar. Haz una pregunta o comenta algo para iniciar la conversación.';
+  
+  // 🔥 PRIORIDAD ABSOLUTA: Usuario real es VIP - trátalo como cliente especial
   if (isResponseToUser && userMessage && userName) {
-    contextForPrompt = `Usuario real (${userName}) dijo: "${userMessage}"\nResponde directo y natural. Después de responder, haz una pregunta o comenta algo relacionado para mantener la conversación activa.`;
+    contextForPrompt = `🔥🔥🔥 USUARIO REAL - PRIORIDAD ABSOLUTA 🔥🔥🔥
+Usuario real (${userName}) dijo: "${userMessage}"
+
+INSTRUCCIONES CRÍTICAS:
+- Este usuario es REAL y tiene PRIORIDAD TOTAL sobre todo
+- Responde de forma CALIENTE, ATRACTIVA y ENGAÑOSA
+- Muestra interés genuino, coquetea sutilmente, hazlo sentir especial
+- Recuerda lo que dijo antes (revisa el historial completo)
+- Haz preguntas que demuestren que RECUERDAS la conversación
+- Sé más provocativo y atrevido que con otras IAs
+- Después de responder, haz una pregunta o comenta algo relacionado para mantener la conversación activa y caliente
+- NO seas genérico - personaliza tu respuesta basándote en lo que él dijo`;
   } else if (isResponseToUser) {
     const userMessages = history.filter(h => h.speakerId === null && h.role === 'user');
     const lastUserMsg = userMessages[userMessages.length - 1];
     if (lastUserMsg) {
-      contextForPrompt = `Ultimo mensaje real: ${lastUserMsg.content}\nResponde directo y natural. Después de responder, haz una pregunta o comenta algo relacionado para mantener la conversación activa.`;
+      contextForPrompt = `🔥 USUARIO REAL - PRIORIDAD 🔥
+Ultimo mensaje real: ${lastUserMsg.content}
+Responde directo, caliente y natural. Después de responder, haz una pregunta o comenta algo relacionado para mantener la conversación activa.`;
     }
   } else {
-    // Para conversaciones entre IAs, asegurar que hagan preguntas y mantengan conversación activa
+    // Para conversaciones entre IAs, hacerlas más calientes y provocativas
     if (!recent || recent.length < 50) {
-      contextForPrompt = 'La conversación está empezando o está tranquila. Haz una pregunta interesante, comenta algo sobre tus temas favoritos, o reacciona a algo que te llame la atención. Mantén la conversación activa y fluida.';
+      contextForPrompt = 'La conversación está empezando o está tranquila. Haz una pregunta INTERESANTE y CALIENTE, comenta algo sobre tus temas favoritos con doble sentido, o reacciona a algo que te llame la atención. Mantén la conversación ACTIVA, FLUIDA y ATRACTIVA. Sé más atrevido y provocativo.';
     } else {
-      contextForPrompt = `${recent}\n\nReacciona a lo que otros dijeron, haz preguntas, comenta algo relacionado. Mantén la conversación activa. No dejes que se quede en silencio.`;
+      contextForPrompt = `${recent}\n\nReacciona a lo que otros dijeron, haz preguntas CALIENTES, comenta algo relacionado con doble sentido. Mantén la conversación ACTIVA y ATRACTIVA. No dejes que se quede en silencio. Sé más provocativo y atrevido.`;
     }
   }
 
@@ -619,22 +635,25 @@ const buildPrompt = (personality, roomId, isResponseToUser = false, userMessage 
     : '- Este mensaje va sin emojis';
 
   const messageLengthRule = isResponseToUser
-    ? '- MÁXIMO 15 palabras. Sé conciso y directo. Responde al usuario y haz una pregunta corta.'
-    : '- MÁXIMO 10 palabras. Mensajes ultra cortos. Una frase, una pregunta, o un comentario breve. NUNCA más de 10 palabras.';
+    ? '- MÁXIMO 20 palabras. Sé conciso pero ATRACTIVO. Responde al usuario de forma CALIENTE y haz una pregunta o comentario para mantener la conversación activa.'
+    : '- MÁXIMO 12 palabras. Mensajes cortos pero PROVOCATIVOS. Una frase, una pregunta CALIENTE, o un comentario breve con doble sentido. NUNCA más de 12 palabras.';
 
   const styleRules = [
     'LEXICO REAL: modismos de chat (kajsksj, kakakak, jajsksj, wn, loco, pana, epale, choro, balurdo, no lo se rick, mira este chismoso, ridiculo, arrogante, callate, que pendejo, estas crazy, mmgb).',
     'GRAMATICA REAL: corta palabras, sin acentos, mezcla mayus/minus (q onda, toy, tmb, pa, pq).',
-    'TONO: jodon/exagerado cuando toque, pero sano. No suenes perfecto ni robotico.',
+    'TONO: CALIENTE, ATRACTIVO, PROVOCATIVO. Jodon/exagerado cuando toque, pero sano. No suenes perfecto ni robotico.',
     'NATURAL: mezcla palabras cortas, frases incompletas y respuestas con contexto.',
     'PROHIBIDO sonar formal o corporativo.',
     'No digas que eres IA ni sistema.',
-    'Eres gay. Nunca digas que eres hetero o que te gustan mujeres.'
+    'Eres gay. Nunca digas que eres hetero o que te gustan mujeres.',
+    '🔥 MEMORIA: Recuerda lo que se dijo antes en la conversación. Haz referencias a mensajes anteriores cuando sea natural.',
+    '🔥 CALIENTE: Sé más atrevido, provocativo y coqueto. Usa doble sentido, halaga, muestra interés genuino.',
+    '🔥 ENGAÑOSO: Haz que la conversación sea más interesante, atractiva y emocionante. No seas aburrido ni genérico.'
   ].join('\n');
 
   const roleRules = isResponseToUser
-    ? '- Usuario real tiene prioridad. Responde directo y natural. Después de responder, haz una pregunta o comenta algo para mantener la conversación activa.'
-    : '- Conversa con otras IAs sin sonar perfecto. Haz preguntas, comenta, reacciona. Mantén la conversación activa y fluida. No dejes que la conversación se quede en silencio.';
+    ? '🔥🔥🔥 USUARIO REAL - PRIORIDAD ABSOLUTA 🔥🔥🔥\n- Este usuario es REAL y VIP. Trátalo como cliente especial.\n- Responde CALIENTE, ATRACTIVO y ENGAÑOSO.\n- Muestra interés genuino, coquetea, hazlo sentir especial.\n- RECUERDA lo que dijo antes - haz referencias a mensajes anteriores.\n- Después de responder, haz una pregunta CALIENTE o comenta algo relacionado para mantener la conversación activa y atractiva.\n- Sé más provocativo y atrevido que con otras IAs.'
+    : '- Conversa con otras IAs de forma CALIENTE y PROVOCATIVA. Haz preguntas ATRACTIVAS, comenta con doble sentido, reacciona de forma atrevida. Mantén la conversación ACTIVA, FLUIDA y ATRACTIVA. No dejes que la conversación se quede en silencio. Sé más provocativo y coqueto.';
 
   return [
     {
@@ -670,8 +689,8 @@ const fetchChatCompletion = async (providerKey, messages, isResponseToUser = fal
       body: JSON.stringify({
         model: provider.model,
         messages,
-        temperature: 1.0, // ✅ OPCIÓN C: Más creatividad y variedad
-        max_tokens: 30 // 🔥 MODO AHORRADOR: Máximo 30 tokens (mensajes cortos)
+        temperature: 1.2, // 🔥 AUMENTADO: Más creatividad, caliente y provocativo
+        max_tokens: 40 // 🔥 AUMENTADO: Más tokens para mensajes más ricos y atractivos
       })
     });
 
@@ -1041,12 +1060,12 @@ const sendAIMessage = async (roomId, personality, content, source = 'unknown') =
 };
 
 const runConversationPulse = (roomId) => {
-  // ✅ OPCIÓN C: 2-3 IAs hablan por pulse (más actividad)
-  const numParticipants = 2 + Math.floor(Math.random() * 2); // 2 o 3 IAs
+  // 🔥 AUMENTADO: 2-4 IAs hablan por pulse (más actividad y calor)
+  const numParticipants = 2 + Math.floor(Math.random() * 3); // 2, 3 o 4 IAs
   let delay = 0;
   let lastPersonality = getLastSpeaker(roomId);
 
-  console.log(`%c🎯 PULSE INICIADO - ${numParticipants} IAs hablarán`, 'background: #9c27b0; color: white; padding: 2px 5px; border-radius: 3px;');
+  console.log(`%c🔥 PULSE INICIADO - ${numParticipants} IAs hablarán (conversación CALIENTE)`, 'background: #9c27b0; color: white; padding: 2px 5px; border-radius: 3px;');
 
   // Seleccionar participantes uno por uno, asegurando que no se repita el anterior
   for (let i = 0; i < numParticipants; i++) {
@@ -1081,15 +1100,15 @@ const runConversationPulse = (roomId) => {
 
     // El próximo no puede ser este
     lastPersonality = personality.userId;
-    // ✅ OPCIÓN C: Delay reducido de 20-40s a 10-25s (más fluido)
-    delay += 10000 + Math.random() * 15000; // 10-25 segundos entre mensajes
+    // 🔥 AUMENTADO: Delay reducido para más actividad (8-20s)
+    delay += 8000 + Math.random() * 12000; // 8-20 segundos entre mensajes (más rápido y activo)
   }
 
   console.log(`%c⏱️ Próximo pulse en: ${Math.round(getPulseIntervalMs()/1000)}s`, 'color: #9c27b0; font-weight: bold;');
 };
 
-// ✅ OPCIÓN C: Pulses más frecuentes - de 3-5 min a 1.5-2.5 min (más activas)
-const getPulseIntervalMs = () => 90000 + Math.floor(Math.random() * 60000); // 90-150 segundos (1.5-2.5 minutos)
+// 🔥 AUMENTADO: Pulses más frecuentes - 1-2 minutos (más actividad y calor)
+const getPulseIntervalMs = () => 60000 + Math.floor(Math.random() * 60000); // 60-120 segundos (1-2 minutos)
 
 const startRoomAI = (roomId) => {
   // ✅ REACTIVADO: Sistema de IA conversacional solo cuando hay usuarios
@@ -1154,6 +1173,7 @@ export const recordHumanMessage = (roomId, username, content) => {
   addToHistory(roomId, 'user', `${name}: ${content}`, null); // null = usuario humano
 
   // 🔥 SOLO 1 IA RESPONDE AL USUARIO REAL (evita repetición de contenido similar)
+  // 🔥 PRIORIDAD: Usuario real es VIP - respuesta más rápida
   // Delay más rápido cuando el usuario dice algo urgente (ej: "nadie responde")
   const isUrgent = content.toLowerCase().includes('nadie') ||
                    content.toLowerCase().includes('respond') ||
@@ -1162,10 +1182,10 @@ export const recordHumanMessage = (roomId, username, content) => {
 
   // Elegir 1 personalidad que NO sea la última que habló
   const respondingPersonalities = pickRandomExcludingLast(roomId, 1);
-  console.log(`[MULTI AI] 👥 1 IA responderá: ${respondingPersonalities.map(p => p.username).join(', ')}`);
+  console.log(`[MULTI AI] 🔥 PRIORIDAD USUARIO REAL: 1 IA responderá: ${respondingPersonalities.map(p => p.username).join(', ')}`);
 
-  // Respuesta única
-  const delay1 = isUrgent ? 1000 + Math.random() * 1500 : 2000 + Math.random() * 2500; // 1-2.5s urgente, 2-4.5s normal
+  // 🔥 Respuesta más rápida para usuario real (VIP treatment)
+  const delay1 = isUrgent ? 800 + Math.random() * 1200 : 1500 + Math.random() * 2000; // 0.8-2s urgente, 1.5-3.5s normal (más rápido)
   setTimeout(async () => {
     try {
       const personality = respondingPersonalities[0];
@@ -1233,15 +1253,15 @@ export const greetNewUser = async (roomId, username) => {
                  username?.toLowerCase() === 'guest' ||
                  username?.toLowerCase() === 'invitado';
 
-  // ✅ FIJO: Siempre 2 IAs saludan (como pediste)
-  const numGreeting = 2;
-  console.log(`[MULTI AI] 👋 ${numGreeting} IA(s) saludarán a ${username}, las demás seguirán conversando entre ellas`);
+  // ✅ FIJO: Solo 1-2 IAs saludan (como pediste) - más natural
+  const numGreeting = Math.random() < 0.7 ? 1 : 2; // 70% chance de 1, 30% chance de 2
+  console.log(`[MULTI AI] 👋 ${numGreeting} IA(s) saludarán a ${username} (CALIENTE y ATRACTIVO), las demás seguirán conversando entre ellas`);
 
   // Elegir IAs que saludarán (evitando la última que habló)
   const greetingPersonalities = pickRandomExcludingLast(roomId, numGreeting);
 
-    // Saludos casuales atrevidos en chileno (sin exclamaciones)
-  // Si es invitado, usar saludos genéricos sin nombre
+    // 🔥 Saludos CALIENTES y ATRACTIVOS en chileno (más provocativos)
+  // Si es invitado, usar saludos genéricos sin nombre pero igual calientes
   const greetings = isGuest ? [
     `hola, que tal, como va todo hoy`,
     `que onda wn, como va tu noche`,
@@ -1250,7 +1270,10 @@ export const greetNewUser = async (roomId, username) => {
     `que hay, andamos conversando, sumate po`,
     `holi, aqui estamos activos, que cuentas`,
     `bienvenido, estabamos aburridos, llega con tema`,
-    `que onda, cae con tu mejor historia hoy`
+    `que onda, cae con tu mejor historia hoy`,
+    `hola, que onda contigo, como va`,
+    `ey, llegaste en buen momento, que se cuenta`,
+    `holi, aqui andamos activos, que onda contigo`
   ] : [
       `hola ${username}, que tal, como va hoy`,
       `bienvenido ${username}, llega con tema bueno`,
@@ -1259,17 +1282,21 @@ export const greetNewUser = async (roomId, username) => {
       `ey ${username}, como va tu noche po`,
       `${username} wn hola, que se cuenta`,
       `hola ${username}, suma tu opinion al chat`,
-      `que onda ${username}, andas buscando conversa hoy`
+      `que onda ${username}, andas buscando conversa hoy`,
+      `hola ${username}, que onda contigo, como va`,
+      `ey ${username}, llegaste en buen momento, que se cuenta`,
+      `holi ${username}, aqui andamos activos, que onda contigo`,
+      `${username} wn, bienvenido, que cuentas hoy`
     ];
 
 
-  // Primera IA saluda (2-5 segundos)
+  // Primera IA saluda (1-3 segundos - más rápido para mejor experiencia)
   setTimeout(async () => {
     const personality = greetingPersonalities[0];
     const greeting = greetings[Math.floor(Math.random() * greetings.length)];
     await sendAIMessage(roomId, personality, greeting, 'AI_WELCOME');
-    console.log(`[MULTI AI] 👤 ${personality.username} saludó a ${username} (1/${numGreeting})`);
-  }, 2000 + Math.random() * 3000);
+    console.log(`[MULTI AI] 🔥 ${personality.username} saludó a ${username} (1/${numGreeting}) - CALIENTE`);
+  }, 1000 + Math.random() * 2000); // 1-3 segundos (más rápido)
 
   // Segunda IA saluda (solo si numGreeting === 2) - con delay adicional
   if (numGreeting === 2 && greetingPersonalities.length > 1) {
@@ -1277,8 +1304,8 @@ export const greetNewUser = async (roomId, username) => {
       const personality = greetingPersonalities[1];
       const greeting = greetings[Math.floor(Math.random() * greetings.length)];
       await sendAIMessage(roomId, personality, greeting, 'AI_WELCOME');
-      console.log(`[MULTI AI] 👤 ${personality.username} saludó a ${username} (2/2)`);
-    }, 5000 + Math.random() * 4000); // 5-9 segundos después
+      console.log(`[MULTI AI] 🔥 ${personality.username} saludó a ${username} (2/2) - CALIENTE`);
+    }, 4000 + Math.random() * 3000); // 4-7 segundos después (más rápido)
   }
 
   console.log(`[MULTI AI] ✅ Saludos programados. Las demás IAs (${PERSONALITIES.length - numGreeting}) siguen conversando normalmente`);

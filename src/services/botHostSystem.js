@@ -310,6 +310,7 @@ export const rotateHostBot = async (roomId, userId, reason = null) => {
 
 /**
  * Desasigna bot anfitrión cuando usuario está inactivo >3 minutos
+ * ✅ ACTUALIZADO: Hace cleanup del bot
  *
  * @param {String} roomId - ID de la sala
  * @param {String} userId - ID del usuario
@@ -326,20 +327,38 @@ export const checkUserInactivity = (roomId, userId) => {
   if (inactiveTime > 180000) {
     console.log(`⏱️ Usuario ${userId.substring(0, 8)} inactivo >3min, desasignando bot`);
     const bot = state.hosts.get(userId);
+    const botId = bot.id;
+
+    // ✅ Cleanup: Liberar bot de esta sala
+    const botMetadata = state.botMetadata.get(botId);
+    if (botMetadata) {
+      cleanupBotFromRoom(botId, roomId, botMetadata.username, botMetadata.avatar);
+      console.log(`✅ Cleanup por inactividad: Bot ${botId} liberado de sala ${roomId}`);
+    }
+
     state.hosts.delete(userId);
-    state.assignedBots.delete(bot.userId);
+    state.assignedBots.delete(botId);
+    state.botMetadata.delete(botId);
     state.lastActivity.delete(userId);
   }
 };
 
 /**
  * Limpia todos los anfitriones de una sala
+ * ✅ ACTUALIZADO: Hace cleanup de todos los bots asignados
  */
 export const clearRoomHosts = (roomId) => {
-  if (roomHostStates.has(roomId)) {
-    roomHostStates.delete(roomId);
-    console.log(`🧹 Anfitriones limpiados en sala ${roomId}`);
+  const state = roomHostStates.get(roomId);
+  if (!state) return;
+
+  // ✅ Cleanup: Liberar todos los bots de esta sala
+  for (const [botId, metadata] of state.botMetadata.entries()) {
+    cleanupBotFromRoom(botId, roomId, metadata.username, metadata.avatar);
+    console.log(`✅ Cleanup: Bot ${botId} liberado de sala ${roomId}`);
   }
+
+  roomHostStates.delete(roomId);
+  console.log(`🧹 Anfitriones limpiados en sala ${roomId}`);
 };
 
 /**
