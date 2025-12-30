@@ -117,7 +117,7 @@ const ChatPage = () => {
     return <ChatLandingPage roomSlug={roomId} />;
   }
 
-  // ✅ VALIDACIÓN: Usuarios registrados tienen acceso completo, anónimos solo a "conversas-libres"
+  // ✅ VALIDACIÓN: Salas restringidas requieren autenticación
   useEffect(() => {
     // ✅ SEO: Validar que la sala existe en roomsData (prevenir 404 en salas comentadas)
     const activeSalas = roomsData.map(room => room.id);
@@ -131,9 +131,20 @@ const ChatPage = () => {
       return;
     }
 
-    // ✅ ACTUALIZADO: Permitir acceso a TODAS las salas sin necesidad de registro
-    // Los usuarios guest/anónimos pueden chatear libremente en cualquier sala
-    // (Restricción de salas eliminada por solicitud del usuario)
+    // 🔒 SALAS RESTRINGIDAS: mas-30, santiago, gaming requieren autenticación
+    const restrictedRooms = ['mas-30', 'santiago', 'gaming'];
+    const isRestrictedRoom = restrictedRooms.includes(roomId);
+    const isGuestOrAnonymous = user && (user.isGuest || user.isAnonymous);
+
+    if (isRestrictedRoom && isGuestOrAnonymous) {
+      toast({
+        title: "🔒 Registro Requerido",
+        description: "Esta sala es exclusiva para usuarios registrados. Regístrate gratis para acceder.",
+        variant: "default",
+      });
+      navigate('/chat/global', { replace: true });
+      return;
+    }
   }, [user, navigate, roomId]);
 
   // ✅ SEO: Actualizar título, meta description Y Open Graph dinámicamente por sala
@@ -772,7 +783,7 @@ const ChatPage = () => {
         user.isAnonymous // Indica si es anónimo para usar transacción
       );
 
-      recordHumanMessage(currentRoom, user.username, content);
+      recordHumanMessage(currentRoom, user.username, content, user.id);
       // Track message sent
       trackMessageSent(currentRoom, user.id);
 

@@ -193,7 +193,7 @@ const LobbyPage = () => {
     return () => unsubscribe();
   }, []);
 
-  // ✅ Calcular total de usuarios con boost para "Salas de Chat"
+  // ✅ Calcular total de usuarios con boost para "Salas de Chat" (usado en hero)
   const calculateTotalUsers = () => {
     let total = 0;
     roomsData.forEach(room => {
@@ -201,6 +201,14 @@ const LobbyPage = () => {
       total += calculateDisplayUserCount(realCount, room.id);
     });
     return total;
+  };
+
+  // ✅ Calcular si hay salas activas (sin mostrar números específicos en tarjeta)
+  const hasActiveRooms = () => {
+    return roomsData.some(room => {
+      const realCount = roomCounts[room.id] || 0;
+      return realCount > 0;
+    });
   };
 
   // ✅ Generar cardData dinámicamente con contadores reales
@@ -214,7 +222,7 @@ const LobbyPage = () => {
       modal: 'RoomsModal',
       variant: "primary",
       badge: "Activo",
-      stats: { label: `🔥 ${calculateTotalUsers()} personas chateando`, icon: Users },
+      stats: { label: hasActiveRooms() ? '🔥 Salas activas ahora' : '🔥 Únete y chatea', icon: Users },
       accentColor: "cyan"
     },
     {

@@ -3,49 +3,31 @@ import { useNavigate } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
 import { Button } from '@/components/ui/button';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
-import { Hash, Gamepad2, Users, Heart, User, LogIn, X, UserCheck, GitFork, UserMinus, Cake, CheckCircle } from 'lucide-react';
+import { Hash, Gamepad2, Users, Heart, User, LogIn, X, UserCheck, GitFork, UserMinus, Cake, CheckCircle, Lock } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { subscribeToMultipleRoomCounts } from '@/services/presenceService';
 import { roomsData, colorClasses } from '@/config/rooms';
 
 /**
- * ✅ SISTEMA INTELIGENTE DE CONTADOR DE USUARIOS
- * Calcula el número de usuarios a mostrar con boost estratégico para hacer que las salas parezcan activas
+ * ✅ SISTEMA DE ESTADOS DE ACTIVIDAD
+ * Determina el estado de actividad de una sala basado en usuarios reales
  * 
- * Estrategias:
- * 1. Si hay 0-2 usuarios reales → Agregar 25-50 usuarios ficticios (consistente por sala)
- * 2. Si hay 3-10 usuarios reales → Agregar 15-30 usuarios ficticios
- * 3. Si hay 11+ usuarios reales → Solo mostrar reales (ya parece activa)
- * 4. Usa hash del roomId para consistencia (mismo número siempre)
+ * Estados:
+ * - 0 usuarios: Sin indicador
+ * - 1-5 usuarios: "ACTIVA" con punto verde
+ * - 6-15 usuarios: "MUY ACTIVA" con punto naranja y pulsación suave
+ * - 16+ usuarios: "MUY ACTIVA" con punto naranja y pulsación intensa (a reventar)
  */
-const calculateDisplayUserCount = (realUserCount, roomId) => {
-  // Si ya hay muchos usuarios reales, no agregar ficticios
-  if (realUserCount >= 11) {
-    return realUserCount;
-  }
-
-  // Generar hash consistente basado en el ID de la sala
-  const hashCode = roomId.split('').reduce((acc, char) => {
-    return char.charCodeAt(0) + ((acc << 5) - acc);
-  }, 0);
-
-  // Calcular boost según cantidad de usuarios reales
-  let fictitiousUsers;
+const getRoomActivityStatus = (realUserCount) => {
   if (realUserCount === 0) {
-    // 0 usuarios → Agregar 30-60 ficticios
-    fictitiousUsers = 30 + Math.abs(hashCode % 31);
-  } else if (realUserCount <= 2) {
-    // 1-2 usuarios → Agregar 25-45 ficticios
-    fictitiousUsers = 25 + Math.abs(hashCode % 21);
-  } else if (realUserCount <= 5) {
-    // 3-5 usuarios → Agregar 15-30 ficticios
-    fictitiousUsers = 15 + Math.abs(hashCode % 16);
+    return { status: null, color: null, pulseIntensity: 0 };
+  } else if (realUserCount >= 1 && realUserCount <= 5) {
+    return { status: 'ACTIVA', color: 'green', pulseIntensity: 1 };
+  } else if (realUserCount >= 6 && realUserCount <= 15) {
+    return { status: 'MUY ACTIVA', color: 'orange', pulseIntensity: 2 };
   } else {
-    // 6-10 usuarios → Agregar 10-20 ficticios
-    fictitiousUsers = 10 + Math.abs(hashCode % 11);
+    return { status: 'MUY ACTIVA', color: 'orange', pulseIntensity: 3 };
   }
-
-  return realUserCount + fictitiousUsers;
 };
 
 const ChatSidebar = ({ currentRoom, setCurrentRoom, isOpen, onClose }) => {
@@ -143,8 +125,14 @@ const ChatSidebar = ({ currentRoom, setCurrentRoom, isOpen, onClose }) => {
                 const IconComponent = room.icon;
                 const realUserCount = roomCounts[room.id] || 0;
                 
-                // ✅ SISTEMA INTELIGENTE: Calcular usuarios mostrados con boost estratégico
-                const userCount = calculateDisplayUserCount(realUserCount, room.id);
+                // ✅ Obtener estado de actividad
+                const activityStatus = getRoomActivityStatus(realUserCount);
+                
+                // 🔒 Verificar si la sala requiere autenticación
+                const restrictedRooms = ['mas-30', 'santiago', 'gaming'];
+                const isRestrictedRoom = restrictedRooms.includes(room.id);
+                const isGuestOrAnonymous = user && (user.isGuest || user.isAnonymous);
+                const requiresAuth = isRestrictedRoom && isGuestOrAnonymous;
                 
                 const isActive = currentRoom === room.id;
 
@@ -160,9 +148,18 @@ const ChatSidebar = ({ currentRoom, setCurrentRoom, isOpen, onClose }) => {
                       className={`w-full justify-start text-left h-auto py-2.5 px-3 group transition-all duration-200 ${
                         isActive
                           ? 'bg-primary/10 border-l-2 border-primary text-primary hover:bg-primary/15'
+                          : requiresAuth
+                          ? 'opacity-60 hover:opacity-80 hover:bg-accent/30'
                           : 'hover:bg-accent/50 hover:border-l-2 hover:border-accent'
                       }`}
-                      onClick={() => setCurrentRoom(room.id)}
+                      onClick={() => {
+                        if (requiresAuth) {
+                          // Mostrar toast y redirigir a auth
+                          navigate('/auth?redirect=/chat/' + room.id);
+                        } else {
+                          setCurrentRoom(room.id);
+                        }
+                      }}
                     >
                       <div className="flex items-center gap-3 w-full">
                         <motion.div
@@ -177,36 +174,56 @@ const ChatSidebar = ({ currentRoom, setCurrentRoom, isOpen, onClose }) => {
                             <span className={`text-sm font-medium truncate ${isActive ? 'text-foreground' : 'text-foreground group-hover:text-foreground'}`}>
                               {room.name}
                             </span>
-                            {/* ✅ Siempre mostrar contador (incluso si es 0, mostrará boost) */}
-                            <motion.span
-                              initial={{ scale: 0 }}
-                              animate={{ scale: 1 }}
-                              className={`text-sm font-extrabold px-2.5 py-1 rounded-full min-w-[2.5rem] text-center shadow-md ${
-                                isActive
-                                  ? 'bg-primary/30 text-white ' + colorClasses[room.color]
-                                  : 'bg-primary/40 text-white font-bold'
-                              }`}
-                            >
-                              {userCount}
-                            </motion.span>
                           </div>
-                          {/* ✅ Siempre mostrar indicador "Activo" si hay usuarios (reales o boost) */}
-                          {userCount > 0 && (
-                            <div className="flex items-center gap-1 mt-0.5">
+                          {/* ✅ Mostrar indicador de actividad si hay usuarios */}
+                          {activityStatus.status && (
+                            <div className="flex items-center gap-1.5 mt-0.5">
                               <motion.div
-                                className="w-1.5 h-1.5 rounded-full bg-green-500"
-                                animate={{
-                                  scale: [1, 1.3, 1],
-                                  opacity: [1, 0.7, 1]
-                                }}
+                                className={`w-2 h-2 rounded-full ${
+                                  activityStatus.color === 'green' 
+                                    ? 'bg-green-500' 
+                                    : 'bg-orange-500'
+                                }`}
+                                animate={
+                                  activityStatus.pulseIntensity >= 2
+                                    ? {
+                                        scale: activityStatus.pulseIntensity === 3 
+                                          ? [1, 1.8, 1, 1.8, 1]
+                                          : [1, 1.5, 1],
+                                        opacity: activityStatus.pulseIntensity === 3
+                                          ? [1, 0.4, 1, 0.4, 1]
+                                          : [1, 0.6, 1],
+                                        boxShadow: activityStatus.pulseIntensity === 3
+                                          ? [
+                                              '0 0 0 0 rgba(249, 115, 22, 0.7)',
+                                              '0 0 0 8px rgba(249, 115, 22, 0)',
+                                              '0 0 0 0 rgba(249, 115, 22, 0.7)',
+                                              '0 0 0 8px rgba(249, 115, 22, 0)',
+                                              '0 0 0 0 rgba(249, 115, 22, 0.7)'
+                                            ]
+                                          : [
+                                              '0 0 0 0 rgba(249, 115, 22, 0.7)',
+                                              '0 0 0 6px rgba(249, 115, 22, 0)',
+                                              '0 0 0 0 rgba(249, 115, 22, 0.7)'
+                                            ]
+                                      }
+                                    : {
+                                        scale: [1, 1.2, 1],
+                                        opacity: [1, 0.8, 1]
+                                      }
+                                }
                                 transition={{
-                                  duration: 2,
+                                  duration: activityStatus.pulseIntensity === 3 ? 1.2 : activityStatus.pulseIntensity === 2 ? 1.5 : 2,
                                   repeat: Infinity,
                                   ease: "easeInOut"
                                 }}
                               />
-                              <span className="text-[10px] text-green-500">
-                                {realUserCount > 0 ? 'Activo' : 'Reciente'}
+                              <span className={`text-[10px] font-semibold ${
+                                activityStatus.color === 'green' 
+                                  ? 'text-green-500' 
+                                  : 'text-orange-500'
+                              }`}>
+                                {activityStatus.status}
                               </span>
                             </div>
                           )}
@@ -346,8 +363,8 @@ const ChatSidebar = ({ currentRoom, setCurrentRoom, isOpen, onClose }) => {
                 const IconComponent = room.icon;
                 const realUserCount = roomCounts[room.id] || 0;
                 
-                // Usar solo el número real de usuarios conectados
-                const userCount = realUserCount;
+                // ✅ Obtener estado de actividad
+                const activityStatus = getRoomActivityStatus(realUserCount);
                 
                 const isActive = currentRoom === room.id;
 
@@ -380,35 +397,57 @@ const ChatSidebar = ({ currentRoom, setCurrentRoom, isOpen, onClose }) => {
                             <span className={`text-sm font-medium truncate ${isActive ? 'text-foreground' : 'text-foreground group-hover:text-foreground'}`}>
                               {room.name}
                             </span>
-                            {userCount > 0 && (
-                              <motion.span
-                                initial={{ scale: 0 }}
-                                animate={{ scale: 1 }}
-                                className={`text-sm font-extrabold px-2.5 py-1 rounded-full min-w-[2.5rem] text-center shadow-md ${
-                                  isActive
-                                    ? 'bg-primary/30 text-white ' + colorClasses[room.color]
-                                    : 'bg-primary/40 text-white font-bold'
-                                }`}
-                              >
-                                {userCount}
-                              </motion.span>
-                            )}
                           </div>
-                          {userCount > 0 && (
-                            <div className="flex items-center gap-1 mt-0.5">
+                          {/* ✅ Mostrar indicador de actividad si hay usuarios */}
+                          {activityStatus.status && (
+                            <div className="flex items-center gap-1.5 mt-0.5">
                               <motion.div
-                                className="w-1.5 h-1.5 rounded-full bg-green-500"
-                                animate={{
-                                  scale: [1, 1.3, 1],
-                                  opacity: [1, 0.7, 1]
-                                }}
+                                className={`w-2 h-2 rounded-full ${
+                                  activityStatus.color === 'green' 
+                                    ? 'bg-green-500' 
+                                    : 'bg-orange-500'
+                                }`}
+                                animate={
+                                  activityStatus.pulseIntensity >= 2
+                                    ? {
+                                        scale: activityStatus.pulseIntensity === 3 
+                                          ? [1, 1.8, 1, 1.8, 1]
+                                          : [1, 1.5, 1],
+                                        opacity: activityStatus.pulseIntensity === 3
+                                          ? [1, 0.4, 1, 0.4, 1]
+                                          : [1, 0.6, 1],
+                                        boxShadow: activityStatus.pulseIntensity === 3
+                                          ? [
+                                              '0 0 0 0 rgba(249, 115, 22, 0.7)',
+                                              '0 0 0 8px rgba(249, 115, 22, 0)',
+                                              '0 0 0 0 rgba(249, 115, 22, 0.7)',
+                                              '0 0 0 8px rgba(249, 115, 22, 0)',
+                                              '0 0 0 0 rgba(249, 115, 22, 0.7)'
+                                            ]
+                                          : [
+                                              '0 0 0 0 rgba(249, 115, 22, 0.7)',
+                                              '0 0 0 6px rgba(249, 115, 22, 0)',
+                                              '0 0 0 0 rgba(249, 115, 22, 0.7)'
+                                            ]
+                                      }
+                                    : {
+                                        scale: [1, 1.2, 1],
+                                        opacity: [1, 0.8, 1]
+                                      }
+                                }
                                 transition={{
-                                  duration: 2,
+                                  duration: activityStatus.pulseIntensity === 3 ? 1.2 : activityStatus.pulseIntensity === 2 ? 1.5 : 2,
                                   repeat: Infinity,
                                   ease: "easeInOut"
                                 }}
                               />
-                              <span className="text-[10px] text-green-500">Activo</span>
+                              <span className={`text-[10px] font-semibold ${
+                                activityStatus.color === 'green' 
+                                  ? 'text-green-500' 
+                                  : 'text-orange-500'
+                              }`}>
+                                {activityStatus.status}
+                              </span>
                             </div>
                           )}
                         </div>
