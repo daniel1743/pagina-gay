@@ -28,6 +28,7 @@ import SegmentedKPICard from '@/components/admin/SegmentedKPICard';
 import ActiveUsersCounter from '@/components/admin/ActiveUsersCounter';
 import TimeDistributionChart from '@/components/admin/TimeDistributionChart';
 import TrafficSourcesChart from '@/components/admin/TrafficSourcesChart';
+import ModerationAlerts from '@/components/admin/ModerationAlerts';
 import { 
   subscribeToTickets, 
   updateTicketStatus 
@@ -902,7 +903,7 @@ const AdminPage = () => {
 
         {/* Tabs */}
         <Tabs value={activeTab} onValueChange={setActiveTab} className="mb-8">
-          <TabsList className="grid w-full grid-cols-8">
+          <TabsList className="grid w-full grid-cols-9">
             <TabsTrigger value="dashboard">Dashboard</TabsTrigger>
             <TabsTrigger value="reports">Reportes</TabsTrigger>
             <TabsTrigger value="tickets">Tickets</TabsTrigger>
@@ -911,6 +912,7 @@ const AdminPage = () => {
             <TabsTrigger value="forum">Foro</TabsTrigger>
             <TabsTrigger value="notifications">Notificaciones</TabsTrigger>
             <TabsTrigger value="analytics">Analytics</TabsTrigger>
+            <TabsTrigger value="moderation">Moderación</TabsTrigger>
           </TabsList>
 
           {/* Dashboard Tab */}
@@ -2852,6 +2854,26 @@ const AdminPage = () => {
               ) : (
                 <p className="text-muted-foreground text-center py-8">No hay datos históricos disponibles aún</p>
               )}
+            </motion.div>
+          </TabsContent>
+
+          {/* Moderación Tab */}
+          <TabsContent value="moderation" className="space-y-6">
+            <motion.div
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              className="space-y-6"
+            >
+              <div>
+                <h2 className="text-2xl font-bold mb-2 flex items-center gap-2">
+                  <Shield className="w-6 h-6 text-purple-400" />
+                  Sistema de Moderación
+                </h2>
+                <p className="text-sm text-muted-foreground">
+                  Alertas automáticas de contenido sensible detectadas por ChatGPT
+                </p>
+              </div>
+              <ModerationAlerts />
             </motion.div>
           </TabsContent>
         </Tabs>

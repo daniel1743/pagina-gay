@@ -590,6 +590,35 @@ service cloud.firestore {
     }
 
     // ===========================
+    // ALERTAS DE MODERACIÓN (NUEVO)
+    // ===========================
+
+    match /moderation_alerts/{alertId} {
+      // Leer: solo admins
+      allow read: if isAdmin();
+
+      // Crear: sistema de moderación (usuarios autenticados pueden crear alertas)
+      allow create: if isAuthenticated() &&
+                      'type' in request.resource.data &&
+                      request.resource.data.type in ['hate_speech', 'offensive', 'suicide', 'self_harm', 'harassment'] &&
+                      'userId' in request.resource.data &&
+                      'username' in request.resource.data &&
+                      'message' in request.resource.data &&
+                      'roomId' in request.resource.data &&
+                      'severity' in request.resource.data &&
+                      request.resource.data.severity in ['low', 'medium', 'high', 'critical'] &&
+                      'status' in request.resource.data &&
+                      request.resource.data.status == 'pending' &&
+                      'createdAt' in request.resource.data;
+
+      // Actualizar: solo admins (para cambiar status, agregar notas, etc.)
+      allow update: if isAdmin();
+
+      // Eliminar: solo admins
+      allow delete: if isAdmin();
+    }
+
+    // ===========================
     // DEFAULT: CERRADO
     // ===========================
 

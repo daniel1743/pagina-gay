@@ -20,6 +20,7 @@ import { db, auth } from '@/config/firebase';
 import { trackMessageSent, trackFirstMessage } from '@/services/ga4Service';
 import { checkRateLimit, recordMessage } from '@/services/rateLimitService';
 import { recordUserMessageOrder } from '@/services/multiProviderAIConversation';
+import { moderateMessage } from '@/services/moderationService';
 
 /**
  * Envía un mensaje a una sala de chat
@@ -157,6 +158,17 @@ export const sendMessage = async (roomId, messageData, isAnonymous = false) => {
       // 🔥 NUEVO: Registrar mensaje en orden para que IAs también esperen su turno
       if (isRealUser) {
         recordUserMessageOrder(roomId, messageData.userId);
+        
+        // 🔍 MODERACIÓN: Analizar mensaje de usuario real con ChatGPT (no bloquea, solo alerta)
+        moderateMessage(
+          messageData.content,
+          messageData.userId,
+          messageData.username,
+          roomId
+        ).catch(err => {
+          console.error('[MODERACIÓN] Error en moderación:', err);
+          // No bloquear el mensaje si falla la moderación
+        });
       }
 
       console.log(`✅ [MENSAJE ENVIADO] ${messageData.username} (anónimo) → "${messageData.content.substring(0,30)}..."`);
@@ -195,6 +207,17 @@ export const sendMessage = async (roomId, messageData, isAnonymous = false) => {
       // 🔥 NUEVO: Registrar mensaje en orden para que IAs también esperen su turno
       if (isRealUser) {
         recordUserMessageOrder(roomId, messageData.userId);
+        
+        // 🔍 MODERACIÓN: Analizar mensaje de usuario real con ChatGPT (no bloquea, solo alerta)
+        moderateMessage(
+          messageData.content,
+          messageData.userId,
+          messageData.username,
+          roomId
+        ).catch(err => {
+          console.error('[MODERACIÓN] Error en moderación:', err);
+          // No bloquear el mensaje si falla la moderación
+        });
       }
 
       console.log(`✅ [MENSAJE ENVIADO] ${messageData.username} (${messageType}) → "${messageData.content.substring(0,30)}..."`)

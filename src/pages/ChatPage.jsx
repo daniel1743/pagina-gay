@@ -14,6 +14,7 @@ import TypingIndicator from '@/components/chat/TypingIndicator';
 import WelcomeTour from '@/components/onboarding/WelcomeTour';
 import { PremiumWelcomeModal } from '@/components/chat/PremiumWelcomeModal';
 import ChatRulesModal from '@/components/chat/ChatRulesModal';
+import AgeVerificationModal from '@/components/chat/AgeVerificationModal';
 import ChatLandingPage from '@/components/chat/ChatLandingPage';
 import { toast } from '@/components/ui/use-toast';
 import PrivateChatWindow from '@/components/chat/PrivateChatWindow';
@@ -92,6 +93,8 @@ const ChatPage = () => {
   const [showVerificationModal, setShowVerificationModal] = useState(false);
   const [showPremiumWelcome, setShowPremiumWelcome] = useState(false);
   const [showChatRules, setShowChatRules] = useState(false); // ✅ Modal de reglas
+  const [showAgeVerification, setShowAgeVerification] = useState(false); // ✅ Modal de edad
+  const [isAgeVerified, setIsAgeVerified] = useState(false); // ✅ Flag mayor de edad
   const [hasAcceptedRules, setHasAcceptedRules] = useState(false); // ✅ Flag de reglas aceptadas
   const [roomCounts, setRoomCounts] = useState({}); // Contadores de usuarios por sala
   const [engagementTime, setEngagementTime] = useState(''); // ⏱️ Tiempo total de engagement
@@ -316,6 +319,29 @@ const ChatPage = () => {
   useEffect(() => {
     if (!user || !user.id) return;
 
+    const ageKey = `age_verified_${user.id}`;
+    const storedAge = localStorage.getItem(ageKey);
+
+    // ✅ Verificar si ya está confirmado (solo una vez por usuario)
+    if (storedAge && Number(storedAge) >= 18) {
+      setIsAgeVerified(true);
+      setShowAgeVerification(false); // ✅ NO mostrar si ya está verificado
+      console.log(`[AGE VERIFICATION] ✅ Usuario ${user.id} ya verificó su edad (${storedAge} años)`);
+    } else {
+      // ✅ Solo mostrar si NO está verificado Y no se ha mostrado antes en esta sesión
+      setIsAgeVerified(false);
+      // ✅ Solo mostrar si no hay flag de "ya se mostró" en esta sesión
+      const hasShownKey = `age_modal_shown_${user.id}`;
+      const hasShown = sessionStorage.getItem(hasShownKey);
+      if (!hasShown) {
+        setShowAgeVerification(true);
+        sessionStorage.setItem(hasShownKey, 'true'); // Marcar que se mostró en esta sesión
+        console.log(`[AGE VERIFICATION] 📋 Mostrando modal de edad para usuario ${user.id}`);
+      } else {
+        console.log(`[AGE VERIFICATION] ⏭️ Modal ya se mostró en esta sesión para usuario ${user.id}`);
+      }
+    }
+
     const rulesKey = `chat_rules_accepted_${user.id}`;
     const hasAccepted = localStorage.getItem(rulesKey) === 'true';
 
@@ -372,6 +398,25 @@ const ChatPage = () => {
     // Aunque el guard clause previene esto, es buena práctica
     if (!user || !user.id) {
       console.warn('⚠️ [CHAT] useEffect de Firestore ejecutado sin user válido');
+      return;
+    }
+    // ✅ NO mostrar modal aquí si ya está verificado en localStorage
+    if (!isAgeVerified) {
+      const ageKey = `age_verified_${user.id}`;
+      const storedAge = localStorage.getItem(ageKey);
+      // ✅ Solo mostrar si realmente NO está verificado (no solo el estado)
+      if (!storedAge || Number(storedAge) < 18) {
+        const hasShownKey = `age_modal_shown_${user.id}`;
+        const hasShown = sessionStorage.getItem(hasShownKey);
+        if (!hasShown) {
+          setShowAgeVerification(true);
+          sessionStorage.setItem(hasShownKey, 'true');
+        }
+      } else {
+        // ✅ Si está en localStorage pero el estado no está actualizado, actualizar estado
+        setIsAgeVerified(true);
+        setShowAgeVerification(false);
+      }
       return;
     }
 
@@ -522,7 +567,7 @@ const ChatPage = () => {
         }
       });
     };
-  }, [roomId, user]);
+  }, [roomId, user, isAgeVerified]);
 
   // 💓 Heartbeat: Actualizar presencia cada 10 segundos + Limpiar inactivos cada 30s
   useEffect(() => {
@@ -631,6 +676,33 @@ const ChatPage = () => {
         variant: "destructive",
       });
       return;
+    }
+
+    // ✅ CRÍTICO: Validar mayoría de edad (verificar localStorage también)
+    if (!isAgeVerified) {
+      const ageKey = `age_verified_${user.id}`;
+      const storedAge = localStorage.getItem(ageKey);
+      
+      // ✅ Si está en localStorage, actualizar estado y continuar
+      if (storedAge && Number(storedAge) >= 18) {
+        setIsAgeVerified(true);
+        setShowAgeVerification(false);
+        // Continuar sin mostrar modal
+      } else {
+        // ✅ Solo mostrar modal si realmente NO está verificado
+        const hasShownKey = `age_modal_shown_${user.id}`;
+        const hasShown = sessionStorage.getItem(hasShownKey);
+        if (!hasShown) {
+          setShowAgeVerification(true);
+          sessionStorage.setItem(hasShownKey, 'true');
+          toast({
+            title: "Verifica tu edad",
+            description: "Debes confirmar que eres mayor de 18 años para chatear.",
+            variant: "destructive",
+          });
+        }
+        return;
+      }
     }
 
     // ✅ CRÍTICO: Verificar que el usuario haya aceptado las reglas
@@ -887,6 +959,26 @@ const ChatPage = () => {
         <PremiumWelcomeModal
           open={showPremiumWelcome}
           onClose={handleClosePremiumWelcome}
+        />
+
+        <AgeVerificationModal
+          isOpen={showAgeVerification}
+          onConfirm={(age) => {
+            if (!user || !user.id) return;
+            const ageKey = `age_verified_${user.id}`;
+            // ✅ Guardar en localStorage para persistencia permanente
+            localStorage.setItem(ageKey, String(age));
+            // ✅ Limpiar flag de sesión para que no se vuelva a mostrar
+            const hasShownKey = `age_modal_shown_${user.id}`;
+            sessionStorage.removeItem(hasShownKey);
+            setIsAgeVerified(true);
+            setShowAgeVerification(false);
+            console.log(`[AGE VERIFICATION] ✅ Usuario ${user.id} confirmó edad: ${age} años - NO se mostrará más`);
+            toast({
+              title: "✅ Edad confirmada",
+              description: "Acceso permitido. Recuerda seguir las reglas del chat.",
+            });
+          }}
         />
 
         {/* ✅ NUEVO: Modal de reglas del chat */}
