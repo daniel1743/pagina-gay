@@ -68,7 +68,9 @@ function AppRoutes() {
       }}
     >
       <Routes>
-        <Route path="/" element={<MainLayout><LobbyPage /></MainLayout>} />
+        {/* ✅ RESTAURADO: Landing profesional en página principal */}
+        <Route path="/" element={<MainLayout><GlobalLandingPage /></MainLayout>} />
+        <Route path="/lobby" element={<MainLayout><LobbyPage /></MainLayout>} />
         <Route path="/auth" element={<AuthPage />} />
 
         {/* ✅ SEO: Landing pages específicas optimizadas para CTR */}

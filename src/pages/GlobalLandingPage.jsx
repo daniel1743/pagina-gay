@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useLocation } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { MessageSquare, Users, Heart, Star, ArrowRight, Zap, Shield, Clock, Sparkles } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -9,12 +9,14 @@ import ChatDemo from '@/components/landing/ChatDemo';
 import { GuestUsernameModal } from '@/components/auth/GuestUsernameModal';
 
 const GlobalLandingPage = () => {
-  // SEO: Canonical tag
-  useCanonical('/global');
-
   const navigate = useNavigate();
+  const location = useLocation();
   const { user } = useAuth();
   const [showGuestModal, setShowGuestModal] = React.useState(false);
+
+  // ✅ SEO: Canonical tag dinámico basado en la ruta actual
+  const isHomePage = location.pathname === '/';
+  useCanonical(isHomePage ? '/' : '/global');
 
   // Redirigir usuarios autenticados (no guests) directamente al chat
   React.useEffect(() => {
@@ -24,8 +26,14 @@ const GlobalLandingPage = () => {
   }, [user, navigate]);
 
   React.useEffect(() => {
-    // ✅ SEO: Title y meta description optimizados para CTR
-    document.title = 'Chat Gay Chile Global 💬 | Sala General LGBT+ | Chactivo';
+    // ✅ SEO: Title y meta description adaptados a la ruta
+    if (isHomePage) {
+      // Página principal - título más general
+      document.title = 'Chat Gay Chile Gratis 🏳️‍🌈 Sin Registro - Entra Ahora | Chactivo';
+    } else {
+      // Ruta /global - título específico
+      document.title = 'Chat Gay Chile Global 💬 | Sala General LGBT+ | Chactivo';
+    }
 
     let metaDescription = document.querySelector('meta[name="description"]');
     if (!metaDescription) {
@@ -33,14 +41,21 @@ const GlobalLandingPage = () => {
       metaDescription.name = 'description';
       document.head.appendChild(metaDescription);
     }
-    metaDescription.content = '💬 Sala de chat gay general Chile. Todos los temas bienvenidos: amistad, relaciones, gaming, cultura, viajes. Conversación libre, ambiente relajado. ¡100% gratis, regístrate en 30 segundos!';
+
+    if (isHomePage) {
+      // Descripción más general para página principal
+      metaDescription.content = 'Chat gay en Chile 100% gratis y anónimo. Testimonios reales, demo del chat, foto del creador. Entra en segundos sin email ni tarjeta. Salas +30, Osos y por ciudades. Chatea ahora.';
+    } else {
+      // Descripción específica para /global
+      metaDescription.content = '💬 Sala de chat gay general Chile. Todos los temas bienvenidos: amistad, relaciones, gaming, cultura, viajes. Conversación libre, ambiente relajado. ¡100% gratis, regístrate en 30 segundos!';
+    }
 
     return () => {
       if (metaDescription && document.head.contains(metaDescription)) {
         metaDescription.content = '🏳️‍🌈 Chat gay chileno 100% gratis. Salas por interés: Gaming 🎮, +30 💪, Osos 🐻, Amistad 💬. Conversación real, sin presión de hookups.';
       }
     };
-  }, []);
+  }, [isHomePage]);
 
   const handleChatearAhora = () => {
     if (user && !user.isGuest) {

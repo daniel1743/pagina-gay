@@ -1305,9 +1305,12 @@ const fetchChatCompletion = async (providerKey, messages, isResponseToUser = fal
     const data = await response.json();
     let content = data?.choices?.[0]?.message?.content?.trim() || '';
     
+    // 🔥 VALIDACIÓN: Asegurar que isResponseToUser esté definido
+    const responseToUser = isResponseToUser === true;
+    
     // 🔥 TRUNCAMIENTO INMEDIATO: Aplicar límites estrictos de caracteres Y palabras
-    const maxWords = isResponseToUser ? MAX_WORDS_USER_RESPONSE : MAX_WORDS;
-    const maxChars = isResponseToUser ? MAX_CHARS_USER_RESPONSE : MAX_CHARS;
+    const maxWords = responseToUser ? MAX_WORDS_USER_RESPONSE : MAX_WORDS;
+    const maxChars = responseToUser ? MAX_CHARS_USER_RESPONSE : MAX_CHARS;
     let wordCount = countWords(content);
     let charCount = content.length;
     
@@ -1353,18 +1356,21 @@ const fetchChatCompletion = async (providerKey, messages, isResponseToUser = fal
 
 const generateAIMessage = async (roomId, personality, isResponseToUser = false, userMessage = null, userName = null, userId = null, retryCount = 0) => {
   try {
+    // 🔥 VALIDACIÓN: Asegurar que isResponseToUser esté definido
+    const responseToUser = isResponseToUser === true;
+    
     // 🔥 BLOQUEO ABSOLUTO: OpenAI NO puede escribir en sala, solo monitorea
     if (personality.provider === 'openai') {
       console.log(`[MULTI AI] 🚫 BLOQUEADO: ${personality.username} usa OpenAI - solo monitorea, no participa`);
       return null;
     }
     
-    console.log(`[MULTI AI] 💬 Generando mensaje para ${personality.username}${isResponseToUser ? ' (respondiendo a usuario real)' : ''}... (intento ${retryCount + 1}/3)`);
-    if (isResponseToUser && userMessage) {
+    console.log(`[MULTI AI] 💬 Generando mensaje para ${personality.username}${responseToUser ? ' (respondiendo a usuario real)' : ''}... (intento ${retryCount + 1}/3)`);
+    if (responseToUser && userMessage) {
       console.log(`[MULTI AI] 🎯 Contexto del usuario: "${userMessage}"`);
     }
-    const prompt = buildPrompt(personality, roomId, isResponseToUser, userMessage, userName, userId);
-    const text = await fetchChatCompletion(personality.provider, prompt, isResponseToUser);
+    const prompt = buildPrompt(personality, roomId, responseToUser, userMessage, userName, userId);
+    const text = await fetchChatCompletion(personality.provider, prompt, responseToUser);
     if (!text) {
       console.warn(`[MULTI AI] ⚠️ Respuesta vacía de ${personality.username}, reintentando...`);
       throw new Error('Empty response');
@@ -1410,7 +1416,7 @@ const generateAIMessage = async (roomId, personality, isResponseToUser = false, 
     }
     
     // 🔥 VALIDACIÓN: Si el usuario es explícito, la respuesta DEBE ser explícita
-    if (isResponseToUser && userMessage && isExplicitUserMessage(userMessage)) {
+    if (responseToUser && userMessage && isExplicitUserMessage(userMessage)) {
       const isResponseExplicit = isExplicitUserMessage(text) || 
                                  text.toLowerCase().includes('te lo meto') ||
                                  text.toLowerCase().includes('quiero verga') ||
@@ -1425,13 +1431,13 @@ const generateAIMessage = async (roomId, personality, isResponseToUser = false, 
         console.warn(`[MULTI AI] ⚠️ Reintentando para obtener respuesta más explícita...`);
         if (retryCount < 2) {
           await new Promise(resolve => setTimeout(resolve, 500));
-          return await generateAIMessage(roomId, personality, isResponseToUser, userMessage, userName, userId, retryCount + 1);
+          return await generateAIMessage(roomId, personality, responseToUser, userMessage, userName, userId, retryCount + 1);
         }
       }
     }
     // 🔥 MODO AHORRADOR: Truncar mensajes largos ANTES de validar (por palabras Y caracteres)
-    const maxWordsAllowed = isResponseToUser ? MAX_WORDS_USER_RESPONSE : MAX_WORDS;
-    const maxCharsAllowed = isResponseToUser ? MAX_CHARS_USER_RESPONSE : MAX_CHARS;
+    const maxWordsAllowed = responseToUser ? MAX_WORDS_USER_RESPONSE : MAX_WORDS;
+    const maxCharsAllowed = responseToUser ? MAX_CHARS_USER_RESPONSE : MAX_CHARS;
     let wordCount = countWords(text);
     let charCount = text.length;
     
@@ -1500,7 +1506,7 @@ const generateAIMessage = async (roomId, personality, isResponseToUser = false, 
 
     // 🔥🔥🔥 VALIDACIÓN 2: Sistema de personalidad avanzado (NUEVO)
     // 🔥 FLEXIBLE: Pasar contexto de si es respuesta a usuario para validación más permisiva
-    const personalityCheck = validateMessageForPersonality(text, personality, isResponseToUser, userMessage);
+    const personalityCheck = validateMessageForPersonality(text, personality, responseToUser, userMessage);
 
     if (AI_RESTRICTIONS_ENABLED && !personalityCheck.valid) {
       console.log(`[MULTI AI] 🚫 ${personality.username} generó mensaje INVÁLIDO por personalidad: ${personalityCheck.reason}`);
