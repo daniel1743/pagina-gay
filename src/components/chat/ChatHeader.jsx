@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
-import { Menu, Home, ArrowLeft, Volume2, VolumeX } from 'lucide-react';
+import { Menu, Home, ArrowLeft, Volume2, VolumeX, X } from 'lucide-react';
 import NotificationBell from '@/components/notifications/NotificationBell';
 import { notificationSounds } from '@/services/notificationSounds';
 
@@ -26,6 +26,11 @@ const ChatHeader = ({ currentRoom, onMenuClick, onOpenPrivateChat }) => {
   const handleToggleMute = () => {
     const newMuteState = notificationSounds.toggleMute();
     setIsMuted(newMuteState);
+  };
+
+  const handleQuickEscape = () => {
+    // Redirect to Google for quick escape
+    window.location.href = 'https://www.google.com/search?q=Google.com';
   };
 
   return (
@@ -57,6 +62,19 @@ const ChatHeader = ({ currentRoom, onMenuClick, onOpenPrivateChat }) => {
       </div>
 
       <div className="flex items-center gap-1.5 sm:gap-2 flex-shrink-0">
+        {/* Quick Escape Button - Red, prominent */}
+        <Button
+          variant="ghost"
+          size="sm"
+          onClick={handleQuickEscape}
+          className="bg-red-500 hover:bg-red-600 text-white min-w-[44px] min-h-[44px] sm:min-w-auto sm:min-h-auto px-2 sm:px-3 flex items-center gap-1.5 sm:gap-2"
+          aria-label="Escape rápido - Salir inmediatamente"
+          title="Escape rápido - Salir inmediatamente"
+        >
+          <X className="w-4 h-4 sm:w-5 sm:h-5" />
+          <span className="hidden sm:inline text-xs sm:text-sm font-semibold">Salir rápido</span>
+        </Button>
+        
         <NotificationBell onOpenPrivateChat={onOpenPrivateChat} />
         <Button
           variant="ghost"

@@ -9,7 +9,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import { Mail, Lock, User, CheckCircle, ArrowRight, ArrowLeft, Eye, EyeOff } from 'lucide-react';
 import { toast } from '@/components/ui/use-toast';
 
-const QuickSignupModal = ({ isOpen, onClose, redirectTo = '/lobby' }) => {
+const QuickSignupModal = ({ isOpen, onClose, redirectTo = '/home' }) => {
   const navigate = useNavigate();
   const { register } = useAuth();
   const [step, setStep] = useState(1);

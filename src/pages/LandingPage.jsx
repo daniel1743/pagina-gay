@@ -8,15 +8,15 @@ export default function LandingPage() {
   const navigate = useNavigate();
   const { user } = useAuth();
 
-  // Redirigir usuarios autenticados (no guests) directamente al lobby
+  // ✅ Redirigir usuarios autenticados (no guests) directamente al home
   useEffect(() => {
     if (user && !user.isGuest && !user.isAnonymous) {
-      navigate('/lobby', { replace: true });
+      navigate('/home', { replace: true });
     }
   }, [user, navigate]);
 
   const handleJoinClick = () => {
-    navigate('/lobby');
+    navigate('/home');
   };
 
   return (

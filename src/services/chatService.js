@@ -18,7 +18,7 @@ import {
 } from 'firebase/firestore';
 import { db, auth } from '@/config/firebase';
 import { trackMessageSent, trackFirstMessage } from '@/services/ga4Service';
-import { checkRateLimit, recordMessage } from '@/services/rateLimitService';
+import { checkRateLimit, recordMessage, unmuteUser } from '@/services/rateLimitService';
 import { recordUserMessageOrder } from '@/services/multiProviderAIConversation';
 import { moderateMessage } from '@/services/moderationService';
 
@@ -67,18 +67,26 @@ export const sendMessage = async (roomId, messageData, isAnonymous = false) => {
       console.groupEnd();
     }
 
-    // 🛡️ RATE LIMITING PROFESIONAL: Máximo 3 mensajes cada 10 segundos
-    // 🔥 DETECCIÓN DE DUPLICADOS: Si repite 1 mensaje → MUTE INMEDIATO
-    const rateLimitCheck = await checkRateLimit(messageData.userId, roomId, messageData.content);
+    // 🛡️ RATE LIMITING PROFESIONAL: Solo para usuarios reales (NO IAs)
+    // ✅ EXCLUIR IAs del rate limiting - tienen su propio sistema de control (AI_MIN_DELAY_MS)
+    if (isRealUser) {
+      const rateLimitCheck = await checkRateLimit(messageData.userId, roomId, messageData.content);
 
-    if (!rateLimitCheck.allowed) {
-      console.warn(`🚫 [RATE LIMIT] Mensaje bloqueado de ${messageData.username} (${messageData.userId})`);
-      console.warn(`Razón: ${rateLimitCheck.error}`);
+      if (!rateLimitCheck.allowed) {
+        console.warn(`🚫 [RATE LIMIT] Mensaje bloqueado de ${messageData.username} (${messageData.userId})`);
+        console.warn(`Razón: ${rateLimitCheck.error}`);
 
-      throw new Error(rateLimitCheck.error);
+        throw new Error(rateLimitCheck.error);
+      }
+
+      console.log(`✅ [RATE LIMIT] Usuario ${messageData.username} pasó verificación`);
+    } else {
+      // ✅ IAs excluidas del rate limiting - desmutear si están muteadas (limpiar estado anterior)
+      await unmuteUser(messageData.userId).catch(() => {
+        // Ignorar errores al desmutear (puede que no estuviera muteada)
+      });
+      console.log(`✅ [RATE LIMIT] IA ${messageData.username} excluida del rate limiting (controlado por sistema de IAs)`);
     }
-
-    console.log(`✅ [RATE LIMIT] Usuario ${messageData.username} pasó verificación`);
 
     // ✅ IMPORTANTE: Registrar mensaje SOLO después de que se envíe exitosamente (ver abajo)
 

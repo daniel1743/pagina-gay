@@ -48,7 +48,7 @@ const AuthPage = () => {
   const handleLogin = (e) => {
     e.preventDefault();
     if (login(loginData.email, loginData.password)) {
-      navigate('/chat');
+      navigate('/home'); // ✅ Redirigir a /home después del login
     }
   };
 
@@ -68,7 +68,7 @@ const AuthPage = () => {
     }
 
     if (register(registerData)) {
-      navigate('/chat');
+      navigate('/home'); // ✅ Redirigir a /home después del registro
     }
   };
 
@@ -83,7 +83,7 @@ const AuthPage = () => {
         <div className="relative z-10 w-full max-w-md">
           <Button
             variant="ghost"
-            onClick={() => navigate('/')}
+            onClick={() => navigate('/landing')}
             className="mb-6 text-purple-300 hover:text-purple-100"
           >
             <ArrowLeft className="w-4 h-4 mr-2" />

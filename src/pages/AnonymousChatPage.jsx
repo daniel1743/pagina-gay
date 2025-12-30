@@ -2,7 +2,7 @@ import React, { useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
 import { Button } from '@/components/ui/button';
-import { Shield, Lock, Users, MessageCircle, Heart, ArrowRight, CheckCircle, Home, MessageSquare, Zap } from 'lucide-react';
+import { Shield, Lock, Users, MessageCircle, Heart, ArrowRight, CheckCircle, Home, MessageSquare, Zap, X } from 'lucide-react';
 import { motion } from 'framer-motion';
 import { toast } from '@/components/ui/use-toast';
 
@@ -31,6 +31,11 @@ const AnonymousChatPage = () => {
 
   const handleLogin = () => {
     navigate('/auth');
+  };
+
+  const handleQuickEscape = () => {
+    // Redirect to Google for quick escape
+    window.location.href = 'https://www.google.com/search?q=Google.com';
   };
 
   const benefits = [
@@ -72,14 +77,28 @@ const AnonymousChatPage = () => {
           <Shield className="w-6 h-6 text-cyan-400" />
           <h2 className="font-bold text-gray-100 text-lg">Sala de Apoyo Anónima</h2>
         </div>
-        <Button
-          variant="ghost"
-          size="icon"
-          onClick={() => navigate('/')}
-          className="text-gray-300 hover:text-cyan-400"
-        >
-          <Home className="w-5 h-5" />
-        </Button>
+        <div className="flex items-center gap-2">
+          {/* Quick Escape Button */}
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={handleQuickEscape}
+            className="bg-red-500 hover:bg-red-600 text-white px-2 sm:px-3 flex items-center gap-1.5 sm:gap-2"
+            aria-label="Escape rápido - Salir inmediatamente"
+            title="Escape rápido - Salir inmediatamente"
+          >
+            <X className="w-4 h-4 sm:w-5 sm:h-5" />
+            <span className="hidden sm:inline text-xs sm:text-sm font-semibold">Salir rápido</span>
+          </Button>
+          <Button
+            variant="ghost"
+            size="icon"
+            onClick={() => navigate('/')}
+            className="text-gray-300 hover:text-cyan-400"
+          >
+            <Home className="w-5 h-5" />
+          </Button>
+        </div>
       </header>
 
       {/* Hero Section */}

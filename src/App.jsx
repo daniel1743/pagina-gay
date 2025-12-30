@@ -30,10 +30,20 @@ function PrivateRoute({ children }) {
   return user && !user.isGuest ? children : <Navigate to="/auth" />;
 }
 
-function LandingRoute({ children, redirectTo }) {
+function LandingRoute({ children, redirectTo = '/home' }) {
   const { user } = useAuth();
-  if (user) {
+  // ✅ Solo mostrar landing si NO está logueado (incluyendo guests)
+  if (user && !user.isGuest && !user.isAnonymous) {
     return <Navigate to={redirectTo} replace />;
+  }
+  return children;
+}
+
+function HomeRoute({ children }) {
+  const { user } = useAuth();
+  // ✅ Solo mostrar home si está logueado (NO guests)
+  if (!user || user.isGuest || user.isAnonymous) {
+    return <Navigate to="/landing" replace />;
   }
   return children;
 }
@@ -68,16 +78,24 @@ function AppRoutes() {
       }}
     >
       <Routes>
-        {/* ✅ RESTAURADO: Landing profesional en página principal */}
-        <Route path="/" element={<MainLayout><GlobalLandingPage /></MainLayout>} />
-        <Route path="/lobby" element={<MainLayout><LobbyPage /></MainLayout>} />
+        {/* ✅ ARQUITECTURA: Landing solo para usuarios no logueados */}
+        <Route path="/landing" element={<LandingRoute redirectTo="/home"><MainLayout><GlobalLandingPage /></MainLayout></LandingRoute>} />
+        {/* ✅ REDIRECCIÓN: / → /landing para mantener compatibilidad */}
+        <Route path="/" element={<Navigate to="/landing" replace />} />
+        
+        {/* ✅ ARQUITECTURA: Home solo para usuarios logueados */}
+        <Route path="/home" element={<HomeRoute><MainLayout><LobbyPage /></MainLayout></HomeRoute>} />
+        <Route path="/inicio" element={<HomeRoute><MainLayout><LobbyPage /></MainLayout></HomeRoute>} />
+        {/* ✅ MANTENER: /lobby como alias de /home para compatibilidad */}
+        <Route path="/lobby" element={<HomeRoute><MainLayout><LobbyPage /></MainLayout></HomeRoute>} />
+        
         <Route path="/auth" element={<AuthPage />} />
 
-        {/* ✅ SEO: Landing pages específicas optimizadas para CTR */}
-        <Route path="/global" element={<LandingRoute redirectTo="/chat/global"><MainLayout><GlobalLandingPage /></MainLayout></LandingRoute>} />
-        <Route path="/gaming" element={<LandingRoute redirectTo="/chat/gaming"><MainLayout><GamingLandingPage /></MainLayout></LandingRoute>} />
-        <Route path="/mas-30" element={<LandingRoute redirectTo="/chat/mas-30"><MainLayout><Mas30LandingPage /></MainLayout></LandingRoute>} />
-        <Route path="/santiago" element={<LandingRoute redirectTo="/chat/santiago"><MainLayout><SantiagoLandingPage /></MainLayout></LandingRoute>} />
+        {/* ✅ SEO: Landing pages específicas optimizadas para CTR - Solo no logueados */}
+        <Route path="/global" element={<LandingRoute redirectTo="/home"><MainLayout><GlobalLandingPage /></MainLayout></LandingRoute>} />
+        <Route path="/gaming" element={<LandingRoute redirectTo="/home"><MainLayout><GamingLandingPage /></MainLayout></LandingRoute>} />
+        <Route path="/mas-30" element={<LandingRoute redirectTo="/home"><MainLayout><Mas30LandingPage /></MainLayout></LandingRoute>} />
+        <Route path="/santiago" element={<LandingRoute redirectTo="/home"><MainLayout><SantiagoLandingPage /></MainLayout></LandingRoute>} />
 
         {/* ✅ REDIRECCIÓN: conversas-libres → global (sala limpia sin spam) */}
         <Route
@@ -137,7 +155,7 @@ function AppRoutes() {
             </PrivateRoute>
           }
         />
-        <Route path="*" element={<Navigate to="/" />} />
+        <Route path="*" element={<Navigate to="/landing" />} />
       </Routes>
       <Toaster />
     </Router>
