@@ -1,6 +1,22 @@
 <!doctype html>
-<html lang="es">
+<html lang="es" class="dark">
 	<head>
+		<!-- 🔥 APLICAR MODO OSCURO INMEDIATAMENTE (antes de React) -->
+		<script>
+			// Aplicar modo oscuro por defecto inmediatamente
+			(function() {
+				const savedTheme = localStorage.getItem('chactivo-theme');
+				const html = document.documentElement;
+				// Si no hay tema guardado o no es 'light', aplicar 'dark'
+				if (!savedTheme || savedTheme !== 'light') {
+					html.classList.remove('light');
+					html.classList.add('dark');
+				} else {
+					html.classList.remove('dark');
+					html.classList.add('light');
+				}
+			})();
+		</script>
 		<meta charset="UTF-8" />
 		<meta name="viewport" content="width=device-width, initial-scale=1.0" />
 

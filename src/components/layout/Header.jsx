@@ -23,6 +23,7 @@ const Header = () => {
   const [showNotifications, setShowNotifications] = useState(false);
   const [unreadNotificationsCount, setUnreadNotificationsCount] = useState(0);
   const [showBetaPulse, setShowBetaPulse] = useState(true);
+  const [logoSrc, setLogoSrc] = useState("/LOGO-TRASPARENTE.png");
 
   // Desactivar animación del badge Beta después de 5 segundos
   useEffect(() => {
@@ -88,7 +89,26 @@ const Header = () => {
       <div className="container mx-auto px-4 sm:px-6 lg:px-8 flex items-center justify-between h-16 sm:h-20">
         <div className="flex items-center gap-3 cursor-pointer" onClick={() => navigate('/')}>
           <div className="w-10 h-10 flex items-center justify-center">
-            <img src="/LOGO-TRASPARENTE.png" alt="Chactivo Logo" className="w-10 h-10 object-contain" />
+            {logoSrc ? (
+              <img 
+                src={logoSrc} 
+                alt="Chactivo Logo" 
+                className="w-10 h-10 object-contain" 
+                onError={() => {
+                  // Intentar logo alternativo si el principal falla
+                  if (logoSrc === "/LOGO-TRASPARENTE.png") {
+                    setLogoSrc("/LOGO_CHACTIVO.png");
+                  } else {
+                    // Si también falla, mostrar fallback
+                    setLogoSrc("");
+                  }
+                }}
+              />
+            ) : (
+              <div className="w-10 h-10 flex items-center justify-center bg-gradient-to-br from-purple-500 to-pink-500 rounded-lg">
+                <span className="text-white font-bold text-lg">C</span>
+              </div>
+            )}
           </div>
           <div className="hidden sm:flex items-center gap-2">
             <h1 className="text-2xl font-bold text-foreground">Chactivo</h1>

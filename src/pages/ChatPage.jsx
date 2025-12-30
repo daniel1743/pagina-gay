@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
+import { useParams, useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
 import ChatSidebar from '@/components/chat/ChatSidebar';
 import ChatHeader from '@/components/chat/ChatHeader';
@@ -48,6 +48,7 @@ const roomWelcomeMessages = {
 const ChatPage = () => {
   const { roomId } = useParams();
   const navigate = useNavigate();
+  const location = useLocation();
   const { user, guestMessageCount, setGuestMessageCount, showWelcomeTour, setShowWelcomeTour } = useAuth();
 
   // ✅ Estados y refs - DEBEN estar ANTES del early return
@@ -617,12 +618,13 @@ const ChatPage = () => {
     return () => unsubscribe();
   }, [user]);
 
-  // Navegar cuando cambia la sala actual
+  // Navegar cuando cambia la sala actual (solo si estamos en una ruta de chat)
   useEffect(() => {
-    if (currentRoom !== roomId) {
+    // ✅ FIX: Solo navegar si estamos en una ruta de chat, no cuando navegamos a otras páginas
+    if (currentRoom !== roomId && location.pathname.startsWith('/chat/')) {
       navigate(`/chat/${currentRoom}`, { replace: true });
     }
-  }, [currentRoom, roomId, navigate]);
+  }, [currentRoom, roomId, navigate, location.pathname]);
 
   // Auto-scroll a nuevos mensajes
   useEffect(() => {

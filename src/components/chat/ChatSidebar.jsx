@@ -52,6 +52,7 @@ const ChatSidebar = ({ currentRoom, setCurrentRoom, isOpen, onClose }) => {
   const navigate = useNavigate();
   const { user, logout } = useAuth();
   const [roomCounts, setRoomCounts] = useState({});
+  const [logoSrc, setLogoSrc] = useState("/LOGO-TRASPARENTE.png");
 
   // Suscribirse a contadores en tiempo real (todos los usuarios pueden ver)
   useEffect(() => {
@@ -107,7 +108,26 @@ const ChatSidebar = ({ currentRoom, setCurrentRoom, isOpen, onClose }) => {
             whileTap={{ scale: 0.98 }}
           >
              <div className="w-10 h-10 flex items-center justify-center">
-              <img src="/LOGO-TRASPARENTE.png" alt="Chactivo Logo" className="w-10 h-10 object-contain" />
+              {logoSrc ? (
+                <img 
+                  src={logoSrc} 
+                  alt="Chactivo Logo" 
+                  className="w-10 h-10 object-contain" 
+                  onError={() => {
+                    // Intentar logo alternativo si el principal falla
+                    if (logoSrc === "/LOGO-TRASPARENTE.png") {
+                      setLogoSrc("/LOGO_CHACTIVO.png");
+                    } else {
+                      // Si también falla, mostrar fallback
+                      setLogoSrc("");
+                    }
+                  }}
+                />
+              ) : (
+                <div className="w-10 h-10 flex items-center justify-center bg-gradient-to-br from-purple-500 to-pink-500 rounded-lg">
+                  <span className="text-white font-bold text-lg">C</span>
+                </div>
+              )}
             </div>
             <div>
               <h2 className="font-bold text-foreground">Chactivo</h2>
@@ -283,7 +303,26 @@ const ChatSidebar = ({ currentRoom, setCurrentRoom, isOpen, onClose }) => {
             whileTap={{ scale: 0.98 }}
           >
              <div className="w-10 h-10 flex items-center justify-center">
-              <img src="/LOGO-TRASPARENTE.png" alt="Chactivo Logo" className="w-10 h-10 object-contain" />
+              {logoSrc ? (
+                <img 
+                  src={logoSrc} 
+                  alt="Chactivo Logo" 
+                  className="w-10 h-10 object-contain" 
+                  onError={() => {
+                    // Intentar logo alternativo si el principal falla
+                    if (logoSrc === "/LOGO-TRASPARENTE.png") {
+                      setLogoSrc("/LOGO_CHACTIVO.png");
+                    } else {
+                      // Si también falla, mostrar fallback
+                      setLogoSrc("");
+                    }
+                  }}
+                />
+              ) : (
+                <div className="w-10 h-10 flex items-center justify-center bg-gradient-to-br from-purple-500 to-pink-500 rounded-lg">
+                  <span className="text-white font-bold text-lg">C</span>
+                </div>
+              )}
             </div>
             <div>
               <h2 className="font-bold text-foreground">Chactivo</h2>

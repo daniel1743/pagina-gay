@@ -18,12 +18,13 @@ const GlobalLandingPage = () => {
   const isHomePage = location.pathname === '/';
   useCanonical(isHomePage ? '/' : '/global');
 
-  // Redirigir usuarios autenticados (no guests) directamente al chat
-  React.useEffect(() => {
-    if (user && !user.isGuest && !user.isAnonymous) {
-      navigate('/chat/global', { replace: true });
-    }
-  }, [user, navigate]);
+  // ✅ REMOVED: Redirect automático eliminado para permitir navegación libre
+  // Los usuarios autenticados ahora pueden visitar la página de inicio sin ser redirigidos
+  // React.useEffect(() => {
+  //   if (user && !user.isGuest && !user.isAnonymous) {
+  //     navigate('/chat/global', { replace: true });
+  //   }
+  // }, [user, navigate]);
 
   React.useEffect(() => {
     // ✅ SEO: Title y meta description adaptados a la ruta
