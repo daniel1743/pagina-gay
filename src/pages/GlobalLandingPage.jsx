@@ -89,83 +89,82 @@ const GlobalLandingPage = () => {
         <motion.div
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
-          className="text-center mb-12 sm:mb-16"
+          className="text-center mb-16 sm:mb-20 pt-8 sm:pt-12"
         >
-          {/* Badge */}
+          {/* Badge Simple y Discreto */}
           <motion.div
-            initial={{ opacity: 0, scale: 0.9 }}
+            initial={{ opacity: 0, scale: 0.95 }}
             animate={{ opacity: 1, scale: 1 }}
-            className="inline-block mb-6"
+            className="inline-block mb-8"
           >
-            <div className="bg-gradient-to-r from-cyan-500/20 to-blue-500/20 border border-cyan-500/30 rounded-full px-4 sm:px-6 py-2 sm:py-3">
-              <p className="text-xs sm:text-sm font-semibold text-cyan-300 flex items-center gap-2">
-                <MessageSquare className="w-4 h-4" />
-                <span>La sala más activa de Chactivo - Todos los temas bienvenidos</span>
+            <div className="bg-[#F3F4F6] dark:bg-[#374151] border border-[#E5E7EB] dark:border-[#4B5563] rounded-full px-4 sm:px-5 py-1.5 sm:py-2">
+              <p className="text-xs sm:text-sm font-medium text-[#6B7280] dark:text-[#9CA3AF] flex items-center justify-center gap-2">
+                <MessageSquare className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
+                <span>Espacio seguro y activo las 24 horas</span>
               </p>
             </div>
           </motion.div>
 
-          {/* H1 */}
-          <h1 className="text-4xl sm:text-5xl md:text-6xl lg:text-7xl font-extrabold mb-6 leading-tight">
-            Chat Gay{' '}
-            <span className="bg-gradient-to-r from-cyan-400 via-blue-400 to-purple-400 bg-clip-text text-transparent">
-              Global en Chile
-            </span>
+          {/* Headline Principal - Sin gradientes, alto contraste */}
+          <h1 className="text-4xl sm:text-5xl md:text-6xl lg:text-7xl font-bold mb-6 sm:mb-8 leading-tight tracking-tight text-[#1F2937] dark:text-white max-w-5xl mx-auto">
+            Chat de la comunidad{' '}
+            <span className="text-[#4F46E5] dark:text-[#818CF8]">LGBTQ+</span>{' '}
+            en Chile
           </h1>
 
-          {/* Subtitle */}
-          <p className="text-lg sm:text-xl md:text-2xl text-muted-foreground mb-6 max-w-3xl mx-auto">
-            La sala más popular de Chile. Conversa sobre lo que quieras con gays de todo el país. Ambiente relajado, conversación real.
-          </p>
-          <p className="text-sm sm:text-base text-cyan-300 mb-8 max-w-2xl mx-auto">
-            💬 Temas: Amistad, Relaciones, Gaming, Series, Música, Viajes, Cultura, Deportes • 🏳️‍🌈 Todos bienvenidos
+          {/* Subheadline - Claramente diferenciado */}
+          <p className="text-lg sm:text-xl md:text-2xl font-normal text-[#4B5563] dark:text-[#D1D5DB] mb-4 sm:mb-6 max-w-3xl mx-auto leading-relaxed">
+            Conecta, conversa y comparte en un espacio seguro, anónimo y activo las 24 horas.
           </p>
 
-          {/* Trust Badges */}
-          <div className="flex flex-wrap items-center justify-center gap-4 sm:gap-6 mb-10 text-sm sm:text-base">
-            <div className="flex items-center gap-2 text-cyan-300">
-              <Shield className="w-5 h-5" />
-              <span className="font-semibold">100% Anónimo</span>
+          {/* Texto de Apoyo - Secundario */}
+          <p className="text-base sm:text-lg font-normal text-[#6B7280] dark:text-[#9CA3AF] mb-10 sm:mb-12 max-w-2xl mx-auto leading-relaxed">
+            Amistad, relaciones, cultura, música, viajes, series y más. Todas las personas son bienvenidas.
+          </p>
+
+          {/* Trust Badges - Discretos, iconos monocromáticos */}
+          <div className="flex flex-wrap items-center justify-center gap-6 sm:gap-8 mb-10 sm:mb-12">
+            <div className="flex items-center gap-2.5">
+              <Shield className="w-4 h-4 text-[#4F46E5] dark:text-[#818CF8]" />
+              <span className="text-sm sm:text-base font-medium text-[#374151] dark:text-[#E5E7EB]">100% Anónimo</span>
             </div>
-            <div className="flex items-center gap-2 text-green-300">
-              <Zap className="w-5 h-5" />
-              <span className="font-semibold">Registro 30s</span>
+            <div className="flex items-center gap-2.5">
+              <Clock className="w-4 h-4 text-[#4F46E5] dark:text-[#818CF8]" />
+              <span className="text-sm sm:text-base font-medium text-[#374151] dark:text-[#E5E7EB]">Activo 24/7</span>
             </div>
-            <div className="flex items-center gap-2 text-yellow-300">
-              <Clock className="w-5 h-5" />
-              <span className="font-semibold">Activo 24/7</span>
+            <div className="flex items-center gap-2.5">
+              <Zap className="w-4 h-4 text-[#4F46E5] dark:text-[#818CF8]" />
+              <span className="text-sm sm:text-base font-medium text-[#374151] dark:text-[#E5E7EB]">Registro rápido</span>
             </div>
           </div>
 
-          {/* CTA Principal - OPTIMIZADO */}
-          <div className="flex flex-col sm:flex-row gap-4 items-center justify-center">
-            <motion.div whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }}>
+          {/* CTA Principal - Profesional y claro */}
+          <div className="flex flex-col sm:flex-row gap-4 items-center justify-center mb-6">
+            <motion.div whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }}>
               <Button
                 onClick={handleChatearAhora}
                 size="lg"
-                className="magenta-gradient text-white font-extrabold text-lg sm:text-xl md:text-2xl px-8 sm:px-12 md:px-16 py-6 sm:py-7 md:py-8 rounded-2xl shadow-2xl hover:shadow-[#E4007C]/70 hover:scale-105 transition-all w-full sm:w-auto min-h-[56px] sm:min-h-[64px] animate-pulse-subtle"
+                className="bg-[#4F46E5] hover:bg-[#4338CA] dark:bg-[#6366F1] dark:hover:bg-[#818CF8] text-white font-semibold text-base sm:text-lg px-8 sm:px-10 py-6 sm:py-7 rounded-xl shadow-lg hover:shadow-xl transition-all w-full sm:w-auto"
               >
-                <Zap className="w-6 h-6 mr-2" />
-                ⚡ Chatear Ahora - ¡Es Gratis!
+                Comenzar a chatear
               </Button>
             </motion.div>
 
-            <motion.div whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }}>
+            <motion.div whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }}>
               <Button
                 onClick={handleRegistrar}
                 size="lg"
                 variant="outline"
-                className="border-2 border-cyan-500/50 text-cyan-400 font-bold text-base sm:text-lg md:text-xl px-6 sm:px-8 md:px-12 py-5 sm:py-6 md:py-7 rounded-xl hover:bg-cyan-500/10 hover:border-cyan-500 transition-all w-full sm:w-auto min-h-[48px]"
+                className="border-2 border-[#D1D5DB] dark:border-[#4B5563] bg-white dark:bg-transparent text-[#374151] dark:text-[#E5E7EB] hover:bg-[#F3F4F6] dark:hover:bg-[#374151] hover:text-[#1F2937] dark:hover:text-[#F9FAFB] font-medium text-base sm:text-lg px-8 sm:px-10 py-6 sm:py-7 rounded-xl transition-all w-full sm:w-auto"
               >
-                <MessageSquare className="w-6 h-6 mr-2" />
-                💎 Registrate para Más
+                Crear cuenta
               </Button>
             </motion.div>
           </div>
 
-          {/* Micro CTA copy */}
-          <p className="text-sm text-muted-foreground mt-4">
-            ⚡ Sin registro: Chatea gratis 1 mes • 💎 Con registro: Chats privados, likes y más
+          {/* Micro CTA copy - Texto discreto */}
+          <p className="text-sm text-[#6B7280] dark:text-[#9CA3AF]">
+            Sin registro necesario • 100% gratuito • Privacidad garantizada
           </p>
         </motion.div>
 
