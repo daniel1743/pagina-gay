@@ -45,6 +45,36 @@ export const roomsData = [
     color: 'violet'
   },
 
+  // 🌍 SALAS POR PAÍS - Nuevas rutas internacionales
+  {
+    id: 'es-main',
+    name: 'España 🇪🇸',
+    description: 'Chat principal de España',
+    icon: Hash,
+    color: 'red'
+  },
+  {
+    id: 'br-main',
+    name: 'Brasil 🇧🇷',
+    description: 'Chat principal do Brasil',
+    icon: Hash,
+    color: 'green'
+  },
+  {
+    id: 'mx-main',
+    name: 'México 🇲🇽',
+    description: 'Chat principal de México',
+    icon: Hash,
+    color: 'green'
+  },
+  {
+    id: 'ar-main',
+    name: 'Argentina 🇦🇷',
+    description: 'Chat principal de Argentina',
+    icon: Hash,
+    color: 'blue'
+  },
+
   // 💤 SALAS DESACTIVADAS TEMPORALMENTE (Reactivar cuando haya más tráfico)
   // {
   //   id: 'valparaiso',

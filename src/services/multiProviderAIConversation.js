@@ -1040,10 +1040,10 @@ const getActivePersonalitiesForRoom = (roomId) => {
       );
     }
     
-    // Seleccionar un subconjunto aleatorio de personalidades para esta sala
-    // Cada sala tendrá aproximadamente 60-70% de las personalidades disponibles
-    const selectionRatio = 0.6 + Math.random() * 0.2; // Entre 60% y 80%
-    const numToSelect = Math.max(10, Math.floor(availablePersonalities.length * selectionRatio));
+    // 💰 MODO AHORRADOR: Menos personalidades activas por sala
+    // Cada sala tendrá aproximadamente 30-40% de las personalidades disponibles
+    const selectionRatio = 0.3 + Math.random() * 0.1; // Entre 30% y 40%
+    const numToSelect = Math.max(5, Math.floor(availablePersonalities.length * selectionRatio));
     
     // Mezclar y seleccionar
     const shuffled = [...availablePersonalities].sort(() => Math.random() - 0.5);
@@ -1601,7 +1601,32 @@ const pickRandomExcludingLast = (roomId, count = 1) => {
 const buildPrompt = (personality, roomId, isResponseToUser = false, userMessage = null, userName = null, userId = null) => {
   const history = getHistory(roomId);
   // 🔥 AUMENTADO: Usar más historial (25 mensajes) para mejor memoria y contexto
-  const recent = history.slice(-25).map(h => h.content).join('\n');
+  // 🔥 NUEVO: Extraer mensajes con autores para contexto mejorado
+  const recentMessagesWithAuthors = history.slice(-25).map(h => {
+    // Extraer nombre del autor del mensaje si está disponible
+    const content = h.content || '';
+    const match = content.match(/^([^:]+):\s*(.+)$/);
+    if (match) {
+      return { author: match[1].trim(), message: match[2].trim(), full: content };
+    }
+    return { author: 'Desconocido', message: content, full: content };
+  });
+  
+  // Crear contexto estructurado con autores
+  const recentStructured = recentMessagesWithAuthors
+    .filter(m => m.message && m.message.length > 0)
+    .slice(-10) // Últimos 10 mensajes para contexto más relevante
+    .map(m => `${m.author}: ${m.message}`)
+    .join('\n');
+  
+  const recent = recentStructured || history.slice(-25).map(h => h.content).join('\n');
+  
+  // 🔥 NUEVO: Extraer nombres de otras IAs en la conversación
+  const otherAIsInChat = recentMessagesWithAuthors
+    .map(m => m.author)
+    .filter(author => author !== personality.username && author !== 'Desconocido' && !author.includes('Usuario'))
+    .filter((author, index, self) => self.indexOf(author) === index) // Únicos
+    .slice(0, 5); // Máximo 5 nombres
 
   // 🔥 PROGRESIÓN: Obtener nivel de calor actual
   const heatLevel = getAIHeatLevel(personality.userId, roomId);
@@ -1661,11 +1686,27 @@ const buildPrompt = (personality, roomId, isResponseToUser = false, userMessage 
         lastInteraction: Date.now()
       });
     }
+    // 🔥 NUEVO: Extraer contexto de otros mensajes recientes para respuesta más natural
+    const recentContext = recentMessagesWithAuthors
+      .filter(m => m.author !== userName && m.message && m.message.length > 0)
+      .slice(-3)
+      .map(m => `${m.author}: ${m.message}`)
+      .join('\n');
+    
+    const contextNote = recentContext 
+      ? `\n\n📋 CONTEXTO RECIENTE (otros mensajes en el chat):\n${recentContext}\n- Puedes referirte a estos mensajes si es relevante, pero el usuario real tiene PRIORIDAD`
+      : '';
+    
     contextForPrompt = `🔥🔥🔥 USUARIO REAL - PRIORIDAD ABSOLUTA 🔥🔥🔥
-Usuario real (${userName}) dijo: "${userMessage}"
+Usuario real (${userName}) dijo: "${userMessage}"${contextNote}
 
 INSTRUCCIONES CRÍTICAS:
 - Este usuario es REAL y tiene PRIORIDAD TOTAL sobre todo
+- DEBES responder DIRECTAMENTE a lo que ${userName} dijo: "${userMessage}"
+- NO repitas exactamente lo que él dijo - RESPONDE contextualmente
+- Si él dice "tengo panza grande", responde algo como "yo tengo la verga para esa panza" o "quiero ponerla ahí"
+- Si él dice "quiero culo", responde según tu rol: "yo tengo la verga" (activo) o "yo tengo el culo" (pasivo)
+- PROHIBIDO repetir la misma frase palabra por palabra - siempre VARÍA y RESPONDE al contexto
 ${memoryContext}
 ${isExplicitUserMessage(userMessage) ? `
 🔥🔥🔥🔥🔥 USUARIO MUY EXPLÍCITO - RESPONDE IGUAL DE EXPLÍCITO 🔥🔥🔥🔥🔥
@@ -1767,7 +1808,12 @@ ${recent ? `\nÚltimos mensajes:\n${recent}` : ''}`;
           ? `\n\n⚠️ TEMAS BLOQUEADOS (no repetir en últimos 4 días): ${recentBlocked}. Evita estos temas y habla de algo diferente.`
           : '';
         
-        contextForPrompt = `${recent}\n\n🔥🔥🔥 NUEVAS REGLAS: EXTROVERTIDO Y BUSCANDO AVENTURAS 🔥🔥🔥\n- Eres EXTROVERTIDO y buscas AVENTURAS, ENCUENTROS, MORBOS y SEXO\n- Tienes GANAS DE SEXO, de TIRAR, de FOLLAR, de COGER, de SER COGIDO\n- NO te conoces con las otras IAs - NO hables como si fueran amigos\n- NO cuentes cosas personales como si se conocieran\n- Solo busca ENCUENTROS y AVENTURAS SEXUALES\n- VARIEDAD EN FORMAS DE LIGAR - NO siempre preguntes "¿de dónde eres?"\n- Usa VARIACIONES: "¿dnd andas?", "toy caliente", "quiero verga", "chupame el pico", "busco activo", "quiero que me des verga", "tienes verga?", "quiero pico", "busco pasivo", "toy hot", "quiero follar", "dnd tas?", "tienes culo?", "quiero coger", "busco vergón", "toy caliente wn", "quiero que me cojas", "tienes pico?", "busco culón", "quiero ser cogido", "toy buscando", "quiero verga dnd eres", "tienes verga grande?", "busco macho", "quiero que me follen", "toy listo", "quiero trío", "busco orgía", "toy caliente busco", "quiero que me chupen", "tienes culo grande?", "busco sugar daddy", "quiero sauna", "toy en el parque", "quiero penetrar", "busco que me penetren", "toy ready", "quiero ahora", "busco ya", "tienes tiempo?", "quiero ahora mismo", "busco urgente", "toy solo", "quiero compañía", "busco caliente"\n- Enfócate en BUSCAR SEXO, no en amistad\n- Reacciona BREVEMENTE a lo que otros dijeron\n- Haz preguntas CALIENTES y CORTAS VARIADAS, comenta algo relacionado con doble sentido SEXUAL\n- NO repitas las mismas preguntas que otros - VARÍA tus formas de ligar\n- Sé CONCISO, ATRACTIVO y SEXUAL\n- Máximo 10 palabras, 80 caracteres\n- Mantén la conversación ACTIVA pero BREVE\n- ACTÚA COMO HUMANO REAL - comete typos, usa lenguaje natural, no suenes perfecto${topicRestriction}`;
+        // 🔥 NUEVO: Instrucciones mejoradas para contexto y evitar repeticiones
+        const contextInstructions = otherAIsInChat.length > 0 
+          ? `\n\n🎯 CONTEXTO Y RESPUESTA NATURAL:\n- Lee los últimos mensajes arriba. Hay ${otherAIsInChat.length} ${otherAIsInChat.length === 1 ? 'persona' : 'personas'} en el chat: ${otherAIsInChat.join(', ')}\n- DEBES responder al CONTEXTO específico de lo que se dijo\n- Si alguien dice algo, responde a ESO específicamente, no repitas frases genéricas\n- USA LOS NOMBRES cuando respondas: "Hey ${otherAIsInChat[0]}, ..." o "Oye ${otherAIsInChat[0]}, ..."\n- Ejemplo: Si ${otherAIsInChat[0]} dice "tengo el culo grande", responde algo como "Hey ${otherAIsInChat[0]}, yo tengo la verga para ese culo" o "Oye ${otherAIsInChat[0]}, yo quiero ese culo"\n- NO repitas la misma frase 3 veces seguidas - VARÍA tus respuestas\n- Si alguien dice "tengo panza grande", responde contextualmente: "yo tengo la verga para esa panza" o "quiero ponerla en esa panza"\n- Si alguien dice "quiero culo", responde: "yo tengo la verga" o "yo te lo doy" - NO repitas "quiero culo" tú también\n- PROHIBIDO repetir exactamente lo que otro dijo - siempre VARÍA y RESPONDE al contexto\n- Si ya dijiste algo similar hace 2-3 mensajes, di algo DIFERENTE esta vez`
+          : '';
+        
+        contextForPrompt = `${recent}${contextInstructions}\n\n🔥🔥🔥 NUEVAS REGLAS: EXTROVERTIDO Y BUSCANDO AVENTURAS 🔥🔥🔥\n- Eres EXTROVERTIDO y buscas AVENTURAS, ENCUENTROS, MORBOS y SEXO\n- Tienes GANAS DE SEXO, de TIRAR, de FOLLAR, de COGER, de SER COGIDO\n- NO te conoces con las otras IAs - NO hables como si fueran amigos\n- NO cuentes cosas personales como si se conocieran\n- Solo busca ENCUENTROS y AVENTURAS SEXUALES\n- VARIEDAD EN FORMAS DE LIGAR - NO siempre preguntes "¿de dónde eres?"\n- Usa VARIACIONES: "¿dnd andas?", "toy caliente", "quiero verga", "chupame el pico", "busco activo", "quiero que me des verga", "tienes verga?", "quiero pico", "busco pasivo", "toy hot", "quiero follar", "dnd tas?", "tienes culo?", "quiero coger", "busco vergón", "toy caliente wn", "quiero que me cojas", "tienes pico?", "busco culón", "quiero ser cogido", "toy buscando", "quiero verga dnd eres", "tienes verga grande?", "busco macho", "quiero que me follen", "toy listo", "quiero trío", "busco orgía", "toy caliente busco", "quiero que me chupen", "tienes culo grande?", "busco sugar daddy", "quiero sauna", "toy en el parque", "quiero penetrar", "busco que me penetren", "toy ready", "quiero ahora", "busco ya", "tienes tiempo?", "quiero ahora mismo", "busco urgente", "toy solo", "quiero compañía", "busco caliente"\n- Enfócate en BUSCAR SEXO, no en amistad\n- Reacciona BREVEMENTE a lo que otros dijeron ESPECÍFICAMENTE\n- Haz preguntas CALIENTES y CORTAS VARIADAS, comenta algo relacionado con doble sentido SEXUAL\n- NO repitas las mismas preguntas que otros - VARÍA tus formas de ligar\n- NO repitas la misma frase palabra por palabra - siempre VARÍA\n- Sé CONCISO, ATRACTIVO y SEXUAL\n- Máximo 10 palabras, 80 caracteres\n- Mantén la conversación ACTIVA pero BREVE\n- ACTÚA COMO HUMANO REAL - comete typos, usa lenguaje natural, no suenes perfecto${topicRestriction}`;
       }
     }
   }
@@ -1788,6 +1834,16 @@ ${recent ? `\nÚltimos mensajes:\n${recent}` : ''}`;
     'TONO: CALIENTE, ATRACTIVO, PROVOCATIVO, SEXUAL. Jodon/exagerado cuando toque. No suenes perfecto ni robotico.',
     'SEXUALIDAD: Puedes ser MÁS EXPLÍCITO y SEXUAL. Habla de atracción física, deseo, fantasías, experiencias sexuales, cuerpos, sex appeal. Sé directo pero elegante. Usa doble sentido CALIENTE.',
     'NATURAL: mezcla palabras cortas, frases incompletas y respuestas con contexto. A veces no respondas directamente, cambia de tema naturalmente.',
+    '🚫🚫🚫 PROHIBIDO REPETICIONES - CRÍTICO:',
+    '🚫 NO repitas la misma frase palabra por palabra 3 veces seguidas',
+    '🚫 NO repitas exactamente lo que otro dijo - siempre VARÍA',
+    '🚫 Si alguien dice "tengo el culo grande", NO respondas "tengo el culo grande" también',
+    '🚫 Si ya dijiste algo similar hace 2-3 mensajes, di algo DIFERENTE esta vez',
+    '✅ VARIABILIDAD OBLIGATORIA:',
+    '✅ Si alguien dice "tengo panza", responde contextualmente: "yo tengo la verga para esa panza" o "quiero ponerla ahí"',
+    '✅ Si alguien dice "quiero culo", responde según tu rol: "yo tengo la verga" (activo) o "yo tengo el culo" (pasivo)',
+    '✅ USA NOMBRES cuando respondas: "Hey [nombre], ..." o "Oye [nombre], ..."',
+    '✅ RESPONDE al CONTEXTO específico - NO uses frases genéricas sin contexto',
     'PROHIBIDO sonar formal o corporativo.',
     '🚫🚫🚫 PROHIBIDO ABSOLUTO - NUNCA DIGAS (BLOQUEADO AUTOMÁTICAMENTE):',
     '🚫 "Lo siento, no puedo ayudar con eso"',
@@ -1875,7 +1931,7 @@ ${recent ? `\nÚltimos mensajes:\n${recent}` : ''}`;
 - Planes: "vamos a Bellavista", "qué rico estuvo", "la pasamos increíble"
 - NO hables con usuarios reales, solo con tus amigas
 - Sé natural, CONCISA (máx 10 palabras, 80 caracteres), como sifrina hablando con amigas`
-      : '- Conversa con otras IAs de forma CALIENTE, PROVOCATIVA y SEXUAL. Haz preguntas CORTAS y ATRACTIVAS, comenta BREVEMENTE con doble sentido CALIENTE. Sé CONCISO (máx 10 palabras, 80 caracteres), ATRACTIVO y SEXUAL. Mantén la conversación ACTIVA pero BREVE. ACTÚA COMO HUMANO REAL - comete typos, usa lenguaje natural, no suenes perfecto.';
+      : `- Conversa con otras IAs de forma CALIENTE, PROVOCATIVA y SEXUAL.${otherAIsInChat.length > 0 ? `\n- Hay ${otherAIsInChat.length} ${otherAIsInChat.length === 1 ? 'persona' : 'personas'} en el chat: ${otherAIsInChat.join(', ')}\n- USA SUS NOMBRES cuando respondas: "Hey ${otherAIsInChat[0]}, ..." o "Oye ${otherAIsInChat[0]}, ..."\n- RESPONDE al CONTEXTO específico de lo que dijeron - NO repitas frases genéricas\n- Si ${otherAIsInChat[0]} dice algo, responde a ESO específicamente\n- PROHIBIDO repetir exactamente lo que otro dijo - siempre VARÍA y RESPONDE contextualmente` : ''}\n- Haz preguntas CORTAS y ATRACTIVAS, comenta BREVEMENTE con doble sentido CALIENTE\n- NO repitas la misma frase 3 veces - VARÍA tus respuestas\n- Sé CONCISO (máx 10 palabras, 80 caracteres), ATRACTIVO y SEXUAL\n- Mantén la conversación ACTIVA pero BREVE\n- ACTÚA COMO HUMANO REAL - comete typos, usa lenguaje natural, no suenes perfecto.`;
 
   return [
     {
@@ -1911,14 +1967,14 @@ const fetchChatCompletion = async (providerKey, messages, isResponseToUser = fal
       body: JSON.stringify({
         model: provider.model,
         messages,
-        // 🔥🔥🔥 CONFIGURACIÓN POR PROVEEDOR PARA MÁXIMO MORBO
-        temperature: providerKey === 'deepseek' ? 1.6 : 1.5, // DeepSeek más creativo, OpenAI un poco menos
-        max_tokens: providerKey === 'deepseek' ? 60 : 50, // DeepSeek más tokens para respuestas más explícitas
+        // 💰 MODO AHORRADOR: Configuración optimizada para reducir costos
+        temperature: providerKey === 'deepseek' ? 1.2 : 1.1, // Reducido para respuestas más predecibles
+        max_tokens: providerKey === 'deepseek' ? 35 : 30, // Reducido para respuestas más cortas
         // OpenAI necesita más instrucciones explícitas, así que aumentamos temperatura
         ...(providerKey === 'openai' && {
-          top_p: 0.95, // Más diversidad en respuestas
-          frequency_penalty: 0.3, // Evitar repeticiones
-          presence_penalty: 0.3 // Fomentar creatividad
+          top_p: 0.90, // Reducido para menos diversidad
+          frequency_penalty: 0.5, // Aumentado para evitar repeticiones
+          presence_penalty: 0.2 // Reducido para menos creatividad
         })
       })
     });
@@ -2175,6 +2231,7 @@ const generateAIMessage = async (roomId, personality, isResponseToUser = false, 
 /**
  * Verifica si un mensaje es muy similar a mensajes recientes
  * Evita repeticiones entre diferentes personalidades
+ * 🔥 MEJORADO: Detecta repeticiones de frases completas
  */
 const isMessageSimilar = (roomId, newMessage, threshold = 0.5) => {
   const recent = recentMessages.get(roomId) || [];
@@ -2191,6 +2248,23 @@ const isMessageSimilar = (roomId, newMessage, threshold = 0.5) => {
   };
 
   const normalizedNew = normalize(newMessage);
+  
+  // 🔥 NUEVO: Detectar repeticiones de frases completas dentro del mismo mensaje
+  // Ejemplo: "you have the big value, you have the big value" o "I want to break your ass, I want to break your ass"
+  const words = normalizedNew.split(/\s+/);
+  if (words.length >= 4) {
+    // Buscar frases repetidas de 3+ palabras
+    for (let phraseLength = 3; phraseLength <= Math.min(8, Math.floor(words.length / 2)); phraseLength++) {
+      for (let i = 0; i <= words.length - phraseLength * 2; i++) {
+        const phrase1 = words.slice(i, i + phraseLength).join(' ');
+        const phrase2 = words.slice(i + phraseLength, i + phraseLength * 2).join(' ');
+        if (phrase1 === phrase2 && phrase1.length > 10) {
+          console.log(`[MULTI AI] 🚫 Repetición detectada en mensaje: "${phrase1}" repetido`);
+          return true;
+        }
+      }
+    }
+  }
 
   const prohibitedPatterns = [
     /wn,?\s*el\s+\w+\s+es\s+el\s+mejor/i,  // "wn, el X es el mejor"
@@ -2219,9 +2293,32 @@ const isMessageSimilar = (roomId, newMessage, threshold = 0.5) => {
     }
   }
 
-  // Comparar con últimos 10 mensajes (aumentado de 5)
-  for (const recentMsg of recent.slice(-10)) {
+  // 🔥 MEJORADO: Comparar con últimos 15 mensajes y detectar repeticiones exactas
+  for (const recentMsg of recent.slice(-15)) {
     const normalizedRecent = normalize(recentMsg);
+    
+    // 🔥 NUEVO: Detectar si el mensaje nuevo es una repetición exacta o casi exacta
+    if (normalizedNew === normalizedRecent) {
+      console.log(`[MULTI AI] 🚫 Mensaje idéntico detectado: "${newMessage.substring(0, 50)}..."`);
+      return true;
+    }
+    
+    // 🔥 NUEVO: Detectar si contiene la misma frase clave repetida
+    // Extraer frases de 4+ palabras del mensaje reciente
+    const recentWords = normalizedRecent.split(/\s+/);
+    if (recentWords.length >= 4) {
+      for (let i = 0; i <= recentWords.length - 4; i++) {
+        const phrase = recentWords.slice(i, i + 4).join(' ');
+        if (phrase.length > 15 && normalizedNew.includes(phrase)) {
+          // Verificar si esta frase aparece múltiples veces en el mensaje nuevo
+          const occurrences = (normalizedNew.match(new RegExp(phrase.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'g')) || []).length;
+          if (occurrences >= 2) {
+            console.log(`[MULTI AI] 🚫 Frase repetida detectada: "${phrase}" aparece ${occurrences} veces`);
+            return true;
+          }
+        }
+      }
+    }
 
     // Calcular similitud simple (palabras en común)
     const wordsNew = normalizedNew.split(' ').filter(w => w.length > 2);
@@ -2688,9 +2785,9 @@ const runConversationPulse = (roomId) => {
     return true;
   });
   
-  // 🔥 MÁXIMA CAPACIDAD: 3-5 IAs hablan por pulse (máxima actividad)
+  // 💰 MODO AHORRADOR: 1-2 IAs hablan por pulse para reducir consumo
   // Pero excluir las IAs asignadas al usuario (máximo 2)
-  const numParticipants = 3 + Math.floor(Math.random() * 3); // 3, 4 o 5 IAs (máxima capacidad)
+  const numParticipants = 1 + Math.floor(Math.random() * 2); // 1 o 2 IAs (modo ahorrador)
   let delay = 0;
   let lastPersonality = getLastSpeaker(roomId);
 
@@ -2782,15 +2879,15 @@ const runConversationPulse = (roomId) => {
 
     // El próximo no puede ser este
     lastPersonality = personality.userId;
-    // 🔥 OPTIMIZADO: Delay reducido para más actividad (3-8s)
-    delay += 3000 + Math.random() * 5000; // 3-8 segundos entre mensajes (más rápido y activo)
+    // 💰 MODO AHORRADOR: Delay aumentado para reducir consumo (15-30s)
+    delay += 15000 + Math.random() * 15000; // 15-30 segundos entre mensajes (modo ahorrador)
   }
 
   console.log(`%c⏱️ Próximo pulse en: ${Math.round(getPulseIntervalMs()/1000)}s`, 'color: #9c27b0; font-weight: bold;');
 };
 
-// 🔥 MÁXIMA FRECUENCIA: Pulses cada 2 segundos cuando hay usuarios reales (máxima capacidad de escritura)
-const getPulseIntervalMs = () => 2000; // 2 segundos - máxima frecuencia
+// 💰 MODO AHORRADOR: Pulses cada 45 segundos para reducir consumo de API
+const getPulseIntervalMs = () => 45000; // 45 segundos - modo ahorrador
 
 const startRoomAI = (roomId) => {
   // ✅ REACTIVADO: Sistema de IA conversacional solo cuando hay usuarios

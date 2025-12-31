@@ -15,18 +15,33 @@ const AuthPage = () => {
   useCanonical('/auth');
 
   React.useEffect(() => {
+    const previousTitle = document.title;
     document.title = "Iniciar Sesión - Chactivo | Chat Gay Chile";
 
-    // ✅ SEO: Noindex para evitar que Google indexe la página de login
-    const metaRobots = document.createElement('meta');
-    metaRobots.name = 'robots';
-    metaRobots.content = 'noindex, nofollow';
-    document.head.appendChild(metaRobots);
+    // ✅ SEO: Noindex para evitar que Google indexe la página de login/registro
+    let metaRobots = document.querySelector('meta[name="robots"]');
+    const hadMetaRobots = !!metaRobots;
+    const previousRobotsContent = metaRobots?.getAttribute('content') ?? '';
+
+    if (!metaRobots) {
+      metaRobots = document.createElement('meta');
+      metaRobots.name = 'robots';
+      document.head.appendChild(metaRobots);
+    }
+    metaRobots.setAttribute('content', 'noindex, nofollow');
 
     return () => {
-      // Limpiar al desmontar
-      if (document.head.contains(metaRobots)) {
-        document.head.removeChild(metaRobots);
+      // Restore title
+      document.title = previousTitle;
+
+      // Restore or remove meta robots
+      const currentMetaRobots = document.querySelector('meta[name="robots"]');
+      if (!currentMetaRobots) return;
+
+      if (hadMetaRobots) {
+        currentMetaRobots.setAttribute('content', previousRobotsContent);
+      } else {
+        currentMetaRobots.remove();
       }
     };
   }, []);

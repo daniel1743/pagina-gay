@@ -65,6 +65,14 @@ const ChatInput = ({ onSendMessage }) => {
     };
   }, [wrapperRef]);
 
+  // Auto-ajustar altura del textarea
+  useEffect(() => {
+    if (textareaRef.current) {
+      textareaRef.current.style.height = 'auto';
+      textareaRef.current.style.height = `${Math.min(textareaRef.current.scrollHeight, 120)}px`;
+    }
+  }, [message]);
+
   const checkForSensitiveWords = (text) => {
     const words = text.toLowerCase().split(/\s+/);
     const found = words.some(word => SENSITIVE_WORDS.includes(word.replace(/[.,/#!$%^&*;:{}=\-_`~()]/g,"")));
@@ -204,7 +212,7 @@ const ChatInput = ({ onSendMessage }) => {
             </motion.div>
         )}
       </AnimatePresence>
-      <form onSubmit={handleSubmit} className="flex items-end gap-1.5 sm:gap-2">
+      <form onSubmit={handleSubmit} className="flex items-end gap-1.5 sm:gap-2 flex-nowrap">
         {/* ✅ Botones con tamaño mínimo táctil (44px) para móvil */}
         <Button
           type="button"
@@ -258,6 +266,7 @@ const ChatInput = ({ onSendMessage }) => {
         </Button>
 
         <textarea
+          ref={textareaRef}
           value={message}
           onChange={(e) => setMessage(e.target.value)}
           onKeyDown={(e) => {

@@ -20,6 +20,10 @@ import GamingLandingPage from '@/pages/GamingLandingPage';
 import Mas30LandingPage from '@/pages/Mas30LandingPage';
 import SantiagoLandingPage from '@/pages/SantiagoLandingPage';
 import GlobalLandingPage from '@/pages/GlobalLandingPage';
+import SpainLandingPage from '@/pages/SpainLandingPage';
+import BrazilLandingPage from '@/pages/BrazilLandingPage';
+import MexicoLandingPage from '@/pages/MexicoLandingPage';
+import ArgentinaLandingPage from '@/pages/ArgentinaLandingPage';
 import { ThemeProvider } from '@/contexts/ThemeContext';
 import PWASplashScreen from '@/components/pwa/PWASplashScreen';
 import ErrorBoundary from '@/components/ui/ErrorBoundary';
@@ -96,6 +100,16 @@ function AppRoutes() {
         <Route path="/gaming" element={<LandingRoute redirectTo="/home"><MainLayout><GamingLandingPage /></MainLayout></LandingRoute>} />
         <Route path="/mas-30" element={<LandingRoute redirectTo="/home"><MainLayout><Mas30LandingPage /></MainLayout></LandingRoute>} />
         <Route path="/santiago" element={<LandingRoute redirectTo="/home"><MainLayout><SantiagoLandingPage /></MainLayout></LandingRoute>} />
+        
+        {/* 🌍 Landing pages por país - Rutas internacionales */}
+        <Route path="/es" element={<LandingRoute redirectTo="/home"><MainLayout><SpainLandingPage /></MainLayout></LandingRoute>} />
+        <Route path="/es/" element={<Navigate to="/es" replace />} />
+        <Route path="/br" element={<LandingRoute redirectTo="/home"><MainLayout><BrazilLandingPage /></MainLayout></LandingRoute>} />
+        <Route path="/br/" element={<Navigate to="/br" replace />} />
+        <Route path="/mx" element={<LandingRoute redirectTo="/home"><MainLayout><MexicoLandingPage /></MainLayout></LandingRoute>} />
+        <Route path="/mx/" element={<Navigate to="/mx" replace />} />
+        <Route path="/ar" element={<LandingRoute redirectTo="/home"><MainLayout><ArgentinaLandingPage /></MainLayout></LandingRoute>} />
+        <Route path="/ar/" element={<Navigate to="/ar" replace />} />
 
         {/* ✅ REDIRECCIÓN: conversas-libres → global (sala limpia sin spam) */}
         <Route

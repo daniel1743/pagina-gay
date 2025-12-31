@@ -7,12 +7,14 @@ import { useAuth } from '@/contexts/AuthContext';
 import { useCanonical } from '@/hooks/useCanonical';
 import ChatDemo from '@/components/landing/ChatDemo';
 import { GuestUsernameModal } from '@/components/auth/GuestUsernameModal';
+import { EntryOptionsModal } from '@/components/auth/EntryOptionsModal';
 
 const GlobalLandingPage = () => {
   const navigate = useNavigate();
   const location = useLocation();
   const { user } = useAuth();
   const [showGuestModal, setShowGuestModal] = React.useState(false);
+  const [showEntryModal, setShowEntryModal] = React.useState(false);
 
   // 🔥 Carrusel de imágenes - 5 modelos que cambian cada 3 segundos
   const [currentImageIndex, setCurrentImageIndex] = useState(0);
@@ -47,24 +49,50 @@ const GlobalLandingPage = () => {
 
   React.useEffect(() => {
     // ✅ SEO: Title y meta description optimizados - Keywords: chat gay chile, chat gay gratis, chat gay sin registro
+    const previousTitle = document.title;
+    
+    const metaDescription = document.querySelector('meta[name="description"]');
+    const hadMetaDescription = !!metaDescription;
+    const previousDescription = metaDescription?.getAttribute('content') ?? '';
+
     document.title = 'Chat gay Chile | Gratis y anónimo';
     
-    let metaDescription = document.querySelector('meta[name="description"]');
-    if (!metaDescription) {
-      metaDescription = document.createElement('meta');
-      metaDescription.name = 'description';
-      document.head.appendChild(metaDescription);
+    let ensuredMeta = metaDescription;
+    if (!ensuredMeta) {
+      ensuredMeta = document.createElement('meta');
+      ensuredMeta.name = 'description';
+      document.head.appendChild(ensuredMeta);
     }
     
-    metaDescription.content = 'Chat gay Chile sin registro. Conocer hombres reales, chat gay activo, chatear gratis sin cuenta. Gente real de trabajo conversando ahora.';
+    ensuredMeta.content = 'Chat gay Chile sin registro. Conocer hombres reales, chat gay activo, chatear gratis sin cuenta. Gente real de trabajo conversando ahora.';
+
+    return () => {
+      // Restore title
+      document.title = previousTitle;
+
+      // Restore or remove meta description depending on previous state
+      const currentMeta = document.querySelector('meta[name="description"]');
+      if (!currentMeta) return;
+
+      if (hadMetaDescription) {
+        currentMeta.setAttribute('content', previousDescription);
+      } else {
+        currentMeta.remove();
+      }
+    };
   }, []);
 
   const handleChatearAhora = () => {
     if (user && !user.isGuest) {
       navigate('/chat/global');
     } else {
-      setShowGuestModal(true);
+      setShowEntryModal(true);
     }
+  };
+
+  const handleContinueWithoutRegister = () => {
+    setShowEntryModal(false);
+    setShowGuestModal(true);
   };
 
   // COMENTADO: Botón crear cuenta deshabilitado
@@ -1222,6 +1250,14 @@ const GlobalLandingPage = () => {
           ⚡ Chatear Gratis Ahora
         </Button>
       </motion.div>
+
+      {/* Modal de opciones de entrada */}
+      <EntryOptionsModal
+        open={showEntryModal}
+        onClose={() => setShowEntryModal(false)}
+        chatRoomId="global"
+        onContinueWithoutRegister={handleContinueWithoutRegister}
+      />
 
       {/* Guest Username Modal (Sin Registro) */}
       <GuestUsernameModal
