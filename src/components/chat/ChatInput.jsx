@@ -42,7 +42,7 @@ const PREMIUM_EMOJIS = [
 ];
 
 
-const ChatInput = ({ onSendMessage }) => {
+const ChatInput = ({ onSendMessage, onFocus, onBlur }) => {
   const { user, guestMessageCount } = useAuth();
   const [message, setMessage] = useState('');
   const [showEmojiPicker, setShowEmojiPicker] = useState(false);
@@ -269,6 +269,8 @@ const ChatInput = ({ onSendMessage }) => {
           ref={textareaRef}
           value={message}
           onChange={(e) => setMessage(e.target.value)}
+          onFocus={() => onFocus?.(true)}
+          onBlur={() => onBlur?.(false)}
           onKeyDown={(e) => {
             // En móvil, Enter envía el mensaje (no hace salto de línea)
             if (e.key === 'Enter' && !e.shiftKey) {

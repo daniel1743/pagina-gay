@@ -1,10 +1,12 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useParams, useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
+import { useChatScrollManager } from '@/hooks/useChatScrollManager';
 import ChatSidebar from '@/components/chat/ChatSidebar';
 import ChatHeader from '@/components/chat/ChatHeader';
 import ChatMessages from '@/components/chat/ChatMessages';
 import ChatInput from '@/components/chat/ChatInput';
+import NewMessagesIndicator from '@/components/chat/NewMessagesIndicator';
 import ScreenSaver from '@/components/chat/ScreenSaver';
 import UserProfileModal from '@/components/chat/UserProfileModal';
 import UserActionsModal from '@/components/chat/UserActionsModal';
@@ -101,15 +103,20 @@ const ChatPage = () => {
   const [roomCounts, setRoomCounts] = useState({}); // Contadores de usuarios por sala
   const [engagementTime, setEngagementTime] = useState(''); // ⏱️ Tiempo total de engagement
   const [showScreenSaver, setShowScreenSaver] = useState(false); // 🔒 Protector de pantalla
-  const messagesEndRef = useRef(null);
-  const messagesContainerRef = useRef(null);
-  const isUserScrollingUpRef = useRef(false);
+  const [isInputFocused, setIsInputFocused] = useState(false); // 📝 Input focus state for scroll manager
   const unsubscribeRef = useRef(null);
   const aiActivatedRef = useRef(false); // Flag para evitar activaciones múltiples de IA
   const lastUserCountRef = useRef(0); // Para evitar ejecuciones innecesarias del useEffect
   const previousMessageCountRef = useRef(0); // Para detectar nuevos mensajes y reproducir sonido
   const lastUserCountsRef = useRef({ total: 0, active: 0, real: 0 }); // Para rastrear conteos de usuarios
   const previousRealUserCountRef = useRef(0); // Para detectar cuando usuarios se desconectan y reproducir sonido
+
+  // 🎯 PRO SCROLL MANAGER: Discord/Slack-inspired scroll behavior
+  const scrollManager = useChatScrollManager({
+    messages,
+    currentUserId: user?.id,
+    isInputFocused,
+  });
 
   // ========================================
   // 🔒 LANDING PAGE: Guard clause para user === null
@@ -641,66 +648,7 @@ const ChatPage = () => {
     }
   }, [currentRoom, roomId, navigate, location.pathname]);
 
-  // Auto-scroll a nuevos mensajes - Solo si el usuario está en la parte inferior (comentarios recientes)
-  useEffect(() => {
-    const container = messagesContainerRef.current;
-    if (!container || !messages.length) return;
-
-    // Verificar si el último mensaje es del usuario actual
-    const lastMessage = messages[messages.length - 1];
-    const isOwnMessage = lastMessage?.userId === user?.id;
-
-    // Si es mensaje propio, siempre hacer scroll al final
-    if (isOwnMessage) {
-      setTimeout(() => {
-        messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-        isUserScrollingUpRef.current = false; // Resetear flag - usuario está en comentarios recientes
-      }, 100);
-      return;
-    }
-
-    // Para mensajes de otros usuarios, solo hacer scroll si está en la parte inferior
-    // Verificar si está cerca del final (dentro de 150px para ser más permisivo)
-    const scrollBottom = container.scrollHeight - container.scrollTop - container.clientHeight;
-    const isAtBottom = scrollBottom < 150;
-    
-    // Solo hacer scroll automático si está en la parte inferior (comentarios recientes)
-    if (isAtBottom && !isUserScrollingUpRef.current) {
-      setTimeout(() => {
-        messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-      }, 100);
-    }
-  }, [messages, user?.id]);
-
-  // Detectar cuando el usuario hace scroll manualmente
-  useEffect(() => {
-    const container = messagesContainerRef.current;
-    if (!container) return;
-
-    const handleScroll = () => {
-      // Calcular distancia desde el final
-      const scrollBottom = container.scrollHeight - container.scrollTop - container.clientHeight;
-      const isAtBottom = scrollBottom < 150;
-      
-      // Si está en la parte inferior (comentarios recientes), activar auto-scroll
-      // Si está arriba leyendo, desactivar auto-scroll
-      isUserScrollingUpRef.current = !isAtBottom;
-    };
-
-    // También verificar al cargar para establecer el estado inicial
-    const checkInitialPosition = () => {
-      const scrollBottom = container.scrollHeight - container.scrollTop - container.clientHeight;
-      const isAtBottom = scrollBottom < 150;
-      isUserScrollingUpRef.current = !isAtBottom;
-    };
-
-    checkInitialPosition();
-    container.addEventListener('scroll', handleScroll);
-    
-    return () => {
-      container.removeEventListener('scroll', handleScroll);
-    };
-  }, []);
+  // ✅ OLD SCROLL LOGIC REMOVED - Now using useChatScrollManager hook
 
   // Marcar mensajes como leídos cuando la sala está activa
   // TEMPORALMENTE DESHABILITADO: Requiere índice de Firestore
@@ -965,14 +913,25 @@ const ChatPage = () => {
               onReport={setReportTarget}
               onPrivateChat={handlePrivateChatRequest}
               onReaction={handleMessageReaction}
-              messagesEndRef={messagesEndRef}
-              messagesContainerRef={messagesContainerRef}
+              messagesEndRef={scrollManager.endMarkerRef}
+              messagesContainerRef={scrollManager.containerRef}
+              newMessagesIndicator={
+                <NewMessagesIndicator
+                  count={scrollManager.unreadCount}
+                  onClick={scrollManager.scrollToBottom}
+                  show={scrollManager.scrollState !== 'AUTO_FOLLOW' && scrollManager.unreadCount > 0}
+                />
+              }
             />
           </div>
 
           <TypingIndicator typingUsers={[]} />
 
-          <ChatInput onSendMessage={handleSendMessage} />
+          <ChatInput
+            onSendMessage={handleSendMessage}
+            onFocus={() => setIsInputFocused(true)}
+            onBlur={() => setIsInputFocused(false)}
+          />
         </div>
 
         {userActionsTarget && (

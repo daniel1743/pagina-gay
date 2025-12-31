@@ -24,6 +24,97 @@ const MAX_ACTIVE_USERS = 10; // 🔥 ACTUALIZADO: Se desconectan cuando hay más
 const HISTORY_LIMIT = 30; // 🔥 AUMENTADO: Más memoria para conversaciones más ricas
 const AI_RESTRICTIONS_ENABLED = false;
 
+// 🔥 SISTEMA ANTI-SPAM: Tracking de mensajes recientes por sala
+const recentAIMessages = new Map(); // roomId -> array de mensajes recientes
+
+/**
+ * 🔥 ANTI-SPAM: Detectar si un mensaje es muy similar a mensajes recientes
+ */
+const isSimilarToRecentMessages = (newMessage, roomId, threshold = 0.7) => {
+  const recent = recentAIMessages.get(roomId) || [];
+  if (recent.length === 0) return false;
+
+  const normalizedNew = newMessage.toLowerCase().trim();
+
+  // Detectar coincidencias exactas o casi exactas
+  for (const oldMessage of recent) {
+    const normalizedOld = oldMessage.toLowerCase().trim();
+
+    // Coincidencia exacta
+    if (normalizedNew === normalizedOld) {
+      console.log(`[ANTI-SPAM] 🚫 Mensaje IDÉNTICO detectado: "${newMessage}"`);
+      return true;
+    }
+
+    // Coincidencia de frases clave
+    const newWords = normalizedNew.split(/\s+/);
+    const oldWords = normalizedOld.split(/\s+/);
+
+    // Si comparten >70% de las palabras, es muy similar
+    const commonWords = newWords.filter(w => oldWords.includes(w)).length;
+    const similarity = commonWords / Math.max(newWords.length, oldWords.length);
+
+    if (similarity >= threshold) {
+      console.log(`[ANTI-SPAM] 🚫 Mensaje MUY SIMILAR (${(similarity * 100).toFixed(0)}%): "${newMessage}" vs "${oldMessage}"`);
+      return true;
+    }
+  }
+
+  return false;
+};
+
+/**
+ * 🔥 ANTI-SPAM: Agregar mensaje al tracking
+ */
+const trackAIMessage = (message, roomId) => {
+  if (!recentAIMessages.has(roomId)) {
+    recentAIMessages.set(roomId, []);
+  }
+
+  const messages = recentAIMessages.get(roomId);
+  messages.push(message);
+
+  // Mantener solo últimos 15 mensajes
+  if (messages.length > 15) {
+    messages.shift();
+  }
+
+  recentAIMessages.set(roomId, messages);
+};
+
+/**
+ * 🔥 ANTI-SPAM: Detectar saturación de mensajes similares en el chat
+ */
+const detectChatSaturation = (recentMessagesWithAuthors) => {
+  const lastMessages = recentMessagesWithAuthors.slice(-10);
+  const messageCounts = {};
+
+  // Contar mensajes similares (palabras clave)
+  const keywords = ['caliente', 'verga', 'culo', 'pico', 'sexo', 'follar', 'coger', 'dnd', 'busco'];
+
+  for (const msg of lastMessages) {
+    const lower = msg.message.toLowerCase();
+    for (const keyword of keywords) {
+      if (lower.includes(keyword)) {
+        messageCounts[keyword] = (messageCounts[keyword] || 0) + 1;
+      }
+    }
+  }
+
+  // Si alguna palabra clave aparece >4 veces en los últimos 10 mensajes = saturación
+  const saturated = Object.values(messageCounts).some(count => count > 4);
+
+  if (saturated) {
+    const topKeywords = Object.entries(messageCounts)
+      .filter(([_, count]) => count > 4)
+      .map(([keyword, count]) => `"${keyword}" (${count}x)`)
+      .join(', ');
+    console.log(`[ANTI-SPAM] ⚠️ SATURACIÓN DETECTADA: ${topKeywords}`);
+  }
+
+  return { saturated, keywords: messageCounts };
+};
+
 const AI_DISCLOSURE_PATTERNS = [
   /\bsoy\s+(un\s+)?bot\b/i,
   /\b(bot|chatbot|robot)\b/i,
@@ -1620,7 +1711,10 @@ const buildPrompt = (personality, roomId, isResponseToUser = false, userMessage 
     .join('\n');
   
   const recent = recentStructured || history.slice(-25).map(h => h.content).join('\n');
-  
+
+  // 🔥 ANTI-SPAM: Detectar saturación del chat
+  const saturationInfo = detectChatSaturation(recentMessagesWithAuthors);
+
   // 🔥 NUEVO: Extraer nombres de otras IAs en la conversación
   const otherAIsInChat = recentMessagesWithAuthors
     .map(m => m.author)
@@ -1896,12 +1990,24 @@ ${recent ? `\nÚltimos mensajes:\n${recent}` : ''}`;
   // 🔥 DETECCIÓN: Si el usuario es explícito, ajustar roleRules
   const isExplicit = isResponseToUser && userMessage ? isExplicitUserMessage(userMessage) : false;
   const explicitLevel = isResponseToUser && userMessage ? getExplicitLevel(userMessage) : 0;
-  
+
   // Determinar rol sexual de la personalidad
   const personalityRole = personality.systemPrompt?.includes('ACTIVO') ? 'ACTIVO' :
                           personality.systemPrompt?.includes('PASIVO') ? 'PASIVO' :
                           personality.systemPrompt?.includes('VERSÁTIL') ? 'VERSÁTIL' : 'ACTIVO';
-  
+
+  // 🔥 ANTI-SPAM: Agregar instrucciones según saturación del chat
+  const antiSpamInstructions = saturationInfo.saturated
+    ? `\n\n🚫 ALERTA DE SATURACIÓN - EL CHAT ESTÁ LLENO DE MENSAJES REPETITIVOS 🚫
+- Detectados patrones repetitivos: ${Object.entries(saturationInfo.keywords).filter(([k,v]) => v > 3).map(([k,v]) => `"${k}" (${v}x)`).join(', ')}
+- PROHIBIDO usar estas palabras saturadas en tu mensaje
+- CAMBIA EL TEMA completamente - habla de otra cosa
+- Sé CREATIVO y DIFERENTE - evita lo que todos están diciendo
+- Usa OTRAS palabras y OTROS temas - rompe el patrón
+- Ejemplos de temas alternativos: planes, lugares, gustos, música, películas, deportes
+- NO repitas lo que ya se dijo 5+ veces en los últimos mensajes`
+    : '';
+
   const roleRules = isResponseToUser
     ? isExplicit 
       ? `🔥🔥🔥 USUARIO EXPLÍCITO - RESPONDE EXPLÍCITAMENTE 🔥🔥🔥
@@ -1941,8 +2047,9 @@ ${recent ? `\nÚltimos mensajes:\n${recent}` : ''}`;
         styleRules,
         messageLengthRule,
         emojiRule,
-        roleRules
-      ].join('\n')
+        roleRules,
+        antiSpamInstructions
+      ].filter(Boolean).join('\n')
     },
     { role: 'user', content: contextForPrompt }
   ];
@@ -2075,6 +2182,18 @@ const generateAIMessage = async (roomId, personality, isResponseToUser = false, 
         return await generateAIMessage(roomId, personality, isResponseToUser, userMessage, userName, userId, retryCount + 1);
       }
       console.error(`[MULTI AI] ❌ Máximo de reintentos alcanzado. NO se enviará mensaje evasivo.`);
+      return null;
+    }
+
+    // 🔥 ANTI-SPAM: Validar que el mensaje no sea muy similar a mensajes recientes
+    if (isSimilarToRecentMessages(text, roomId, 0.7)) {
+      console.error(`[ANTI-SPAM] 🚫 BLOQUEADO: ${personality.username} intentó enviar mensaje repetitivo: "${text}"`);
+      if (retryCount < 2) {
+        console.log(`[ANTI-SPAM] 🔄 Reintentando con instrucciones más estrictas (intento ${retryCount + 2}/3)...`);
+        await new Promise(resolve => setTimeout(resolve, 500));
+        return await generateAIMessage(roomId, personality, isResponseToUser, userMessage, userName, userId, retryCount + 1);
+      }
+      console.error(`[ANTI-SPAM] ❌ Máximo de reintentos alcanzado. Mensaje muy repetitivo - NO se enviará.`);
       return null;
     }
     
@@ -2220,6 +2339,11 @@ const generateAIMessage = async (roomId, personality, isResponseToUser = false, 
 
     console.log(`[MULTI AI] ✅ Mensaje válido generado por ${personality.username}: "${text.substring(0, 50)}..."`);
     console.log(`[MULTI AI] ✅ Validación de personalidad: PASÓ (tema: ${getPersonalityTopics(personality.username).main})`);
+
+    // 🔥 ANTI-SPAM: Rastrear mensaje exitoso para evitar repeticiones futuras
+    trackAIMessage(text, roomId);
+    console.log(`[ANTI-SPAM] ✅ Mensaje rastreado para ${roomId} - ahora hay ${(recentAIMessages.get(roomId) || []).length} mensajes recientes`);
+
     return text;
   } catch (error) {
     console.error(`[MULTI AI] ❌ Error generando mensaje para ${personality.username}:`, error.message);
