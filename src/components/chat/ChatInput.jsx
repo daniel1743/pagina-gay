@@ -50,6 +50,7 @@ const ChatInput = ({ onSendMessage }) => {
   const [showComingSoon, setShowComingSoon] = useState(false);
   const [comingSoonFeature, setComingSoonFeature] = useState({ name: '', description: '' });
   const wrapperRef = useRef(null);
+  const textareaRef = useRef(null);
 
   useEffect(() => {
     function handleClickOutside(event) {
@@ -203,7 +204,7 @@ const ChatInput = ({ onSendMessage }) => {
             </motion.div>
         )}
       </AnimatePresence>
-      <form onSubmit={handleSubmit} className="flex items-center gap-1.5 sm:gap-2">
+      <form onSubmit={handleSubmit} className="flex items-end gap-1.5 sm:gap-2">
         {/* ✅ Botones con tamaño mínimo táctil (44px) para móvil */}
         <Button
           type="button"
@@ -256,24 +257,38 @@ const ChatInput = ({ onSendMessage }) => {
           <Mic className="w-5 h-5" />
         </Button>
 
-        <Input
+        <textarea
           value={message}
           onChange={(e) => setMessage(e.target.value)}
+          onKeyDown={(e) => {
+            // En móvil, Enter envía el mensaje (no hace salto de línea)
+            if (e.key === 'Enter' && !e.shiftKey) {
+              e.preventDefault();
+              handleSubmit(e);
+            }
+          }}
           placeholder="Escribe un mensaje..."
-          className="flex-1 bg-secondary border-2 border-input rounded-lg px-3 sm:px-4 py-2.5 sm:py-2 text-sm sm:text-base text-foreground placeholder:text-muted-foreground focus:border-accent transition-all min-h-[44px]"
+          className="flex-1 bg-secondary border-2 border-input rounded-lg px-3 sm:px-4 py-2.5 sm:py-2 text-sm sm:text-base text-foreground placeholder:text-muted-foreground focus:border-accent transition-all min-h-[44px] max-h-[120px] resize-none overflow-y-auto"
           aria-label="Campo de texto para escribir mensaje"
           maxLength={500}
           autoComplete="off"
+          rows={1}
+          style={{
+            lineHeight: '1.5',
+            paddingTop: '0.625rem',
+            paddingBottom: '0.625rem'
+          }}
         />
 
         <motion.div
           whileHover={{ scale: 1.05 }}
           whileTap={{ scale: 0.95 }}
+          className="flex-shrink-0"
         >
           <Button
             type="submit"
             disabled={!message.trim() || isSending}
-            className="magenta-gradient text-white rounded-lg relative overflow-hidden min-w-[44px] min-h-[44px] sm:min-w-0 sm:min-h-0"
+            className="magenta-gradient text-white rounded-lg relative overflow-hidden min-w-[44px] min-h-[44px] w-[44px] h-[44px] sm:min-w-[48px] sm:min-h-[48px] sm:w-auto sm:h-auto p-0 sm:p-2"
             size="icon"
             aria-label={isSending ? "Enviando mensaje..." : "Enviar mensaje"}
           >
@@ -282,8 +297,9 @@ const ChatInput = ({ onSendMessage }) => {
                 rotate: 360,
                 transition: { duration: 0.6, repeat: Infinity, ease: "linear" }
               } : { rotate: 0 }}
+              className="flex items-center justify-center"
             >
-              <Send className="w-5 h-5" />
+              <Send className="w-5 h-5 sm:w-5 sm:h-5" />
             </motion.div>
             {isSending && (
               <motion.div

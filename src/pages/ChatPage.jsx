@@ -949,7 +949,7 @@ const ChatPage = () => {
           onClose={() => setSidebarOpen(false)}
         />
 
-        <div className="flex-1 flex flex-col">
+        <div className="flex-1 flex flex-col overflow-hidden">
           <ChatHeader
             currentRoom={currentRoom}
             onMenuClick={() => setSidebarOpen(true)}
@@ -957,16 +957,18 @@ const ChatPage = () => {
             onSimulate={() => setShowScreenSaver(true)}
           />
 
-          <ChatMessages
-            messages={messages}
-            currentUserId={user.id}
-            onUserClick={setUserActionsTarget}
-            onReport={setReportTarget}
-            onPrivateChat={handlePrivateChatRequest}
-            onReaction={handleMessageReaction}
-            messagesEndRef={messagesEndRef}
-            messagesContainerRef={messagesContainerRef}
-          />
+          <div className="flex-1 overflow-hidden flex flex-col min-h-0">
+            <ChatMessages
+              messages={messages}
+              currentUserId={user.id}
+              onUserClick={setUserActionsTarget}
+              onReport={setReportTarget}
+              onPrivateChat={handlePrivateChatRequest}
+              onReaction={handleMessageReaction}
+              messagesEndRef={messagesEndRef}
+              messagesContainerRef={messagesContainerRef}
+            />
+          </div>
 
           <TypingIndicator typingUsers={[]} />
 

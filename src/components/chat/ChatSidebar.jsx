@@ -7,6 +7,7 @@ import { Hash, Gamepad2, Users, Heart, User, LogIn, X, UserCheck, GitFork, UserM
 import { motion, AnimatePresence } from 'framer-motion';
 import { subscribeToMultipleRoomCounts } from '@/services/presenceService';
 import { roomsData, colorClasses } from '@/config/rooms';
+import { RegistrationRequiredModal } from '@/components/auth/RegistrationRequiredModal';
 
 /**
  * ✅ SISTEMA DE ESTADOS DE ACTIVIDAD
@@ -35,6 +36,8 @@ const ChatSidebar = ({ currentRoom, setCurrentRoom, isOpen, onClose }) => {
   const { user, logout } = useAuth();
   const [roomCounts, setRoomCounts] = useState({});
   const [logoSrc, setLogoSrc] = useState("/LOGO-TRASPARENTE.png");
+  const [showRegistrationModal, setShowRegistrationModal] = useState(false);
+  const [pendingRoomId, setPendingRoomId] = useState(null);
 
   // Suscribirse a contadores en tiempo real (todos los usuarios pueden ver)
   useEffect(() => {
@@ -65,6 +68,23 @@ const ChatSidebar = ({ currentRoom, setCurrentRoom, isOpen, onClose }) => {
 
   return (
     <>
+      {/* Modal de registro requerido */}
+      <RegistrationRequiredModal
+        open={showRegistrationModal}
+        onClose={() => {
+          setShowRegistrationModal(false);
+          setPendingRoomId(null);
+        }}
+        onContinue={() => {
+          if (pendingRoomId) {
+            navigate(`/auth?redirect=/chat/${pendingRoomId}`);
+          } else {
+            navigate('/auth');
+          }
+        }}
+        title="Registro Requerido"
+        description="Esta sala requiere estar registrado para mantener un mejor control y seguridad de la comunidad."
+      />
       {/* Overlay/Backdrop para móvil - Solo visible cuando sidebar está abierto */}
       <AnimatePresence>
         {isOpen && (
@@ -154,8 +174,9 @@ const ChatSidebar = ({ currentRoom, setCurrentRoom, isOpen, onClose }) => {
                       }`}
                       onClick={() => {
                         if (requiresAuth) {
-                          // Mostrar toast y redirigir a auth
-                          navigate('/auth?redirect=/chat/' + room.id);
+                          // Mostrar modal de registro requerido
+                          setPendingRoomId(room.id);
+                          setShowRegistrationModal(true);
                         } else {
                           setCurrentRoom(room.id);
                         }

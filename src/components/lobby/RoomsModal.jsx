@@ -9,6 +9,7 @@ import { Users, Hash, Gamepad2, Heart, Search, Crown, Plus, X, GitFork, UserMinu
 import { toast } from '@/components/ui/use-toast';
 import { subscribeToMultipleRoomCounts } from '@/services/presenceService';
 import { roomsData, colorClasses } from '@/config/rooms';
+import { RegistrationRequiredModal } from '@/components/auth/RegistrationRequiredModal';
 
 /**
  * ✅ SISTEMA DE ESTADOS DE ACTIVIDAD
@@ -29,6 +30,8 @@ const getRoomActivityStatus = (realUserCount) => {
 const RoomsModal = ({ isOpen, onClose }) => {
   const navigate = useNavigate();
   const { user } = useAuth();
+  const [showRegistrationModal, setShowRegistrationModal] = useState(false);
+  const [pendingRoomId, setPendingRoomId] = useState(null);
   const [searchTerm, setSearchTerm] = useState('');
   const [roomCounts, setRoomCounts] = useState({});
 
@@ -69,6 +72,25 @@ const RoomsModal = ({ isOpen, onClose }) => {
   };
 
   return (
+    <>
+      {/* Modal de registro requerido */}
+      <RegistrationRequiredModal
+        open={showRegistrationModal}
+        onClose={() => {
+          setShowRegistrationModal(false);
+          setPendingRoomId(null);
+        }}
+        onContinue={() => {
+          onClose(); // Cerrar modal de salas primero
+          if (pendingRoomId) {
+            navigate(`/auth?redirect=/chat/${pendingRoomId}`);
+          } else {
+            navigate('/auth');
+          }
+        }}
+        title="Registro Requerido"
+        description="Esta sala requiere estar registrado para mantener un mejor control y seguridad de la comunidad."
+      />
     <Dialog open={isOpen} onOpenChange={onClose}>
       <DialogContent className="bg-card border text-foreground max-w-4xl rounded-2xl p-0">
         <DialogHeader className="p-6">
@@ -118,9 +140,9 @@ const RoomsModal = ({ isOpen, onClose }) => {
 
               const handleRoomClick = () => {
                 if (!canAccess) {
-                  // Redirigir a auth con redirect a la sala
-                  onClose();
-                  navigate(`/auth?redirect=/chat/${room.id}`);
+                  // Mostrar modal de registro requerido
+                  setPendingRoomId(room.id);
+                  setShowRegistrationModal(true);
                   return;
                 }
                 onClose();
@@ -248,6 +270,7 @@ const RoomsModal = ({ isOpen, onClose }) => {
         </Button>
       </DialogContent>
     </Dialog>
+    </>
   );
 };
 

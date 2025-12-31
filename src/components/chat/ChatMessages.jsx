@@ -93,7 +93,7 @@ const ChatMessages = ({ messages, currentUserId, onUserClick, onReport, onPrivat
   }
 
   return (
-    <div ref={messagesContainerRef} className="flex-1 overflow-y-auto p-2 sm:p-3 space-y-2 sm:space-y-2 scrollbar-hide">
+    <div ref={messagesContainerRef} className="flex-1 overflow-y-auto p-2 sm:p-3 space-y-2 sm:space-y-2 scrollbar-hide" style={{ WebkitOverflowScrolling: 'touch' }}>
       {messages.map((message) => {
         const isOwn = message.userId === currentUserId;
         const isSystem = message.userId === 'system';
