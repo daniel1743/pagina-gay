@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
-import { Menu, Home, ArrowLeft, Volume2, VolumeX, X } from 'lucide-react';
+import { Menu, Home, ArrowLeft, Volume2, VolumeX, X, Eye } from 'lucide-react';
 import NotificationBell from '@/components/notifications/NotificationBell';
 import { notificationSounds } from '@/services/notificationSounds';
 
@@ -19,7 +19,7 @@ const roomNames = {
   // 'conversas-libres' → redirige a 'global'
 };
 
-const ChatHeader = ({ currentRoom, onMenuClick, onOpenPrivateChat }) => {
+const ChatHeader = ({ currentRoom, onMenuClick, onOpenPrivateChat, onSimulate }) => {
   const navigate = useNavigate();
   const [isMuted, setIsMuted] = useState(notificationSounds.getMuteState());
 
@@ -62,6 +62,19 @@ const ChatHeader = ({ currentRoom, onMenuClick, onOpenPrivateChat }) => {
       </div>
 
       <div className="flex items-center gap-1.5 sm:gap-2 flex-shrink-0">
+        {/* Botón SIMULAR - Protector de pantalla */}
+        <Button
+          variant="ghost"
+          size="sm"
+          onClick={onSimulate}
+          className="bg-purple-500 hover:bg-purple-600 text-white min-w-[44px] min-h-[44px] sm:min-w-auto sm:min-h-auto px-2 sm:px-3 flex items-center gap-1.5 sm:gap-2"
+          aria-label="Simular - Ocultar chat y mostrar protector de pantalla"
+          title="Simular - Ocultar chat y mostrar protector de pantalla"
+        >
+          <Eye className="w-4 h-4 sm:w-5 sm:h-5" />
+          <span className="hidden sm:inline text-xs sm:text-sm font-semibold">SIMULAR</span>
+        </Button>
+
         {/* Quick Escape Button - Red, prominent */}
         <Button
           variant="ghost"

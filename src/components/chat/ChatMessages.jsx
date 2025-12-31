@@ -5,7 +5,7 @@ import { Button } from '@/components/ui/button';
 import { Flag, ThumbsUp, ThumbsDown, CheckCircle, Check, CheckCheck } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
 
-const ChatMessages = ({ messages, currentUserId, onUserClick, onReport, onPrivateChat, onReaction, messagesEndRef }) => {
+const ChatMessages = ({ messages, currentUserId, onUserClick, onReport, onPrivateChat, onReaction, messagesEndRef, messagesContainerRef }) => {
   // 📱 Sistema de doble check dinámico (like WhatsApp)
   const [messageChecks, setMessageChecks] = useState({});
   const formatTime = (timestamp) => {
@@ -93,7 +93,7 @@ const ChatMessages = ({ messages, currentUserId, onUserClick, onReport, onPrivat
   }
 
   return (
-    <div className="flex-1 overflow-y-auto p-2 sm:p-3 space-y-2 sm:space-y-2 scrollbar-hide">
+    <div ref={messagesContainerRef} className="flex-1 overflow-y-auto p-2 sm:p-3 space-y-2 sm:space-y-2 scrollbar-hide">
       {messages.map((message) => {
         const isOwn = message.userId === currentUserId;
         const isSystem = message.userId === 'system';

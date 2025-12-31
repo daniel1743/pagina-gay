@@ -46,7 +46,7 @@ const GlobalLandingPage = () => {
   // }, [user, navigate]);
 
   React.useEffect(() => {
-    // ✅ SEO: Title y meta description optimizados para conversión
+    // ✅ SEO: Title y meta description optimizados - Keywords: chat gay chile, chat gay gratis, chat gay sin registro
     document.title = 'Chat gay Chile | Gratis y anónimo';
     
     let metaDescription = document.querySelector('meta[name="description"]');
@@ -56,7 +56,7 @@ const GlobalLandingPage = () => {
       document.head.appendChild(metaDescription);
     }
     
-    metaDescription.content = 'Entra al chat gay en Chile. Gratis, sin registro y con personas reales conversando ahora.';
+    metaDescription.content = 'Chat gay Chile sin registro. Conocer hombres reales, chat gay activo, chatear gratis sin cuenta. Gente real de trabajo conversando ahora.';
   }, []);
 
   const handleChatearAhora = () => {
@@ -67,13 +67,14 @@ const GlobalLandingPage = () => {
     }
   };
 
-  const handleRegistrar = () => {
-    if (user && !user.isGuest) {
-      navigate('/chat/global');
-    } else {
-      navigate('/auth', { state: { redirectTo: '/chat/global' } });
-    }
-  };
+  // COMENTADO: Botón crear cuenta deshabilitado
+  // const handleRegistrar = () => {
+  //   if (user && !user.isGuest) {
+  //     navigate('/chat/global');
+  //   } else {
+  //     navigate('/auth', { state: { redirectTo: '/chat/global' } });
+  //   }
+  // };
 
   const handleEnterChat = () => {
     if (user && !user.isGuest) {
@@ -111,13 +112,19 @@ const GlobalLandingPage = () => {
               <div className="w-full h-full relative overflow-hidden">
                 {/* Imagen contextual (no protagonista) */}
                 <img 
-                  src={modelImages[currentImageIndex]}
+                  src={encodeURI(modelImages[currentImageIndex])}
                   alt="Chat activo en Chile"
                   className="absolute inset-0 w-full h-full object-cover object-center"
                   loading={currentImageIndex === 0 ? 'eager' : 'lazy'}
                   onError={(e) => {
                     console.error('Error cargando imagen:', modelImages[currentImageIndex]);
-                    e.target.style.display = 'none';
+                    // Intentar con ruta alternativa sin espacios
+                    const altPath = modelImages[currentImageIndex].replace(' ', '%20');
+                    if (e.target.src !== altPath) {
+                      e.target.src = altPath;
+                    } else {
+                      e.target.style.display = 'none';
+                    }
                   }}
                 />
                 
@@ -131,29 +138,29 @@ const GlobalLandingPage = () => {
           {/* Contenido sobre la imagen - Fijo, no cambia con las imágenes */}
           <div className="absolute inset-0 z-10 h-full flex items-center justify-center px-4 sm:px-6">
             <div className="text-center max-w-3xl w-full">
-              {/* H1 Principal - Copy directo y humano - Fijo */}
+              {/* H1 Principal - SEO optimizado, tono urbano y directo */}
               <motion.h1
                 initial={{ opacity: 0, y: 20 }}
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ duration: 0.6 }}
-                className="text-3xl sm:text-4xl md:text-5xl lg:text-6xl font-black mb-3 sm:mb-4 drop-shadow-2xl leading-tight"
+                className="text-2xl sm:text-3xl md:text-4xl lg:text-5xl font-black mb-3 sm:mb-4 drop-shadow-2xl leading-tight px-2"
               >
                 <span className="bg-gradient-to-r from-purple-400 via-purple-500 to-cyan-400 bg-clip-text text-transparent">
-                  SUMATE A CHACTIVO CHATEA Y CONECTA CON TU CRUSH
+                  Chatea con Gays de Chile: Sin vueltas, sin registros y 100% Real.
                 </span>
               </motion.h1>
               
-              {/* Subheadline - Directo y claro - Fijo */}
-              <motion.p
+              {/* H2 - Tono auténtico y directo */}
+              <motion.h2
                 initial={{ opacity: 0, y: 10 }}
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ duration: 0.6, delay: 0.1 }}
-                className="text-base sm:text-lg md:text-xl text-white/95 font-medium drop-shadow-lg mb-6 sm:mb-8 leading-relaxed"
+                className="text-base sm:text-lg md:text-xl text-white/95 font-semibold drop-shadow-lg mb-5 sm:mb-6 leading-relaxed px-2"
               >
-                Entra y conversa ahora. Gratis, anónimo y sin registro.
-              </motion.p>
+                Un espacio hecho por y para nosotros (Gente real de trabajo).
+              </motion.h2>
               
-              {/* CTA Único - Sin emojis, directo - Fijo */}
+              {/* CTA - Directo y urgente */}
               <motion.div
                 initial={{ opacity: 0, scale: 0.95 }}
                 animate={{ opacity: 1, scale: 1 }}
@@ -161,21 +168,21 @@ const GlobalLandingPage = () => {
               >
                 <Button
                   onClick={handleChatearAhora}
-                  className="bg-[#4F46E5] hover:bg-[#4338CA] text-white font-bold px-8 sm:px-12 py-3 sm:py-4 text-base sm:text-lg rounded-xl shadow-2xl hover:shadow-[#4F46E5]/50 transition-all hover:scale-105 w-full sm:w-auto"
+                  className="bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-500 hover:to-pink-500 text-white font-black px-6 sm:px-10 py-3 sm:py-4 text-base sm:text-lg rounded-xl shadow-2xl hover:shadow-purple-500/50 transition-all hover:scale-105 w-full sm:w-auto uppercase tracking-wide"
                   style={{ minHeight: '48px' }}
                 >
-                  Entrar al chat
+                  ¡ENTRAR AL CHAT YA!
                 </Button>
               </motion.div>
               
-              {/* Microcopy - Prueba social discreta - Fijo */}
+              {/* Microcopy - Prueba social directa */}
               <motion.p
                 initial={{ opacity: 0 }}
                 animate={{ opacity: 1 }}
                 transition={{ duration: 0.5, delay: 0.3 }}
-                className="text-sm sm:text-base text-white/70 mt-4 sm:mt-6 font-normal"
+                className="text-sm sm:text-base text-white/80 mt-4 sm:mt-5 font-medium"
               >
-                Siempre hay alguien para conversar
+                Sin email • Sin tarjeta • Sin complicaciones
               </motion.p>
             </div>
           </div>
@@ -198,26 +205,26 @@ const GlobalLandingPage = () => {
         </div>
       </motion.div>
 
-      <div className="px-4 py-8 sm:py-12">
-        <div className="max-w-6xl mx-auto">
-        {/* ✅ HERO DUPLICADO ELIMINADO - Solo un hero en el carrusel */}
+      {/* Contenido principal - Mobile-first, compacto */}
+      <div className="px-3 sm:px-4 py-4 sm:py-6">
+        <div className="max-w-5xl mx-auto">
         
         {/* 🔥 CHAT DEMO - Vista previa con notificaciones animadas */}
         <motion.section
-          initial={{ opacity: 0, y: 30 }}
+          initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.6, delay: 0.3 }}
-          className="mb-16 sm:mb-20"
+          transition={{ duration: 0.5, delay: 0.2 }}
+          className="mb-8 sm:mb-12"
         >
           <ChatDemo onJoinClick={handleChatearAhora} />
         </motion.section>
 
-        {/* 🎯 SECCIÓN TRUST SIGNALS - Señales de Confianza */}
+        {/* 🎯 SECCIÓN TRUST SIGNALS - Compacta */}
         <motion.div
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.6 }}
-          className="mt-12 sm:mt-16 mb-12 sm:mb-16 px-4"
+          transition={{ delay: 0.3 }}
+          className="mt-6 sm:mt-8 mb-6 sm:mb-8 px-3"
         >
           <div className="max-w-4xl mx-auto">
             {/* Badge principal */}
@@ -301,34 +308,29 @@ const GlobalLandingPage = () => {
               </div>
             </motion.div>
 
-            {/* Mini testimonios en carrusel */}
+            {/* Mini testimonios - Tono WhatsApp, directo y corto */}
             <motion.div
               initial={{ opacity: 0, y: 10 }}
               animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: 0.9 }}
+              transition={{ delay: 0.4 }}
               className="overflow-hidden"
             >
               <div className="flex animate-marquee-slow">
                 {[
-                  { text: "Finalmente un chat sin spam", author: "Carlos, 28" },
-                  { text: "Me siento seguro aquí", author: "Andrés, 35" },
-                  { text: "Sin bots ni perfiles fake", author: "Matías, 24" },
-                  { text: "Privacidad real, no promesas", author: "Diego, 31" },
+                  { text: "Al fin un chat real, sin bots", author: "Carlos, 28" },
+                  { text: "Gente real hablando de verdad", author: "Andrés, 35" },
+                  { text: "Sin perfiles falsos ni spam", author: "Matías, 24" },
+                  { text: "Funciona de verdad", author: "Diego, 31" },
                 ].concat([
-                  { text: "Finalmente un chat sin spam", author: "Carlos, 28" },
-                  { text: "Me siento seguro aquí", author: "Andrés, 35" },
-                  { text: "Sin bots ni perfiles fake", author: "Matías, 24" },
-                  { text: "Privacidad real, no promesas", author: "Diego, 31" },
+                  { text: "Al fin un chat real, sin bots", author: "Carlos, 28" },
+                  { text: "Gente real hablando de verdad", author: "Andrés, 35" },
+                  { text: "Sin perfiles falsos ni spam", author: "Matías, 24" },
+                  { text: "Funciona de verdad", author: "Diego, 31" },
                 ]).map((testimonial, index) => (
-                  <div key={index} className="flex-shrink-0 mx-3">
-                    <div className="glass-effect px-5 py-3 rounded-xl border border-cyan-500/30 min-w-[280px]">
-                      <div className="flex items-start gap-2 mb-2">
-                        <svg className="w-5 h-5 text-cyan-400 flex-shrink-0 mt-0.5" fill="currentColor" viewBox="0 0 20 20">
-                          <path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z" />
-                        </svg>
-                        <p className="text-sm text-gray-300 italic">"{testimonial.text}"</p>
-                      </div>
-                      <p className="text-xs text-cyan-400 font-semibold">- {testimonial.author}</p>
+                  <div key={index} className="flex-shrink-0 mx-2">
+                    <div className="bg-gray-800/50 backdrop-blur-sm px-4 py-2.5 rounded-lg border border-purple-500/30 min-w-[240px]">
+                      <p className="text-sm text-white font-medium mb-1">"{testimonial.text}"</p>
+                      <p className="text-xs text-purple-300">- {testimonial.author}</p>
                     </div>
                   </div>
                 ))}
@@ -353,33 +355,30 @@ const GlobalLandingPage = () => {
           </div>
         </motion.div>
 
-        {/* 🎯 CTA INTERMEDIO - Después de Trust Signals */}
+        {/* 🎯 CTA INTERMEDIO - Directo */}
         <motion.div
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.9 }}
-          className="text-center mt-12 sm:mt-16 mb-8 px-4"
+          transition={{ delay: 0.3 }}
+          className="text-center mt-6 sm:mt-8 mb-6"
         >
-          <p className="text-base sm:text-lg text-muted-foreground mb-5 max-w-xl mx-auto">
-            Únete a cientos de usuarios que ya confían en Chactivo
-          </p>
           <Button
             onClick={handleChatearAhora}
-            className="magenta-gradient text-white font-bold text-lg sm:text-xl px-10 sm:px-14 py-6 sm:py-7 rounded-xl shadow-xl hover:shadow-[#E4007C]/50 hover:scale-105 transition-all"
+            className="bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-500 hover:to-pink-500 text-white font-black text-base sm:text-lg px-8 sm:px-12 py-4 sm:py-5 rounded-xl shadow-xl hover:shadow-purple-500/50 hover:scale-105 transition-all uppercase tracking-wide"
           >
-            ⚡ Empezar a Chatear Gratis
+            ¡ENTRAR AL CHAT YA!
           </Button>
         </motion.div>
 
-        {/* Featured Topics Section */}
+        {/* Featured Topics Section - Compacto */}
         <motion.section
-          initial={{ opacity: 0, y: 30 }}
+          initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ delay: 0.2 }}
-          className="mb-16 sm:mb-20"
+          className="mb-8 sm:mb-12"
         >
-          <h2 className="text-2xl sm:text-3xl font-bold text-center mb-8">
-            💬 Temas Más Populares en la Sala
+          <h2 className="text-xl sm:text-2xl font-bold text-center mb-6">
+            Temas populares
           </h2>
           <div className="grid grid-cols-2 md:grid-cols-4 gap-4 sm:gap-6 max-w-4xl mx-auto">
             {[
@@ -406,15 +405,15 @@ const GlobalLandingPage = () => {
           </div>
         </motion.section>
 
-        {/* Benefits Section */}
+        {/* Benefits Section - Compacto */}
         <motion.section
-          initial={{ opacity: 0, y: 30 }}
+          initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ delay: 0.3 }}
-          className="mb-16 sm:mb-20"
+          className="mb-8 sm:mb-12"
         >
-          <h2 className="text-2xl sm:text-3xl font-bold text-center mb-10">
-            ¿Por Qué Elegir Chat Global?
+          <h2 className="text-xl sm:text-2xl font-bold text-center mb-6">
+            Por qué Chactivo
           </h2>
           <div className="grid grid-cols-1 md:grid-cols-3 gap-6 sm:gap-8">
             <div className="glass-effect rounded-2xl p-6 sm:p-8 border border-border">
@@ -658,12 +657,12 @@ const GlobalLandingPage = () => {
           </motion.div>
         </motion.section>
 
-        {/* 💬 SECCIÓN TESTIMONIOS - Opiniones Reales de Usuarios */}
+        {/* 💬 SECCIÓN TESTIMONIOS - Compacta */}
         <motion.div
-          initial={{ opacity: 0, y: 30 }}
+          initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.7, duration: 0.6 }}
-          className="mt-16 sm:mt-20 mb-12 sm:mb-16 px-4"
+          transition={{ delay: 0.4, duration: 0.5 }}
+          className="mt-8 sm:mt-10 mb-8 sm:mb-10 px-3"
         >
           <div className="max-w-6xl mx-auto">
             {/* Badge superior */}
@@ -683,197 +682,132 @@ const GlobalLandingPage = () => {
               </div>
             </motion.div>
 
-            {/* Título */}
-            <h2 className="text-3xl sm:text-4xl md:text-5xl font-extrabold text-center mb-4">
-              <span className="bg-gradient-to-r from-yellow-400 via-orange-400 to-red-400 bg-clip-text text-transparent">
-                Testimonios Reales
-              </span>
+            {/* Título - Más directo */}
+            <h2 className="text-2xl sm:text-3xl font-bold text-center mb-6">
+              Lo que dice la gente
             </h2>
-            <p className="text-center text-lg sm:text-xl text-muted-foreground mb-12 max-w-3xl mx-auto">
-              Miles de usuarios ya confían en Chactivo. Aquí algunas de sus experiencias:
-            </p>
 
-            {/* Grid de testimonios */}
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-6 sm:gap-8">
-              {/* Testimonio 1: Andrés - Moderación */}
+            {/* Grid de testimonios - Tono WhatsApp, cortos y directos */}
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4 sm:gap-6">
+              {/* Testimonio 1: Andrés */}
               <motion.div
                 initial={{ opacity: 0, y: 20 }}
                 animate={{ opacity: 1, y: 0 }}
-                transition={{ delay: 0.9 }}
-                className="glass-effect p-6 sm:p-8 rounded-2xl border-2 border-green-500/30 hover:border-green-500/60 transition-all group"
+                transition={{ delay: 0.3 }}
+                className="bg-gray-800/60 backdrop-blur-sm p-5 rounded-xl border border-purple-500/30"
               >
-                {/* Foto/Avatar */}
-                <div className="flex items-center gap-4 mb-5">
+                <div className="flex items-center gap-3 mb-3">
                   <img
-                    src="/testimonio 1.jpeg"
-                    alt="Andrés - Usuario de Chactivo"
-                    className="w-14 h-14 sm:w-16 sm:h-16 rounded-full object-cover shadow-lg ring-2 ring-green-500/30"
+                    src={encodeURI("/testimonio 1.jpeg")}
+                    alt="Andrés"
+                    className="w-12 h-12 rounded-full object-cover"
+                    onError={(e) => {
+                      e.target.src = "/testimonio%201.jpeg";
+                    }}
                   />
                   <div>
-                    <p className="font-bold text-lg text-foreground">Andrés</p>
-                    <p className="text-sm text-gray-400">35 años • Valparaíso</p>
+                    <p className="font-bold text-white">Andrés</p>
+                    <p className="text-xs text-gray-400">35 • Valparaíso</p>
                   </div>
                 </div>
-
-                {/* Estrellas */}
-                <div className="flex gap-1 mb-4">
-                  {[...Array(5)].map((_, i) => (
-                    <svg key={i} className="w-5 h-5 text-yellow-400" fill="currentColor" viewBox="0 0 20 20">
-                      <path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z" />
-                    </svg>
-                  ))}
-                </div>
-
-                {/* Testimonio */}
-                <p className="text-base text-gray-300 leading-relaxed italic mb-4">
-                  "La moderación es excelente. He reportado 2 perfiles y fueron removidos en minutos. Me siento seguro aquí, algo que no pasaba en otras apps donde el acoso era común."
+                <p className="text-sm text-gray-200 leading-relaxed">
+                  "Reporté 2 perfiles y los sacaron al toque. Acá sí moderan de verdad."
                 </p>
-
-                {/* Tag */}
-                <div className="inline-block px-3 py-1 bg-green-500/20 border border-green-500/30 rounded-full">
-                  <p className="text-xs font-semibold text-green-400">✓ Usuario verificado</p>
-                </div>
               </motion.div>
 
-              {/* Testimonio 2: Diego - Privacidad */}
+              {/* Testimonio 2: Diego */}
               <motion.div
                 initial={{ opacity: 0, y: 20 }}
                 animate={{ opacity: 1, y: 0 }}
-                transition={{ delay: 1.0 }}
-                className="glass-effect p-6 sm:p-8 rounded-2xl border-2 border-cyan-500/30 hover:border-cyan-500/60 transition-all group"
+                transition={{ delay: 0.4 }}
+                className="bg-gray-800/60 backdrop-blur-sm p-5 rounded-xl border border-purple-500/30"
               >
-                {/* Foto/Avatar */}
-                <div className="flex items-center gap-4 mb-5">
+                <div className="flex items-center gap-3 mb-3">
                   <img
-                    src="/testimonio 2.jpeg"
-                    alt="Diego - Usuario de Chactivo"
-                    className="w-14 h-14 sm:w-16 sm:h-16 rounded-full object-cover shadow-lg ring-2 ring-cyan-500/30"
+                    src={encodeURI("/testimonio 2.jpeg")}
+                    alt="Diego"
+                    className="w-12 h-12 rounded-full object-cover"
+                    onError={(e) => {
+                      e.target.src = "/testimonio%202.jpeg";
+                    }}
                   />
                   <div>
-                    <p className="font-bold text-lg text-foreground">Diego</p>
-                    <p className="text-sm text-gray-400">31 años • Santiago</p>
+                    <p className="font-bold text-white">Diego</p>
+                    <p className="text-xs text-gray-400">31 • Santiago</p>
                   </div>
                 </div>
-
-                {/* Estrellas */}
-                <div className="flex gap-1 mb-4">
-                  {[...Array(5)].map((_, i) => (
-                    <svg key={i} className="w-5 h-5 text-yellow-400" fill="currentColor" viewBox="0 0 20 20">
-                      <path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z" />
-                    </svg>
-                  ))}
-                </div>
-
-                {/* Testimonio */}
-                <p className="text-base text-gray-300 leading-relaxed italic mb-4">
-                  "He probado todas las apps de citas/chat gay en Chile, y esta es la única que realmente respeta la privacidad. Sin anuncios raros ni trackers. Finalmente puedo chatear tranquilo."
+                <p className="text-sm text-gray-200 leading-relaxed">
+                  "Probé todas las apps. Esta es la única sin anuncios raros ni trackers."
                 </p>
-
-                {/* Tag */}
-                <div className="inline-block px-3 py-1 bg-cyan-500/20 border border-cyan-500/30 rounded-full">
-                  <p className="text-xs font-semibold text-cyan-400">✓ Usuario verificado</p>
-                </div>
               </motion.div>
 
-              {/* Testimonio 3: Javier - Profesionales */}
+              {/* Testimonio 3: Javier */}
               <motion.div
                 initial={{ opacity: 0, y: 20 }}
                 animate={{ opacity: 1, y: 0 }}
-                transition={{ delay: 1.1 }}
-                className="glass-effect p-6 sm:p-8 rounded-2xl border-2 border-purple-500/30 hover:border-purple-500/60 transition-all group"
+                transition={{ delay: 0.5 }}
+                className="bg-gray-800/60 backdrop-blur-sm p-5 rounded-xl border border-purple-500/30"
               >
-                {/* Foto/Avatar */}
-                <div className="flex items-center gap-4 mb-5">
+                <div className="flex items-center gap-3 mb-3">
                   <img
-                    src="/testimonio 3.jpeg"
-                    alt="Javier - Usuario de Chactivo"
-                    className="w-14 h-14 sm:w-16 sm:h-16 rounded-full object-cover shadow-lg ring-2 ring-purple-500/30"
+                    src={encodeURI("/testimonio 3.jpeg")}
+                    alt="Javier"
+                    className="w-12 h-12 rounded-full object-cover"
+                    onError={(e) => {
+                      e.target.src = "/testimonio%203.jpeg";
+                    }}
                   />
                   <div>
-                    <p className="font-bold text-lg text-foreground">Javier</p>
-                    <p className="text-sm text-gray-400">47 años • Viña del Mar</p>
+                    <p className="font-bold text-white">Javier</p>
+                    <p className="text-xs text-gray-400">47 • Viña del Mar</p>
                   </div>
                 </div>
-
-                {/* Estrellas */}
-                <div className="flex gap-1 mb-4">
-                  {[...Array(5)].map((_, i) => (
-                    <svg key={i} className="w-5 h-5 text-yellow-400" fill="currentColor" viewBox="0 0 20 20">
-                      <path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z" />
-                    </svg>
-                  ))}
-                </div>
-
-                {/* Testimonio */}
-                <p className="text-base text-gray-300 leading-relaxed italic mb-4">
-                  "Como profesional, valoro mucho que no requiera vincular redes sociales. Total anonimato si lo deseas. Puedo ser yo mismo sin preocuparme por mi carrera."
+                <p className="text-sm text-gray-200 leading-relaxed">
+                  "No piden redes sociales. Puedo ser yo sin preocuparme por mi pega."
                 </p>
-
-                {/* Tag */}
-                <div className="inline-block px-3 py-1 bg-purple-500/20 border border-purple-500/30 rounded-full">
-                  <p className="text-xs font-semibold text-purple-400">✓ Usuario verificado</p>
-                </div>
               </motion.div>
             </div>
-
-            {/* CTA después de testimonios */}
-            <motion.div
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: 1.2 }}
-              className="text-center mt-12"
-            >
-              <p className="text-lg sm:text-xl text-muted-foreground mb-6">
-                Únete a miles de usuarios satisfechos
-              </p>
-              <Button
-                onClick={handleChatearAhora}
-                className="magenta-gradient text-white font-bold text-lg sm:text-xl px-8 sm:px-12 py-6 sm:py-7 rounded-xl shadow-xl hover:shadow-[#E4007C]/50 hover:scale-105 transition-all"
-              >
-                🚀 Probar Gratis Ahora
-              </Button>
-            </motion.div>
           </div>
         </motion.div>
 
-        {/* How It Works Section */}
+        {/* How It Works Section - Simplificado */}
         <motion.section
-          initial={{ opacity: 0, y: 30 }}
+          initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.5 }}
-          className="mb-16 sm:mb-20"
+          transition={{ delay: 0.3 }}
+          className="mb-8 sm:mb-12"
         >
-          <h2 className="text-2xl sm:text-3xl font-bold text-center mb-10">
-            🚀 Cómo Empezar
+          <h2 className="text-xl sm:text-2xl font-bold text-center mb-6">
+            Cómo funciona
           </h2>
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-8 max-w-4xl mx-auto">
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-6 max-w-4xl mx-auto">
             <div className="text-center">
-              <div className="w-16 h-16 mx-auto mb-4 rounded-full bg-gradient-to-br from-cyan-500 to-blue-500 flex items-center justify-center text-3xl font-black text-white">
+              <div className="w-12 h-12 mx-auto mb-3 rounded-full bg-gradient-to-br from-cyan-500 to-blue-500 flex items-center justify-center text-2xl font-black text-white">
                 1
               </div>
-              <h3 className="text-xl font-bold mb-2">Regístrate en 30s</h3>
-              <p className="text-muted-foreground">
-                Elige un username y crea tu contraseña. Sin email, sin tarjeta. 100% anónimo.
+              <h3 className="text-lg font-bold mb-2">Entra sin registro</h3>
+              <p className="text-sm text-muted-foreground">
+                Solo elige un nombre. Sin email, sin tarjeta.
               </p>
             </div>
 
             <div className="text-center">
-              <div className="w-16 h-16 mx-auto mb-4 rounded-full bg-gradient-to-br from-purple-500 to-pink-500 flex items-center justify-center text-3xl font-black text-white">
+              <div className="w-12 h-12 mx-auto mb-3 rounded-full bg-gradient-to-br from-purple-500 to-pink-500 flex items-center justify-center text-2xl font-black text-white">
                 2
               </div>
-              <h3 className="text-xl font-bold mb-2">Únete a la Conversación</h3>
-              <p className="text-muted-foreground">
-                Entra a la sala global, preséntate y empieza a chatear sobre lo que quieras.
+              <h3 className="text-lg font-bold mb-2">Chatea ya</h3>
+              <p className="text-sm text-muted-foreground">
+                Entra y habla con gente real. Sin vueltas.
               </p>
             </div>
 
             <div className="text-center">
-              <div className="w-16 h-16 mx-auto mb-4 rounded-full bg-gradient-to-br from-green-500 to-teal-500 flex items-center justify-center text-3xl font-black text-white">
+              <div className="w-12 h-12 mx-auto mb-3 rounded-full bg-gradient-to-br from-green-500 to-teal-500 flex items-center justify-center text-2xl font-black text-white">
                 3
               </div>
-              <h3 className="text-xl font-bold mb-2">Conecta y Disfruta</h3>
-              <p className="text-muted-foreground">
-                Haz amigos, comparte experiencias, disfruta de conversación real sin presión.
+              <h3 className="text-lg font-bold mb-2">Conecta</h3>
+              <p className="text-sm text-muted-foreground">
+                Encuentra con quién hablar. Gente real, conversación real.
               </p>
             </div>
           </div>
@@ -1003,12 +937,12 @@ const GlobalLandingPage = () => {
           </motion.div>
         </motion.section>
 
-        {/* ✅ SECCIÓN DEL CREADOR - Mensaje personal REDISEÑADO */}
+        {/* ✅ SECCIÓN DEL CREADOR - Compacta */}
         <motion.div
-          initial={{ opacity: 0, y: 30 }}
+          initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.6, duration: 0.7 }}
-          className="mt-16 sm:mt-20 mb-12 sm:mb-16 px-4"
+          transition={{ delay: 0.5, duration: 0.5 }}
+          className="mt-8 sm:mt-10 mb-8 sm:mb-10 px-3"
         >
           <div className="max-w-4xl mx-auto">
             {/* Badge superior */}
@@ -1052,12 +986,14 @@ const GlobalLandingPage = () => {
                       transition={{ delay: 0.9, type: "spring", stiffness: 200 }}
                       src="/creator-photo.jpg"
                       alt="Daniel Falcon - Creador de Chactivo"
-                       className="relative w-32 h-32 sm:w-40 sm:h-40 lg:w-48 lg:h-48 rounded-full object-cover border-4 border-white/20 shadow-2xl shadow-cyan-500/50 ring-4 ring-cyan-500/30 group-hover:ring-cyan-500/60 transition-all duration-500"
-                       style={{ objectPosition: 'center 20%' }}
+                      className="relative w-32 h-32 sm:w-40 sm:h-40 lg:w-48 lg:h-48 rounded-full object-cover border-4 border-white/20 shadow-2xl shadow-cyan-500/50 ring-4 ring-cyan-500/30 group-hover:ring-cyan-500/60 transition-all duration-500"
+                      style={{ objectPosition: 'center 20%' }}
                       onError={(e) => {
                         // Fallback si no hay foto
                         e.target.style.display = 'none';
-                        e.target.nextElementSibling.style.display = 'flex';
+                        if (e.target.nextElementSibling) {
+                          e.target.nextElementSibling.style.display = 'flex';
+                        }
                       }}
                     />
                     <div className="relative w-32 h-32 sm:w-40 sm:h-40 lg:w-48 lg:h-48 rounded-full bg-gradient-to-br from-cyan-500 to-purple-500 flex items-center justify-center border-4 border-white/20 shadow-2xl shadow-cyan-500/50 ring-4 ring-cyan-500/30 hidden">
@@ -1086,17 +1022,17 @@ const GlobalLandingPage = () => {
                       </span>
                     </motion.h3>
 
-                    {/* Subtítulo */}
+                    {/* Subtítulo - Directo */}
                     <motion.p
                       initial={{ opacity: 0, x: -20 }}
                       animate={{ opacity: 1, x: 0 }}
                       transition={{ delay: 1.1 }}
-                      className="text-lg sm:text-xl font-semibold text-purple-400 mb-4"
+                      className="text-lg sm:text-xl font-bold text-purple-400 mb-4"
                     >
-                      Desarrollador Web & Creador de Chactivo 🏳️‍🌈
+                      Creador de Chactivo 🏳️‍🌈
                     </motion.p>
 
-                    {/* Mensaje principal - Más personal e impactante */}
+                    {/* Mensaje principal - Tono urbano y directo */}
                     <motion.div
                       initial={{ opacity: 0, y: 10 }}
                       animate={{ opacity: 1, y: 0 }}
@@ -1104,20 +1040,15 @@ const GlobalLandingPage = () => {
                       className="space-y-3 text-base sm:text-lg leading-relaxed"
                     >
                       <p className="text-gray-300">
-                        Creé <span className="font-bold text-cyan-400">Chactivo</span> porque estaba harto de las apps llenas de
-                        <span className="font-semibold text-red-400 line-through mx-1">publicidad invasiva</span>,
-                        <span className="font-semibold text-red-400 line-through mx-1">bots falsos</span> y
-                        <span className="font-semibold text-red-400 line-through mx-1">perfiles fake</span>.
+                        Creé <span className="font-bold text-cyan-400">Chactivo</span> porque estaba <span className="font-bold text-red-400">harto</span> de las apps falsas. Llenas de bots, perfiles fake y publicidad por todos lados.
                       </p>
 
                       <p className="text-gray-300">
-                        Aquí encontrarás <span className="font-bold text-green-400">✓ Chats 100% reales</span>,
-                        <span className="font-bold text-green-400 mx-1">✓ Sin anuncios molestos</span>,
-                        <span className="font-bold text-green-400 mx-1">✓ Comunidad LGBT+ segura</span>.
+                        Acá es simple: <span className="font-bold text-green-400">Gente real</span>, <span className="font-bold text-green-400">sin vueltas</span>, <span className="font-bold text-green-400">sin estafas</span>.
                       </p>
 
-                      <p className="text-cyan-300 font-semibold text-lg sm:text-xl">
-                        Un espacio hecho por y para la comunidad gay de Chile 🇨🇱
+                      <p className="text-cyan-300 font-bold text-lg sm:text-xl">
+                        Un espacio hecho por y para nosotros. Gente de trabajo, gente real. 🇨🇱
                       </p>
                     </motion.div>
 
