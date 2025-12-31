@@ -174,6 +174,15 @@ const ChatSidebar = ({ currentRoom, setCurrentRoom, isOpen, onClose }) => {
                             <span className={`text-sm font-medium truncate ${isActive ? 'text-foreground' : 'text-foreground group-hover:text-foreground'}`}>
                               {room.name}
                             </span>
+                            {requiresAuth && (
+                              <motion.div
+                                initial={{ scale: 0 }}
+                                animate={{ scale: 1 }}
+                                className="flex items-center gap-1"
+                              >
+                                <Lock className="w-3 h-3 text-muted-foreground" />
+                              </motion.div>
+                            )}
                           </div>
                           {/* ✅ Mostrar indicador de actividad si hay usuarios */}
                           {activityStatus.status && (
@@ -226,6 +235,11 @@ const ChatSidebar = ({ currentRoom, setCurrentRoom, isOpen, onClose }) => {
                                 {activityStatus.status}
                               </span>
                             </div>
+                          )}
+                          {requiresAuth && (
+                            <span className="text-[9px] text-muted-foreground mt-0.5 block">
+                              Requiere registro
+                            </span>
                           )}
                         </div>
                       </div>
@@ -366,6 +380,12 @@ const ChatSidebar = ({ currentRoom, setCurrentRoom, isOpen, onClose }) => {
                 // ✅ Obtener estado de actividad
                 const activityStatus = getRoomActivityStatus(realUserCount);
                 
+                // 🔒 Verificar si la sala requiere autenticación
+                const restrictedRooms = ['mas-30', 'santiago', 'gaming'];
+                const isRestrictedRoom = restrictedRooms.includes(room.id);
+                const isGuestOrAnonymous = user && (user.isGuest || user.isAnonymous);
+                const requiresAuth = isRestrictedRoom && isGuestOrAnonymous;
+                
                 const isActive = currentRoom === room.id;
 
                 return (
@@ -380,9 +400,18 @@ const ChatSidebar = ({ currentRoom, setCurrentRoom, isOpen, onClose }) => {
                       className={`w-full justify-start text-left h-auto py-2.5 px-3 group transition-all duration-200 ${
                         isActive
                           ? 'bg-primary/10 border-l-2 border-primary text-primary hover:bg-primary/15'
+                          : requiresAuth
+                          ? 'opacity-60 hover:opacity-80 hover:bg-accent/30'
                           : 'hover:bg-accent/50 hover:border-l-2 hover:border-accent'
                       }`}
-                      onClick={() => handleRoomChange(room.id)}
+                      onClick={() => {
+                        if (requiresAuth) {
+                          navigate('/auth?redirect=/chat/' + room.id);
+                          onClose();
+                        } else {
+                          handleRoomChange(room.id);
+                        }
+                      }}
                     >
                       <div className="flex items-center gap-3 w-full">
                         <motion.div
@@ -397,6 +426,15 @@ const ChatSidebar = ({ currentRoom, setCurrentRoom, isOpen, onClose }) => {
                             <span className={`text-sm font-medium truncate ${isActive ? 'text-foreground' : 'text-foreground group-hover:text-foreground'}`}>
                               {room.name}
                             </span>
+                            {requiresAuth && (
+                              <motion.div
+                                initial={{ scale: 0 }}
+                                animate={{ scale: 1 }}
+                                className="flex items-center gap-1"
+                              >
+                                <Lock className="w-3 h-3 text-muted-foreground" />
+                              </motion.div>
+                            )}
                           </div>
                           {/* ✅ Mostrar indicador de actividad si hay usuarios */}
                           {activityStatus.status && (
@@ -449,6 +487,11 @@ const ChatSidebar = ({ currentRoom, setCurrentRoom, isOpen, onClose }) => {
                                 {activityStatus.status}
                               </span>
                             </div>
+                          )}
+                          {requiresAuth && (
+                            <span className="text-[9px] text-muted-foreground mt-0.5 block">
+                              Requiere registro
+                            </span>
                           )}
                         </div>
                       </div>

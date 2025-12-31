@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { motion } from 'framer-motion';
+import { motion, AnimatePresence } from 'framer-motion';
 import { MessageSquare, Shield, Calendar, SlidersHorizontal, Users, Lock, MapPin, Sparkles, MessageCircle } from 'lucide-react';
 import FeatureCard from '@/components/lobby/FeatureCard';
 import RoomsModal from '@/components/lobby/RoomsModal';
@@ -360,6 +360,34 @@ const LobbyPage = () => {
   // Determinar si mostrar Welcome Back Banner (SOLO para usuarios logueados)
   const showWelcomeBack = user && !user.isGuest && !user.isAnonymous;
 
+  // 🔥 Carrusel de imágenes - 5 modelos que cambian cada 3 segundos
+  const [currentImageIndex, setCurrentImageIndex] = useState(0);
+  const modelImages = [
+    '/MODELO 1.jpeg',
+    '/MODELO 2.jpeg',
+    '/MODELO 3.jpeg',
+    '/MODELO 4.jpeg',
+    '/MODELO 5.jpeg'
+  ];
+
+  // Cambiar imagen cada 3 segundos
+  useEffect(() => {
+    if (!showHeroSection) return;
+    
+    const interval = setInterval(() => {
+      setCurrentImageIndex((prevIndex) => (prevIndex + 1) % modelImages.length);
+    }, 3000); // 3 segundos
+
+    return () => clearInterval(interval);
+  }, [showHeroSection, modelImages.length]);
+
+  // Debug: Verificar que el carrusel se renderice
+  useEffect(() => {
+    if (showHeroSection) {
+      console.log('🔥 Carrusel activo - Imagen actual:', currentImageIndex, modelImages[currentImageIndex]);
+    }
+  }, [showHeroSection, currentImageIndex, modelImages]);
+
   // Helper para calcular el tiempo relativo
   const getTimeAgo = (timestamp) => {
     if (!timestamp) return null;
@@ -377,6 +405,126 @@ const LobbyPage = () => {
   return (
     <>
       <div className="w-full min-h-screen pb-16 sm:pb-20">
+        {/* 🔥 CONTENEDOR HORIZONTAL CON CARRUSEL DE IMÁGENES - Solo para visitantes */}
+        {showHeroSection && (
+          <motion.div
+            initial={{ opacity: 0, y: -20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.6 }}
+            className="w-full relative overflow-hidden"
+            style={{ 
+              marginTop: '-4rem',
+              marginBottom: '2rem',
+              zIndex: 1
+            }}
+          >
+            <div className="w-full h-56 sm:h-72 md:h-96 lg:h-[500px] relative group">
+              {/* Carrusel de imágenes con transición suave */}
+              <AnimatePresence mode="wait">
+                <motion.div
+                  key={currentImageIndex}
+                  initial={{ opacity: 0, scale: 1.1 }}
+                  animate={{ opacity: 1, scale: 1 }}
+                  exit={{ opacity: 0, scale: 0.95 }}
+                  transition={{ duration: 0.8, ease: 'easeInOut' }}
+                  className="absolute inset-0 w-full h-full"
+                >
+                  <div 
+                    className="w-full h-full bg-cover bg-center bg-no-repeat relative transition-transform duration-700 group-hover:scale-105"
+                    style={{
+                      backgroundImage: `url(${modelImages[currentImageIndex]})`,
+                      backgroundPosition: 'center',
+                      backgroundSize: 'cover',
+                      backgroundColor: '#1a0a1a'
+                    }}
+                  >
+                    {/* Fallback si la imagen no carga */}
+                    <div className="absolute inset-0 bg-gradient-to-br from-purple-900 via-pink-900 to-purple-900 opacity-50"></div>
+                    {/* Overlay degradado atractivo */}
+                    <div className="absolute inset-0 bg-gradient-to-br from-purple-900/70 via-pink-900/60 to-purple-900/70"></div>
+                    <div className="absolute inset-0 bg-gradient-to-t from-black/40 via-transparent to-transparent"></div>
+                    
+                    {/* Efecto de brillo animado */}
+                    <motion.div
+                      animate={{
+                        backgroundPosition: ['0% 0%', '100% 100%'],
+                      }}
+                      transition={{
+                        duration: 8,
+                        repeat: Infinity,
+                        repeatType: 'reverse',
+                        ease: 'linear'
+                      }}
+                      className="absolute inset-0 bg-gradient-to-r from-transparent via-white/10 to-transparent"
+                      style={{
+                        backgroundSize: '200% 200%'
+                      }}
+                    />
+                    
+                    {/* Contenido sobre la imagen */}
+                    <div className="relative z-10 h-full flex items-center justify-center px-4">
+                      <div className="text-center max-w-4xl">
+                        <motion.h2
+                          key={`title-${currentImageIndex}`}
+                          initial={{ opacity: 0, y: 20 }}
+                          animate={{ opacity: 1, y: 0 }}
+                          exit={{ opacity: 0, y: -20 }}
+                          transition={{ duration: 0.6 }}
+                          className="text-3xl sm:text-4xl md:text-5xl lg:text-6xl font-extrabold text-white mb-3 drop-shadow-2xl leading-tight"
+                        >
+                          <span className="bg-gradient-to-r from-pink-300 via-purple-300 to-pink-300 bg-clip-text text-transparent">
+                            Encuentra tu conexión perfecta
+                          </span>
+                        </motion.h2>
+                        <motion.p
+                          key={`subtitle-${currentImageIndex}`}
+                          initial={{ opacity: 0, y: 10 }}
+                          animate={{ opacity: 1, y: 0 }}
+                          exit={{ opacity: 0, y: -10 }}
+                          transition={{ duration: 0.6, delay: 0.2 }}
+                          className="text-base sm:text-lg md:text-xl text-white/95 font-semibold drop-shadow-lg mb-4"
+                        >
+                          🔥 Conversaciones calientes • Encuentros reales • Sin límites
+                        </motion.p>
+                        <motion.div
+                          key={`button-${currentImageIndex}`}
+                          initial={{ opacity: 0, scale: 0.9 }}
+                          animate={{ opacity: 1, scale: 1 }}
+                          exit={{ opacity: 0, scale: 0.9 }}
+                          transition={{ duration: 0.5, delay: 0.4 }}
+                        >
+                          <Button
+                            onClick={() => navigate('/auth')}
+                            className="magenta-gradient text-white font-bold px-8 py-6 text-lg sm:text-xl rounded-xl shadow-2xl hover:shadow-[#E4007C]/50 transition-all hover:scale-105"
+                          >
+                            🚀 ÚNETE AHORA GRATIS
+                          </Button>
+                        </motion.div>
+                      </div>
+                    </div>
+                  </div>
+                </motion.div>
+              </AnimatePresence>
+
+              {/* Indicadores de imágenes (puntos) */}
+              <div className="absolute bottom-4 left-1/2 transform -translate-x-1/2 z-20 flex gap-2">
+                {modelImages.map((_, index) => (
+                  <button
+                    key={index}
+                    onClick={() => setCurrentImageIndex(index)}
+                    className={`transition-all duration-300 rounded-full ${
+                      index === currentImageIndex
+                        ? 'w-3 h-3 bg-white shadow-lg'
+                        : 'w-2 h-2 bg-white/50 hover:bg-white/75'
+                    }`}
+                    aria-label={`Ir a imagen ${index + 1}`}
+                  />
+                ))}
+              </div>
+            </div>
+          </motion.div>
+        )}
+
         {/* 🔥 HERO SECTION - Solo para visitantes */}
         {showHeroSection && (
           <motion.section

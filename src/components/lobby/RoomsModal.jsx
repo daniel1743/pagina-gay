@@ -5,7 +5,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } f
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { useAuth } from '@/contexts/AuthContext';
-import { Users, Hash, Gamepad2, Heart, Search, Crown, Plus, X, GitFork, UserMinus, UserCheck, Cake, MessageSquare } from 'lucide-react';
+import { Users, Hash, Gamepad2, Heart, Search, Crown, Plus, X, GitFork, UserMinus, UserCheck, Cake, MessageSquare, Lock } from 'lucide-react';
 import { toast } from '@/components/ui/use-toast';
 import { subscribeToMultipleRoomCounts } from '@/services/presenceService';
 import { roomsData, colorClasses } from '@/config/rooms';
@@ -111,10 +111,18 @@ const RoomsModal = ({ isOpen, onClose }) => {
 
               const isAnonymousUser = user && (user.isAnonymous || user.isGuest);
               const isGlobalRoom = room.id === 'global'; // Sala principal nueva
-              const canAccess = true; // ✅ ACTUALIZADO: Todas las salas accesibles sin registro
+              // 🔒 Salas restringidas: mas-30, santiago, gaming requieren autenticación
+              const restrictedRooms = ['mas-30', 'santiago', 'gaming'];
+              const isRestrictedRoom = restrictedRooms.includes(room.id);
+              const canAccess = !isRestrictedRoom || !isAnonymousUser; // Solo usuarios registrados pueden acceder a salas restringidas
 
               const handleRoomClick = () => {
-                // ✅ Restricción eliminada: Todos pueden acceder a todas las salas
+                if (!canAccess) {
+                  // Redirigir a auth con redirect a la sala
+                  onClose();
+                  navigate(`/auth?redirect=/chat/${room.id}`);
+                  return;
+                }
                 onClose();
                 navigate(`/chat/${room.id}`);
               };
@@ -126,7 +134,9 @@ const RoomsModal = ({ isOpen, onClose }) => {
                   animate={{ opacity: 1, y: 0 }}
                   transition={{ duration: 0.4, delay: index * 0.05 }}
                   onClick={handleRoomClick}
-                  className="relative glass-effect p-5 rounded-xl flex flex-col gap-3 cursor-pointer hover:border-primary transition-all border group"
+                  className={`relative glass-effect p-5 rounded-xl flex flex-col gap-3 cursor-pointer transition-all border group ${
+                    !canAccess ? 'opacity-75 hover:opacity-90 hover:border-orange-500' : 'hover:border-primary'
+                  }`}
                 >
                   {/* Icono y Título */}
                   <div className="flex items-center gap-3">
@@ -134,8 +144,15 @@ const RoomsModal = ({ isOpen, onClose }) => {
                       <IconComponent className="w-8 h-8" />
                     </div>
                     <div className="flex-1">
-                      <h3 className="text-lg font-bold text-foreground">{room.name}</h3>
-                      {/* ✅ Etiquetas de restricción eliminadas - Todas las salas son accesibles */}
+                      <div className="flex items-center gap-2">
+                        <h3 className="text-lg font-bold text-foreground">{room.name}</h3>
+                        {!canAccess && (
+                          <Lock className="w-4 h-4 text-orange-500" />
+                        )}
+                      </div>
+                      {!canAccess && (
+                        <p className="text-xs text-orange-500 mt-1">Requiere registro</p>
+                      )}
                     </div>
                   </div>
 

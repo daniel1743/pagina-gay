@@ -1,6 +1,6 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
-import { motion } from 'framer-motion';
+import { motion, AnimatePresence } from 'framer-motion';
 import { MessageSquare, Users, Heart, Star, ArrowRight, Zap, Shield, Clock, Sparkles } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { useAuth } from '@/contexts/AuthContext';
@@ -13,6 +13,25 @@ const GlobalLandingPage = () => {
   const location = useLocation();
   const { user } = useAuth();
   const [showGuestModal, setShowGuestModal] = React.useState(false);
+
+  // 🔥 Carrusel de imágenes - 5 modelos que cambian cada 3 segundos
+  const [currentImageIndex, setCurrentImageIndex] = useState(0);
+  const modelImages = [
+    '/MODELO 1.jpeg',
+    '/MODELO 2.jpeg',
+    '/MODELO 3.jpeg',
+    '/MODELO 4.jpeg',
+    '/MODELO 5.jpeg'
+  ];
+
+  // Cambiar imagen cada 3 segundos
+  useEffect(() => {
+    const interval = setInterval(() => {
+      setCurrentImageIndex((prevIndex) => (prevIndex + 1) % modelImages.length);
+    }, 3000); // 3 segundos
+
+    return () => clearInterval(interval);
+  }, [modelImages.length]);
 
   // ✅ SEO: Canonical tag dinámico basado en la ruta actual
   const isHomePage = location.pathname === '/';
@@ -27,36 +46,18 @@ const GlobalLandingPage = () => {
   // }, [user, navigate]);
 
   React.useEffect(() => {
-    // ✅ SEO: Title y meta description adaptados a la ruta
-    if (isHomePage) {
-      // Página principal - título más general
-      document.title = 'Chat Gay Chile Gratis 🏳️‍🌈 Sin Registro - Entra Ahora | Chactivo';
-    } else {
-      // Ruta /global - título específico
-      document.title = 'Chat Gay Chile Global 💬 | Sala General LGBT+ | Chactivo';
-    }
-
+    // ✅ SEO: Title y meta description optimizados para conversión
+    document.title = 'Chat gay Chile | Gratis y anónimo';
+    
     let metaDescription = document.querySelector('meta[name="description"]');
     if (!metaDescription) {
       metaDescription = document.createElement('meta');
       metaDescription.name = 'description';
       document.head.appendChild(metaDescription);
     }
-
-    if (isHomePage) {
-      // Descripción más general para página principal
-      metaDescription.content = 'Chat gay en Chile 100% gratis y anónimo. Testimonios reales, demo del chat, foto del creador. Entra en segundos sin email ni tarjeta. Salas +30, Osos y por ciudades. Chatea ahora.';
-    } else {
-      // Descripción específica para /global
-      metaDescription.content = '💬 Sala de chat gay general Chile. Todos los temas bienvenidos: amistad, relaciones, gaming, cultura, viajes. Conversación libre, ambiente relajado. ¡100% gratis, regístrate en 30 segundos!';
-    }
-
-    return () => {
-      if (metaDescription && document.head.contains(metaDescription)) {
-        metaDescription.content = '🏳️‍🌈 Chat gay chileno 100% gratis. Salas por interés: Gaming 🎮, +30 💪, Osos 🐻, Amistad 💬. Conversación real, sin presión de hookups.';
-      }
-    };
-  }, [isHomePage]);
+    
+    metaDescription.content = 'Entra al chat gay en Chile. Gratis, sin registro y con personas reales conversando ahora.';
+  }, []);
 
   const handleChatearAhora = () => {
     if (user && !user.isGuest) {
@@ -83,91 +84,124 @@ const GlobalLandingPage = () => {
   };
 
   return (
-    <div className="min-h-screen px-4 py-8 sm:py-12">
-      {/* Hero Section */}
-      <div className="max-w-6xl mx-auto">
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          className="text-center mb-16 sm:mb-20 pt-8 sm:pt-12"
-        >
-          {/* Badge Simple y Discreto */}
-          <motion.div
-            initial={{ opacity: 0, scale: 0.95 }}
-            animate={{ opacity: 1, scale: 1 }}
-            className="inline-block mb-8"
-          >
-            <div className="bg-[#F3F4F6] dark:bg-[#374151] border border-[#E5E7EB] dark:border-[#4B5563] rounded-full px-4 sm:px-5 py-1.5 sm:py-2">
-              <p className="text-xs sm:text-sm font-medium text-[#6B7280] dark:text-[#9CA3AF] flex items-center justify-center gap-2">
-                <MessageSquare className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
-                <span>Espacio seguro y activo las 24 horas</span>
-              </p>
-            </div>
-          </motion.div>
-
-          {/* Headline Principal - Sin gradientes, alto contraste */}
-          <h1 className="text-4xl sm:text-5xl md:text-6xl lg:text-7xl font-bold mb-6 sm:mb-8 leading-tight tracking-tight text-[#1F2937] dark:text-white max-w-5xl mx-auto">
-            Chat de la comunidad{' '}
-            <span className="text-[#4F46E5] dark:text-[#818CF8]">LGBTQ+</span>{' '}
-            en Chile
-          </h1>
-
-          {/* Subheadline - Claramente diferenciado */}
-          <p className="text-lg sm:text-xl md:text-2xl font-normal text-[#4B5563] dark:text-[#D1D5DB] mb-4 sm:mb-6 max-w-3xl mx-auto leading-relaxed">
-            Conecta, conversa y comparte en un espacio seguro, anónimo y activo las 24 horas.
-          </p>
-
-          {/* Texto de Apoyo - Secundario */}
-          <p className="text-base sm:text-lg font-normal text-[#6B7280] dark:text-[#9CA3AF] mb-10 sm:mb-12 max-w-2xl mx-auto leading-relaxed">
-            Amistad, relaciones, cultura, música, viajes, series y más. Todas las personas son bienvenidas.
-          </p>
-
-          {/* Trust Badges - Discretos, iconos monocromáticos */}
-          <div className="flex flex-wrap items-center justify-center gap-6 sm:gap-8 mb-10 sm:mb-12">
-            <div className="flex items-center gap-2.5">
-              <Shield className="w-4 h-4 text-[#4F46E5] dark:text-[#818CF8]" />
-              <span className="text-sm sm:text-base font-medium text-[#374151] dark:text-[#E5E7EB]">100% Anónimo</span>
-            </div>
-            <div className="flex items-center gap-2.5">
-              <Clock className="w-4 h-4 text-[#4F46E5] dark:text-[#818CF8]" />
-              <span className="text-sm sm:text-base font-medium text-[#374151] dark:text-[#E5E7EB]">Activo 24/7</span>
-            </div>
-            <div className="flex items-center gap-2.5">
-              <Zap className="w-4 h-4 text-[#4F46E5] dark:text-[#818CF8]" />
-              <span className="text-sm sm:text-base font-medium text-[#374151] dark:text-[#E5E7EB]">Registro rápido</span>
+    <div className="min-h-screen">
+      {/* 🎯 HERO MOBILE-FIRST - Un solo hero, copy directo, CTA único */}
+      <motion.div
+        initial={{ opacity: 0 }}
+        animate={{ opacity: 1 }}
+        transition={{ duration: 0.6 }}
+        className="w-full relative overflow-hidden"
+        style={{ 
+          marginTop: '-4rem',
+          zIndex: 1
+        }}
+      >
+        {/* Mobile: max 60vh, Desktop: max 75vh */}
+        <div className="w-full h-[60vh] md:h-[75vh] relative group">
+          {/* Carrusel de imágenes con transición suave - Solo la imagen cambia */}
+          <AnimatePresence mode="wait">
+            <motion.div
+              key={currentImageIndex}
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              transition={{ duration: 0.6, ease: 'easeInOut' }}
+              className="absolute inset-0 w-full h-full"
+            >
+              <div className="w-full h-full relative overflow-hidden">
+                {/* Imagen contextual (no protagonista) */}
+                <img 
+                  src={modelImages[currentImageIndex]}
+                  alt="Chat activo en Chile"
+                  className="absolute inset-0 w-full h-full object-cover object-center"
+                  loading={currentImageIndex === 0 ? 'eager' : 'lazy'}
+                  onError={(e) => {
+                    console.error('Error cargando imagen:', modelImages[currentImageIndex]);
+                    e.target.style.display = 'none';
+                  }}
+                />
+                
+                {/* Overlay oscuro para legibilidad del texto */}
+                <div className="absolute inset-0 bg-gradient-to-b from-black/70 via-black/60 to-black/70"></div>
+                <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-transparent"></div>
+              </div>
+            </motion.div>
+          </AnimatePresence>
+          
+          {/* Contenido sobre la imagen - Fijo, no cambia con las imágenes */}
+          <div className="absolute inset-0 z-10 h-full flex items-center justify-center px-4 sm:px-6">
+            <div className="text-center max-w-3xl w-full">
+              {/* H1 Principal - Copy directo y humano - Fijo */}
+              <motion.h1
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ duration: 0.6 }}
+                className="text-3xl sm:text-4xl md:text-5xl lg:text-6xl font-black mb-3 sm:mb-4 drop-shadow-2xl leading-tight"
+              >
+                <span className="bg-gradient-to-r from-purple-400 via-purple-500 to-cyan-400 bg-clip-text text-transparent">
+                  SUMATE A CHACTIVO CHATEA Y CONECTA CON TU CRUSH
+                </span>
+              </motion.h1>
+              
+              {/* Subheadline - Directo y claro - Fijo */}
+              <motion.p
+                initial={{ opacity: 0, y: 10 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ duration: 0.6, delay: 0.1 }}
+                className="text-base sm:text-lg md:text-xl text-white/95 font-medium drop-shadow-lg mb-6 sm:mb-8 leading-relaxed"
+              >
+                Entra y conversa ahora. Gratis, anónimo y sin registro.
+              </motion.p>
+              
+              {/* CTA Único - Sin emojis, directo - Fijo */}
+              <motion.div
+                initial={{ opacity: 0, scale: 0.95 }}
+                animate={{ opacity: 1, scale: 1 }}
+                transition={{ duration: 0.5, delay: 0.2 }}
+              >
+                <Button
+                  onClick={handleChatearAhora}
+                  className="bg-[#4F46E5] hover:bg-[#4338CA] text-white font-bold px-8 sm:px-12 py-3 sm:py-4 text-base sm:text-lg rounded-xl shadow-2xl hover:shadow-[#4F46E5]/50 transition-all hover:scale-105 w-full sm:w-auto"
+                  style={{ minHeight: '48px' }}
+                >
+                  Entrar al chat
+                </Button>
+              </motion.div>
+              
+              {/* Microcopy - Prueba social discreta - Fijo */}
+              <motion.p
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                transition={{ duration: 0.5, delay: 0.3 }}
+                className="text-sm sm:text-base text-white/70 mt-4 sm:mt-6 font-normal"
+              >
+                Siempre hay alguien para conversar
+              </motion.p>
             </div>
           </div>
 
-          {/* CTA Principal - Profesional y claro */}
-          <div className="flex flex-col sm:flex-row gap-4 items-center justify-center mb-6">
-            <motion.div whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }}>
-              <Button
-                onClick={handleChatearAhora}
-                size="lg"
-                className="bg-[#4F46E5] hover:bg-[#4338CA] dark:bg-[#6366F1] dark:hover:bg-[#818CF8] text-white font-semibold text-base sm:text-lg px-8 sm:px-10 py-6 sm:py-7 rounded-xl shadow-lg hover:shadow-xl transition-all w-full sm:w-auto"
-              >
-                Comenzar a chatear
-              </Button>
-            </motion.div>
-
-            <motion.div whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }}>
-              <Button
-                onClick={handleRegistrar}
-                size="lg"
-                variant="outline"
-                className="border-2 border-[#D1D5DB] dark:border-[#4B5563] bg-white dark:bg-transparent text-[#374151] dark:text-[#E5E7EB] hover:bg-[#F3F4F6] dark:hover:bg-[#374151] hover:text-[#1F2937] dark:hover:text-[#F9FAFB] font-medium text-base sm:text-lg px-8 sm:px-10 py-6 sm:py-7 rounded-xl transition-all w-full sm:w-auto"
-              >
-                Crear cuenta
-              </Button>
-            </motion.div>
+          {/* Indicadores de imágenes (puntos) - Minimizados al 30% */}
+          <div className="absolute bottom-2 left-1/2 transform -translate-x-1/2 z-20 flex gap-0.5">
+            {modelImages.map((_, index) => (
+              <button
+                key={index}
+                onClick={() => setCurrentImageIndex(index)}
+                className={`transition-all duration-300 rounded-full ${
+                  index === currentImageIndex
+                    ? 'w-1 h-1 bg-white/50'
+                    : 'w-0.5 h-0.5 bg-white/20 hover:bg-white/30'
+                }`}
+                aria-label={`Ir a imagen ${index + 1}`}
+              />
+            ))}
           </div>
+        </div>
+      </motion.div>
 
-          {/* Micro CTA copy - Texto discreto */}
-          <p className="text-sm text-[#6B7280] dark:text-[#9CA3AF]">
-            Sin registro necesario • 100% gratuito • Privacidad garantizada
-          </p>
-        </motion.div>
-
+      <div className="px-4 py-8 sm:py-12">
+        <div className="max-w-6xl mx-auto">
+        {/* ✅ HERO DUPLICADO ELIMINADO - Solo un hero en el carrusel */}
+        
         {/* 🔥 CHAT DEMO - Vista previa con notificaciones animadas */}
         <motion.section
           initial={{ opacity: 0, y: 30 }}
@@ -1240,6 +1274,7 @@ const GlobalLandingPage = () => {
             </p>
           </div>
         </motion.section>
+        </div>
       </div>
 
       {/* 📱 STICKY MOBILE CTA - Botón flotante para móviles */}
