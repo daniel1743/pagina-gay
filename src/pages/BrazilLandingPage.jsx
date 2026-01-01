@@ -9,21 +9,23 @@ import { GuestUsernameModal } from '@/components/auth/GuestUsernameModal';
 import { EntryOptionsModal } from '@/components/auth/EntryOptionsModal';
 
 const BrazilLandingPage = () => {
+  console.log('🚀 BrazilLandingPage: Componente iniciado');
   const navigate = useNavigate();
   const { user } = useAuth();
+  console.log('👤 BrazilLandingPage: Usuario:', user ? (user.isGuest ? 'Guest' : 'Registered') : 'No user');
 
   const [showGuestModal, setShowGuestModal] = useState(false);
   const [showEntryModal, setShowEntryModal] = useState(false);
   const [currentImageIndex, setCurrentImageIndex] = useState(0);
 
-  // IMPORTANT: filenames without spaces
+  // IMPORTANT: nombres de archivos con espacios - usar encodeURI en el src del img
   const modelImages = useMemo(
     () => [
-      '/modelo-1.jpeg',
-      '/modelo-2.jpeg',
-      '/modelo-3.jpeg',
-      '/modelo-4.jpeg',
-      '/modelo-5.jpeg',
+      '/MODELO 1.jpeg',
+      '/MODELO 2.jpeg',
+      '/MODELO 3.jpeg',
+      '/MODELO 4.jpeg',
+      '/MODELO 5.jpeg',
     ],
     []
   );
@@ -32,8 +34,13 @@ const BrazilLandingPage = () => {
 
   // Auto-carousel
   useEffect(() => {
+    console.log('🖼️ BrazilLandingPage: Iniciando carrusel con imágenes:', modelImages);
     const interval = setInterval(() => {
-      setCurrentImageIndex((prev) => (prev + 1) % modelImages.length);
+      setCurrentImageIndex((prev) => {
+        const next = (prev + 1) % modelImages.length;
+        console.log('🔄 Cambiando imagen:', prev, '→', next, modelImages[next]);
+        return next;
+      });
     }, 3000);
 
     return () => clearInterval(interval);
@@ -276,42 +283,71 @@ const BrazilLandingPage = () => {
     setCurrentImageIndex(index);
   };
 
+  // Debug: Verificar que el componente se renderiza
+  useEffect(() => {
+    console.log('✅ BrazilLandingPage renderizado');
+    console.log('📸 Imágenes configuradas:', modelImages);
+    console.log('🖼️ Imagen actual:', currentImageIndex, modelImages[currentImageIndex]);
+  }, [currentImageIndex, modelImages]);
+
   return (
-    <div className="min-h-screen bg-background text-foreground">
+    <div className="min-h-screen">
       {/* Hero */}
       <motion.div
         initial={{ opacity: 0 }}
         animate={{ opacity: 1 }}
+        transition={{ duration: 0.6 }}
         className="w-full relative overflow-hidden"
-        style={{ marginTop: '-4rem', zIndex: 1 }}
+        style={{ 
+          marginTop: '-4rem',
+          zIndex: 1
+        }}
       >
+        {/* Mobile: max 60vh, Desktop: max 75vh */}
         <div className="w-full h-[60vh] md:h-[75vh] relative group">
+          {/* Carrusel de imágenes con transición suave - Solo la imagen cambia */}
           <AnimatePresence mode="wait">
             <motion.div
               key={currentImageIndex}
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
-              transition={{ duration: 0.8 }}
+              transition={{ duration: 0.6, ease: 'easeInOut' }}
               className="absolute inset-0 w-full h-full"
             >
-              <img
-                src={modelImages[currentImageIndex]}
-                alt="Chat gay Brasil - Conhece caras em São Paulo e Rio"
-                className="absolute inset-0 w-full h-full object-cover object-center"
-                loading={currentImageIndex === 0 ? 'eager' : 'lazy'}
-                onError={(e) => {
-                  e.currentTarget.style.display = 'none';
-                }}
-              />
-
-              <div className="absolute inset-0 bg-gradient-to-b from-black/70 via-black/40 to-black/80" />
-              <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-transparent" />
+              <div className="w-full h-full relative overflow-hidden">
+                {/* Imagen contextual (no protagonista) */}
+                <img
+                  src={encodeURI(modelImages[currentImageIndex])}
+                  alt="Chat gay Brasil - Conhece caras em São Paulo e Rio"
+                  className="absolute inset-0 w-full h-full object-cover object-center"
+                  loading={currentImageIndex === 0 ? 'eager' : 'lazy'}
+                  onLoad={() => {
+                    console.log('✅ Imagen cargada correctamente:', modelImages[currentImageIndex]);
+                  }}
+                  onError={(e) => {
+                    console.error('Error cargando imagen:', modelImages[currentImageIndex]);
+                    // Intentar con ruta alternativa sin espacios
+                    const altPath = modelImages[currentImageIndex].replace(' ', '%20');
+                    if (e.target.src !== altPath) {
+                      e.target.src = altPath;
+                    } else {
+                      e.target.style.display = 'none';
+                    }
+                  }}
+                />
+                
+                {/* Overlay oscuro para legibilidad del texto */}
+                <div className="absolute inset-0 bg-gradient-to-b from-black/70 via-black/60 to-black/70"></div>
+                <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-transparent"></div>
+              </div>
             </motion.div>
           </AnimatePresence>
+          
+          {/* Contenido sobre la imagen - Fijo, no cambia con las imágenes */}
 
-          <div className="absolute inset-0 z-10 flex items-center justify-center px-4 sm:px-6">
-            <div className="text-center max-w-4xl w-full">
+          <div className="absolute inset-0 z-10 h-full flex items-center justify-center px-4 sm:px-6">
+            <div className="text-center max-w-3xl w-full">
               <motion.h1
                 initial={{ opacity: 0, y: 20 }}
                 animate={{ opacity: 1, y: 0 }}

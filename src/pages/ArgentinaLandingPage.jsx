@@ -9,18 +9,20 @@ import { GuestUsernameModal } from '@/components/auth/GuestUsernameModal';
 import { EntryOptionsModal } from '@/components/auth/EntryOptionsModal';
 
 const ArgentinaLandingPage = () => {
+  console.log('🚀 ArgentinaLandingPage: Componente iniciado');
   const navigate = useNavigate();
   const { user } = useAuth();
+  console.log('👤 ArgentinaLandingPage: Usuario:', user ? (user.isGuest ? 'Guest' : 'Registered') : 'No user');
   const [showGuestModal, setShowGuestModal] = React.useState(false);
   const [showEntryModal, setShowEntryModal] = React.useState(false);
 
   const [currentImageIndex, setCurrentImageIndex] = useState(0);
   const modelImages = [
-    '/modelo-1.jpeg',
-    '/modelo-2.jpeg',
-    '/modelo-3.jpeg',
-    '/modelo-4.jpeg',
-    '/modelo-5.jpeg'
+    '/MODELO 1.jpeg',
+    '/MODELO 2.jpeg',
+    '/MODELO 3.jpeg',
+    '/MODELO 4.jpeg',
+    '/MODELO 5.jpeg'
   ];
 
   useEffect(() => {
@@ -288,7 +290,7 @@ const ArgentinaLandingPage = () => {
             >
               <div className="w-full h-full relative overflow-hidden">
                 <img
-                  src={modelImages[currentImageIndex]}
+                  src={encodeURI(modelImages[currentImageIndex])}
                   alt="Chat gay Argentina - Conoce pibes en Buenos Aires y Palermo"
                   className="absolute inset-0 w-full h-full object-cover object-center"
                   loading={currentImageIndex === 0 ? 'eager' : 'lazy'}

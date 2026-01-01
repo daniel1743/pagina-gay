@@ -29,6 +29,7 @@ import ActiveUsersCounter from '@/components/admin/ActiveUsersCounter';
 import TimeDistributionChart from '@/components/admin/TimeDistributionChart';
 import TrafficSourcesChart from '@/components/admin/TrafficSourcesChart';
 import ModerationAlerts from '@/components/admin/ModerationAlerts';
+import MessageGenerator from '@/components/admin/MessageGenerator';
 import { 
   subscribeToTickets, 
   updateTicketStatus 
@@ -903,7 +904,7 @@ const AdminPage = () => {
 
         {/* Tabs */}
         <Tabs value={activeTab} onValueChange={setActiveTab} className="mb-8">
-          <TabsList className="grid w-full grid-cols-9">
+          <TabsList className="grid w-full grid-cols-10">
             <TabsTrigger value="dashboard">Dashboard</TabsTrigger>
             <TabsTrigger value="reports">Reportes</TabsTrigger>
             <TabsTrigger value="tickets">Tickets</TabsTrigger>
@@ -913,6 +914,7 @@ const AdminPage = () => {
             <TabsTrigger value="notifications">Notificaciones</TabsTrigger>
             <TabsTrigger value="analytics">Analytics</TabsTrigger>
             <TabsTrigger value="moderation">Moderación</TabsTrigger>
+            <TabsTrigger value="generator">Generador</TabsTrigger>
           </TabsList>
 
           {/* Dashboard Tab */}
@@ -1397,8 +1399,7 @@ const AdminPage = () => {
 
               {/* Buscador de Usuarios para Sancionar */}
               <div className="mb-6 glass-effect p-6 rounded-xl border border-red-500/30 bg-gradient-to-br from-red-500/10 to-orange-500/10">
-                <h3 className="text-xl font-bold mb-4 flex items-center gap-2">
-                  <Search className="w-5 h-5 text-red-400" />
+                <h3 className="text-xl font-bold mb-4">
                   Buscar Usuario para Sancionar
                 </h3>
 
@@ -1422,15 +1423,9 @@ const AdminPage = () => {
                     className="bg-red-500 hover:bg-red-600 text-white font-bold"
                   >
                     {searchingUsers ? (
-                      <>
-                        <Search className="w-4 h-4 mr-2 animate-spin" />
-                        Buscando...
-                      </>
+                      'Buscando...'
                     ) : (
-                      <>
-                        <Search className="w-4 h-4 mr-2" />
-                        Buscar
-                      </>
+                      'Buscar'
                     )}
                   </Button>
                 </div>
@@ -2875,6 +2870,11 @@ const AdminPage = () => {
               </div>
               <ModerationAlerts />
             </motion.div>
+          </TabsContent>
+
+          {/* Generador de Mensajes */}
+          <TabsContent value="generator" className="space-y-6">
+            <MessageGenerator />
           </TabsContent>
         </Tabs>
 

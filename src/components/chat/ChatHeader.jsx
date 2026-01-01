@@ -62,31 +62,32 @@ const ChatHeader = ({ currentRoom, onMenuClick, onOpenPrivateChat, onSimulate })
       </div>
 
       <div className="flex items-center gap-1.5 sm:gap-2 flex-shrink-0">
-        {/* Botón SIMULAR - Protector de pantalla */}
-        <Button
-          variant="ghost"
-          size="sm"
-          onClick={onSimulate}
-          className="bg-purple-500 hover:bg-purple-600 text-white min-w-[44px] min-h-[44px] sm:min-w-auto sm:min-h-auto px-2 sm:px-3 flex items-center gap-1.5 sm:gap-2"
-          aria-label="Simular - Ocultar chat y mostrar protector de pantalla"
-          title="Simular - Ocultar chat y mostrar protector de pantalla"
-        >
-          <Eye className="w-4 h-4 sm:w-5 sm:h-5" />
-          <span className="hidden sm:inline text-xs sm:text-sm font-semibold">SIMULAR</span>
-        </Button>
+        {/* Iconos elegantes junto a la campana */}
+        <div className="flex items-center gap-1.5">
+          {/* Icono SIMULAR - Protector de pantalla */}
+          <Button
+            variant="ghost"
+            size="icon"
+            onClick={onSimulate}
+            className="text-muted-foreground hover:text-purple-400 min-w-[32px] min-h-[32px] w-8 h-8 p-0"
+            aria-label="Simular - Ocultar chat y mostrar protector de pantalla"
+            title="Simular - Ocultar chat y mostrar protector de pantalla"
+          >
+            <Eye className="w-4 h-4" />
+          </Button>
 
-        {/* Quick Escape Button - Red, prominent */}
-        <Button
-          variant="ghost"
-          size="sm"
-          onClick={handleQuickEscape}
-          className="bg-red-500 hover:bg-red-600 text-white min-w-[44px] min-h-[44px] sm:min-w-auto sm:min-h-auto px-2 sm:px-3 flex items-center gap-1.5 sm:gap-2"
-          aria-label="Escape rápido - Salir inmediatamente"
-          title="Escape rápido - Salir inmediatamente"
-        >
-          <X className="w-4 h-4 sm:w-5 sm:h-5" />
-          <span className="hidden sm:inline text-xs sm:text-sm font-semibold">Salir rápido</span>
-        </Button>
+          {/* Icono Quick Escape */}
+          <Button
+            variant="ghost"
+            size="icon"
+            onClick={handleQuickEscape}
+            className="text-muted-foreground hover:text-red-400 min-w-[32px] min-h-[32px] w-8 h-8 p-0"
+            aria-label="Escape rápido - Salir inmediatamente"
+            title="Escape rápido - Salir inmediatamente"
+          >
+            <X className="w-4 h-4" />
+          </Button>
+        </div>
         
         <NotificationBell onOpenPrivateChat={onOpenPrivateChat} />
         <Button

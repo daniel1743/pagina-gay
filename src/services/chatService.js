@@ -19,7 +19,6 @@ import {
 import { db, auth } from '@/config/firebase';
 import { trackMessageSent, trackFirstMessage } from '@/services/ga4Service';
 import { checkRateLimit, recordMessage, unmuteUser } from '@/services/rateLimitService';
-import { recordUserMessageOrder } from '@/services/multiProviderAIConversation';
 import { moderateMessage } from '@/services/moderationService';
 
 /**
@@ -163,10 +162,7 @@ export const sendMessage = async (roomId, messageData, isAnonymous = false) => {
       // ✅ Registrar mensaje enviado en cache de rate limiting (con contenido para detectar duplicados)
       recordMessage(messageData.userId, messageData.content);
 
-      // 🔥 NUEVO: Registrar mensaje en orden para que IAs también esperen su turno
       if (isRealUser) {
-        recordUserMessageOrder(roomId, messageData.userId);
-        
         // 🔍 MODERACIÓN: Analizar mensaje de usuario real con ChatGPT (no bloquea, solo alerta)
         moderateMessage(
           messageData.content,
@@ -212,10 +208,7 @@ export const sendMessage = async (roomId, messageData, isAnonymous = false) => {
       // ✅ Registrar mensaje enviado en cache de rate limiting (con contenido para detectar duplicados)
       recordMessage(messageData.userId, messageData.content);
 
-      // 🔥 NUEVO: Registrar mensaje en orden para que IAs también esperen su turno
       if (isRealUser) {
-        recordUserMessageOrder(roomId, messageData.userId);
-        
         // 🔍 MODERACIÓN: Analizar mensaje de usuario real con ChatGPT (no bloquea, solo alerta)
         moderateMessage(
           messageData.content,

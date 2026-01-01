@@ -5,10 +5,29 @@ import { Users, Hash, Gamepad2, Heart, UserCheck, GitFork, UserMinus, Cake } fro
 // Las demás salas se reactivarán cuando haya >200 usuarios diarios
 
 export const roomsData = [
-  // 🔥 SALA PRINCIPAL NUEVA - Limpia sin spam
+  // ⚠️ SALA GLOBAL ANTIGUA - COMENTADA (tenía spam masivo)
+  // Se mantiene comentada como "general" para referencia histórica
+  // {
+  //   id: 'general',
+  //   name: 'Chat General 🌍 (SPAM)',
+  //   description: 'Sala antigua con spam - DESACTIVADA',
+  //   icon: Hash,
+  //   color: 'teal'
+  // },
+
+  // ⚠️ SALA GLOBAL - COMENTADA (reemplazada por Chat Principal)
+  // {
+  //   id: 'global',
+  //   name: 'Chat Global 🌍',
+  //   description: 'Sala principal - Todos los temas bienvenidos',
+  //   icon: Hash,
+  //   color: 'teal'
+  // },
+
+  // 🔥 SALA CHAT PRINCIPAL - Sala principal activa
   {
-    id: 'global',
-    name: 'Chat Global 🌍',
+    id: 'principal',
+    name: 'Chat Principal 🌍',
     description: 'Sala principal - Todos los temas bienvenidos',
     icon: Hash,
     color: 'teal'

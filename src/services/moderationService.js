@@ -2,9 +2,16 @@ import { collection, addDoc, serverTimestamp, query, where, orderBy, onSnapshot,
 import { db } from '@/config/firebase';
 import { auth } from '@/config/firebase';
 
+// ✅ Verificar si la API key está disponible antes de configurar
+const OPENAI_API_KEY = import.meta.env.VITE_OPENAI_API_KEY;
+const isOpenAIAvailable = OPENAI_API_KEY && 
+                          OPENAI_API_KEY !== 'TU_API_KEY_AQUI' && 
+                          !OPENAI_API_KEY.startsWith('#') &&
+                          OPENAI_API_KEY.trim() !== '';
+
 const PROVIDERS = {
   openai: {
-    apiKey: import.meta.env.VITE_OPENAI_API_KEY,
+    apiKey: isOpenAIAvailable ? OPENAI_API_KEY : null,
     apiUrl: import.meta.env.VITE_OPENAI_API_URL || 'https://api.openai.com/v1/chat/completions',
     model: import.meta.env.VITE_OPENAI_MODEL || 'gpt-4o-mini'
   }
@@ -16,7 +23,8 @@ const PROVIDERS = {
 export const moderateMessage = async (message, userId, username, roomId) => {
   try {
     const provider = PROVIDERS.openai;
-    if (!provider?.apiKey || !provider?.apiUrl) {
+    // ✅ Verificación mejorada: verificar que la API key existe y es válida
+    if (!isOpenAIAvailable || !provider?.apiKey || !provider?.apiUrl || provider.apiKey.trim() === '') {
       console.warn('[MODERACIÓN] OpenAI no configurado, saltando moderación');
       return { safe: true };
     }

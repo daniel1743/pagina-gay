@@ -2,12 +2,14 @@ import React, { useState, useEffect, useRef } from 'react';
 import { useParams, useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
 import { useChatScrollManager } from '@/hooks/useChatScrollManager';
+import { useCompanionAI } from '@/hooks/useCompanionAI';
 import ChatSidebar from '@/components/chat/ChatSidebar';
 import ChatHeader from '@/components/chat/ChatHeader';
 import ChatMessages from '@/components/chat/ChatMessages';
 import ChatInput from '@/components/chat/ChatInput';
 import NewMessagesIndicator from '@/components/chat/NewMessagesIndicator';
 import ScreenSaver from '@/components/chat/ScreenSaver';
+import CompanionWidget from '@/components/chat/CompanionWidget';
 import UserProfileModal from '@/components/chat/UserProfileModal';
 import UserActionsModal from '@/components/chat/UserActionsModal';
 import ReportModal from '@/components/chat/ReportModal';
@@ -23,9 +25,8 @@ import { toast } from '@/components/ui/use-toast';
 import PrivateChatWindow from '@/components/chat/PrivateChatWindow';
 import { sendMessage, subscribeToRoomMessages, addReactionToMessage, markMessagesAsRead } from '@/services/chatService';
 import { joinRoom, leaveRoom, subscribeToRoomUsers, subscribeToMultipleRoomCounts, updateUserActivity, cleanInactiveUsers, filterActiveUsers } from '@/services/presenceService';
-// import { useBotSystem } from '@/hooks/useBotSystem'; // ⚠️ DESACTIVADO: Sistema de bots activos deshabilitado
 import { sendModeratorWelcome } from '@/services/moderatorWelcome';
-import { updateRoomAIActivity, stopRoomAIConversation, recordHumanMessage, greetNewUser } from '@/services/multiProviderAIConversation';
+import { checkAndSeedConversations } from '@/services/seedConversationsService';
 import { trackPageView, trackPageExit, trackRoomJoined, trackMessageSent } from '@/services/analyticsService';
 import { useCanonical } from '@/hooks/useCanonical';
 import { checkUserSanctions, SANCTION_TYPES } from '@/services/sanctionsService';
@@ -104,6 +105,7 @@ const ChatPage = () => {
   const [engagementTime, setEngagementTime] = useState(''); // ⏱️ Tiempo total de engagement
   const [showScreenSaver, setShowScreenSaver] = useState(false); // 🔒 Protector de pantalla
   const [isInputFocused, setIsInputFocused] = useState(false); // 📝 Input focus state for scroll manager
+  const [suggestedMessage, setSuggestedMessage] = useState(null); // 🤖 Mensaje sugerido por Companion AI
   const unsubscribeRef = useRef(null);
   const aiActivatedRef = useRef(false); // Flag para evitar activaciones múltiples de IA
   const lastUserCountRef = useRef(0); // Para evitar ejecuciones innecesarias del useEffect
@@ -112,16 +114,33 @@ const ChatPage = () => {
   const previousRealUserCountRef = useRef(0); // Para detectar cuando usuarios se desconectan y reproducir sonido
 
   // 🎯 PRO SCROLL MANAGER: Discord/Slack-inspired scroll behavior
+  // ✅ IMPORTANTE: Debe estar ANTES del early return para respetar reglas de hooks
+  // El hook maneja internamente el caso cuando user es null
   const scrollManager = useChatScrollManager({
     messages,
-    currentUserId: user?.id,
+    currentUserId: user?.id || null,
     isInputFocused,
+  });
+
+  // 🤖 COMPANION AI: Sistema de ayuda sutil para usuarios anónimos
+  // Calcula cuántos mensajes ha enviado el usuario actual
+  const userMessageCount = messages.filter(msg =>
+    msg.userId === user?.id && msg.type === 'text'
+  ).length;
+
+  const companionAI = useCompanionAI({
+    user,
+    roomId: currentRoom,
+    roomName: roomsData.find(r => r.id === currentRoom)?.name || currentRoom,
+    messages,
+    userMessageCount,
+    enabled: true // Siempre habilitado para usuarios que lo necesiten
   });
 
   // ========================================
   // 🔒 LANDING PAGE: Guard clause para user === null
   // ========================================
-  // CRITICAL: Debe estar ANTES de cualquier lógica de Firestore/bots
+  // CRITICAL: Debe estar DESPUÉS de todos los hooks
   // NO afecta a guests (user.isGuest), solo a visitantes sin sesión
   // Muestra landing page completa para mejor SEO y conversión
   if (!user) {
@@ -555,23 +574,9 @@ const ChatPage = () => {
       }, 2000); // Enviar después de 2 segundos
     }
 
-    // 🤖 Saludo de IA cuando usuario nuevo entra (solo una vez)
-    const aiGreetKey = `ai_greeted_${roomId}_${user.id}`;
-    const hasBeenGreeted = sessionStorage.getItem(aiGreetKey);
+    // 🌱 Sembrar conversaciones genuinas en "Chat Principal"
+    checkAndSeedConversations(roomId);
 
-    if (!hasBeenGreeted) {
-      setTimeout(() => {
-        greetNewUser(roomId, user.username);
-        sessionStorage.setItem(aiGreetKey, 'true');
-      }, 6000); // Enviar después de 6 segundos (después del moderador)
-    }
-
-    // Sistema multi IA: se activa segun usuarios reales activos
-
-
-
-
-    console.log(`?? [MULTI AI] Sistema listo para activarse segun usuarios reales`);
 
     // Cleanup: desuscribirse y remover presencia cuando se desmonta o cambia de sala
     return () => {
@@ -580,8 +585,6 @@ const ChatPage = () => {
         unsubscribeRef.current = null; // Limpiar referencia
       }
 
-      // 🤖 Detener conversaciones de IA
-      stopRoomAIConversation(roomId);
 
       leaveRoom(roomId).catch(error => {
         // Ignorar errores al salir de la sala
@@ -622,10 +625,6 @@ const ChatPage = () => {
     
     lastUserCountRef.current = realUserCount;
 
-    // Sistema multi IA activo
-
-    updateRoomAIActivity(roomId, realUserCount);
-    console.log(`✅ [MULTI AI] ${realUserCount} usuarios reales en ${roomId} | Sistema ${realUserCount >= 1 && realUserCount <= 9 ? 'ACTIVO' : 'INACTIVO'}`);
   }, [roomUsers.length, roomId, user]); // ✅ Ejecutar cuando cambian usuarios, sala o usuario
 
   // Suscribirse a contadores de todas las salas (para mensajes contextuales)
@@ -791,14 +790,9 @@ const ChatPage = () => {
         user.isAnonymous // Indica si es anónimo para usar transacción
       );
 
-      recordHumanMessage(currentRoom, user.username, content, user.id);
       // Track message sent
       trackMessageSent(currentRoom, user.id);
 
-      // ⚠️ SISTEMA DE IA DESACTIVADO - No generar respuestas automáticas
-      // if (Math.random() < 0.3) {
-      //   aiRespondToUser(currentRoom, content, user.username);
-      // }
 
       // El listener de onSnapshot actualizará automáticamente los mensajes
     } catch (error) {
@@ -822,6 +816,15 @@ const ChatPage = () => {
       });
       // }
     }
+  };
+
+  /**
+   * 🤖 COMPANION AI: Handler para cuando usuario selecciona sugerencia
+   */
+  const handleSelectSuggestion = (suggestion) => {
+    console.log(`✅ [COMPANION AI] Usuario seleccionó: "${suggestion}"`);
+    setSuggestedMessage(suggestion);
+    companionAI.hideWidget();
   };
 
   /**
@@ -915,6 +918,7 @@ const ChatPage = () => {
               onReaction={handleMessageReaction}
               messagesEndRef={scrollManager.endMarkerRef}
               messagesContainerRef={scrollManager.containerRef}
+              onScroll={companionAI.handleScroll}
               newMessagesIndicator={
                 <NewMessagesIndicator
                   count={scrollManager.unreadCount}
@@ -931,8 +935,25 @@ const ChatPage = () => {
             onSendMessage={handleSendMessage}
             onFocus={() => setIsInputFocused(true)}
             onBlur={() => setIsInputFocused(false)}
+            externalMessage={suggestedMessage}
           />
         </div>
+
+        {/* 🤖 COMPANION AI Widget - Solo para usuarios anónimos */}
+        {companionAI.shouldShow && (
+          <CompanionWidget
+            isVisible={companionAI.isVisible}
+            companionMessage={companionAI.companionMessage}
+            suggestions={companionAI.suggestions}
+            loading={companionAI.loading}
+            onAcceptHelp={companionAI.acceptHelp}
+            onRejectHelp={companionAI.rejectHelp}
+            onSelectSuggestion={handleSelectSuggestion}
+            onShowWidget={companionAI.showWidget}
+            onHideWidget={companionAI.hideWidget}
+            shouldShow={companionAI.shouldShow}
+          />
+        )}
 
         {userActionsTarget && (
           <UserActionsModal

@@ -113,6 +113,7 @@ service cloud.firestore {
     }
 
     // ✅ SISTEMA DE IA: permite mensajes AI con control del usuario autenticado
+    // ✅ ACTUALIZADO: También permite mensajes sembrados (seed_user_*)
     function isValidBotMessage() {
       let data = request.resource.data;
       return isAuthenticated() &&
@@ -120,7 +121,7 @@ service cloud.firestore {
              data.senderUid == request.auth.uid &&
              'userId' in data &&
              data.userId is string &&
-             (data.userId.matches('bot_.*') || data.userId.matches('ai_.*')) &&
+             (data.userId.matches('bot_.*') || data.userId.matches('ai_.*') || data.userId.matches('seed_user_.*')) &&
              'username' in data &&
              data.username is string &&
              'content' in data &&

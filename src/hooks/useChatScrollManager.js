@@ -18,6 +18,13 @@ import { useRef, useEffect, useState, useCallback } from 'react';
  * @returns {Object} Scroll manager state and methods
  */
 export const useChatScrollManager = ({ messages, currentUserId, isInputFocused }) => {
+  // 🔇 Logs desactivados para reducir ruido en consola
+  // console.log('🎣 [SCROLL MANAGER] Inicializando hook:', {
+  //   messagesCount: messages?.length || 0,
+  //   currentUserId: currentUserId || 'null',
+  //   isInputFocused: isInputFocused || false
+  // });
+
   // ========================================
   // REFS
   // ========================================
@@ -238,7 +245,7 @@ export const useChatScrollManager = ({ messages, currentUserId, isInputFocused }
   // MAIN: Handle new messages
   // ========================================
   useEffect(() => {
-    if (!messages.length) return;
+    if (!messages.length || !currentUserId) return;
 
     const lastMessage = messages[messages.length - 1];
     const isOwnMessage = lastMessage?.userId === currentUserId;
@@ -297,7 +304,7 @@ export const useChatScrollManager = ({ messages, currentUserId, isInputFocused }
   // ========================================
   // RETURN
   // ========================================
-  return {
+  const returnValue = {
     containerRef,
     endMarkerRef,
     scrollState,
@@ -306,4 +313,13 @@ export const useChatScrollManager = ({ messages, currentUserId, isInputFocused }
     scrollToBottom: handleScrollToBottomClick,
     isAtBottom: isAtBottom(),
   };
+
+  // 🔇 Logs desactivados para reducir ruido en consola
+  // console.log('✅ [SCROLL MANAGER] Hook completado, retornando:', {
+  //   scrollState: returnValue.scrollState,
+  //   unreadCount: returnValue.unreadCount,
+  //   hasRefs: !!(returnValue.containerRef && returnValue.endMarkerRef)
+  // });
+
+  return returnValue;
 };

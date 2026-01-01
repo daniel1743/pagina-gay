@@ -42,12 +42,21 @@ const PREMIUM_EMOJIS = [
 ];
 
 
-const ChatInput = ({ onSendMessage, onFocus, onBlur }) => {
+const ChatInput = ({ onSendMessage, onFocus, onBlur, externalMessage = null }) => {
   const { user, guestMessageCount } = useAuth();
   const [message, setMessage] = useState('');
   const [showEmojiPicker, setShowEmojiPicker] = useState(false);
   const [showQuickPhrases, setShowQuickPhrases] = useState(false);
   const [showComingSoon, setShowComingSoon] = useState(false);
+
+  // ✨ COMPANION AI: Setear mensaje cuando viene de sugerencia externa
+  useEffect(() => {
+    if (externalMessage && externalMessage !== message) {
+      setMessage(externalMessage);
+      // Auto-focus en el input
+      textareaRef.current?.focus();
+    }
+  }, [externalMessage]);
   const [comingSoonFeature, setComingSoonFeature] = useState({ name: '', description: '' });
   const wrapperRef = useRef(null);
   const textareaRef = useRef(null);

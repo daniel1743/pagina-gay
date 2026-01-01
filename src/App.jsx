@@ -10,8 +10,10 @@ import AdminPage from '@/pages/AdminPage';
 import AdminTicketsPage from '@/pages/AdminTicketsPage';
 import TicketDetailPage from '@/pages/TicketDetailPage';
 import AdminCleanup from '@/pages/AdminCleanup';
+import SeedConversaciones from '@/pages/SeedConversaciones';
 import Header from '@/components/layout/Header';
 import Footer from '@/components/layout/Footer';
+import LandingLayout from '@/components/layout/LandingLayout';
 import { AuthProvider, useAuth } from '@/contexts/AuthContext';
 import AnonymousChatPage from '@/pages/AnonymousChatPage';
 import AnonymousForumPage from '@/pages/AnonymousForumPage';
@@ -27,6 +29,7 @@ import ArgentinaLandingPage from '@/pages/ArgentinaLandingPage';
 import { ThemeProvider } from '@/contexts/ThemeContext';
 import PWASplashScreen from '@/components/pwa/PWASplashScreen';
 import ErrorBoundary from '@/components/ui/ErrorBoundary';
+// import DebugOverlay from '@/components/DebugOverlay'; // Desactivado - Debug Console removido
 
 // ✅ Componentes que usan useAuth deben estar dentro del AuthProvider
 function PrivateRoute({ children }) {
@@ -35,11 +38,33 @@ function PrivateRoute({ children }) {
 }
 
 function LandingRoute({ children, redirectTo = '/home' }) {
+  console.log('🔥 [LANDING ROUTE] ========== ENTRADA ==========');
+
   const { user } = useAuth();
+
+  console.log('🔥 [LANDING ROUTE] User obtenido:', {
+    user: user ? 'EXISTS' : 'NULL',
+    isGuest: user?.isGuest,
+    isAnonymous: user?.isAnonymous,
+    userId: user?.id,
+    hasChildren: !!children
+  });
+
+  console.log('🏠 [LANDING ROUTE] Evaluando acceso:', {
+    hasUser: !!user,
+    isGuest: user?.isGuest,
+    isAnonymous: user?.isAnonymous,
+    willRedirect: user && !user.isGuest && !user.isAnonymous
+  });
+
   // ✅ Solo mostrar landing si NO está logueado (incluyendo guests)
   if (user && !user.isGuest && !user.isAnonymous) {
+    console.log('🔀 [LANDING ROUTE] Redirigiendo a:', redirectTo);
     return <Navigate to={redirectTo} replace />;
   }
+
+  console.log('✅ [LANDING ROUTE] Mostrando landing page - Renderizando children');
+  console.log('🔥 [LANDING ROUTE] Children type:', typeof children, children);
   return children;
 }
 
@@ -53,8 +78,15 @@ function HomeRoute({ children }) {
 }
 
 function MainLayout({ children }) {
+  console.log('🔥 [MAIN LAYOUT] ========== ENTRADA ==========');
+
   const { user } = useAuth();
-  
+
+  console.log('🔥 [MAIN LAYOUT] User:', user ? 'EXISTS' : 'NULL');
+  console.log('🔥 [MAIN LAYOUT] Children:', !!children, typeof children);
+
+  console.log('🎨 [MAIN LAYOUT] Renderizando layout con children:', !!children);
+
   return (
     <div className="flex flex-col min-h-screen">
       <style>{`
@@ -74,6 +106,9 @@ function MainLayout({ children }) {
 
 // ✅ Componente de rutas que está dentro del AuthProvider
 function AppRoutes() {
+  console.log('🛣️ [APP ROUTES] Renderizando rutas...');
+  console.log('📍 [APP ROUTES] URL actual:', window.location.pathname);
+
   return (
     <Router
       future={{
@@ -102,7 +137,7 @@ function AppRoutes() {
         <Route path="/santiago" element={<LandingRoute redirectTo="/home"><MainLayout><SantiagoLandingPage /></MainLayout></LandingRoute>} />
         
         {/* 🌍 Landing pages por país - Rutas internacionales */}
-        <Route path="/es" element={<LandingRoute redirectTo="/home"><MainLayout><SpainLandingPage /></MainLayout></LandingRoute>} />
+        <Route path="/es" element={<LandingRoute redirectTo="/home"><LandingLayout><SpainLandingPage /></LandingLayout></LandingRoute>} />
         <Route path="/es/" element={<Navigate to="/es" replace />} />
         <Route path="/br" element={<LandingRoute redirectTo="/home"><MainLayout><BrazilLandingPage /></MainLayout></LandingRoute>} />
         <Route path="/br/" element={<Navigate to="/br" replace />} />
@@ -162,6 +197,14 @@ function AppRoutes() {
           }
         />
         <Route
+          path="/seed-conversaciones"
+          element={
+            <PrivateRoute>
+              <SeedConversaciones />
+            </PrivateRoute>
+          }
+        />
+        <Route
           path="/admin/cleanup"
           element={
             <PrivateRoute>
@@ -209,6 +252,7 @@ function App() {
             <PWASplashScreen onComplete={handleSplashComplete} />
           )}
           {splashCompleted && <AppRoutes />}
+          {/* <DebugOverlay /> */} {/* Desactivado - Debug Console removido */}
         </AuthProvider>
       </ThemeProvider>
     </ErrorBoundary>
