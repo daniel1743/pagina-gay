@@ -303,12 +303,13 @@ const ChatInput = ({ onSendMessage, onFocus, onBlur, externalMessage = null }) =
         <motion.div
           whileHover={{ scale: 1.05 }}
           whileTap={{ scale: 0.95 }}
+          transition={{ duration: 0.1, ease: "easeOut" }}
           className="flex-shrink-0"
         >
           <Button
             type="submit"
             disabled={!message.trim() || isSending}
-            className="magenta-gradient text-white rounded-lg relative overflow-hidden min-w-[44px] min-h-[44px] w-[44px] h-[44px] sm:min-w-[48px] sm:min-h-[48px] sm:w-auto sm:h-auto p-0 sm:p-2"
+            className="magenta-gradient text-white rounded-lg relative overflow-hidden min-w-[44px] min-h-[44px] w-[44px] h-[44px] sm:min-w-[48px] sm:min-h-[48px] sm:w-auto sm:h-auto p-0 sm:p-2 transition-none"
             size="icon"
             aria-label={isSending ? "Enviando mensaje..." : "Enviar mensaje"}
           >

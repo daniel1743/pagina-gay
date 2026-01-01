@@ -7,6 +7,7 @@ import { useCanonical } from '@/hooks/useCanonical';
 import ChatDemo from '@/components/landing/ChatDemo';
 import { GuestUsernameModal } from '@/components/auth/GuestUsernameModal';
 import { EntryOptionsModal } from '@/components/auth/EntryOptionsModal';
+import NotificationPrompt from '@/components/landing/NotificationPrompt';
 
 const BrazilLandingPage = () => {
   console.log('🚀 BrazilLandingPage: Componente iniciado');
@@ -298,10 +299,6 @@ const BrazilLandingPage = () => {
         animate={{ opacity: 1 }}
         transition={{ duration: 0.6 }}
         className="w-full relative overflow-hidden"
-        style={{ 
-          marginTop: '-4rem',
-          zIndex: 1
-        }}
       >
         {/* Mobile: max 60vh, Desktop: max 75vh */}
         <div className="w-full h-[60vh] md:h-[75vh] relative group">
@@ -431,6 +428,13 @@ const BrazilLandingPage = () => {
         open={showGuestModal}
         onClose={() => setShowGuestModal(false)}
         chatRoomId="br-main"
+      />
+
+      {/* Prompt de notificaciones cuando hay pocos usuarios */}
+      <NotificationPrompt
+        minUsers={10}
+        currentUsers={0}
+        countryName="Brasil"
       />
     </div>
   );

@@ -21,6 +21,8 @@ import { PremiumWelcomeModal } from '@/components/chat/PremiumWelcomeModal';
 import ChatRulesModal from '@/components/chat/ChatRulesModal';
 import AgeVerificationModal from '@/components/chat/AgeVerificationModal';
 import ChatLandingPage from '@/components/chat/ChatLandingPage';
+import EmptyRoomNotificationPrompt from '@/components/chat/EmptyRoomNotificationPrompt';
+import EmptyRoomNotificationPrompt from '@/components/chat/EmptyRoomNotificationPrompt';
 import { toast } from '@/components/ui/use-toast';
 import PrivateChatWindow from '@/components/chat/PrivateChatWindow';
 import { sendMessage, subscribeToRoomMessages, addReactionToMessage, markMessagesAsRead } from '@/services/chatService';
@@ -909,6 +911,24 @@ const ChatPage = () => {
           />
 
           <div className="flex-1 overflow-hidden flex flex-col min-h-0">
+            {/* Prompt de notificaciones cuando no hay usuarios conectados (excluyendo al usuario actual) */}
+            {(() => {
+              // Contar usuarios reales excluyendo al usuario actual
+              const realUsersCount = roomUsers.filter(u => {
+                const userId = u.userId || u.id;
+                return userId !== user.id && 
+                       userId !== 'system' && 
+                       !userId?.startsWith('bot_') && 
+                       !userId?.startsWith('static_bot_');
+              }).length;
+              
+              return (
+                <EmptyRoomNotificationPrompt
+                  roomName={roomsData.find(r => r.id === currentRoom)?.name || currentRoom}
+                  isVisible={realUsersCount === 0}
+                />
+              );
+            })()}
             <ChatMessages
               messages={messages}
               currentUserId={user.id}

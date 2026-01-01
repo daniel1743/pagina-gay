@@ -7,6 +7,7 @@ import { useCanonical } from '@/hooks/useCanonical';
 import ChatDemo from '@/components/landing/ChatDemo';
 import { GuestUsernameModal } from '@/components/auth/GuestUsernameModal';
 import { EntryOptionsModal } from '@/components/auth/EntryOptionsModal';
+import NotificationPrompt from '@/components/landing/NotificationPrompt';
 
 const ArgentinaLandingPage = () => {
   console.log('🚀 ArgentinaLandingPage: Componente iniciado');
@@ -273,10 +274,6 @@ const ArgentinaLandingPage = () => {
         animate={{ opacity: 1 }}
         transition={{ duration: 0.6 }}
         className="w-full relative overflow-hidden"
-        style={{ 
-          marginTop: '-4rem',
-          zIndex: 1
-        }}
       >
         <div className="w-full h-[60vh] md:h-[75vh] relative group">
           <AnimatePresence mode="wait">
@@ -406,6 +403,13 @@ const ArgentinaLandingPage = () => {
         open={showGuestModal}
         onClose={() => setShowGuestModal(false)}
         chatRoomId="ar-main"
+      />
+
+      {/* Prompt de notificaciones cuando hay pocos usuarios */}
+      <NotificationPrompt
+        minUsers={10}
+        currentUsers={0}
+        countryName="Argentina"
       />
     </div>
   );

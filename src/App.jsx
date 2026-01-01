@@ -137,7 +137,7 @@ function AppRoutes() {
         <Route path="/santiago" element={<LandingRoute redirectTo="/home"><MainLayout><SantiagoLandingPage /></MainLayout></LandingRoute>} />
         
         {/* 🌍 Landing pages por país - Rutas internacionales */}
-        <Route path="/es" element={<LandingRoute redirectTo="/home"><LandingLayout><SpainLandingPage /></LandingLayout></LandingRoute>} />
+        <Route path="/es" element={<LandingRoute redirectTo="/home"><MainLayout><SpainLandingPage /></MainLayout></LandingRoute>} />
         <Route path="/es/" element={<Navigate to="/es" replace />} />
         <Route path="/br" element={<LandingRoute redirectTo="/home"><MainLayout><BrazilLandingPage /></MainLayout></LandingRoute>} />
         <Route path="/br/" element={<Navigate to="/br" replace />} />
