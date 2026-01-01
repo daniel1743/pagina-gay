@@ -1,7 +1,6 @@
 import React from 'react';
 import { AlertTriangle, RefreshCw, Home } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import { useNavigate } from 'react-router-dom';
 
 class ErrorBoundary extends React.Component {
   constructor(props) {
@@ -61,7 +60,9 @@ class ErrorBoundary extends React.Component {
 }
 
 const ErrorFallback = ({ error, onReset }) => {
-  const navigate = useNavigate();
+  const handleGoHome = () => {
+    window.location.href = '/';
+  };
 
   return (
     <div className="min-h-screen bg-background flex items-center justify-center p-4">
@@ -94,10 +95,7 @@ const ErrorFallback = ({ error, onReset }) => {
             Reintentar
           </Button>
           <Button
-            onClick={() => {
-              navigate('/');
-              window.location.reload();
-            }}
+            onClick={handleGoHome}
             className="flex items-center gap-2"
           >
             <Home className="w-4 h-4" />

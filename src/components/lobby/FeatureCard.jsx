@@ -1,6 +1,6 @@
 import React, { useState } from "react";
 import { motion } from "framer-motion";
-import { ArrowRight, TrendingUp, Sparkles, Users } from "lucide-react";
+import { ArrowRight, TrendingUp, Sparkles, Users, Clock } from "lucide-react";
 
 const FeatureCard = ({
   icon,
@@ -71,6 +71,7 @@ const FeatureCard = ({
     Activo: TrendingUp,
     Nuevo: Sparkles,
     Popular: Users,
+    'Próximamente': Clock,
   };
 
   const BadgeIcon = badge ? badgeIcons[badge] : null;

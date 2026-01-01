@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
-import { MessageSquare, Shield, Calendar, SlidersHorizontal, Users, Lock, MapPin, Sparkles, MessageCircle } from 'lucide-react';
+import { MessageSquare, Shield, Calendar, SlidersHorizontal, Users, Lock, MapPin, Sparkles, MessageCircle, Zap, ArrowRight } from 'lucide-react';
 import FeatureCard from '@/components/lobby/FeatureCard';
 import RoomsModal from '@/components/lobby/RoomsModal';
 import DenunciaModal from '@/components/lobby/DenunciaModal';
@@ -27,6 +27,8 @@ import { subscribeToLastActivity, subscribeToMultipleRoomCounts } from '@/servic
 import { roomsData } from '@/config/rooms';
 import ChatDemo from '@/components/landing/ChatDemo';
 import { SkeletonCard, SkeletonRoomsGrid } from '@/components/ui/SkeletonLoader';
+import { collection, query, orderBy, limit, onSnapshot } from 'firebase/firestore';
+import { db } from '@/config/firebase';
 
 /**
  * ✅ SISTEMA INTELIGENTE DE CONTADOR DE USUARIOS
@@ -183,6 +185,13 @@ const LobbyPage = () => {
   const [showQuickSignup, setShowQuickSignup] = useState(false);
   const [showGuestModal, setShowGuestModal] = useState(false);
   const [roomCounts, setRoomCounts] = useState({});
+  const [recentMessages, setRecentMessages] = useState([]);
+
+  // ✅ Determinar si mostrar Hero Section (SOLO para usuarios NO logueados)
+  const showHeroSection = !user;
+
+  // ✅ Determinar si mostrar componentes para usuarios logueados
+  const showWelcomeBack = user && !user.isGuest && !user.isAnonymous;
 
   // ✅ Suscribirse a contadores de usuarios en tiempo real
   useEffect(() => {
@@ -192,6 +201,24 @@ const LobbyPage = () => {
     });
     return () => unsubscribe();
   }, []);
+
+  // ✅ Suscribirse a mensajes recientes de la sala principal
+  useEffect(() => {
+    if (!showWelcomeBack) return; // Solo para usuarios logueados
+
+    const messagesRef = collection(db, 'rooms', 'principal', 'messages');
+    const q = query(messagesRef, orderBy('timestamp', 'desc'), limit(3));
+
+    const unsubscribe = onSnapshot(q, (snapshot) => {
+      const messages = snapshot.docs.map(doc => ({
+        id: doc.id,
+        ...doc.data()
+      }));
+      setRecentMessages(messages.reverse()); // Invertir para mostrar del más antiguo al más reciente
+    });
+
+    return () => unsubscribe();
+  }, [showWelcomeBack]);
 
   // ✅ Calcular total de usuarios con boost para "Salas de Chat" (usado en hero)
   const calculateTotalUsers = () => {
@@ -236,17 +263,18 @@ const LobbyPage = () => {
       stats: { label: "⚠️ Denuncia anónima", icon: Shield },
       accentColor: "orange"
     },
-    {
-      id: 'premium',
-      icon: <Sparkles className="w-8 h-8" />,
-      title: "Hazte Premium",
-      description: "Desbloquea avatares exclusivos, badges especiales y acceso prioritario a nuevas funciones.",
-      onClick: () => navigate('/premium'),
-      variant: "default",
-      badge: "Nuevo",
-      stats: { label: "💎 Beneficios exclusivos", icon: Sparkles },
-      accentColor: "purple"
-    },
+    // ⚠️ TEMPORALMENTE OCULTO: Tarjeta Premium
+    // {
+    //   id: 'premium',
+    //   icon: <Sparkles className="w-8 h-8" />,
+    //   title: "Hazte Premium",
+    //   description: "Desbloquea avatares exclusivos, badges especiales y acceso prioritario a nuevas funciones.",
+    //   onClick: () => navigate('/premium'),
+    //   variant: "default",
+    //   badge: "Nuevo",
+    //   stats: { label: "💎 Beneficios exclusivos", icon: Sparkles },
+    //   accentColor: "purple"
+    // },
   ];
 
   // ✅ Tarjeta horizontal del Foro (ocupa todo el ancho)
@@ -267,6 +295,22 @@ const LobbyPage = () => {
     // Premium card - usar onClick personalizado si existe
     if (card?.onClick) {
       card.onClick();
+      return;
+    }
+
+    // ✅ DETECTAR TARJETAS CON "Próximamente" - mostrar modal de ComingSoon
+    const proximamenteModals = ['NearbyUsersModal', 'EventosModal', 'AjustesModal'];
+    if (proximamenteModals.includes(modalId) || card?.badge === 'Próximamente') {
+      const featureNames = {
+        'NearbyUsersModal': 'Usuarios Cercanos',
+        'EventosModal': 'Eventos LGBT+',
+        'AjustesModal': 'Ajustes'
+      };
+      setComingSoonFeature({
+        name: card?.title || featureNames[modalId] || 'esta funcionalidad',
+        description: 'Esta función estará disponible próximamente. Estamos trabajando para mejorar tu experiencia.'
+      });
+      setShowComingSoon(true);
       return;
     }
 
@@ -332,7 +376,7 @@ const LobbyPage = () => {
     // El título del index.html ya es perfecto: "Chat Gay Chile 🏳️‍🌈 Conoce Gente LGBT+ Ahora | Chactivo"
     // Solo actualizar si es necesario para tracking, pero mantener el SEO del index.html
     // document.title = "Chat Gay Chile 🏳️‍🌈 Conoce Gente LGBT+ Ahora | Chactivo";
-    
+
     // Track page view (sin "Lobby" para SEO)
     trackPageView('/lobby', 'Chat Gay Chile - Chactivo');
 
@@ -346,19 +390,20 @@ const LobbyPage = () => {
       forceUpdate(prev => prev + 1);
     }, 10000);
 
+    // Event listener para abrir Centro de Seguridad desde el footer
+    const handleOpenDenunciaModal = () => {
+      setActiveModal('DenunciaModal');
+    };
+    window.addEventListener('openDenunciaModal', handleOpenDenunciaModal);
+
     // Track page exit
     return () => {
       trackPageExit('/lobby', 0);
       unsubscribeActivity();
       clearInterval(interval);
+      window.removeEventListener('openDenunciaModal', handleOpenDenunciaModal);
     };
   }, []);
-
-  // Determinar si mostrar Hero Section (SOLO para usuarios NO logueados)
-  const showHeroSection = !user;
-  
-  // Determinar si mostrar Welcome Back Banner (SOLO para usuarios logueados)
-  const showWelcomeBack = user && !user.isGuest && !user.isAnonymous;
 
   // 🔥 Carrusel de imágenes - 5 modelos que cambian cada 3 segundos
   const [currentImageIndex, setCurrentImageIndex] = useState(0);
@@ -402,130 +447,34 @@ const LobbyPage = () => {
     return `hace ${Math.floor(diffInSeconds / 86400)}d`;
   };
 
+  // ✅ Calcular días activo del usuario
+  const calculateActiveDays = (createdAt) => {
+    if (!createdAt) return 0;
+    const created = createdAt.toMillis ? createdAt.toMillis() : createdAt;
+    const diffInDays = Math.floor((Date.now() - created) / (1000 * 60 * 60 * 24));
+    return diffInDays > 0 ? diffInDays : 1;
+  };
+
+  // ✅ Calcular nivel del usuario basado en actividad
+  const calculateUserLevel = (userData) => {
+    if (!userData) return 1;
+    const messages = userData.stats?.messagesSent || 0;
+    const days = calculateActiveDays(userData.createdAt);
+    const rooms = userData.stats?.roomsVisited || 0;
+
+    // Sistema simple de niveles
+    const score = messages * 2 + days * 5 + rooms * 10;
+    if (score < 50) return 1;
+    if (score < 150) return 2;
+    if (score < 300) return 3;
+    if (score < 500) return 4;
+    return 5;
+  };
+
   return (
     <>
       <div className="w-full min-h-screen pb-16 sm:pb-20">
-        {/* 🔥 CONTENEDOR HORIZONTAL CON CARRUSEL DE IMÁGENES - Solo para visitantes */}
-        {showHeroSection && (
-          <motion.div
-            initial={{ opacity: 0, y: -20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.6 }}
-            className="w-full relative overflow-hidden"
-            style={{ 
-              marginTop: '-4rem',
-              marginBottom: '2rem',
-              zIndex: 1
-            }}
-          >
-            <div className="w-full h-56 sm:h-72 md:h-96 lg:h-[500px] relative group">
-              {/* Carrusel de imágenes con transición suave */}
-              <AnimatePresence mode="wait">
-                <motion.div
-                  key={currentImageIndex}
-                  initial={{ opacity: 0, scale: 1.1 }}
-                  animate={{ opacity: 1, scale: 1 }}
-                  exit={{ opacity: 0, scale: 0.95 }}
-                  transition={{ duration: 0.8, ease: 'easeInOut' }}
-                  className="absolute inset-0 w-full h-full"
-                >
-                  <div 
-                    className="w-full h-full bg-cover bg-center bg-no-repeat relative transition-transform duration-700 group-hover:scale-105"
-                    style={{
-                      backgroundImage: `url(${modelImages[currentImageIndex]})`,
-                      backgroundPosition: 'center',
-                      backgroundSize: 'cover',
-                      backgroundColor: '#1a0a1a'
-                    }}
-                  >
-                    {/* Fallback si la imagen no carga */}
-                    <div className="absolute inset-0 bg-gradient-to-br from-purple-900 via-pink-900 to-purple-900 opacity-50"></div>
-                    {/* Overlay degradado atractivo */}
-                    <div className="absolute inset-0 bg-gradient-to-br from-purple-900/70 via-pink-900/60 to-purple-900/70"></div>
-                    <div className="absolute inset-0 bg-gradient-to-t from-black/40 via-transparent to-transparent"></div>
-                    
-                    {/* Efecto de brillo animado */}
-                    <motion.div
-                      animate={{
-                        backgroundPosition: ['0% 0%', '100% 100%'],
-                      }}
-                      transition={{
-                        duration: 8,
-                        repeat: Infinity,
-                        repeatType: 'reverse',
-                        ease: 'linear'
-                      }}
-                      className="absolute inset-0 bg-gradient-to-r from-transparent via-white/10 to-transparent"
-                      style={{
-                        backgroundSize: '200% 200%'
-                      }}
-                    />
-                    
-                    {/* Contenido sobre la imagen */}
-                    <div className="relative z-10 h-full flex items-center justify-center px-4">
-                      <div className="text-center max-w-4xl">
-                        <motion.h2
-                          key={`title-${currentImageIndex}`}
-                          initial={{ opacity: 0, y: 20 }}
-                          animate={{ opacity: 1, y: 0 }}
-                          exit={{ opacity: 0, y: -20 }}
-                          transition={{ duration: 0.6 }}
-                          className="text-3xl sm:text-4xl md:text-5xl lg:text-6xl font-extrabold text-white mb-3 drop-shadow-2xl leading-tight"
-                        >
-                          <span className="bg-gradient-to-r from-pink-300 via-purple-300 to-pink-300 bg-clip-text text-transparent">
-                            Encuentra tu conexión perfecta
-                          </span>
-                        </motion.h2>
-                        <motion.p
-                          key={`subtitle-${currentImageIndex}`}
-                          initial={{ opacity: 0, y: 10 }}
-                          animate={{ opacity: 1, y: 0 }}
-                          exit={{ opacity: 0, y: -10 }}
-                          transition={{ duration: 0.6, delay: 0.2 }}
-                          className="text-base sm:text-lg md:text-xl text-white/95 font-semibold drop-shadow-lg mb-4"
-                        >
-                          🔥 Conversaciones calientes • Encuentros reales • Sin límites
-                        </motion.p>
-                        <motion.div
-                          key={`button-${currentImageIndex}`}
-                          initial={{ opacity: 0, scale: 0.9 }}
-                          animate={{ opacity: 1, scale: 1 }}
-                          exit={{ opacity: 0, scale: 0.9 }}
-                          transition={{ duration: 0.5, delay: 0.4 }}
-                        >
-                          <Button
-                            onClick={() => navigate('/auth')}
-                            className="magenta-gradient text-white font-bold px-8 py-6 text-lg sm:text-xl rounded-xl shadow-2xl hover:shadow-[#E4007C]/50 transition-all hover:scale-105"
-                          >
-                            🚀 ÚNETE AHORA GRATIS
-                          </Button>
-                        </motion.div>
-                      </div>
-                    </div>
-                  </div>
-                </motion.div>
-              </AnimatePresence>
-
-              {/* Indicadores de imágenes (puntos) */}
-              <div className="absolute bottom-4 left-1/2 transform -translate-x-1/2 z-20 flex gap-2">
-                {modelImages.map((_, index) => (
-                  <button
-                    key={index}
-                    onClick={() => setCurrentImageIndex(index)}
-                    className={`transition-all duration-300 rounded-full ${
-                      index === currentImageIndex
-                        ? 'w-3 h-3 bg-white shadow-lg'
-                        : 'w-2 h-2 bg-white/50 hover:bg-white/75'
-                    }`}
-                    aria-label={`Ir a imagen ${index + 1}`}
-                  />
-                ))}
-              </div>
-            </div>
-          </motion.div>
-        )}
-
-        {/* 🔥 HERO SECTION - Solo para visitantes */}
+        {/* ✅ HERO MINIMALISTA - Consolidado y simplificado */}
         {showHeroSection && (
           <motion.section
             initial={{ opacity: 0, y: 20 }}
@@ -1700,36 +1649,7 @@ const LobbyPage = () => {
           <GlobalStats />
         )}
 
-        {/* ✅ WELCOME BACK BANNER - Solo para usuarios logueados */}
-        {showWelcomeBack && (
-          <motion.section
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.6 }}
-            className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 sm:py-12 mb-8 sm:mb-12"
-          >
-            <div className="glassmorphism-card rounded-2xl p-6 sm:p-8 border border-primary/20">
-              <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
-                <div className="flex-1">
-                  <h2 className="text-2xl sm:text-3xl md:text-4xl font-bold mb-2 bg-gradient-to-r from-primary via-purple-400 to-pink-400 bg-clip-text text-transparent">
-                    ¡Bienvenido de vuelta{user?.username ? `, ${user.username}` : ''}! 👋
-                  </h2>
-                  <p className="text-base sm:text-lg text-muted-foreground leading-relaxed" style={{ lineHeight: '1.6' }}>
-                    ¿Qué quieres hacer hoy? Explora las salas, conéctate con la comunidad o descubre nuevas funcionalidades.
-                  </p>
-                </div>
-                <div className="flex items-center gap-3">
-                  <div className="flex items-center gap-2 px-4 py-2 rounded-lg bg-secondary/50 border border-secondary">
-                    <div className="w-2 h-2 rounded-full bg-green-500 animate-pulse"></div>
-                    <span className="text-sm font-semibold text-green-400">En línea</span>
-                  </div>
-                </div>
-              </div>
-            </div>
-          </motion.section>
-        )}
-
-        {/* ✅ SECCIÓN PRINCIPAL: Salas de Chat (inmediatamente después del Hero) */}
+        {/* ✅ SECCIÓN PRINCIPAL: Salas de Chat y Stats en Tiempo Real */}
         <div className="px-4 sm:px-6 lg:px-8 py-10 sm:py-12 lg:py-16">
           <motion.div
             initial={{ opacity: 0 }}
@@ -1737,18 +1657,286 @@ const LobbyPage = () => {
             transition={{ duration: 0.5 }}
             className="max-w-7xl mx-auto"
           >
-            {/* Título de sección: Salas de Chat */}
-            <div className="text-center mb-10 sm:mb-14 lg:mb-16">
-              <h2 className="text-2xl sm:text-3xl md:text-4xl lg:text-5xl font-bold mb-4 sm:mb-6 bg-gradient-to-r from-cyan-400 via-purple-400 to-pink-400 light:from-cyan-600 light:via-purple-600 light:to-pink-600 bg-clip-text text-transparent leading-tight">
-                Salas de Chat
+            {/* ✅ STATS EN TIEMPO REAL - Solo para usuarios logueados */}
+            {showWelcomeBack && (
+              <motion.div
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ duration: 0.5 }}
+                className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-10 sm:mb-12"
+              >
+                {/* Online ahora */}
+                <div className="glass-effect p-5 rounded-xl border border-green-500/30 hover:border-green-500/60 transition-all">
+                  <div className="flex items-center gap-3 mb-2">
+                    <div className="relative">
+                      <span className="absolute inline-flex h-3 w-3 rounded-full bg-green-400 opacity-75 animate-ping"></span>
+                      <span className="relative inline-flex h-3 w-3 rounded-full bg-green-500"></span>
+                    </div>
+                    <p className="text-xs sm:text-sm text-gray-400 font-medium">En línea ahora</p>
+                  </div>
+                  <p className="text-2xl sm:text-3xl font-bold bg-gradient-to-r from-green-400 to-emerald-400 bg-clip-text text-transparent">
+                    {calculateTotalUsers()}
+                  </p>
+                  <p className="text-xs text-gray-500">usuarios activos</p>
+                </div>
+
+                {/* Mensajes hoy */}
+                <div className="glass-effect p-5 rounded-xl border border-cyan-500/30 hover:border-cyan-500/60 transition-all">
+                  <div className="flex items-center gap-2 mb-2">
+                    <MessageSquare className="w-4 h-4 text-cyan-400" />
+                    <p className="text-xs sm:text-sm text-gray-400 font-medium">Mensajes hoy</p>
+                  </div>
+                  <p className="text-2xl sm:text-3xl font-bold bg-gradient-to-r from-cyan-400 to-blue-400 bg-clip-text text-transparent">
+                    847
+                  </p>
+                  <p className="text-xs text-gray-500">conversaciones</p>
+                </div>
+
+                {/* Sala más activa */}
+                <div className="glass-effect p-5 rounded-xl border border-purple-500/30 hover:border-purple-500/60 transition-all cursor-pointer" onClick={() => navigate('/chat/principal')}>
+                  <div className="flex items-center gap-2 mb-2">
+                    <Zap className="w-4 h-4 text-purple-400" />
+                    <p className="text-xs sm:text-sm text-gray-400 font-medium">Más activa</p>
+                  </div>
+                  <p className="text-2xl sm:text-3xl font-bold bg-gradient-to-r from-purple-400 to-pink-400 bg-clip-text text-transparent">
+                    Principal
+                  </p>
+                  <p className="text-xs text-purple-400 font-semibold">Click para unirte →</p>
+                </div>
+
+                {/* Moderación 24/7 */}
+                <div className="glass-effect p-5 rounded-xl border border-orange-500/30 hover:border-orange-500/60 transition-all">
+                  <div className="flex items-center gap-2 mb-2">
+                    <Shield className="w-4 h-4 text-orange-400" />
+                    <p className="text-xs sm:text-sm text-gray-400 font-medium">Seguridad</p>
+                  </div>
+                  <p className="text-2xl sm:text-3xl font-bold bg-gradient-to-r from-orange-400 to-red-400 bg-clip-text text-transparent">
+                    24/7
+                  </p>
+                  <p className="text-xs text-gray-500">moderación activa</p>
+                </div>
+              </motion.div>
+            )}
+
+            {/* ✅ QUICK ACCESS - Sala Más Activa (Solo usuarios logueados) */}
+            {showWelcomeBack && recentMessages.length > 0 && (
+              <motion.div
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ duration: 0.5, delay: 0.2 }}
+                className="mb-10 sm:mb-12 glass-effect p-6 sm:p-8 rounded-2xl border-2 border-green-500/50 hover:border-green-500/80 transition-all shadow-lg shadow-green-500/10"
+              >
+                <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-6">
+                  {/* Info de la sala */}
+                  <div className="flex-1">
+                    <div className="flex items-center gap-3 mb-4">
+                      <div className="relative">
+                        <span className="absolute inline-flex h-5 w-5 rounded-full bg-green-400 opacity-75 animate-ping"></span>
+                        <span className="relative inline-flex h-5 w-5 rounded-full bg-green-500 shadow-lg shadow-green-500/50"></span>
+                      </div>
+                      <div>
+                        <h3 className="text-xl sm:text-2xl font-bold text-green-400 flex items-center gap-2">
+                          🔥 Sala Principal
+                          <span className="text-sm font-normal text-gray-400">- Ahora</span>
+                        </h3>
+                        <p className="text-sm text-gray-400">
+                          {roomCounts['principal'] || 0} usuarios conectados en este momento
+                        </p>
+                      </div>
+                    </div>
+
+                    {/* Preview de mensajes */}
+                    <div className="space-y-2 bg-gray-900/50 rounded-lg p-4 border border-gray-700/50">
+                      <p className="text-xs text-gray-500 font-semibold mb-2">Últimas conversaciones:</p>
+                      {recentMessages.map((msg, index) => (
+                        <motion.div
+                          key={msg.id}
+                          initial={{ opacity: 0, x: -20 }}
+                          animate={{ opacity: 1, x: 0 }}
+                          transition={{ delay: index * 0.1 }}
+                          className="flex items-start gap-2"
+                        >
+                          <span className="text-sm font-semibold text-cyan-400 flex-shrink-0">
+                            {msg.username}:
+                          </span>
+                          <span className="text-sm text-gray-300 line-clamp-1">
+                            {msg.content?.substring(0, 60)}{msg.content?.length > 60 ? '...' : ''}
+                          </span>
+                        </motion.div>
+                      ))}
+                    </div>
+                  </div>
+
+                  {/* CTA */}
+                  <div className="w-full md:w-auto flex-shrink-0">
+                    <Button
+                      onClick={() => navigate('/chat/principal')}
+                      className="w-full md:w-auto magenta-gradient text-white font-bold text-base sm:text-lg px-8 py-6 rounded-xl shadow-xl hover:shadow-[#E4007C]/50 hover:scale-105 transition-all flex items-center justify-center gap-2"
+                    >
+                      <Zap className="w-5 h-5" />
+                      Unirse Ahora
+                      <ArrowRight className="w-5 h-5" />
+                    </Button>
+                    <p className="text-xs text-center text-gray-400 mt-2">
+                      Únete a la conversación en vivo
+                    </p>
+                  </div>
+                </div>
+              </motion.div>
+            )}
+
+            {/* ✅ DASHBOARD PERSONAL COMPACTO - Solo usuarios logueados */}
+            {showWelcomeBack && user && (
+              <motion.div
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ duration: 0.5, delay: 0.3 }}
+                className="mb-10 sm:mb-12"
+              >
+                <div className="text-center mb-6">
+                  <h3 className="text-lg sm:text-xl font-bold text-gray-300 flex items-center justify-center gap-2">
+                    📊 Tu Actividad
+                  </h3>
+                </div>
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                  {/* Mensajes enviados */}
+                  <div className="glass-effect p-5 rounded-xl border border-cyan-500/30 hover:border-cyan-500/60 transition-all text-center">
+                    <MessageSquare className="w-6 h-6 text-cyan-400 mx-auto mb-2" />
+                    <p className="text-2xl sm:text-3xl font-bold text-cyan-400">
+                      {user.stats?.messagesSent || 0}
+                    </p>
+                    <p className="text-xs text-gray-400 mt-1">Mensajes enviados</p>
+                  </div>
+
+                  {/* Salas visitadas */}
+                  <div className="glass-effect p-5 rounded-xl border border-purple-500/30 hover:border-purple-500/60 transition-all text-center">
+                    <Users className="w-6 h-6 text-purple-400 mx-auto mb-2" />
+                    <p className="text-2xl sm:text-3xl font-bold text-purple-400">
+                      {user.stats?.roomsVisited || 0}
+                    </p>
+                    <p className="text-xs text-gray-400 mt-1">Salas visitadas</p>
+                  </div>
+
+                  {/* Días activo */}
+                  <div className="glass-effect p-5 rounded-xl border border-green-500/30 hover:border-green-500/60 transition-all text-center">
+                    <Calendar className="w-6 h-6 text-green-400 mx-auto mb-2" />
+                    <p className="text-2xl sm:text-3xl font-bold text-green-400">
+                      {calculateActiveDays(user.createdAt)}
+                    </p>
+                    <p className="text-xs text-gray-400 mt-1">Días activo</p>
+                  </div>
+
+                  {/* Nivel */}
+                  <div className="glass-effect p-5 rounded-xl border border-yellow-500/30 hover:border-yellow-500/60 transition-all text-center">
+                    <Sparkles className="w-6 h-6 text-yellow-400 mx-auto mb-2" />
+                    <p className="text-2xl sm:text-3xl font-bold text-yellow-400">
+                      Nivel {calculateUserLevel(user)}
+                    </p>
+                    <p className="text-xs text-yellow-400 mt-1 font-semibold">
+                      {calculateUserLevel(user) === 5 ? '⭐ Máximo' : `${5 - calculateUserLevel(user)} para siguiente`}
+                    </p>
+                  </div>
+                </div>
+              </motion.div>
+            )}
+
+            {/* ✅ FEED DE ACTIVIDAD RECIENTE - Solo usuarios logueados */}
+            {showWelcomeBack && (
+              <motion.div
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ duration: 0.5, delay: 0.4 }}
+                className="mb-10 sm:mb-12 glass-effect p-6 rounded-xl border border-purple-500/30"
+              >
+                <div className="flex items-center justify-between mb-4">
+                  <h3 className="text-lg sm:text-xl font-bold text-purple-400 flex items-center gap-2">
+                    📢 Actividad Reciente
+                  </h3>
+                  <span className="text-xs text-gray-500">Última actualización: ahora</span>
+                </div>
+                <div className="space-y-3">
+                  {/* Última actividad global */}
+                  {lastActivity && lastActivity.timestamp && (
+                    <motion.div
+                      initial={{ opacity: 0, x: -20 }}
+                      animate={{ opacity: 1, x: 0 }}
+                      className="flex items-center gap-3 p-3 bg-green-900/20 rounded-lg border border-green-500/30"
+                    >
+                      <div className="w-10 h-10 rounded-full bg-gradient-to-br from-green-500 to-emerald-500 flex items-center justify-center flex-shrink-0">
+                        <Users className="w-5 h-5 text-white" />
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm text-gray-300">
+                          <span className="font-semibold text-green-400">{lastActivity.username}</span>
+                          {' '}se conectó
+                        </p>
+                        <p className="text-xs text-gray-500">{getTimeAgo(lastActivity.timestamp)}</p>
+                      </div>
+                      <div className="relative">
+                        <span className="absolute inline-flex h-3 w-3 rounded-full bg-green-400 opacity-75 animate-ping"></span>
+                        <span className="relative inline-flex h-3 w-3 rounded-full bg-green-500"></span>
+                      </div>
+                    </motion.div>
+                  )}
+
+                  {/* Sala más activa */}
+                  <motion.div
+                    initial={{ opacity: 0, x: -20 }}
+                    animate={{ opacity: 1, x: 0 }}
+                    transition={{ delay: 0.1 }}
+                    className="flex items-center gap-3 p-3 bg-cyan-900/20 rounded-lg border border-cyan-500/30 cursor-pointer hover:bg-cyan-900/30 transition-all"
+                    onClick={() => navigate('/chat/principal')}
+                  >
+                    <div className="w-10 h-10 rounded-full bg-gradient-to-br from-cyan-500 to-blue-500 flex items-center justify-center flex-shrink-0">
+                      <MessageSquare className="w-5 h-5 text-white" />
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm text-gray-300">
+                        <span className="font-semibold text-cyan-400">Sala Principal:</span>
+                        {' '}{roomCounts['principal'] || 0} usuarios activos ahora
+                      </p>
+                      <p className="text-xs text-cyan-400 font-semibold">Click para unirte →</p>
+                    </div>
+                    <Zap className="w-5 h-5 text-cyan-400" />
+                  </motion.div>
+
+                  {/* Foro activo */}
+                  <motion.div
+                    initial={{ opacity: 0, x: -20 }}
+                    animate={{ opacity: 1, x: 0 }}
+                    transition={{ delay: 0.2 }}
+                    className="flex items-center gap-3 p-3 bg-purple-900/20 rounded-lg border border-purple-500/30 cursor-pointer hover:bg-purple-900/30 transition-all"
+                    onClick={() => navigate('/anonymous-forum')}
+                  >
+                    <div className="w-10 h-10 rounded-full bg-gradient-to-br from-purple-500 to-pink-500 flex items-center justify-center flex-shrink-0">
+                      <MessageCircle className="w-5 h-5 text-white" />
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm text-gray-300">
+                        <span className="font-semibold text-purple-400">Foro Anónimo:</span>
+                        {' '}Nuevas conversaciones sobre salud mental y derechos LGBT+
+                      </p>
+                      <p className="text-xs text-purple-400 font-semibold">Ver foro →</p>
+                    </div>
+                    <MessageCircle className="w-5 h-5 text-purple-400" />
+                  </motion.div>
+                </div>
+              </motion.div>
+            )}
+
+            {/* Título de sección: Explora */}
+            <div className="text-center mb-8 sm:mb-10">
+              <h2 className="text-2xl sm:text-3xl md:text-4xl font-bold mb-3 sm:mb-4 bg-gradient-to-r from-cyan-400 via-purple-400 to-pink-400 bg-clip-text text-transparent leading-tight">
+                {showWelcomeBack ? 'Explora' : 'Explora Chactivo'}
               </h2>
-              <p className="text-base sm:text-lg md:text-xl text-gray-400 light:text-gray-600 max-w-2xl mx-auto leading-relaxed px-4">
-                Conecta, chatea y descubre la comunidad gay más activa de Chile
+              <p className="text-base sm:text-lg text-gray-400 max-w-2xl mx-auto leading-relaxed px-4">
+                {showWelcomeBack ? 'Elige dónde quieres conectar hoy' : 'Conecta, chatea y descubre la comunidad gay más activa de Chile'}
               </p>
             </div>
 
-            {/* ✅ TARJETA PRINCIPAL: Salas de Chat (horizontal, destacada) */}
-            <div className="mb-8 sm:mb-12 max-w-6xl mx-auto">
+            {/* ✅ GRID PRINCIPAL 3x2 - SIMÉTRICO Y PERFECTO */}
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 sm:gap-8 max-w-7xl mx-auto">
+              {/* 1. Salas de Chat - PRINCIPAL */}
               <FeatureCard
                 key={cardData[0].id}
                 icon={cardData[0].icon}
@@ -1760,123 +1948,77 @@ const LobbyPage = () => {
                 badge={cardData[0].badge}
                 stats={cardData[0].stats}
                 accentColor={cardData[0].accentColor}
-                isHorizontal={true}
               />
-            </div>
-          </motion.div>
-        </div>
 
-        {/* ✅ SECCIÓN: Comunidades destacadas (Foro Gay Chile Anónimo / Chat Gay Gamers Chile) */}
-        <motion.section
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.5, delay: 0.2 }}
-          className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-8 sm:py-12 mb-12"
-        >
-          <div className="text-center mb-8 sm:mb-10">
-            <h2 className="text-2xl sm:text-3xl md:text-4xl font-bold mb-3 sm:mb-4">Comunidades destacadas</h2>
-            <p className="text-base sm:text-lg text-muted-foreground max-w-2xl mx-auto">
-              Explora nuestras comunidades especializadas
-            </p>
-          </div>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            {/* Enlace al Foro */}
-            <motion.div
-              whileHover={{ scale: 1.02, y: -5 }}
-              onClick={() => navigate('/anonymous-forum')}
-              className="glassmorphism-card p-6 sm:p-8 rounded-2xl cursor-pointer"
-              style={{ borderColor: 'rgba(16, 185, 129, 0.3)' }}
-            >
-              <div className="flex items-start gap-4">
-                <div className="w-12 h-12 sm:w-14 sm:h-14 rounded-full bg-gradient-to-br from-green-500 to-emerald-500 flex items-center justify-center flex-shrink-0">
-                  <MessageCircle className="w-6 h-6 sm:w-7 sm:h-7 text-white" />
-                </div>
-                <div className="flex-1">
-                  <h3 className="text-lg sm:text-xl font-bold mb-2 text-green-400">
-                    Foro Gay Chile Anónimo
-                  </h3>
-                  <p className="text-sm sm:text-base text-muted-foreground mb-3 leading-relaxed">
-                    Comparte experiencias LGBT+, pide consejos sobre salud mental, relaciones y derechos. 100% anónimo, sin censura. Comunidad de apoyo mutuo activa 24/7.
-                  </p>
-                  <div className="flex items-center gap-2 text-xs sm:text-sm font-semibold text-green-400">
-                    <span>👥 Comunidad activa</span>
-                    <span>•</span>
-                    <span>🔒 100% anónimo</span>
-                    <span>→</span>
-                  </div>
-                </div>
-              </div>
-            </motion.div>
-
-            {/* Enlace a Gaming */}
-            <motion.div
-              whileHover={{ scale: 1.02, y: -5 }}
-              onClick={() => navigate('/gaming')}
-              className="glassmorphism-card p-6 sm:p-8 rounded-2xl cursor-pointer"
-              style={{ borderColor: 'rgba(139, 92, 246, 0.3)' }}
-            >
-              <div className="flex items-start gap-4">
-                <div className="w-12 h-12 sm:w-14 sm:h-14 rounded-full bg-gradient-to-br from-purple-500 to-violet-500 flex items-center justify-center flex-shrink-0">
-                  <MessageSquare className="w-6 h-6 sm:w-7 sm:h-7 text-white" />
-                </div>
-                <div className="flex-1">
-                  <h3 className="text-lg sm:text-xl font-bold mb-2 text-purple-400">
-                    Chat Gay Gamers Chile 🎮
-                  </h3>
-                  <p className="text-sm sm:text-base text-muted-foreground mb-3 leading-relaxed">
-                    Conecta con gamers LGBT+ de Chile. Comparte juegos, forma squad, chatea sobre PS5, Xbox, PC, Switch. Comunidad sin toxicidad, puro gaming y buena onda.
-                  </p>
-                  <div className="flex items-center gap-2 text-xs sm:text-sm font-semibold text-purple-400">
-                    <span>🎮 50+ gamers activos</span>
-                    <span>•</span>
-                    <span>⚡ Activo 24/7</span>
-                    <span>→</span>
-                  </div>
-                </div>
-              </div>
-            </motion.div>
-          </div>
-        </motion.section>
-
-        {/* ✅ SECCIÓN: Foro de Apoyo, Centro de Seguridad, Hazte Premium */}
-        <div className="px-4 sm:px-6 lg:px-8 py-10 sm:py-12 lg:py-16">
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            transition={{ duration: 0.5 }}
-            className="max-w-7xl mx-auto"
-          >
-            {/* Grid de 3 cards: Foro de Apoyo, Centro de Seguridad, Premium - Responsive Grid System */}
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 sm:gap-8 mb-12 sm:mb-16 max-w-6xl mx-auto" style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(320px, 1fr))', gap: '24px' }}>
-              {/* Foro de Apoyo */}
+              {/* 2. Foro Anónimo */}
               <FeatureCard
-                key={forumCard.id}
-                icon={forumCard.icon}
-                title={forumCard.title}
-                description={forumCard.description}
-                onClick={forumCard.onClick}
-                index={0}
-                variant={forumCard.variant}
-                badge={forumCard.badge}
-                stats={forumCard.stats}
-                accentColor={forumCard.accentColor}
+                key="foro-anonimo"
+                icon={<MessageCircle className="w-8 h-8" />}
+                title="Foro Anónimo"
+                description="Comparte experiencias LGBT+, pide consejos sobre salud mental y relaciones. 100% anónimo, comunidad activa 24/7."
+                onClick={() => navigate('/anonymous-forum')}
+                index={1}
+                variant="default"
+                badge="Activo"
+                stats={{ label: "💬 Comunidad activa", icon: MessageCircle }}
+                accentColor="green"
               />
-              
-              {/* Centro de Seguridad y Premium */}
-              {cardData.slice(1).map((card, index) => (
-                <FeatureCard
-                  key={card.id}
-                  icon={card.icon}
-                  title={card.title}
-                  description={card.description}
-                  onClick={() => handleCardClick(card.modal, card)}
-                  index={index + 1}
-                  variant={card.variant}
-                  badge={card.badge}
-                  stats={card.stats}
-                  accentColor={card.accentColor}
-                />
-              ))}
+
+              {/* 3. Chat Gamers */}
+              <FeatureCard
+                key="chat-gamers"
+                icon={<MessageSquare className="w-8 h-8" />}
+                title="Chat Gamers 🎮"
+                description="Conecta con gamers LGBT+ de Chile. Comparte juegos, forma squad, chatea sobre PS5, Xbox, PC, Switch."
+                onClick={() => navigate('/gaming')}
+                index={2}
+                variant="default"
+                badge="50+ activos"
+                stats={{ label: "🎮 Gaming 24/7", icon: MessageSquare }}
+                accentColor="purple"
+              />
+
+              {/* 4. Usuarios Cercanos */}
+              <FeatureCard
+                key="usuarios-cercanos"
+                icon={<MapPin className="w-8 h-8" />}
+                title="Usuarios Cercanos"
+                description="Descubre quién está cerca de ti. Conecta con personas de tu zona de forma segura y anónima."
+                onClick={() => handleCardClick('NearbyUsersModal', { title: 'Usuarios Cercanos', badge: 'Próximamente' })}
+                index={3}
+                variant="default"
+                badge="Próximamente"
+                stats={{ label: "📍 Por ubicación", icon: MapPin }}
+                accentColor="blue"
+              />
+
+              {/* 5. Eventos LGBT+ */}
+              <FeatureCard
+                key="eventos"
+                icon={<Calendar className="w-8 h-8" />}
+                title="Eventos LGBT+"
+                description="Descubre eventos, fiestas y actividades de la comunidad. Marchas, pride, encuentros y más."
+                onClick={() => handleCardClick('EventosModal', { title: 'Eventos LGBT+', badge: 'Próximamente' })}
+                index={4}
+                variant="default"
+                badge="Próximamente"
+                stats={{ label: "📅 Próximos eventos", icon: Calendar }}
+                accentColor="pink"
+              />
+
+              {/* 6. Ajustes */}
+              <FeatureCard
+                key="ajustes"
+                icon={<SlidersHorizontal className="w-8 h-8" />}
+                title="Ajustes"
+                description="Personaliza tu experiencia: temas, notificaciones, privacidad y preferencias de la app."
+                onClick={() => handleCardClick('AjustesModal', { title: 'Ajustes', badge: 'Próximamente' })}
+                index={5}
+                variant="default"
+                badge="Próximamente"
+                stats={{ label: "⚙️ Personalizar", icon: SlidersHorizontal }}
+                accentColor="gray"
+              />
             </div>
           </motion.div>
         </div>

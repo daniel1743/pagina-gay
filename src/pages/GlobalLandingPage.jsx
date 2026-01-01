@@ -411,41 +411,6 @@ const GlobalLandingPage = () => {
           </Button>
         </motion.div>
 
-        {/* Featured Topics Section - Compacto */}
-        <motion.section
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.2 }}
-          className="mb-8 sm:mb-12"
-        >
-          <h2 className="text-xl sm:text-2xl font-bold text-center mb-6">
-            Temas populares
-          </h2>
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-4 sm:gap-6 max-w-4xl mx-auto">
-            {[
-              { name: 'Amistad', emoji: '👥', color: 'from-blue-500 to-cyan-500' },
-              { name: 'Relaciones', emoji: '💕', color: 'from-pink-500 to-red-500' },
-              { name: 'Gaming', emoji: '🎮', color: 'from-purple-500 to-violet-500' },
-              { name: 'Series/Películas', emoji: '🎬', color: 'from-orange-500 to-yellow-500' },
-              { name: 'Música', emoji: '🎵', color: 'from-green-500 to-emerald-500' },
-              { name: 'Viajes', emoji: '✈️', color: 'from-teal-500 to-cyan-500' },
-              { name: 'Deportes', emoji: '⚽', color: 'from-green-600 to-lime-500' },
-              { name: 'Cultura', emoji: '🎨', color: 'from-violet-500 to-purple-500' },
-            ].map((topic, index) => (
-              <motion.div
-                key={index}
-                whileHover={{ scale: 1.05, y: -5 }}
-                className="glass-effect rounded-xl p-4 text-center border border-border hover:border-cyan-500/50 transition-all"
-              >
-                <div className={`text-4xl mb-2 bg-gradient-to-br ${topic.color} w-16 h-16 rounded-full flex items-center justify-center mx-auto`}>
-                  {topic.emoji}
-                </div>
-                <p className="text-sm font-semibold">{topic.name}</p>
-              </motion.div>
-            ))}
-          </div>
-        </motion.section>
-
         {/* Benefits Section - Compacto */}
         <motion.section
           initial={{ opacity: 0, y: 20 }}
