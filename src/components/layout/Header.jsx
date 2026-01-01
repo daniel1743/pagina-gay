@@ -229,7 +229,15 @@ const Header = () => {
             <>
               {/* CTA principal: Entrar gratis */}
               <Button
-                onClick={() => navigate('/landing')}
+                onClick={() => {
+                  // Si el usuario está logueado, ir directo al chat
+                  if (user && !user.isGuest && !user.isAnonymous) {
+                    navigate('/chat/principal');
+                  } else {
+                    // Si no está logueado, ir a landing con parámetro para abrir modal
+                    navigate('/landing?openEntry=true');
+                  }
+                }}
                 className="magenta-gradient text-white font-bold px-4 sm:px-6 py-2 sm:py-2.5 rounded-lg shadow-lg hover:shadow-[#E4007C]/50 transition-all hover:scale-105"
               >
                 🚀 <span className="ml-1.5">ENTRAR GRATIS</span>

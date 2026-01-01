@@ -45,8 +45,8 @@ export const EntryOptionsModal = ({
 
   return (
     <Dialog open={open} onOpenChange={onClose}>
-      <DialogContent className="sm:max-w-[520px] neon-border-card text-white overflow-hidden p-0">
-        <div className="glass-effect rounded-3xl p-6">
+      <DialogContent className="sm:max-w-[520px] neon-border-card text-white p-0 h-[90vh] max-h-[600px] flex flex-col overflow-hidden">
+        <div className="glass-effect rounded-3xl p-6 flex-1 overflow-y-auto">
           <DialogHeader>
             {/* Icono con efecto */}
             <div className="flex items-center justify-center mb-4">

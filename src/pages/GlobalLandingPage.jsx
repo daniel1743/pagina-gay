@@ -16,6 +16,19 @@ const GlobalLandingPage = () => {
   const [showGuestModal, setShowGuestModal] = React.useState(false);
   const [showEntryModal, setShowEntryModal] = React.useState(false);
 
+  // ✅ Detectar si se debe abrir el modal automáticamente desde el Header
+  React.useEffect(() => {
+    const searchParams = new URLSearchParams(location.search);
+    if (searchParams.get('openEntry') === 'true') {
+      // Si el usuario no está logueado, abrir el modal de entrada
+      if (!user || user.isGuest || user.isAnonymous) {
+        setShowEntryModal(true);
+        // Limpiar el parámetro de la URL
+        navigate(location.pathname, { replace: true });
+      }
+    }
+  }, [location.search, user, navigate, location.pathname]);
+
   // 🔥 Carrusel de imágenes - 5 modelos que cambian cada 3 segundos
   const [currentImageIndex, setCurrentImageIndex] = useState(0);
   const modelImages = [

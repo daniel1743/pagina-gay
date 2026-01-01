@@ -940,7 +940,8 @@ const ChatPage = () => {
         </div>
 
         {/* 🤖 COMPANION AI Widget - Solo para usuarios anónimos */}
-        {companionAI.shouldShow && (
+        {/* ⚠️ TEMPORALMENTE COMENTADO: Oculto hasta tener un mejor UX */}
+        {/* {companionAI.shouldShow && (
           <CompanionWidget
             isVisible={companionAI.isVisible}
             companionMessage={companionAI.companionMessage}
@@ -953,7 +954,7 @@ const ChatPage = () => {
             onHideWidget={companionAI.hideWidget}
             shouldShow={companionAI.shouldShow}
           />
-        )}
+        )} */}
 
         {userActionsTarget && (
           <UserActionsModal
