@@ -22,7 +22,6 @@ import ChatRulesModal from '@/components/chat/ChatRulesModal';
 import AgeVerificationModal from '@/components/chat/AgeVerificationModal';
 import ChatLandingPage from '@/components/chat/ChatLandingPage';
 import EmptyRoomNotificationPrompt from '@/components/chat/EmptyRoomNotificationPrompt';
-import EmptyRoomNotificationPrompt from '@/components/chat/EmptyRoomNotificationPrompt';
 import { toast } from '@/components/ui/use-toast';
 import PrivateChatWindow from '@/components/chat/PrivateChatWindow';
 import { sendMessage, subscribeToRoomMessages, addReactionToMessage, markMessagesAsRead } from '@/services/chatService';

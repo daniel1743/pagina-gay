@@ -97,7 +97,7 @@ const GlobalLandingPage = () => {
 
   const handleChatearAhora = () => {
     if (user && !user.isGuest) {
-      navigate('/chat/global');
+      navigate('/chat/principal');
     } else {
       setShowEntryModal(true);
     }
@@ -119,7 +119,7 @@ const GlobalLandingPage = () => {
 
   const handleEnterChat = () => {
     if (user && !user.isGuest) {
-      navigate('/chat/global');
+      navigate('/chat/principal');
     } else {
       setShowGuestModal(true);
     }
@@ -1233,7 +1233,7 @@ const GlobalLandingPage = () => {
       <EntryOptionsModal
         open={showEntryModal}
         onClose={() => setShowEntryModal(false)}
-        chatRoomId="global"
+        chatRoomId="principal"
         onContinueWithoutRegister={handleContinueWithoutRegister}
       />
 
@@ -1241,6 +1241,7 @@ const GlobalLandingPage = () => {
       <GuestUsernameModal
         open={showGuestModal}
         onClose={() => setShowGuestModal(false)}
+        chatRoomId="principal"
       />
     </div>
   );

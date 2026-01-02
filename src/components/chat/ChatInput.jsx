@@ -309,7 +309,8 @@ const ChatInput = ({ onSendMessage, onFocus, onBlur, externalMessage = null }) =
           <Button
             type="submit"
             disabled={!message.trim() || isSending}
-            className="magenta-gradient text-white rounded-lg relative overflow-hidden min-w-[44px] min-h-[44px] w-[44px] h-[44px] sm:min-w-[48px] sm:min-h-[48px] sm:w-auto sm:h-auto p-0 sm:p-2 transition-none"
+            className="magenta-gradient text-white rounded-lg relative overflow-hidden min-w-[44px] min-h-[44px] w-[44px] h-[44px] sm:min-w-[48px] sm:min-h-[48px] sm:w-auto sm:h-auto p-0 sm:p-2"
+            style={{ transition: 'none' }}
             size="icon"
             aria-label={isSending ? "Enviando mensaje..." : "Enviar mensaje"}
           >
