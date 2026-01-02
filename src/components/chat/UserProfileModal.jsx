@@ -8,15 +8,17 @@ import {
 } from '@/components/ui/dialog';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Button } from '@/components/ui/button';
-import { Flag, X, CheckCircle, Heart, MessageSquare, Calendar, Users } from 'lucide-react';
+import { Flag, X, CheckCircle, Heart, MessageSquare, Calendar, Users, Plus } from 'lucide-react';
 import { motion } from 'framer-motion';
 import { getFavorites } from '@/services/socialService';
 import { useAuth } from '@/contexts/AuthContext';
+import FavoritesModal from './FavoritesModal';
 
-const UserProfileModal = ({ user, onClose, onReport }) => {
+const UserProfileModal = ({ user, onClose, onReport, onSelectUser }) => {
   const { user: currentUser } = useAuth();
   const [favorites, setFavorites] = useState([]);
   const [loadingFavorites, setLoadingFavorites] = useState(false);
+  const [showAllFavorites, setShowAllFavorites] = useState(false);
 
   // Cargar favoritos del usuario (solo si es el perfil propio)
   useEffect(() => {
@@ -119,27 +121,53 @@ const UserProfileModal = ({ user, onClose, onReport }) => {
                   <p className="text-sm text-muted-foreground">Cargando favoritos...</p>
                 ) : favorites.length > 0 ? (
                   <div className="flex flex-wrap gap-2">
-                    {favorites.slice(0, 6).map((fav) => (
-                      <div
+                    {/* Mostrar hasta 5 favoritos */}
+                    {favorites.slice(0, 5).map((fav) => (
+                      <motion.button
                         key={fav.id}
-                        className="flex flex-col items-center gap-1"
-                        title={fav.username}
+                        onClick={() => {
+                          if (onSelectUser) {
+                            onSelectUser(fav);
+                          }
+                        }}
+                        whileHover={{ scale: 1.05 }}
+                        whileTap={{ scale: 0.95 }}
+                        className="flex flex-col items-center gap-1 group"
+                        title={`Ver perfil de ${fav.username}`}
                       >
-                        <Avatar className="w-10 h-10 border-2 border-pink-500/30">
-                          <AvatarImage src={fav.avatar} alt={fav.username} />
-                          <AvatarFallback className="bg-secondary text-xs">
-                            {fav.username?.[0]?.toUpperCase()}
-                          </AvatarFallback>
-                        </Avatar>
-                        <span className="text-xs text-muted-foreground truncate max-w-[40px]">
+                        <div className="relative">
+                          <Avatar className="w-12 h-12 border-2 border-pink-500/30 group-hover:border-pink-400 transition-colors">
+                            <AvatarImage src={fav.avatar} alt={fav.username} />
+                            <AvatarFallback className="bg-secondary text-xs">
+                              {fav.username?.[0]?.toUpperCase()}
+                            </AvatarFallback>
+                          </Avatar>
+                          {fav.isOnline && (
+                            <div className="absolute bottom-0 right-0 w-3 h-3 bg-green-500 border-2 border-card rounded-full"></div>
+                          )}
+                        </div>
+                        <span className="text-xs text-muted-foreground group-hover:text-foreground truncate max-w-[48px] transition-colors">
                           {fav.username}
                         </span>
-                      </div>
+                      </motion.button>
                     ))}
-                    {favorites.length > 6 && (
-                      <div className="flex items-center justify-center w-10 h-10 rounded-full bg-secondary text-xs font-bold">
-                        +{favorites.length - 6}
-                      </div>
+
+                    {/* Botón "Ver más" si hay más de 5 favoritos */}
+                    {favorites.length > 5 && (
+                      <motion.button
+                        onClick={() => setShowAllFavorites(true)}
+                        whileHover={{ scale: 1.05 }}
+                        whileTap={{ scale: 0.95 }}
+                        className="flex flex-col items-center justify-center gap-1 group"
+                        title="Ver todos los favoritos"
+                      >
+                        <div className="w-12 h-12 rounded-full bg-gradient-to-br from-pink-500/20 to-purple-500/20 border-2 border-pink-500/30 group-hover:border-pink-400 flex items-center justify-center transition-colors">
+                          <Plus className="w-6 h-6 text-pink-400 group-hover:text-pink-300" />
+                        </div>
+                        <span className="text-xs text-muted-foreground group-hover:text-foreground transition-colors">
+                          +{favorites.length - 5}
+                        </span>
+                      </motion.button>
                     )}
                   </div>
                 ) : (
@@ -221,6 +249,19 @@ const UserProfileModal = ({ user, onClose, onReport }) => {
           </Button>
         </DialogContent>
       </motion.div>
+
+      {/* Modal de todos los favoritos */}
+      {showAllFavorites && (
+        <FavoritesModal
+          favorites={favorites}
+          onClose={() => setShowAllFavorites(false)}
+          onSelectFavorite={(fav) => {
+            if (onSelectUser) {
+              onSelectUser(fav);
+            }
+          }}
+        />
+      )}
     </Dialog>
   );
 };

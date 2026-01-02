@@ -176,12 +176,25 @@ service cloud.firestore {
       match /notifications/{notificationId} {
         allow read: if isOwner(userId);
 
-        // ✅ CRÍTICO: Admin/Support pueden crear notificaciones para usuarios (respuestas a tickets, etc.)
-        allow create: if isSuperAdmin() || isAdminOrSupport() || isOwner(userId);
+        // ✅ CRÍTICO: Cualquier usuario autenticado puede crear notificaciones (para mensajes directos y solicitudes de chat privado)
+        // Admin/Support también pueden crear notificaciones para usuarios (respuestas a tickets, etc.)
+        allow create: if isAuthenticated();
 
         allow update: if isOwner(userId);
 
         allow delete: if isOwner(userId);
+      }
+
+      // ✅ Subcolección de mensajes enviados (historial)
+      match /sent_messages/{messageId} {
+        // Leer: solo el remitente puede ver sus mensajes enviados
+        allow read: if isOwner(userId);
+
+        // Crear: cualquier usuario autenticado puede crear (cuando envía un mensaje)
+        allow create: if isAuthenticated();
+
+        // No se pueden actualizar ni eliminar
+        allow update, delete: if false;
       }
     }
 
@@ -243,7 +256,8 @@ service cloud.firestore {
     // REGLAS DE CHATS PRIVADOS
     // ===========================
 
-    match /privateChats/{chatId} {
+    // ✅ CORREGIDO: Usar private_chats (con guión bajo, como en el código)
+    match /private_chats/{chatId} {
       allow read: if isAuthenticated() &&
                     request.auth.uid in resource.data.participants;
 
@@ -254,13 +268,23 @@ service cloud.firestore {
 
       match /messages/{messageId} {
         allow read: if isAuthenticated() &&
-                      request.auth.uid in get(/databases/$(database)/documents/privateChats/$(chatId)).data.participants;
+                      request.auth.uid in get(/databases/$(database)/documents/private_chats/$(chatId)).data.participants;
 
         // ✅ PRIVADO: se permite contacto/numero/redes, SOLO bloqueo insultos+spam
+        // ✅ También permite mensajes de sistema (type='system') sin validación estricta de userId
         allow create: if isAuthenticated() &&
-                        request.auth.uid in get(/databases/$(database)/documents/privateChats/$(chatId)).data.participants &&
-                        isValidMessage() &&
-                        hasNoProhibitedWordsPrivate(request.resource.data.content.lower());
+                        request.auth.uid in get(/databases/$(database)/documents/private_chats/$(chatId)).data.participants &&
+                        (
+                          // Mensaje normal de usuario
+                          (isValidMessage() && hasNoProhibitedWordsPrivate(request.resource.data.content.lower()))
+                          ||
+                          // Mensaje de sistema (notificación de salida)
+                          (request.resource.data.type == 'system' &&
+                           request.resource.data.userId == 'system' &&
+                           'content' in request.resource.data &&
+                           request.resource.data.content is string &&
+                           request.resource.data.content.size() > 0)
+                        );
       }
     }
 

@@ -4,10 +4,11 @@ import { useAuth } from '@/contexts/AuthContext';
 import { useTheme } from '@/contexts/ThemeContext';
 import { Button } from '@/components/ui/button';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
-import { Bell, LogIn, ChevronDown, Circle, Sun, Moon, CheckCircle, Shield } from 'lucide-react';
+import { Bell, LogIn, ChevronDown, Circle, Sun, Moon, CheckCircle, Shield, Heart, MessageSquare, BarChart3 } from 'lucide-react';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import ComingSoonModal from '@/components/ui/ComingSoonModal';
 import SystemNotificationsPanel from '@/components/notifications/SystemNotificationsPanel';
+import ActivityDashboardModal from '@/components/dashboard/ActivityDashboardModal';
 import { EntryOptionsModal } from '@/components/auth/EntryOptionsModal';
 import { GuestUsernameModal } from '@/components/auth/GuestUsernameModal';
 import { doc, getDoc } from 'firebase/firestore';
@@ -29,6 +30,7 @@ const Header = () => {
   const [logoSrc, setLogoSrc] = useState("/LOGO-TRASPARENTE.png");
   const [showEntryModal, setShowEntryModal] = useState(false);
   const [showGuestModal, setShowGuestModal] = useState(false);
+  const [showActivityDashboard, setShowActivityDashboard] = useState(false);
 
   // Desactivar animación del badge Beta después de 5 segundos
   useEffect(() => {
@@ -206,7 +208,7 @@ const Header = () => {
                 </div>
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end" className="bg-card border-border text-foreground">
-                <DropdownMenuLabel>Mi Cuenta</DropdownMenuLabel>
+                <DropdownMenuLabel>{user.username}</DropdownMenuLabel>
                 <DropdownMenuItem onClick={() => navigate('/profile')}>Perfil</DropdownMenuItem>
                 <DropdownMenuSeparator />
 
@@ -221,18 +223,21 @@ const Header = () => {
                   </>
                 )}
 
-                <DropdownMenuLabel>Estado</DropdownMenuLabel>
-                <DropdownMenuItem onClick={() => handleFeatureComingSoon('cambiar tu estado', 'Próximamente podrás mostrar si estás Conectado, Desconectado u Oculto.')}>
-                  <Circle className="w-2 h-2 mr-2 text-green-400 fill-current" /> Conectado
+                <DropdownMenuItem onClick={() => handleFeatureComingSoon('Mis Favoritos', 'Próximamente podrás ver tus usuarios favoritos.')}>
+                  <Heart className="w-4 h-4 mr-2" />
+                  Mis Favoritos
                 </DropdownMenuItem>
-                <DropdownMenuItem onClick={() => handleFeatureComingSoon('cambiar tu estado', 'Próximamente podrás mostrar si estás Conectado, Desconectado u Oculto.')}>
-                  <Circle className="w-2 h-2 mr-2 text-gray-500 fill-current" /> Desconectado
+                <DropdownMenuItem onClick={() => navigate('/home')}>
+                  <MessageSquare className="w-4 h-4 mr-2" />
+                  Salas
                 </DropdownMenuItem>
-                <DropdownMenuItem onClick={() => {
-                  if (user.isPremium) handleFeatureComingSoon('modo oculto', 'Función exclusiva Premium que te permite navegar sin ser visto.');
-                  else navigate('/premium');
-                }}>
-                  <Circle className="w-2 h-2 mr-2 text-purple-400 fill-current" /> Oculto {user.isPremium ? '' : '👑'}
+                <DropdownMenuItem onClick={() => setShowNotifications(true)}>
+                  <Bell className="w-4 h-4 mr-2" />
+                  Notificaciones
+                </DropdownMenuItem>
+                <DropdownMenuItem onClick={() => setShowActivityDashboard(true)}>
+                  <BarChart3 className="w-4 h-4 mr-2" />
+                  Tu Actividad Hoy
                 </DropdownMenuItem>
                 <DropdownMenuSeparator />
                 <DropdownMenuItem onClick={logout} className="text-red-400 focus:text-red-400">Cerrar Sesión</DropdownMenuItem>
@@ -277,6 +282,15 @@ const Header = () => {
         onClose={() => setShowNotifications(false)}
         onNotificationCountChange={setUnreadNotificationsCount}
       />
+
+      {/* Dashboard de Actividad */}
+      {user && !user.isGuest && (
+        <ActivityDashboardModal
+          isOpen={showActivityDashboard}
+          onClose={() => setShowActivityDashboard(false)}
+          userId={user.id}
+        />
+      )}
 
       {/* ✅ Modales de Entrada */}
       <EntryOptionsModal

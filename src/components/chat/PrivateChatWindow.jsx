@@ -1,5 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
+import { Dialog, DialogContent, DialogTitle, DialogDescription } from '@/components/ui/dialog';
+import { VisuallyHidden } from '@radix-ui/react-visually-hidden';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
@@ -66,7 +68,29 @@ const PrivateChatWindow = ({ user, partner, onClose, chatId }) => {
     }
   };
 
+  // ✅ Función para enviar mensaje de sistema cuando termina el chat
+  const sendLeaveNotification = async () => {
+    if (!chatId) return;
+
+    try {
+      const messagesRef = collection(db, 'private_chats', chatId, 'messages');
+
+      await addDoc(messagesRef, {
+        userId: 'system',
+        username: 'Sistema',
+        avatar: '',
+        content: `${user.username} ha terminado la conversación`,
+        type: 'system',
+        timestamp: serverTimestamp(),
+      });
+    } catch (error) {
+      console.error('Error sending leave notification:', error);
+      // No mostrar error al usuario, solo loguearlo
+    }
+  };
+
   const handleBlockUser = () => {
+    sendLeaveNotification(); // Notificar antes de bloquear (fire and forget)
     toast({
         title: `Has bloqueado a ${partner.username}`,
         description: 'No recibirás más mensajes de este usuario.',
@@ -78,20 +102,31 @@ const PrivateChatWindow = ({ user, partner, onClose, chatId }) => {
   const handleVisitProfile = () => {
     toast({ title: `🚧 Pronto podrás visitar el perfil de ${partner.username}` });
   };
-  
+
   const handleLeaveChat = () => {
+    sendLeaveNotification(); // Notificar antes de salir (fire and forget)
     toast({ title: `Has abandonado el chat con ${partner.username}` });
     onClose();
-  }
+  };
 
   return (
-    <motion.div
-      initial={{ y: "100%", opacity: 0 }}
-      animate={{ y: 0, opacity: 1 }}
-      exit={{ y: "100%", opacity: 0 }}
-      transition={{ type: 'spring', stiffness: 200, damping: 25 }}
-      className="fixed bottom-4 right-4 sm:right-24 w-[360px] h-[480px] bg-card border rounded-t-lg shadow-2xl flex flex-col z-50"
-    >
+    <Dialog open={true} onOpenChange={(isOpen) => {
+      if (!isOpen) {
+        // Solo enviar notificación si realmente se está cerrando
+        sendLeaveNotification();
+        onClose();
+      }
+    }}>
+      <DialogContent
+        className="p-0 max-w-[360px] h-[480px] flex flex-col gap-0 bg-card border rounded-lg shadow-2xl overflow-hidden"
+      >
+        {/* ✅ Títulos ocultos para accesibilidad */}
+        <VisuallyHidden>
+          <DialogTitle>Chat privado con {partner.username}</DialogTitle>
+          <DialogDescription>
+            Conversación privada entre tú y {partner.username}
+          </DialogDescription>
+        </VisuallyHidden>
       <header className="bg-secondary p-3 flex items-center justify-between shrink-0 rounded-t-lg">
         <div className="flex items-center gap-3">
           <Avatar className="w-8 h-8">
@@ -111,7 +146,18 @@ const PrivateChatWindow = ({ user, partner, onClose, chatId }) => {
                 <DropdownMenuItem onClick={handleLeaveChat}><PhoneOff className="w-4 h-4 mr-2"/>Dejar Chat</DropdownMenuItem>
               </DropdownMenuContent>
             </DropdownMenu>
-          <Button variant="ghost" size="icon" onClick={onClose} className="w-8 h-8 text-muted-foreground"><X className="w-5 h-5"/></Button>
+          <Button
+            variant="ghost"
+            size="icon"
+            onClick={() => {
+              sendLeaveNotification();
+              onClose();
+            }}
+            className="w-8 h-8 text-muted-foreground"
+            title="Cerrar chat"
+          >
+            <X className="w-5 h-5"/>
+          </Button>
         </div>
       </header>
 
@@ -129,6 +175,28 @@ const PrivateChatWindow = ({ user, partner, onClose, chatId }) => {
          <AnimatePresence>
             {messages.map((msg) => {
                 const isOwn = msg.userId === user.id;
+                const isSystem = msg.type === 'system';
+
+                // Mensaje de sistema (notificación de que alguien terminó el chat)
+                if (isSystem) {
+                  return (
+                    <motion.div
+                      key={msg.id}
+                      initial={{ opacity: 0, scale: 0.8 }}
+                      animate={{ opacity: 1, scale: 1 }}
+                      exit={{ opacity: 0 }}
+                      className="flex justify-center my-2"
+                    >
+                      <div className="px-3 py-1.5 rounded-full bg-muted/50 border border-border">
+                        <p className="text-xs text-muted-foreground text-center">
+                          {msg.content}
+                        </p>
+                      </div>
+                    </motion.div>
+                  );
+                }
+
+                // Mensaje normal
                 return (
                     <motion.div
                         key={msg.id}
@@ -154,7 +222,7 @@ const PrivateChatWindow = ({ user, partner, onClose, chatId }) => {
         <div ref={messagesEndRef} />
       </div>
 
-      <form onSubmit={handleSendMessage} className="p-3 border-t">
+      <form onSubmit={handleSendMessage} className="p-3 border-t shrink-0">
         <div className="flex items-center gap-2">
           <Input
             value={newMessage}
@@ -167,7 +235,8 @@ const PrivateChatWindow = ({ user, partner, onClose, chatId }) => {
           </Button>
         </div>
       </form>
-    </motion.div>
+      </DialogContent>
+    </Dialog>
   );
 };
 

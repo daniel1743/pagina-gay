@@ -1126,6 +1126,11 @@ const ChatPage = () => {
               setReportTarget({ type: 'user', ...selectedUser });
               setSelectedUser(null);
             }}
+            onSelectUser={(favoriteUser) => {
+              // Abrir modal de acciones para el favorito seleccionado
+              setSelectedUserForActions(favoriteUser);
+              setSelectedUser(null);
+            }}
           />
         )}
 

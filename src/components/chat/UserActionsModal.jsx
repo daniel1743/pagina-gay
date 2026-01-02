@@ -214,6 +214,9 @@ const UserActionsModal = ({ user: targetUser, onClose, onViewProfile, onShowRegi
           description: `${targetUser.username} fue agregado a tus favoritos`,
         });
       }
+
+      // ✅ Cerrar modal automáticamente después de agregar/quitar de favoritos
+      onClose();
     } catch (error) {
       toast({
         title: "Error",
