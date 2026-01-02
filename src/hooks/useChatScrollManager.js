@@ -212,12 +212,15 @@ export const useChatScrollManager = ({ messages, currentUserId, isInputFocused }
   // UPDATE: State based on input focus
   // ========================================
   useEffect(() => {
+    // ⚠️ IMPORTANTE: NO cambiar estado si el usuario está leyendo historial (PAUSED_USER)
+    // Solo pausar si estaba en AUTO_FOLLOW
     if (isInputFocused && scrollState === 'AUTO_FOLLOW') {
       setScrollState('PAUSED_INPUT');
     } else if (!isInputFocused && scrollState === 'PAUSED_INPUT') {
       // Input unfocused - transition to user pause (don't auto-resume yet)
       setScrollState('PAUSED_USER');
     }
+    // Si scrollState es PAUSED_USER o PAUSED_SELECTION, NO hacer nada
   }, [isInputFocused, scrollState]);
 
   // ========================================
@@ -285,10 +288,15 @@ export const useChatScrollManager = ({ messages, currentUserId, isInputFocused }
     if (!container) return;
 
     const observer = new ResizeObserver(() => {
-      // On resize, maintain position if paused, or scroll to bottom if following
-      if (scrollState === 'AUTO_FOLLOW' && isAtBottom(THRESHOLD_AT_BOTTOM + 50)) {
+      // ⚠️ CRÍTICO: SOLO hacer scroll en resize si:
+      // 1. El usuario está en modo AUTO_FOLLOW (no leyendo historial)
+      // 2. Y está REALMENTE en el bottom (threshold estricto de 50px)
+      // Esto previene scroll forzado cuando se abre el teclado móvil
+      if (scrollState === 'AUTO_FOLLOW' && isAtBottom(50)) {
         scrollToBottom('auto');
       }
+      // Si está en PAUSED_USER/PAUSED_INPUT/PAUSED_SELECTION: NO hacer nada
+      // El usuario debe mantener su posición de lectura
     });
 
     observer.observe(container);

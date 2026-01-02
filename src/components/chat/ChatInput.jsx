@@ -69,26 +69,19 @@ const ChatInput = ({ onSendMessage, onFocus, onBlur, externalMessage = null }) =
 
       // Fix para iOS: prevenir que el teclado se cierre automáticamente
       const handleTouchStart = (e) => {
-        // Asegurar que el input reciba el focus
-        e.currentTarget.focus({ preventScroll: false });
+        // Asegurar que el input reciba el focus SIN forzar scroll
+        // El ScrollManager decidirá si debe hacer scroll basado en el estado del usuario
+        e.currentTarget.focus({ preventScroll: true });
       };
 
-      // ✅ FIX: Cuando el textarea recibe focus, hacer scroll suave para que sea visible
+      // ✅ FIX: Cuando el textarea recibe focus, solo notificar al padre
+      // NO hacer scroll automático - el ScrollManager decidirá si debe hacer scroll
       const handleFocus = () => {
         // Notificar al padre que el input está enfocado
         onFocus?.(true);
 
-        // Pequeño delay para que el teclado termine de aparecer
-        setTimeout(() => {
-          if (textareaRef.current) {
-            // Hacer scroll al input para que sea visible sobre el teclado
-            textareaRef.current.scrollIntoView({
-              behavior: 'smooth',
-              block: 'nearest',
-              inline: 'nearest'
-            });
-          }
-        }, 300);
+        // ❌ REMOVIDO: scrollIntoView forzado que violaba la regla de no interrumpir lectura de historial
+        // El ScrollManager ahora maneja esto correctamente respetando el estado del usuario
       };
 
       const handleBlur = () => {

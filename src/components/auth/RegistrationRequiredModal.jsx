@@ -66,8 +66,8 @@ export const RegistrationRequiredModal = ({
 
   return (
     <Dialog open={open} onOpenChange={onClose}>
-      <DialogContent className="sm:max-w-[500px] neon-border-card text-white p-0 max-h-[85vh] overflow-y-auto scrollbar-hide z-[100]">
-        <div className="glass-effect rounded-3xl p-6 flex flex-col w-full">
+      <DialogContent className="sm:max-w-[500px] neon-border-card text-white p-0">
+        <div className="glass-effect rounded-3xl p-6 flex flex-col w-full overflow-y-auto scrollbar-hide max-h-[90vh]">
           <DialogHeader>
             {/* Icono con efecto */}
             <div className="flex items-center justify-center mb-4">

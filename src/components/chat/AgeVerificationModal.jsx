@@ -80,17 +80,18 @@ const AgeVerificationModal = ({ isOpen, onConfirm }) => {
 
   return (
     <Dialog open={isOpen} onOpenChange={() => {}} modal>
-      <DialogContent className="bg-gradient-to-b from-slate-950 via-slate-900 to-slate-950 text-white border border-fuchsia-500/30 shadow-2xl max-w-2xl max-h-[90vh] overflow-y-auto scrollbar-hide">
-        <DialogHeader>
-          <DialogTitle className="text-2xl font-bold bg-gradient-to-r from-fuchsia-400 via-purple-400 to-cyan-400 bg-clip-text text-transparent">
-            Completa tu perfil
-          </DialogTitle>
-          <DialogDescription className="text-sm text-slate-200">
-            Confirma tu edad, elige un nombre y un avatar para continuar
-          </DialogDescription>
-        </DialogHeader>
+      <DialogContent className="bg-gradient-to-b from-slate-950 via-slate-900 to-slate-950 text-white border border-fuchsia-500/30 shadow-2xl max-w-2xl">
+        <div className="overflow-y-auto scrollbar-hide max-h-[calc(90vh-8rem)]">
+          <DialogHeader>
+            <DialogTitle className="text-2xl font-bold bg-gradient-to-r from-fuchsia-400 via-purple-400 to-cyan-400 bg-clip-text text-transparent">
+              Completa tu perfil
+            </DialogTitle>
+            <DialogDescription className="text-sm text-slate-200">
+              Confirma tu edad, elige un nombre y un avatar para continuar
+            </DialogDescription>
+          </DialogHeader>
 
-        <div className="space-y-6">
+          <div className="space-y-6">
           {/* Edad */}
           <div className="space-y-2">
             <label className="text-sm font-medium text-slate-100">
@@ -171,6 +172,7 @@ const AgeVerificationModal = ({ isOpen, onConfirm }) => {
           <p className="text-xs text-slate-400">
             Al continuar confirmas que tienes 18 años o más y aceptas las normas del chat.
           </p>
+          </div>
         </div>
 
         <DialogFooter className="sm:justify-end">

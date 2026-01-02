@@ -47,7 +47,7 @@ const Header = () => {
       }
 
       // Primero verificar si ya está en el objeto user
-      if (user.role === 'admin' || user.role === 'administrator') {
+      if (user.role === 'admin' || user.role === 'administrator' || user.role === 'superAdmin') {
         setIsAdmin(true);
         return;
       }
@@ -58,7 +58,7 @@ const Header = () => {
         if (userDoc.exists()) {
           const userData = userDoc.data();
           const role = userData.role;
-          setIsAdmin(role === 'admin' || role === 'administrator');
+          setIsAdmin(role === 'admin' || role === 'administrator' || role === 'superAdmin');
         } else {
           setIsAdmin(false);
         }
