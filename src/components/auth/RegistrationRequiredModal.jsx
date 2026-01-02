@@ -70,16 +70,16 @@ export const RegistrationRequiredModal = ({
             </DialogTitle>
 
             <DialogDescription className="text-center text-gray-300 text-base leading-relaxed space-y-3">
-              <p>
+              <div>
                 <span className="font-semibold text-purple-300">Chactivo se destaca por mantener el anonimato</span> y respetar tu privacidad.
-              </p>
-              <p>
+              </div>
+              <div>
                 Sin embargo, para disfrutar de <span className="font-semibold text-cyan-300">algunas funciones especiales</span>, es necesario estar registrado para llevar un mejor control y garantizar la seguridad de todos.
-              </p>
+              </div>
               {description && (
-                <p className="text-sm text-gray-400 italic">
+                <div className="text-sm text-gray-400 italic">
                   {description}
-                </p>
+                </div>
               )}
             </DialogDescription>
           </DialogHeader>

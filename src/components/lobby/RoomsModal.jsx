@@ -132,7 +132,8 @@ const RoomsModal = ({ isOpen, onClose }) => {
               const activityStatus = getRoomActivityStatus(realUserCount);
 
               const isAnonymousUser = user && (user.isAnonymous || user.isGuest);
-              const isGlobalRoom = room.id === 'global'; // Sala principal nueva
+              // const isGlobalRoom = room.id === 'global'; // ⚠️ DESACTIVADA
+              const isPrincipalRoom = room.id === 'principal'; // Sala principal nueva
               // 🔒 Salas restringidas: mas-30, santiago, gaming requieren autenticación
               const restrictedRooms = ['mas-30', 'santiago', 'gaming'];
               const isRestrictedRoom = restrictedRooms.includes(room.id);

@@ -134,7 +134,8 @@ const ContextualMessages = ({
    */
   const getRoomName = (id) => {
     const names = {
-      'global': 'Chat Global',
+      // 'global': 'Chat Global', // ⚠️ DESACTIVADA
+      'principal': 'Chat Principal',
       'mas-30': 'Más de 30',
       'santiago': 'Santiago',
       'gaming': 'Gaming'

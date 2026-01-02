@@ -96,9 +96,13 @@ const GlobalLandingPage = () => {
   }, []);
 
   const handleChatearAhora = () => {
-    if (user && !user.isGuest) {
+    if (user && !user.isGuest && !user.isAnonymous) {
+      navigate('/chat/principal');
+    } else if (user && (user.isGuest || user.isAnonymous)) {
+      // Usuario ya anónimo/guest - ir directo al chat
       navigate('/chat/principal');
     } else {
+      // No hay usuario - mostrar modal de entrada
       setShowEntryModal(true);
     }
   };
@@ -118,10 +122,14 @@ const GlobalLandingPage = () => {
   // };
 
   const handleEnterChat = () => {
-    if (user && !user.isGuest) {
+    if (user && !user.isGuest && !user.isAnonymous) {
+      navigate('/chat/principal');
+    } else if (user && (user.isGuest || user.isAnonymous)) {
+      // Usuario ya anónimo/guest - ir directo al chat
       navigate('/chat/principal');
     } else {
-      setShowGuestModal(true);
+      // No hay usuario - mostrar modal de entrada
+      setShowEntryModal(true);
     }
   };
 

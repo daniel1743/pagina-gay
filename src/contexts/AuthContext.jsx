@@ -505,6 +505,37 @@ export const AuthProvider = ({ children }) => {
     }
   };
 
+  /**
+   * Actualizar perfil de usuario anónimo (nombre y avatar)
+   */
+  const updateAnonymousUserProfile = async (username, avatarUrl) => {
+    if (!user || !user.isAnonymous || !user.id) return;
+
+    try {
+      // Actualizar en Firestore
+      const guestRef = doc(db, 'guests', user.id);
+      await setDoc(guestRef, {
+        username: username,
+        avatar: avatarUrl,
+        createdAt: new Date().toISOString(),
+        messageCount: user.messageCount || 0,
+        expiresAt: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString() // 30 días
+      }, { merge: true });
+
+      // Actualizar estado local
+      setUser({
+        ...user,
+        username: username,
+        avatar: avatarUrl,
+      });
+
+      return true;
+    } catch (error) {
+      console.error('Error updating anonymous user profile:', error);
+      return false;
+    }
+  };
+
   const value = {
     user,
     loading,
@@ -521,6 +552,7 @@ export const AuthProvider = ({ children }) => {
     updateThemeSetting,
     addQuickPhrase,
     removeQuickPhrase,
+    updateAnonymousUserProfile,
   };
 
   return (

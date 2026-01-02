@@ -19,7 +19,7 @@ import { toast } from '@/components/ui/use-toast';
  * Permite entrar al chat con SOLO username (sin email/password)
  * Limita a 2 avatares básicos - incentiva registro para desbloquear más
  */
-export const GuestUsernameModal = ({ open, onClose, chatRoomId = 'global' }) => {
+export const GuestUsernameModal = ({ open, onClose, chatRoomId = 'principal' }) => {
   const navigate = useNavigate();
   const { signInAsGuest } = useAuth();
 

@@ -16,22 +16,29 @@ import { useAuth } from '@/contexts/AuthContext';
  * Modal que aparece al presionar "ENTRAR GRATIS"
  * Explica que se puede usar sin registro pero ofrece beneficios del registro
  */
-export const EntryOptionsModal = ({ 
-  open, 
-  onClose, 
-  chatRoomId = 'global' // Sala por defecto (global para Chile, es-main para España, etc.)
+export const EntryOptionsModal = ({
+  open,
+  onClose,
+  chatRoomId = 'principal', // Sala por defecto (principal para Chile, es-main para España, etc.)
+  onContinueWithoutRegister // Callback del padre para abrir GuestUsernameModal
 }) => {
   const navigate = useNavigate();
   const { user } = useAuth();
 
   const handleContinueWithoutRegister = () => {
+    // Si se proporciona un callback del padre, usarlo
+    if (onContinueWithoutRegister) {
+      onContinueWithoutRegister();
+      return;
+    }
+
+    // Fallback: comportamiento por defecto
     onClose();
     // Si ya está logueado, ir directo al chat
     if (user && !user.isGuest) {
       navigate(`/chat/${chatRoomId}`);
     } else {
-      // Esto debe abrir el GuestUsernameModal desde el componente padre
-      // Por ahora, redirigir al chat que abrirá el modal automáticamente
+      // Redirigir al chat que abrirá el modal automáticamente
       navigate(`/chat/${chatRoomId}`);
     }
   };
@@ -73,13 +80,10 @@ export const EntryOptionsModal = ({
               </span>
             </DialogTitle>
 
-            <DialogDescription className="text-center text-gray-300 text-base leading-relaxed space-y-3">
-              <p>
-                Puedes usar <span className="font-semibold text-purple-300">Chactivo sin registro</span> y mantener tu anonimato completo.
-              </p>
-              <p>
-                Sin embargo, si te <span className="font-semibold text-cyan-300">registras tendrás más beneficios</span>:
-              </p>
+            <DialogDescription className="text-center text-gray-300 text-base leading-relaxed">
+              Puedes usar <span className="font-semibold text-purple-300">Chactivo sin registro</span> y mantener tu anonimato completo.
+              {' '}
+              Sin embargo, si te <span className="font-semibold text-cyan-300">registras tendrás más beneficios</span>:
             </DialogDescription>
           </DialogHeader>
 

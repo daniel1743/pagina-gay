@@ -55,7 +55,7 @@ const ChatPage = () => {
   const { roomId } = useParams();
   const navigate = useNavigate();
   const location = useLocation();
-  const { user, guestMessageCount, setGuestMessageCount, showWelcomeTour, setShowWelcomeTour } = useAuth();
+  const { user, guestMessageCount, setGuestMessageCount, showWelcomeTour, setShowWelcomeTour, updateAnonymousUserProfile } = useAuth();
 
   // ✅ Estados y refs - DEBEN estar ANTES del early return
   const [currentRoom, setCurrentRoom] = useState(roomId);
@@ -1048,21 +1048,48 @@ const ChatPage = () => {
 
         <AgeVerificationModal
           isOpen={showAgeVerification}
-          onConfirm={(age) => {
+          onConfirm={async (age, username, avatar) => {
             if (!user || !user.id) return;
-            const ageKey = `age_verified_${user.id}`;
-            // ✅ Guardar en localStorage para persistencia permanente
-            localStorage.setItem(ageKey, String(age));
-            // ✅ Limpiar flag de sesión para que no se vuelva a mostrar
-            const hasShownKey = `age_modal_shown_${user.id}`;
-            sessionStorage.removeItem(hasShownKey);
-            setIsAgeVerified(true);
-            setShowAgeVerification(false);
-            console.log(`[AGE VERIFICATION] ✅ Usuario ${user.id} confirmó edad: ${age} años - NO se mostrará más`);
-            toast({
-              title: "✅ Edad confirmada",
-              description: "Acceso permitido. Recuerda seguir las reglas del chat.",
-            });
+            
+            try {
+              // Actualizar usuario anónimo con nombre y avatar
+              if (user.isAnonymous) {
+                const updated = await updateAnonymousUserProfile(username, avatar.url);
+                if (!updated) {
+                  toast({
+                    title: "Error",
+                    description: "No se pudo actualizar el perfil. Intenta nuevamente.",
+                    variant: "destructive",
+                  });
+                  return;
+                }
+              }
+
+              // Guardar edad en localStorage
+              const ageKey = `age_verified_${user.id}`;
+              localStorage.setItem(ageKey, String(age));
+              
+              // Limpiar flag de sesión para que no se vuelva a mostrar
+              const hasShownKey = `age_modal_shown_${user.id}`;
+              sessionStorage.removeItem(hasShownKey);
+              
+              setIsAgeVerified(true);
+              setShowAgeVerification(false);
+              
+              console.log(`[AGE VERIFICATION] ✅ Usuario ${user.id} confirmó edad: ${age} años, nombre: ${username} - NO se mostrará más`);
+              
+              toast({
+                title: "✅ Perfil completado",
+                description: `Bienvenido ${username}! Recuerda seguir las reglas del chat.`,
+              });
+            } catch (error) {
+              console.error('Error updating anonymous user:', error);
+              toast({
+                title: "Error",
+                description: "No se pudo guardar el perfil. Intenta nuevamente.",
+                variant: "destructive",
+              });
+            }
           }}
         />
 

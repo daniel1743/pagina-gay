@@ -5,7 +5,7 @@
  * 1. Cada bot SOLO puede estar en UNA sala a la vez
  * 2. Cada bot tiene nombres/avatares DIFERENTES en cada sala
  * 3. PROHIBIDO usar el mismo nombre/avatar en múltiples salas
- * 4. Si un bot está en "global", NO puede estar en "santiago" o "viña"
+ * 4. Si un bot está en "principal", NO puede estar en "santiago" o "viña"
  */
 
 import { BOT_PROFILES } from '@/config/botProfiles';
@@ -15,7 +15,8 @@ const botRoomAssignments = new Map(); // Map<botId, roomId>
 
 // ✅ Nombres disponibles por sala (pool de nombres)
 const ROOM_NAME_POOLS = {
-  global: ['Sebastián', 'Diego', 'Matías', 'Felipe', 'Cristian', 'Rodrigo', 'Pablo', 'Javier'],
+  // global: ['Sebastián', 'Diego', 'Matías', 'Felipe', 'Cristian', 'Rodrigo', 'Pablo', 'Javier'], // ⚠️ DESACTIVADA
+  principal: ['Sebastián', 'Diego', 'Matías', 'Felipe', 'Cristian', 'Rodrigo', 'Pablo', 'Javier'],
   santiago: ['Joaquín', 'Tomás', 'Vicente', 'Benjamín', 'Lucas', 'Martín', 'Agustín', 'Manuel'],
   gaming: ['Gamer_Alex', 'ProGamer_Max', 'PlayerOne', 'GG_Franco', 'Noob_Destroyer', 'MVP_Chris', 'GG_Mateo', 'LevelUp'],
   'mas-30': ['Carlos', 'Fernando', 'Roberto', 'Alejandro', 'Mauricio', 'Sergio', 'Ricardo', 'Eduardo'],
@@ -26,7 +27,8 @@ const ROOM_NAME_POOLS = {
 
 // ✅ Avatares diferentes por sala (diferentes seeds para DiceBear)
 const ROOM_AVATAR_SEEDS = {
-  global: ['Apollo', 'Zeus', 'Hermes', 'Ares', 'Atlas', 'Orion', 'Phoenix', 'Thor'],
+  // global: ['Apollo', 'Zeus', 'Hermes', 'Ares', 'Atlas', 'Orion', 'Phoenix', 'Thor'], // ⚠️ DESACTIVADA
+  principal: ['Apollo', 'Zeus', 'Hermes', 'Ares', 'Atlas', 'Orion', 'Phoenix', 'Thor'],
   santiago: ['Luna', 'Sol', 'Estrella', 'Cometa', 'Galaxia', 'Nebulosa', 'Cosmos', 'Astro'],
   gaming: ['Pixel', 'Byte', 'Code', 'Debug', 'Hack', 'Glitch', 'Script', 'Binary'],
   'mas-30': ['Oak', 'Pine', 'Cedar', 'Maple', 'Birch', 'Willow', 'Ash', 'Elm'],
@@ -37,7 +39,8 @@ const ROOM_AVATAR_SEEDS = {
 
 // ✅ Colores de fondo diferentes por sala
 const ROOM_AVATAR_COLORS = {
-  global: ['b6e3f4', 'c0aede', 'ffdfbf', 'ffd5dc'],
+  // global: ['b6e3f4', 'c0aede', 'ffdfbf', 'ffd5dc'], // ⚠️ DESACTIVADA
+  principal: ['b6e3f4', 'c0aede', 'ffdfbf', 'ffd5dc'],
   santiago: ['a8e6cf', 'feca57', 'd1d4f9', 'ff6b9d'],
   gaming: ['00d2ff', '00ff88', 'ff0080', 'ffea00'],
   'mas-30': ['8b7355', 'a0826d', 'b8956a', 'c9a87c'],
@@ -114,7 +117,7 @@ export const getBotsInRoom = (roomId) => {
  */
 export const generateUniqueBotName = (botId, roomId) => {
   // Obtener pool de nombres de la sala
-  const namePool = ROOM_NAME_POOLS[roomId] || ROOM_NAME_POOLS.global;
+  const namePool = ROOM_NAME_POOLS[roomId] || ROOM_NAME_POOLS.principal;
 
   // Obtener nombres ya usados en esta sala
   if (!usedNamesPerRoom.has(roomId)) {
@@ -149,8 +152,8 @@ export const generateUniqueBotName = (botId, roomId) => {
  */
 export const generateUniqueBotAvatar = (botId, roomId) => {
   // Obtener pool de seeds de la sala
-  const seedPool = ROOM_AVATAR_SEEDS[roomId] || ROOM_AVATAR_SEEDS.global;
-  const colorPool = ROOM_AVATAR_COLORS[roomId] || ROOM_AVATAR_COLORS.global;
+  const seedPool = ROOM_AVATAR_SEEDS[roomId] || ROOM_AVATAR_SEEDS.principal;
+  const colorPool = ROOM_AVATAR_COLORS[roomId] || ROOM_AVATAR_COLORS.principal;
 
   // Obtener avatares ya usados en esta sala
   if (!usedAvatarsPerRoom.has(roomId)) {
