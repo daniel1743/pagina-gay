@@ -109,7 +109,10 @@ const GlobalLandingPage = () => {
 
   const handleContinueWithoutRegister = () => {
     setShowEntryModal(false);
-    setShowGuestModal(true);
+    // ✅ Pequeño delay para evitar overlays conflictivos entre modales
+    setTimeout(() => {
+      setShowGuestModal(true);
+    }, 150); // Espera a que el primer modal termine su animación de cierre
   };
 
   // COMENTADO: Botón crear cuenta deshabilitado

@@ -263,3 +263,62 @@
     @apply text-xs px-2 py-1.5;
   }
 }
+
+/* ✅ FIX MOBILE: Estabilización del input cuando aparece el teclado virtual */
+@supports (-webkit-touch-callout: none) {
+  /* Solo para iOS/Safari */
+  body {
+    /* Prevenir que el body se desplace cuando aparece el teclado */
+    position: fixed;
+    width: 100%;
+    overflow: hidden;
+  }
+
+  #root {
+    /* Permitir scroll solo en el root */
+    width: 100%;
+    overflow-y: auto;
+    overflow-x: hidden;
+    -webkit-overflow-scrolling: touch;
+    min-height: 100vh;
+    max-height: 100vh;
+  }
+}
+
+/* ✅ Prevenir zoom en iOS cuando se enfoca un input */
+@media screen and (max-width: 768px) {
+  input[type="text"],
+  input[type="password"],
+  input[type="email"],
+  input[type="search"],
+  textarea {
+    font-size: 16px !important; /* Previene zoom en iOS */
+  }
+}
+
+/* ✅ Soporte para safe-area en dispositivos con notch */
+@supports (padding: max(0px)) {
+  body {
+    padding-top: env(safe-area-inset-top);
+    padding-bottom: env(safe-area-inset-bottom);
+    padding-left: env(safe-area-inset-left);
+    padding-right: env(safe-area-inset-right);
+  }
+}
+
+/* ✅ Prevenir el "bounce" en iOS cuando se hace scroll */
+html,
+body {
+  overscroll-behavior-y: none;
+  -webkit-overflow-scrolling: touch;
+}
+
+/* ✅ Asegurar que los elementos sticky funcionen correctamente en móvil */
+@media (max-width: 768px) {
+  .sticky,
+  [style*="position: sticky"],
+  [style*="position:sticky"] {
+    position: -webkit-sticky;
+    position: sticky;
+  }
+}

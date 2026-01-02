@@ -116,6 +116,16 @@ const PrivateChatWindow = ({ user, partner, onClose, chatId }) => {
       </header>
 
       <div className="flex-1 overflow-y-auto p-3 space-y-3 scrollbar-hide">
+        {messages.length === 0 ? (
+          <div className="flex flex-col items-center justify-center h-full text-center px-4">
+            <p className="text-muted-foreground text-sm mb-2">
+              No hay mensajes aún
+            </p>
+            <p className="text-muted-foreground/70 text-xs">
+              Envía el primer mensaje para comenzar la conversación
+            </p>
+          </div>
+        ) : (
          <AnimatePresence>
             {messages.map((msg) => {
                 const isOwn = msg.userId === user.id;
@@ -140,6 +150,7 @@ const PrivateChatWindow = ({ user, partner, onClose, chatId }) => {
                 );
             })}
          </AnimatePresence>
+        )}
         <div ref={messagesEndRef} />
       </div>
 

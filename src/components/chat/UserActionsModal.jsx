@@ -16,9 +16,7 @@ import {
   incrementDirectMessages,
   getCurrentLimits,
 } from '@/services/limitService';
-import { RegistrationRequiredModal } from '@/components/auth/RegistrationRequiredModal';
-
-const UserActionsModal = ({ user: targetUser, onClose, onViewProfile }) => {
+const UserActionsModal = ({ user: targetUser, onClose, onViewProfile, onShowRegistrationModal }) => {
   const { user: currentUser } = useAuth();
   const navigate = useNavigate();
   const [showMessageInput, setShowMessageInput] = useState(false);
@@ -31,8 +29,6 @@ const UserActionsModal = ({ user: targetUser, onClose, onViewProfile }) => {
     chatInvites: { used: 0, remaining: 5, limit: 5 },
     directMessages: { used: 0, remaining: 3, limit: 3 },
   });
-  const [showRegistrationModal, setShowRegistrationModal] = useState(false);
-  const [registrationModalFeature, setRegistrationModalFeature] = useState(null);
 
   // Cargar límites actuales al montar (solo para usuarios FREE, no Admin ni Premium)
   useEffect(() => {
@@ -120,8 +116,10 @@ const UserActionsModal = ({ user: targetUser, onClose, onViewProfile }) => {
       console.warn('⚠️ [DEBUG] Solicitud bloqueada. Razón:', canSend.reason);
       console.warn('⚠️ [DEBUG] Mensaje:', canSend.message);
       if (canSend.reason === 'guest') {
-        setRegistrationModalFeature('invitar');
-        setShowRegistrationModal(true);
+        onClose(); // Cerrar el modal de acciones primero
+        if (onShowRegistrationModal) {
+          onShowRegistrationModal('invitar');
+        }
         return;
       }
 
@@ -183,8 +181,10 @@ const UserActionsModal = ({ user: targetUser, onClose, onViewProfile }) => {
 
   const handleToggleFavorite = async () => {
     if (currentUser.isGuest || currentUser.isAnonymous) {
-      setRegistrationModalFeature('favoritos');
-      setShowRegistrationModal(true);
+      onClose(); // Cerrar el modal de acciones primero
+      if (onShowRegistrationModal) {
+        onShowRegistrationModal('favoritos');
+      }
       return;
     }
 
@@ -258,7 +258,6 @@ const UserActionsModal = ({ user: targetUser, onClose, onViewProfile }) => {
   };
 
   return (
-    <>
     <Dialog open={true} onOpenChange={onClose}>
       <DialogContent className="bg-card border text-foreground max-w-md rounded-2xl p-0">
         <DialogHeader className="p-6 pb-4">
@@ -495,14 +494,6 @@ const UserActionsModal = ({ user: targetUser, onClose, onViewProfile }) => {
         </Button>
       </DialogContent>
     </Dialog>
-
-    {/* Modal de registro requerido */}
-    <RegistrationRequiredModal
-      open={showRegistrationModal}
-      onClose={() => setShowRegistrationModal(false)}
-      featureName={registrationModalFeature}
-    />
-  </>
   );
 };
 

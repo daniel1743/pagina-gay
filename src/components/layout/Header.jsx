@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
 import { useTheme } from '@/contexts/ThemeContext';
 import { Button } from '@/components/ui/button';
@@ -8,6 +8,8 @@ import { Bell, LogIn, ChevronDown, Circle, Sun, Moon, CheckCircle, Shield } from
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import ComingSoonModal from '@/components/ui/ComingSoonModal';
 import SystemNotificationsPanel from '@/components/notifications/SystemNotificationsPanel';
+import { EntryOptionsModal } from '@/components/auth/EntryOptionsModal';
+import { GuestUsernameModal } from '@/components/auth/GuestUsernameModal';
 import { doc, getDoc } from 'firebase/firestore';
 import { db } from '@/config/firebase';
 import { subscribeToSystemNotifications } from '@/services/systemNotificationsService';
@@ -15,6 +17,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 
 const Header = () => {
   const navigate = useNavigate();
+  const location = useLocation();
   const { user, logout } = useAuth();
   const { theme, toggleTheme } = useTheme();
   const [showComingSoon, setShowComingSoon] = useState(false);
@@ -24,6 +27,8 @@ const Header = () => {
   const [unreadNotificationsCount, setUnreadNotificationsCount] = useState(0);
   const [showBetaPulse, setShowBetaPulse] = useState(true);
   const [logoSrc, setLogoSrc] = useState("/LOGO-TRASPARENTE.png");
+  const [showEntryModal, setShowEntryModal] = useState(false);
+  const [showGuestModal, setShowGuestModal] = useState(false);
 
   // Desactivar animación del badge Beta después de 5 segundos
   useEffect(() => {
@@ -67,6 +72,15 @@ const Header = () => {
   const handleFeatureComingSoon = (featureName, description = '') => {
     setComingSoonFeature({ name: featureName, description });
     setShowComingSoon(true);
+  };
+
+  // ✅ Handler para transición entre modales (evita overlays conflictivos)
+  const handleContinueWithoutRegister = () => {
+    setShowEntryModal(false);
+    // Pequeño delay para evitar overlays conflictivos entre modales
+    setTimeout(() => {
+      setShowGuestModal(true);
+    }, 150); // Espera a que el primer modal termine su animación de cierre
   };
 
   // Suscribirse a notificaciones para obtener contador en tiempo real
@@ -233,9 +247,12 @@ const Header = () => {
                   // Si el usuario está logueado, ir directo al chat
                   if (user && !user.isGuest && !user.isAnonymous) {
                     navigate('/chat/principal');
+                  } else if (user && (user.isGuest || user.isAnonymous)) {
+                    // Usuario ya anónimo/guest - ir directo al chat
+                    navigate('/chat/principal');
                   } else {
-                    // Si no está logueado, ir a landing con parámetro para abrir modal
-                    navigate('/landing?openEntry=true');
+                    // No hay usuario - abrir modal de entrada directamente
+                    setShowEntryModal(true);
                   }
                 }}
                 className="magenta-gradient text-white font-bold px-4 sm:px-6 py-2 sm:py-2.5 rounded-lg shadow-lg hover:shadow-[#E4007C]/50 transition-all hover:scale-105"
@@ -259,6 +276,20 @@ const Header = () => {
         isOpen={showNotifications}
         onClose={() => setShowNotifications(false)}
         onNotificationCountChange={setUnreadNotificationsCount}
+      />
+
+      {/* ✅ Modales de Entrada */}
+      <EntryOptionsModal
+        open={showEntryModal}
+        onClose={() => setShowEntryModal(false)}
+        chatRoomId="principal"
+        onContinueWithoutRegister={handleContinueWithoutRegister}
+      />
+
+      <GuestUsernameModal
+        open={showGuestModal}
+        onClose={() => setShowGuestModal(false)}
+        chatRoomId="principal"
       />
     </header>
   );

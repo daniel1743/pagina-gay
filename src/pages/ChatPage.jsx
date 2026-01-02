@@ -14,6 +14,7 @@ import UserProfileModal from '@/components/chat/UserProfileModal';
 import UserActionsModal from '@/components/chat/UserActionsModal';
 import ReportModal from '@/components/chat/ReportModal';
 import PrivateChatRequestModal from '@/components/chat/PrivateChatRequestModal';
+import PrivateChatInviteToast from '@/components/chat/PrivateChatInviteToast';
 import VerificationModal from '@/components/chat/VerificationModal';
 import TypingIndicator from '@/components/chat/TypingIndicator';
 import WelcomeTour from '@/components/onboarding/WelcomeTour';
@@ -27,6 +28,7 @@ import PrivateChatWindow from '@/components/chat/PrivateChatWindow';
 import { RegistrationRequiredModal } from '@/components/auth/RegistrationRequiredModal';
 import { sendMessage, subscribeToRoomMessages, addReactionToMessage, markMessagesAsRead } from '@/services/chatService';
 import { joinRoom, leaveRoom, subscribeToRoomUsers, subscribeToMultipleRoomCounts, updateUserActivity, cleanInactiveUsers, filterActiveUsers } from '@/services/presenceService';
+import { sendPrivateChatRequest, respondToPrivateChatRequest, subscribeToNotifications } from '@/services/socialService';
 import { sendModeratorWelcome } from '@/services/moderatorWelcome';
 import { checkAndSeedConversations } from '@/services/seedConversationsService';
 import { trackPageView, trackPageExit, trackRoomJoined, trackMessageSent } from '@/services/analyticsService';
@@ -651,6 +653,54 @@ const ChatPage = () => {
     return () => unsubscribe();
   }, [user]);
 
+  // ✅ Suscribirse a notificaciones de chat privado
+  useEffect(() => {
+    if (!user || user.isGuest || user.isAnonymous) return;
+
+    const unsubscribe = subscribeToNotifications(user.id, (notifications) => {
+      // Buscar solicitudes de chat privado pendientes
+      const pendingRequests = notifications.filter(n => 
+        n.type === 'private_chat_request' && n.status === 'pending'
+      );
+
+      if (pendingRequests.length > 0 && !privateChatRequest) {
+        const latestRequest = pendingRequests[0];
+        // Establecer la solicitud en el estado para mostrar el toast/modal
+        setPrivateChatRequest({
+          from: {
+            userId: latestRequest.from,
+            username: latestRequest.fromUsername,
+            avatar: latestRequest.fromAvatar,
+            isPremium: latestRequest.fromIsPremium,
+          },
+          to: user,
+          notificationId: latestRequest.id
+        });
+      }
+
+      // Buscar notificaciones de chat aceptado
+      const acceptedChats = notifications.filter(n => 
+        n.type === 'private_chat_accepted'
+      );
+
+      if (acceptedChats.length > 0 && !activePrivateChat) {
+        const latestAccepted = acceptedChats[0];
+        setActivePrivateChat({
+          user: user,
+          partner: {
+            userId: latestAccepted.from,
+            username: latestAccepted.fromUsername,
+            avatar: latestAccepted.fromAvatar,
+            isPremium: latestAccepted.fromIsPremium,
+          },
+          chatId: latestAccepted.chatId
+        });
+      }
+    });
+
+    return () => unsubscribe();
+  }, [user, privateChatRequest, activePrivateChat]);
+
   // Navegar cuando cambia la sala actual (solo si estamos en una ruta de chat)
   useEffect(() => {
     // ✅ FIX: Solo navegar si estamos en una ruta de chat, no cuando navegamos a otras páginas
@@ -842,21 +892,49 @@ const ChatPage = () => {
   /**
    * Solicitud de chat privado
    */
-  const handlePrivateChatRequest = (targetUser) => {
+  const handlePrivateChatRequest = async (targetUser) => {
+    // ✅ VALIDACIÓN: Si el usuario actual es anónimo o guest, mostrar modal de registro
     if (user.isGuest || user.isAnonymous) {
       setShowRegistrationModal(true);
       setRegistrationModalFeature('chat privado');
       return;
     }
+
+    // ✅ VALIDACIÓN: Si el usuario objetivo es anónimo o guest, mostrar alerta
+    if (targetUser.isAnonymous || targetUser.isGuest) {
+      toast({
+        title: "⚠️ Usuario Anónimo",
+        description: `${targetUser.username} es un usuario anónimo y no puede participar en chats privados. Los usuarios anónimos deben registrarse para usar esta función.`,
+        variant: "default",
+        duration: 5000,
+      });
+      return;
+    }
+
     if (targetUser.userId === user.id) return;
 
     if (targetUser.userId === 'demo-user-123') {
       setActivePrivateChat({ user, partner: targetUser });
-    } else {
+      return;
+    }
+
+    try {
+      // ✅ Usar el servicio para enviar la solicitud a Firestore
+      await sendPrivateChatRequest(user.id, targetUser.userId);
+      
+      // Mostrar estado local para el emisor (solicitud enviada)
       setPrivateChatRequest({ from: user, to: targetUser });
+      
       toast({
         title: "Solicitud enviada",
         description: `Has invitado a ${targetUser.username} a un chat privado.`,
+      });
+    } catch (error) {
+      console.error('Error sending private chat request:', error);
+      toast({
+        title: "Error",
+        description: "No se pudo enviar la solicitud de chat privado.",
+        variant: "destructive",
       });
     }
   };
@@ -864,23 +942,63 @@ const ChatPage = () => {
   /**
    * Respuesta a solicitud de chat privado
    */
-  const handlePrivateChatResponse = (accepted) => {
-    if (accepted) {
-      toast({
-        title: "¡Chat privado aceptado!",
-        description: `Ahora estás en un chat privado con ${privateChatRequest.to.username}.`,
-      });
-      setActivePrivateChat({
-        user: user,
-        partner: privateChatRequest.to
-      });
+  const handlePrivateChatResponse = async (accepted, notificationId = null) => {
+    if (!privateChatRequest) return;
+
+    const isReceiver = user.id === privateChatRequest.to.userId;
+    const partnerName = isReceiver ? privateChatRequest.from.username : privateChatRequest.to.username;
+    const partner = isReceiver ? privateChatRequest.from : privateChatRequest.to;
+
+    // ✅ Si es receptor y hay notificationId, usar el servicio para responder
+    if (isReceiver && notificationId) {
+      try {
+        const result = await respondToPrivateChatRequest(user.id, notificationId, accepted);
+        
+        if (accepted && result?.chatId) {
+          setActivePrivateChat({
+            user: user,
+            partner: partner,
+            chatId: result.chatId
+          });
+          toast({
+            title: "¡Chat privado aceptado!",
+            description: `Ahora estás en un chat privado con ${partnerName}.`,
+          });
+        } else if (!accepted) {
+          toast({
+            title: "Solicitud rechazada",
+            description: `Has rechazado la invitación de ${partnerName}.`,
+            variant: "destructive"
+          });
+        }
+      } catch (error) {
+        console.error('Error responding to private chat request:', error);
+        toast({
+          title: "Error",
+          description: "No se pudo procesar la respuesta.",
+          variant: "destructive",
+        });
+      }
     } else {
-      toast({
-        title: "Solicitud rechazada",
-        description: `${privateChatRequest.to.username} ha rechazado la invitación.`,
-        variant: "destructive"
-      });
+      // Para el emisor o cuando no hay notificationId (compatibilidad)
+      if (accepted) {
+        setActivePrivateChat({
+          user: user,
+          partner: partner
+        });
+        toast({
+          title: "¡Chat privado aceptado!",
+          description: `Ahora estás en un chat privado con ${partnerName}.`,
+        });
+      } else {
+        toast({
+          title: "Solicitud rechazada",
+          description: `Has rechazado la invitación de ${partnerName}.`,
+          variant: "destructive"
+        });
+      }
     }
+    
     setPrivateChatRequest(null);
   };
 
@@ -985,9 +1103,18 @@ const ChatPage = () => {
 
         {userActionsTarget && (
           <UserActionsModal
-            user={userActionsTarget}
+            user={{
+              ...userActionsTarget,
+              // Buscar información completa del usuario en roomUsers para verificar si es anónimo
+              isAnonymous: roomUsers.find(u => (u.userId || u.id) === userActionsTarget.userId)?.isAnonymous || false,
+              isGuest: roomUsers.find(u => (u.userId || u.id) === userActionsTarget.userId)?.isGuest || false,
+            }}
             onClose={() => setUserActionsTarget(null)}
             onViewProfile={() => setSelectedUser(userActionsTarget)}
+            onShowRegistrationModal={(feature) => {
+              setRegistrationModalFeature(feature);
+              setShowRegistrationModal(true);
+            }}
           />
         )}
 
@@ -1010,14 +1137,36 @@ const ChatPage = () => {
           />
         )}
 
-        {privateChatRequest && (
-          <PrivateChatRequestModal
-            request={privateChatRequest}
-            currentUser={user}
-            onResponse={handlePrivateChatResponse}
-            onClose={() => setPrivateChatRequest(null)}
-          />
-        )}
+        {privateChatRequest && (() => {
+          const isReceiver = user.id === privateChatRequest.to.userId;
+          const isSender = user.id === privateChatRequest.from.id;
+
+          // ✅ Si es el receptor, mostrar toast discreto arriba
+          if (isReceiver) {
+            return (
+              <PrivateChatInviteToast
+                request={privateChatRequest}
+                onAccept={() => handlePrivateChatResponse(true, privateChatRequest.notificationId)}
+                onDecline={() => handlePrivateChatResponse(false, privateChatRequest.notificationId)}
+                onClose={() => setPrivateChatRequest(null)}
+              />
+            );
+          }
+
+          // ✅ Si es el emisor, mostrar modal tradicional (Solicitud Enviada)
+          if (isSender) {
+            return (
+              <PrivateChatRequestModal
+                request={privateChatRequest}
+                currentUser={user}
+                onResponse={handlePrivateChatResponse}
+                onClose={() => setPrivateChatRequest(null)}
+              />
+            );
+          }
+
+          return null;
+        })()}
 
         {/* 🔥 DESHABILITADO: Modal de tiempo eliminado para invitados */}
         {/* {showVerificationModal && (

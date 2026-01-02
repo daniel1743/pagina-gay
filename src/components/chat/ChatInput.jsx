@@ -61,7 +61,7 @@ const ChatInput = ({ onSendMessage, onFocus, onBlur, externalMessage = null }) =
   const wrapperRef = useRef(null);
   const textareaRef = useRef(null);
 
-  // 📱 FIX MÓVIL: Asegurar que el textarea sea focusable en dispositivos móviles
+  // 📱 FIX MÓVIL: Asegurar que el textarea sea focusable y visible en dispositivos móviles
   useEffect(() => {
     if (textareaRef.current) {
       // Forzar que el elemento sea focusable
@@ -73,15 +73,41 @@ const ChatInput = ({ onSendMessage, onFocus, onBlur, externalMessage = null }) =
         e.currentTarget.focus({ preventScroll: false });
       };
 
+      // ✅ FIX: Cuando el textarea recibe focus, hacer scroll suave para que sea visible
+      const handleFocus = () => {
+        // Notificar al padre que el input está enfocado
+        onFocus?.(true);
+
+        // Pequeño delay para que el teclado termine de aparecer
+        setTimeout(() => {
+          if (textareaRef.current) {
+            // Hacer scroll al input para que sea visible sobre el teclado
+            textareaRef.current.scrollIntoView({
+              behavior: 'smooth',
+              block: 'nearest',
+              inline: 'nearest'
+            });
+          }
+        }, 300);
+      };
+
+      const handleBlur = () => {
+        onBlur?.(false);
+      };
+
       textareaRef.current.addEventListener('touchstart', handleTouchStart, { passive: true });
+      textareaRef.current.addEventListener('focus', handleFocus);
+      textareaRef.current.addEventListener('blur', handleBlur);
 
       return () => {
         if (textareaRef.current) {
           textareaRef.current.removeEventListener('touchstart', handleTouchStart);
+          textareaRef.current.removeEventListener('focus', handleFocus);
+          textareaRef.current.removeEventListener('blur', handleBlur);
         }
       };
     }
-  }, []);
+  }, [onFocus, onBlur]);
 
   useEffect(() => {
     function handleClickOutside(event) {
@@ -205,7 +231,16 @@ const ChatInput = ({ onSendMessage, onFocus, onBlur, externalMessage = null }) =
   }, [user?.isPremium]);
 
   return (
-    <div className="bg-card border-t p-3 sm:p-4 shrink-0 relative safe-area-inset-bottom" ref={wrapperRef}>
+    <div
+      className="bg-card border-t p-3 sm:p-4 shrink-0 relative z-40"
+      ref={wrapperRef}
+      style={{
+        position: 'sticky',
+        bottom: 0,
+        paddingBottom: 'max(0.75rem, env(safe-area-inset-bottom))',
+        marginBottom: 'env(safe-area-inset-bottom)',
+      }}
+    >
       <AnimatePresence>
         {showEmojiPicker && (
           <motion.div
@@ -307,8 +342,6 @@ const ChatInput = ({ onSendMessage, onFocus, onBlur, externalMessage = null }) =
           ref={textareaRef}
           value={message}
           onChange={(e) => setMessage(e.target.value)}
-          onFocus={() => onFocus?.(true)}
-          onBlur={() => onBlur?.(false)}
           onKeyDown={(e) => {
             // En móvil, Enter envía el mensaje (no hace salto de línea)
             if (e.key === 'Enter' && !e.shiftKey) {
