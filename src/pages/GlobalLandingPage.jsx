@@ -827,42 +827,25 @@ const GlobalLandingPage = () => {
           </div>
         </motion.section>
 
-        {/* ❓ SECCIÓN FAQ DE CONFIANZA - Preguntas Frecuentes con SEO */}
+        {/* ❓ SECCIÓN FAQ - Compacta con Acordeón Desplegable */}
         <motion.section
           initial={{ opacity: 0, y: 30 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.6, delay: 0.3 }}
-          className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 py-12 sm:py-16 mb-12 sm:mb-16"
+          className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-8 sm:py-12 mb-8 sm:mb-12"
         >
-          {/* Badge superior */}
-          <motion.div
-            initial={{ opacity: 0, y: -10 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.4 }}
-            className="flex justify-center mb-6"
-          >
-            <div className="glass-effect px-6 py-3 rounded-full border border-cyan-500/40 backdrop-blur-xl">
-              <p className="text-sm sm:text-base font-bold bg-gradient-to-r from-cyan-400 to-blue-400 bg-clip-text text-transparent flex items-center gap-2">
-                <svg className="w-5 h-5 text-cyan-400" fill="currentColor" viewBox="0 0 20 20">
-                  <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-8-3a1 1 0 00-.867.5 1 1 0 11-1.731-1A3 3 0 0113 8a3.001 3.001 0 01-2 2.83V11a1 1 0 11-2 0v-1a1 1 0 011-1 1 1 0 100-2zm0 8a1 1 0 100-2 1 1 0 000 2z" clipRule="evenodd" />
-                </svg>
-                <span>Preguntas Frecuentes</span>
-              </p>
-            </div>
-          </motion.div>
-
-          {/* Título */}
-          <h2 className="text-3xl sm:text-4xl md:text-5xl font-extrabold text-center mb-4">
-            <span className="bg-gradient-to-r from-cyan-400 via-blue-400 to-purple-400 bg-clip-text text-transparent">
-              Todo lo que Necesitas Saber
+          {/* Título compacto */}
+          <h2 className="text-2xl sm:text-3xl font-bold text-center mb-3">
+            <span className="bg-gradient-to-r from-cyan-400 to-blue-400 bg-clip-text text-transparent">
+              Preguntas Frecuentes
             </span>
           </h2>
-          <p className="text-center text-lg sm:text-xl text-muted-foreground mb-12 max-w-3xl mx-auto">
-            Respuestas claras a las preguntas más comunes sobre privacidad, seguridad y funcionamiento
+          <p className="text-center text-sm sm:text-base text-muted-foreground mb-8 max-w-2xl mx-auto">
+            ¿Dudas? Haz clic en las preguntas para ver las respuestas
           </p>
 
-          {/* Acordeón de preguntas */}
-          <div className="space-y-4">
+          {/* Acordeón de preguntas - Más compacto */}
+          <div className="space-y-2">
             {[
               {
                 q: "¿Es realmente gratis?",
@@ -905,50 +888,35 @@ const GlobalLandingPage = () => {
                 a: "Enfoque: somos comunidad, no solo hookups. Privacidad real (no vendemos datos). Sin bots ni perfiles fake. Moderación humana 24/7. Sin publicidad invasiva. Ambiente más relajado y conversacional. Ideal para hacer amigos, no solo citas. Y 100% gratis para chatear."
               },
             ].map((faq, index) => (
-              <motion.details
+              <details
                 key={index}
-                initial={{ opacity: 0, y: 10 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ delay: 0.5 + index * 0.05 }}
-                className="glass-effect rounded-xl border border-cyan-500/30 hover:border-cyan-500/60 transition-all group"
+                className="glass-effect rounded-lg border border-cyan-500/20 hover:border-cyan-500/40 transition-all group"
               >
-                <summary className="p-5 sm:p-6 cursor-pointer flex items-start justify-between gap-4 font-semibold text-base sm:text-lg text-foreground list-none">
-                  <div className="flex items-start gap-3 flex-1">
-                    <svg className="w-6 h-6 text-cyan-400 flex-shrink-0 mt-0.5" fill="currentColor" viewBox="0 0 20 20">
-                      <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-8-3a1 1 0 00-.867.5 1 1 0 11-1.731-1A3 3 0 0113 8a3.001 3.001 0 01-2 2.83V11a1 1 0 11-2 0v-1a1 1 0 011-1 1 1 0 100-2zm0 8a1 1 0 100-2 1 1 0 000 2z" clipRule="evenodd" />
-                    </svg>
-                    <span>{faq.q}</span>
-                  </div>
-                  <svg className="w-5 h-5 text-cyan-400 flex-shrink-0 transition-transform group-open:rotate-180" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <summary className="p-3 sm:p-4 cursor-pointer flex items-center justify-between gap-3 font-medium text-sm sm:text-base text-foreground list-none">
+                  <span className="flex-1">{faq.q}</span>
+                  <svg className="w-4 h-4 text-cyan-400 flex-shrink-0 transition-transform group-open:rotate-180" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
                   </svg>
                 </summary>
-                <div className="px-5 sm:px-6 pb-5 sm:pb-6 pt-0">
-                  <div className="pl-9 text-sm sm:text-base text-gray-300 leading-relaxed border-l-2 border-cyan-500/30 ml-3">
-                    <p className="pl-4">{faq.a}</p>
-                  </div>
+                <div className="px-3 sm:px-4 pb-3 sm:pb-4 pt-0">
+                  <p className="text-xs sm:text-sm text-gray-300 leading-relaxed">{faq.a}</p>
                 </div>
-              </motion.details>
+              </details>
             ))}
           </div>
 
-          {/* CTA después del FAQ */}
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 1.0 }}
-            className="text-center mt-12"
-          >
-            <p className="text-lg text-muted-foreground mb-6">
-              ¿Listo para probarlo? Es gratis y toma 10 segundos
+          {/* CTA después del FAQ - Compacto */}
+          <div className="text-center mt-8">
+            <p className="text-sm text-muted-foreground mb-4">
+              ¿Más dudas? Entra y pruébalo gratis
             </p>
             <Button
               onClick={handleChatearAhora}
-              className="magenta-gradient text-white font-bold text-lg sm:text-xl px-8 sm:px-12 py-6 sm:py-7 rounded-xl shadow-xl hover:shadow-[#E4007C]/50 hover:scale-105 transition-all"
+              className="magenta-gradient text-white font-bold text-base sm:text-lg px-6 sm:px-8 py-3 sm:py-4 rounded-xl shadow-lg hover:shadow-[#E4007C]/50 hover:scale-105 transition-all"
             >
-              🚀 Unirme Ahora Gratis
+              Entrar Ahora
             </Button>
-          </motion.div>
+          </div>
         </motion.section>
 
         {/* ✅ SECCIÓN DEL CREADOR - Compacta */}

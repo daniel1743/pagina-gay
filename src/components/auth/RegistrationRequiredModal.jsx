@@ -9,7 +9,7 @@ import {
   DialogDescription,
 } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
-import { Shield, UserPlus, ArrowRight, X } from 'lucide-react';
+import { Shield, UserPlus, ArrowRight } from 'lucide-react';
 
 /**
  * Modal que aparece cuando el usuario intenta acceder a funciones que requieren registro
@@ -19,10 +19,31 @@ export const RegistrationRequiredModal = ({
   open, 
   onClose, 
   onContinue = null,
-  title = "Registro Requerido",
-  description = "Esta función requiere estar registrado para mantener un mejor control y seguridad."
+  title = null,
+  description = null,
+  featureName = null // Nombre de la función (ej: "favoritos", "chat privado", "invitar")
 }) => {
   const navigate = useNavigate();
+
+  // Mensajes personalizados según la función
+  const featureMessages = {
+    'favoritos': {
+      title: 'Agregar a Favoritos',
+      description: 'Para agregar usuarios a favoritos y tener acceso rápido a tus contactos favoritos, necesitas estar registrado.'
+    },
+    'chat privado': {
+      title: 'Chat Privado',
+      description: 'Para enviar mensajes privados y conectarte con otros usuarios de forma privada, necesitas estar registrado.'
+    },
+    'invitar': {
+      title: 'Invitar a Chat',
+      description: 'Para invitar usuarios a chats privados, necesitas estar registrado.'
+    }
+  };
+
+  const featureInfo = featureName && featureMessages[featureName.toLowerCase()];
+  const finalTitle = title || featureInfo?.title || 'Registro Requerido';
+  const finalDescription = description || featureInfo?.description || 'Esta función requiere estar registrado para mantener un mejor control y seguridad.';
 
   const handleContinueToRegister = () => {
     onClose();
@@ -65,22 +86,18 @@ export const RegistrationRequiredModal = ({
 
             <DialogTitle className="text-2xl sm:text-3xl font-bold text-center mb-3">
               <span className="bg-gradient-to-r from-purple-400 to-cyan-400 bg-clip-text text-transparent">
-                {title}
+                {finalTitle}
               </span>
             </DialogTitle>
 
-            <DialogDescription className="text-center text-gray-300 text-base leading-relaxed space-y-3">
-              <div>
-                <span className="font-semibold text-purple-300">Chactivo se destaca por mantener el anonimato</span> y respetar tu privacidad.
-              </div>
-              <div>
-                Sin embargo, para disfrutar de <span className="font-semibold text-cyan-300">algunas funciones especiales</span>, es necesario estar registrado para llevar un mejor control y garantizar la seguridad de todos.
-              </div>
-              {description && (
-                <div className="text-sm text-gray-400 italic">
-                  {description}
-                </div>
-              )}
+            <DialogDescription className="text-center text-gray-300 text-base leading-relaxed">
+              <span className="font-semibold text-purple-300">Chactivo se destaca por mantener el anonimato</span> y respetar tu privacidad.
+              {' '}
+              Sin embargo, para disfrutar de <span className="font-semibold text-cyan-300">algunas funciones especiales</span>, es necesario estar registrado para llevar un mejor control y garantizar la seguridad de todos.
+              {' '}
+              <span className="text-sm text-gray-400 italic block mt-2">
+                {finalDescription}
+              </span>
             </DialogDescription>
           </DialogHeader>
 
@@ -97,7 +114,7 @@ export const RegistrationRequiredModal = ({
                 <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/10 to-transparent -translate-x-full group-hover:translate-x-full transition-transform duration-1000"></div>
                 <span className="relative z-10 flex items-center justify-center gap-2">
                   <UserPlus className="h-5 w-5" />
-                  Continuar a Registrar
+                  Registrarse
                   <ArrowRight className="h-5 w-5" />
                 </span>
               </Button>
@@ -113,7 +130,7 @@ export const RegistrationRequiredModal = ({
                 variant="outline"
                 className="w-full border-2 border-gray-600 hover:border-gray-500 text-gray-300 hover:text-white font-semibold py-5 text-base rounded-xl bg-gray-800/50 hover:bg-gray-700/50 transition-all"
               >
-                Seguir sin Registro
+                Continuar sin Registro
               </Button>
             </motion.div>
 
@@ -131,4 +148,3 @@ export const RegistrationRequiredModal = ({
 };
 
 export default RegistrationRequiredModal;
-

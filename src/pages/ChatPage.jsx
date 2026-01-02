@@ -24,6 +24,7 @@ import ChatLandingPage from '@/components/chat/ChatLandingPage';
 import EmptyRoomNotificationPrompt from '@/components/chat/EmptyRoomNotificationPrompt';
 import { toast } from '@/components/ui/use-toast';
 import PrivateChatWindow from '@/components/chat/PrivateChatWindow';
+import { RegistrationRequiredModal } from '@/components/auth/RegistrationRequiredModal';
 import { sendMessage, subscribeToRoomMessages, addReactionToMessage, markMessagesAsRead } from '@/services/chatService';
 import { joinRoom, leaveRoom, subscribeToRoomUsers, subscribeToMultipleRoomCounts, updateUserActivity, cleanInactiveUsers, filterActiveUsers } from '@/services/presenceService';
 import { sendModeratorWelcome } from '@/services/moderatorWelcome';
@@ -101,6 +102,8 @@ const ChatPage = () => {
   const [showPremiumWelcome, setShowPremiumWelcome] = useState(false);
   const [showChatRules, setShowChatRules] = useState(false); // ✅ Modal de reglas
   const [showAgeVerification, setShowAgeVerification] = useState(false); // ✅ Modal de edad
+  const [showRegistrationModal, setShowRegistrationModal] = useState(false);
+  const [registrationModalFeature, setRegistrationModalFeature] = useState(null);
   const [isAgeVerified, setIsAgeVerified] = useState(false); // ✅ Flag mayor de edad
   const [hasAcceptedRules, setHasAcceptedRules] = useState(false); // ✅ Flag de reglas aceptadas
   const [roomCounts, setRoomCounts] = useState({}); // Contadores de usuarios por sala
@@ -840,12 +843,9 @@ const ChatPage = () => {
    * Solicitud de chat privado
    */
   const handlePrivateChatRequest = (targetUser) => {
-    if (user.isGuest) {
-      toast({
-        title: "Función Premium 💎",
-        description: "Los chats privados requieren registro. ¡Es gratis y toma solo 30 segundos!",
-        variant: "default",
-      });
+    if (user.isGuest || user.isAnonymous) {
+      setShowRegistrationModal(true);
+      setRegistrationModalFeature('chat privado');
       return;
     }
     if (targetUser.userId === user.id) return;
@@ -1117,6 +1117,13 @@ const ChatPage = () => {
       {showScreenSaver && (
         <ScreenSaver onClose={() => setShowScreenSaver(false)} />
       )}
+
+      {/* Modal de registro requerido */}
+      <RegistrationRequiredModal
+        open={showRegistrationModal}
+        onClose={() => setShowRegistrationModal(false)}
+        featureName={registrationModalFeature}
+      />
     </>
   );
 };
