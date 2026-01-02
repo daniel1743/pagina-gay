@@ -103,10 +103,19 @@ const UserActionsModal = ({ user: targetUser, onClose, onViewProfile }) => {
   };
 
   const handlePrivateChatRequest = async () => {
+    console.log('🔍 [DEBUG] === INICIANDO SOLICITUD DE CHAT PRIVADO ===');
+    console.log('👤 [DEBUG] currentUser:', currentUser);
+    console.log('🔑 [DEBUG] currentUser.id:', currentUser?.id);
+    console.log('🎯 [DEBUG] targetUser:', targetUser);
+    console.log('🔑 [DEBUG] targetUser.userId:', targetUser?.userId);
+
     // Verificar límites
     const canSend = canSendChatInvite(currentUser);
+    console.log('✅ [DEBUG] canSend result:', canSend);
 
     if (!canSend.allowed) {
+      console.warn('⚠️ [DEBUG] Solicitud bloqueada. Razón:', canSend.reason);
+      console.warn('⚠️ [DEBUG] Mensaje:', canSend.message);
       if (canSend.reason === 'guest') {
         toast({
           title: "👤 Regístrate",
@@ -134,25 +143,42 @@ const UserActionsModal = ({ user: targetUser, onClose, onViewProfile }) => {
     }
 
     try {
+      console.log('📤 [DEBUG] Enviando solicitud a Firestore...');
+      console.log('📤 [DEBUG] Parámetros: fromUserId =', currentUser.id, ', toUserId =', targetUser.userId);
+
       await sendPrivateChatRequest(currentUser.id, targetUser.userId);
+
+      console.log('✅ [DEBUG] Solicitud enviada exitosamente a Firestore');
 
       // Incrementar contador solo si no es Premium ni Admin
       if (!currentUser.isPremium && currentUser.role !== 'admin') {
+        console.log('📊 [DEBUG] Incrementando contador de invitaciones...');
         await incrementChatInvites(currentUser.id);
         const newLimits = getCurrentLimits(currentUser.id);
         setLimits(newLimits);
+        console.log('📊 [DEBUG] Nuevos límites:', newLimits);
+      } else {
+        console.log('👑 [DEBUG] Usuario Premium/Admin - No incrementar límites');
       }
 
+      console.log('🎉 [DEBUG] Mostrando toast de éxito');
       toast({
         title: "📞 Solicitud enviada",
         description: `Esperando que ${targetUser.username} acepte el chat privado`,
       });
 
+      console.log('🔍 [DEBUG] Cerrando modal');
       onClose();
     } catch (error) {
+      console.error('❌ [DEBUG] === ERROR AL ENVIAR SOLICITUD ===');
+      console.error('❌ [DEBUG] Error completo:', error);
+      console.error('❌ [DEBUG] Error message:', error.message);
+      console.error('❌ [DEBUG] Error stack:', error.stack);
+      console.error('❌ [DEBUG] Error code:', error.code);
+
       toast({
-        title: "Error",
-        description: "No se pudo enviar la solicitud",
+        title: "❌ Error al enviar solicitud",
+        description: `Detalles: ${error.message || 'Error desconocido'}`,
         variant: "destructive",
       });
     }

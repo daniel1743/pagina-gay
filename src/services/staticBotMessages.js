@@ -19,7 +19,15 @@ const STATIC_BOT_PROFILES = [
 
 // Conversaciones predefinidas por sala
 const STATIC_CONVERSATIONS = {
-  'global': [ // Sala principal nueva
+  // ⚠️ SALA GLOBAL - DESACTIVADA (reemplazada por 'principal')
+  // 'global': [ // Sala principal antigua
+  //   { bot: 'Carlos', message: '¡Hola a todos! ¿Cómo va el día?', delay: 0 },
+  //   { bot: 'Mateo', message: 'Hola Carlos! Todo bien por aquí, ¿y tú?', delay: 5000 },
+  //   { bot: 'Diego', message: 'Yo también ando bien, gracias por preguntar', delay: 10000 },
+  //   { bot: 'Lucas', message: '¿Alguien más está por Santiago?', delay: 15000 },
+  //   { bot: 'Andrés', message: 'Yo estoy en Valparaíso, pero siempre vengo a Santiago', delay: 20000 },
+  // ],
+  'principal': [ // Sala principal nueva
     { bot: 'Carlos', message: '¡Hola a todos! ¿Cómo va el día?', delay: 0 },
     { bot: 'Mateo', message: 'Hola Carlos! Todo bien por aquí, ¿y tú?', delay: 5000 },
     { bot: 'Diego', message: 'Yo también ando bien, gracias por preguntar', delay: 10000 },
@@ -86,7 +94,7 @@ const STATIC_CONVERSATIONS = {
  * @returns {Array} Array de mensajes estáticos formateados
  */
 export const generateStaticBotMessages = (roomId) => {
-  const conversations = STATIC_CONVERSATIONS[roomId] || STATIC_CONVERSATIONS['global'];
+  const conversations = STATIC_CONVERSATIONS[roomId] || STATIC_CONVERSATIONS['principal'];
   
   const now = Date.now();
   

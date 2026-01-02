@@ -168,11 +168,15 @@ const VideoSection = ({ onComingSoon }) => {
 
 
 const LobbyPage = () => {
+  console.log('🏠 [LOBBY PAGE] ========== COMPONENTE INICIADO ==========');
+
   // SEO: Canonical tag para homepage
   useCanonical('/');
 
   const navigate = useNavigate();
   const { user } = useAuth();
+
+  console.log('🏠 [LOBBY PAGE] User:', user ? `${user.username} (${user.id})` : 'NULL');
   const [activeModal, setActiveModal] = useState(null);
   const [showAuthRequired, setShowAuthRequired] = useState(false);
   // TEMPORALMENTE COMENTADO - Anuncios y Promociones
@@ -192,6 +196,11 @@ const LobbyPage = () => {
 
   // ✅ Determinar si mostrar componentes para usuarios logueados
   const showWelcomeBack = user && !user.isGuest && !user.isAnonymous;
+
+  console.log('🏠 [LOBBY PAGE] showHeroSection:', showHeroSection);
+  console.log('🏠 [LOBBY PAGE] showWelcomeBack:', showWelcomeBack);
+  console.log('🏠 [LOBBY PAGE] user.isGuest:', user?.isGuest);
+  console.log('🏠 [LOBBY PAGE] user.isAnonymous:', user?.isAnonymous);
 
   // ✅ Suscribirse a contadores de usuarios en tiempo real
   useEffect(() => {
@@ -276,6 +285,9 @@ const LobbyPage = () => {
     //   accentColor: "purple"
     // },
   ];
+
+  console.log('🏠 [LOBBY PAGE] cardData creado:', cardData.length, 'cards');
+  console.log('🏠 [LOBBY PAGE] cardData[0]:', cardData[0]?.title);
 
   // ✅ Tarjeta horizontal del Foro (ocupa todo el ancho)
   const forumCard = {
@@ -470,6 +482,10 @@ const LobbyPage = () => {
     if (score < 500) return 4;
     return 5;
   };
+
+  console.log('🏠 [LOBBY PAGE] ========== RENDERIZANDO JSX ==========');
+  console.log('🏠 [LOBBY PAGE] Contenido para usuarios NO logueados (showHeroSection):', showHeroSection);
+  console.log('🏠 [LOBBY PAGE] Contenido para usuarios logueados (showWelcomeBack):', showWelcomeBack);
 
   return (
     <>

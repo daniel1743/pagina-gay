@@ -18,7 +18,7 @@
 			})();
 		</script>
 		<meta charset="UTF-8" />
-		<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+		<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=5.0, user-scalable=yes" />
 
 		<!-- Favicons -->
 		<link rel="icon" type="image/png" sizes="16x16" href="/favicon-16x16.png" />
@@ -98,6 +98,16 @@
 					const message = args.length > 0 ? String(args[0]) : '';
 					const fullMessage = args.map(arg => String(arg)).join(' ');
 					
+					// ✅ Silenciar AbortError de Firebase (cancelaciones normales)
+					if (
+						fullMessage.includes('AbortError') ||
+						fullMessage.includes('signal is aborted') ||
+						(message.includes('AbortError')) ||
+						(args.some(arg => arg && typeof arg === 'object' && arg.name === 'AbortError'))
+					) {
+						return; // Ignorar silenciosamente
+					}
+					
 					// Silenciar errores relacionados con Google Analytics
 					if (
 						fullMessage.includes('Fetch error from') ||
@@ -144,6 +154,17 @@
 				
 				// Interceptar errores no capturados (unhandled errors) de GA4
 				window.addEventListener('error', function(event) {
+					// ✅ Filtrar AbortError de Firebase (cancelaciones normales)
+					if (
+						event.error?.name === 'AbortError' ||
+						event.message?.includes('AbortError') ||
+						event.error?.message?.includes('signal is aborted')
+					) {
+						event.preventDefault();
+						event.stopPropagation();
+						return false;
+					}
+					
 					if (
 						event.message && (
 							event.message.includes('Fetch error') ||
@@ -163,6 +184,18 @@
 				window.addEventListener('unhandledrejection', function(event) {
 					const reason = event.reason;
 					const reasonStr = reason ? String(reason) : '';
+					
+					// ✅ Filtrar AbortError de Firebase (cancelaciones normales)
+					if (
+						reason?.name === 'AbortError' ||
+						reasonStr.includes('AbortError') ||
+						reasonStr.includes('signal is aborted') ||
+						(reason && reason.stack && reason.stack.includes('AbortError'))
+					) {
+						event.preventDefault();
+						return false;
+					}
+					
 					if (
 						reasonStr.includes('Fetch error') ||
 						reasonStr.includes('google-analytics.com') ||

@@ -6,7 +6,8 @@ import NotificationBell from '@/components/notifications/NotificationBell';
 import { notificationSounds } from '@/services/notificationSounds';
 
 const roomNames = {
-  'global': 'Chat Global', // Sala principal nueva
+  // 'global': 'Chat Global', // ⚠️ DESACTIVADA
+  'principal': 'Chat Principal', // Sala principal nueva
   'gaming': 'Gaming',
   'mas-30': '+30',
   'amistad': 'Amistad',
@@ -16,7 +17,7 @@ const roomNames = {
   'quedar-ya': 'Quedar Ya',
   'hablar-primero': 'Hablar Primero',
   'morbosear': 'Morbosear',
-  // 'conversas-libres' → redirige a 'global'
+  // 'conversas-libres' → redirige a 'principal'
 };
 
 const ChatHeader = ({ currentRoom, onMenuClick, onOpenPrivateChat, onSimulate }) => {

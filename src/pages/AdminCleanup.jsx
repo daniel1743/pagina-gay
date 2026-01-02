@@ -23,7 +23,8 @@ const PROHIBITED_PATTERNS = [
 ];
 
 const ROOMS = [
-  'global', // Sala principal nueva (sin spam)
+  // 'global', // ⚠️ DESACTIVADA (reemplazada por 'principal')
+  'principal', // Sala principal nueva (sin spam)
   'gaming',
   'santiago',
   'mas-30',
@@ -34,7 +35,7 @@ const ROOMS = [
   'quedar-ya',
   'hablar-primero',
   'morbosear',
-  // 'conversas-libres' → DESACTIVADA (tenía spam masivo, ahora se usa 'global')
+  // 'conversas-libres' → DESACTIVADA (tenía spam masivo, ahora se usa 'principal')
 ];
 
 const AdminCleanup = () => {

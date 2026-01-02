@@ -36,7 +36,8 @@ import { startEngagementTracking, hasReachedOneHourLimit, getTotalEngagementTime
 import { notificationSounds } from '@/services/notificationSounds';
 
 const roomWelcomeMessages = {
-  'global': '¡Bienvenido a Chat Global! Habla de lo que quieras.',
+  // 'global': '¡Bienvenido a Chat Global! Habla de lo que quieras.', // ⚠️ DESACTIVADA
+  'principal': '¡Bienvenido a Chat Principal! Habla de lo que quieras.',
   'gaming': '¡Gamers, uníos! ¿A qué están jugando?',
   'mas-30': 'Espacio para mayores de 30. ¡Comparte tus experiencias!',
   'amistad': '¿Buscas nuevos amigos? ¡Este es el lugar!',
@@ -200,10 +201,17 @@ const ChatPage = () => {
         ogTitle: 'Chat Gay Santiago | Conoce LGBT+ de la Capital',
         ogDescription: '🏙️ Sala exclusiva de Santiago. Conecta con gays de Providencia, Las Condes, Ñuñoa y toda la capital.'
       },
-      'global': {
-        title: 'Chat Global - Chat Gay Chile 💬 | Sala General LGBT+ | Chactivo',
-        description: '💬 Sala de chat gay general Chile. Todos los temas bienvenidos: amistad, relaciones, gaming, cultura. Conversación libre, ambiente relajado. La sala más activa de Chactivo. ¡Regístrate en 30 segundos!',
-        ogTitle: 'Chat Global | Chat Gay Chile General 💬',
+      // ⚠️ SALA GLOBAL - DESACTIVADA (reemplazada por 'principal')
+      // 'global': {
+      //   title: 'Chat Global - Chat Gay Chile 💬 | Sala General LGBT+ | Chactivo',
+      //   description: '💬 Sala de chat gay general Chile. Todos los temas bienvenidos: amistad, relaciones, gaming, cultura. Conversación libre, ambiente relajado. La sala más activa de Chactivo. ¡Regístrate en 30 segundos!',
+      //   ogTitle: 'Chat Global | Chat Gay Chile General 💬',
+      //   ogDescription: '💬 La sala más popular de Chactivo. Todos los temas, todos bienvenidos. Ambiente relajado y conversación real.'
+      // },
+      'principal': {
+        title: 'Chat Principal - Chat Gay Chile 💬 | Sala General LGBT+ | Chactivo',
+        description: '💬 Sala de chat gay principal Chile. Todos los temas bienvenidos: amistad, relaciones, gaming, cultura. Conversación libre, ambiente relajado. La sala más activa de Chactivo. ¡Regístrate en 30 segundos!',
+        ogTitle: 'Chat Principal | Chat Gay Chile General 💬',
         ogDescription: '💬 La sala más popular de Chactivo. Todos los temas, todos bienvenidos. Ambiente relajado y conversación real.'
       }
     };
@@ -893,7 +901,7 @@ const ChatPage = () => {
 
   return (
     <>
-      <div className="h-screen flex overflow-hidden bg-background">
+      <div className="h-screen flex overflow-hidden bg-background" style={{ height: '100dvh', maxHeight: '100dvh' }}>
         <ChatSidebar
           currentRoom={currentRoom}
           setCurrentRoom={setCurrentRoom}

@@ -5,6 +5,13 @@
 
 // Capturar errores globales
 window.addEventListener('error', (event) => {
+  // ✅ Filtrar AbortError de Firebase (cancelaciones normales)
+  if (event.error?.name === 'AbortError' || 
+      event.message?.includes('AbortError') ||
+      event.error?.message?.includes('signal is aborted')) {
+    return; // Ignorar silenciosamente
+  }
+
   console.error('🚨 [ERROR GLOBAL]:', {
     message: event.message,
     filename: event.filename,
@@ -17,6 +24,17 @@ window.addEventListener('error', (event) => {
 
 // Capturar rechazos de promesas no manejados
 window.addEventListener('unhandledrejection', (event) => {
+  const reason = event.reason;
+  const reasonStr = reason ? String(reason) : '';
+  
+  // ✅ Filtrar AbortError de Firebase (cancelaciones normales)
+  if (reason?.name === 'AbortError' || 
+      reasonStr.includes('AbortError') ||
+      reasonStr.includes('signal is aborted')) {
+    event.preventDefault(); // Prevenir que se muestre en consola
+    return;
+  }
+
   console.error('🚨 [PROMISE REJECTION]:', {
     reason: event.reason,
     promise: event.promise
@@ -26,9 +44,14 @@ window.addEventListener('unhandledrejection', (event) => {
 // Interceptar console.error para capturar errores de React
 const originalError = console.error;
 console.error = function(...args) {
-  // Detectar errores de React
+  // ✅ Filtrar AbortError de Firebase (cancelaciones normales)
   const errorString = args.join(' ');
+  if (errorString.includes('AbortError') || 
+      errorString.includes('signal is aborted')) {
+    return; // Ignorar silenciosamente
+  }
 
+  // Detectar errores de React
   if (errorString.includes('React') ||
       errorString.includes('hook') ||
       errorString.includes('component') ||

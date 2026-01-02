@@ -61,6 +61,28 @@ const ChatInput = ({ onSendMessage, onFocus, onBlur, externalMessage = null }) =
   const wrapperRef = useRef(null);
   const textareaRef = useRef(null);
 
+  // 📱 FIX MÓVIL: Asegurar que el textarea sea focusable en dispositivos móviles
+  useEffect(() => {
+    if (textareaRef.current) {
+      // Forzar que el elemento sea focusable
+      textareaRef.current.setAttribute('tabindex', '0');
+
+      // Fix para iOS: prevenir que el teclado se cierre automáticamente
+      const handleTouchStart = (e) => {
+        // Asegurar que el input reciba el focus
+        e.currentTarget.focus({ preventScroll: false });
+      };
+
+      textareaRef.current.addEventListener('touchstart', handleTouchStart, { passive: true });
+
+      return () => {
+        if (textareaRef.current) {
+          textareaRef.current.removeEventListener('touchstart', handleTouchStart);
+        }
+      };
+    }
+  }, []);
+
   useEffect(() => {
     function handleClickOutside(event) {
       if (wrapperRef.current && !wrapperRef.current.contains(event.target)) {
@@ -106,6 +128,12 @@ const ChatInput = ({ onSendMessage, onFocus, onBlur, externalMessage = null }) =
       const messageToSend = message.trim();
       setMessage(''); // Limpiar inmediatamente para sensación de velocidad
 
+      // Timeout de seguridad: resetear isSending después de 5 segundos máximo
+      const safetyTimeout = setTimeout(() => {
+        setIsSending(false);
+        console.warn('[ChatInput] Timeout de seguridad: isSending reseteado después de 5s');
+      }, 5000);
+
       try {
         await onSendMessage(messageToSend, 'text');
         // Vibración sutil si está disponible
@@ -116,6 +144,7 @@ const ChatInput = ({ onSendMessage, onFocus, onBlur, externalMessage = null }) =
         // Si falla, restaurar el mensaje
         setMessage(messageToSend);
       } finally {
+        clearTimeout(safetyTimeout);
         setIsSending(false);
         setShowEmojiPicker(false);
         setShowQuickPhrases(false);
@@ -176,7 +205,7 @@ const ChatInput = ({ onSendMessage, onFocus, onBlur, externalMessage = null }) =
   }, [user?.isPremium]);
 
   return (
-    <div className="bg-card border-t p-3 sm:p-4 shrink-0 relative" ref={wrapperRef}>
+    <div className="bg-card border-t p-3 sm:p-4 shrink-0 relative safe-area-inset-bottom" ref={wrapperRef}>
       <AnimatePresence>
         {showEmojiPicker && (
           <motion.div
@@ -292,11 +321,22 @@ const ChatInput = ({ onSendMessage, onFocus, onBlur, externalMessage = null }) =
           aria-label="Campo de texto para escribir mensaje"
           maxLength={500}
           autoComplete="off"
+          autoCorrect="on"
+          autoCapitalize="sentences"
+          spellCheck="true"
+          inputMode="text"
+          enterKeyHint="send"
           rows={1}
+          readOnly={false}
+          disabled={false}
           style={{
             lineHeight: '1.5',
             paddingTop: '0.625rem',
-            paddingBottom: '0.625rem'
+            paddingBottom: '0.625rem',
+            WebkitUserSelect: 'text',
+            userSelect: 'text',
+            WebkitTouchCallout: 'default',
+            touchAction: 'manipulation'
           }}
         />
 

@@ -15,48 +15,49 @@
  * Formato de horarios: 24h formato Chile (UTC-3)
  */
 export const SCHEDULED_EVENTS = {
-  'global': [
-    {
-      id: 'conversas_lunes_cine',
-      day: 1, // Lunes (0=domingo, 1=lunes, etc)
-      time: '20:00',
-      title: '🎬 Lunes de Películas LGBT+',
-      description: '¿Qué estás viendo? Comparte series y películas LGBT+ que te gusten',
-      emoji: '🎬',
-      color: 'purple',
-      moderator: 'bot_alejandro' // Bot que modera el evento
-    },
-    {
-      id: 'conversas_miercoles_confesiones',
-      day: 3, // Miércoles
-      time: '21:00',
-      title: '💭 Miércoles de Confesiones',
-      description: 'Espacio seguro para compartir experiencias, dudas y consejos',
-      emoji: '💭',
-      color: 'pink',
-      moderator: 'bot_mateo'
-    },
-    {
-      id: 'conversas_viernes_social',
-      day: 5, // Viernes
-      time: '21:00',
-      title: '🍻 Viernes Social',
-      description: 'Cuenta tu semana, organiza juntadas, encuentra planes para el fin de semana',
-      emoji: '🍻',
-      color: 'blue',
-      moderator: 'bot_carlos'
-    },
-    {
-      id: 'conversas_domingo_chill',
-      day: 0, // Domingo
-      time: '19:00',
-      title: '☕ Domingo Chill',
-      description: 'Conversación tranquila para cerrar la semana y preparar la nueva',
-      emoji: '☕',
-      color: 'green',
-      moderator: 'bot_miguel'
-    }
-  ],
+  // ⚠️ SALA GLOBAL - DESACTIVADA (reemplazada por 'principal')
+  // 'global': [
+  //   {
+  //     id: 'conversas_lunes_cine',
+  //     day: 1, // Lunes (0=domingo, 1=lunes, etc)
+  //     time: '20:00',
+  //     title: '🎬 Lunes de Películas LGBT+',
+  //     description: '¿Qué estás viendo? Comparte series y películas LGBT+ que te gusten',
+  //     emoji: '🎬',
+  //     color: 'purple',
+  //     moderator: 'bot_alejandro' // Bot que modera el evento
+  //   },
+  //   {
+  //     id: 'conversas_miercoles_confesiones',
+  //     day: 3, // Miércoles
+  //     time: '21:00',
+  //     title: '💭 Miércoles de Confesiones',
+  //     description: 'Espacio seguro para compartir experiencias, dudas y consejos',
+  //     emoji: '💭',
+  //     color: 'pink',
+  //     moderator: 'bot_mateo'
+  //   },
+  //   {
+  //     id: 'conversas_viernes_social',
+  //     day: 5, // Viernes
+  //     time: '21:00',
+  //     title: '🍻 Viernes Social',
+  //     description: 'Cuenta tu semana, organiza juntadas, encuentra planes para el fin de semana',
+  //     emoji: '🍻',
+  //     color: 'blue',
+  //     moderator: 'bot_carlos'
+  //   },
+  //   {
+  //     id: 'conversas_domingo_chill',
+  //     day: 0, // Domingo
+  //     time: '19:00',
+  //     title: '☕ Domingo Chill',
+  //     description: 'Conversación tranquila para cerrar la semana y preparar la nueva',
+  //     emoji: '☕',
+  //     color: 'green',
+  //     moderator: 'bot_miguel'
+  //   }
+  // ],
 
   'gaming': [
     {
