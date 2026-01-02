@@ -8,7 +8,7 @@ const VerificationExplanationModal = ({ isOpen, onClose, verificationStatus }) =
 
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
-      <DialogContent className="sm:max-w-[600px] max-h-[90vh] overflow-y-auto">
+      <DialogContent className="sm:max-w-[600px] max-h-[90vh] overflow-y-auto scrollbar-hide">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2 text-2xl">
             <Shield className="w-6 h-6 text-green-400" />

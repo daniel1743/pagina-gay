@@ -38,6 +38,10 @@ export const RegistrationRequiredModal = ({
     'invitar': {
       title: 'Invitar a Chat',
       description: 'Para invitar usuarios a chats privados, necesitas estar registrado.'
+    },
+    'ver perfil': {
+      title: 'Ver Perfiles',
+      description: 'Para ver los perfiles completos de otros usuarios y conocer más sobre ellos, necesitas estar registrado.'
     }
   };
 
@@ -62,7 +66,7 @@ export const RegistrationRequiredModal = ({
 
   return (
     <Dialog open={open} onOpenChange={onClose}>
-      <DialogContent className="sm:max-w-[500px] neon-border-card text-white p-0 max-h-[85vh] overflow-y-auto">
+      <DialogContent className="sm:max-w-[500px] neon-border-card text-white p-0 max-h-[85vh] overflow-y-auto scrollbar-hide z-[100]">
         <div className="glass-effect rounded-3xl p-6 flex flex-col w-full">
           <DialogHeader>
             {/* Icono con efecto */}

@@ -324,7 +324,7 @@ const SystemNotificationsPanel = ({ isOpen, onClose, onNotificationCountChange }
 
           {/* Modal de Notificación Detallada */}
           <Dialog open={showNotificationModal} onOpenChange={setShowNotificationModal}>
-            <DialogContent className="bg-card border-border text-foreground max-w-2xl max-h-[90vh] overflow-y-auto">
+            <DialogContent className="bg-card border-border text-foreground max-w-2xl max-h-[90vh] overflow-y-auto scrollbar-hide">
               {selectedNotification && (
                 <>
                   <DialogHeader>

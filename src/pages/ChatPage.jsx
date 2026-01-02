@@ -28,7 +28,7 @@ import PrivateChatWindow from '@/components/chat/PrivateChatWindow';
 import { RegistrationRequiredModal } from '@/components/auth/RegistrationRequiredModal';
 import { sendMessage, subscribeToRoomMessages, addReactionToMessage, markMessagesAsRead } from '@/services/chatService';
 import { joinRoom, leaveRoom, subscribeToRoomUsers, subscribeToMultipleRoomCounts, updateUserActivity, cleanInactiveUsers, filterActiveUsers } from '@/services/presenceService';
-import { sendPrivateChatRequest, respondToPrivateChatRequest, subscribeToNotifications } from '@/services/socialService';
+import { sendPrivateChatRequest, respondToPrivateChatRequest, subscribeToNotifications, markNotificationAsRead } from '@/services/socialService';
 import { sendModeratorWelcome } from '@/services/moderatorWelcome';
 import { checkAndSeedConversations } from '@/services/seedConversationsService';
 import { trackPageView, trackPageExit, trackRoomJoined, trackMessageSent } from '@/services/analyticsService';
@@ -100,6 +100,7 @@ const ChatPage = () => {
   }, [currentRoom]);
   const [privateChatRequest, setPrivateChatRequest] = useState(null);
   const [activePrivateChat, setActivePrivateChat] = useState(null);
+  const [dismissedPrivateChats, setDismissedPrivateChats] = useState(new Set()); // IDs de chats que el usuario cerró manualmente
   const [showVerificationModal, setShowVerificationModal] = useState(false);
   const [showPremiumWelcome, setShowPremiumWelcome] = useState(false);
   const [showChatRules, setShowChatRules] = useState(false); // ✅ Modal de reglas
@@ -678,9 +679,9 @@ const ChatPage = () => {
         });
       }
 
-      // Buscar notificaciones de chat aceptado
+      // Buscar notificaciones de chat aceptado (solo si no hay chat activo y no fue cerrado manualmente)
       const acceptedChats = notifications.filter(n => 
-        n.type === 'private_chat_accepted'
+        n.type === 'private_chat_accepted' && !dismissedPrivateChats.has(n.chatId)
       );
 
       if (acceptedChats.length > 0 && !activePrivateChat) {
@@ -695,11 +696,16 @@ const ChatPage = () => {
           },
           chatId: latestAccepted.chatId
         });
+        
+        // Marcar la notificación como leída para evitar que se vuelva a abrir
+        markNotificationAsRead(user.id, latestAccepted.id).catch(err => {
+          console.error('Error marking notification as read:', err);
+        });
       }
     });
 
     return () => unsubscribe();
-  }, [user, privateChatRequest, activePrivateChat]);
+  }, [user, privateChatRequest, activePrivateChat, dismissedPrivateChats]);
 
   // Navegar cuando cambia la sala actual (solo si estamos en una ruta de chat)
   useEffect(() => {
@@ -1186,7 +1192,13 @@ const ChatPage = () => {
             user={activePrivateChat.user}
             partner={activePrivateChat.partner}
             chatId={activePrivateChat.chatId}
-            onClose={() => setActivePrivateChat(null)}
+            onClose={() => {
+              // Agregar el chatId a la lista de chats cerrados manualmente
+              if (activePrivateChat.chatId) {
+                setDismissedPrivateChats(prev => new Set([...prev, activePrivateChat.chatId]));
+              }
+              setActivePrivateChat(null);
+            }}
           />
         )}
 

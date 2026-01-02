@@ -80,7 +80,7 @@ const AgeVerificationModal = ({ isOpen, onConfirm }) => {
 
   return (
     <Dialog open={isOpen} onOpenChange={() => {}} modal>
-      <DialogContent className="bg-gradient-to-b from-slate-950 via-slate-900 to-slate-950 text-white border border-fuchsia-500/30 shadow-2xl max-w-2xl max-h-[90vh] overflow-y-auto">
+      <DialogContent className="bg-gradient-to-b from-slate-950 via-slate-900 to-slate-950 text-white border border-fuchsia-500/30 shadow-2xl max-w-2xl max-h-[90vh] overflow-y-auto scrollbar-hide">
         <DialogHeader>
           <DialogTitle className="text-2xl font-bold bg-gradient-to-r from-fuchsia-400 via-purple-400 to-cyan-400 bg-clip-text text-transparent">
             Completa tu perfil

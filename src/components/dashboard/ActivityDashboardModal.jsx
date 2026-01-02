@@ -33,7 +33,7 @@ const ActivityDashboardModal = ({ isOpen, onClose, userId }) => {
 
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
-      <DialogContent className="sm:max-w-2xl max-h-[85vh] overflow-y-auto bg-gradient-to-b from-slate-950 via-slate-900 to-slate-950 text-white border border-purple-500/30">
+      <DialogContent className="sm:max-w-2xl max-h-[85vh] overflow-y-auto scrollbar-hide bg-gradient-to-b from-slate-950 via-slate-900 to-slate-950 text-white border border-purple-500/30">
         <DialogHeader>
           <DialogTitle className="text-2xl font-bold bg-gradient-to-r from-purple-400 via-pink-400 to-cyan-400 bg-clip-text text-transparent flex items-center gap-2">
             <BarChart3 className="w-6 h-6 text-purple-400" />

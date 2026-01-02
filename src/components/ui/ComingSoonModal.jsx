@@ -42,7 +42,7 @@ const ComingSoonModal = ({ isOpen, onClose, feature = "esta funcionalidad", desc
             </button>
 
             {/* Contenido con scroll */}
-            <div className="relative z-10 p-8 pt-12 overflow-y-auto flex-1 min-h-0">
+            <div className="relative z-10 p-8 pt-12 overflow-y-auto scrollbar-hide flex-1 min-h-0">
               {/* Icono principal con animación */}
               <motion.div
                 initial={{ scale: 0, rotate: -180 }}

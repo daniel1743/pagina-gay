@@ -61,9 +61,9 @@ const ProfileComments = () => {
           value={newComment}
           onChange={(e) => setNewComment(e.target.value)}
           placeholder="Deja un comentario público..."
-          className="bg-[#2C2A4A] border-2 border-[#413e62] focus:border-[#00FFFF] min-h-[80px]"
+          className="bg-card border-2 border-border focus:border-cyan-500 dark:focus:border-cyan-400 text-foreground placeholder:text-muted-foreground min-h-[80px]"
         />
-        <Button type="submit" className="self-end cyan-gradient text-black font-bold">
+        <Button type="submit" className="self-end bg-gradient-to-r from-cyan-500 to-blue-500 hover:from-cyan-600 hover:to-blue-600 text-white dark:text-black font-bold shadow-lg">
           <Send className="mr-2 h-4 w-4" />
           Comentar
         </Button>
@@ -79,22 +79,34 @@ const ProfileComments = () => {
               animate={{ opacity: 1, y: 0 }}
               exit={{ opacity: 0, y: -20 }}
               transition={{ duration: 0.3, delay: index * 0.05 }}
-              className="bg-[#2C2A4A]/50 p-4 rounded-xl"
+              className="bg-card border border-border p-4 rounded-xl shadow-sm"
             >
               <div className="flex items-start gap-4">
-                <Avatar className="w-10 h-10">
+                <Avatar className="w-10 h-10 ring-2 ring-border">
                   <AvatarImage src={`https://api.dicebear.com/7.x/avataaars/svg?seed=${comment.avatarSeed}`} />
-                  <AvatarFallback>{comment.author[0]}</AvatarFallback>
+                  <AvatarFallback className="bg-muted text-foreground">{comment.author[0]}</AvatarFallback>
                 </Avatar>
                 <div className="flex-1">
-                  <p className="font-bold text-gray-200">{comment.author}</p>
-                  <p className="text-gray-300">{comment.text}</p>
-                  <div className="flex items-center gap-4 mt-2 text-gray-400">
-                    <Button onClick={() => handleReaction(comment.id, 'like')} variant="ghost" size="sm" className="flex items-center gap-1 hover:text-green-400">
-                      <ThumbsUp className="w-4 h-4" /> {comment.likes}
+                  <p className="font-bold text-foreground">{comment.author}</p>
+                  <p className="text-foreground/90 mt-1">{comment.text}</p>
+                  <div className="flex items-center gap-4 mt-3">
+                    <Button 
+                      onClick={() => handleReaction(comment.id, 'like')} 
+                      variant="ghost" 
+                      size="sm" 
+                      className="flex items-center gap-1 text-muted-foreground hover:text-green-600 dark:hover:text-green-400 hover:bg-green-50 dark:hover:bg-green-950/20"
+                    >
+                      <ThumbsUp className="w-4 h-4" /> 
+                      <span className="font-medium">{comment.likes}</span>
                     </Button>
-                    <Button onClick={() => handleReaction(comment.id, 'dislike')} variant="ghost" size="sm" className="flex items-center gap-1 hover:text-red-400">
-                      <ThumbsDown className="w-4 h-4" /> {comment.dislikes}
+                    <Button 
+                      onClick={() => handleReaction(comment.id, 'dislike')} 
+                      variant="ghost" 
+                      size="sm" 
+                      className="flex items-center gap-1 text-muted-foreground hover:text-red-600 dark:hover:text-red-400 hover:bg-red-50 dark:hover:bg-red-950/20"
+                    >
+                      <ThumbsDown className="w-4 h-4" /> 
+                      <span className="font-medium">{comment.dislikes}</span>
                     </Button>
                   </div>
                 </div>

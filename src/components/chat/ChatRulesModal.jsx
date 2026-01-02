@@ -123,7 +123,7 @@ const ChatRulesModal = ({ isOpen, onAccept }) => {
             </div>
 
             {/* Contenido con scroll */}
-            <div className="relative z-10 p-6 overflow-y-auto flex-1 min-h-0">
+            <div className="relative z-10 p-6 overflow-y-auto scrollbar-hide flex-1 min-h-0">
               <div className="space-y-4">
                 {rules.map((rule, index) => {
                   const Icon = rule.icon;

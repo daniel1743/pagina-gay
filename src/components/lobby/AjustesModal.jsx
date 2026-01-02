@@ -127,7 +127,7 @@ const AjustesModal = ({ isOpen, onClose }) => {
                                         <Input value={newPhrase} onChange={e => setNewPhrase(e.target.value)} placeholder="Añadir nueva frase..."/>
                                         <Button type="submit" size="icon" className="magenta-gradient"><Send size={18}/></Button>
                                     </form>
-                                    <div className="space-y-2 max-h-32 overflow-y-auto">
+                                    <div className="space-y-2 max-h-32 overflow-y-auto scrollbar-hide">
                                         {(user.quickPhrases || []).map((phrase, i) => (
                                             <div key={i} className="flex justify-between items-center bg-secondary p-2 rounded">
                                                 <p className="text-sm">{phrase}</p>

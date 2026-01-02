@@ -115,7 +115,7 @@ export const GuestUsernameModal = ({ open, onClose, chatRoomId = 'principal' }) 
 
   return (
     <Dialog open={open} onOpenChange={onClose}>
-      <DialogContent className="sm:max-w-[520px] max-h-[90vh] neon-border-card text-white overflow-y-auto p-0">
+      <DialogContent className="sm:max-w-[520px] max-h-[90vh] neon-border-card text-white overflow-y-auto scrollbar-hide p-0">
         {/* Fondo interior con glassmorphism */}
         <div className="glass-effect rounded-3xl p-6">
           <DialogHeader>

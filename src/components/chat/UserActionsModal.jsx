@@ -41,6 +41,19 @@ const UserActionsModal = ({ user: targetUser, onClose, onViewProfile, onShowRegi
   const handleSendMessage = async () => {
     if (!message.trim()) return;
 
+    // ✅ Validar que el usuario objetivo NO sea invitado/anónimo
+    if (targetUser.isGuest || targetUser.isAnonymous) {
+      toast({
+        title: "⚠️ No se puede enviar mensaje",
+        description: "Este usuario no puede recibir mensajes directos porque no está registrado. Invítalo a registrarse para poder escribirle.",
+        variant: "destructive",
+        duration: 5000,
+      });
+      setShowMessageInput(false);
+      onClose();
+      return;
+    }
+
     // Verificar límites
     const canSend = canSendDirectMessage(currentUser);
 
@@ -107,6 +120,18 @@ const UserActionsModal = ({ user: targetUser, onClose, onViewProfile, onShowRegi
     console.log('🔑 [DEBUG] currentUser.id:', currentUser?.id);
     console.log('🎯 [DEBUG] targetUser:', targetUser);
     console.log('🔑 [DEBUG] targetUser.userId:', targetUser?.userId);
+
+    // ✅ Validar que el usuario objetivo NO sea invitado/anónimo
+    if (targetUser.isGuest || targetUser.isAnonymous) {
+      toast({
+        title: "⚠️ No se puede enviar invitación",
+        description: "Este usuario no puede recibir invitaciones de chat privado porque no está registrado. Invítalo a registrarse para poder chatear.",
+        variant: "destructive",
+        duration: 5000,
+      });
+      onClose();
+      return;
+    }
 
     // Verificar límites
     const canSend = canSendChatInvite(currentUser);
@@ -180,11 +205,24 @@ const UserActionsModal = ({ user: targetUser, onClose, onViewProfile, onShowRegi
   };
 
   const handleToggleFavorite = async () => {
+    // Validar que el usuario actual esté registrado
     if (currentUser.isGuest || currentUser.isAnonymous) {
       onClose(); // Cerrar el modal de acciones primero
       if (onShowRegistrationModal) {
         onShowRegistrationModal('favoritos');
       }
+      return;
+    }
+
+    // ✅ Validar que el usuario objetivo NO sea invitado/anónimo
+    if (targetUser.isGuest || targetUser.isAnonymous) {
+      toast({
+        title: "⚠️ No se puede agregar a favoritos",
+        description: "Este usuario no puede ser agregado a favoritos porque no está registrado. Invítalo a registrarse para poder agregarlo.",
+        variant: "destructive",
+        duration: 5000,
+      });
+      onClose();
       return;
     }
 
@@ -226,8 +264,36 @@ const UserActionsModal = ({ user: targetUser, onClose, onViewProfile, onShowRegi
     }
   };
 
+  // Botón de "Ver Perfil"
+  const handleViewProfile = () => {
+    // Validar que el usuario actual esté registrado
+    if (currentUser.isGuest || currentUser.isAnonymous) {
+      onClose();
+      if (onShowRegistrationModal) {
+        onShowRegistrationModal('ver perfil');
+      }
+      return;
+    }
+
+    // Llamar a onViewProfile y cerrar modal
+    onViewProfile();
+    onClose();
+  };
+
   // Botón de "Enviar Mensaje Directo"
   const handleOpenMessageInput = () => {
+    // ✅ Validar que el usuario objetivo NO sea invitado/anónimo
+    if (targetUser.isGuest || targetUser.isAnonymous) {
+      toast({
+        title: "⚠️ No se puede enviar mensaje",
+        description: "Este usuario no puede recibir mensajes directos porque no está registrado. Invítalo a registrarse para poder escribirle.",
+        variant: "destructive",
+        duration: 5000,
+      });
+      onClose();
+      return;
+    }
+
     const canSend = canSendDirectMessage(currentUser);
 
     if (!canSend.allowed) {
@@ -309,10 +375,7 @@ const UserActionsModal = ({ user: targetUser, onClose, onViewProfile, onShowRegi
                 {/* Ver Perfil */}
                 <motion.div whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }}>
                   <Button
-                    onClick={() => {
-                      onViewProfile();
-                      onClose();
-                    }}
+                    onClick={handleViewProfile}
                     variant="outline"
                     className="w-full justify-start h-auto py-3 text-left"
                   >

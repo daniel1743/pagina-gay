@@ -239,6 +239,16 @@
       0 20px 50px rgba(255, 0, 110, 0.1),
       inset 0 1px 0 rgba(255, 0, 110, 0.2);
   }
+
+  /* Scrollbar Hide - Ocultar scrollbar pero mantener funcionalidad */
+  .scrollbar-hide {
+    -ms-overflow-style: none;  /* IE y Edge */
+    scrollbar-width: none;  /* Firefox */
+  }
+
+  .scrollbar-hide::-webkit-scrollbar {
+    display: none;  /* Chrome, Safari y Opera */
+  }
 }
 
 /* Responsive Media Queries */

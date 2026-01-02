@@ -430,7 +430,7 @@ const NearbyUsersModal = ({ isOpen, onClose }) => {
             </DialogDescription>
           </DialogHeader>
 
-          <div className="p-6 overflow-y-auto max-h-[calc(90vh-120px)]">
+          <div className="p-6 overflow-y-auto scrollbar-hide max-h-[calc(90vh-120px)]">
             {/* Loading state */}
             {loading && (
               <div className="flex items-center justify-center py-20">

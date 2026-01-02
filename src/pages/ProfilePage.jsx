@@ -4,7 +4,7 @@ import { useNavigate } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
 import { Button } from '@/components/ui/button';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
-import { ArrowLeft, Crown, Shield, Camera, Edit, MessageSquare, CheckCircle, HelpCircle, Ticket, Upload, Image as ImageIcon } from 'lucide-react';
+import { ArrowLeft, Crown, Shield, Camera, Edit, MessageSquare, CheckCircle, HelpCircle, Ticket, Upload, Image as ImageIcon, Heart, Plus } from 'lucide-react';
 import { toast } from '@/components/ui/use-toast';
 import ComingSoonModal from '@/components/ui/ComingSoonModal';
 import EditProfileModal from '@/components/profile/EditProfileModal';
@@ -14,7 +14,10 @@ import ProfileComments from '@/components/profile/ProfileComments';
 import CreateTicketModal from '@/components/tickets/CreateTicketModal';
 import VerificationExplanationModal from '@/components/verification/VerificationExplanationModal';
 import VerificationFAQ from '@/components/verification/VerificationFAQ';
+import FavoritesModal from '@/components/chat/FavoritesModal';
+import UserActionsModal from '@/components/chat/UserActionsModal';
 import { getUserVerificationStatus } from '@/services/verificationService';
+import { getFavorites } from '@/services/socialService';
 import { useCanonical } from '@/hooks/useCanonical';
 import {
   DropdownMenu,
@@ -42,6 +45,10 @@ const ProfilePage = () => {
   const [showVerificationModal, setShowVerificationModal] = useState(false);
   const [showVerificationFAQ, setShowVerificationFAQ] = useState(false);
   const [verificationStatus, setVerificationStatus] = useState(null);
+  const [favorites, setFavorites] = useState([]);
+  const [loadingFavorites, setLoadingFavorites] = useState(false);
+  const [showAllFavorites, setShowAllFavorites] = useState(false);
+  const [selectedFavorite, setSelectedFavorite] = useState(null);
 
   // Cargar estado de verificación
   useEffect(() => {
@@ -52,6 +59,25 @@ const ProfilePage = () => {
       };
       loadVerificationStatus();
     }
+  }, [user]);
+
+  // Cargar favoritos del usuario
+  useEffect(() => {
+    const loadFavorites = async () => {
+      if (user && !user.isGuest && !user.isAnonymous) {
+        setLoadingFavorites(true);
+        try {
+          const userFavorites = await getFavorites(user.id);
+          setFavorites(userFavorites || []);
+        } catch (error) {
+          console.error('Error loading favorites:', error);
+        } finally {
+          setLoadingFavorites(false);
+        }
+      }
+    };
+
+    loadFavorites();
   }, [user]);
 
   const handleVerification = () => {
@@ -194,20 +220,22 @@ const ProfilePage = () => {
                   <Shield className="w-4 h-4 mr-2" />
                   {user.verified ? 'Verificación' : 'Verificar Cuenta'}
                 </Button>
-                <Button 
-                  onClick={() => setShowVerificationFAQ(!showVerificationFAQ)} 
-                  variant="ghost" 
+                <Button
+                  onClick={() => setShowVerificationFAQ(!showVerificationFAQ)}
+                  variant="ghost"
                   className="w-full"
                 >
                   <HelpCircle className="w-4 h-4 mr-2" />
                   Preguntas sobre Verificación
                 </Button>
+                {/* Temporalmente oculto
                 {!user.isPremium && (
                   <Button onClick={() => navigate('/premium')} className="w-full cyan-gradient text-black">
                     <Crown className="w-4 h-4 mr-2" />
                     Hazte Premium
                   </Button>
                 )}
+                */}
                  <Button onClick={logout} variant="destructive" className="w-full">
                   Cerrar Sesión
                 </Button>
@@ -246,6 +274,86 @@ const ProfilePage = () => {
                 <VerificationFAQ />
               </div>
             )}
+
+            {/* Sección de Favoritos */}
+            <div className="mt-8 mb-8">
+              <div className="flex items-center justify-between mb-4">
+                <h2 className="text-2xl font-bold text-foreground flex items-center gap-2">
+                  <Heart className="w-6 h-6 text-pink-400" />
+                  Amigos Favoritos
+                </h2>
+                <span className="text-sm text-muted-foreground">
+                  {favorites.length}/15
+                </span>
+              </div>
+
+              {loadingFavorites ? (
+                <div className="glass-effect p-6 rounded-xl border border-border">
+                  <p className="text-center text-muted-foreground">Cargando favoritos...</p>
+                </div>
+              ) : favorites.length > 0 ? (
+                <div className="glass-effect p-6 rounded-xl border border-border">
+                  <div className="flex flex-wrap gap-3">
+                    {/* Mostrar hasta 5 favoritos */}
+                    {favorites.slice(0, 5).map((fav) => (
+                      <motion.button
+                        key={fav.id}
+                        onClick={() => setSelectedFavorite(fav)}
+                        whileHover={{ scale: 1.05 }}
+                        whileTap={{ scale: 0.95 }}
+                        className="flex flex-col items-center gap-2 group"
+                        title={`Ver perfil de ${fav.username}`}
+                      >
+                        <div className="relative">
+                          <Avatar className="w-16 h-16 border-2 border-pink-500/30 group-hover:border-pink-400 transition-colors">
+                            <AvatarImage src={fav.avatar} alt={fav.username} />
+                            <AvatarFallback className="bg-secondary text-sm">
+                              {fav.username?.[0]?.toUpperCase()}
+                            </AvatarFallback>
+                          </Avatar>
+                          {fav.isOnline && (
+                            <div className="absolute bottom-0 right-0 w-4 h-4 bg-green-500 border-2 border-card rounded-full"></div>
+                          )}
+                        </div>
+                        <span className="text-xs text-muted-foreground group-hover:text-foreground truncate max-w-[64px] transition-colors">
+                          {fav.username}
+                        </span>
+                      </motion.button>
+                    ))}
+
+                    {/* Botón "Ver más" si hay más de 5 favoritos */}
+                    {favorites.length > 5 && (
+                      <motion.button
+                        onClick={() => setShowAllFavorites(true)}
+                        whileHover={{ scale: 1.05 }}
+                        whileTap={{ scale: 0.95 }}
+                        className="flex flex-col items-center justify-center gap-2 group"
+                        title="Ver todos los favoritos"
+                      >
+                        <div className="w-16 h-16 rounded-full bg-gradient-to-br from-pink-500/20 to-purple-500/20 border-2 border-pink-500/30 group-hover:border-pink-400 flex items-center justify-center transition-colors">
+                          <Plus className="w-8 h-8 text-pink-400 group-hover:text-pink-300" />
+                        </div>
+                        <span className="text-xs text-muted-foreground group-hover:text-foreground transition-colors">
+                          +{favorites.length - 5}
+                        </span>
+                      </motion.button>
+                    )}
+                  </div>
+                </div>
+              ) : (
+                <div className="glass-effect p-6 rounded-xl border border-border">
+                  <div className="text-center py-8">
+                    <Heart className="w-16 h-16 text-muted-foreground mx-auto mb-4 opacity-30" />
+                    <p className="text-muted-foreground">
+                      Aún no has agregado amigos favoritos
+                    </p>
+                    <p className="text-sm text-muted-foreground mt-2">
+                      Agrega usuarios a favoritos desde el chat para acceso rápido
+                    </p>
+                  </div>
+                </div>
+              )}
+            </div>
 
             <div className="mt-12">
               <h2 className="text-2xl font-bold text-foreground mb-4 flex items-center gap-2">
@@ -301,6 +409,44 @@ const ProfilePage = () => {
         onClose={() => setShowVerificationModal(false)}
         verificationStatus={verificationStatus}
       />
+
+      {/* Modal de todos los favoritos */}
+      {showAllFavorites && (
+        <FavoritesModal
+          favorites={favorites}
+          onClose={() => setShowAllFavorites(false)}
+          onSelectFavorite={(fav) => {
+            setSelectedFavorite(fav);
+            setShowAllFavorites(false);
+          }}
+        />
+      )}
+
+      {/* Modal de acciones para favorito seleccionado */}
+      {selectedFavorite && (
+        <UserActionsModal
+          user={{
+            username: selectedFavorite.username,
+            avatar: selectedFavorite.avatar,
+            userId: selectedFavorite.id,
+            isPremium: selectedFavorite.isPremium,
+            verified: selectedFavorite.verified,
+            role: selectedFavorite.role,
+            isAnonymous: false,
+            isGuest: false,
+          }}
+          onClose={() => setSelectedFavorite(null)}
+          onViewProfile={() => {
+            toast({
+              title: "Perfil",
+              description: `Viendo perfil de ${selectedFavorite.username}`,
+            });
+          }}
+          onShowRegistrationModal={() => {
+            // No aplica en esta página
+          }}
+        />
+      )}
     </>
   );
 };

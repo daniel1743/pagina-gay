@@ -35,7 +35,7 @@ export const PremiumWelcomeModal = ({ open, onClose }) => {
 
   return (
     <Dialog open={open} onOpenChange={onClose}>
-      <DialogContent className="sm:max-w-[500px] max-h-[90vh] bg-gradient-to-br from-purple-900 via-pink-900 to-purple-900 border-pink-500 text-white overflow-y-auto">
+      <DialogContent className="sm:max-w-[500px] max-h-[90vh] bg-gradient-to-br from-purple-900 via-pink-900 to-purple-900 border-pink-500 text-white overflow-y-auto scrollbar-hide">
         <DialogHeader>
           <div className="flex items-center justify-center mb-2">
             <div className="relative">

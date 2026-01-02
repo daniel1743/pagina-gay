@@ -28,7 +28,7 @@ const FavoritesModal = ({ favorites, onClose, onSelectFavorite }) => {
           </DialogTitle>
         </DialogHeader>
 
-        <div className="flex-1 overflow-y-auto px-6 pb-6">
+        <div className="flex-1 overflow-y-auto scrollbar-hide px-6 pb-6">
           {favorites.length === 0 ? (
             <div className="text-center py-8">
               <Heart className="w-16 h-16 text-muted-foreground mx-auto mb-4 opacity-30" />

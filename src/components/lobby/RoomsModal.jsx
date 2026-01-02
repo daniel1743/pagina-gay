@@ -73,24 +73,6 @@ const RoomsModal = ({ isOpen, onClose }) => {
 
   return (
     <>
-      {/* Modal de registro requerido */}
-      <RegistrationRequiredModal
-        open={showRegistrationModal}
-        onClose={() => {
-          setShowRegistrationModal(false);
-          setPendingRoomId(null);
-        }}
-        onContinue={() => {
-          onClose(); // Cerrar modal de salas primero
-          if (pendingRoomId) {
-            navigate(`/auth?redirect=/chat/${pendingRoomId}`);
-          } else {
-            navigate('/auth');
-          }
-        }}
-        title="Registro Requerido"
-        description="Esta sala requiere estar registrado para mantener un mejor control y seguridad de la comunidad."
-      />
     <Dialog open={isOpen} onOpenChange={onClose}>
       <DialogContent className="bg-card border text-foreground max-w-4xl rounded-2xl p-0">
         <DialogHeader className="p-6">
@@ -141,9 +123,13 @@ const RoomsModal = ({ isOpen, onClose }) => {
 
               const handleRoomClick = () => {
                 if (!canAccess) {
-                  // Mostrar modal de registro requerido
-                  setPendingRoomId(room.id);
-                  setShowRegistrationModal(true);
+                  // Cerrar el modal de salas primero, luego mostrar modal de registro
+                  onClose();
+                  // Pequeño delay para que se cierre el modal de salas antes de abrir el de registro
+                  setTimeout(() => {
+                    setPendingRoomId(room.id);
+                    setShowRegistrationModal(true);
+                  }, 100);
                   return;
                 }
                 onClose();
@@ -271,6 +257,25 @@ const RoomsModal = ({ isOpen, onClose }) => {
         </Button>
       </DialogContent>
     </Dialog>
+
+      {/* Modal de registro requerido - Renderizado fuera del Dialog principal */}
+      <RegistrationRequiredModal
+        open={showRegistrationModal}
+        onClose={() => {
+          setShowRegistrationModal(false);
+          setPendingRoomId(null);
+        }}
+        onContinue={() => {
+          setShowRegistrationModal(false);
+          if (pendingRoomId) {
+            navigate(`/auth?redirect=/chat/${pendingRoomId}`);
+          } else {
+            navigate('/auth');
+          }
+        }}
+        title="Registro Requerido"
+        description="Esta sala requiere estar registrado para mantener un mejor control y seguridad de la comunidad."
+      />
     </>
   );
 };
