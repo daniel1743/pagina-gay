@@ -291,7 +291,8 @@ export const cleanupCache = () => {
     }
   }
 
-  console.log(`🧹 [RATE LIMIT] Cache limpiado: ${messageCache.size} usuarios con mensajes, ${muteCache.size} muteados`);
+  // ✅ Cambiado a console.debug para reducir ruido en consola (solo visible si se activa "Verbose" en DevTools)
+  console.debug(`🧹 [RATE LIMIT] Cache limpiado: ${messageCache.size} usuarios con mensajes, ${muteCache.size} muteados`);
 };
 
 // Limpiar cache cada 30 segundos

@@ -146,18 +146,11 @@ const ChatPage = () => {
     enabled: true // Siempre habilitado para usuarios que lo necesiten
   });
 
-  // ========================================
-  // 🔒 LANDING PAGE: Guard clause para user === null
-  // ========================================
-  // CRITICAL: Debe estar DESPUÉS de todos los hooks
-  // NO afecta a guests (user.isGuest), solo a visitantes sin sesión
-  // Muestra landing page completa para mejor SEO y conversión
-  if (!user) {
-    return <ChatLandingPage roomSlug={roomId} />;
-  }
-
   // ✅ VALIDACIÓN: Salas restringidas requieren autenticación
+  // ⚠️ CRITICAL: Este hook DEBE ejecutarse siempre (antes del return) para respetar reglas de hooks
   useEffect(() => {
+    // Guard interno: solo ejecutar si hay user
+    if (!user) return;
     // ✅ SEO: Validar que la sala existe en roomsData (prevenir 404 en salas comentadas)
     const activeSalas = roomsData.map(room => room.id);
     if (!activeSalas.includes(roomId)) {
@@ -296,9 +289,11 @@ const ChatPage = () => {
   }, [roomId]);
 
   // SEO: Canonical tag dinámico para cada sala
+  // ⚠️ CRITICAL: Este hook DEBE ejecutarse siempre (antes del return)
   useCanonical(`/chat/${roomId}`);
 
   // Track page view and room join
+  // ⚠️ CRITICAL: Este hook DEBE ejecutarse siempre (antes del return)
   useEffect(() => {
     if (roomId) {
       trackPageView(`/chat/${roomId}`, `Chat - ${roomId}`);
@@ -313,8 +308,9 @@ const ChatPage = () => {
   }, [roomId]);
 
   // ⏱️ ENGAGEMENT TRACKING: Sistema de 1 hora gratuita
+  // ⚠️ CRITICAL: Este hook DEBE ejecutarse siempre (antes del return)
   useEffect(() => {
-    // Solo para usuarios guest/anonymous
+    // Guard interno: solo para usuarios guest/anonymous
     if (!user || (!user.isGuest && !user.isAnonymous)) {
       return;
     }
@@ -337,6 +333,7 @@ const ChatPage = () => {
   }, [user]);
 
   // 🎁 Mostrar modal de bienvenida premium solo una vez
+  // ⚠️ CRITICAL: Este hook DEBE ejecutarse siempre (antes del return)
   useEffect(() => {
     const hasSeenPremiumWelcome = localStorage.getItem('hasSeenPremiumWelcome');
 
@@ -1076,9 +1073,15 @@ const ChatPage = () => {
     });
   };
 
-  // ✅ NOTA: El guard clause para user === null está ANTES (línea 79-81)
-  // Este early return duplicado fue eliminado porque bloqueaba incorrectamente a guests
-  // Guests (user.isGuest || user.isAnonymous) DEBEN poder acceder al chat
+  // ========================================
+  // 🔒 LANDING PAGE: Guard clause para user === null
+  // ========================================
+  // ✅ CRITICAL: Este return DEBE estar DESPUÉS de TODOS los hooks
+  // NO afecta a guests (user.isGuest), solo a visitantes sin sesión
+  // Muestra landing page completa para mejor SEO y conversión
+  if (!user) {
+    return <ChatLandingPage roomSlug={roomId} />;
+  }
 
   return (
     <>

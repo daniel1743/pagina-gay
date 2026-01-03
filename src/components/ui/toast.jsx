@@ -10,9 +10,20 @@ const ToastViewport = React.forwardRef(({ className, ...props }, ref) => (
 	<ToastPrimitives.Viewport
 		ref={ref}
 		className={cn(
-			'fixed top-0 z-[100] flex max-h-screen w-full flex-col-reverse p-4 sm:bottom-0 sm:right-0 sm:top-auto sm:flex-col md:max-w-[420px]',
+			// ✅ CORREGIDO: No bloquea contenido - pointer-events-none y solo ocupa espacio necesario
+			'fixed z-[100] flex max-h-screen flex-col-reverse p-4 pointer-events-none',
+			// En mobile: top-0 pero sin bloquear interacciones
+			'top-0 w-full',
+			// En desktop: esquina inferior derecha, no bloquea
+			'sm:bottom-0 sm:right-0 sm:top-auto sm:flex-col sm:w-auto md:max-w-[420px]',
+			// Asegurar que no tenga fondo que bloquee
+			'bg-transparent',
 			className,
 		)}
+		style={{ 
+			// Asegurar que no bloquee eventos del mouse
+			pointerEvents: 'none',
+		}}
 		{...props}
 	/>
 ));

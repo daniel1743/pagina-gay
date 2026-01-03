@@ -8,13 +8,30 @@ import { useCanonical } from '@/hooks/useCanonical';
 import ChatDemo from '@/components/landing/ChatDemo';
 import { GuestUsernameModal } from '@/components/auth/GuestUsernameModal';
 import { EntryOptionsModal } from '@/components/auth/EntryOptionsModal';
+import { useLandingPageLogger } from '@/hooks/useLandingPageLogger';
 
 const MexicoLandingPage = () => {
+  console.group('🔥🔥🔥 [MEXICO] INICIO DE COMPONENTE');
+  console.log('⏰ Timestamp:', new Date().toISOString());
+  console.log('📍 URL:', window.location.href);
+  
+  const heroRef = React.useRef(null);
+  const containerRef = React.useRef(null);
+  const logger = useLandingPageLogger('MEXICO', containerRef);
+  
   const navigate = useNavigate();
   const location = useLocation();
   const { user } = useAuth();
+  
+  console.log('👤 Usuario:', user ? { id: user.id, isGuest: user.isGuest } : 'null');
+  
   const [showGuestModal, setShowGuestModal] = React.useState(false);
   const [showEntryModal, setShowEntryModal] = React.useState(false);
+  
+  logger.logStateChange('showGuestModal', false, showGuestModal);
+  logger.logStateChange('showEntryModal', false, showEntryModal);
+  
+  console.groupEnd();
 
   // ✅ Detectar si se debe abrir el modal automáticamente desde el Header
   React.useEffect(() => {
@@ -39,14 +56,47 @@ const MexicoLandingPage = () => {
     '/MODELO 5.jpeg'
   ];
 
+  console.log('🖼️ [MEXICO] Imágenes configuradas:', modelImages);
+
   // Cambiar imagen cada 3 segundos
   useEffect(() => {
+    logger.logEffect('carrusel-imagenes', [modelImages.length]);
+    console.log('🎬 [MEXICO] Iniciando carrusel de imágenes');
+    
     const interval = setInterval(() => {
-      setCurrentImageIndex((prevIndex) => (prevIndex + 1) % modelImages.length);
-    }, 3000); // 3 segundos
+      setCurrentImageIndex((prevIndex) => {
+        const newIndex = (prevIndex + 1) % modelImages.length;
+        logger.logStateChange('currentImageIndex', prevIndex, newIndex);
+        console.log(`📸 [MEXICO] Cambiando imagen: ${prevIndex} → ${newIndex}`);
+        return newIndex;
+      });
+    }, 3000);
+    
+    return () => {
+      console.log('🧹 [MEXICO] Limpiando intervalo de carrusel');
+      clearInterval(interval);
+    };
+  }, [modelImages.length, logger]);
 
-    return () => clearInterval(interval);
-  }, [modelImages.length]);
+  // 🖼️ Precarga de imágenes
+  const [imageLoadStatus, setImageLoadStatus] = useState({});
+  useEffect(() => {
+    logger.logEffect('precarga-imagenes', []);
+    console.log('🖼️ [MEXICO] Iniciando precarga de imágenes');
+    
+    modelImages.forEach((src, index) => {
+      const img = new Image();
+      img.onload = () => {
+        logger.logImageLoad(src, 'loaded', { index, width: img.width, height: img.height });
+        setImageLoadStatus(prev => ({ ...prev, [src]: 'loaded' }));
+      };
+      img.onerror = (e) => {
+        logger.logImageLoad(src, 'error', { index, error: e });
+        setImageLoadStatus(prev => ({ ...prev, [src]: 'error' }));
+      };
+      img.src = src;
+    });
+  }, [modelImages, logger]);
 
   // ✅ SEO: Canonical tag específico para México
   useCanonical('/mx');

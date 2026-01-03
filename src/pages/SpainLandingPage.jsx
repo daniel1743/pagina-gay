@@ -8,13 +8,30 @@ import { useCanonical } from '@/hooks/useCanonical';
 import ChatDemo from '@/components/landing/ChatDemo';
 import { GuestUsernameModal } from '@/components/auth/GuestUsernameModal';
 import { EntryOptionsModal } from '@/components/auth/EntryOptionsModal';
+import { useLandingPageLogger } from '@/hooks/useLandingPageLogger';
 
 const SpainLandingPage = () => {
+  console.group('🔥🔥🔥 [SPAIN] INICIO DE COMPONENTE');
+  console.log('⏰ Timestamp:', new Date().toISOString());
+  console.log('📍 URL:', window.location.href);
+  
+  const heroRef = React.useRef(null);
+  const containerRef = React.useRef(null);
+  const logger = useLandingPageLogger('SPAIN', containerRef);
+  
   const navigate = useNavigate();
   const location = useLocation();
   const { user } = useAuth();
+  
+  console.log('👤 Usuario:', user ? { id: user.id, isGuest: user.isGuest } : 'null');
+  
   const [showGuestModal, setShowGuestModal] = React.useState(false);
   const [showEntryModal, setShowEntryModal] = React.useState(false);
+  
+  logger.logStateChange('showGuestModal', false, showGuestModal);
+  logger.logStateChange('showEntryModal', false, showEntryModal);
+  
+  console.groupEnd();
 
   // ✅ Detectar si se debe abrir el modal automáticamente desde el Header
   React.useEffect(() => {
@@ -31,6 +48,8 @@ const SpainLandingPage = () => {
 
   // 🔥 Carrusel de imágenes - 5 modelos que cambian cada 3 segundos
   const [currentImageIndex, setCurrentImageIndex] = useState(0);
+  const [imageLoadStatus, setImageLoadStatus] = useState({});
+  
   const modelImages = [
     '/MODELO 1.jpeg',
     '/MODELO 2.jpeg',
@@ -39,14 +58,65 @@ const SpainLandingPage = () => {
     '/MODELO 5.jpeg'
   ];
 
+  console.log('🖼️ [SPAIN] Imágenes configuradas:', modelImages);
+
   // Cambiar imagen cada 3 segundos
   useEffect(() => {
+    logger.logEffect('carrusel-imagenes', [modelImages.length]);
+    
+    console.log('🎬 [SPAIN] Iniciando carrusel de imágenes');
     const interval = setInterval(() => {
-      setCurrentImageIndex((prevIndex) => (prevIndex + 1) % modelImages.length);
-    }, 3000); // 3 segundos
+      setCurrentImageIndex((prevIndex) => {
+        const newIndex = (prevIndex + 1) % modelImages.length;
+        logger.logStateChange('currentImageIndex', prevIndex, newIndex);
+        console.log(`📸 [SPAIN] Cambiando imagen: ${prevIndex} → ${newIndex} (${modelImages[newIndex]})`);
+        return newIndex;
+      });
+    }, 3000);
 
-    return () => clearInterval(interval);
-  }, [modelImages.length]);
+    return () => {
+      console.log('🧹 [SPAIN] Limpiando intervalo de carrusel');
+      clearInterval(interval);
+    };
+  }, [modelImages.length, logger]);
+
+  // 🖼️ Precarga de imágenes
+  useEffect(() => {
+    logger.logEffect('precarga-imagenes', []);
+    console.log('🖼️ [SPAIN] Iniciando precarga de imágenes');
+    
+    modelImages.forEach((src, index) => {
+      const img = new Image();
+      img.onload = () => {
+        logger.logImageLoad(src, 'loaded', { index, width: img.width, height: img.height });
+        setImageLoadStatus(prev => ({ ...prev, [src]: 'loaded' }));
+      };
+      img.onerror = (e) => {
+        logger.logImageLoad(src, 'error', { index, error: e });
+        setImageLoadStatus(prev => ({ ...prev, [src]: 'error' }));
+      };
+      img.src = src;
+    });
+  }, [modelImages, logger]);
+
+  // 🖼️ Precarga de imágenes
+  useEffect(() => {
+    logger.logEffect('precarga-imagenes', []);
+    console.log('🖼️ [SPAIN] Iniciando precarga de imágenes');
+    
+    modelImages.forEach((src, index) => {
+      const img = new Image();
+      img.onload = () => {
+        logger.logImageLoad(src, 'loaded', { index, width: img.width, height: img.height });
+        setImageLoadStatus(prev => ({ ...prev, [src]: 'loaded' }));
+      };
+      img.onerror = (e) => {
+        logger.logImageLoad(src, 'error', { index, error: e });
+        setImageLoadStatus(prev => ({ ...prev, [src]: 'error' }));
+      };
+      img.src = src;
+    });
+  }, []);
 
   // ✅ SEO: Canonical tag específico para España
   useCanonical('/es');
@@ -135,10 +205,27 @@ const SpainLandingPage = () => {
     }
   };
 
+  console.log('🎨 [SPAIN] Iniciando renderizado JSX');
+  console.log('📊 [SPAIN] Estado actual:', {
+    currentImageIndex,
+    imageLoadStatus,
+    showGuestModal,
+    showEntryModal,
+    user: user ? 'exists' : 'null',
+    totalRenders: logger.renderCount,
+  });
+
   return (
-    <div className="min-h-screen">
+    <div 
+      ref={containerRef}
+      className="min-h-screen"
+      style={{ backgroundColor: 'transparent' }}
+    >
+      {console.log('✅ [SPAIN] Contenedor principal renderizado')}
+      
       {/* 🎯 HERO MOBILE-FIRST - Un solo hero, copy directo, CTA único */}
       <motion.div
+        ref={heroRef}
         initial={{ opacity: 0 }}
         animate={{ opacity: 1 }}
         transition={{ duration: 0.6 }}
@@ -146,6 +233,26 @@ const SpainLandingPage = () => {
         style={{ 
           marginTop: '-4rem',
           zIndex: 1
+        }}
+        onAnimationStart={() => {
+          console.log('🎬 [SPAIN] Animación de entrada iniciada');
+        }}
+        onAnimationComplete={() => {
+          console.log('✅ [SPAIN] Animación de entrada completada');
+          if (heroRef.current) {
+            const rect = heroRef.current.getBoundingClientRect();
+            const styles = window.getComputedStyle(heroRef.current);
+            console.log('📐 [SPAIN] Hero después de animación:', {
+              dimensions: { width: rect.width, height: rect.height },
+              position: { top: rect.top, left: rect.left },
+              styles: {
+                opacity: styles.opacity,
+                backgroundColor: styles.backgroundColor,
+                zIndex: styles.zIndex,
+                marginTop: styles.marginTop,
+              },
+            });
+          }
         }}
       >
         {/* Mobile: max 60vh, Desktop: max 75vh */}
@@ -167,13 +274,37 @@ const SpainLandingPage = () => {
                   alt="Chat activo en España"
                   className="absolute inset-0 w-full h-full object-cover object-center"
                   loading={currentImageIndex === 0 ? 'eager' : 'lazy'}
+                  onLoad={(e) => {
+                    const img = e.target;
+                    logger.logImageLoad(modelImages[currentImageIndex], 'loaded', {
+                      naturalWidth: img.naturalWidth,
+                      naturalHeight: img.naturalHeight,
+                      displayed: img.complete,
+                      visible: img.offsetWidth > 0 && img.offsetHeight > 0,
+                      src: img.src,
+                    });
+                    console.log('✅ [SPAIN] Imagen renderizada:', {
+                      src: modelImages[currentImageIndex],
+                      dimensions: { width: img.naturalWidth, height: img.naturalHeight },
+                      visible: img.offsetWidth > 0 && img.offsetHeight > 0,
+                    });
+                  }}
                   onError={(e) => {
-                    console.error('Error cargando imagen:', modelImages[currentImageIndex]);
-                    // Intentar con ruta alternativa sin espacios
+                    const errorDetails = {
+                      src: modelImages[currentImageIndex],
+                      encodedSrc: encodeURI(modelImages[currentImageIndex]),
+                      error: e.type,
+                      targetSrc: e.target.src,
+                    };
+                    logger.logImageLoad(modelImages[currentImageIndex], 'error', errorDetails);
+                    console.error('❌ [SPAIN] Error cargando imagen:', errorDetails);
+                    
                     const altPath = modelImages[currentImageIndex].replace(' ', '%20');
                     if (e.target.src !== altPath) {
+                      console.log('🔄 [SPAIN] Intentando ruta alternativa:', altPath);
                       e.target.src = altPath;
                     } else {
+                      console.error('❌ [SPAIN] Todas las rutas fallaron');
                       e.target.style.display = 'none';
                     }
                   }}
