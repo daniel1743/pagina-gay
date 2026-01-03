@@ -1,0 +1,9 @@
+Métrica,Mal (<),Aceptable,Excelente (>)
+Bounce Rate (landing),50%,40-50%,<40%
+Engagement Rate (primer mensaje),<20%,20-30%,>30%
+Day-1 Retention,<15%,15-25%,>25%
+Day-7 Retention,<8%,8-12%,>12%
+Day-30 Retention,<3%,3-5%,>5%
+Avg Session Duration,<30 seg,30-90 seg,>90 seg
+Messages per User (primeros 7 días),<5,5-15,>15
+Room Consolidation Ratio,>5 rooms/user,3-5 rooms,<2 rooms/user

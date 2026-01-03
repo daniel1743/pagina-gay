@@ -25,7 +25,7 @@ const GamingLandingPage = () => {
 
   React.useEffect(() => {
     // ✅ SEO: Title y meta description optimizados para CTR
-    document.title = 'Chat Gay para Gamers en Chile 🎮 | Conoce Gamers LGBT+ | Chactivo';
+    document.title = 'Chat Gamer Gay Chile 🎮 Squads y Discord Alternativo | Chactivo';
 
     let metaDescription = document.querySelector('meta[name="description"]');
     if (!metaDescription) {
@@ -33,11 +33,11 @@ const GamingLandingPage = () => {
       metaDescription.name = 'description';
       document.head.appendChild(metaDescription);
     }
-    metaDescription.content = '🎮 Únete al chat gay de gamers más activo de Chile. Comparte tus juegos favoritos, encuentra squad LGBT+, chatea sobre PS5, Xbox, PC, Switch y móvil. ¡100% gratis, regístrate en 30 segundos!';
+    metaDescription.content = 'Únete a la sala gamer. Busca partida, habla de setup y conoce amigos. Acceso libre inmediato.';
 
     return () => {
       if (metaDescription && document.head.contains(metaDescription)) {
-        metaDescription.content = '🏳️‍🌈 Chat gay chileno 100% gratis. Salas por interés: Gaming 🎮, +30 💪, Osos 🐻, Amistad 💬. Conversación real, sin presión de hookups.';
+        metaDescription.content = 'La comunidad más libre. Solo 4 salas activas con gente real: Santiago, Gaming y más. Sin perfiles, sin emails, solo entra y chatea.';
       }
     };
   }, []);

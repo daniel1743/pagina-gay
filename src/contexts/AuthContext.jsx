@@ -133,12 +133,26 @@ export const AuthProvider = ({ children }) => {
               return;
             }
             
+            // ✅ SUPER ADMIN: Asignar role automáticamente si es el email autorizado
+            if (firebaseUser.email === 'caribenosvenezolanos@gmail.com' && userProfile.role !== 'admin') {
+              console.log('🛡️ [AUTH] Super Admin detectado, asignando rol...');
+              userProfile.role = 'admin';
+
+              // Actualizar en Firestore para persistir
+              try {
+                await updateUserProfileService(firebaseUser.uid, { role: 'admin' });
+                console.log('✅ [AUTH] Rol de admin asignado y guardado en Firestore');
+              } catch (error) {
+                console.error('❌ [AUTH] Error al guardar rol de admin:', error);
+              }
+            }
+
             setUser(userProfile);
             setGuestMessageCount(0); // Los usuarios registrados no tienen límite
-            
+
             // Registrar conexión para sistema de verificación
             recordUserConnection(firebaseUser.uid);
-            
+
             // Verificar mantenimiento de verificación
             checkVerificationMaintenance(firebaseUser.uid);
           }

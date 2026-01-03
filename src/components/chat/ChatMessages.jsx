@@ -2,12 +2,15 @@ import React, { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Button } from '@/components/ui/button';
-import { Flag, ThumbsUp, ThumbsDown, CheckCircle, Check, CheckCheck } from 'lucide-react';
+import { Flag, ThumbsUp, ThumbsDown, CheckCircle, Check, CheckCheck, Reply } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
+import MessageQuote from './MessageQuote';
+import NewMessagesDivider from './NewMessagesDivider';
 
-const ChatMessages = ({ messages, currentUserId, onUserClick, onReport, onPrivateChat, onReaction, messagesEndRef, messagesContainerRef, newMessagesIndicator, onScroll }) => {
+const ChatMessages = ({ messages, currentUserId, onUserClick, onReport, onPrivateChat, onReaction, messagesEndRef, messagesContainerRef, newMessagesIndicator, onScroll, onReply, lastReadMessageIndex = -1 }) => {
   // 📱 Sistema de doble check dinámico (like WhatsApp)
   const [messageChecks, setMessageChecks] = useState({});
+  const [highlightedMessageId, setHighlightedMessageId] = useState(null);
   const formatTime = (timestamp) => {
     try {
       let date;
@@ -92,33 +95,64 @@ const ChatMessages = ({ messages, currentUserId, onUserClick, onReport, onPrivat
     }
   }
 
+  // 🎯 JUMP TO MESSAGE: Saltar a un mensaje específico con highlight
+  const handleJumpToMessage = (messageId) => {
+    const messageElement = messagesContainerRef.current?.querySelector(`[data-message-id="${messageId}"]`);
+    if (messageElement) {
+      // Scroll al mensaje
+      messageElement.scrollIntoView({ behavior: 'smooth', block: 'center' });
+
+      // Highlight temporal
+      setHighlightedMessageId(messageId);
+      setTimeout(() => {
+        setHighlightedMessageId(null);
+      }, 2000);
+    }
+  };
+
   return (
-    <div ref={messagesContainerRef} className="flex-1 overflow-y-auto p-2 sm:p-3 space-y-2 sm:space-y-2 scrollbar-hide relative" style={{ WebkitOverflowScrolling: 'touch' }} onScroll={onScroll}>
+    <div 
+      ref={messagesContainerRef} 
+      role="log" 
+      aria-live="polite" 
+      aria-label="Área de mensajes del chat" 
+      className="flex-1 overflow-y-auto p-2 sm:p-3 space-y-2 sm:space-y-2 scrollbar-hide relative" 
+      style={{ WebkitOverflowScrolling: 'touch' }} 
+      onScroll={onScroll}
+    >
       {newMessagesIndicator}
-      {messages.map((message) => {
+      {messages.map((message, index) => {
         const isOwn = message.userId === currentUserId;
         const isSystem = message.userId === 'system';
         const isUserPremium = findUserPremiumStatus(message.userId);
         const isUserVerified = findUserVerifiedStatus(message.userId);
         const userRole = findUserRole(message.userId);
+        const isHighlighted = highlightedMessageId === message.id;
+
+        // 📍 Mostrar divider "Mensajes nuevos" antes del primer mensaje no leído
+        const showDivider = lastReadMessageIndex >= 0 && index === lastReadMessageIndex + 1;
 
         if (isSystem) {
           return (
-            <motion.div
-              key={message.id}
-              initial={{ opacity: 0, y: 10 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.2 }}
-              className="flex justify-center"
-            >
-              <div className="text-center text-xs text-muted-foreground bg-card px-3 py-1 rounded-full">
-                {message.content}
-              </div>
-            </motion.div>
+            <React.Fragment key={message.id}>
+              {showDivider && <NewMessagesDivider show={true} />}
+              <motion.div
+                initial={{ opacity: 0, y: 10 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ duration: 0.2 }}
+                className="flex justify-center"
+              >
+                <div className="text-center text-xs text-muted-foreground bg-card px-3 py-1 rounded-full">
+                  {message.content}
+                </div>
+              </motion.div>
+            </React.Fragment>
           )
         }
 
         return (
+          <React.Fragment key={message.id}>
+            {showDivider && <NewMessagesDivider show={true} />}
           <motion.div
             key={message.id}
             data-message-id={message.id}
@@ -200,10 +234,19 @@ const ChatMessages = ({ messages, currentUserId, onUserClick, onReport, onPrivat
 
               <motion.div
                 style={isOwn ? getBubbleStyle() : {}}
-                className={`relative rounded-xl px-3.5 sm:px-3 py-2.5 sm:py-2 w-full break-words text-base sm:text-sm leading-relaxed ${isOwn ? 'magenta-gradient text-white' : 'bg-secondary text-foreground border border-border'} ${!isOwn ? 'group-hover:border-cyan-400 border-2 transition-all duration-200' : ''}`}
+                className={`relative rounded-xl px-3.5 sm:px-3 py-2.5 sm:py-2 w-full break-words text-base sm:text-sm leading-relaxed ${isOwn ? 'magenta-gradient text-white' : 'bg-secondary text-foreground border border-border'} ${!isOwn ? 'group-hover:border-cyan-400 border-2 transition-all duration-200' : ''} ${isHighlighted ? 'ring-2 ring-cyan-400 ring-offset-2 ring-offset-background' : ''}`}
                 whileHover={!isOwn ? { scale: 1.01, borderColor: 'rgb(34, 211, 238)' } : {}}
                 transition={{ type: 'spring', stiffness: 400 }}
+                animate={isHighlighted ? { scale: [1, 1.02, 1] } : {}}
               >
+                {/* 💬 QUOTE: Mostrar mensaje citado si existe */}
+                {message.replyTo && (
+                  <MessageQuote
+                    replyTo={message.replyTo}
+                    onJumpToMessage={handleJumpToMessage}
+                  />
+                )}
+
                 <div
                   className="cursor-pointer break-words overflow-wrap-anywhere min-h-[44px] flex items-center"
                   onClick={() => onPrivateChat({ username: message.username, avatar: message.avatar, userId: message.userId, isPremium: isUserPremium })}
@@ -222,6 +265,21 @@ const ChatMessages = ({ messages, currentUserId, onUserClick, onReport, onPrivat
                     initial={{ y: 5 }}
                     whileHover={{ y: 0 }}
                   >
+                    <motion.div whileHover={{ scale: 1.2 }} whileTap={{ scale: 0.9 }}>
+                      <Button
+                        size="icon"
+                        variant="ghost"
+                        className="h-5 w-5 text-muted-foreground hover:text-cyan-400"
+                        onClick={() => onReply?.({
+                          messageId: message.id,
+                          username: message.username,
+                          content: message.content
+                        })}
+                        title="Responder"
+                      >
+                        <Reply className="h-3 w-3" />
+                      </Button>
+                    </motion.div>
                     <motion.div whileHover={{ scale: 1.2 }} whileTap={{ scale: 0.9 }}>
                       <Button size="icon" variant="ghost" className="h-5 w-5 text-muted-foreground hover:text-green-400" onClick={() => onReaction(message.id, 'like')}>
                         <ThumbsUp className="h-3 w-3" />
@@ -286,6 +344,7 @@ const ChatMessages = ({ messages, currentUserId, onUserClick, onReport, onPrivat
               )}
             </div>
           </motion.div>
+          </React.Fragment>
         );
       })}
       <div ref={messagesEndRef} />

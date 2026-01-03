@@ -1,7 +1,7 @@
 import React, { useState, useRef, useEffect, lazy, Suspense, useMemo } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Send, Smile, Mic, Image, MessageSquarePlus, X } from 'lucide-react';
+import { Send, Smile, Mic, Image, MessageSquarePlus, X, Reply } from 'lucide-react';
 import { toast } from '@/components/ui/use-toast';
 import ComingSoonModal from '@/components/ui/ComingSoonModal';
 import { EmojiStyle, Categories } from 'emoji-picker-react';
@@ -42,7 +42,7 @@ const PREMIUM_EMOJIS = [
 ];
 
 
-const ChatInput = ({ onSendMessage, onFocus, onBlur, externalMessage = null }) => {
+const ChatInput = ({ onSendMessage, onFocus, onBlur, externalMessage = null, roomId = null, replyTo = null, onCancelReply }) => {
   const { user, guestMessageCount } = useAuth();
   const [message, setMessage] = useState('');
   const [showEmojiPicker, setShowEmojiPicker] = useState(false);
@@ -115,11 +115,44 @@ const ChatInput = ({ onSendMessage, onFocus, onBlur, externalMessage = null }) =
     };
   }, [wrapperRef]);
 
+  // Guardar borrador automáticamente en localStorage
+  useEffect(() => {
+    if (roomId && message.trim()) {
+      const draftKey = `chat-draft-${roomId}`;
+      const timeoutId = setTimeout(() => {
+        localStorage.setItem(draftKey, message);
+      }, 500); // Debounce de 500ms
+      return () => clearTimeout(timeoutId);
+    } else if (roomId && !message.trim()) {
+      // Limpiar borrador si el mensaje está vacío
+      const draftKey = `chat-draft-${roomId}`;
+      localStorage.removeItem(draftKey);
+    }
+  }, [message, roomId]);
+
+  // Restaurar borrador al cargar o cambiar de sala
+  useEffect(() => {
+    if (roomId) {
+      const draftKey = `chat-draft-${roomId}`;
+      const savedDraft = localStorage.getItem(draftKey);
+      if (savedDraft && savedDraft.trim()) {
+        setMessage(savedDraft);
+        // Restaurar altura del textarea después de restaurar el mensaje
+        setTimeout(() => {
+          if (textareaRef.current) {
+            textareaRef.current.style.height = 'auto';
+            textareaRef.current.style.height = `${Math.min(textareaRef.current.scrollHeight, 150)}px`;
+          }
+        }, 0);
+      }
+    }
+  }, [roomId]);
+
   // Auto-ajustar altura del textarea
   useEffect(() => {
     if (textareaRef.current) {
       textareaRef.current.style.height = 'auto';
-      textareaRef.current.style.height = `${Math.min(textareaRef.current.scrollHeight, 120)}px`;
+      textareaRef.current.style.height = `${Math.min(textareaRef.current.scrollHeight, 150)}px`;
     }
   }, [message]);
 
@@ -147,6 +180,12 @@ const ChatInput = ({ onSendMessage, onFocus, onBlur, externalMessage = null }) =
       const messageToSend = message.trim();
       setMessage(''); // Limpiar inmediatamente para sensación de velocidad
 
+      // Limpiar borrador al enviar
+      if (roomId) {
+        const draftKey = `chat-draft-${roomId}`;
+        localStorage.removeItem(draftKey);
+      }
+
       // Timeout de seguridad: resetear isSending después de 5 segundos máximo
       const safetyTimeout = setTimeout(() => {
         setIsSending(false);
@@ -154,10 +193,14 @@ const ChatInput = ({ onSendMessage, onFocus, onBlur, externalMessage = null }) =
       }, 5000);
 
       try {
-        await onSendMessage(messageToSend, 'text');
+        await onSendMessage(messageToSend, 'text', replyTo);
         // Vibración sutil si está disponible
         if (navigator.vibrate) {
           navigator.vibrate(10);
+        }
+        // Limpiar reply después de enviar exitosamente
+        if (replyTo && onCancelReply) {
+          onCancelReply();
         }
       } catch (error) {
         // Si falla, restaurar el mensaje
@@ -278,6 +321,42 @@ const ChatInput = ({ onSendMessage, onFocus, onBlur, externalMessage = null }) =
             </motion.div>
         )}
       </AnimatePresence>
+
+      {/* 💬 REPLY PREVIEW: Mostrar cuando se está respondiendo a un mensaje */}
+      <AnimatePresence>
+        {replyTo && (
+          <motion.div
+            initial={{ opacity: 0, y: -10 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -10 }}
+            className="mb-2 bg-secondary/50 border-l-4 border-cyan-400 rounded-r-lg p-2 flex items-start gap-2"
+          >
+            <Reply className="w-4 h-4 text-cyan-400 flex-shrink-0 mt-0.5" />
+            <div className="flex-1 min-w-0">
+              <p className="text-xs font-semibold text-cyan-400 truncate">
+                Respondiendo a {replyTo.username}
+              </p>
+              <p className="text-xs text-muted-foreground truncate">
+                {replyTo.content.length > 50
+                  ? replyTo.content.substring(0, 50) + '...'
+                  : replyTo.content
+                }
+              </p>
+            </div>
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon"
+              className="h-6 w-6 flex-shrink-0 text-muted-foreground hover:text-foreground"
+              onClick={onCancelReply}
+              title="Cancelar respuesta"
+            >
+              <X className="h-3 w-3" />
+            </Button>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
       <form onSubmit={handleSubmit} className="flex items-end gap-1.5 sm:gap-2 flex-nowrap">
         {/* ✅ Botones con tamaño mínimo táctil (44px) para móvil */}
         <Button
@@ -343,7 +422,7 @@ const ChatInput = ({ onSendMessage, onFocus, onBlur, externalMessage = null }) =
             }
           }}
           placeholder="Escribe un mensaje..."
-          className="flex-1 bg-secondary border-2 border-input rounded-lg px-3 sm:px-4 py-2.5 sm:py-2 text-sm sm:text-base text-foreground placeholder:text-muted-foreground focus:border-accent transition-all min-h-[44px] max-h-[120px] resize-none overflow-y-auto"
+          className="flex-1 bg-secondary border-2 border-input rounded-lg px-3 sm:px-4 py-2.5 sm:py-2 text-sm sm:text-base text-foreground placeholder:text-muted-foreground focus:border-accent transition-all min-h-[48px] max-h-[150px] resize-none overflow-y-auto scrollbar-hide"
           aria-label="Campo de texto para escribir mensaje"
           maxLength={500}
           autoComplete="off"

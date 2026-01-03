@@ -4,7 +4,7 @@ import { useNavigate } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
 import { Button } from '@/components/ui/button';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
-import { ArrowLeft, Crown, Shield, Camera, Edit, MessageSquare, CheckCircle, HelpCircle, Ticket, Upload, Image as ImageIcon, Heart, Plus } from 'lucide-react';
+import { ArrowLeft, Crown, Shield, Camera, Edit, MessageSquare, CheckCircle, HelpCircle, Ticket, Upload, Image as ImageIcon, Heart, Plus, Settings } from 'lucide-react';
 import { toast } from '@/components/ui/use-toast';
 import ComingSoonModal from '@/components/ui/ComingSoonModal';
 import EditProfileModal from '@/components/profile/EditProfileModal';
@@ -205,6 +205,19 @@ const ProfilePage = () => {
                   <Edit className="w-4 h-4 mr-2" />
                   Editar Perfil
                 </Button>
+
+                {/* 🛡️ PANEL DE ADMINISTRADOR - Solo visible para admins */}
+                {user.role === 'admin' && (
+                  <Button
+                    onClick={() => navigate('/admin')}
+                    variant="outline"
+                    className="w-full border-purple-500 text-purple-400 hover:bg-purple-500/20 font-semibold"
+                  >
+                    <Settings className="w-4 h-4 mr-2" />
+                    Panel de Admin
+                  </Button>
+                )}
+
                 <Button onClick={() => setShowTicketModal(true)} variant="outline" className="w-full border-orange-500 text-orange-400 hover:bg-orange-500/20">
                   <Ticket className="w-4 h-4 mr-2" />
                   Crear Ticket

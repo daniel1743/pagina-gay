@@ -114,6 +114,7 @@ const ChatPage = () => {
   const [showScreenSaver, setShowScreenSaver] = useState(false); // 🔒 Protector de pantalla
   const [isInputFocused, setIsInputFocused] = useState(false); // 📝 Input focus state for scroll manager
   const [suggestedMessage, setSuggestedMessage] = useState(null); // 🤖 Mensaje sugerido por Companion AI
+  const [replyTo, setReplyTo] = useState(null); // 💬 Mensaje al que se está respondiendo { messageId, username, content }
   const unsubscribeRef = useRef(null);
   const aiActivatedRef = useRef(false); // Flag para evitar activaciones múltiples de IA
   const lastUserCountRef = useRef(0); // Para evitar ejecuciones innecesarias del useEffect
@@ -535,7 +536,14 @@ const ChatPage = () => {
       if (hasChanged) {
         console.log(`👥 Sala ${roomId}: ${currentCounts.real} usuario(s) real(es) activo(s) | ${currentCounts.total} total en DB (incluye inactivos)`);
 
-        // 🔊 Reproducir sonido de salida si un usuario real se desconectó
+        // 🔊 Reproducir sonido de INGRESO si un usuario real se conectó
+        if (previousRealUserCountRef.current > 0 && currentCounts.real > previousRealUserCountRef.current) {
+          const usersJoined = currentCounts.real - previousRealUserCountRef.current;
+          console.log(`🔊 [SOUNDS] ${usersJoined} usuario(s) ingresó/ingresaron, reproduciendo sonido de bienvenida`);
+          notificationSounds.playUserJoinSound();
+        }
+
+        // 🔊 Reproducir sonido de SALIDA si un usuario real se desconectó
         if (previousRealUserCountRef.current > 0 && currentCounts.real < previousRealUserCountRef.current) {
           const usersLeft = previousRealUserCountRef.current - currentCounts.real;
           console.log(`🔊 [SOUNDS] ${usersLeft} usuario(s) se desconectó/desconectaron, reproduciendo sonido de salida`);
@@ -741,11 +749,32 @@ const ChatPage = () => {
     } catch (error) {
       console.error('Error adding reaction:', error);
       toast({
-        title: "Error",
-        description: "No se pudo añadir la reacción",
+        title: "No pudimos agregar la reacción",
+        description: "Toca para reintentar",
         variant: "destructive",
       });
     }
+  };
+
+  /**
+   * 💬 REPLY: Handler cuando usuario presiona botón de responder
+   */
+  const handleReply = (messageData) => {
+    setReplyTo(messageData);
+    // Hacer focus en el input para que el usuario empiece a escribir
+    setTimeout(() => {
+      const textarea = document.querySelector('textarea[placeholder="Escribe un mensaje..."]');
+      if (textarea) {
+        textarea.focus();
+      }
+    }, 100);
+  };
+
+  /**
+   * 💬 REPLY: Handler para cancelar respuesta
+   */
+  const handleCancelReply = () => {
+    setReplyTo(null);
   };
 
   /**
@@ -755,7 +784,7 @@ const ChatPage = () => {
    * ✅ Contador persistente en Firestore para anónimos
    * 🤖 Activa respuesta de bots si están activos
    */
-  const handleSendMessage = async (content, type = 'text') => {
+  const handleSendMessage = async (content, type = 'text', replyData = null) => {
     // ✅ CRÍTICO: Validar que el usuario existe
     if (!user || !user.id) {
       toast({
@@ -854,6 +883,7 @@ const ChatPage = () => {
           isPremium: user.isPremium,
           content,
           type,
+          replyTo: replyData, // 💬 Incluir información de respuesta si existe
         },
         user.isAnonymous // Indica si es anónimo para usar transacción
       );
@@ -861,6 +891,8 @@ const ChatPage = () => {
       // Track message sent
       trackMessageSent(currentRoom, user.id);
 
+      // 🔊 Reproducir sonido de confirmación de envío
+      notificationSounds.playMessageSentSound();
 
       // El listener de onSnapshot actualizará automáticamente los mensajes
     } catch (error) {
@@ -878,8 +910,8 @@ const ChatPage = () => {
       //   });
       // } else {
       toast({
-        title: "Error",
-        description: "No se pudo enviar el mensaje",
+        title: "No pudimos entregar este mensaje",
+        description: "Intenta de nuevo en un momento",
         variant: "destructive",
       });
       // }
@@ -938,8 +970,8 @@ const ChatPage = () => {
     } catch (error) {
       console.error('Error sending private chat request:', error);
       toast({
-        title: "Error",
-        description: "No se pudo enviar la solicitud de chat privado.",
+        title: "No pudimos enviar la invitación",
+        description: "Intenta de nuevo en un momento",
         variant: "destructive",
       });
     }
@@ -980,8 +1012,8 @@ const ChatPage = () => {
       } catch (error) {
         console.error('Error responding to private chat request:', error);
         toast({
-          title: "Error",
-          description: "No se pudo procesar la respuesta.",
+          title: "No pudimos procesar tu respuesta",
+          description: "Intenta de nuevo en un momento",
           variant: "destructive",
         });
       }
@@ -1067,6 +1099,8 @@ const ChatPage = () => {
               onReport={setReportTarget}
               onPrivateChat={handlePrivateChatRequest}
               onReaction={handleMessageReaction}
+              onReply={handleReply}
+              lastReadMessageIndex={-1}
               messagesEndRef={scrollManager.endMarkerRef}
               messagesContainerRef={scrollManager.containerRef}
               onScroll={companionAI.handleScroll}
@@ -1087,6 +1121,9 @@ const ChatPage = () => {
             onFocus={() => setIsInputFocused(true)}
             onBlur={() => setIsInputFocused(false)}
             externalMessage={suggestedMessage}
+            roomId={roomId}
+            replyTo={replyTo}
+            onCancelReply={handleCancelReply}
           />
         </div>
 

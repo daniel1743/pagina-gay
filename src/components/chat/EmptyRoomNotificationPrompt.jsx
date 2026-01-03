@@ -46,8 +46,8 @@ const EmptyRoomNotificationPrompt = ({ roomName, isVisible }) => {
     } catch (error) {
       console.error('Error requesting notification permission:', error);
       toast({
-        title: "Error",
-        description: "No se pudo activar las notificaciones. Intenta más tarde.",
+        title: "No pudimos activar las notificaciones",
+        description: "Intenta de nuevo en un momento",
         variant: "destructive",
       });
     }

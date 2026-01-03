@@ -1,10 +1,18 @@
 /**
  * 🔊 SISTEMA DE SONIDOS DE NOTIFICACIÓN
  *
- * - Sonido "pluc" sutil cuando llegan mensajes
- * - Sonido "clap" sutil cuando alguien se desconecta
+ * Sonidos sutiles, suaves y agradables para mejorar la experiencia del chat:
+ *
+ * 🎵 playUserJoinSound() - Tono ascendente (400Hz→800Hz) cuando un usuario ingresa
+ * 📤 playMessageSentSound() - Doble "bip" de confirmación (600Hz→700Hz) al enviar mensaje
+ * 📥 playMessageSound() - Tono descendente "pluc" (800Hz→400Hz) al recibir mensaje
+ * 👋 playDisconnectSound() - "Clap" sutil cuando alguien se desconecta
+ *
+ * Características:
  * - Agrupación: Si llegan 4+ mensajes en menos de 2 segundos, solo suena 1 vez
  * - Configuración persistente de mute en localStorage
+ * - Volúmenes muy bajos para no molestar (0.05-0.08)
+ * - Inicialización automática al primer click del usuario
  */
 
 const SOUND_SETTINGS_KEY = 'chat_sound_settings';
@@ -233,6 +241,105 @@ class NotificationSounds {
       source.start(this.audioContext.currentTime);
     } catch (error) {
       console.error('[SOUNDS] Error reproduciendo sonido de desconexión:', error);
+    }
+  }
+
+  /**
+   * 🎵 Genera un sonido suave ascendente para cuando un usuario ingresa (join)
+   * Frecuencia ascendente: 400Hz -> 800Hz (sonido "ding" alegre)
+   */
+  playUserJoinSound() {
+    if (this.isMuted) {
+      console.log('[SOUNDS] 🔇 Sonido de ingreso bloqueado: MUTED');
+      return;
+    }
+
+    if (!this.audioContext) {
+      console.warn('[SOUNDS] ⚠️ Sonido de ingreso bloqueado: AudioContext NO INICIALIZADO');
+      this.init();
+      if (!this.audioContext) return;
+    }
+
+    if (this.audioContext.state === 'suspended') {
+      this.audioContext.resume();
+    }
+
+    try {
+      // Oscilador principal (tono ascendente)
+      const oscillator = this.audioContext.createOscillator();
+      const gainNode = this.audioContext.createGain();
+
+      oscillator.connect(gainNode);
+      gainNode.connect(this.audioContext.destination);
+
+      // Frecuencia ascendente suave: 400Hz -> 800Hz (sonido alegre y acogedor)
+      oscillator.frequency.setValueAtTime(400, this.audioContext.currentTime);
+      oscillator.frequency.exponentialRampToValueAtTime(800, this.audioContext.currentTime + 0.12);
+
+      // Volumen muy suave con fade in/out
+      gainNode.gain.setValueAtTime(0, this.audioContext.currentTime);
+      gainNode.gain.linearRampToValueAtTime(0.06, this.audioContext.currentTime + 0.02);
+      gainNode.gain.exponentialRampToValueAtTime(0.01, this.audioContext.currentTime + 0.2);
+
+      oscillator.type = 'sine';
+      oscillator.start(this.audioContext.currentTime);
+      oscillator.stop(this.audioContext.currentTime + 0.2);
+
+      console.log('[SOUNDS] 🎵 Reproduciendo sonido de ingreso (join)');
+    } catch (error) {
+      console.error('[SOUNDS] Error reproduciendo sonido de ingreso:', error);
+    }
+  }
+
+  /**
+   * 📤 Genera un sonido de confirmación breve para cuando envío un mensaje
+   * Doble tono rápido: 600Hz -> 700Hz (sonido "clic" confirmación)
+   */
+  playMessageSentSound() {
+    if (this.isMuted) {
+      console.log('[SOUNDS] 🔇 Sonido de envío bloqueado: MUTED');
+      return;
+    }
+
+    if (!this.audioContext) {
+      console.warn('[SOUNDS] ⚠️ Sonido de envío bloqueado: AudioContext NO INICIALIZADO');
+      this.init();
+      if (!this.audioContext) return;
+    }
+
+    if (this.audioContext.state === 'suspended') {
+      this.audioContext.resume();
+    }
+
+    try {
+      // Oscilador para confirmación (doble "bip" muy rápido)
+      const oscillator1 = this.audioContext.createOscillator();
+      const oscillator2 = this.audioContext.createOscillator();
+      const gainNode = this.audioContext.createGain();
+
+      oscillator1.connect(gainNode);
+      oscillator2.connect(gainNode);
+      gainNode.connect(this.audioContext.destination);
+
+      // Primer tono: 600Hz (muy breve)
+      oscillator1.frequency.setValueAtTime(600, this.audioContext.currentTime);
+      oscillator1.type = 'sine';
+      oscillator1.start(this.audioContext.currentTime);
+      oscillator1.stop(this.audioContext.currentTime + 0.04);
+
+      // Segundo tono: 700Hz (muy breve, ligeramente después)
+      oscillator2.frequency.setValueAtTime(700, this.audioContext.currentTime + 0.05);
+      oscillator2.type = 'sine';
+      oscillator2.start(this.audioContext.currentTime + 0.05);
+      oscillator2.stop(this.audioContext.currentTime + 0.09);
+
+      // Volumen muy suave
+      gainNode.gain.setValueAtTime(0.05, this.audioContext.currentTime);
+      gainNode.gain.exponentialRampToValueAtTime(0.01, this.audioContext.currentTime + 0.1);
+
+      console.log('[SOUNDS] 📤 Reproduciendo sonido de envío (sent)');
+    } catch (error) {
+      console.error('[SOUNDS] Error reproduciendo sonido de envío:', error);
     }
   }
 }

@@ -148,6 +148,7 @@ export const sendMessage = async (roomId, messageData, isAnonymous = false) => {
       timestamp: serverTimestamp(),
       reactions: { like: 0, dislike: 0 },
       read: false, // Para doble check
+      replyTo: messageData.replyTo || null, // 💬 REPLY: { messageId, username, content }
       trace, // 🔍 TRAZABILIDAD: Incluir metadata completa
     };
 

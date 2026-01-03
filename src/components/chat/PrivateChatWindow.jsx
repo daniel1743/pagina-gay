@@ -61,8 +61,8 @@ const PrivateChatWindow = ({ user, partner, onClose, chatId }) => {
     } catch (error) {
       console.error('Error sending private message:', error);
       toast({
-        title: "Error",
-        description: "No se pudo enviar el mensaje",
+        title: "No pudimos enviar el mensaje",
+        description: "Intenta de nuevo en un momento",
         variant: "destructive",
       });
     }

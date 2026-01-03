@@ -1,19 +1,26 @@
-import React from 'react';
+import React, { useState, useMemo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Button } from '@/components/ui/button';
 import { ScrollArea } from '@/components/ui/scroll-area';
-import { MessageSquare, Video, Check, X, ExternalLink, CheckCircle, Ticket, CheckCircle2 } from 'lucide-react';
+import { Input } from '@/components/ui/input';
+import { MessageSquare, Video, Check, X, ExternalLink, CheckCircle, Ticket, CheckCircle2, Search, Pin } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
 import { markNotificationAsRead, respondToPrivateChatRequest } from '@/services/socialService';
 import { toast } from '@/components/ui/use-toast';
-import { formatDistanceToNow } from 'date-fns';
+import { formatDistanceToNow, format, isToday, isYesterday } from 'date-fns';
 import { es } from 'date-fns/locale';
 
 const NotificationsPanel = ({ isOpen, onClose, notifications, onOpenPrivateChat }) => {
   const { user } = useAuth();
   const navigate = useNavigate();
+  const [searchQuery, setSearchQuery] = useState('');
+  const [pinnedIds, setPinnedIds] = useState(() => {
+    // Cargar pins desde localStorage
+    const saved = localStorage.getItem(`pins_${user?.id}`);
+    return saved ? new Set(JSON.parse(saved)) : new Set();
+  });
 
   const handleAcceptPrivateChat = async (notification) => {
     try {
@@ -70,6 +77,28 @@ const NotificationsPanel = ({ isOpen, onClose, notifications, onOpenPrivateChat 
     }
   };
 
+  /**
+   * 📅 TIMESTAMP CONTEXTUAL (WhatsApp/Telegram style)
+   * - "Hoy HH:MM" para mensajes de hoy
+   * - "Ayer" para mensajes de ayer
+   * - "DD/MM/AA" para mensajes más antiguos
+   */
+  const getContextualTimestamp = (timestamp) => {
+    try {
+      const date = new Date(timestamp);
+
+      if (isToday(date)) {
+        return `Hoy ${format(date, 'HH:mm')}`;
+      } else if (isYesterday(date)) {
+        return 'Ayer';
+      } else {
+        return format(date, 'dd/MM/yy');
+      }
+    } catch {
+      return 'Hace un momento';
+    }
+  };
+
   const getTimeAgo = (timestamp) => {
     try {
       return formatDistanceToNow(new Date(timestamp), {
@@ -80,6 +109,78 @@ const NotificationsPanel = ({ isOpen, onClose, notifications, onOpenPrivateChat 
       return 'Hace un momento';
     }
   };
+
+  /**
+   * 📌 TOGGLE PIN: Fijar/desfijar conversación (máximo 5)
+   */
+  const togglePin = (notificationId) => {
+    setPinnedIds(prev => {
+      const newPinned = new Set(prev);
+
+      if (newPinned.has(notificationId)) {
+        newPinned.delete(notificationId);
+      } else {
+        // Limitar a 5 pins
+        if (newPinned.size >= 5) {
+          toast({
+            title: "Límite de fijados",
+            description: "Solo puedes fijar hasta 5 conversaciones",
+            variant: "destructive",
+          });
+          return prev;
+        }
+        newPinned.add(notificationId);
+      }
+
+      // Guardar en localStorage
+      if (user?.id) {
+        localStorage.setItem(`pins_${user.id}`, JSON.stringify([...newPinned]));
+      }
+
+      return newPinned;
+    });
+  };
+
+  /**
+   * 🔍 ORDENAMIENTO ESTRATIFICADO (WhatsApp/Telegram)
+   * 1. Pinned (máximo 5) - ordenados por timestamp
+   * 2. Unread (mensajes sin leer) - ordenados por timestamp
+   * 3. Recent (resto) - ordenados por timestamp
+   */
+  const sortedAndFilteredNotifications = useMemo(() => {
+    let filtered = notifications;
+
+    // Filtrar por búsqueda
+    if (searchQuery.trim()) {
+      const query = searchQuery.toLowerCase();
+      filtered = notifications.filter(n =>
+        n.fromUsername?.toLowerCase().includes(query) ||
+        n.content?.toLowerCase().includes(query) ||
+        n.message?.toLowerCase().includes(query) ||
+        n.title?.toLowerCase().includes(query)
+      );
+    }
+
+    // Separar en categorías
+    const pinned = filtered.filter(n => pinnedIds.has(n.id));
+    const unpinned = filtered.filter(n => !pinnedIds.has(n.id));
+    const unread = unpinned.filter(n => !n.read);
+    const read = unpinned.filter(n => n.read);
+
+    // Ordenar cada categoría por timestamp (más reciente primero)
+    const sortByTimestamp = (a, b) => {
+      const timeA = new Date(a.timestamp || a.createdAt || 0).getTime();
+      const timeB = new Date(b.timestamp || b.createdAt || 0).getTime();
+      return timeB - timeA;
+    };
+
+    pinned.sort(sortByTimestamp);
+    unread.sort(sortByTimestamp);
+    read.sort(sortByTimestamp);
+
+    // Combinar: Pinned → Unread → Read
+    return [...pinned, ...unread, ...read];
+  }, [notifications, pinnedIds, searchQuery]);
 
   return (
     <AnimatePresence>
@@ -103,45 +204,98 @@ const NotificationsPanel = ({ isOpen, onClose, notifications, onOpenPrivateChat 
             className="fixed top-16 right-4 w-96 max-w-[calc(100vw-2rem)] bg-card border border-border rounded-2xl shadow-2xl z-50 overflow-hidden"
           >
             {/* Header */}
-            <div className="p-4 border-b border-border bg-accent/30">
-              <div className="flex items-center justify-between">
-                <h3 className="font-bold text-lg text-foreground">Notificaciones</h3>
+            <div className="p-4 border-b border-border bg-accent/30 sticky top-0 z-10">
+              <div className="flex items-center justify-between mb-3">
+                <h3 className="font-bold text-lg text-foreground">Conversaciones</h3>
                 <Button variant="ghost" size="icon" onClick={onClose}>
                   <X className="w-4 h-4" />
                 </Button>
               </div>
+
+              {/* 🔍 BÚSQUEDA STICKY */}
+              <div className="relative">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+                <Input
+                  type="text"
+                  placeholder="Buscar conversaciones..."
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  className="pl-9 bg-background border-border focus-visible:ring-cyan-400"
+                />
+              </div>
+
+              {/* Contador de notificaciones */}
               {notifications.length > 0 && (
-                <p className="text-xs text-muted-foreground mt-1">
-                  {notifications.length} {notifications.length === 1 ? 'nueva' : 'nuevas'}
-                </p>
+                <div className="flex items-center gap-2 mt-2">
+                  <p className="text-xs text-muted-foreground">
+                    {sortedAndFilteredNotifications.length} conversaciones
+                  </p>
+                  {notifications.filter(n => !n.read).length > 0 && (
+                    <span className="px-2 py-0.5 bg-red-500 text-white text-xs font-bold rounded-full">
+                      {notifications.filter(n => !n.read).length > 99 ? '99+' : notifications.filter(n => !n.read).length}
+                    </span>
+                  )}
+                </div>
               )}
             </div>
 
             {/* Notifications List */}
             <ScrollArea className="h-[500px]">
-              {notifications.length === 0 ? (
+              {sortedAndFilteredNotifications.length === 0 ? (
                 <div className="flex flex-col items-center justify-center py-12 px-4">
                   <div className="w-16 h-16 rounded-full bg-accent/50 flex items-center justify-center mb-4">
                     <MessageSquare className="w-8 h-8 text-muted-foreground" />
                   </div>
-                  <p className="text-sm font-medium text-foreground">No tienes notificaciones</p>
+                  <p className="text-sm font-medium text-foreground">
+                    {searchQuery ? 'No se encontraron resultados' : 'No tienes conversaciones'}
+                  </p>
                   <p className="text-xs text-muted-foreground text-center mt-1">
-                    Los mensajes y solicitudes aparecerán aquí
+                    {searchQuery ? 'Intenta con otra búsqueda' : 'Los mensajes y solicitudes aparecerán aquí'}
                   </p>
                 </div>
               ) : (
                 <div className="divide-y divide-border">
-                  {notifications.map((notification, index) => (
+                  {sortedAndFilteredNotifications.map((notification, index) => {
+                    const isPinned = pinnedIds.has(notification.id);
+                    const isUnread = !notification.read;
+
+                    return (
                     <motion.div
                       key={notification.id}
                       initial={{ opacity: 0, y: 20 }}
                       animate={{ opacity: 1, y: 0 }}
                       transition={{ delay: index * 0.05 }}
-                      className={`p-4 hover:bg-accent/50 transition-colors ${
-                        !notification.read ? 'bg-primary/5' : ''
-                      }`}
-                      onClick={() => handleMarkAsRead(notification.id)}
+                      className={`relative p-4 hover:bg-accent/50 transition-colors ${
+                        isUnread ? 'bg-primary/5 border-l-4 border-l-red-500' : ''
+                      } ${isPinned ? 'bg-cyan-500/5' : ''}`}
                     >
+                      {/* 📌 Botón de Pin + Badge No Leído */}
+                      <div className="absolute top-2 right-2 flex items-center gap-2">
+                        {isUnread && (
+                          <motion.span
+                            initial={{ scale: 0 }}
+                            animate={{ scale: 1 }}
+                            className="bg-red-500 text-white text-xs font-bold px-2 py-1 rounded-full min-w-[20px] text-center"
+                            style={{ fontSize: '11px' }}
+                          >
+                            1
+                          </motion.span>
+                        )}
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="h-6 w-6"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            togglePin(notification.id);
+                          }}
+                          title={isPinned ? 'Desfijar' : 'Fijar conversación'}
+                        >
+                          <Pin className={`w-3 h-3 ${isPinned ? 'fill-cyan-400 text-cyan-400' : 'text-muted-foreground'}`} />
+                        </Button>
+                      </div>
+
+                      <div onClick={() => handleMarkAsRead(notification.id)}>
                       {/* Mensaje Directo */}
                       {notification.type === 'direct_message' && (
                         <div className="flex gap-3">
@@ -153,8 +307,8 @@ const NotificationsPanel = ({ isOpen, onClose, notifications, onOpenPrivateChat 
                             <p className="text-sm text-muted-foreground mt-1 line-clamp-2">
                               {notification.content}
                             </p>
-                            <p className="text-xs text-muted-foreground mt-2">
-                              {getTimeAgo(notification.timestamp)}
+                            <p className="text-xs font-medium text-muted-foreground mt-2">
+                              {getContextualTimestamp(notification.timestamp)}
                             </p>
                           </div>
                         </div>
@@ -196,8 +350,8 @@ const NotificationsPanel = ({ isOpen, onClose, notifications, onOpenPrivateChat 
                                   quiere conectar en chat privado
                                 </p>
                               </div>
-                              <p className="text-xs text-muted-foreground mt-2">
-                                {getTimeAgo(notification.timestamp)}
+                              <p className="text-xs font-medium text-muted-foreground mt-2">
+                                {getContextualTimestamp(notification.timestamp)}
                               </p>
                             </div>
                           </div>
@@ -276,8 +430,8 @@ const NotificationsPanel = ({ isOpen, onClose, notifications, onOpenPrivateChat 
                             <p className="text-sm text-muted-foreground mt-1 line-clamp-2">
                               {notification.body || notification.message}
                             </p>
-                            <p className="text-xs text-muted-foreground mt-2">
-                              {getTimeAgo(notification.timestamp || notification.createdAt)}
+                            <p className="text-xs font-medium text-muted-foreground mt-2">
+                              {getContextualTimestamp(notification.timestamp || notification.createdAt)}
                             </p>
                             {notification.ticketId && (
                               <p className="text-xs text-purple-400 mt-1 flex items-center gap-1">
@@ -288,8 +442,10 @@ const NotificationsPanel = ({ isOpen, onClose, notifications, onOpenPrivateChat 
                           </div>
                         </div>
                       )}
+                      </div>
                     </motion.div>
-                  ))}
+                  );
+                  })}
                 </div>
               )}
             </ScrollArea>

@@ -105,8 +105,8 @@ const UserActionsModal = ({ user: targetUser, onClose, onViewProfile, onShowRegi
       onClose();
     } catch (error) {
       toast({
-        title: "Error",
-        description: "No se pudo enviar el mensaje",
+        title: "No pudimos enviar el mensaje",
+        description: "Intenta de nuevo en un momento",
         variant: "destructive",
       });
     } finally {
@@ -197,8 +197,8 @@ const UserActionsModal = ({ user: targetUser, onClose, onViewProfile, onShowRegi
       console.error('❌ [DEBUG] Error code:', error.code);
 
       toast({
-        title: "❌ Error al enviar solicitud",
-        description: `Detalles: ${error.message || 'Error desconocido'}`,
+        title: "No pudimos enviar la solicitud",
+        description: "Intenta de nuevo en un momento",
         variant: "destructive",
       });
     }
@@ -257,8 +257,8 @@ const UserActionsModal = ({ user: targetUser, onClose, onViewProfile, onShowRegi
       onClose();
     } catch (error) {
       toast({
-        title: "Error",
-        description: "No se pudo actualizar favoritos",
+        title: "No pudimos actualizar favoritos",
+        description: "Intenta de nuevo en un momento",
         variant: "destructive",
       });
     }

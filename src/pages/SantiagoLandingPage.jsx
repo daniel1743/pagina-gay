@@ -25,7 +25,7 @@ const SantiagoLandingPage = () => {
 
   React.useEffect(() => {
     // ✅ SEO: Title y meta description optimizados para CTR
-    document.title = 'Chat Gay Santiago Chile 🏙️ | Conoce Gays de la Capital | Chactivo';
+    document.title = 'Chat Gay Santiago: Gente Real Ahora | Chactivo';
 
     let metaDescription = document.querySelector('meta[name="description"]');
     if (!metaDescription) {
@@ -33,11 +33,11 @@ const SantiagoLandingPage = () => {
       metaDescription.name = 'description';
       document.head.appendChild(metaDescription);
     }
-    metaDescription.content = '🏙️ Chat gay Santiago Chile en tiempo real. Conecta con gays de Providencia, Las Condes, Ñuñoa, Bellavista y toda la capital. Salas temáticas, ambiente seguro, 100% gratis. ¡Sin registro!';
+    metaDescription.content = 'Conecta con gente de Santiago en segundos. Sin crear cuenta. Entra, saluda y queda.';
 
     return () => {
       if (metaDescription && document.head.contains(metaDescription)) {
-        metaDescription.content = '🏳️‍🌈 Chat gay chileno 100% gratis. Salas por interés: Gaming 🎮, +30 💪, Osos 🐻, Amistad 💬. Conversación real, sin presión de hookups.';
+        metaDescription.content = 'La comunidad más libre. Solo 4 salas activas con gente real: Santiago, Gaming y más. Sin perfiles, sin emails, solo entra y chatea.';
       }
     };
   }, []);

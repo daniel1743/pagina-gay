@@ -147,12 +147,20 @@ const generatePastTimestamp = (minutesAgo) => {
 
 /**
  * Siembra conversaciones genuinas en la sala "principal"
+ * ✅ DESACTIVADO COMPLETAMENTE - No sembrar en ninguna sala
  */
 export const seedGenuineConversations = async (roomId) => {
+  // ✅ DESACTIVADO - No sembrar conversaciones automáticas
+  console.log('⏸️ [SEED] Servicio de sembrado DESACTIVADO para sala:', roomId);
+  return;
+
+  // Código anterior comentado
+  /*
   // Solo sembrar en la sala "principal"
   if (roomId !== 'principal') {
     return;
   }
+  */
 
   try {
     // Verificar si ya se sembraron conversaciones
@@ -219,8 +227,15 @@ export const seedGenuineConversations = async (roomId) => {
 /**
  * Verifica y siembra conversaciones si es necesario
  * Se llama cuando un usuario entra a la sala "principal"
+ * ✅ DESACTIVADO COMPLETAMENTE - No sembrar en ninguna sala
  */
 export const checkAndSeedConversations = async (roomId) => {
+  // ✅ DESACTIVADO - No verificar ni sembrar conversaciones
+  console.log('⏸️ [SEED] Verificación de sembrado DESACTIVADA para sala:', roomId);
+  return;
+
+  // Código anterior comentado
+  /*
   if (roomId !== 'principal') {
     return;
   }
@@ -241,6 +256,7 @@ export const checkAndSeedConversations = async (roomId) => {
   } catch (error) {
     console.error('❌ [SEED] Error verificando conversaciones:', error);
   }
+  */
 };
 
 /**
