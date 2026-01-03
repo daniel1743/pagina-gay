@@ -1,35 +1,62 @@
 # robots.txt para Chactivo - Chat Gay Internacional
 # URL principal: https://chactivo.com
+# Última actualización: 2026-01-02
 
 # Configuración para todos los bots
 User-agent: *
 
-# ✅ PERMITIR todas las URLs con valor SEO
+# ✅ PERMITIR landing pages y páginas públicas
 Allow: /
-Allow: /chat/
-Allow: /anonymous-chat
-Allow: /anonymous-forum
-
-# ✅ PERMITIR landings internacionales (nuevas)
-Allow: /es
-Allow: /br
-Allow: /mx
-Allow: /ar
-
-# ✅ PERMITIR otras landings existentes
+Allow: /landing
 Allow: /global
 Allow: /gaming
 Allow: /mas-30
 Allow: /santiago
 
-# ❌ BLOQUEAR páginas técnicas sin valor SEO
+# ✅ PERMITIR landing pages internacionales
+Allow: /es
+Allow: /br
+Allow: /mx
+Allow: /ar
+
+# ✅ PERMITIR salas de chat públicas
+Allow: /chat/principal
+Allow: /chat/gaming
+Allow: /chat/santiago
+Allow: /chat/mas-30
+Allow: /chat/es-main
+Allow: /chat/br-main
+Allow: /chat/mx-main
+Allow: /chat/ar-main
+
+# ✅ PERMITIR chat y foro anónimo
+Allow: /anonymous-chat
+Allow: /anonymous-forum
+
+# ❌ BLOQUEAR páginas privadas/autenticadas
 Disallow: /auth
-Disallow: /admin/
-Disallow: /api/
+Disallow: /home
+Disallow: /inicio
+Disallow: /lobby
 Disallow: /profile
 Disallow: /premium
+
+# ❌ BLOQUEAR panel de administración y herramientas
+Disallow: /admin/
+Disallow: /seed-conversaciones
+Disallow: /admin
+
+# ❌ BLOQUEAR rutas dinámicas sin valor SEO individual
+Disallow: /thread/
 Disallow: /user/
 Disallow: /private/
+
+# ❌ BLOQUEAR rutas técnicas y APIs
+Disallow: /api/
+Disallow: /*.json$
+Disallow: /*?*auth=
+Disallow: /*?*token=
+Disallow: /*?*session=
 
 # Sitemap principal
 Sitemap: https://chactivo.com/sitemap.xml

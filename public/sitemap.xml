@@ -1,142 +1,150 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9" xmlns:mobile="http://www.google.com/schemas/sitemap-mobile/1.0">
 
-  <!-- ✅ PÁGINA PRINCIPAL (203 clics - 77% del tráfico) -->
+  <!-- ✅ PÁGINA PRINCIPAL (Landing Global) -->
   <url>
     <loc>https://chactivo.com/</loc>
-    <lastmod>2025-12-31</lastmod>
+    <lastmod>2026-01-02</lastmod>
     <changefreq>daily</changefreq>
     <priority>1.0</priority>
     <mobile:mobile/>
   </url>
 
-  <!-- ✅ LANDINGS INTERNACIONALES (NUEVAS - EXPANSIÓN) -->
+  <!-- ✅ LANDING PAGES PRINCIPALES (Chile) -->
+  <url>
+    <loc>https://chactivo.com/global</loc>
+    <lastmod>2026-01-02</lastmod>
+    <changefreq>daily</changefreq>
+    <priority>0.95</priority>
+    <mobile:mobile/>
+  </url>
+  <url>
+    <loc>https://chactivo.com/santiago</loc>
+    <lastmod>2026-01-02</lastmod>
+    <changefreq>daily</changefreq>
+    <priority>0.9</priority>
+    <mobile:mobile/>
+  </url>
+  <url>
+    <loc>https://chactivo.com/mas-30</loc>
+    <lastmod>2026-01-02</lastmod>
+    <changefreq>daily</changefreq>
+    <priority>0.85</priority>
+    <mobile:mobile/>
+  </url>
+  <url>
+    <loc>https://chactivo.com/gaming</loc>
+    <lastmod>2026-01-02</lastmod>
+    <changefreq>daily</changefreq>
+    <priority>0.85</priority>
+    <mobile:mobile/>
+  </url>
+
+  <!-- ✅ LANDING PAGES INTERNACIONALES (Expansión) -->
   <url>
     <loc>https://chactivo.com/es</loc>
-    <lastmod>2025-12-31</lastmod>
+    <lastmod>2026-01-02</lastmod>
     <changefreq>daily</changefreq>
     <priority>0.9</priority>
     <mobile:mobile/>
   </url>
   <url>
     <loc>https://chactivo.com/br</loc>
-    <lastmod>2025-12-31</lastmod>
+    <lastmod>2026-01-02</lastmod>
     <changefreq>daily</changefreq>
     <priority>0.9</priority>
     <mobile:mobile/>
   </url>
   <url>
     <loc>https://chactivo.com/mx</loc>
-    <lastmod>2025-12-31</lastmod>
+    <lastmod>2026-01-02</lastmod>
     <changefreq>daily</changefreq>
     <priority>0.9</priority>
     <mobile:mobile/>
   </url>
   <url>
     <loc>https://chactivo.com/ar</loc>
-    <lastmod>2025-12-31</lastmod>
+    <lastmod>2026-01-02</lastmod>
     <changefreq>daily</changefreq>
     <priority>0.9</priority>
     <mobile:mobile/>
   </url>
 
-  <!-- ✅ URLs EXISTENTES EN SEARCH CONSOLE - 26 CLICS -->
-  <url>
-    <loc>https://chactivo.com/chat/gaming</loc>
-    <lastmod>2025-12-31</lastmod>
-    <changefreq>daily</changefreq>
-    <priority>0.85</priority>
-    <mobile:mobile/>
-  </url>
-
-  <!-- ✅ URLs EXISTENTES EN SEARCH CONSOLE - 17 CLICS -->
+  <!-- ✅ FORO ANÓNIMO (Alto engagement - 17 clics GSC) -->
   <url>
     <loc>https://chactivo.com/anonymous-forum</loc>
-    <lastmod>2025-12-31</lastmod>
-    <changefreq>daily</changefreq>
+    <lastmod>2026-01-02</lastmod>
+    <changefreq>hourly</changefreq>
     <priority>0.85</priority>
     <mobile:mobile/>
   </url>
 
-  <!-- ✅ URLs EXISTENTES EN SEARCH CONSOLE - 5 CLICS -->
+  <!-- ✅ CHAT ANÓNIMO (5 clics GSC) -->
   <url>
     <loc>https://chactivo.com/anonymous-chat</loc>
-    <lastmod>2025-12-31</lastmod>
+    <lastmod>2026-01-02</lastmod>
     <changefreq>daily</changefreq>
     <priority>0.8</priority>
     <mobile:mobile/>
   </url>
 
-  <!-- ✅ URLs EXISTENTES EN SEARCH CONSOLE - 4 CLICS -->
+  <!-- ✅ SALAS DE CHAT ACTIVAS (Chile) -->
   <url>
-    <loc>https://chactivo.com/chat/conversas-libres</loc>
-    <lastmod>2025-12-31</lastmod>
-    <changefreq>daily</changefreq>
-    <priority>0.75</priority>
+    <loc>https://chactivo.com/chat/principal</loc>
+    <lastmod>2026-01-02</lastmod>
+    <changefreq>hourly</changefreq>
+    <priority>0.9</priority>
     <mobile:mobile/>
   </url>
-
-  <!-- ✅ URLs EXISTENTES EN SEARCH CONSOLE - 1 CLIC -->
   <url>
-    <loc>https://chactivo.com/chat/global</loc>
-    <lastmod>2025-12-31</lastmod>
-    <changefreq>daily</changefreq>
-    <priority>0.7</priority>
+    <loc>https://chactivo.com/chat/gaming</loc>
+    <lastmod>2026-01-02</lastmod>
+    <changefreq>hourly</changefreq>
+    <priority>0.85</priority>
     <mobile:mobile/>
   </url>
-
-  <!-- ✅ URLs EXISTENTES EN SEARCH CONSOLE - 0 CLICS (MANTENIDAS) -->
   <url>
-    <loc>https://chactivo.com/chat</loc>
-    <lastmod>2025-12-31</lastmod>
-    <changefreq>weekly</changefreq>
-    <priority>0.6</priority>
+    <loc>https://chactivo.com/chat/santiago</loc>
+    <lastmod>2026-01-02</lastmod>
+    <changefreq>hourly</changefreq>
+    <priority>0.85</priority>
     <mobile:mobile/>
   </url>
-
-  <url>
-    <loc>https://chactivo.com/chat/versatiles</loc>
-    <lastmod>2025-12-31</lastmod>
-    <changefreq>weekly</changefreq>
-    <priority>0.6</priority>
-    <mobile:mobile/>
-  </url>
-
   <url>
     <loc>https://chactivo.com/chat/mas-30</loc>
-    <lastmod>2025-12-31</lastmod>
-    <changefreq>weekly</changefreq>
-    <priority>0.6</priority>
+    <lastmod>2026-01-02</lastmod>
+    <changefreq>hourly</changefreq>
+    <priority>0.8</priority>
     <mobile:mobile/>
   </url>
 
-  <!-- ✅ OTRAS LANDINGS POTENCIALES (existentes antes) -->
+  <!-- ✅ SALAS DE CHAT INTERNACIONALES -->
   <url>
-    <loc>https://chactivo.com/global</loc>
-    <lastmod>2025-12-28</lastmod>
-    <changefreq>daily</changefreq>
-    <priority>0.8</priority>
+    <loc>https://chactivo.com/chat/es-main</loc>
+    <lastmod>2026-01-02</lastmod>
+    <changefreq>hourly</changefreq>
+    <priority>0.85</priority>
     <mobile:mobile/>
   </url>
   <url>
-    <loc>https://chactivo.com/gaming</loc>
-    <lastmod>2025-12-26</lastmod>
-    <changefreq>daily</changefreq>
-    <priority>0.8</priority>
+    <loc>https://chactivo.com/chat/br-main</loc>
+    <lastmod>2026-01-02</lastmod>
+    <changefreq>hourly</changefreq>
+    <priority>0.85</priority>
     <mobile:mobile/>
   </url>
   <url>
-    <loc>https://chactivo.com/mas-30</loc>
-    <lastmod>2025-12-26</lastmod>
-    <changefreq>daily</changefreq>
-    <priority>0.75</priority>
+    <loc>https://chactivo.com/chat/mx-main</loc>
+    <lastmod>2026-01-02</lastmod>
+    <changefreq>hourly</changefreq>
+    <priority>0.85</priority>
     <mobile:mobile/>
   </url>
   <url>
-    <loc>https://chactivo.com/santiago</loc>
-    <lastmod>2025-12-26</lastmod>
-    <changefreq>daily</changefreq>
-    <priority>0.75</priority>
+    <loc>https://chactivo.com/chat/ar-main</loc>
+    <lastmod>2026-01-02</lastmod>
+    <changefreq>hourly</changefreq>
+    <priority>0.85</priority>
     <mobile:mobile/>
   </url>
 

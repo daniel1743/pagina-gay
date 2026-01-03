@@ -27,6 +27,14 @@ import { moderateMessage } from '@/services/moderationService';
  * ✅ AÑADIDO 2025-12-11: Rate limiting implementado (máx 1 mensaje cada 3 segundos)
  */
 export const sendMessage = async (roomId, messageData, isAnonymous = false) => {
+  // 🚀 PRODUCCIÓN: Logging eliminado para máxima velocidad
+  // Solo loguear en desarrollo (import.meta.env.DEV)
+  if (import.meta.env.DEV) {
+    console.group('🔥 [SEND MESSAGE] DEBUG');
+    console.log('Room:', roomId, '| User:', messageData.username);
+    console.groupEnd();
+  }
+
   try {
     // 🔍 RASTREADOR DE MENSAJES: Identificar tipo de remitente
     const isBot = messageData.userId?.startsWith('bot_') ||
@@ -37,54 +45,17 @@ export const sendMessage = async (roomId, messageData, isAnonymous = false) => {
                  !messageData.userId?.includes('join');
     const isRealUser = !isBot;
 
-    const messageType = isAI ? '🤖 IA' : (isBot ? '⚠️ BOT' : '✅ USUARIO REAL');
+    // 🚀 OPTIMIZACIÓN: Sin logging en producción
 
-    // 🔍 RASTREADOR MEJORADO: Incluir stack trace para identificar origen
-    const stackTrace = new Error().stack;
-    const callerLine = stackTrace.split('\n')[2] || 'unknown';
-    
-    console.log(`
-╔════════════════════════════════════════════════════════════╗
-║           📤 RASTREADOR DE MENSAJES                        ║
-╠════════════════════════════════════════════════════════════╣
-║ 📍 FUNCIÓN: sendMessage()                                  ║
-║ 🏠 Sala: ${roomId.padEnd(20)}                          ║
-║ 👤 Remitente: ${messageData.username.padEnd(16)} │ Tipo: ${messageType.padEnd(15)} ║
-║ 💬 Mensaje: "${messageData.content.substring(0,40).padEnd(40)}" ║
-║ 🆔 UserID: ${messageData.userId.substring(0,20).padEnd(20)}                  ║
-║ 👻 Anónimo: ${(isAnonymous ? 'SÍ' : 'NO').padEnd(18)}          ║
-║ 📍 Origen: ${callerLine.substring(0, 50).padEnd(50)} ║
-╚════════════════════════════════════════════════════════════╝
-    `);
-    
-    // 🚨 ALERTA ESPECIAL: Si es un mensaje de IA/Bot, mostrar stack completo
-    if (isAI || isBot) {
-      console.group(`🚨 MENSAJE DE IA/BOT DETECTADO - STACK TRACE COMPLETO`);
-      console.log(`Remitente: ${messageData.username} (${messageData.userId})`);
-      console.log(`Mensaje: "${messageData.content}"`);
-      console.log(`Stack trace completo:`, stackTrace);
-      console.groupEnd();
-    }
-
-    // 🛡️ RATE LIMITING PROFESIONAL: Solo para usuarios reales (NO IAs)
-    // ✅ EXCLUIR IAs del rate limiting - tienen su propio sistema de control (AI_MIN_DELAY_MS)
+    // 🚀 RATE LIMITING ULTRA RÁPIDO: Solo para usuarios reales (NO IAs)
+    // ✅ EXCLUIR IAs del rate limiting - tienen su propio sistema de control
     if (isRealUser) {
+      // 🚀 OPTIMIZACIÓN: Rate limit ahora usa SOLO cache en memoria (sin Firestore)
       const rateLimitCheck = await checkRateLimit(messageData.userId, roomId, messageData.content);
 
       if (!rateLimitCheck.allowed) {
-        console.warn(`🚫 [RATE LIMIT] Mensaje bloqueado de ${messageData.username} (${messageData.userId})`);
-        console.warn(`Razón: ${rateLimitCheck.error}`);
-
         throw new Error(rateLimitCheck.error);
       }
-
-      console.log(`✅ [RATE LIMIT] Usuario ${messageData.username} pasó verificación`);
-    } else {
-      // ✅ IAs excluidas del rate limiting - desmutear si están muteadas (limpiar estado anterior)
-      await unmuteUser(messageData.userId).catch(() => {
-        // Ignorar errores al desmutear (puede que no estuviera muteada)
-      });
-      console.log(`✅ [RATE LIMIT] IA ${messageData.username} excluida del rate limiting (controlado por sistema de IAs)`);
     }
 
     // ✅ IMPORTANTE: Registrar mensaje SOLO después de que se envíe exitosamente (ver abajo)
@@ -157,28 +128,24 @@ export const sendMessage = async (roomId, messageData, isAnonymous = false) => {
     const hasSeenFirstMessage = localStorage.getItem(firstMessageKey);
 
     if (isAnonymous && auth.currentUser) {
-      // OPTIMIZACIÓN: Enviar mensaje primero (rápido), actualizar contador después (asíncrono)
+      // 🚀 OPTIMIZACIÓN: Sin logging, envío directo
       const docRef = await addDoc(messagesRef, message);
 
-      // ✅ Registrar mensaje enviado en cache de rate limiting (con contenido para detectar duplicados)
+      // ✅ Registrar mensaje enviado en cache de rate limiting (instantáneo - en memoria)
       recordMessage(messageData.userId, messageData.content);
 
+      // 🚀 OPERACIONES NO BLOQUEANTES (segundo plano)
+      // Moderación asíncrona (no espera respuesta)
       if (isRealUser) {
-        // 🔍 MODERACIÓN: Analizar mensaje de usuario real con ChatGPT (no bloquea, solo alerta)
         moderateMessage(
           messageData.content,
           messageData.userId,
           messageData.username,
           roomId
-        ).catch(err => {
-          console.error('[MODERACIÓN] Error en moderación:', err);
-          // No bloquear el mensaje si falla la moderación
-        });
+        ).catch(err => console.error('[MODERACIÓN] Error:', err));
       }
 
-      console.log(`✅ [MENSAJE ENVIADO] ${messageData.username} (anónimo) → "${messageData.content.substring(0,30)}..."`);
-
-      // Actualizar contador en segundo plano sin bloquear
+      // Actualizar contador en segundo plano
       setDoc(
         doc(db, 'guests', auth.currentUser.uid),
         { messageCount: increment(1), lastMessageAt: serverTimestamp() },
@@ -203,34 +170,30 @@ export const sendMessage = async (roomId, messageData, isAnonymous = false) => {
 
       return { id: docRef.id, ...message };
     } else {
-      // Para usuarios registrados: crear mensaje directamente
+      // 🚀 OPTIMIZACIÓN: Envío directo sin logging
       const docRef = await addDoc(messagesRef, message);
 
-      // ✅ Registrar mensaje enviado en cache de rate limiting (con contenido para detectar duplicados)
+      // ✅ Registrar mensaje enviado en cache de rate limiting (instantáneo - en memoria)
       recordMessage(messageData.userId, messageData.content);
 
+      // 🚀 OPERACIONES NO BLOQUEANTES (segundo plano)
+      // Moderación asíncrona (no espera respuesta)
       if (isRealUser) {
-        // 🔍 MODERACIÓN: Analizar mensaje de usuario real con ChatGPT (no bloquea, solo alerta)
         moderateMessage(
           messageData.content,
           messageData.userId,
           messageData.username,
           roomId
-        ).catch(err => {
-          console.error('[MODERACIÓN] Error en moderación:', err);
-          // No bloquear el mensaje si falla la moderación
-        });
+        ).catch(err => console.error('[MODERACIÓN] Error:', err));
       }
 
-      console.log(`✅ [MENSAJE ENVIADO] ${messageData.username} (${messageType}) → "${messageData.content.substring(0,30)}..."`)
-
-      // ✅ Incrementar contador de mensajes para usuarios registrados (para sistema de recompensas)
+      // Incrementar contador en segundo plano
       if (messageData.userId && !isAnonymous && !isBot) {
         const userRef = doc(db, 'users', messageData.userId);
         updateDoc(userRef, {
           messageCount: increment(1),
           lastMessageAt: serverTimestamp(),
-        }).catch(err => console.error('Error updating user message count:', err));
+        }).catch(err => console.error('Error updating user count:', err));
       }
 
       // Track GA4: primer mensaje si no se ha enviado antes
@@ -252,7 +215,10 @@ export const sendMessage = async (roomId, messageData, isAnonymous = false) => {
       return { id: docRef.id, ...message };
     }
   } catch (error) {
-    console.error('Error sending message:', error);
+    // 🚀 PRODUCCIÓN: Solo loguear en desarrollo
+    if (import.meta.env.DEV) {
+      console.error('[SEND MESSAGE] Error:', error.message);
+    }
     throw error;
   }
 };
@@ -262,14 +228,9 @@ export const sendMessage = async (roomId, messageData, isAnonymous = false) => {
  * ✅ ACTUALIZADO: Carga los últimos 100 mensajes para mejor experiencia
  */
 export const subscribeToRoomMessages = (roomId, callback, messageLimit = 100) => {
+  // 🚀 OPTIMIZACIÓN: Sin logging, máxima velocidad
   const messagesRef = collection(db, 'rooms', roomId, 'messages');
-
-  // limitToLast obtiene los últimos N documentos ordenados por timestamp
-  const q = query(
-    messagesRef,
-    orderBy('timestamp', 'asc'),
-    limitToLast(messageLimit)
-  );
+  const q = query(messagesRef, orderBy('timestamp', 'asc'), limitToLast(messageLimit));
 
   return onSnapshot(q, (snapshot) => {
     const messages = snapshot.docs.map(doc => ({
@@ -279,13 +240,10 @@ export const subscribeToRoomMessages = (roomId, callback, messageLimit = 100) =>
     }));
     callback(messages);
   }, (error) => {
-    // ✅ Ignorar AbortError (normal cuando se cancela una suscripción)
-    if (error.name === 'AbortError' || error.code === 'cancelled') {
-      // No hacer nada, la suscripción fue cancelada intencionalmente
-      return;
+    if (error.name !== 'AbortError' && error.code !== 'cancelled') {
+      if (import.meta.env.DEV) console.error('[SUBSCRIBE] Error:', error.code);
+      callback([]);
     }
-    console.error('Error subscribing to messages:', error);
-    callback([]);
   });
 };
 

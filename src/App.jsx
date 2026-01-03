@@ -38,34 +38,15 @@ function PrivateRoute({ children }) {
 }
 
 function LandingRoute({ children, redirectTo = '/home' }) {
-  console.log('🔥 [LANDING ROUTE] ========== ENTRADA ==========');
-
   const { user } = useAuth();
-
-  console.log('🔥 [LANDING ROUTE] User obtenido:', {
-    user: user ? 'EXISTS' : 'NULL',
-    isGuest: user?.isGuest,
-    isAnonymous: user?.isAnonymous,
-    userId: user?.id,
-    hasChildren: !!children
-  });
-
-  console.log('🏠 [LANDING ROUTE] Evaluando acceso:', {
-    hasUser: !!user,
-    isGuest: user?.isGuest,
-    isAnonymous: user?.isAnonymous,
-    willRedirect: user && !user.isGuest && !user.isAnonymous
-  });
 
   // ✅ Solo mostrar landing si NO está logueado (incluyendo guests)
   if (user && !user.isGuest && !user.isAnonymous) {
-    console.log('🔀 [LANDING ROUTE] Redirigiendo a:', redirectTo);
     return <Navigate to={redirectTo} replace />;
   }
 
-  console.log('✅ [LANDING ROUTE] Mostrando landing page - Renderizando children');
-  console.log('🔥 [LANDING ROUTE] Children type:', typeof children, children);
-  return children;
+  // ✅ Wrapper de seguridad con ErrorBoundary
+  return <ErrorBoundary>{children}</ErrorBoundary>;
 }
 
 function HomeRoute({ children }) {
@@ -78,14 +59,7 @@ function HomeRoute({ children }) {
 }
 
 function MainLayout({ children }) {
-  console.log('🔥 [MAIN LAYOUT] ========== ENTRADA ==========');
-
   const { user } = useAuth();
-
-  console.log('🔥 [MAIN LAYOUT] User:', user ? 'EXISTS' : 'NULL');
-  console.log('🔥 [MAIN LAYOUT] Children:', !!children, typeof children);
-
-  console.log('🎨 [MAIN LAYOUT] Renderizando layout con children:', !!children);
 
   return (
     <div className="flex flex-col min-h-screen">
@@ -106,9 +80,6 @@ function MainLayout({ children }) {
 
 // ✅ Componente de rutas que está dentro del AuthProvider
 function AppRoutes() {
-  console.log('🛣️ [APP ROUTES] Renderizando rutas...');
-  console.log('📍 [APP ROUTES] URL actual:', window.location.pathname);
-
   return (
     <Router
       future={{
@@ -117,6 +88,18 @@ function AppRoutes() {
       }}
     >
       <Routes>
+        {/* 🌍 LANDING PAGES INTERNACIONALES - Con MainLayout para Header/Footer/Estilos */}
+        <Route path="/es" element={<LandingRoute redirectTo="/home"><MainLayout><SpainLandingPage /></MainLayout></LandingRoute>} />
+        <Route path="/mx" element={<LandingRoute redirectTo="/home"><MainLayout><MexicoLandingPage /></MainLayout></LandingRoute>} />
+        <Route path="/ar" element={<LandingRoute redirectTo="/home"><MainLayout><ArgentinaLandingPage /></MainLayout></LandingRoute>} />
+        <Route path="/br" element={<LandingRoute redirectTo="/home"><MainLayout><BrazilLandingPage /></MainLayout></LandingRoute>} />
+        
+        {/* Redirecciones con trailing slash */}
+        <Route path="/es/" element={<Navigate to="/es" replace />} />
+        <Route path="/mx/" element={<Navigate to="/mx" replace />} />
+        <Route path="/ar/" element={<Navigate to="/ar" replace />} />
+        <Route path="/br/" element={<Navigate to="/br" replace />} />
+
         {/* ✅ ARQUITECTURA: Landing solo para usuarios no logueados */}
         <Route path="/landing" element={<LandingRoute redirectTo="/home"><MainLayout><GlobalLandingPage /></MainLayout></LandingRoute>} />
         {/* ✅ REDIRECCIÓN: / → /landing para mantener compatibilidad */}
@@ -135,16 +118,6 @@ function AppRoutes() {
         <Route path="/gaming" element={<LandingRoute redirectTo="/home"><MainLayout><GamingLandingPage /></MainLayout></LandingRoute>} />
         <Route path="/mas-30" element={<LandingRoute redirectTo="/home"><MainLayout><Mas30LandingPage /></MainLayout></LandingRoute>} />
         <Route path="/santiago" element={<LandingRoute redirectTo="/home"><MainLayout><SantiagoLandingPage /></MainLayout></LandingRoute>} />
-        
-        {/* 🌍 Landing pages por país - Rutas internacionales */}
-        <Route path="/es" element={<LandingRoute redirectTo="/home"><MainLayout><SpainLandingPage /></MainLayout></LandingRoute>} />
-        <Route path="/es/" element={<Navigate to="/es" replace />} />
-        <Route path="/br" element={<LandingRoute redirectTo="/home"><MainLayout><BrazilLandingPage /></MainLayout></LandingRoute>} />
-        <Route path="/br/" element={<Navigate to="/br" replace />} />
-        <Route path="/mx" element={<LandingRoute redirectTo="/home"><MainLayout><MexicoLandingPage /></MainLayout></LandingRoute>} />
-        <Route path="/mx/" element={<Navigate to="/mx" replace />} />
-        <Route path="/ar" element={<LandingRoute redirectTo="/home"><MainLayout><ArgentinaLandingPage /></MainLayout></LandingRoute>} />
-        <Route path="/ar/" element={<Navigate to="/ar" replace />} />
 
         {/* ✅ REDIRECCIÓN: conversas-libres → global (sala limpia sin spam) */}
         <Route
@@ -251,8 +224,7 @@ function App() {
           {showSplash && !splashCompleted && (
             <PWASplashScreen onComplete={handleSplashComplete} />
           )}
-          {splashCompleted && <AppRoutes />}
-          {/* <DebugOverlay /> */} {/* Desactivado - Debug Console removido */}
+          {(!showSplash || splashCompleted) && <AppRoutes />}
         </AuthProvider>
       </ThemeProvider>
     </ErrorBoundary>

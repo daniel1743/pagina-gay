@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState, useEffect } from 'react';
+import React, { createContext, useContext, useState, useEffect, useMemo } from 'react';
 import {
   createUserWithEmailAndPassword,
   signInWithEmailAndPassword,
@@ -550,7 +550,7 @@ export const AuthProvider = ({ children }) => {
     }
   };
 
-  const value = {
+  const value = useMemo(() => ({
     user,
     loading,
     guestMessageCount,
@@ -567,7 +567,7 @@ export const AuthProvider = ({ children }) => {
     addQuickPhrase,
     removeQuickPhrase,
     updateAnonymousUserProfile,
-  };
+  }), [user, loading, guestMessageCount, showWelcomeTour]);
 
   return (
     <AuthContext.Provider value={value}>

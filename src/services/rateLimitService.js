@@ -21,12 +21,13 @@ import {
 } from 'firebase/firestore';
 import { db } from '@/config/firebase';
 
-// Configuración del rate limiting (AJUSTADO: Más permisivo para usuarios reales)
+// Configuración del rate limiting (OPTIMIZADO: Ultra permisivo para velocidad WhatsApp)
 const RATE_LIMIT = {
-  MAX_MESSAGES: 10,       // Máximo de mensajes permitidos (aumentado de 3 a 10)
-  WINDOW_SECONDS: 30,     // En ventana de 30 segundos (aumentado de 10 a 30)
-  MUTE_DURATION: 2 * 60,  // Mute por 2 minutos (reducido de 10 a 2 minutos)
-  MAX_DUPLICATES: 3       // Máximo de mensajes duplicados antes de mutear (nuevo)
+  MAX_MESSAGES: 20,       // Máximo de mensajes permitidos (muy permisivo)
+  WINDOW_SECONDS: 10,     // En ventana de 10 segundos (ventana corta)
+  MIN_INTERVAL_MS: 200,   // 🚀 NUEVO: Mínimo 200ms entre mensajes (anti-doble-click)
+  MUTE_DURATION: 1 * 60,  // Mute por 1 minuto (muy corto)
+  MAX_DUPLICATES: 5       // Máximo de mensajes duplicados antes de mutear
 };
 
 // Cache en memoria para rendimiento (evita leer Firestore constantemente)
@@ -143,10 +144,11 @@ export const unmuteUser = async (userId) => {
 };
 
 /**
- * Verifica rate limit ANTES de enviar mensaje
+ * 🚀 Verifica rate limit ULTRA RÁPIDO usando SOLO cache en memoria
+ * NO consulta Firestore = instantáneo como WhatsApp
  *
  * @param {string} userId - ID del usuario
- * @param {string} roomId - ID de la sala
+ * @param {string} roomId - ID de la sala (no usado, solo por compatibilidad)
  * @param {string} content - Contenido del mensaje (para detectar duplicados)
  * @returns {object} { allowed: boolean, error?: string }
  */
@@ -155,91 +157,73 @@ export const checkRateLimit = async (userId, roomId, content = '') => {
     return { allowed: false, error: 'Usuario no identificado' };
   }
 
-  // 0. 🔥 DETECCIÓN DE DUPLICADOS MEJORADA: Permite hasta 3 repeticiones antes de mutear
+  const now = Date.now();
+
+  // 1. ⚡ VERIFICACIÓN RÁPIDA: Mute cache (solo en memoria)
+  const cachedMuteEnd = muteCache.get(userId);
+  if (cachedMuteEnd && now < cachedMuteEnd) {
+    const remainingSeconds = Math.ceil((cachedMuteEnd - now) / 1000);
+    return {
+      allowed: false,
+      error: `Estás silenciado. Espera ${remainingSeconds}s.`,
+      remainingSeconds
+    };
+  } else if (cachedMuteEnd) {
+    muteCache.delete(userId); // Limpiar mute expirado
+  }
+
+  // 2. ⚡ ANTI-DOBLE-CLICK: Verificar intervalo mínimo desde último mensaje
+  const userMessages = messageCache.get(userId) || [];
+  if (userMessages.length > 0) {
+    const lastMessageTime = userMessages[userMessages.length - 1];
+    const timeSinceLastMessage = now - lastMessageTime;
+
+    if (timeSinceLastMessage < RATE_LIMIT.MIN_INTERVAL_MS) {
+      console.warn(`⏱️ [RATE LIMIT] Usuario ${userId} enviando muy rápido: ${timeSinceLastMessage}ms desde último mensaje`);
+      return {
+        allowed: false,
+        error: 'Espera un momento antes de enviar otro mensaje.',
+        remainingMs: RATE_LIMIT.MIN_INTERVAL_MS - timeSinceLastMessage
+      };
+    }
+  }
+
+  // 3. ⚡ DETECCIÓN DE DUPLICADOS (solo cache)
   const recentContents = contentCache.get(userId) || [];
   const normalizedContent = content ? content.trim().toLowerCase() : '';
-  
-  if (normalizedContent && recentContents.length > 0) {
-    // Contar cuántas veces se repitió este contenido en los últimos mensajes
-    const duplicateCount = recentContents.filter(c => c === normalizedContent).length;
-    
-    if (duplicateCount >= RATE_LIMIT.MAX_DUPLICATES) {
-      console.error(`🚨 [DUPLICATE SPAM] Usuario ${userId} envió mensaje duplicado ${duplicateCount + 1} veces: "${content.substring(0, 50)}"`);
 
-      // MUTEAR solo si repite más de MAX_DUPLICATES veces
+  if (normalizedContent && recentContents.length > 0) {
+    const duplicateCount = recentContents.filter(c => c === normalizedContent).length;
+
+    if (duplicateCount >= RATE_LIMIT.MAX_DUPLICATES) {
+      console.error(`🚨 [DUPLICATE SPAM] Usuario ${userId} repitió mensaje ${duplicateCount + 1} veces`);
       await muteUser(userId, RATE_LIMIT.MUTE_DURATION);
 
       return {
         allowed: false,
-        error: `Has repetido el mismo mensaje muchas veces. Espera ${RATE_LIMIT.MUTE_DURATION / 60} minutos.`,
+        error: `Has repetido el mismo mensaje muchas veces. Espera ${RATE_LIMIT.MUTE_DURATION / 60} minuto.`,
         remainingSeconds: RATE_LIMIT.MUTE_DURATION
       };
-    } else if (duplicateCount > 0) {
-      console.warn(`⚠️ [DUPLICATE WARNING] Usuario ${userId} repitió mensaje ${duplicateCount + 1} vez(es). Límite: ${RATE_LIMIT.MAX_DUPLICATES}`);
     }
   }
 
-  // 1. Verificar si está muteado
-  const muteStatus = await isUserMuted(userId);
-  if (muteStatus.muted) {
+  // 4. ⚡ VERIFICAR VOLUMEN (solo cache en memoria)
+  const windowStart = now - (RATE_LIMIT.WINDOW_SECONDS * 1000);
+  const recentMessages = userMessages.filter(ts => ts > windowStart);
+
+  if (recentMessages.length >= RATE_LIMIT.MAX_MESSAGES) {
+    console.warn(`🚨 [RATE LIMIT] Usuario ${userId} excedió límite: ${recentMessages.length}/${RATE_LIMIT.MAX_MESSAGES} mensajes en ${RATE_LIMIT.WINDOW_SECONDS}s`);
+    await muteUser(userId, RATE_LIMIT.MUTE_DURATION);
+
     return {
       allowed: false,
-      error: `Fuiste silenciado por spam. Intenta en ${muteStatus.remainingSeconds}s.`,
-      remainingSeconds: muteStatus.remainingSeconds
+      error: `Demasiados mensajes. Espera ${RATE_LIMIT.MUTE_DURATION / 60} minuto.`,
+      remainingSeconds: RATE_LIMIT.MUTE_DURATION
     };
   }
 
-  // 2. Obtener timestamps de mensajes recientes desde Firestore
-  const now = Date.now();
-  const windowStart = now - (RATE_LIMIT.WINDOW_SECONDS * 1000);
-
-  try {
-    // Consultar mensajes recientes del usuario en esta sala
-    const messagesRef = collection(db, 'rooms', roomId, 'messages');
-    const q = query(
-      messagesRef,
-      where('userId', '==', userId),
-      orderBy('timestamp', 'desc'),
-      firestoreLimit(RATE_LIMIT.MAX_MESSAGES + 1)
-    );
-
-    const snapshot = await getDocs(q);
-    const recentMessages = [];
-
-    snapshot.forEach(docSnap => {
-      const data = docSnap.data();
-      const timestamp = data.timestamp?.toMillis() || 0;
-
-      // Solo contar mensajes dentro de la ventana de tiempo
-      if (timestamp > windowStart) {
-        recentMessages.push(timestamp);
-      }
-    });
-
-    console.log(`📊 [RATE LIMIT] Usuario ${userId}: ${recentMessages.length}/${RATE_LIMIT.MAX_MESSAGES} mensajes en últimos ${RATE_LIMIT.WINDOW_SECONDS}s`);
-
-    // 3. Verificar si excedió el límite
-    if (recentMessages.length >= RATE_LIMIT.MAX_MESSAGES) {
-      console.warn(`🚨 [RATE LIMIT] Usuario ${userId} EXCEDIÓ límite: ${recentMessages.length} mensajes en ${RATE_LIMIT.WINDOW_SECONDS}s`);
-
-      // MUTEAR AUTOMÁTICAMENTE
-      await muteUser(userId, RATE_LIMIT.MUTE_DURATION);
-
-      return {
-        allowed: false,
-        error: `Has enviado demasiados mensajes muy rápido. Espera ${RATE_LIMIT.MUTE_DURATION / 60} minutos.`,
-        remainingSeconds: RATE_LIMIT.MUTE_DURATION
-      };
-    }
-
-    // 4. Permitir mensaje
-    return { allowed: true };
-
-  } catch (error) {
-    console.error('Error verificando rate limit:', error);
-    // En caso de error, permitir mensaje (fail-open)
-    return { allowed: true };
-  }
+  // ✅ PERMITIR - Sin consultas a Firestore = INSTANTÁNEO
+  return { allowed: true };
 };
 
 /**

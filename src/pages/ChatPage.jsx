@@ -489,13 +489,9 @@ const ChatPage = () => {
 
     // ✅ Suscribirse a mensajes de Firebase (SOLO mensajes reales, sin estáticos)
     const unsubscribeMessages = subscribeToRoomMessages(roomId, (newMessages) => {
-      console.log(`📝 [CHAT] Mensajes recibidos: ${newMessages.length} mensajes reales`);
-
       // 🔊 Reproducir sonido si llegaron mensajes nuevos (no en carga inicial)
       if (previousMessageCountRef.current > 0 && newMessages.length > previousMessageCountRef.current) {
         const newMessageCount = newMessages.length - previousMessageCountRef.current;
-        console.log(`🔊 [SOUNDS] ${newMessageCount} mensaje(s) nuevo(s), reproduciendo sonido`);
-
         // Reproducir sonido por cada mensaje nuevo (el servicio agrupa automáticamente si son 4+)
         for (let i = 0; i < newMessageCount; i++) {
           notificationSounds.playMessageSound();
@@ -505,7 +501,15 @@ const ChatPage = () => {
       // Actualizar contador de mensajes
       previousMessageCountRef.current = newMessages.length;
 
-      setMessages(newMessages); // ✅ SOLO mensajes reales
+      // 🚀 OPTIMISTIC UI: Fusionar mensajes reales con optimistas
+      setMessages(prevMessages => {
+        const optimisticMessages = prevMessages.filter(m => m._optimistic);
+        const mergedMessages = [...newMessages];
+        if (optimisticMessages.length > 0) {
+          mergedMessages.push(...optimisticMessages);
+        }
+        return mergedMessages;
+      });
     });
 
     // 🤖 Suscribirse a usuarios de la sala (para sistema de bots)
@@ -872,9 +876,39 @@ const ChatPage = () => {
       }
     }
 
+    // 🚀 OPTIMISTIC UI: Mostrar mensaje instantáneamente (como WhatsApp/Telegram)
+    const optimisticId = `temp_${Date.now()}_${Math.random()}`;
+    const optimisticMessage = {
+      id: optimisticId,
+      userId: user.id,
+      username: user.username,
+      avatar: user.avatar,
+      isPremium: user.isPremium,
+      content,
+      type,
+      timestamp: new Date().toISOString(),
+      replyTo: replyData,
+      _optimistic: true, // Marca para saber que es temporal
+      _sending: true, // Marca de "enviando"
+    };
+
+    // Agregar mensaje inmediatamente a la UI (usuario lo ve al instante)
+    setMessages(prev => [...prev, optimisticMessage]);
+
+    // 🔊 Reproducir sonido inmediatamente
+    notificationSounds.playMessageSentSound();
+
+    // Scroll inmediato al último mensaje
+    setTimeout(() => {
+      const container = document.querySelector('.messages-container');
+      if (container) {
+        container.scrollTop = container.scrollHeight;
+      }
+    }, 50);
+
     try {
-      // Enviar mensaje a Firestore con transacción si es anónimo
-      await sendMessage(
+      // Enviar mensaje a Firestore en segundo plano
+      const sentMessage = await sendMessage(
         currentRoom,
         {
           userId: user.id,
@@ -883,38 +917,29 @@ const ChatPage = () => {
           isPremium: user.isPremium,
           content,
           type,
-          replyTo: replyData, // 💬 Incluir información de respuesta si existe
+          replyTo: replyData,
         },
-        user.isAnonymous // Indica si es anónimo para usar transacción
+        user.isAnonymous
       );
 
-      // Track message sent
+      // ✅ Mensaje enviado exitosamente - se actualizará automáticamente vía onSnapshot
+      // Track GA4
       trackMessageSent(currentRoom, user.id);
 
-      // 🔊 Reproducir sonido de confirmación de envío
-      notificationSounds.playMessageSentSound();
+      // Eliminar mensaje optimista cuando llegue el real vía onSnapshot
+      // (onSnapshot se encargará de esto automáticamente)
 
-      // El listener de onSnapshot actualizará automáticamente los mensajes
     } catch (error) {
-      console.error('Error sending message:', error);
+      console.error('❌ Error enviando mensaje:', error);
 
-      // 🔥 DESHABILITADO: No mostrar modal de tiempo
-      // if (error.code === 'permission-denied') {
-      //   const totalTime = getTotalEngagementTime(user);
-      //   setEngagementTime(totalTime);
-      //   setShowVerificationModal(true);
-      //   toast({
-      //     title: "¡Tiempo alcanzado!",
-      //     description: `Ya llevas ${totalTime} en el sitio. ¡Regístrate gratis para continuar!`,
-      //     variant: "default",
-      //   });
-      // } else {
+      // ❌ FALLÓ - Eliminar mensaje optimista y mostrar error
+      setMessages(prev => prev.filter(m => m.id !== optimisticId));
+
       toast({
         title: "No pudimos entregar este mensaje",
-        description: "Intenta de nuevo en un momento",
+        description: error.message || "Intenta de nuevo en un momento",
         variant: "destructive",
       });
-      // }
     }
   };
 
