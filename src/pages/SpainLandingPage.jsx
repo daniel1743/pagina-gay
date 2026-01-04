@@ -93,9 +93,9 @@ const SpainLandingPage = () => {
       sessionStorage.setItem(`rules_accepted_${nickname.trim()}`, 'true');
 
       await signInAsGuest(nickname.trim(), selectedAvatar.url);
-      console.log('🇪🇸 [ESPAÑA] Autenticación exitosa, navegando a /chat/global');
+      console.log('🇪🇸 [ESPAÑA] Autenticación exitosa, navegando a /chat/principal');
 
-      navigate('/chat/global', { replace: true });
+      navigate('/chat/principal', { replace: true });
     } catch (error) {
       console.error('🇪🇸 [ESPAÑA] Error al entrar:', error);
       setError('Error al entrar. Intenta de nuevo.');

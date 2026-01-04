@@ -164,10 +164,16 @@ function AppRoutes() {
         <Route path="/mas-30" element={<LandingRoute redirectTo="/home"><MainLayout><Mas30LandingPage /></MainLayout></LandingRoute>} />
         <Route path="/santiago" element={<LandingRoute redirectTo="/home"><MainLayout><SantiagoLandingPage /></MainLayout></LandingRoute>} />
 
-        {/* ✅ REDIRECCIÓN: conversas-libres → global (sala limpia sin spam) */}
+        {/* ✅ REDIRECCIÓN: conversas-libres → principal (sala limpia sin spam) */}
         <Route
           path="/chat/conversas-libres"
-          element={<Navigate to="/chat/global" replace />}
+          element={<Navigate to="/chat/principal" replace />}
+        />
+
+        {/* ✅ SEO: Mantener compatibilidad con URLs indexadas - global → principal */}
+        <Route
+          path="/chat/global"
+          element={<Navigate to="/chat/principal" replace />}
         />
 
         <Route path="/chat/:roomId" element={<ChatPage />} />

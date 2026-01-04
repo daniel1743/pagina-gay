@@ -55,8 +55,8 @@ const MexicoLandingPage = () => {
       sessionStorage.setItem(`age_verified_${nickname.trim()}`, 'true');
       sessionStorage.setItem(`rules_accepted_${nickname.trim()}`, 'true');
       await signInAsGuest(nickname.trim(), selectedAvatar.url);
-      console.log('🇲🇽 [MÉXICO] Autenticación exitosa, navegando a /chat/global');
-      navigate('/chat/global', { replace: true });
+      console.log('🇲🇽 [MÉXICO] Autenticación exitosa, navegando a /chat/principal');
+      navigate('/chat/principal', { replace: true });
     } catch (error) {
       console.error('🇲🇽 [MÉXICO] Error al entrar:', error);
       setError('Error al entrar. Intenta de nuevo.');

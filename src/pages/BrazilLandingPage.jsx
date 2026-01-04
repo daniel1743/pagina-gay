@@ -92,9 +92,9 @@ const BrazilLandingPage = () => {
       sessionStorage.setItem(`rules_accepted_${nickname.trim()}`, 'true');
 
       await signInAsGuest(nickname.trim(), selectedAvatar.url);
-      console.log('🇧🇷 [BRASIL] Autenticação bem-sucedida, navegando para /chat/global');
+      console.log('🇧🇷 [BRASIL] Autenticação bem-sucedida, navegando para /chat/principal');
 
-      navigate('/chat/global', { replace: true });
+      navigate('/chat/principal', { replace: true });
     } catch (error) {
       console.error('🇧🇷 [BRASIL] Erro ao entrar:', error);
       setError('Erro ao entrar. Tente novamente.');

@@ -162,10 +162,10 @@ const ChatPage = () => {
     if (!activeSalas.includes(roomId)) {
       toast({
         title: "Sala Temporalmente Cerrada",
-        description: "Esta sala no está disponible por el momento. Te redirigimos a Chat Global.",
+        description: "Esta sala no está disponible por el momento. Te redirigimos a Chat Principal.",
         variant: "default",
       });
-      navigate('/chat/global', { replace: true });
+      navigate('/chat/principal', { replace: true });
       return;
     }
 
@@ -180,7 +180,7 @@ const ChatPage = () => {
         description: "Esta sala es exclusiva para usuarios registrados. Regístrate gratis para acceder.",
         variant: "default",
       });
-      navigate('/chat/global', { replace: true });
+      navigate('/chat/principal', { replace: true });
       return;
     }
   }, [user, navigate, roomId]);

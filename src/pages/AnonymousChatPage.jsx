@@ -244,7 +244,7 @@ const AnonymousChatPage = () => {
         >
           <p className="text-gray-400 mb-4">¿Prefieres chatear en tiempo real?</p>
           <Button
-            onClick={() => navigate('/chat/global')}
+            onClick={() => navigate('/chat/principal')}
             variant="outline"
             className="border-2 border-purple-500/50 text-purple-400 hover:bg-purple-500/10"
           >

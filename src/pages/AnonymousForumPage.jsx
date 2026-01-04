@@ -186,7 +186,7 @@ const AnonymousForumPage = () => {
                       <h2 className="text-2xl font-extrabold text-white mb-2">¡Chatea en Tiempo Real!</h2>
                       <p className="text-gray-300">Únete a conversaciones en vivo con la comunidad.</p>
                     </div>
-                    <Button onClick={() => navigate(user && !user.isGuest ? '/chat/global' : '/auth')} size="lg" className="bg-white text-purple-600 hover:bg-gray-100 font-bold">
+                    <Button onClick={() => navigate(user && !user.isGuest ? '/chat/principal' : '/auth')} size="lg" className="bg-white text-purple-600 hover:bg-gray-100 font-bold">
                       Ir al Chat <ArrowRight className="w-5 h-5 ml-2" />
                     </Button>
                     <button onClick={() => setShowChatBanner(false)} className="absolute top-4 right-4 text-white/50 hover:text-white"><X className="w-5 h-5" /></button>

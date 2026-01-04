@@ -103,7 +103,7 @@ const AuthPage = () => {
       });
 
       // Redirigir al chat
-      navigate('/chat/global', { replace: true });
+      navigate('/chat/principal', { replace: true });
     } catch (error) {
       console.error('Error creating guest user:', error);
       setGuestError('Error al entrar. Intenta de nuevo.');

@@ -8,6 +8,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { subscribeToMultipleRoomCounts } from '@/services/presenceService';
 import { roomsData, colorClasses } from '@/config/rooms';
 import { RegistrationRequiredModal } from '@/components/auth/RegistrationRequiredModal';
+import { AuthModal } from '@/components/auth/AuthModal';
 
 /**
  * ✅ SISTEMA DE ESTADOS DE ACTIVIDAD
@@ -38,6 +39,7 @@ const ChatSidebar = ({ currentRoom, setCurrentRoom, isOpen, onClose }) => {
   const [logoSrc, setLogoSrc] = useState("/LOGO-TRASPARENTE.png");
   const [showRegistrationModal, setShowRegistrationModal] = useState(false);
   const [pendingRoomId, setPendingRoomId] = useState(null);
+  const [showAuthModal, setShowAuthModal] = useState(false);
 
   // Suscribirse a contadores en tiempo real (todos los usuarios pueden ver)
   useEffect(() => {
@@ -68,6 +70,12 @@ const ChatSidebar = ({ currentRoom, setCurrentRoom, isOpen, onClose }) => {
 
   return (
     <>
+      {/* Modal de autenticación (Login/Registro) */}
+      <AuthModal 
+        open={showAuthModal} 
+        onClose={() => setShowAuthModal(false)} 
+      />
+      
       {/* Modal de registro requerido */}
       <RegistrationRequiredModal
         open={showRegistrationModal}
@@ -330,7 +338,7 @@ const ChatSidebar = ({ currentRoom, setCurrentRoom, isOpen, onClose }) => {
             </motion.div>
           ) : (
             <motion.div whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }}>
-              <Button onClick={() => navigate('/auth')} className="w-full magenta-gradient text-white font-bold py-3">
+              <Button onClick={() => setShowAuthModal(true)} className="w-full magenta-gradient text-white font-bold py-3">
                 <LogIn className="w-4 h-4 mr-2" />
                 Iniciar Sesión
               </Button>
@@ -585,7 +593,10 @@ const ChatSidebar = ({ currentRoom, setCurrentRoom, isOpen, onClose }) => {
             </motion.div>
           ) : (
             <motion.div whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }}>
-              <Button onClick={() => navigate('/auth')} className="w-full magenta-gradient text-white font-bold py-3">
+              <Button onClick={() => {
+                setShowAuthModal(true);
+                onClose(); // Cerrar sidebar en móvil al abrir modal
+              }} className="w-full magenta-gradient text-white font-bold py-3">
                 <LogIn className="w-4 h-4 mr-2" />
                 Iniciar Sesión
               </Button>

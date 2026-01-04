@@ -88,8 +88,8 @@ const ArgentinaLandingPage = () => {
       await signInAsGuest(nickname.trim(), selectedAvatar.url);
       console.log('🇦🇷 [ARGENTINA] ✅ signInAsGuest exitoso');
 
-      console.log('🇦🇷 [ARGENTINA] 🚀 Navegando a /chat/global...');
-      navigate('/chat/global', { replace: true });
+      console.log('🇦🇷 [ARGENTINA] 🚀 Navegando a /chat/principal...');
+      navigate('/chat/principal', { replace: true });
       console.log('🇦🇷 [ARGENTINA] ✅ navigate() ejecutado');
     } catch (error) {
       console.error('🇦🇷 [ARGENTINA] ❌ Error completo:', error);
