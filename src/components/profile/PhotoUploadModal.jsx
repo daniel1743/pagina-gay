@@ -148,7 +148,7 @@ const PhotoUploadModal = ({ isOpen, onClose, onUploadSuccess }) => {
             Subir Foto de Perfil
           </DialogTitle>
           <DialogDescription className="text-muted-foreground text-sm">
-            Sube una foto personalizada para tu perfil. Se comprimirá automáticamente a un tamaño óptimo (máximo 80 KB).
+            Sube una foto personalizada para tu perfil. Se comprimirá automáticamente a un tamaño óptimo (máximo 150 KB).
           </DialogDescription>
         </DialogHeader>
 
@@ -210,7 +210,7 @@ const PhotoUploadModal = ({ isOpen, onClose, onUploadSuccess }) => {
                   <div className="flex justify-between items-center">
                     <span className="text-sm text-muted-foreground">Tamaño después de compresión:</span>
                     <span className="text-sm font-medium text-[#E4007C]">
-                      ~50-80 KB
+                      ~100-150 KB
                     </span>
                   </div>
                 </div>
@@ -270,7 +270,7 @@ const PhotoUploadModal = ({ isOpen, onClose, onUploadSuccess }) => {
           {/* Información adicional */}
           <div className="bg-blue-500/10 border border-blue-500/30 rounded-lg p-4">
             <p className="text-sm text-blue-300">
-              <strong>💡 Nota:</strong> Tu imagen será comprimida automáticamente a un tamaño máximo de 80 KB para optimizar el rendimiento. 
+              <strong>💡 Nota:</strong> Tu imagen será comprimida automáticamente a un tamaño máximo de 150 KB para optimizar el rendimiento y velocidad.
               La calidad se mantendrá lo mejor posible.
             </p>
           </div>

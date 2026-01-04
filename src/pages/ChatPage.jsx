@@ -43,6 +43,7 @@ import { checkUserSanctions, SANCTION_TYPES } from '@/services/sanctionsService'
 import { roomsData } from '@/config/rooms';
 import { startEngagementTracking, hasReachedOneHourLimit, getTotalEngagementTime, hasSeenEngagementModal, markEngagementModalAsShown } from '@/services/engagementService';
 import { notificationSounds } from '@/services/notificationSounds';
+import { monitorActivityAndSendVOC, resetVOCCooldown } from '@/services/vocService';
 
 const roomWelcomeMessages = {
   // 'global': '¡Bienvenido a Chat Global! Habla de lo que quieras.', // ⚠️ DESACTIVADA
@@ -668,6 +669,7 @@ const ChatPage = () => {
         
         return sorted;
       });
+
     });
 
     // 🤖 Suscribirse a usuarios de la sala (para sistema de bots)
@@ -1163,6 +1165,9 @@ const ChatPage = () => {
         // ✅ Mensaje enviado exitosamente - se actualizará automáticamente vía onSnapshot
         // Track GA4 (background, no bloquea)
         trackMessageSent(currentRoom, user.id);
+
+        // 🎯 VOC: Resetear cooldown cuando hay nueva actividad
+        resetVOCCooldown(currentRoom);
 
         // ✅ DEDUPLICACIÓN: Marcar el mensaje optimista con el ID real para eliminarlo cuando llegue
         // El listener de onSnapshot se encargará de eliminar el optimista cuando detecte el real

@@ -158,61 +158,59 @@ export const GuestUsernameModal = ({ open, onClose, chatRoomId = 'principal' }) 
                 <label style={{ display: 'block', fontSize: '15px', fontWeight: '600', color: '#333', marginBottom: '10px' }}>
                   Tu Nickname:
                 </label>
-                <div style={{ 
-                  display: 'flex', 
-                  alignItems: 'center', 
-                  gap: '12px'
-                }}>
-                  <input
-                    type="text"
-                    value={nickname}
-                    onChange={(e) => setNickname(e.target.value)}
-                    placeholder="Ej: Carlos23"
-                    maxLength={20}
-                    required
-                    autoFocus
-                    disabled={isLoading}
-                    style={{
-                      flex: '1',
-                      padding: '16px',
-                      fontSize: '18px',
-                      border: '2px solid #667eea',
-                      borderRadius: '12px',
-                      outline: 'none',
-                      boxSizing: 'border-box',
-                      backgroundColor: 'white',
-                      color: '#333',
-                      fontWeight: '500',
-                      height: '56px'
-                    }}
-                  />
-                  <button
-                    type="submit"
-                    disabled={isLoading || !nickname.trim()}
-                    style={{
-                      padding: '16px 24px',
-                      fontSize: '18px',
-                      fontWeight: 'bold',
-                      color: 'white',
-                      background: isLoading || !nickname.trim()
-                        ? 'linear-gradient(135deg, #999 0%, #888 100%)'
-                        : 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
-                      border: 'none',
-                      borderRadius: '12px',
-                      cursor: isLoading || !nickname.trim() ? 'not-allowed' : 'pointer',
-                      opacity: isLoading || !nickname.trim() ? '0.6' : '1',
-                      boxShadow: '0 6px 20px rgba(102, 126, 234, 0.4)',
-                      transition: 'all 0.2s',
-                      height: '56px',
-                      whiteSpace: 'nowrap'
-                    }}
-                  >
-                    {isLoading ? '⏳ Entrando...' : '🚀 Ir al Chat'}
-                  </button>
-                </div>
-                <p style={{ fontSize: '12px', color: '#999', marginTop: '8px' }}>
+                <input
+                  type="text"
+                  value={nickname}
+                  onChange={(e) => setNickname(e.target.value)}
+                  placeholder="Ej: Carlos23"
+                  maxLength={20}
+                  required
+                  autoFocus
+                  disabled={isLoading}
+                  style={{
+                    width: '100%',
+                    padding: '16px',
+                    fontSize: '18px',
+                    border: '2px solid #667eea',
+                    borderRadius: '12px',
+                    outline: 'none',
+                    boxSizing: 'border-box',
+                    backgroundColor: 'white',
+                    color: '#333',
+                    fontWeight: '500',
+                    marginBottom: '16px'
+                  }}
+                />
+                <p style={{ fontSize: '12px', color: '#999', marginBottom: '20px' }}>
                   ✨ Avatar asignado automáticamente
                 </p>
+                
+                <button
+                  type="submit"
+                  disabled={isLoading || !nickname.trim()}
+                  style={{
+                    width: '100%',
+                    padding: '16px 24px',
+                    fontSize: '18px',
+                    fontWeight: 'bold',
+                    color: 'white',
+                    background: isLoading || !nickname.trim()
+                      ? 'linear-gradient(135deg, #999 0%, #888 100%)'
+                      : 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+                    border: 'none',
+                    borderRadius: '12px',
+                    cursor: isLoading || !nickname.trim() ? 'not-allowed' : 'pointer',
+                    opacity: isLoading || !nickname.trim() ? '0.6' : '1',
+                    boxShadow: '0 6px 20px rgba(102, 126, 234, 0.4)',
+                    transition: 'all 0.2s',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    gap: '8px'
+                  }}
+                >
+                  <span>{isLoading ? '⏳ Entrando...' : '🚀 Ir al Chat'}</span>
+                </button>
               </div>
 
               {error && (

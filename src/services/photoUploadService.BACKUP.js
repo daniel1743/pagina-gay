@@ -4,66 +4,50 @@ import { auth } from '@/config/firebase';
 import imageCompression from 'browser-image-compression';
 
 /**
- * 🚀 VERSIÓN OPTIMIZADA: Comprime una imagen en UNA SOLA PASADA
- * Reduce tiempo de 10+ segundos a 2-3 segundos
- *
+ * Comprime una imagen a un tamaño máximo de 50-80 KB
  * @param {File} file - Archivo de imagen a comprimir
- * @param {number} maxSizeKB - Tamaño máximo en KB (default: 150)
+ * @param {number} maxSizeKB - Tamaño máximo en KB (default: 80)
  * @returns {Promise<File>} - Archivo comprimido
  */
-export const compressImage = async (file, maxSizeKB = 150) => {
+export const compressImage = async (file, maxSizeKB = 80) => {
   try {
-    console.time('⏱️ [COMPRESS] Tiempo total de compresión');
+    // Intentar múltiples niveles de compresión hasta alcanzar el tamaño objetivo
+    const compressionLevels = [
+      { maxSizeMB: maxSizeKB / 1024, maxWidthOrHeight: 800 },
+      { maxSizeMB: maxSizeKB / 1024, maxWidthOrHeight: 600 },
+      { maxSizeMB: maxSizeKB / 1024, maxWidthOrHeight: 500 },
+      { maxSizeMB: maxSizeKB / 1024, maxWidthOrHeight: 400 },
+    ];
 
-    // Calcular dimensiones óptimas basadas en el tamaño del archivo
-    const fileSizeMB = file.size / (1024 * 1024);
-    let maxWidthOrHeight;
+    let lastCompressedFile = file;
 
-    if (fileSizeMB > 5) {
-      maxWidthOrHeight = 600; // Fotos grandes: reducir agresivamente
-    } else if (fileSizeMB > 2) {
-      maxWidthOrHeight = 800;
-    } else if (fileSizeMB > 1) {
-      maxWidthOrHeight = 1000;
-    } else {
-      maxWidthOrHeight = 1200; // Fotos pequeñas: mantener más calidad
-    }
-
-    // ✅ UNA SOLA COMPRESIÓN con configuración óptima
-    const options = {
-      maxSizeMB: maxSizeKB / 1024,
-      maxWidthOrHeight,
-      useWebWorker: true,
-      fileType: file.type,
-      initialQuality: 0.85, // Calidad inicial alta
-      alwaysKeepResolution: false,
-    };
-
-    const compressedFile = await imageCompression(file, options);
-    const finalSizeKB = compressedFile.size / 1024;
-
-    console.log(`✅ [COMPRESS] Original: ${fileSizeMB.toFixed(2)} MB → Comprimido: ${finalSizeKB.toFixed(2)} KB`);
-    console.timeEnd('⏱️ [COMPRESS] Tiempo total de compresión');
-
-    // ⚠️ Si aún es muy grande (>200 KB), hacer segunda compresión más agresiva
-    if (finalSizeKB > 200) {
-      console.log('⚠️ [COMPRESS] Archivo aún grande, aplicando compresión extra...');
-      const extraOptions = {
-        maxSizeMB: 0.15, // 150 KB
-        maxWidthOrHeight: 500,
+    for (const level of compressionLevels) {
+      const options = {
+        maxSizeMB: level.maxSizeMB,
+        maxWidthOrHeight: level.maxWidthOrHeight,
         useWebWorker: true,
         fileType: file.type,
-        initialQuality: 0.75,
       };
-      const secondCompression = await imageCompression(compressedFile, extraOptions);
-      const secondSizeKB = secondCompression.size / 1024;
-      console.log(`✅ [COMPRESS] Segunda compresión: ${secondSizeKB.toFixed(2)} KB`);
-      return secondCompression;
+
+      lastCompressedFile = await imageCompression(file, options);
+      const fileSizeKB = lastCompressedFile.size / 1024;
+
+      // Si el archivo está dentro del rango objetivo (50-80 KB), retornarlo
+      if (fileSizeKB <= maxSizeKB) {
+        return lastCompressedFile;
+      }
     }
 
-    return compressedFile;
+    // Si después de todos los intentos aún es muy grande, retornar el último resultado
+    // (aunque sea un poco más grande que el objetivo)
+    const finalSizeKB = lastCompressedFile.size / 1024;
+    if (finalSizeKB > maxSizeKB * 1.2) {
+      console.warn(`Imagen comprimida a ${finalSizeKB.toFixed(2)} KB, objetivo era ${maxSizeKB} KB`);
+    }
+
+    return lastCompressedFile;
   } catch (error) {
-    console.error('❌ [COMPRESS] Error comprimiendo imagen:', error);
+    console.error('Error comprimiendo imagen:', error);
     throw new Error('No se pudo comprimir la imagen. Por favor, intenta con otra imagen.');
   }
 };
@@ -76,10 +60,8 @@ export const compressImage = async (file, maxSizeKB = 150) => {
  */
 export const uploadProfilePhoto = async (file, userId = null) => {
   try {
-    console.time('⏱️ [UPLOAD] Tiempo total de subida');
-
     const currentUserId = userId || auth.currentUser?.uid;
-
+    
     if (!currentUserId) {
       throw new Error('Usuario no autenticado');
     }
@@ -97,18 +79,14 @@ export const uploadProfilePhoto = async (file, userId = null) => {
       throw new Error(`La imagen es demasiado grande. El tamaño máximo es ${maxSizeMB} MB.`);
     }
 
-    console.log(`📤 [UPLOAD] Iniciando subida de ${file.name} (${fileSizeMB.toFixed(2)} MB)`);
-
-    // Comprimir imagen a ~150 KB (más rápido que 80 KB)
-    const compressedFile = await compressImage(file, 150);
-
+    // Comprimir imagen a 50-80 KB
+    const compressedFile = await compressImage(file, 80);
+    
     // Crear referencia en Storage
     const timestamp = Date.now();
     const fileExtension = file.name.split('.').pop() || 'jpg';
     const fileName = `profile_photos/${currentUserId}/${timestamp}.${fileExtension}`;
     const storageRef = ref(storage, fileName);
-
-    console.time('⏱️ [FIREBASE] Tiempo de subida a Firebase');
 
     // Subir archivo comprimido
     await uploadBytes(storageRef, compressedFile, {
@@ -116,17 +94,12 @@ export const uploadProfilePhoto = async (file, userId = null) => {
       cacheControl: 'public, max-age=31536000', // Cache por 1 año
     });
 
-    console.timeEnd('⏱️ [FIREBASE] Tiempo de subida a Firebase');
-
     // Obtener URL de descarga
     const downloadURL = await getDownloadURL(storageRef);
-
-    console.timeEnd('⏱️ [UPLOAD] Tiempo total de subida');
-    console.log('✅ [UPLOAD] Foto subida exitosamente:', downloadURL);
-
+    
     return downloadURL;
   } catch (error) {
-    console.error('❌ [UPLOAD] Error subiendo foto de perfil:', error);
+    console.error('Error subiendo foto de perfil:', error);
     throw error;
   }
 };
@@ -151,9 +124,8 @@ export const deleteProfilePhoto = async (photoURL) => {
     const storageRef = ref(storage, decodeURIComponent(path));
 
     await deleteObject(storageRef);
-    console.log('✅ [DELETE] Foto eliminada exitosamente');
   } catch (error) {
-    console.error('❌ [DELETE] Error eliminando foto de perfil:', error);
+    console.error('Error eliminando foto de perfil:', error);
     // No lanzar error, solo loguear (puede que el archivo ya no exista)
   }
 };
@@ -182,3 +154,4 @@ export const validateImageFile = (file) => {
 
   return { valid: true };
 };
+
