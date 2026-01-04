@@ -117,7 +117,10 @@ export const subscribeToRoomMessages = (roomId, callback, messageLimit = 100) =>
   const messagesRef = collection(db, 'rooms', roomId, 'messages');
   const q = query(messagesRef, orderBy('timestamp', 'asc'), limitToLast(messageLimit));
 
+  console.log(`📡 [SUBSCRIBE] Iniciando suscripción a mensajes de sala: ${roomId}`);
+
   // ✅ SIMPLE y CONFIABLE - sin includeMetadataChanges (causaba bugs)
+  // ⚡ OPTIMIZADO: onSnapshot se ejecuta inmediatamente y devuelve datos cached si están disponibles
   return onSnapshot(
     q,
     (snapshot) => {
@@ -127,14 +130,16 @@ export const subscribeToRoomMessages = (roomId, callback, messageLimit = 100) =>
         timestamp: doc.data().timestamp?.toDate?.()?.toISOString() || new Date().toISOString(),
       }));
 
+      console.log(`📨 [SUBSCRIBE] ✅ Mensajes recibidos de Firestore (${messages.length} mensajes) para sala: ${roomId}`);
       callback(messages);
     },
     (error) => {
       if (error.name !== 'AbortError' && error.code !== 'cancelled') {
-        console.error('[SUBSCRIBE] Error:', error.code, error.message);
+        console.error('[SUBSCRIBE] ❌ Error:', error.code, error.message);
         callback([]);
       }
-    }
+    },
+    { includeMetadataChanges: false } // ⚡ CRÍTICO: No incluir cambios de metadata para mejor rendimiento
   );
 };
 

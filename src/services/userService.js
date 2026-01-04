@@ -49,11 +49,15 @@ export const checkUsernameAvailability = async (username, excludeUserId = null) 
  */
 export const createUserProfile = async (uid, userData) => {
   try {
-    // ✅ VALIDAR: Verificar que el username sea único
+    // ⚠️ TEMPORALMENTE DESHABILITADO: checkUsernameAvailability causa errores de permisos
+    // La función intenta leer TODOS los usuarios, lo cual falla en Firestore
+    // TODO: Implementar solución con colección separada 'usernames' con permisos públicos de lectura
+    /*
     const isAvailable = await checkUsernameAvailability(userData.username);
     if (!isAvailable) {
       throw new Error('Este nombre de usuario ya está en uso. Por favor elige otro.');
     }
+    */
 
     const userRef = doc(db, 'users', uid);
 

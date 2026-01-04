@@ -9,29 +9,31 @@ import {
 } from '@/components/ui/dialog';
 import { useAuth } from '@/contexts/AuthContext';
 import { toast } from '@/components/ui/use-toast';
-import { Check } from 'lucide-react';
 
-// 4 avatares predefinidos (mismo estilo que Argentina)
+// 10 avatares para asignación aleatoria
 const AVATAR_OPTIONS = [
-  { id: 'avataaars', url: 'https://api.dicebear.com/7.x/avataaars/svg?seed=avatar1', name: 'Clásico' },
-  { id: 'bottts', url: 'https://api.dicebear.com/7.x/bottts/svg?seed=avatar2', name: 'Robot' },
-  { id: 'pixel-art', url: 'https://api.dicebear.com/7.x/pixel-art/svg?seed=avatar3', name: 'Retro' },
-  { id: 'identicon', url: 'https://api.dicebear.com/7.x/identicon/svg?seed=avatar4', name: 'Geométrico' }
+  'https://api.dicebear.com/7.x/avataaars/svg?seed=avatar1',
+  'https://api.dicebear.com/7.x/avataaars/svg?seed=avatar2',
+  'https://api.dicebear.com/7.x/bottts/svg?seed=avatar3',
+  'https://api.dicebear.com/7.x/pixel-art/svg?seed=avatar4',
+  'https://api.dicebear.com/7.x/identicon/svg?seed=avatar5',
+  'https://api.dicebear.com/7.x/avataaars/svg?seed=avatar6',
+  'https://api.dicebear.com/7.x/bottts/svg?seed=avatar7',
+  'https://api.dicebear.com/7.x/pixel-art/svg?seed=avatar8',
+  'https://api.dicebear.com/7.x/identicon/svg?seed=avatar9',
+  'https://api.dicebear.com/7.x/avataaars/svg?seed=avatar10',
 ];
 
 /**
- * Modal de Entrada Rápida para Guests
- * Estilo simplificado como Argentina: nickname, edad, avatar, reglas
- * Sin fricción - entrada directa
+ * Modal de Entrada ULTRA RÁPIDA para Guests
+ * ✅ NUEVA VERSIÓN: Solo nickname + avatar aleatorio
+ * ⚡ CERO FRICCIÓN - Entrada en 1 segundo
  */
 export const GuestUsernameModal = ({ open, onClose, chatRoomId = 'principal' }) => {
   const navigate = useNavigate();
   const { signInAsGuest } = useAuth();
 
   const [nickname, setNickname] = useState('');
-  const [age, setAge] = useState('');
-  const [selectedAvatar, setSelectedAvatar] = useState(AVATAR_OPTIONS[0]);
-  const [acceptRules, setAcceptRules] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState('');
 
@@ -39,7 +41,7 @@ export const GuestUsernameModal = ({ open, onClose, chatRoomId = 'principal' }) 
     e.preventDefault();
     setError('');
 
-    // Validaciones
+    // ✅ Validación SIMPLE - solo nickname
     if (!nickname.trim()) {
       setError('Ingresa tu nickname');
       return;
@@ -49,44 +51,53 @@ export const GuestUsernameModal = ({ open, onClose, chatRoomId = 'principal' }) 
       return;
     }
 
-    const parsedAge = parseInt(age, 10);
-    if (Number.isNaN(parsedAge)) {
-      setError('Ingresa tu edad en números');
-      return;
-    }
-    if (parsedAge < 18) {
-      setError('Debes ser mayor de 18 años');
-      return;
-    }
-
-    if (!acceptRules) {
-      setError('Debes aceptar las reglas del chat');
-      return;
-    }
+    console.log('%c═══════════════════════════════════════════', 'color: #00ffff; font-weight: bold');
+    console.log('%c🚀 INICIO - Proceso de entrada al chat (MODAL)', 'color: #00ffff; font-weight: bold; font-size: 16px');
+    console.log('%c═══════════════════════════════════════════', 'color: #00ffff; font-weight: bold');
+    console.time('⏱️ [MODAL] Desde click hasta navegación');
 
     setIsLoading(true);
 
     try {
-      // Guardar flags en sessionStorage
-      sessionStorage.setItem(`age_verified_${nickname.trim()}`, 'true');
-      sessionStorage.setItem(`rules_accepted_${nickname.trim()}`, 'true');
+      // ⚡ Avatar ALEATORIO de las 10 opciones
+      const randomAvatar = AVATAR_OPTIONS[Math.floor(Math.random() * AVATAR_OPTIONS.length)];
+      console.log(`🎨 Avatar seleccionado: ${randomAvatar.split('seed=')[1]}`);
 
-      // Crear usuario guest en Firebase
-      await signInAsGuest(nickname.trim(), selectedAvatar.url);
-
-      toast({
-        title: "¡Bienvenido! 🎉",
-        description: `Hola ${nickname.trim()}, ya puedes chatear`,
-      });
-
-      // Redirigir a la sala especificada
-      setTimeout(() => {
-        navigate(`/chat/${chatRoomId}`, { replace: true });
-      }, 100);
-
+      // ⚡ OPTIMISTIC NAVIGATION: Navegar INMEDIATAMENTE (antes de Firebase)
+      // Esto elimina la fricción de espera - el usuario ve el chat al instante
+      console.log('%c✅ NAVEGANDO INMEDIATAMENTE (optimistic)...', 'color: #00ff00; font-weight: bold; font-size: 14px');
       onClose();
+      navigate(`/chat/${chatRoomId}`, { replace: true });
+
+      // ⚡ Crear usuario guest en Firebase EN BACKGROUND (no bloquea navegación)
+      console.time('⏱️ [MODAL] signInAsGuest completo');
+      signInAsGuest(nickname.trim(), randomAvatar)
+        .then(() => {
+          console.timeEnd('⏱️ [MODAL] signInAsGuest completo');
+          console.log('%c✅ Usuario creado en background', 'color: #888; font-style: italic');
+        })
+        .catch((error) => {
+          console.error('%c❌ Error en background (no crítico):', 'color: #ff0000; font-weight: bold', error);
+          // Si falla, el usuario ya está en el chat - puede intentar de nuevo
+        });
+
+      // Toast DESPUÉS de navegar (no bloquea)
+      setTimeout(() => {
+        toast({
+          title: "¡Bienvenido! 🎉",
+          description: `Hola ${nickname.trim()}`,
+        });
+        console.timeEnd('⏱️ [TOTAL] Entrada completa al chat');
+        console.log('%c═══════════════════════════════════════════', 'color: #00ffff; font-weight: bold');
+        console.log('%c✅ PROCESO COMPLETADO (MODAL)', 'color: #00ff00; font-weight: bold; font-size: 16px');
+        console.log('%c═══════════════════════════════════════════', 'color: #00ffff; font-weight: bold');
+      }, 100);
     } catch (error) {
-      console.error('Error creating guest user:', error);
+      console.timeEnd('⏱️ [MODAL] Desde click hasta navegación');
+      console.timeEnd('⏱️ [TOTAL] Entrada completa al chat');
+      console.error('%c❌ ERROR EN ENTRADA (MODAL):', 'color: #ff0000; font-weight: bold; font-size: 14px', error);
+      console.log('%c═══════════════════════════════════════════', 'color: #ff0000; font-weight: bold');
+
       setError(`Error al entrar: ${error.message || 'Intenta de nuevo.'}`);
       setIsLoading(false);
     }
@@ -132,144 +143,46 @@ export const GuestUsernameModal = ({ open, onClose, chatRoomId = 'principal' }) 
               textAlign: 'center'
             }}
           >
-            <h1 style={{ fontSize: '32px', fontWeight: 'bold', color: '#667eea', marginBottom: '10px' }}>
-              Entra al Chat
+            <h1 style={{ fontSize: '38px', fontWeight: 'bold', color: '#667eea', marginBottom: '8px' }}>
+              Chatea YA
             </h1>
-            <p style={{ fontSize: '14px', color: '#666', marginBottom: '30px' }}>
-              Completa estos datos para empezar a chatear
+            <p style={{ fontSize: '18px', color: '#555', marginBottom: '8px', fontWeight: '600' }}>
+              con Gente Real
+            </p>
+            <p style={{ fontSize: '13px', color: '#888', marginBottom: '30px' }}>
+              Sin registro • Sin esperas • 100% Gratis
             </p>
 
             <form onSubmit={handleSubmit} style={{ textAlign: 'left' }}>
-              <div style={{ marginBottom: '20px' }}>
-                <label style={{ display: 'block', fontSize: '14px', fontWeight: '600', color: '#333', marginBottom: '8px' }}>
-                  Tu Nickname *
+              <div style={{ marginBottom: '24px' }}>
+                <label style={{ display: 'block', fontSize: '15px', fontWeight: '600', color: '#333', marginBottom: '10px' }}>
+                  Tu Nickname:
                 </label>
-                <input 
-                  type="text" 
-                  value={nickname} 
-                  onChange={(e) => setNickname(e.target.value)} 
-                  placeholder="Ej: Carlos23" 
-                  maxLength={20} 
-                  required 
-                  autoFocus 
-                  style={{ 
-                    width: '100%', 
-                    padding: '12px', 
-                    fontSize: '16px', 
-                    border: '2px solid #667eea', 
-                    borderRadius: '10px', 
-                    outline: 'none', 
-                    boxSizing: 'border-box', 
-                    backgroundColor: 'white', 
-                    color: '#333' 
-                  }} 
+                <input
+                  type="text"
+                  value={nickname}
+                  onChange={(e) => setNickname(e.target.value)}
+                  placeholder="Ej: Carlos23"
+                  maxLength={20}
+                  required
+                  autoFocus
+                  disabled={isLoading}
+                  style={{
+                    width: '100%',
+                    padding: '16px',
+                    fontSize: '18px',
+                    border: '2px solid #667eea',
+                    borderRadius: '12px',
+                    outline: 'none',
+                    boxSizing: 'border-box',
+                    backgroundColor: 'white',
+                    color: '#333',
+                    fontWeight: '500'
+                  }}
                 />
-              </div>
-
-              <div style={{ marginBottom: '20px' }}>
-                <label style={{ display: 'block', fontSize: '14px', fontWeight: '600', color: '#333', marginBottom: '8px' }}>
-                  Tu Edad *
-                </label>
-                <input 
-                  type="number" 
-                  value={age} 
-                  onChange={(e) => setAge(e.target.value)} 
-                  placeholder="Ej: 24" 
-                  min="18" 
-                  required 
-                  style={{ 
-                    width: '100%', 
-                    padding: '12px', 
-                    fontSize: '16px', 
-                    border: '2px solid #667eea', 
-                    borderRadius: '10px', 
-                    outline: 'none', 
-                    boxSizing: 'border-box', 
-                    backgroundColor: 'white', 
-                    color: '#333' 
-                  }} 
-                />
-              </div>
-
-              <div style={{ marginBottom: '20px' }}>
-                <label style={{ display: 'block', fontSize: '14px', fontWeight: '600', color: '#333', marginBottom: '12px' }}>
-                  Elige tu Avatar *
-                </label>
-                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '10px' }}>
-                  {AVATAR_OPTIONS.map((avatar) => (
-                    <button 
-                      key={avatar.id} 
-                      type="button" 
-                      onClick={() => setSelectedAvatar(avatar)} 
-                      style={{ 
-                        position: 'relative', 
-                        padding: '10px', 
-                        borderRadius: '10px', 
-                        border: selectedAvatar.id === avatar.id ? '3px solid #667eea' : '2px solid #ddd', 
-                        backgroundColor: selectedAvatar.id === avatar.id ? '#f0f0ff' : 'white', 
-                        cursor: 'pointer', 
-                        transition: 'all 0.2s', 
-                        display: 'flex', 
-                        flexDirection: 'column', 
-                        alignItems: 'center', 
-                        gap: '5px' 
-                      }}
-                    >
-                      {selectedAvatar.id === avatar.id && (
-                        <div style={{ 
-                          position: 'absolute', 
-                          top: '5px', 
-                          right: '5px', 
-                          backgroundColor: '#667eea', 
-                          borderRadius: '50%', 
-                          width: '20px', 
-                          height: '20px', 
-                          display: 'flex', 
-                          alignItems: 'center', 
-                          justifyContent: 'center' 
-                        }}>
-                          <Check style={{ width: '14px', height: '14px', color: 'white' }} />
-                        </div>
-                      )}
-                      <img 
-                        src={avatar.url} 
-                        alt={avatar.name} 
-                        style={{ width: '50px', height: '50px', borderRadius: '50%', backgroundColor: '#f5f5f5' }} 
-                      />
-                      <span style={{ fontSize: '11px', color: '#666', fontWeight: '500' }}>
-                        {avatar.name}
-                      </span>
-                    </button>
-                  ))}
-                </div>
-              </div>
-
-              <div style={{ marginBottom: '20px' }}>
-                <label style={{ 
-                  display: 'flex', 
-                  alignItems: 'flex-start', 
-                  gap: '10px', 
-                  cursor: 'pointer', 
-                  fontSize: '13px', 
-                  color: '#333' 
-                }}>
-                  <input 
-                    type="checkbox" 
-                    checked={acceptRules} 
-                    onChange={(e) => setAcceptRules(e.target.checked)} 
-                    required 
-                    style={{ 
-                      width: '18px', 
-                      height: '18px', 
-                      marginTop: '2px', 
-                      cursor: 'pointer', 
-                      accentColor: '#667eea' 
-                    }} 
-                  />
-                  <span>
-                    Acepto las reglas del chat. Tengo +18 años y entiendo que debo respetar a los demás usuarios.
-                  </span>
-                </label>
+                <p style={{ fontSize: '12px', color: '#999', marginTop: '8px' }}>
+                  ✨ Avatar asignado automáticamente
+                </p>
               </div>
 
               {error && (
@@ -286,29 +199,33 @@ export const GuestUsernameModal = ({ open, onClose, chatRoomId = 'principal' }) 
                 </div>
               )}
 
-              <button 
-                type="submit" 
-                disabled={isLoading} 
-                style={{ 
-                  width: '100%', 
-                  padding: '15px', 
-                  fontSize: '18px', 
-                  fontWeight: 'bold', 
-                  color: 'white', 
-                  background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)', 
-                  border: 'none', 
-                  borderRadius: '10px', 
-                  cursor: isLoading ? 'not-allowed' : 'pointer', 
-                  opacity: isLoading ? '0.7' : '1', 
-                  boxShadow: '0 4px 15px rgba(102, 126, 234, 0.4)' 
+              <button
+                type="submit"
+                disabled={isLoading || !nickname.trim()}
+                style={{
+                  width: '100%',
+                  padding: '18px',
+                  fontSize: '20px',
+                  fontWeight: 'bold',
+                  color: 'white',
+                  background: isLoading || !nickname.trim()
+                    ? 'linear-gradient(135deg, #999 0%, #888 100%)'
+                    : 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+                  border: 'none',
+                  borderRadius: '12px',
+                  cursor: isLoading || !nickname.trim() ? 'not-allowed' : 'pointer',
+                  opacity: isLoading || !nickname.trim() ? '0.6' : '1',
+                  boxShadow: '0 6px 20px rgba(102, 126, 234, 0.4)',
+                  transition: 'all 0.2s'
                 }}
               >
-                {isLoading ? 'Entrando...' : 'Entrar a Chatear'}
+                {isLoading ? '⏳ Entrando...' : '🚀 Ir al Chat'}
               </button>
             </form>
 
-            <p style={{ fontSize: '11px', color: '#999', marginTop: '20px', lineHeight: '1.5' }}>
-              ✨ Sin registro • 100% Gratis • Anónimo
+            <p style={{ fontSize: '12px', color: '#999', marginTop: '24px', lineHeight: '1.6' }}>
+              Totalmente anónimo • Sin descargas<br/>
+              Desde tu navegador
             </p>
           </div>
         </div>

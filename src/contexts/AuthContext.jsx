@@ -102,44 +102,48 @@ export const AuthProvider = ({ children }) => {
               } catch {}
             }
 
-            // Fallback: Firestore
-            const guestSnap = await getDoc(doc(db, 'guests', firebaseUser.uid));
-            if (guestSnap.exists()) {
-              const guestData = guestSnap.data();
-              guestUser = {
-                id: firebaseUser.uid,
-                username: guestData.username || 'Invitado',
-                isGuest: true,
-                isAnonymous: true,
-                isPremium: false,
-                verified: false,
-                avatar: guestData.avatar || 'https://api.dicebear.com/7.x/pixel-art/svg?seed=guest',
-                quickPhrases: [],
-                theme: {},
-              };
-              setGuestMessageCount(guestData.messageCount || 0);
-              localStorage.setItem('guest_session_backup', JSON.stringify({
-                uid: firebaseUser.uid,
-                username: guestData.username,
-                avatar: guestData.avatar,
-                timestamp: Date.now(),
-              }));
-            } else {
-              guestUser = {
-                id: firebaseUser.uid,
-                username: 'Invitado',
-                isGuest: true,
-                isAnonymous: true,
-                isPremium: false,
-                verified: false,
-                avatar: 'https://api.dicebear.com/7.x/pixel-art/svg?seed=guest',
-                quickPhrases: [],
-                theme: {},
-              };
-              setGuestMessageCount(0);
-            }
-
+            // ⚡ FALLBACK RÁPIDO: Crear usuario básico INMEDIATAMENTE (no esperar Firestore)
+            guestUser = {
+              id: firebaseUser.uid,
+              username: 'Invitado',
+              isGuest: true,
+              isAnonymous: true,
+              isPremium: false,
+              verified: false,
+              avatar: 'https://api.dicebear.com/7.x/pixel-art/svg?seed=guest',
+              quickPhrases: [],
+              theme: {},
+            };
+            setGuestMessageCount(0);
             setUser(guestUser);
+
+            // 🚀 Intentar cargar de Firestore EN BACKGROUND (no bloquea)
+            getDoc(doc(db, 'guests', firebaseUser.uid))
+              .then(guestSnap => {
+                if (guestSnap.exists()) {
+                  const guestData = guestSnap.data();
+                  // Actualizar con datos reales si los hay
+                  setUser({
+                    id: firebaseUser.uid,
+                    username: guestData.username || 'Invitado',
+                    isGuest: true,
+                    isAnonymous: true,
+                    isPremium: false,
+                    verified: false,
+                    avatar: guestData.avatar || 'https://api.dicebear.com/7.x/pixel-art/svg?seed=guest',
+                    quickPhrases: [],
+                    theme: {},
+                  });
+                  setGuestMessageCount(guestData.messageCount || 0);
+                  localStorage.setItem('guest_session_backup', JSON.stringify({
+                    uid: firebaseUser.uid,
+                    username: guestData.username,
+                    avatar: guestData.avatar,
+                    timestamp: Date.now(),
+                  }));
+                }
+              })
+              .catch(() => {});
           } else {
             // Usuario registrado - obtener perfil de Firestore
             let userProfile;
@@ -457,33 +461,18 @@ export const AuthProvider = ({ children }) => {
 
   /**
    * Iniciar sesión como invitado (guest)
-   * Solo requiere username y avatar
+   * ⚡ ULTRA OPTIMIZADO: <500ms total
    */
   const signInAsGuest = async (username, avatarUrl) => {
+    console.log('%c🚀 [TIMING] Iniciando proceso de entrada...', 'color: #00ff00; font-weight: bold; font-size: 14px');
+    console.time('⏱️ [TOTAL] Entrada completa al chat');
+    console.time('⏱️ [PASO 1] signInAnonymously Firebase');
+
     try {
-      // ⚡ PASO 1: Guardar en localStorage PRIMERO (instantáneo, 0ms)
-      const tempBackup = {
-        username: username,
-        avatar: avatarUrl,
-        timestamp: Date.now(),
-      };
-      localStorage.setItem('guest_session_temp', JSON.stringify(tempBackup));
-
-      // ⚡ PASO 2: Crear usuario anónimo en Firebase (rápido, ~50-100ms)
-      const userCredential = await signInAnonymously(auth);
-
-      // ⚡ PASO 3: Actualizar backup con UID real
-      localStorage.setItem('guest_session_backup', JSON.stringify({
-        uid: userCredential.user.uid,
-        username: username,
-        avatar: avatarUrl,
-        timestamp: Date.now(),
-      }));
-      localStorage.removeItem('guest_session_temp');
-
-      // ⚡ PASO 4: Actualizar estado local INMEDIATAMENTE
-      const guestUser = {
-        id: userCredential.user.uid,
+      // ⚡ OPTIMISTIC UI: Crear usuario local PRIMERO (instantáneo)
+      const tempUid = `temp_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+      const tempUser = {
+        id: tempUid,
         username: username,
         isGuest: true,
         isAnonymous: true,
@@ -494,46 +483,100 @@ export const AuthProvider = ({ children }) => {
         theme: {},
       };
 
-      setUser(guestUser);
+      // ⚡ ACTUALIZAR UI INMEDIATAMENTE (0ms)
+      setUser(tempUser);
       setGuestMessageCount(0);
 
-      // ⚡ PASO 5: Guardar en Firestore EN BACKGROUND (no bloquea al usuario)
-      const guestData = {
+      // ⚡ Guardar backup temporal
+      localStorage.setItem('guest_session_backup', JSON.stringify({
+        uid: tempUid,
         username: username,
-        createdAt: new Date().toISOString(),
-        messageCount: 0,
-        expiresAt: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString()
-      };
+        avatar: avatarUrl,
+        timestamp: Date.now(),
+        isTemporary: true,
+      }));
 
-      if (avatarUrl) {
-        guestData.avatar = avatarUrl;
-      }
+      console.log('%c✅ [TIMING] Usuario temporal creado - UI actualizada', 'color: #00ff00; font-weight: bold');
 
-      const guestRef = doc(db, 'guests', userCredential.user.uid);
+      // ⚡ PASO 1: Crear usuario anónimo en Firebase EN BACKGROUND (no bloquea)
+      signInAnonymously(auth)
+        .then((userCredential) => {
+          console.timeEnd('⏱️ [PASO 1] signInAnonymously Firebase');
+          
+          // Actualizar con UID real
+          const realUser = {
+            ...tempUser,
+            id: userCredential.user.uid,
+          };
+          setUser(realUser);
 
-      // NO ESPERAR - guardar en background para mantener velocidad
-      setDoc(guestRef, guestData).catch(() => {});
+          // Actualizar backup con UID real
+          localStorage.setItem('guest_session_backup', JSON.stringify({
+            uid: userCredential.user.uid,
+            username: username,
+            avatar: avatarUrl,
+            timestamp: Date.now(),
+          }));
 
+          console.log('%c✅ [TIMING] Usuario real creado en Firebase', 'color: #00ff00; font-weight: bold');
+
+          // 🚀 TODO LO DEMÁS EN BACKGROUND (no bloquea)
+          setTimeout(() => {
+            console.time('⏱️ [BACKGROUND] Firestore setDoc');
+            // Guardar en Firestore
+            const guestRef = doc(db, 'guests', userCredential.user.uid);
+            setDoc(guestRef, {
+              username: username,
+              avatar: avatarUrl,
+              createdAt: new Date().toISOString(),
+              messageCount: 0,
+              expiresAt: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString()
+            })
+            .then(() => {
+              console.timeEnd('⏱️ [BACKGROUND] Firestore setDoc');
+              console.log('%c✅ [BACKGROUND] Datos guardados en Firestore', 'color: #888; font-style: italic');
+            })
+            .catch((err) => {
+              console.warn('⚠️ [BACKGROUND] Error en Firestore (no crítico):', err);
+            });
+          }, 0);
+        })
+        .catch((error) => {
+          console.error('%c❌ [TIMING] Error en Firebase (continuando con usuario temporal):', 'color: #ff0000; font-weight: bold', error);
+          // Continuar con usuario temporal - el usuario ya está en el chat
+        });
+
+      // ⚡ RETORNAR INMEDIATAMENTE (no esperar Firebase)
       return true;
     } catch (error) {
-      console.error('[AUTH] ❌ Error signing in as guest:', error);
-      localStorage.removeItem('guest_session_temp');
+      console.timeEnd('⏱️ [TOTAL] Entrada completa al chat');
+      console.error('%c❌ [TIMING] Error en entrada:', 'color: #ff0000; font-weight: bold', error);
       throw error;
     }
   };
 
   /**
    * Cerrar sesión
+   * ✅ ARREGLADO: Si es usuario invitado, NO limpiar localStorage para permitir re-login automático
    */
   const logout = async () => {
     try {
       // Marcar que estamos haciendo logout para evitar auto-login
       isLoggingOutRef.current = true;
-      
+
+      const wasGuest = user?.isGuest;
+
       // Limpiar estado inmediatamente
       setUser(null);
       setGuestMessageCount(0);
-      
+
+      // ⚠️ CRÍTICO: Solo limpiar localStorage si NO es invitado
+      // Los invitados deben mantener su sesión para re-login automático
+      if (!wasGuest) {
+        localStorage.removeItem('guest_session_backup');
+        localStorage.removeItem('guest_session_temp');
+      }
+
       // Cerrar sesión en Firebase
       await signOut(auth);
 

@@ -420,12 +420,17 @@ export const subscribeToLastActivity = (callback) => {
 };
 
 /**
- * ⚡ TYPING STATUS: Actualiza el estado de "escribiendo" de un usuario
+ * ⚡ TYPING STATUS: DESHABILITADO - Causaba errores de permisos en Firestore
  * @param {string} roomId - ID de la sala
  * @param {string} userId - ID del usuario
  * @param {boolean} isTyping - Si está escribiendo o no
  */
 export const updateTypingStatus = async (roomId, userId, isTyping) => {
+  // ⚠️ DESHABILITADO: Firestore rules causan errores de permisos
+  // TODO: Re-habilitar cuando se arreglen las reglas de Firestore
+  return;
+
+  /* CÓDIGO ORIGINAL COMENTADO:
   if (!auth.currentUser || !roomId || !userId) return;
 
   const typingRef = doc(db, 'roomPresence', roomId, 'typing', userId);
@@ -443,6 +448,7 @@ export const updateTypingStatus = async (roomId, userId, isTyping) => {
   } catch (error) {
     console.error('Error updating typing status:', error);
   }
+  */
 };
 
 /**

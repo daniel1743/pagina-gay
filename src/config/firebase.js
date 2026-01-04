@@ -1,5 +1,5 @@
 import { initializeApp } from 'firebase/app';
-import { getAuth, connectAuthEmulator, setPersistence, browserLocalPersistence } from 'firebase/auth';
+import { getAuth, connectAuthEmulator, setPersistence, inMemoryPersistence } from 'firebase/auth';
 import { getFirestore, connectFirestoreEmulator, enableIndexedDbPersistence } from 'firebase/firestore';
 import { getStorage, connectStorageEmulator } from 'firebase/storage';
 
@@ -48,14 +48,15 @@ export const auth = getAuth(app);
 export const db = getFirestore(app);
 export const storage = getStorage(app);
 
-// ✅ CRÍTICO: Configurar persistencia LOCAL para prevenir pérdida de sesión
-// Esto asegura que las sesiones anónimas sobrevivan a recargas y cierres de pestaña
-setPersistence(auth, browserLocalPersistence)
+// ⚡ ULTRA OPTIMIZADO: Usar MEMORIA en vez de IndexedDB
+// IndexedDB causa timeouts de 58+ segundos - INACEPTABLE
+// Usamos nuestro propio sistema de localStorage en AuthContext
+setPersistence(auth, inMemoryPersistence)
   .then(() => {
-    if (import.meta.env.DEV) console.log('✅ [FIREBASE] Auth persistence configurada');
+    if (import.meta.env.DEV) console.log('✅ [FIREBASE] Auth en modo MEMORIA (sin IndexedDB)');
   })
   .catch((error) => {
-    console.error('❌ [FIREBASE] Error configurando persistence:', error);
+    console.warn('⚠️ [FIREBASE] Error configurando persistence (no crítico):', error);
   });
 
 // ⚠️ OFFLINE PERSISTENCE DESHABILITADO TEMPORALMENTE

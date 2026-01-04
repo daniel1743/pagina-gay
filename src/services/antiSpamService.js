@@ -1,0 +1,444 @@
+import { auth, db } from '@/config/firebase';
+import { doc, setDoc, getDoc, serverTimestamp, updateDoc, increment } from 'firebase/firestore';
+
+/**
+ * 🚫 ANTI-SPAM SERVICE
+ * Sistema inteligente de detección y prevención de spam
+ */
+
+// ⚙️ CONFIGURACIÓN
+const CONFIG = {
+  // Spam por duplicados
+  MAX_DUPLICATE_WARNINGS: 3, // Máximo 3 advertencias antes de expulsar
+  DUPLICATE_THRESHOLD: 4, // 4 mensajes iguales = advertencia
+  DUPLICATE_BAN_THRESHOLD: 5, // 5+ mensajes = expulsión automática
+  DUPLICATE_MEMORY_MS: 5 * 60 * 1000, // 5 minutos de memoria
+
+  // Expulsión temporal
+  TEMP_BAN_DURATION_MS: 15 * 60 * 1000, // 15 minutos de expulsión
+
+  // Detección de números
+  PHONE_PATTERNS: [
+    /\+?56\s?9\s?\d{4}\s?\d{4}/g, // +56 9 1234 5678
+    /\+?569\d{8}/g, // +56912345678
+    /9\d{8}/g, // 912345678
+    /\d{9}/g, // 912345678 sin +56
+    /\(\+?56\)\s?9\s?\d{8}/g, // (+56) 912345678
+  ],
+
+  // Palabras/frases prohibidas
+  FORBIDDEN_WORDS: [
+    // Redes sociales
+    'instagram', 'insta', 'ig:', '@ig',
+    'whatsapp', 'whats', 'wsp', 'wasap',
+    'telegram', 'tele', 'tg:',
+    'facebook', 'face', 'fb',
+    'snapchat', 'snap',
+    'tiktok', 'tik tok',
+    'twitter', 'x.com',
+
+    // Formas de compartir contacto
+    'mi numero', 'mi número', 'mi num', 'mi fono',
+    'mi cel', 'mi celular', 'mi teléfono', 'mi telefono',
+    'mandame', 'mándame', 'enviame', 'envíame',
+    'agregame', 'agrégame', 'añademe', 'añádeme',
+    'escribeme', 'escríbeme',
+
+    // Spam comercial
+    'vendo', 'compro', 'ofrezco',
+    'precio', 'pago', 'cobro',
+    'onlyfans', 'only fans', 'of:',
+
+    // Drogas
+    'vendo drogas', 'vendo marihuana', 'vendo cocaina', 'vendo coca',
+    'compro drogas', 'compro marihuana', 'compro cocaina',
+  ],
+
+  // Excepciones (palabras OK aunque contengan palabras prohibidas)
+  EXCEPTIONS: [
+    'hola', 'hola hola', // Saludos normales
+    'jaja', 'jajaja', 'jajajaja', // Risas
+    'ok', 'ok ok', // Confirmaciones
+    'si', 'si si', 'sí', 'sí sí', // Afirmaciones
+    'no', 'no no', // Negaciones
+  ],
+};
+
+/**
+ * 📊 HISTORIAL DE MENSAJES POR USUARIO
+ * Guarda los últimos mensajes de cada usuario en memoria
+ */
+const userMessageHistory = new Map();
+
+/**
+ * 🔍 CLASE: Entrada del historial de mensajes
+ */
+class MessageEntry {
+  constructor(content, timestamp = Date.now()) {
+    this.content = content.toLowerCase().trim();
+    this.timestamp = timestamp;
+    this.count = 1;
+  }
+}
+
+/**
+ * 📝 OBTENER HISTORIAL DE USUARIO
+ */
+function getUserHistory(userId) {
+  if (!userMessageHistory.has(userId)) {
+    userMessageHistory.set(userId, []);
+  }
+  return userMessageHistory.get(userId);
+}
+
+/**
+ * 🧹 LIMPIAR MENSAJES ANTIGUOS DEL HISTORIAL
+ */
+function cleanOldMessages(userId) {
+  const history = getUserHistory(userId);
+  const now = Date.now();
+  const filtered = history.filter(
+    entry => (now - entry.timestamp) < CONFIG.DUPLICATE_MEMORY_MS
+  );
+  userMessageHistory.set(userId, filtered);
+}
+
+/**
+ * ✅ VERIFICAR SI UN MENSAJE ES EXCEPCIÓN
+ * (Ej: "hola hola" está OK, no es spam)
+ */
+function isException(message) {
+  const normalized = message.toLowerCase().trim();
+  return CONFIG.EXCEPTIONS.some(exception =>
+    normalized === exception || normalized.startsWith(exception + ' ')
+  );
+}
+
+/**
+ * 🔢 DETECTAR NÚMEROS DE TELÉFONO
+ */
+function containsPhoneNumber(message) {
+  // Limpiar espacios extras
+  const cleaned = message.replace(/\s+/g, ' ');
+
+  for (const pattern of CONFIG.PHONE_PATTERNS) {
+    if (pattern.test(cleaned)) {
+      return true;
+    }
+  }
+
+  return false;
+}
+
+/**
+ * 🚫 DETECTAR PALABRAS PROHIBIDAS
+ */
+function containsForbiddenWords(message) {
+  const normalized = message.toLowerCase();
+
+  for (const word of CONFIG.FORBIDDEN_WORDS) {
+    // Buscar palabra completa (no dentro de otras palabras)
+    const regex = new RegExp(`\\b${word.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\b`, 'i');
+    if (regex.test(normalized)) {
+      return { found: true, word };
+    }
+  }
+
+  return { found: false, word: null };
+}
+
+/**
+ * 🔁 DETECTAR SPAM POR DUPLICADOS
+ * Retorna: { isSpam: boolean, count: number, shouldWarn: boolean, shouldBan: boolean }
+ */
+function checkDuplicateSpam(userId, message) {
+  // Limpiar historial antiguo
+  cleanOldMessages(userId);
+
+  const history = getUserHistory(userId);
+  const normalized = message.toLowerCase().trim();
+
+  // Buscar si este mensaje ya existe en el historial
+  const existing = history.find(entry => entry.content === normalized);
+
+  if (existing) {
+    existing.count++;
+    existing.timestamp = Date.now(); // Actualizar timestamp
+
+    return {
+      isSpam: existing.count >= CONFIG.DUPLICATE_THRESHOLD,
+      count: existing.count,
+      shouldWarn: existing.count === CONFIG.DUPLICATE_THRESHOLD,
+      shouldBan: existing.count >= CONFIG.DUPLICATE_BAN_THRESHOLD,
+    };
+  } else {
+    // Nuevo mensaje - agregarlo al historial
+    history.push(new MessageEntry(normalized));
+    return {
+      isSpam: false,
+      count: 1,
+      shouldWarn: false,
+      shouldBan: false,
+    };
+  }
+}
+
+/**
+ * ⚠️ REGISTRAR ADVERTENCIA DE SPAM
+ */
+async function recordSpamWarning(userId, username, reason, roomId) {
+  try {
+    if (!auth.currentUser) return;
+
+    const warningsRef = doc(db, 'spam_warnings', userId);
+    const warningsDoc = await getDoc(warningsRef);
+
+    const now = Date.now();
+
+    if (warningsDoc.exists()) {
+      const data = warningsDoc.data();
+      const newCount = (data.count || 0) + 1;
+
+      await updateDoc(warningsRef, {
+        count: increment(1),
+        lastWarning: serverTimestamp(),
+        lastReason: reason,
+        lastRoom: roomId,
+        warnings: [
+          ...(data.warnings || []),
+          {
+            reason,
+            timestamp: now,
+            roomId,
+          }
+        ].slice(-10), // Mantener solo las últimas 10 advertencias
+      });
+
+      return { count: newCount, isNew: false };
+    } else {
+      await setDoc(warningsRef, {
+        userId,
+        username,
+        count: 1,
+        lastWarning: serverTimestamp(),
+        lastReason: reason,
+        lastRoom: roomId,
+        warnings: [{
+          reason,
+          timestamp: now,
+          roomId,
+        }],
+        createdAt: serverTimestamp(),
+      });
+
+      return { count: 1, isNew: true };
+    }
+  } catch (error) {
+    console.error('[ANTI-SPAM] Error registrando advertencia:', error);
+    return { count: 0, isNew: false };
+  }
+}
+
+/**
+ * 🔨 APLICAR EXPULSIÓN TEMPORAL
+ */
+async function applyTempBan(userId, username, reason, roomId) {
+  try {
+    if (!auth.currentUser) return false;
+
+    const bansRef = doc(db, 'temp_bans', userId);
+    const now = Date.now();
+    const expiresAt = now + CONFIG.TEMP_BAN_DURATION_MS;
+
+    await setDoc(bansRef, {
+      userId,
+      username,
+      reason,
+      roomId,
+      bannedAt: serverTimestamp(),
+      expiresAt: expiresAt,
+      duration: CONFIG.TEMP_BAN_DURATION_MS,
+      type: 'spam',
+    });
+
+    console.log(`🔨 [ANTI-SPAM] Usuario ${username} expulsado temporalmente por ${reason}`);
+    return true;
+  } catch (error) {
+    console.error('[ANTI-SPAM] Error aplicando expulsión:', error);
+    return false;
+  }
+}
+
+/**
+ * ✅ VERIFICAR SI USUARIO ESTÁ EXPULSADO
+ */
+export async function checkTempBan(userId) {
+  try {
+    if (!userId) return { isBanned: false };
+
+    const bansRef = doc(db, 'temp_bans', userId);
+    const banDoc = await getDoc(bansRef);
+
+    if (!banDoc.exists()) {
+      return { isBanned: false };
+    }
+
+    const data = banDoc.data();
+    const now = Date.now();
+
+    // Verificar si el ban ya expiró
+    if (data.expiresAt && data.expiresAt < now) {
+      // Ban expirado - eliminarlo
+      await updateDoc(bansRef, {
+        expired: true,
+        expiredAt: serverTimestamp(),
+      });
+      return { isBanned: false };
+    }
+
+    // Ban activo
+    const remainingMs = data.expiresAt - now;
+    const remainingMinutes = Math.ceil(remainingMs / (60 * 1000));
+
+    return {
+      isBanned: true,
+      reason: data.reason,
+      expiresAt: data.expiresAt,
+      remainingMinutes,
+    };
+  } catch (error) {
+    console.error('[ANTI-SPAM] Error verificando expulsión:', error);
+    return { isBanned: false };
+  }
+}
+
+/**
+ * 🛡️ VALIDAR MENSAJE COMPLETO
+ * Retorna: { allowed: boolean, reason: string, type: string, action: string }
+ */
+export async function validateMessage(message, userId, username, roomId) {
+  try {
+    const trimmed = message.trim();
+
+    // 1. Verificar si está expulsado
+    const banCheck = await checkTempBan(userId);
+    if (banCheck.isBanned) {
+      return {
+        allowed: false,
+        reason: `Estás temporalmente expulsado por spam. Podrás chatear en ${banCheck.remainingMinutes} minutos.`,
+        type: 'temp_ban',
+        action: 'block',
+      };
+    }
+
+    // 2. Verificar excepciones (ej: "hola hola" está OK)
+    if (isException(trimmed)) {
+      return { allowed: true };
+    }
+
+    // 3. Detectar números de teléfono
+    if (containsPhoneNumber(trimmed)) {
+      await recordSpamWarning(userId, username, 'Número de teléfono', roomId);
+      return {
+        allowed: false,
+        reason: 'Los números de teléfono están prohibidos',
+        type: 'phone_number',
+        action: 'block',
+        details: 'Por seguridad y privacidad, no se permite compartir números de teléfono en el chat público. Usa los chats privados para intercambiar contacto.',
+      };
+    }
+
+    // 4. Detectar palabras prohibidas
+    const forbiddenCheck = containsForbiddenWords(trimmed);
+    if (forbiddenCheck.found) {
+      await recordSpamWarning(userId, username, `Palabra prohibida: ${forbiddenCheck.word}`, roomId);
+
+      // Determinar tipo de contenido prohibido
+      let specificReason = 'Esta frase está prohibida';
+      if (['instagram', 'whatsapp', 'telegram', 'facebook', 'snapchat', 'tiktok', 'twitter'].some(word => forbiddenCheck.word.includes(word))) {
+        specificReason = 'Las redes sociales están prohibidas';
+      } else if (['vendo', 'compro', 'ofrezco', 'precio', 'pago', 'onlyfans'].some(word => forbiddenCheck.word.includes(word))) {
+        specificReason = 'El contenido comercial está prohibido';
+      } else if (forbiddenCheck.word.includes('droga')) {
+        specificReason = 'El contenido ilegal está prohibido';
+      }
+
+      return {
+        allowed: false,
+        reason: specificReason,
+        type: 'forbidden_word',
+        action: 'block',
+        details: `La palabra "${forbiddenCheck.word}" viola las normas del chat. Tu mensaje no será enviado.`,
+      };
+    }
+
+    // 5. Detectar spam por duplicados
+    const duplicateCheck = checkDuplicateSpam(userId, trimmed);
+
+    if (duplicateCheck.shouldBan) {
+      // 5+ mensajes iguales = EXPULSIÓN AUTOMÁTICA
+      await applyTempBan(userId, username, `Spam: ${duplicateCheck.count} mensajes duplicados`, roomId);
+
+      // Limpiar historial del usuario
+      userMessageHistory.delete(userId);
+
+      return {
+        allowed: false,
+        reason: `Has sido expulsado temporalmente por spam (${duplicateCheck.count} mensajes iguales). Podrás chatear en ${Math.ceil(CONFIG.TEMP_BAN_DURATION_MS / 60000)} minutos.`,
+        type: 'spam_duplicate_ban',
+        action: 'temp_ban',
+        banDuration: CONFIG.TEMP_BAN_DURATION_MS,
+      };
+    } else if (duplicateCheck.shouldWarn) {
+      // 4 mensajes iguales = ADVERTENCIA
+      const warningResult = await recordSpamWarning(userId, username, `Spam: ${duplicateCheck.count} mensajes duplicados`, roomId);
+
+      return {
+        allowed: false,
+        reason: `⚠️ ADVERTENCIA: Has enviado este mensaje ${duplicateCheck.count} veces. Si lo repites nuevamente, serás expulsado temporalmente.`,
+        type: 'spam_duplicate_warning',
+        action: 'warn',
+        count: duplicateCheck.count,
+        warningNumber: warningResult.count,
+      };
+    }
+
+    // ✅ Mensaje válido
+    return { allowed: true };
+
+  } catch (error) {
+    console.error('[ANTI-SPAM] Error validando mensaje:', error);
+    // Si falla la validación, permitir mensaje (fail-safe)
+    return { allowed: true };
+  }
+}
+
+/**
+ * 🧹 LIMPIAR HISTORIAL DE USUARIO
+ * (Llamar cuando usuario sale del chat)
+ */
+export function clearUserHistory(userId) {
+  userMessageHistory.delete(userId);
+}
+
+/**
+ * 📊 OBTENER ESTADÍSTICAS DE SPAM
+ */
+export function getSpamStats() {
+  const stats = {
+    totalUsers: userMessageHistory.size,
+    totalMessages: 0,
+    duplicates: 0,
+  };
+
+  for (const [userId, history] of userMessageHistory.entries()) {
+    history.forEach(entry => {
+      stats.totalMessages += entry.count;
+      if (entry.count > 1) {
+        stats.duplicates += entry.count - 1;
+      }
+    });
+  }
+
+  return stats;
+}

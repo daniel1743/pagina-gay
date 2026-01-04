@@ -25,11 +25,13 @@ import WelcomeTour from '@/components/onboarding/WelcomeTour';
 import AgeVerificationModal from '@/components/chat/AgeVerificationModal';
 import ChatLandingPage from '@/components/chat/ChatLandingPage';
 import EmptyRoomNotificationPrompt from '@/components/chat/EmptyRoomNotificationPrompt';
+import LoadingMessagesPrompt from '@/components/chat/LoadingMessagesPrompt';
 import { toast } from '@/components/ui/use-toast';
 import PrivateChatWindow from '@/components/chat/PrivateChatWindow';
 import { RegistrationRequiredModal } from '@/components/auth/RegistrationRequiredModal';
 import { sendMessage, subscribeToRoomMessages, addReactionToMessage, markMessagesAsRead } from '@/services/chatService';
 import { joinRoom, leaveRoom, subscribeToRoomUsers, subscribeToMultipleRoomCounts, updateUserActivity, cleanInactiveUsers, filterActiveUsers, subscribeToTypingUsers } from '@/services/presenceService';
+import { validateMessage, clearUserHistory } from '@/services/antiSpamService';
 import { auth } from '@/config/firebase'; // ✅ CRÍTICO: Necesario para obtener UID real de Firebase Auth
 import { sendPrivateChatRequest, respondToPrivateChatRequest, subscribeToNotifications, markNotificationAsRead } from '@/services/socialService';
 import { sendModeratorWelcome } from '@/services/moderatorWelcome';
@@ -121,6 +123,7 @@ const ChatPage = () => {
   const [isInputFocused, setIsInputFocused] = useState(false); // 📝 Input focus state for scroll manager
   const [suggestedMessage, setSuggestedMessage] = useState(null); // 🤖 Mensaje sugerido por Companion AI
   const [replyTo, setReplyTo] = useState(null); // 💬 Mensaje al que se está respondiendo { messageId, username, content }
+  const [isLoadingMessages, setIsLoadingMessages] = useState(true); // ⏳ Estado de carga de mensajes
   const unsubscribeRef = useRef(null);
   const aiActivatedRef = useRef(false); // Flag para evitar activaciones múltiples de IA
   const lastUserCountRef = useRef(0); // Para evitar ejecuciones innecesarias del useEffect
@@ -387,6 +390,47 @@ const ChatPage = () => {
     // ⚠️ MODAL COMENTADO - Ya no verificamos reglas
     // const rulesAcceptedFromLanding = sessionStorage.getItem(`rules_accepted_${user.username}`) === 'true';
 
+    // ⚡ PERSISTENCIA: Verificar si el usuario invitado tiene datos guardados
+    if (user.isGuest || user.isAnonymous) {
+      // Buscar datos guardados por nickname
+      const activeGuests = JSON.parse(localStorage.getItem('active_guests') || '[]');
+      if (activeGuests.length > 0) {
+        const lastGuest = activeGuests[0];
+        const guestDataKey = `guest_data_${lastGuest.username.toLowerCase().trim()}`;
+        const savedData = localStorage.getItem(guestDataKey);
+        
+        if (savedData) {
+          try {
+            const saved = JSON.parse(savedData);
+            // Si el username coincide, restaurar verificación de edad
+            if (saved.username && (saved.username.toLowerCase() === user.username.toLowerCase() || saved.uid === user.id)) {
+              // Verificar por UID primero
+              let storedAge = localStorage.getItem(`age_verified_${saved.uid || user.id}`);
+              
+              // Si no hay por UID, verificar por username
+              if (!storedAge) {
+                storedAge = localStorage.getItem(`age_verified_${saved.username.toLowerCase().trim()}`);
+              }
+              
+              // Si hay edad guardada en los datos del guest
+              if (!storedAge && saved.age) {
+                storedAge = String(saved.age);
+              }
+              
+              if (storedAge && Number(storedAge) >= 18) {
+                setIsAgeVerified(true);
+                setShowAgeVerification(false);
+                console.log(`[AGE VERIFICATION] ✅ Usuario invitado ${user.username} ya verificó edad en sesión anterior`);
+                return; // No mostrar modal
+              }
+            }
+          } catch (e) {
+            console.debug('[AGE VERIFICATION] Error verificando datos guardados:', e);
+          }
+        }
+      }
+    }
+
     // ✅ Si viene desde landing, NO mostrar modales
     if (ageVerifiedFromLanding) {
       setIsAgeVerified(true);
@@ -395,7 +439,16 @@ const ChatPage = () => {
       localStorage.setItem(`age_verified_${user.id}`, '18');
       console.log(`[AGE VERIFICATION] ✅ Usuario ${user.username} ya verificó edad en landing page`);
     } else {
-      // ✅ Verificar en localStorage (sesiones anteriores)
+      // ✅ SI ES INVITADO: Auto-verificar (asumimos +18 porque ya pasó formulario de entrada)
+      if (user.isGuest || user.isAnonymous) {
+        console.log(`[AGE VERIFICATION] ✅ Usuario invitado ${user.username} - Auto-verificado (formulario de entrada simplificado)`);
+        setIsAgeVerified(true);
+        setShowAgeVerification(false);
+        localStorage.setItem(`age_verified_${user.id}`, '18');
+        return; // NO mostrar modal adicional - CERO FRICCIÓN
+      }
+
+      // ✅ Verificar en localStorage (sesiones anteriores) - SOLO para usuarios registrados
       const ageKey = `age_verified_${user.id}`;
       const storedAge = localStorage.getItem(ageKey);
 
@@ -404,14 +457,14 @@ const ChatPage = () => {
         setShowAgeVerification(false);
         console.log(`[AGE VERIFICATION] ✅ Usuario ${user.id} ya verificó su edad (${storedAge} años)`);
       } else {
-        // ✅ Solo mostrar si NO está verificado Y no se ha mostrado antes en esta sesión
+        // ✅ Solo mostrar modal para USUARIOS REGISTRADOS que NO están verificados
         setIsAgeVerified(false);
         const hasShownKey = `age_modal_shown_${user.id}`;
         const hasShown = sessionStorage.getItem(hasShownKey);
         if (!hasShown) {
           setShowAgeVerification(true);
           sessionStorage.setItem(hasShownKey, 'true');
-          console.log(`[AGE VERIFICATION] 📋 Mostrando modal de edad para usuario ${user.id}`);
+          console.log(`[AGE VERIFICATION] 📋 Mostrando modal de edad para usuario REGISTRADO ${user.id}`);
         } else {
           console.log(`[AGE VERIFICATION] ⏭️ Modal ya se mostró en esta sesión para usuario ${user.id}`);
         }
@@ -476,35 +529,17 @@ const ChatPage = () => {
     }
   }, [user]);
 
-  // Suscribirse a mensajes en tiempo real cuando cambia la sala
+  // ⚡ SUSCRIPCIÓN INMEDIATA: Suscribirse a mensajes ANTES de verificar edad
+  // Esto permite que los mensajes carguen instantáneamente, incluso con usuario temporal
   useEffect(() => {
     // 🔒 SAFETY: Verificar que user existe (defensa en profundidad)
-    // Aunque el guard clause previene esto, es buena práctica
     if (!user || !user.id) {
       console.warn('⚠️ [CHAT] useEffect de Firestore ejecutado sin user válido');
       return;
     }
-    // ✅ NO mostrar modal aquí si ya está verificado en localStorage
-    if (!isAgeVerified) {
-      const ageKey = `age_verified_${user.id}`;
-      const storedAge = localStorage.getItem(ageKey);
-      // ✅ Solo mostrar si realmente NO está verificado (no solo el estado)
-      if (!storedAge || Number(storedAge) < 18) {
-        const hasShownKey = `age_modal_shown_${user.id}`;
-        const hasShown = sessionStorage.getItem(hasShownKey);
-        if (!hasShown) {
-          setShowAgeVerification(true);
-          sessionStorage.setItem(hasShownKey, 'true');
-        }
-      } else {
-        // ✅ Si está en localStorage pero el estado no está actualizado, actualizar estado
-        setIsAgeVerified(true);
-        setShowAgeVerification(false);
-      }
-      return;
-    }
 
     setCurrentRoom(roomId);
+    setIsLoadingMessages(true); // ⏳ Marcar como cargando al cambiar de sala
     aiActivatedRef.current = false; // Resetear flag de IA cuando cambia de sala
 
     // 🧹 Limpiar usuarios inactivos al entrar a la sala
@@ -513,7 +548,7 @@ const ChatPage = () => {
     // Registrar presencia del usuario en la sala
     joinRoom(roomId, user);
 
-    // ✅ Suscribirse a mensajes de Firebase (SOLO mensajes reales, sin estáticos)
+    // ⚡ SUSCRIPCIÓN INMEDIATA: Suscribirse a mensajes SIN esperar verificación de edad
     // 🔒 CRITICAL: Limpiar suscripción anterior si existe
     if (unsubscribeRef.current) {
       console.log('🧹 [CHAT] Limpiando suscripción anterior antes de crear nueva');
@@ -521,12 +556,18 @@ const ChatPage = () => {
       unsubscribeRef.current = null;
     }
     
+    console.log('📡 [CHAT] Suscribiéndose a mensajes INMEDIATAMENTE para sala:', roomId);
+    setIsLoadingMessages(true); // ⏳ Marcar como cargando al iniciar suscripción
     const unsubscribeMessages = subscribeToRoomMessages(roomId, (newMessages) => {
-      console.log('📨 [CHAT] Mensajes recibidos de Firestore:', {
+      console.log('📨 [CHAT] ✅ Mensajes recibidos de Firestore:', {
         count: newMessages.length,
         roomId,
+        timestamp: new Date().toISOString(),
         messageIds: newMessages.slice(-3).map(m => ({ id: m.id, content: m.content?.substring(0, 20) }))
       });
+      
+      // ⏳ Marcar como cargado cuando llegan los mensajes
+      setIsLoadingMessages(false);
       
       // 🔊 Reproducir sonido si llegaron mensajes nuevos (no en carga inicial)
       if (previousMessageCountRef.current > 0 && newMessages.length > previousMessageCountRef.current) {
@@ -700,6 +741,8 @@ const ChatPage = () => {
           console.error('Error canceling user subscription:', error);
         }
       }
+      // ⚠️ TYPING: Comentado porque subscription está deshabilitada
+      /*
       try {
         if (unsubscribeTyping) unsubscribeTyping();
       } catch (error) {
@@ -708,6 +751,7 @@ const ChatPage = () => {
           console.error('Error canceling typing subscription:', error);
         }
       }
+      */
     };
     
     unsubscribeRef.current = baseCleanup;
@@ -752,7 +796,7 @@ const ChatPage = () => {
         }
       });
     };
-  }, [roomId, user, isAgeVerified]);
+  }, [roomId, user]); // ⚡ CRÍTICO: Remover isAgeVerified - la suscripción debe ejecutarse INMEDIATAMENTE
 
   // 💓 Heartbeat: Actualizar presencia cada 10 segundos + Limpiar inactivos cada 30s
   useEffect(() => {
@@ -1007,6 +1051,58 @@ const ChatPage = () => {
         });
         return;
       }
+    }
+
+    // 🛡️ ANTI-SPAM: Validar contenido del mensaje
+    const validation = await validateMessage(content, user.id, user.username, currentRoom);
+
+    if (!validation.allowed) {
+      // Mostrar mensaje específico según el tipo de violación
+      if (validation.type === 'phone_number') {
+        toast({
+          title: "❌ Números de Teléfono Prohibidos",
+          description: validation.details || validation.reason,
+          variant: "destructive",
+          duration: 5000,
+        });
+      } else if (validation.type === 'forbidden_word') {
+        toast({
+          title: `❌ ${validation.reason}`,
+          description: validation.details || "Tu mensaje no será enviado por violar las reglas del chat.",
+          variant: "destructive",
+          duration: 5000,
+        });
+      } else if (validation.type === 'spam_duplicate_warning') {
+        toast({
+          title: "⚠️ ADVERTENCIA DE SPAM",
+          description: validation.reason,
+          variant: "destructive",
+          duration: 7000,
+        });
+      } else if (validation.type === 'spam_duplicate_ban') {
+        toast({
+          title: "🔨 EXPULSADO POR SPAM",
+          description: validation.reason,
+          variant: "destructive",
+          duration: 10000,
+        });
+      } else if (validation.type === 'temp_ban') {
+        toast({
+          title: "🔨 EXPULSADO TEMPORALMENTE",
+          description: validation.reason,
+          variant: "destructive",
+          duration: 10000,
+        });
+      } else {
+        // Genérico
+        toast({
+          title: "❌ Mensaje Bloqueado",
+          description: validation.reason,
+          variant: "destructive",
+          duration: 5000,
+        });
+      }
+      return;
     }
 
     // 🚀 OPTIMISTIC UI: Mostrar mensaje instantáneamente (como WhatsApp/Telegram)
@@ -1267,7 +1363,14 @@ const ChatPage = () => {
                 />
               );
             })()}
-            <ChatMessages
+            
+            {/* ⏳ Mostrar prompt de carga cuando no hay mensajes y está cargando */}
+            {isLoadingMessages && messages.length === 0 ? (
+              <LoadingMessagesPrompt 
+                roomName={roomsData.find(r => r.id === currentRoom)?.name || currentRoom}
+              />
+            ) : (
+              <ChatMessages
               messages={messages}
               currentUserId={user.id}
               onUserClick={setUserActionsTarget}
@@ -1279,6 +1382,7 @@ const ChatPage = () => {
               messagesEndRef={scrollManager.endMarkerRef}
               messagesContainerRef={scrollManager.containerRef}
               onScroll={companionAI.handleScroll}
+              roomUsers={roomUsers}
               newMessagesIndicator={
                 <NewMessagesIndicator
                   count={scrollManager.unreadCount}
@@ -1287,6 +1391,7 @@ const ChatPage = () => {
                 />
               }
             />
+            )}
           </div>
 
           <TypingIndicator typingUsers={[]} />
@@ -1445,9 +1550,29 @@ const ChatPage = () => {
                 }
               }
 
-              // Guardar edad en localStorage
+              // Guardar edad en localStorage (múltiples claves para persistencia)
               const ageKey = `age_verified_${user.id}`;
               localStorage.setItem(ageKey, String(age));
+              
+              // ⚡ PERSISTENCIA: Guardar también por username para restaurar si cambia el UID
+              if (user.isGuest || user.isAnonymous) {
+                const usernameAgeKey = `age_verified_${username.toLowerCase().trim()}`;
+                localStorage.setItem(usernameAgeKey, String(age));
+                
+                // Actualizar datos guardados del guest
+                const guestDataKey = `guest_data_${username.toLowerCase().trim()}`;
+                const savedData = localStorage.getItem(guestDataKey);
+                if (savedData) {
+                  try {
+                    const saved = JSON.parse(savedData);
+                    saved.age = age;
+                    saved.lastUsed = Date.now();
+                    localStorage.setItem(guestDataKey, JSON.stringify(saved));
+                  } catch (e) {
+                    console.debug('[AGE VERIFICATION] Error actualizando datos guardados:', e);
+                  }
+                }
+              }
               
               // Limpiar flag de sesión para que no se vuelva a mostrar
               const hasShownKey = `age_modal_shown_${user.id}`;
