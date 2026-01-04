@@ -35,6 +35,8 @@ export const useChatScrollManager = ({ messages, currentUserId, isInputFocused }
   const resizeObserverRef = useRef(null);
   const topAnchorMessageIdRef = useRef(null);
   const topAnchorOffsetRef = useRef(0);
+  const lastScrollTopRef = useRef(0); // Para detectar dirección de scroll
+  const scrollDirectionRef = useRef('down'); // 'up' | 'down'
 
   // ========================================
   // STATE
@@ -46,10 +48,11 @@ export const useChatScrollManager = ({ messages, currentUserId, isInputFocused }
   // ========================================
   // CONSTANTS
   // ========================================
-  const THRESHOLD_AT_BOTTOM = 80; // px from bottom to consider "at bottom"
-  const THRESHOLD_REJOIN = 250; // px from bottom to auto-rejoin
-  const INACTIVITY_TIMEOUT = 4000; // ms before attempting soft rejoin
-  const DEBOUNCE_SCROLL = 150; // ms debounce for scroll updates
+  const THRESHOLD_AT_BOTTOM = 100; // px from bottom to consider "at bottom" (WhatsApp-style)
+  const THRESHOLD_REJOIN = 300; // px from bottom to auto-rejoin (más generoso)
+  const INACTIVITY_TIMEOUT = 5000; // ms before attempting soft rejoin (5 segundos como WhatsApp)
+  const DEBOUNCE_SCROLL = 100; // ms debounce for scroll updates (más rápido)
+  const SCROLL_DIRECTION_THRESHOLD = 10; // px para detectar dirección de scroll
 
   // ========================================
   // UTILITY: Check if at bottom
@@ -151,7 +154,7 @@ export const useChatScrollManager = ({ messages, currentUserId, isInputFocused }
   }, [scrollState, recordInteraction]);
 
   // ========================================
-  // HANDLE: Scroll event (with debounce)
+  // HANDLE: Scroll event (with debounce) - WhatsApp/Instagram style
   // ========================================
   useEffect(() => {
     const container = containerRef.current;
@@ -159,6 +162,16 @@ export const useChatScrollManager = ({ messages, currentUserId, isInputFocused }
 
     const handleScroll = () => {
       recordInteraction();
+
+      // ⚡ DETECTAR DIRECCIÓN DE SCROLL (WhatsApp-style)
+      const currentScrollTop = container.scrollTop;
+      const scrollDiff = currentScrollTop - lastScrollTopRef.current;
+      
+      if (Math.abs(scrollDiff) > SCROLL_DIRECTION_THRESHOLD) {
+        scrollDirectionRef.current = scrollDiff > 0 ? 'down' : 'up';
+      }
+      
+      lastScrollTopRef.current = currentScrollTop;
 
       // Clear previous timeout
       if (scrollUpdateTimeoutRef.current) {
@@ -168,14 +181,15 @@ export const useChatScrollManager = ({ messages, currentUserId, isInputFocused }
       // Debounce state update
       scrollUpdateTimeoutRef.current = setTimeout(() => {
         if (isAtBottom()) {
-          // At bottom - resume auto-follow
+          // At bottom - resume auto-follow inmediatamente
           setScrollState('AUTO_FOLLOW');
           setUnreadCount(0);
         } else {
-          // Scrolled up - pause
+          // Scrolled up - pausar auto-scroll
           if (scrollState === 'AUTO_FOLLOW') {
             setScrollState('PAUSED_USER');
           }
+          // Si ya está pausado, mantener pausado (usuario está leyendo)
         }
       }, DEBOUNCE_SCROLL);
     };
@@ -224,16 +238,16 @@ export const useChatScrollManager = ({ messages, currentUserId, isInputFocused }
   }, [isInputFocused, scrollState]);
 
   // ========================================
-  // SOFT REJOIN: Auto-resume after inactivity
+  // SOFT REJOIN: Auto-resume after inactivity (WhatsApp/Instagram style)
   // ========================================
   useEffect(() => {
     const interval = setInterval(() => {
       const timeSinceInteraction = Date.now() - lastUserInteractionRef.current;
 
+      // ⚡ REACTIVACIÓN AUTOMÁTICA: Si el usuario está inactivo y cerca del bottom
       if (timeSinceInteraction >= INACTIVITY_TIMEOUT) {
-        // Check if user is near bottom
         if (scrollState !== 'AUTO_FOLLOW' && isAtBottom(THRESHOLD_REJOIN)) {
-          // User is close to bottom and inactive - soft rejoin
+          // Usuario está cerca del bottom y sin actividad - reactivar auto-scroll suavemente
           scrollToBottom('smooth');
           setScrollState('AUTO_FOLLOW');
           setUnreadCount(0);

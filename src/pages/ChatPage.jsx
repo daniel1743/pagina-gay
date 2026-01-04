@@ -26,6 +26,7 @@ import AgeVerificationModal from '@/components/chat/AgeVerificationModal';
 import ChatLandingPage from '@/components/chat/ChatLandingPage';
 import EmptyRoomNotificationPrompt from '@/components/chat/EmptyRoomNotificationPrompt';
 import LoadingMessagesPrompt from '@/components/chat/LoadingMessagesPrompt';
+import ReplyIndicator from '@/components/chat/ReplyIndicator';
 import { toast } from '@/components/ui/use-toast';
 import PrivateChatWindow from '@/components/chat/PrivateChatWindow';
 import { RegistrationRequiredModal } from '@/components/auth/RegistrationRequiredModal';
@@ -124,6 +125,9 @@ const ChatPage = () => {
   const [suggestedMessage, setSuggestedMessage] = useState(null); // 🤖 Mensaje sugerido por Companion AI
   const [replyTo, setReplyTo] = useState(null); // 💬 Mensaje al que se está respondiendo { messageId, username, content }
   const [isLoadingMessages, setIsLoadingMessages] = useState(true); // ⏳ Estado de carga de mensajes
+  const [hasUnreadReplies, setHasUnreadReplies] = useState(false); // 💬 Indicador de respuestas no leídas
+  const [lastReplyUsername, setLastReplyUsername] = useState(''); // 💬 Username de quien respondió
+  const lastReadMessageIdRef = useRef(null); // Para rastrear último mensaje leído
   const unsubscribeRef = useRef(null);
   const aiActivatedRef = useRef(false); // Flag para evitar activaciones múltiples de IA
   const lastUserCountRef = useRef(0); // Para evitar ejecuciones innecesarias del useEffect
@@ -582,6 +586,7 @@ const ChatPage = () => {
       previousMessageCountRef.current = newMessages.length;
 
       // 🚀 OPTIMISTIC UI: Fusionar mensajes reales con optimistas y DEDUPLICAR
+      // 💬 NOTA: La detección de respuestas se hace en el useEffect separado para mejor rendimiento
       setMessages(prevMessages => {
         const optimisticMessages = prevMessages.filter(m => m._optimistic);
         const mergedMessages = [...newMessages];
@@ -1317,6 +1322,39 @@ const ChatPage = () => {
   };
 
   // ========================================
+  // 💬 DETECTAR RESPUESTAS: Verificar si hay respuestas cuando el usuario está scrolleado arriba
+  // ========================================
+  useEffect(() => {
+    if (!user || !user.id || messages.length === 0) return;
+
+    // Buscar mensajes que responden a mensajes del usuario
+    const userMessages = messages.filter(m => m.userId === user.id);
+    const userMessageIds = new Set(userMessages.map(m => m.id));
+    
+    const repliesToUser = messages.filter(m => 
+      m.replyTo && 
+      m.replyTo.messageId && 
+      userMessageIds.has(m.replyTo.messageId) &&
+      m.userId !== user.id // No contar respuestas propias
+    );
+
+    if (repliesToUser.length > 0 && scrollManager.scrollState !== 'AUTO_FOLLOW') {
+      // Hay respuestas y el usuario está leyendo arriba - mostrar indicador
+      const latestReply = repliesToUser[repliesToUser.length - 1];
+      setHasUnreadReplies(true);
+      if (latestReply.username) {
+        setLastReplyUsername(latestReply.username);
+      }
+    } else if (scrollManager.scrollState === 'AUTO_FOLLOW') {
+      // Usuario está en el bottom - ocultar indicador
+      setHasUnreadReplies(false);
+      if (messages.length > 0) {
+        lastReadMessageIdRef.current = messages[messages.length - 1].id;
+      }
+    }
+  }, [messages, user, scrollManager.scrollState]);
+
+  // ========================================
   // 🔒 LANDING PAGE: Guard clause para user === null
   // ========================================
   // ✅ CRITICAL: Este return DEBE estar DESPUÉS de TODOS los hooks
@@ -1395,6 +1433,16 @@ const ChatPage = () => {
           </div>
 
           <TypingIndicator typingUsers={[]} />
+
+          {/* 💬 Indicador de respuestas (WhatsApp-style) */}
+          <ReplyIndicator
+            show={hasUnreadReplies && scrollManager.scrollState !== 'AUTO_FOLLOW'}
+            onClick={() => {
+              scrollManager.scrollToBottom();
+              setHasUnreadReplies(false);
+            }}
+            username={lastReplyUsername}
+          />
 
           <ChatInput
             onSendMessage={handleSendMessage}
