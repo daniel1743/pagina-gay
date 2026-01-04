@@ -418,3 +418,61 @@ export const subscribeToLastActivity = (callback) => {
     callback(null);
   });
 };
+
+/**
+ * ⚡ TYPING STATUS: Actualiza el estado de "escribiendo" de un usuario
+ * @param {string} roomId - ID de la sala
+ * @param {string} userId - ID del usuario
+ * @param {boolean} isTyping - Si está escribiendo o no
+ */
+export const updateTypingStatus = async (roomId, userId, isTyping) => {
+  if (!auth.currentUser || !roomId || !userId) return;
+
+  const typingRef = doc(db, 'roomPresence', roomId, 'typing', userId);
+
+  try {
+    if (isTyping) {
+      await setDoc(typingRef, {
+        userId,
+        username: auth.currentUser.displayName || 'Usuario',
+        timestamp: serverTimestamp(),
+      }, { merge: true });
+    } else {
+      await deleteDoc(typingRef);
+    }
+  } catch (error) {
+    console.error('Error updating typing status:', error);
+  }
+};
+
+/**
+ * ⚡ TYPING STATUS: Suscribirse a usuarios escribiendo en una sala
+ * @param {string} roomId - ID de la sala
+ * @param {string} currentUserId - ID del usuario actual (para excluirlo)
+ * @param {function} callback - Callback con array de usuarios escribiendo
+ */
+export const subscribeToTypingUsers = (roomId, currentUserId, callback) => {
+  if (!roomId) return () => {};
+
+  const typingRef = collection(db, 'roomPresence', roomId, 'typing');
+  
+  return onSnapshot(typingRef, (snapshot) => {
+    const typingUsers = snapshot.docs
+      .map(doc => ({
+        id: doc.id,
+        ...doc.data()
+      }))
+      .filter(data => data.userId !== currentUserId) // Excluir al usuario actual
+      .filter(data => {
+        // Filtrar typing status expirados (más de 5 segundos)
+        const timestamp = data.timestamp?.toMillis?.() || 0;
+        const now = Date.now();
+        return (now - timestamp) < 5000;
+      });
+
+    callback(typingUsers);
+  }, (error) => {
+    console.error('Error subscribing to typing users:', error);
+    callback([]);
+  });
+};

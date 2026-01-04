@@ -253,30 +253,31 @@ export const useChatScrollManager = ({ messages, currentUserId, isInputFocused }
     const lastMessage = messages[messages.length - 1];
     const isOwnMessage = lastMessage?.userId === currentUserId;
 
-    // If own message - always scroll to bottom and resume auto-follow
+    // ⚡ INSTANTÁNEO: If own message - always scroll to bottom immediately (like WhatsApp)
     if (isOwnMessage) {
-      setTimeout(() => {
-        scrollToBottom('smooth');
+      // Usar requestAnimationFrame para máxima velocidad (0ms delay)
+      requestAnimationFrame(() => {
+        scrollToBottom('auto'); // 'auto' es más rápido que 'smooth'
         setScrollState('AUTO_FOLLOW');
         setUnreadCount(0);
-      }, 50);
+      });
       return;
     }
 
     // For others' messages
     if (scrollState === 'AUTO_FOLLOW') {
-      // Auto-follow active - scroll to bottom
-      setTimeout(() => {
-        scrollToBottom('smooth');
-      }, 50);
+      // ⚡ INSTANTÁNEO: Auto-follow active - scroll immediately
+      requestAnimationFrame(() => {
+        scrollToBottom('auto');
+      });
     } else {
       // Paused - preserve anchor and increment unread
       captureTopAnchor();
 
-      setTimeout(() => {
+      requestAnimationFrame(() => {
         restoreTopAnchor();
         setUnreadCount((prev) => prev + 1);
-      }, 50);
+      });
     }
   }, [messages, currentUserId, scrollState, scrollToBottom, captureTopAnchor, restoreTopAnchor]);
 

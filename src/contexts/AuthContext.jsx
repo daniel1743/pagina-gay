@@ -462,19 +462,15 @@ export const AuthProvider = ({ children }) => {
   const signInAsGuest = async (username, avatarUrl) => {
     try {
       // ⚡ PASO 1: Guardar en localStorage PRIMERO (instantáneo, 0ms)
-      // Esto asegura que onAuthStateChanged tenga los datos disponibles inmediatamente
       const tempBackup = {
         username: username,
         avatar: avatarUrl,
         timestamp: Date.now(),
       };
       localStorage.setItem('guest_session_temp', JSON.stringify(tempBackup));
-      console.log('[AUTH] ⚡ Datos guardados en localStorage (instantáneo)');
 
       // ⚡ PASO 2: Crear usuario anónimo en Firebase (rápido, ~50-100ms)
-      console.log('[AUTH] 🔑 Iniciando signInAnonymously...');
       const userCredential = await signInAnonymously(auth);
-      console.log('[AUTH] ✅ signInAnonymously exitoso:', userCredential.user.uid);
 
       // ⚡ PASO 3: Actualizar backup con UID real
       localStorage.setItem('guest_session_backup', JSON.stringify({
@@ -500,7 +496,6 @@ export const AuthProvider = ({ children }) => {
 
       setUser(guestUser);
       setGuestMessageCount(0);
-      console.log('[AUTH] ✅ Estado de usuario actualizado localmente');
 
       // ⚡ PASO 5: Guardar en Firestore EN BACKGROUND (no bloquea al usuario)
       const guestData = {
@@ -517,11 +512,8 @@ export const AuthProvider = ({ children }) => {
       const guestRef = doc(db, 'guests', userCredential.user.uid);
 
       // NO ESPERAR - guardar en background para mantener velocidad
-      setDoc(guestRef, guestData)
-        .then(() => console.log('[AUTH] 💾 Datos sincronizados con Firestore (background)'))
-        .catch((error) => console.error('[AUTH] ⚠️ Error al guardar en Firestore (no crítico):', error));
+      setDoc(guestRef, guestData).catch(() => {});
 
-      console.log('[AUTH] ⚡ signInAsGuest completado - VELOCIDAD MÁXIMA');
       return true;
     } catch (error) {
       console.error('[AUTH] ❌ Error signing in as guest:', error);

@@ -29,7 +29,7 @@ import { toast } from '@/components/ui/use-toast';
 import PrivateChatWindow from '@/components/chat/PrivateChatWindow';
 import { RegistrationRequiredModal } from '@/components/auth/RegistrationRequiredModal';
 import { sendMessage, subscribeToRoomMessages, addReactionToMessage, markMessagesAsRead } from '@/services/chatService';
-import { joinRoom, leaveRoom, subscribeToRoomUsers, subscribeToMultipleRoomCounts, updateUserActivity, cleanInactiveUsers, filterActiveUsers } from '@/services/presenceService';
+import { joinRoom, leaveRoom, subscribeToRoomUsers, subscribeToMultipleRoomCounts, updateUserActivity, cleanInactiveUsers, filterActiveUsers, subscribeToTypingUsers } from '@/services/presenceService';
 import { auth } from '@/config/firebase'; // ✅ CRÍTICO: Necesario para obtener UID real de Firebase Auth
 import { sendPrivateChatRequest, respondToPrivateChatRequest, subscribeToNotifications, markNotificationAsRead } from '@/services/socialService';
 import { sendModeratorWelcome } from '@/services/moderatorWelcome';
@@ -625,6 +625,14 @@ const ChatPage = () => {
     });
 
     // 🤖 Suscribirse a usuarios de la sala (para sistema de bots)
+    // ⚠️ TYPING STATUS: DESHABILITADO - causaba errores (setTypingUsers no definido)
+    // TODO: Re-habilitar cuando se arregle
+    /*
+    const unsubscribeTyping = subscribeToTypingUsers(roomId, user?.id || '', (typing) => {
+      setTypingUsers(typing);
+    });
+    */
+
     const unsubscribeUsers = subscribeToRoomUsers(roomId, (users) => {
       // ✅ Filtrar solo usuarios activos (<5min inactividad)
       const activeUsers = filterActiveUsers(users);
@@ -650,19 +658,19 @@ const ChatPage = () => {
         currentCounts.real !== lastUserCountsRef.current.real;
       
       if (hasChanged) {
-        console.log(`👥 Sala ${roomId}: ${currentCounts.real} usuario(s) real(es) activo(s) | ${currentCounts.total} total en DB (incluye inactivos)`);
+        console.debug(`👥 Sala ${roomId}: ${currentCounts.real} usuario(s) real(es) activo(s) | ${currentCounts.total} total en DB (incluye inactivos)`);
 
         // 🔊 Reproducir sonido de INGRESO si un usuario real se conectó
         if (previousRealUserCountRef.current > 0 && currentCounts.real > previousRealUserCountRef.current) {
           const usersJoined = currentCounts.real - previousRealUserCountRef.current;
-          console.log(`🔊 [SOUNDS] ${usersJoined} usuario(s) ingresó/ingresaron, reproduciendo sonido de bienvenida`);
+          console.debug(`🔊 [SOUNDS] ${usersJoined} usuario(s) ingresó/ingresaron, reproduciendo sonido de bienvenida`);
           notificationSounds.playUserJoinSound();
         }
 
         // 🔊 Reproducir sonido de SALIDA si un usuario real se desconectó
         if (previousRealUserCountRef.current > 0 && currentCounts.real < previousRealUserCountRef.current) {
           const usersLeft = previousRealUserCountRef.current - currentCounts.real;
-          console.log(`🔊 [SOUNDS] ${usersLeft} usuario(s) se desconectó/desconectaron, reproduciendo sonido de salida`);
+          console.debug(`🔊 [SOUNDS] ${usersLeft} usuario(s) se desconectó/desconectaron, reproduciendo sonido de salida`);
           notificationSounds.playDisconnectSound();
         }
 
@@ -690,6 +698,14 @@ const ChatPage = () => {
         // Ignorar errores de cancelación (AbortError es normal)
         if (error.name !== 'AbortError' && error.code !== 'cancelled') {
           console.error('Error canceling user subscription:', error);
+        }
+      }
+      try {
+        if (unsubscribeTyping) unsubscribeTyping();
+      } catch (error) {
+        // Ignorar errores de cancelación (AbortError es normal)
+        if (error.name !== 'AbortError' && error.code !== 'cancelled') {
+          console.error('Error canceling typing subscription:', error);
         }
       }
     };
@@ -1009,62 +1025,66 @@ const ChatPage = () => {
       _sending: true, // Marca de "enviando"
     };
 
-    // Agregar mensaje inmediatamente a la UI (usuario lo ve al instante)
+    // ⚡ INSTANTÁNEO: Agregar mensaje inmediatamente a la UI (usuario lo ve al instante)
     setMessages(prev => [...prev, optimisticMessage]);
 
-    // 🔊 Reproducir sonido inmediatamente
+    // ⚡ INSTANTÁNEO: Scroll inmediato al último mensaje (doble RAF para asegurar DOM actualizado)
+    // Doble requestAnimationFrame garantiza que React haya actualizado el DOM antes del scroll
+    requestAnimationFrame(() => {
+      requestAnimationFrame(() => {
+        const container = document.querySelector('.messages-container');
+        if (container) {
+          // Scroll directo sin animación para máxima velocidad (como WhatsApp/Telegram)
+          container.scrollTop = container.scrollHeight;
+        }
+      });
+    });
+
+    // 🔊 Reproducir sonido inmediatamente (no bloquea UI, async)
     notificationSounds.playMessageSentSound();
 
-    // Scroll inmediato al último mensaje
-    setTimeout(() => {
-      const container = document.querySelector('.messages-container');
-      if (container) {
-        container.scrollTop = container.scrollHeight;
-      }
-    }, 50);
+    // ⚡ INSTANTÁNEO: Enviar mensaje a Firestore en segundo plano (NO bloquear UI)
+    // El mensaje optimista ya está visible, Firestore se sincroniza en background
+    sendMessage(
+      currentRoom,
+      {
+        userId: auth.currentUser?.uid || user.id, // ✅ CRÍTICO: Firestore rules exigen auth.uid exacto
+        username: user.username,
+        avatar: user.avatar,
+        isPremium: user.isPremium,
+        content,
+        type,
+        replyTo: replyData,
+      },
+      user.isAnonymous
+    )
+      .then((sentMessage) => {
+        // ✅ Mensaje enviado exitosamente - se actualizará automáticamente vía onSnapshot
+        // Track GA4 (background, no bloquea)
+        trackMessageSent(currentRoom, user.id);
 
-    try {
-      // Enviar mensaje a Firestore en segundo plano
-      const sentMessage = await sendMessage(
-        currentRoom,
-        {
-          userId: auth.currentUser?.uid || user.id, // ✅ CRÍTICO: Firestore rules exigen auth.uid exacto
-          username: user.username,
-          avatar: user.avatar,
-          isPremium: user.isPremium,
-          content,
-          type,
-          replyTo: replyData,
-        },
-        user.isAnonymous
-      );
+        // ✅ DEDUPLICACIÓN: Marcar el mensaje optimista con el ID real para eliminarlo cuando llegue
+        // El listener de onSnapshot se encargará de eliminar el optimista cuando detecte el real
+        if (sentMessage?.id) {
+          setMessages(prev => prev.map(msg => 
+            msg.id === optimisticId 
+              ? { ...msg, _realId: sentMessage.id, _sending: false }
+              : msg
+          ));
+        }
+      })
+      .catch((error) => {
+        console.error('❌ Error enviando mensaje:', error);
 
-      // ✅ Mensaje enviado exitosamente - se actualizará automáticamente vía onSnapshot
-      // Track GA4
-      trackMessageSent(currentRoom, user.id);
+        // ❌ FALLÓ - Eliminar mensaje optimista y mostrar error
+        setMessages(prev => prev.filter(m => m.id !== optimisticId));
 
-      // ✅ DEDUPLICACIÓN: Marcar el mensaje optimista con el ID real para eliminarlo cuando llegue
-      // El listener de onSnapshot se encargará de eliminar el optimista cuando detecte el real
-      if (sentMessage?.id) {
-        setMessages(prev => prev.map(msg => 
-          msg.id === optimisticId 
-            ? { ...msg, _realId: sentMessage.id, _sending: false }
-            : msg
-        ));
-      }
-
-    } catch (error) {
-      console.error('❌ Error enviando mensaje:', error);
-
-      // ❌ FALLÓ - Eliminar mensaje optimista y mostrar error
-      setMessages(prev => prev.filter(m => m.id !== optimisticId));
-
-      toast({
-        title: "No pudimos entregar este mensaje",
-        description: error.message || "Intenta de nuevo en un momento",
-        variant: "destructive",
+        toast({
+          title: "No pudimos entregar este mensaje",
+          description: error.message || "Intenta de nuevo en un momento",
+          variant: "destructive",
+        });
       });
-    }
   };
 
   /**

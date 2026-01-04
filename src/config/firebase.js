@@ -58,23 +58,29 @@ setPersistence(auth, browserLocalPersistence)
     console.error('❌ [FIREBASE] Error configurando persistence:', error);
   });
 
-// ⚡ VELOCIDAD MÁXIMA: Activar persistencia offline de Firestore
-// Esto hace que Firestore funcione como WhatsApp - escribe local PRIMERO, sincroniza después
-enableIndexedDbPersistence(db, {
-  synchronizeTabs: true // Sincronizar entre pestañas
-})
-  .then(() => {
-    if (import.meta.env.DEV) console.log('⚡ [FIRESTORE] Offline persistence ACTIVADA - Velocidad WhatsApp');
+// ⚠️ OFFLINE PERSISTENCE DESHABILITADO TEMPORALMENTE
+// Causa problemas de sincronización - mensajes no llegan entre dispositivos
+// TODO: Re-habilitar cuando se arregle el bug de deduplicación
+
+/*
+if (!window.__firestorePersistenceEnabled) {
+  enableIndexedDbPersistence(db, {
+    synchronizeTabs: true,
+    forceOwnership: false
   })
-  .catch((err) => {
-    if (err.code === 'failed-precondition') {
-      // Múltiples pestañas abiertas, solo la primera obtiene persistencia
-      if (import.meta.env.DEV) console.warn('⚠️ Firestore persistence: Múltiples pestañas detectadas');
-    } else if (err.code === 'unimplemented') {
-      // Navegador no soporta persistencia (muy raro)
-      console.warn('⚠️ Navegador no soporta offline persistence');
-    }
-  });
+    .then(() => {
+      window.__firestorePersistenceEnabled = true;
+      if (import.meta.env.DEV) console.log('⚡ Firestore offline persistence ON');
+    })
+    .catch((err) => {
+      if (import.meta.env.DEV) console.debug('ℹ️ Firestore persistence:', err.message);
+    });
+}
+*/
+
+if (import.meta.env.DEV) {
+  console.log('ℹ️ Firestore en modo ONLINE (sin persistence) - mejor confiabilidad');
+}
 
 // Conectar a emuladores si está en desarrollo
 if (import.meta.env.VITE_USE_FIREBASE_EMULATOR === 'true') {

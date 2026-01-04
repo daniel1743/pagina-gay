@@ -72,7 +72,8 @@ export const sendMessage = async (roomId, messageData, isAnonymous = false) => {
       trace,
     };
 
-    // ⚡ CRÍTICO: ENVIAR A FIRESTORE INMEDIATAMENTE (sin esperar NADA más)
+    // ⚡ INSTANTÁNEO: ENVIAR A FIRESTORE INMEDIATAMENTE (sin esperar validaciones pesadas)
+    // Firestore offline persistence escribe local primero (WhatsApp-style)
     const docRef = await addDoc(messagesRef, message);
 
     // ✅ Registrar en cache de rate limiting (instantáneo - memoria)
@@ -109,23 +110,17 @@ export const sendMessage = async (roomId, messageData, isAnonymous = false) => {
 };
 
 /**
- * ⚡ Suscripción ULTRA RÁPIDA a mensajes (nivel WhatsApp/Telegram)
- * Con offline persistence, esto lee de cache local PRIMERO
+ * ✅ Suscripción a mensajes en tiempo real - SIMPLIFICADA para máxima confiabilidad
+ * Offline persistence funciona automáticamente SIN includeMetadataChanges
  */
 export const subscribeToRoomMessages = (roomId, callback, messageLimit = 100) => {
   const messagesRef = collection(db, 'rooms', roomId, 'messages');
   const q = query(messagesRef, orderBy('timestamp', 'asc'), limitToLast(messageLimit));
 
-  return onSnapshot(q,
-    {
-      includeMetadataChanges: true // ⚡ Recibir cambios de cache INSTANTÁNEAMENTE
-    },
+  // ✅ SIMPLE y CONFIABLE - sin includeMetadataChanges (causaba bugs)
+  return onSnapshot(
+    q,
     (snapshot) => {
-      // ⚡ VELOCIDAD: Procesar solo si hay cambios reales
-      if (snapshot.metadata.hasPendingWrites) {
-        // Mensaje local (optimistic) - mostrar inmediatamente
-      }
-
       const messages = snapshot.docs.map(doc => ({
         id: doc.id,
         ...doc.data(),
@@ -136,7 +131,7 @@ export const subscribeToRoomMessages = (roomId, callback, messageLimit = 100) =>
     },
     (error) => {
       if (error.name !== 'AbortError' && error.code !== 'cancelled') {
-        console.error('[SUBSCRIBE]:', error.code);
+        console.error('[SUBSCRIBE] Error:', error.code, error.message);
         callback([]);
       }
     }

@@ -7,6 +7,7 @@ import ComingSoonModal from '@/components/ui/ComingSoonModal';
 import { EmojiStyle, Categories } from 'emoji-picker-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useAuth } from '@/contexts/AuthContext';
+import { updateTypingStatus } from '@/services/presenceService';
 
 // Lazy load del EmojiPicker para mejorar rendimiento
 const EmojiPicker = lazy(() => import('emoji-picker-react'));
@@ -48,6 +49,7 @@ const ChatInput = ({ onSendMessage, onFocus, onBlur, externalMessage = null, roo
   const [showEmojiPicker, setShowEmojiPicker] = useState(false);
   const [showQuickPhrases, setShowQuickPhrases] = useState(false);
   const [showComingSoon, setShowComingSoon] = useState(false);
+  const typingTimeoutRef = useRef(null);
 
   // ✨ COMPANION AI: Setear mensaje cuando viene de sugerencia externa
   useEffect(() => {
@@ -156,6 +158,35 @@ const ChatInput = ({ onSendMessage, onFocus, onBlur, externalMessage = null, roo
     }
   }, [message]);
 
+  // ⚡ TYPING STATUS: Actualizar cuando el usuario escribe
+  useEffect(() => {
+    if (!roomId || !user?.id) return;
+
+    // Limpiar timeout anterior
+    if (typingTimeoutRef.current) {
+      clearTimeout(typingTimeoutRef.current);
+    }
+
+    if (message.trim()) {
+      // Usuario está escribiendo
+      updateTypingStatus(roomId, user.id, true);
+
+      // Auto-remover después de 3 segundos sin escribir
+      typingTimeoutRef.current = setTimeout(() => {
+        updateTypingStatus(roomId, user.id, false);
+      }, 3000);
+    } else {
+      // Mensaje vacío = dejar de escribir
+      updateTypingStatus(roomId, user.id, false);
+    }
+
+    return () => {
+      if (typingTimeoutRef.current) {
+        clearTimeout(typingTimeoutRef.current);
+      }
+    };
+  }, [message, roomId, user?.id]);
+
   const checkForSensitiveWords = (text) => {
     const words = text.toLowerCase().split(/\s+/);
     const found = words.some(word => SENSITIVE_WORDS.includes(word.replace(/[.,/#!$%^&*;:{}=\-_`~()]/g,"")));
@@ -176,24 +207,35 @@ const ChatInput = ({ onSendMessage, onFocus, onBlur, externalMessage = null, roo
       setIsSending(true);
       checkForSensitiveWords(message);
 
-      // Microinteracción: feedback inmediato
+      // ⚡ INSTANTÁNEO: Feedback inmediato (como WhatsApp/Telegram)
       const messageToSend = message.trim();
       setMessage(''); // Limpiar inmediatamente para sensación de velocidad
 
-      // Limpiar borrador al enviar
+      // Limpiar borrador al enviar (no bloquea)
       if (roomId) {
         const draftKey = `chat-draft-${roomId}`;
         localStorage.removeItem(draftKey);
       }
 
+      // ⚡ TYPING STATUS: Dejar de escribir al enviar
+      if (roomId && user?.id) {
+        updateTypingStatus(roomId, user.id, false);
+        if (typingTimeoutRef.current) {
+          clearTimeout(typingTimeoutRef.current);
+        }
+      }
+
       // Timeout de seguridad: resetear isSending después de 5 segundos máximo
       const safetyTimeout = setTimeout(() => {
         setIsSending(false);
-        console.warn('[ChatInput] Timeout de seguridad: isSending reseteado después de 5s');
+        console.debug('[ChatInput] Timeout de seguridad: isSending reseteado después de 5s');
       }, 5000);
 
       try {
-        await onSendMessage(messageToSend, 'text', replyTo);
+        // ⚡ NO AWAIT: Enviar sin bloquear - el mensaje optimista ya se mostró
+        onSendMessage(messageToSend, 'text', replyTo).catch(() => {
+          // Error manejado en ChatPage
+        });
         // Vibración sutil si está disponible
         if (navigator.vibrate) {
           navigator.vibrate(10);

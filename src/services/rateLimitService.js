@@ -21,11 +21,11 @@ import {
 } from 'firebase/firestore';
 import { db } from '@/config/firebase';
 
-// Configuración del rate limiting (OPTIMIZADO: Ultra permisivo para velocidad WhatsApp)
+// Configuración del rate limiting (OPTIMIZADO: Ultra permisivo para velocidad WhatsApp/Telegram)
 const RATE_LIMIT = {
   MAX_MESSAGES: 20,       // Máximo de mensajes permitidos (muy permisivo)
   WINDOW_SECONDS: 10,     // En ventana de 10 segundos (ventana corta)
-  MIN_INTERVAL_MS: 200,   // 🚀 NUEVO: Mínimo 200ms entre mensajes (anti-doble-click)
+  MIN_INTERVAL_MS: 100,   // ⚡ INSTANTÁNEO: Mínimo 100ms entre mensajes (solo anti-doble-click, no bloquea velocidad)
   MUTE_DURATION: 1 * 60,  // Mute por 1 minuto (muy corto)
   MAX_DUPLICATES: 5       // Máximo de mensajes duplicados antes de mutear
 };

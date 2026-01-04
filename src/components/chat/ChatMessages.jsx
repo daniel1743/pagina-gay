@@ -150,10 +150,10 @@ const ChatMessages = ({ messages, currentUserId, onUserClick, onReport, onPrivat
         // Iniciar con 1 check
         setMessageChecks(prev => ({ ...prev, [message.id]: 'single' }));
 
-        // Después de 2 segundos, cambiar a 2 checks azules
+        // ⚡ DESPUÉS DE 3-4 SEGUNDOS: Cambiar a 2 checks azules/verdes (leído)
         const timeoutId = setTimeout(() => {
           setMessageChecks(prev => ({ ...prev, [message.id]: 'double' }));
-        }, 2000);
+        }, 3500); // 3.5 segundos (entre 3-4 segundos)
 
         timeouts.push(timeoutId);
       }
@@ -311,7 +311,7 @@ const ChatMessages = ({ messages, currentUserId, onUserClick, onReport, onPrivat
             <div className={`group flex flex-col ${isOwn ? 'items-end' : 'items-start'} max-w-[85%] sm:max-w-[70%] md:max-w-[60%] min-w-0`}>
               <motion.div
                 style={isOwn ? getBubbleStyle() : {}}
-                className={`relative rounded-2xl px-3 py-2 w-full break-words shadow-sm ${
+                className={`relative rounded-2xl px-2.5 py-1.5 w-full break-words shadow-sm ${
                   isOwn
                     ? 'bg-[#0084ff] text-white'
                     : 'bg-[#f0f0f0] dark:bg-[#3e4042] text-foreground'
@@ -356,27 +356,11 @@ const ChatMessages = ({ messages, currentUserId, onUserClick, onReport, onPrivat
                   )}
                 </div>
 
-                {/* Hora y checks DENTRO de la burbuja (abajo derecha) */}
+                {/* Hora DENTRO de la burbuja (abajo derecha) */}
                 <div className={`flex items-center gap-1 justify-end mt-1 ${isOwn ? 'text-white/70' : 'text-gray-500 dark:text-gray-400'}`}>
                   {!message.userId.startsWith('bot_') && !message.userId.startsWith('static_bot_') && (
-                    <span className="text-[11px] flex items-center gap-0.5">
+                    <span className="text-[11px]">
                       {formatTime(message.timestamp)}
-                      {isOwn && (
-                        messageChecks[message.id] === 'double' ? (
-                          <CheckCheck className="w-3 h-3 text-white/90" />
-                        ) : (
-                          <Check className="w-3 h-3 text-white/60" />
-                        )
-                      )}
-                    </span>
-                  )}
-                  {message.userId.startsWith('bot_') && isOwn && (
-                    <span className="text-[11px] flex items-center gap-0.5">
-                      {messageChecks[message.id] === 'double' ? (
-                        <CheckCheck className="w-3 h-3 text-white/90" />
-                      ) : (
-                        <Check className="w-3 h-3 text-white/60" />
-                      )}
                     </span>
                   )}
                 </div>
@@ -415,6 +399,19 @@ const ChatMessages = ({ messages, currentUserId, onUserClick, onReport, onPrivat
                   </motion.div>
                 )}
               </motion.div>
+
+              {/* ⚡ CHECKS FUERA DE LA BURBUJA: Debajo de la burbuja (solo para mensajes propios) */}
+              {isOwn && (
+                <div className={`flex items-center justify-end mt-0.5 ${isOwn ? 'flex-row-reverse' : 'flex-row'}`}>
+                  <div className="flex items-center gap-0.5">
+                    {messageChecks[message.id] === 'double' ? (
+                      <CheckCheck className="w-3 h-3 text-[#0084ff] dark:text-cyan-400" />
+                    ) : messageChecks[message.id] === 'single' ? (
+                      <Check className="w-3 h-3 text-gray-400 dark:text-gray-500" />
+                    ) : null}
+                  </div>
+                </div>
+              )}
 
               <div className="flex items-center gap-2 mt-0.5 text-[10px] text-muted-foreground">
                 {message.reactions?.like > 0 && (
