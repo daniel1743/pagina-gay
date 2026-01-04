@@ -261,12 +261,12 @@ const GlobalLandingPage = () => {
       <div className="px-3 sm:px-4 py-4 sm:py-6">
         <div className="max-w-5xl mx-auto">
         
-        {/* 🔥 CHAT DEMO - Vista previa con notificaciones animadas */}
+        {/* 🔥 CHAT DEMO - Vista previa interactiva con animaciones avanzadas */}
         <motion.section
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.5, delay: 0.2 }}
-          className="mb-8 sm:mb-12"
+          className="mb-8 sm:mb-12 w-full"
         >
           <ChatDemo onJoinClick={handleChatearAhora} />
         </motion.section>
