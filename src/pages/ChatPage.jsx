@@ -30,6 +30,7 @@ import PrivateChatWindow from '@/components/chat/PrivateChatWindow';
 import { RegistrationRequiredModal } from '@/components/auth/RegistrationRequiredModal';
 import { sendMessage, subscribeToRoomMessages, addReactionToMessage, markMessagesAsRead } from '@/services/chatService';
 import { joinRoom, leaveRoom, subscribeToRoomUsers, subscribeToMultipleRoomCounts, updateUserActivity, cleanInactiveUsers, filterActiveUsers } from '@/services/presenceService';
+import { auth } from '@/config/firebase'; // ✅ CRÍTICO: Necesario para obtener UID real de Firebase Auth
 import { sendPrivateChatRequest, respondToPrivateChatRequest, subscribeToNotifications, markNotificationAsRead } from '@/services/socialService';
 import { sendModeratorWelcome } from '@/services/moderatorWelcome';
 import { checkAndSeedConversations } from '@/services/seedConversationsService';
@@ -1027,7 +1028,7 @@ const ChatPage = () => {
       const sentMessage = await sendMessage(
         currentRoom,
         {
-          userId: user.id,
+          userId: auth.currentUser?.uid || user.id, // ✅ CRÍTICO: Firestore rules exigen auth.uid exacto
           username: user.username,
           avatar: user.avatar,
           isPremium: user.isPremium,

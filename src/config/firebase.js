@@ -1,6 +1,6 @@
 import { initializeApp } from 'firebase/app';
-import { getAuth, connectAuthEmulator } from 'firebase/auth';
-import { getFirestore, connectFirestoreEmulator } from 'firebase/firestore';
+import { getAuth, connectAuthEmulator, setPersistence, browserLocalPersistence } from 'firebase/auth';
+import { getFirestore, connectFirestoreEmulator, enableIndexedDbPersistence } from 'firebase/firestore';
 import { getStorage, connectStorageEmulator } from 'firebase/storage';
 
 // Validar variables de entorno críticas
@@ -47,6 +47,34 @@ const app = initializeApp(firebaseConfig);
 export const auth = getAuth(app);
 export const db = getFirestore(app);
 export const storage = getStorage(app);
+
+// ✅ CRÍTICO: Configurar persistencia LOCAL para prevenir pérdida de sesión
+// Esto asegura que las sesiones anónimas sobrevivan a recargas y cierres de pestaña
+setPersistence(auth, browserLocalPersistence)
+  .then(() => {
+    if (import.meta.env.DEV) console.log('✅ [FIREBASE] Auth persistence configurada');
+  })
+  .catch((error) => {
+    console.error('❌ [FIREBASE] Error configurando persistence:', error);
+  });
+
+// ⚡ VELOCIDAD MÁXIMA: Activar persistencia offline de Firestore
+// Esto hace que Firestore funcione como WhatsApp - escribe local PRIMERO, sincroniza después
+enableIndexedDbPersistence(db, {
+  synchronizeTabs: true // Sincronizar entre pestañas
+})
+  .then(() => {
+    if (import.meta.env.DEV) console.log('⚡ [FIRESTORE] Offline persistence ACTIVADA - Velocidad WhatsApp');
+  })
+  .catch((err) => {
+    if (err.code === 'failed-precondition') {
+      // Múltiples pestañas abiertas, solo la primera obtiene persistencia
+      if (import.meta.env.DEV) console.warn('⚠️ Firestore persistence: Múltiples pestañas detectadas');
+    } else if (err.code === 'unimplemented') {
+      // Navegador no soporta persistencia (muy raro)
+      console.warn('⚠️ Navegador no soporta offline persistence');
+    }
+  });
 
 // Conectar a emuladores si está en desarrollo
 if (import.meta.env.VITE_USE_FIREBASE_EMULATOR === 'true') {

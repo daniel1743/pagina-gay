@@ -48,14 +48,63 @@ export const AuthProvider = ({ children }) => {
       if (firebaseUser) {
         try {
           if (firebaseUser.isAnonymous) {
-            // Usuario anónimo - cargar datos desde Firestore
-            const guestRef = doc(db, 'guests', firebaseUser.uid);
-            const guestSnap = await getDoc(guestRef);
-
             let guestUser;
 
+            // ⚡ VELOCIDAD: localStorage PRIMERO (instantáneo)
+            const backup = localStorage.getItem('guest_session_backup');
+            const tempBackup = localStorage.getItem('guest_session_temp');
+
+            if (backup) {
+              try {
+                const backupData = JSON.parse(backup);
+                if (backupData.uid === firebaseUser.uid) {
+                  guestUser = {
+                    id: firebaseUser.uid,
+                    username: backupData.username || 'Invitado',
+                    isGuest: true,
+                    isAnonymous: true,
+                    isPremium: false,
+                    verified: false,
+                    avatar: backupData.avatar || 'https://api.dicebear.com/7.x/pixel-art/svg?seed=guest',
+                    quickPhrases: [],
+                    theme: {},
+                  };
+                  setGuestMessageCount(0);
+                  setUser(guestUser);
+
+                  // Background: Sync con Firestore
+                  getDoc(doc(db, 'guests', firebaseUser.uid))
+                    .then(snap => snap.exists() && setGuestMessageCount(snap.data().messageCount || 0))
+                    .catch(() => {});
+
+                  return;
+                }
+              } catch {}
+            }
+
+            if (tempBackup) {
+              try {
+                const tempData = JSON.parse(tempBackup);
+                guestUser = {
+                  id: firebaseUser.uid,
+                  username: tempData.username || 'Invitado',
+                  isGuest: true,
+                  isAnonymous: true,
+                  isPremium: false,
+                  verified: false,
+                  avatar: tempData.avatar || 'https://api.dicebear.com/7.x/pixel-art/svg?seed=guest',
+                  quickPhrases: [],
+                  theme: {},
+                };
+                setGuestMessageCount(0);
+                setUser(guestUser);
+                return;
+              } catch {}
+            }
+
+            // Fallback: Firestore
+            const guestSnap = await getDoc(doc(db, 'guests', firebaseUser.uid));
             if (guestSnap.exists()) {
-              // Guest con datos personalizados
               const guestData = guestSnap.data();
               guestUser = {
                 id: firebaseUser.uid,
@@ -69,8 +118,13 @@ export const AuthProvider = ({ children }) => {
                 theme: {},
               };
               setGuestMessageCount(guestData.messageCount || 0);
+              localStorage.setItem('guest_session_backup', JSON.stringify({
+                uid: firebaseUser.uid,
+                username: guestData.username,
+                avatar: guestData.avatar,
+                timestamp: Date.now(),
+              }));
             } else {
-              // Guest sin datos (sesión anónima antigua)
               guestUser = {
                 id: firebaseUser.uid,
                 username: 'Invitado',
@@ -158,14 +212,47 @@ export const AuthProvider = ({ children }) => {
             checkVerificationMaintenance(firebaseUser.uid);
           }
         } catch (error) {
-          console.error('Error loading user profile:', error);
-          // Si falla, intentar login anónimo
-          signInAnonymously(auth).catch(err => {
-            console.error('Error signing in anonymously:', err);
-          });
+          console.error('[AUTH] ❌ ERROR CRÍTICO al cargar perfil:', error);
+          console.error('[AUTH] ❌ Error code:', error.code);
+          console.error('[AUTH] ❌ Error message:', error.message);
+          console.error('[AUTH] ❌ UID del usuario:', firebaseUser?.uid);
+
+          // ✅ NO crear nuevo usuario anónimo - eso perdería la sesión actual
+          // En su lugar, usar perfil básico para mantener la sesión
+          if (firebaseUser.isAnonymous) {
+            console.log('[AUTH] 🔄 Usuario anónimo con error en Firestore - usando perfil básico');
+            const basicGuestProfile = {
+              id: firebaseUser.uid,
+              username: 'Invitado',
+              isGuest: true,
+              isAnonymous: true,
+              isPremium: false,
+              verified: false,
+              avatar: `https://api.dicebear.com/7.x/pixel-art/svg?seed=${firebaseUser.uid}`,
+              quickPhrases: [],
+              theme: {},
+            };
+            setUser(basicGuestProfile);
+          } else {
+            console.log('[AUTH] 🔄 Usuario registrado con error en Firestore - usando perfil básico');
+            const basicProfile = {
+              id: firebaseUser.uid,
+              username: `Usuario${firebaseUser.uid.slice(0, 6)}`,
+              email: firebaseUser.email || 'email@example.com',
+              isGuest: false,
+              isAnonymous: false,
+              isPremium: false,
+              verified: false,
+              avatar: `https://api.dicebear.com/7.x/avataaars/svg?seed=${firebaseUser.uid}`,
+              quickPhrases: [],
+              theme: {},
+            };
+            setUser(basicProfile);
+          }
         }
       } else {
         // No hay usuario - NO hacer auto-login anónimo (optimización de velocidad)
+        console.log('[AUTH] ⚠️ firebaseUser es NULL, limpiando estado de usuario...');
         setUser(null);
         setGuestMessageCount(0);
 
@@ -374,12 +461,31 @@ export const AuthProvider = ({ children }) => {
    */
   const signInAsGuest = async (username, avatarUrl) => {
     try {
+      // ⚡ PASO 1: Guardar en localStorage PRIMERO (instantáneo, 0ms)
+      // Esto asegura que onAuthStateChanged tenga los datos disponibles inmediatamente
+      const tempBackup = {
+        username: username,
+        avatar: avatarUrl,
+        timestamp: Date.now(),
+      };
+      localStorage.setItem('guest_session_temp', JSON.stringify(tempBackup));
+      console.log('[AUTH] ⚡ Datos guardados en localStorage (instantáneo)');
+
+      // ⚡ PASO 2: Crear usuario anónimo en Firebase (rápido, ~50-100ms)
       console.log('[AUTH] 🔑 Iniciando signInAnonymously...');
-      // Crear usuario anónimo en Firebase - RÁPIDO
       const userCredential = await signInAnonymously(auth);
       console.log('[AUTH] ✅ signInAnonymously exitoso:', userCredential.user.uid);
 
-      // Actualizar estado del usuario INMEDIATAMENTE (sin esperar Firestore)
+      // ⚡ PASO 3: Actualizar backup con UID real
+      localStorage.setItem('guest_session_backup', JSON.stringify({
+        uid: userCredential.user.uid,
+        username: username,
+        avatar: avatarUrl,
+        timestamp: Date.now(),
+      }));
+      localStorage.removeItem('guest_session_temp');
+
+      // ⚡ PASO 4: Actualizar estado local INMEDIATAMENTE
       const guestUser = {
         id: userCredential.user.uid,
         username: username,
@@ -396,34 +502,30 @@ export const AuthProvider = ({ children }) => {
       setGuestMessageCount(0);
       console.log('[AUTH] ✅ Estado de usuario actualizado localmente');
 
-      // Guardar en Firestore EN BACKGROUND (no bloqueante)
+      // ⚡ PASO 5: Guardar en Firestore EN BACKGROUND (no bloquea al usuario)
       const guestData = {
         username: username,
         createdAt: new Date().toISOString(),
         messageCount: 0,
-        expiresAt: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString() // 30 días
+        expiresAt: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString()
       };
 
-      // Solo agregar avatar si existe
       if (avatarUrl) {
         guestData.avatar = avatarUrl;
       }
 
       const guestRef = doc(db, 'guests', userCredential.user.uid);
 
-      // ⚡ NO ESPERAR - Guardar en background
+      // NO ESPERAR - guardar en background para mantener velocidad
       setDoc(guestRef, guestData)
-        .then(() => {
-          console.log('[AUTH] 💾 Datos guardados en Firestore (background)');
-        })
-        .catch((error) => {
-          console.error('[AUTH] ⚠️ Error al guardar en Firestore (no crítico):', error);
-        });
+        .then(() => console.log('[AUTH] 💾 Datos sincronizados con Firestore (background)'))
+        .catch((error) => console.error('[AUTH] ⚠️ Error al guardar en Firestore (no crítico):', error));
 
-      console.log('[AUTH] ⚡ signInAsGuest completado (rápido)');
+      console.log('[AUTH] ⚡ signInAsGuest completado - VELOCIDAD MÁXIMA');
       return true;
     } catch (error) {
       console.error('[AUTH] ❌ Error signing in as guest:', error);
+      localStorage.removeItem('guest_session_temp');
       throw error;
     }
   };

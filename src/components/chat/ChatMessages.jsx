@@ -1,11 +1,111 @@
 import React, { useState, useEffect } from 'react';
-import { motion } from 'framer-motion';
+import { motion, AnimatePresence } from 'framer-motion';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Button } from '@/components/ui/button';
-import { Flag, ThumbsUp, ThumbsDown, CheckCircle, Check, CheckCheck, Reply } from 'lucide-react';
+import { Flag, ThumbsUp, ThumbsDown, CheckCircle, Check, CheckCheck, Reply, X } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
 import MessageQuote from './MessageQuote';
 import NewMessagesDivider from './NewMessagesDivider';
+
+/**
+ * Componente especial para el mensaje de bienvenida del moderador
+ * Se muestra por 5 segundos y tiene un botón para cerrar
+ */
+const ModeratorWelcomeMessage = ({ message, showDivider }) => {
+  const [isVisible, setIsVisible] = useState(true);
+
+  useEffect(() => {
+    // Ocultar automáticamente después de 5 segundos
+    const timer = setTimeout(() => {
+      setIsVisible(false);
+    }, 5000);
+
+    return () => clearTimeout(timer);
+  }, []);
+
+  const handleClose = () => {
+    setIsVisible(false);
+  };
+
+  if (!isVisible) {
+    return null;
+  }
+
+  return (
+    <React.Fragment>
+      {showDivider && <NewMessagesDivider show={true} />}
+      <AnimatePresence>
+        {isVisible && (
+          <motion.div
+            initial={{ opacity: 0, y: 10, scale: 0.95 }}
+            animate={{ opacity: 1, y: 0, scale: 1 }}
+            exit={{ opacity: 0, scale: 0.95, transition: { duration: 0.2 } }}
+            transition={{
+              duration: 0.3,
+              type: 'spring',
+              stiffness: 500,
+              damping: 30
+            }}
+            className="flex gap-1.5 flex-row mb-2"
+          >
+            <motion.div
+              className="w-8 h-8 sm:w-7 sm:h-7 rounded-full flex-shrink-0"
+              whileHover={{ scale: 1.1 }}
+              transition={{ duration: 0.2 }}
+            >
+              <Avatar className="w-full h-full rounded-full overflow-hidden bg-gradient-to-br from-purple-500 to-pink-500">
+                <AvatarFallback className="bg-gradient-to-br from-purple-500 to-pink-500 text-white text-xs flex items-center justify-center">
+                  🛡️
+                </AvatarFallback>
+              </Avatar>
+            </motion.div>
+
+            <div className="flex flex-col items-start max-w-[85%] sm:max-w-[70%] md:max-w-[60%] min-w-0 relative">
+              <motion.div
+                className="relative rounded-2xl px-3 py-2 w-full break-words shadow-lg bg-gradient-to-br from-purple-100 to-pink-100 dark:from-purple-900/30 dark:to-pink-900/30 border border-purple-300 dark:border-purple-700"
+                whileHover={{ scale: 1.005 }}
+                transition={{ type: 'spring', stiffness: 400 }}
+              >
+                {/* Botón de cerrar (X) */}
+                <button
+                  onClick={handleClose}
+                  className="absolute top-1 right-1 w-5 h-5 flex items-center justify-center rounded-full bg-white/80 dark:bg-gray-800/80 hover:bg-white dark:hover:bg-gray-700 transition-colors shadow-sm"
+                  aria-label="Cerrar mensaje del moderador"
+                >
+                  <X className="w-3 h-3 text-gray-600 dark:text-gray-300" />
+                </button>
+
+                {/* Nombre del moderador */}
+                <div className="flex items-center gap-1 mb-1 pr-6">
+                  <span className="text-xs font-semibold text-purple-600 dark:text-purple-400 flex items-center gap-1">
+                    {message.username}
+                  </span>
+                </div>
+
+                {/* Contenido del mensaje */}
+                <div className="text-sm text-foreground whitespace-pre-line">
+                  {message.content}
+                </div>
+
+                {/* Botón de aceptar */}
+                <div className="mt-2 flex justify-end">
+                  <Button
+                    onClick={handleClose}
+                    size="sm"
+                    variant="ghost"
+                    className="h-6 px-2 text-xs text-purple-600 dark:text-purple-400 hover:text-purple-700 dark:hover:text-purple-300 hover:bg-purple-100 dark:hover:bg-purple-900/50"
+                  >
+                    Entendido
+                  </Button>
+                </div>
+              </motion.div>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+    </React.Fragment>
+  );
+};
 
 const ChatMessages = ({ messages, currentUserId, onUserClick, onReport, onPrivateChat, onReaction, messagesEndRef, messagesContainerRef, newMessagesIndicator, onScroll, onReply, lastReadMessageIndex = -1 }) => {
   // 📱 Sistema de doble check dinámico (like WhatsApp)
@@ -124,6 +224,7 @@ const ChatMessages = ({ messages, currentUserId, onUserClick, onReport, onPrivat
       {messages.map((message, index) => {
         const isOwn = message.userId === currentUserId;
         const isSystem = message.userId === 'system';
+        const isModerator = message.userId === 'system_moderator';
         const isUserPremium = findUserPremiumStatus(message.userId);
         const isUserVerified = findUserVerifiedStatus(message.userId);
         const userRole = findUserRole(message.userId);
@@ -131,6 +232,17 @@ const ChatMessages = ({ messages, currentUserId, onUserClick, onReport, onPrivat
 
         // 📍 Mostrar divider "Mensajes nuevos" antes del primer mensaje no leído
         const showDivider = lastReadMessageIndex >= 0 && index === lastReadMessageIndex + 1;
+
+        // 👮 Mensaje del moderador con temporizador y botón de cerrar
+        if (isModerator) {
+          return (
+            <ModeratorWelcomeMessage
+              key={message.id}
+              message={message}
+              showDivider={showDivider}
+            />
+          );
+        }
 
         if (isSystem) {
           return (
