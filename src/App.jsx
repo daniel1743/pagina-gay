@@ -28,6 +28,7 @@ import MexicoLandingPage from '@/pages/MexicoLandingPage';
 import ArgentinaLandingPage from '@/pages/ArgentinaLandingPage';
 import TestLandingPage from '@/pages/TestLandingPage';
 import TestModalPage from '@/pages/TestModalPage';
+import FAQPage from '@/pages/FAQPage';
 import { ThemeProvider } from '@/contexts/ThemeContext';
 import PWASplashScreen from '@/components/pwa/PWASplashScreen';
 import ErrorBoundary from '@/components/ui/ErrorBoundary';
@@ -157,6 +158,10 @@ function AppRoutes() {
         <Route path="/lobby" element={<HomeRoute><MainLayout><LobbyPage /></MainLayout></HomeRoute>} />
         
         <Route path="/auth" element={<AuthPage />} />
+        
+        {/* FAQ Page - Public access */}
+        <Route path="/faq" element={<MainLayout><FAQPage /></MainLayout>} />
+        <Route path="/preguntas-frecuentes" element={<MainLayout><FAQPage /></MainLayout>} />
 
         {/* ✅ SEO: Landing pages específicas optimizadas para CTR - Solo no logueados */}
         <Route path="/global" element={<LandingRoute redirectTo="/home"><MainLayout><GlobalLandingPage /></MainLayout></LandingRoute>} />

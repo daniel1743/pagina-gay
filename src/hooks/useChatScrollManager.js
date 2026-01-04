@@ -180,16 +180,19 @@ export const useChatScrollManager = ({ messages, currentUserId, isInputFocused }
 
       // Debounce state update
       scrollUpdateTimeoutRef.current = setTimeout(() => {
-        if (isAtBottom()) {
+        const currentlyAtBottom = isAtBottom();
+        
+        if (currentlyAtBottom) {
           // At bottom - resume auto-follow inmediatamente
+          // ✅ User scrolled back to bottom - safe to resume
           setScrollState('AUTO_FOLLOW');
           setUnreadCount(0);
         } else {
-          // Scrolled up - pausar auto-scroll
-          if (scrollState === 'AUTO_FOLLOW') {
-            setScrollState('PAUSED_USER');
-          }
-          // Si ya está pausado, mantener pausado (usuario está leyendo)
+          // Scrolled up - MANDATORY pause (UI/UX best practice)
+          // 🚫 If user is reading history, auto-scroll MUST be disabled
+          // No exceptions, no auto-resume, user must manually scroll to bottom
+          setScrollState('PAUSED_USER');
+          // Keep unread count (user is reading old messages)
         }
       }, DEBOUNCE_SCROLL);
     };
@@ -238,25 +241,12 @@ export const useChatScrollManager = ({ messages, currentUserId, isInputFocused }
   }, [isInputFocused, scrollState]);
 
   // ========================================
-  // SOFT REJOIN: Auto-resume after inactivity (WhatsApp/Instagram style)
+  // SOFT REJOIN: DISABLED - User requirement: NEVER auto-resume if scrolled up
   // ========================================
-  useEffect(() => {
-    const interval = setInterval(() => {
-      const timeSinceInteraction = Date.now() - lastUserInteractionRef.current;
-
-      // ⚡ REACTIVACIÓN AUTOMÁTICA: Si el usuario está inactivo y cerca del bottom
-      if (timeSinceInteraction >= INACTIVITY_TIMEOUT) {
-        if (scrollState !== 'AUTO_FOLLOW' && isAtBottom(THRESHOLD_REJOIN)) {
-          // Usuario está cerca del bottom y sin actividad - reactivar auto-scroll suavemente
-          scrollToBottom('smooth');
-          setScrollState('AUTO_FOLLOW');
-          setUnreadCount(0);
-        }
-      }
-    }, 1000);
-
-    return () => clearInterval(interval);
-  }, [scrollState, isAtBottom, scrollToBottom]);
+  // ❌ REMOVED: Soft rejoin feature completely disabled
+  // 🚫 MANDATORY RULE: If user scrolls up to read history, auto-scroll MUST stay disabled
+  // ✅ User must manually scroll to bottom to resume auto-scroll
+  // This is a UI/UX best practice - no exceptions allowed
 
   // ========================================
   // MAIN: Handle new messages
@@ -267,33 +257,51 @@ export const useChatScrollManager = ({ messages, currentUserId, isInputFocused }
     const lastMessage = messages[messages.length - 1];
     const isOwnMessage = lastMessage?.userId === currentUserId;
 
-    // ⚡ INSTANTÁNEO: If own message - always scroll to bottom immediately (like WhatsApp)
+    // 🚫 MANDATORY CHECK: Only scroll if user is at bottom (UI/UX best practice)
+    const userIsAtBottom = isAtBottom();
+    
+    // ⚡ INSTANTÁNEO: If own message - scroll only if at bottom
     if (isOwnMessage) {
-      // Usar requestAnimationFrame para máxima velocidad (0ms delay)
-      requestAnimationFrame(() => {
-        scrollToBottom('auto'); // 'auto' es más rápido que 'smooth'
-        setScrollState('AUTO_FOLLOW');
-        setUnreadCount(0);
-      });
+      if (userIsAtBottom) {
+        // User is at bottom - scroll immediately
+        requestAnimationFrame(() => {
+          scrollToBottom('auto'); // 'auto' es más rápido que 'smooth'
+          setScrollState('AUTO_FOLLOW');
+          setUnreadCount(0);
+        });
+      } else {
+        // User scrolled up - do NOT scroll, preserve position
+        captureTopAnchor();
+        requestAnimationFrame(() => {
+          restoreTopAnchor();
+        });
+      }
       return;
     }
 
     // For others' messages
-    if (scrollState === 'AUTO_FOLLOW') {
-      // ⚡ INSTANTÁNEO: Auto-follow active - scroll immediately
+    // 🚫 MANDATORY: Only scroll if BOTH conditions are true:
+    // 1. scrollState === 'AUTO_FOLLOW' (user hasn't paused)
+    // 2. userIsAtBottom === true (user is actually at bottom)
+    if (scrollState === 'AUTO_FOLLOW' && userIsAtBottom) {
+      // ⚡ INSTANTÁNEO: Auto-follow active AND user is at bottom - scroll immediately
       requestAnimationFrame(() => {
         scrollToBottom('auto');
       });
     } else {
-      // Paused - preserve anchor and increment unread
+      // Paused OR scrolled up - preserve anchor and increment unread
+      // 🚫 NEVER scroll if user has scrolled up, regardless of state
       captureTopAnchor();
 
       requestAnimationFrame(() => {
         restoreTopAnchor();
-        setUnreadCount((prev) => prev + 1);
+        if (!userIsAtBottom) {
+          // Only increment unread if user is actually scrolled up
+          setUnreadCount((prev) => prev + 1);
+        }
       });
     }
-  }, [messages, currentUserId, scrollState, scrollToBottom, captureTopAnchor, restoreTopAnchor]);
+  }, [messages, currentUserId, scrollState, scrollToBottom, captureTopAnchor, restoreTopAnchor, isAtBottom]);
 
   // ========================================
   // OBSERVE: Container resize (handle keyboard, etc.)
@@ -303,14 +311,18 @@ export const useChatScrollManager = ({ messages, currentUserId, isInputFocused }
     if (!container) return;
 
     const observer = new ResizeObserver(() => {
+      // 🚫 MANDATORY CHECK: Only scroll on resize if user is at bottom
       // ⚠️ CRÍTICO: SOLO hacer scroll en resize si:
       // 1. El usuario está en modo AUTO_FOLLOW (no leyendo historial)
       // 2. Y está REALMENTE en el bottom (threshold estricto de 50px)
       // Esto previene scroll forzado cuando se abre el teclado móvil
-      if (scrollState === 'AUTO_FOLLOW' && isAtBottom(50)) {
+      // 🚫 NEVER scroll if user has scrolled up (UI/UX best practice)
+      const userIsAtBottom = isAtBottom(50);
+      if (scrollState === 'AUTO_FOLLOW' && userIsAtBottom) {
         scrollToBottom('auto');
       }
       // Si está en PAUSED_USER/PAUSED_INPUT/PAUSED_SELECTION: NO hacer nada
+      // Si NO está en el bottom: NO hacer nada (user is reading history)
       // El usuario debe mantener su posición de lectura
     });
 

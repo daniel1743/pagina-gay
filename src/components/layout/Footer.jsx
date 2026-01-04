@@ -27,6 +27,7 @@ const Footer = () => {
           <div className="flex flex-col items-center">
             <span className="font-bold text-lg text-foreground">Legal & Soporte</span>
              <div className="flex flex-col items-center gap-1 mt-2">
+              <a href="/faq" className="hover:text-cyan-400 transition-colors text-sm">Preguntas Frecuentes</a>
               <a href="/terminos-condiciones.html" className="hover:text-cyan-400 transition-colors text-sm" target="_blank" rel="noopener noreferrer">Términos y Condiciones</a>
               <a href="/politica-privacidad.html" className="hover:text-cyan-400 transition-colors text-sm" target="_blank" rel="noopener noreferrer">Política de Privacidad</a>
               <a href="/aviso-legal.html" className="hover:text-cyan-400 transition-colors text-sm" target="_blank" rel="noopener noreferrer">Aviso Legal</a>

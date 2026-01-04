@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
-import { MessageSquare, Users, Heart, Star, ArrowRight, Zap, Shield, Clock, Sparkles } from 'lucide-react';
+import { MessageSquare, Star, ArrowRight, Zap, Shield, Clock, Sparkles } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { useAuth } from '@/contexts/AuthContext';
 import { useCanonical } from '@/hooks/useCanonical';
@@ -9,6 +9,140 @@ import ChatDemo from '@/components/landing/ChatDemo';
 import { GuestUsernameModal } from '@/components/auth/GuestUsernameModal';
 // ⚠️ MODAL COMENTADO - Usamos entrada directa como invitado (sin opciones)
 // import { EntryOptionsModal } from '@/components/auth/EntryOptionsModal';
+
+// 10 avatares para asignación aleatoria
+const AVATAR_OPTIONS = [
+  'https://api.dicebear.com/7.x/avataaars/svg?seed=avatar1',
+  'https://api.dicebear.com/7.x/avataaars/svg?seed=avatar2',
+  'https://api.dicebear.com/7.x/bottts/svg?seed=avatar3',
+  'https://api.dicebear.com/7.x/pixel-art/svg?seed=avatar4',
+  'https://api.dicebear.com/7.x/identicon/svg?seed=avatar5',
+  'https://api.dicebear.com/7.x/avataaars/svg?seed=avatar6',
+  'https://api.dicebear.com/7.x/bottts/svg?seed=avatar7',
+  'https://api.dicebear.com/7.x/pixel-art/svg?seed=avatar8',
+  'https://api.dicebear.com/7.x/identicon/svg?seed=avatar9',
+  'https://api.dicebear.com/7.x/avataaars/svg?seed=avatar10',
+];
+
+/**
+ * Componente inline de entrada rápida - Versión horizontal sin modal
+ */
+const InlineGuestEntry = ({ chatRoomId = 'principal' }) => {
+  const navigate = useNavigate();
+  const { signInAsGuest } = useAuth();
+  const [nickname, setNickname] = useState('');
+  const [isLoading, setIsLoading] = useState(false);
+  const [error, setError] = useState('');
+
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    setError('');
+
+    if (!nickname.trim()) {
+      setError('Ingresa tu nickname');
+      return;
+    }
+    if (nickname.trim().length < 3) {
+      setError('El nickname debe tener al menos 3 caracteres');
+      return;
+    }
+
+    setIsLoading(true);
+
+    try {
+      const randomAvatar = AVATAR_OPTIONS[Math.floor(Math.random() * AVATAR_OPTIONS.length)];
+      
+      // Navegación optimista
+      navigate(`/chat/${chatRoomId}`, { replace: true });
+
+      // Crear usuario en background
+      signInAsGuest(nickname.trim(), randomAvatar)
+        .then(() => {
+          console.log('✅ Usuario creado en background');
+        })
+        .catch((error) => {
+          console.error('❌ Error en background:', error);
+        });
+    } catch (error) {
+      setError(`Error al entrar: ${error.message || 'Intenta de nuevo.'}`);
+      setIsLoading(false);
+    }
+  };
+
+  return (
+    <div className="w-full max-w-4xl mx-auto">
+      <div 
+        className="glass-effect rounded-2xl p-6 sm:p-8 md:p-10 border-2 border-purple-500/30 hover:border-purple-500/50 transition-all"
+        style={{
+          background: 'linear-gradient(135deg, rgba(102, 126, 234, 0.1) 0%, rgba(118, 75, 162, 0.1) 100%)',
+        }}
+      >
+        <div className="text-center mb-6">
+          <h2 className="text-2xl sm:text-3xl md:text-4xl font-black mb-2 bg-gradient-to-r from-purple-500 via-purple-600 to-cyan-400 bg-clip-text text-transparent">
+            Chatea YA
+          </h2>
+          <p className="text-base sm:text-lg text-gray-300 font-semibold mb-1">
+            con Gente Real
+          </p>
+          <p className="text-xs sm:text-sm text-gray-400">
+            Sin registro • Sin esperas • 100% Gratis
+          </p>
+        </div>
+
+        <form onSubmit={handleSubmit} className="w-full">
+          <div className="flex flex-col sm:flex-row gap-3 sm:gap-4 items-end">
+            <div className="flex-1 w-full">
+              <label className="block text-sm font-semibold text-gray-300 mb-2 text-left">
+                Tu Nickname:
+              </label>
+              <input
+                type="text"
+                value={nickname}
+                onChange={(e) => setNickname(e.target.value)}
+                placeholder="Ej: Carlos23"
+                maxLength={20}
+                required
+                autoFocus
+                disabled={isLoading}
+                className="w-full px-4 py-3 sm:py-4 text-base sm:text-lg border-2 border-purple-500/50 rounded-xl outline-none focus:border-purple-500 focus:ring-2 focus:ring-purple-500/30 bg-white/95 text-gray-900 font-medium transition-all"
+                style={{ color: '#333' }}
+              />
+              <p className="text-xs text-gray-400 mt-2 text-left">
+                ✨ Avatar asignado automáticamente
+              </p>
+            </div>
+            
+            <button
+              type="submit"
+              disabled={isLoading || !nickname.trim()}
+              className="w-full sm:w-auto px-8 sm:px-10 py-3 sm:py-4 text-base sm:text-lg font-bold text-white rounded-xl transition-all disabled:opacity-50 disabled:cursor-not-allowed hover:scale-105 shadow-lg"
+              style={{
+                background: isLoading || !nickname.trim()
+                  ? 'linear-gradient(135deg, #999 0%, #888 100%)'
+                  : 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+                boxShadow: isLoading || !nickname.trim()
+                  ? '0 4px 15px rgba(0,0,0,0.2)'
+                  : '0 6px 20px rgba(102, 126, 234, 0.4)',
+              }}
+            >
+              {isLoading ? '⏳ Entrando...' : '🚀 Ir al Chat'}
+            </button>
+          </div>
+
+          {error && (
+            <div className="mt-4 p-3 bg-red-500/20 border border-red-500/50 rounded-lg text-red-300 text-sm">
+              {error}
+            </div>
+          )}
+
+          <p className="text-xs text-gray-400 mt-4 text-center">
+            Totalmente anónimo • Sin descargas • Desde tu navegador
+          </p>
+        </form>
+      </div>
+    </div>
+  );
+};
 
 const GlobalLandingPage = () => {
   const navigate = useNavigate();
@@ -261,6 +395,16 @@ const GlobalLandingPage = () => {
       <div className="px-3 sm:px-4 py-4 sm:py-6">
         <div className="max-w-5xl mx-auto">
         
+        {/* 🎯 MODAL INLINE - Entrada directa entre hero y chat demo */}
+        <motion.section
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.5, delay: 0.1 }}
+          className="mb-8 sm:mb-12 w-full"
+        >
+          <InlineGuestEntry chatRoomId="principal" />
+        </motion.section>
+        
         {/* 🔥 CHAT DEMO - Vista previa interactiva con animaciones avanzadas */}
         <motion.section
           initial={{ opacity: 0, y: 20 }}
@@ -422,370 +566,6 @@ const GlobalLandingPage = () => {
           </Button>
         </motion.div>
 
-        {/* Benefits Section - Compacto */}
-        <motion.section
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.3 }}
-          className="mb-8 sm:mb-12"
-        >
-          <h2 className="text-xl sm:text-2xl font-bold text-center mb-6">
-            Por qué Chactivo
-          </h2>
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-6 sm:gap-8">
-            <div className="glass-effect rounded-2xl p-6 sm:p-8 border border-border">
-              <div className="w-14 h-14 rounded-full bg-gradient-to-br from-cyan-500 to-blue-500 flex items-center justify-center mb-5">
-                <Users className="w-7 h-7 text-white" />
-              </div>
-              <h3 className="text-xl font-bold mb-3">Comunidad Más Grande</h3>
-              <p className="text-muted-foreground leading-relaxed">
-                La sala con más usuarios activos de Chactivo. Siempre hay alguien online para chatear.
-              </p>
-            </div>
-
-            <div className="glass-effect rounded-2xl p-6 sm:p-8 border border-border">
-              <div className="w-14 h-14 rounded-full bg-gradient-to-br from-purple-500 to-pink-500 flex items-center justify-center mb-5">
-                <MessageSquare className="w-7 h-7 text-white" />
-              </div>
-              <h3 className="text-xl font-bold mb-3">Todos los Temas</h3>
-              <p className="text-muted-foreground leading-relaxed">
-                Conversa sobre lo que quieras: gaming, series, música, deportes, viajes, o simplemente haz amigos.
-              </p>
-            </div>
-
-            <div className="glass-effect rounded-2xl p-6 sm:p-8 border border-border">
-              <div className="w-14 h-14 rounded-full bg-gradient-to-br from-green-500 to-teal-500 flex items-center justify-center mb-5">
-                <Heart className="w-7 h-7 text-white" />
-              </div>
-              <h3 className="text-xl font-bold mb-3">Ambiente Relajado</h3>
-              <p className="text-muted-foreground leading-relaxed">
-                Sin presión de hookups. Conversación real, amistad genuina y respeto siempre.
-              </p>
-            </div>
-          </div>
-        </motion.section>
-
-        {/* 🔒 SECCIÓN PRIVACIDAD COMO DIFERENCIADOR - CARACTERÍSTICA ÚNICA */}
-        <motion.section
-          initial={{ opacity: 0, y: 30 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.6, delay: 0.3 }}
-          className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-12 sm:py-16 mb-12 sm:mb-16"
-        >
-          {/* Badge superior */}
-          <motion.div
-            initial={{ opacity: 0, y: -10 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.4 }}
-            className="flex justify-center mb-6"
-          >
-            <div className="glass-effect px-6 py-3 rounded-full border border-green-500/40 backdrop-blur-xl">
-              <p className="text-sm sm:text-base font-bold bg-gradient-to-r from-green-400 to-emerald-400 bg-clip-text text-transparent flex items-center gap-2">
-                <svg className="w-5 h-5 text-green-400" fill="currentColor" viewBox="0 0 20 20">
-                  <path fillRule="evenodd" d="M2.166 4.999A11.954 11.954 0 0010 1.944 11.954 11.954 0 0017.834 5c.11.65.166 1.32.166 2.001 0 5.225-3.34 9.67-8 11.317C5.34 16.67 2 12.225 2 7c0-.682.057-1.35.166-2.001zm11.541 3.708a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
-                </svg>
-                <span>Por Qué Somos Diferentes</span>
-              </p>
-            </div>
-          </motion.div>
-
-          {/* Título principal */}
-          <h2 className="text-3xl sm:text-4xl md:text-5xl font-extrabold text-center mb-4">
-            <span className="bg-gradient-to-r from-cyan-400 via-green-400 to-emerald-400 bg-clip-text text-transparent">
-              Privacidad Real, No Promesas Vacías
-            </span>
-          </h2>
-          <p className="text-center text-lg sm:text-xl text-muted-foreground mb-12 max-w-3xl mx-auto">
-            Mientras otras apps venden tus datos, nosotros los protegemos. Aquí está la diferencia:
-          </p>
-
-          {/* Grid de características únicas */}
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mb-12">
-            {/* Característica 1 */}
-            <motion.div
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: 0.5 }}
-              className="glass-effect p-6 rounded-2xl border-2 border-cyan-500/30 hover:border-cyan-500/60 transition-all group"
-            >
-              <div className="w-14 h-14 mx-auto mb-4 rounded-full bg-gradient-to-br from-cyan-500 to-blue-500 flex items-center justify-center group-hover:scale-110 transition-transform">
-                <svg className="w-7 h-7 text-white" fill="currentColor" viewBox="0 0 20 20">
-                  <path fillRule="evenodd" d="M5 9V7a5 5 0 0110 0v2a2 2 0 012 2v5a2 2 0 01-2 2H5a2 2 0 01-2-2v-5a2 2 0 012-2zm8-2v2H7V7a3 3 0 016 0z" clipRule="evenodd" />
-                </svg>
-              </div>
-              <h3 className="text-lg font-bold text-center mb-2 text-cyan-400">Sin Recolección de Datos</h3>
-              <p className="text-sm text-center text-gray-300 leading-relaxed">
-                No vendemos tu información. No rastreamos tu actividad. Tu privacidad es tuya, no un producto.
-              </p>
-            </motion.div>
-
-            {/* Característica 2 */}
-            <motion.div
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: 0.6 }}
-              className="glass-effect p-6 rounded-2xl border-2 border-purple-500/30 hover:border-purple-500/60 transition-all group"
-            >
-              <div className="w-14 h-14 mx-auto mb-4 rounded-full bg-gradient-to-br from-purple-500 to-pink-500 flex items-center justify-center group-hover:scale-110 transition-transform">
-                <svg className="w-7 h-7 text-white" fill="currentColor" viewBox="0 0 20 20">
-                  <path fillRule="evenodd" d="M10 9a3 3 0 100-6 3 3 0 000 6zm-7 9a7 7 0 1114 0H3z" clipRule="evenodd" />
-                </svg>
-              </div>
-              <h3 className="text-lg font-bold text-center mb-2 text-purple-400">Anonimato 100% Real</h3>
-              <p className="text-sm text-center text-gray-300 leading-relaxed">
-                Chatea sin email ni número de teléfono. Ni siquiera necesitas una cuenta para probar.
-              </p>
-            </motion.div>
-
-            {/* Característica 3 */}
-            <motion.div
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: 0.7 }}
-              className="glass-effect p-6 rounded-2xl border-2 border-green-500/30 hover:border-green-500/60 transition-all group"
-            >
-              <div className="w-14 h-14 mx-auto mb-4 rounded-full bg-gradient-to-br from-green-500 to-emerald-500 flex items-center justify-center group-hover:scale-110 transition-transform">
-                <svg className="w-7 h-7 text-white" fill="currentColor" viewBox="0 0 20 20">
-                  <path fillRule="evenodd" d="M2.166 4.999A11.954 11.954 0 0010 1.944 11.954 11.954 0 0017.834 5c.11.65.166 1.32.166 2.001 0 5.225-3.34 9.67-8 11.317C5.34 16.67 2 12.225 2 7c0-.682.057-1.35.166-2.001zm11.541 3.708a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
-                </svg>
-              </div>
-              <h3 className="text-lg font-bold text-center mb-2 text-green-400">Moderación 24/7 Híbrida</h3>
-              <p className="text-sm text-center text-gray-300 leading-relaxed">
-                Sistema único: IA detecta abusos + moderadores humanos verifican. Seguridad sin invadir privacidad.
-              </p>
-            </motion.div>
-
-            {/* Característica 4 */}
-            <motion.div
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: 0.8 }}
-              className="glass-effect p-6 rounded-2xl border-2 border-red-500/30 hover:border-red-500/60 transition-all group"
-            >
-              <div className="w-14 h-14 mx-auto mb-4 rounded-full bg-gradient-to-br from-red-500 to-orange-500 flex items-center justify-center group-hover:scale-110 transition-transform">
-                <svg className="w-7 h-7 text-white" fill="currentColor" viewBox="0 0 20 20">
-                  <path fillRule="evenodd" d="M13.477 14.89A6 6 0 015.11 6.524l8.367 8.368zm1.414-1.414L6.524 5.11a6 6 0 018.367 8.367zM18 10a8 8 0 11-16 0 8 8 0 0116 0z" clipRule="evenodd" />
-                </svg>
-              </div>
-              <h3 className="text-lg font-bold text-center mb-2 text-red-400">Cero Publicidad Invasiva</h3>
-              <p className="text-sm text-center text-gray-300 leading-relaxed">
-                Sin anuncios de terceros. Sin trackers. Modelo sostenible con suscripciones opcionales, no con tus datos.
-              </p>
-            </motion.div>
-
-            {/* Característica 5 */}
-            <motion.div
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: 0.9 }}
-              className="glass-effect p-6 rounded-2xl border-2 border-yellow-500/30 hover:border-yellow-500/60 transition-all group"
-            >
-              <div className="w-14 h-14 mx-auto mb-4 rounded-full bg-gradient-to-br from-yellow-500 to-orange-500 flex items-center justify-center group-hover:scale-110 transition-transform">
-                <svg className="w-7 h-7 text-white" fill="currentColor" viewBox="0 0 20 20">
-                  <path fillRule="evenodd" d="M9 2a1 1 0 00-.894.553L7.382 4H4a1 1 0 000 2v10a2 2 0 002 2h8a2 2 0 002-2V6a1 1 0 100-2h-3.382l-.724-1.447A1 1 0 0011 2H9zM7 8a1 1 0 012 0v6a1 1 0 11-2 0V8zm5-1a1 1 0 00-1 1v6a1 1 0 102 0V8a1 1 0 00-1-1z" clipRule="evenodd" />
-                </svg>
-              </div>
-              <h3 className="text-lg font-bold text-center mb-2 text-yellow-400">Derecho al Olvido</h3>
-              <p className="text-sm text-center text-gray-300 leading-relaxed">
-                Borra tu cuenta y todos tus datos en 24 horas. Total y permanentemente. Sin excepciones.
-              </p>
-            </motion.div>
-
-            {/* Característica 6 */}
-            <motion.div
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: 1.0 }}
-              className="glass-effect p-6 rounded-2xl border-2 border-blue-500/30 hover:border-blue-500/60 transition-all group"
-            >
-              <div className="w-14 h-14 mx-auto mb-4 rounded-full bg-gradient-to-br from-blue-500 to-indigo-500 flex items-center justify-center group-hover:scale-110 transition-transform">
-                <svg className="w-7 h-7 text-white" fill="currentColor" viewBox="0 0 20 20">
-                  <path fillRule="evenodd" d="M18 8a6 6 0 01-7.743 5.743L10 14l-1 1-1 1H6v2H2v-4l4.257-4.257A6 6 0 1118 8zm-6-4a1 1 0 100 2 2 2 0 012 2 1 1 0 102 0 4 4 0 00-4-4z" clipRule="evenodd" />
-                </svg>
-              </div>
-              <h3 className="text-lg font-bold text-center mb-2 text-blue-400">Encriptación de Mensajes</h3>
-              <p className="text-sm text-center text-gray-300 leading-relaxed">
-                Tus conversaciones están protegidas. Solo tú y tu chat pueden leerlas.
-              </p>
-            </motion.div>
-          </div>
-
-          {/* Tabla comparativa */}
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 1.1 }}
-            className="max-w-3xl mx-auto glass-effect p-6 sm:p-8 rounded-2xl border-2 border-cyan-500/30"
-          >
-            <h3 className="text-2xl font-bold text-center mb-6 bg-gradient-to-r from-cyan-400 to-purple-400 bg-clip-text text-transparent">
-              Chactivo vs Otras Apps
-            </h3>
-            <div className="space-y-4">
-              {[
-                { feature: "Venden tus datos", other: "❌ Si", chactivo: "✅ No" },
-                { feature: "Bots y cuentas falsas", other: "❌ Frecuente", chactivo: "✅ Control estricto" },
-                { feature: "Publicidad invasiva", other: "❌ Si", chactivo: "✅ No" },
-                { feature: "Mensajes spam", other: "❌ Alto", chactivo: "✅ Mínimo" },
-                { feature: "Moderación real 24/7", other: "❌ Limitada", chactivo: "✅ Humana y constante" },
-                { feature: "Anonimato real", other: "❌ Parcial", chactivo: "✅ Total" },
-                { feature: "Sin trackers externos", other: "❌ No", chactivo: "✅ Si" },
-                { feature: "Experiencia limpia", other: "❌ Saturada", chactivo: "✅ Enfocada" },
-                { feature: "Privacidad primero", other: "❌ No", chactivo: "✅ Si" },
-              ].map((item, index) => (
-                <div key={index} className="grid grid-cols-3 gap-4 items-center py-3 border-b border-border/50 last:border-0">
-                  <p className="text-sm sm:text-base text-gray-300">{item.feature}</p>
-                  <div className="text-center">
-                    <span className="text-xs sm:text-sm text-red-300">{item.other}</span>
-                  </div>
-                  <div className="text-center">
-                    <span className="text-xs sm:text-sm text-green-300 font-medium">{item.chactivo}</span>
-                  </div>
-                </div>
-              ))}
-              <div className="grid grid-cols-3 gap-4 pt-4">
-                <p className="text-xs text-gray-500"></p>
-                <p className="text-center text-xs sm:text-sm font-bold text-red-400">Otras Apps</p>
-                <p className="text-center text-xs sm:text-sm font-bold text-green-400">Chactivo</p>
-              </div>
-            </div>
-          </motion.div>
-
-          {/* 🎯 CTA INTERMEDIO - Después de Privacy */}
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.5 }}
-            className="text-center mt-12 sm:mt-16 mb-8 px-4"
-          >
-            <div className="glass-effect max-w-2xl mx-auto p-8 sm:p-10 rounded-2xl border border-green-500/30">
-              <h3 className="text-2xl sm:text-3xl font-bold mb-4 bg-gradient-to-r from-green-400 to-cyan-400 bg-clip-text text-transparent">
-                ¿Cansado de apps que venden tus datos?
-              </h3>
-              <p className="text-base sm:text-lg text-muted-foreground mb-6 leading-relaxed">
-                Prueba una plataforma que respeta tu privacidad de verdad. Sin trucos, sin letra pequeña.
-              </p>
-              <Button
-                onClick={handleChatearAhora}
-                className="magenta-gradient text-white font-bold text-lg sm:text-xl px-10 sm:px-14 py-6 sm:py-7 rounded-xl shadow-xl hover:shadow-[#E4007C]/50 hover:scale-105 transition-all"
-              >
-                🔒 Chatear con Privacidad Total
-              </Button>
-            </div>
-          </motion.div>
-        </motion.section>
-
-        {/* 💬 SECCIÓN TESTIMONIOS - Compacta */}
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.4, duration: 0.5 }}
-          className="mt-8 sm:mt-10 mb-8 sm:mb-10 px-3"
-        >
-          <div className="max-w-6xl mx-auto">
-            {/* Badge superior */}
-            <motion.div
-              initial={{ opacity: 0, y: -10 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: 0.8 }}
-              className="flex justify-center mb-6"
-            >
-              <div className="glass-effect px-6 py-3 rounded-full border border-yellow-500/40 backdrop-blur-xl">
-                <p className="text-sm sm:text-base font-bold bg-gradient-to-r from-yellow-400 to-orange-400 bg-clip-text text-transparent flex items-center gap-2">
-                  <svg className="w-5 h-5 text-yellow-400" fill="currentColor" viewBox="0 0 20 20">
-                    <path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z" />
-                  </svg>
-                  <span>Lo Que Dicen Nuestros Usuarios</span>
-                </p>
-              </div>
-            </motion.div>
-
-            {/* Título - Más directo */}
-            <h2 className="text-2xl sm:text-3xl font-bold text-center mb-6">
-              Lo que dice la gente
-            </h2>
-
-            {/* Grid de testimonios - Tono WhatsApp, cortos y directos */}
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4 sm:gap-6">
-              {/* Testimonio 1: Andrés */}
-              <motion.div
-                initial={{ opacity: 0, y: 20 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ delay: 0.3 }}
-                className="bg-gray-800/60 backdrop-blur-sm p-5 rounded-xl border border-purple-500/30"
-              >
-                <div className="flex items-center gap-3 mb-3">
-                  <img
-                    src={encodeURI("/testimonio 1.jpeg")}
-                    alt="Andrés"
-                    className="w-12 h-12 rounded-full object-cover"
-                    onError={(e) => {
-                      e.target.src = "/testimonio%201.jpeg";
-                    }}
-                  />
-                  <div>
-                    <p className="font-bold text-white">Andrés</p>
-                    <p className="text-xs text-gray-400">35 • Valparaíso</p>
-                  </div>
-                </div>
-                <p className="text-sm text-gray-200 leading-relaxed">
-                  "Reporté 2 perfiles y los sacaron al toque. Acá sí moderan de verdad."
-                </p>
-              </motion.div>
-
-              {/* Testimonio 2: Diego */}
-              <motion.div
-                initial={{ opacity: 0, y: 20 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ delay: 0.4 }}
-                className="bg-gray-800/60 backdrop-blur-sm p-5 rounded-xl border border-purple-500/30"
-              >
-                <div className="flex items-center gap-3 mb-3">
-                  <img
-                    src={encodeURI("/testimonio 2.jpeg")}
-                    alt="Diego"
-                    className="w-12 h-12 rounded-full object-cover"
-                    onError={(e) => {
-                      e.target.src = "/testimonio%202.jpeg";
-                    }}
-                  />
-                  <div>
-                    <p className="font-bold text-white">Diego</p>
-                    <p className="text-xs text-gray-400">31 • Santiago</p>
-                  </div>
-                </div>
-                <p className="text-sm text-gray-200 leading-relaxed">
-                  "Probé todas las apps. Esta es la única sin anuncios raros ni trackers."
-                </p>
-              </motion.div>
-
-              {/* Testimonio 3: Javier */}
-              <motion.div
-                initial={{ opacity: 0, y: 20 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ delay: 0.5 }}
-                className="bg-gray-800/60 backdrop-blur-sm p-5 rounded-xl border border-purple-500/30"
-              >
-                <div className="flex items-center gap-3 mb-3">
-                  <img
-                    src={encodeURI("/testimonio 3.jpeg")}
-                    alt="Javier"
-                    className="w-12 h-12 rounded-full object-cover"
-                    onError={(e) => {
-                      e.target.src = "/testimonio%203.jpeg";
-                    }}
-                  />
-                  <div>
-                    <p className="font-bold text-white">Javier</p>
-                    <p className="text-xs text-gray-400">47 • Viña del Mar</p>
-                  </div>
-                </div>
-                <p className="text-sm text-gray-200 leading-relaxed">
-                  "No piden redes sociales. Puedo ser yo sin preocuparme por mi pega."
-                </p>
-              </motion.div>
-            </div>
-          </div>
-        </motion.div>
 
         {/* How It Works Section - Simplificado */}
         <motion.section
@@ -830,97 +610,6 @@ const GlobalLandingPage = () => {
           </div>
         </motion.section>
 
-        {/* ❓ SECCIÓN FAQ - Compacta con Acordeón Desplegable */}
-        <motion.section
-          initial={{ opacity: 0, y: 30 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.6, delay: 0.3 }}
-          className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-8 sm:py-12 mb-8 sm:mb-12"
-        >
-          {/* Título compacto */}
-          <h2 className="text-2xl sm:text-3xl font-bold text-center mb-3">
-            <span className="bg-gradient-to-r from-cyan-400 to-blue-400 bg-clip-text text-transparent">
-              Preguntas Frecuentes
-            </span>
-          </h2>
-          <p className="text-center text-sm sm:text-base text-muted-foreground mb-8 max-w-2xl mx-auto">
-            ¿Dudas? Haz clic en las preguntas para ver las respuestas
-          </p>
-
-          {/* Acordeón de preguntas - Más compacto */}
-          <div className="space-y-2">
-            {[
-              {
-                q: "¿Es realmente gratis?",
-                a: "Sí, 100% gratis para chatear. Puedes usar Chactivo sin pagar nada, sin registro, sin email. Ofrecemos una suscripción Premium opcional con beneficios extras (chats privados, badges exclusivos, avatares), pero el chat público es completamente gratuito para siempre."
-              },
-              {
-                q: "¿Necesito dar mi email o teléfono?",
-                a: "No. Puedes chatear completamente anónimo sin dar email, teléfono ni vincular redes sociales. Solo elige un nombre de usuario y listo. Si quieres crear una cuenta para acceder desde otros dispositivos, solo necesitas email (que nunca compartimos ni vendemos)."
-              },
-              {
-                q: "¿Cómo protegen mi privacidad?",
-                a: "No vendemos ni compartimos tus datos. No usamos trackers de terceros ni anuncios invasivos. Tus conversaciones están encriptadas. Puedes chatear anónimo sin dar datos personales. Y tienes derecho al olvido: borra tu cuenta y datos en 24h, permanentemente."
-              },
-              {
-                q: "¿Hay moderación? ¿Cómo funciona?",
-                a: "Sí, moderación 24/7 con sistema híbrido único: IA detecta contenido inapropiado en tiempo real + moderadores humanos verifican reportes. Esto nos permite ser rápidos sin invadir tu privacidad. Puedes reportar cualquier mensaje o usuario con un click."
-              },
-              {
-                q: "¿Puedo eliminar mi cuenta y datos?",
-                a: "Sí, en cualquier momento. Desde Configuración > Eliminar Cuenta. Todos tus datos se borran permanentemente en 24 horas. Sin excepciones, sin backups ocultos. Derecho al olvido garantizado."
-              },
-              {
-                q: "¿Por qué no hay anuncios?",
-                a: "Porque los odiamos tanto como tú. Nuestro modelo es sostenible con suscripciones Premium opcionales, no vendiendo tu atención a anunciantes. Sin publicidad invasiva, sin trackers, sin distracciones. Solo chat real."
-              },
-              {
-                q: "¿Es seguro para profesionales o personas públicas?",
-                a: "Absolutamente. Anonimato total garantizado si lo deseas. No pedimos email ni teléfono para chatear. No hay forma de vincular tu identidad real con tu usuario del chat a menos que tú lo compartas. Muchos profesionales y figuras públicas usan Chactivo con tranquilidad."
-              },
-              {
-                q: "¿Cómo reporto comportamiento inapropiado?",
-                a: "Hay un botón de reporte en cada mensaje y perfil. Click derecho > Reportar. Nuestro equipo revisa todos los reportes en minutos (no horas). También tenemos IA que detecta automáticamente acoso, spam y contenido prohibido."
-              },
-              {
-                q: "¿Verifican que los usuarios sean reales?",
-                a: "Tenemos sistema de verificación opcional (badge azul) para usuarios que quieran demostrar autenticidad. No es obligatorio. También moderamos activamente para detectar bots, perfiles fake y comportamiento sospechoso. Tolerancia cero con spam."
-              },
-              {
-                q: "¿Qué diferencia a Chactivo de Grindr o Tinder?",
-                a: "Enfoque: somos comunidad, no solo hookups. Privacidad real (no vendemos datos). Sin bots ni perfiles fake. Moderación humana 24/7. Sin publicidad invasiva. Ambiente más relajado y conversacional. Ideal para hacer amigos, no solo citas. Y 100% gratis para chatear."
-              },
-            ].map((faq, index) => (
-              <details
-                key={index}
-                className="glass-effect rounded-lg border border-cyan-500/20 hover:border-cyan-500/40 transition-all group"
-              >
-                <summary className="p-3 sm:p-4 cursor-pointer flex items-center justify-between gap-3 font-medium text-sm sm:text-base text-foreground list-none">
-                  <span className="flex-1">{faq.q}</span>
-                  <svg className="w-4 h-4 text-cyan-400 flex-shrink-0 transition-transform group-open:rotate-180" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-                  </svg>
-                </summary>
-                <div className="px-3 sm:px-4 pb-3 sm:pb-4 pt-0">
-                  <p className="text-xs sm:text-sm text-gray-300 leading-relaxed">{faq.a}</p>
-                </div>
-              </details>
-            ))}
-          </div>
-
-          {/* CTA después del FAQ - Compacto */}
-          <div className="text-center mt-8">
-            <p className="text-sm text-muted-foreground mb-4">
-              ¿Más dudas? Entra y pruébalo gratis
-            </p>
-            <Button
-              onClick={handleChatearAhora}
-              className="magenta-gradient text-white font-bold text-base sm:text-lg px-6 sm:px-8 py-3 sm:py-4 rounded-xl shadow-lg hover:shadow-[#E4007C]/50 hover:scale-105 transition-all"
-            >
-              Entrar Ahora
-            </Button>
-          </div>
-        </motion.section>
 
         {/* ✅ SECCIÓN DEL CREADOR - Compacta */}
         <motion.div
