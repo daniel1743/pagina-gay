@@ -127,7 +127,7 @@ const ROOM_CONTENT = {
 
 const ChatLandingPage = ({ roomSlug }) => {
   const navigate = useNavigate();
-  const content = ROOM_CONTENT[roomSlug] || ROOM_CONTENT['conversas-libres'];
+  const content = ROOM_CONTENT[roomSlug] || ROOM_CONTENT['global'];
 
   // SEO: Meta tags dinámicos
   useEffect(() => {
@@ -223,23 +223,30 @@ const ChatLandingPage = ({ roomSlug }) => {
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ delay: 0.4, duration: 0.5 }}
-            className="flex flex-col sm:flex-row gap-4 justify-center mb-8"
+            className="flex flex-col sm:flex-row gap-3 sm:gap-4 justify-center items-center mb-8"
           >
+            {/* Botón principal: MÁS GRANDE y destacado */}
             <Button
               onClick={handleJoinChat}
               size="lg"
-              className="h-14 px-8 text-lg font-semibold bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-700 hover:to-pink-700 shadow-xl"
+              className="h-16 sm:h-20 px-10 sm:px-14 text-xl sm:text-2xl font-extrabold bg-gradient-to-r from-purple-600 via-pink-600 to-purple-600 hover:from-purple-500 hover:via-pink-500 hover:to-purple-500 shadow-2xl hover:shadow-purple-500/50 transition-all hover:scale-105 w-full sm:w-auto uppercase tracking-wide relative overflow-hidden group"
             >
-              <Zap className="w-5 h-5 mr-2" />
-              {content.ctaPrimary}
+              {/* Efecto de brillo animado */}
+              <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/20 to-transparent -translate-x-full group-hover:translate-x-full transition-transform duration-1000"></div>
+              <span className="relative z-10 flex items-center gap-3">
+                <Zap className="w-6 h-6 sm:w-7 sm:h-7" />
+                {content.ctaPrimary}
+              </span>
             </Button>
+            
+            {/* Botón secundario: MÁS PEQUEÑO pero elegante */}
             <Button
               onClick={handleSignup}
-              size="lg"
+              size="default"
               variant="outline"
-              className="h-14 px-8 text-lg font-semibold border-2 border-purple-300 hover:bg-purple-50 dark:border-purple-700 dark:hover:bg-purple-900"
+              className="h-11 sm:h-12 px-6 sm:px-8 text-sm sm:text-base font-semibold border-2 border-purple-400/60 hover:border-purple-400 hover:bg-purple-500/10 dark:border-purple-500/60 dark:hover:border-purple-500 dark:hover:bg-purple-900/30 transition-all hover:scale-105 w-full sm:w-auto backdrop-blur-sm"
             >
-              <Users className="w-5 h-5 mr-2" />
+              <Users className="w-4 h-4 sm:w-5 sm:h-5 mr-2" />
               {content.ctaSecondary}
             </Button>
           </motion.div>

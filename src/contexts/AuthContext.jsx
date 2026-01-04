@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState, useEffect, useMemo } from 'react';
+import React, { createContext, useContext, useState, useEffect, useMemo, useRef } from 'react';
 import {
   createUserWithEmailAndPassword,
   signInWithEmailAndPassword,
@@ -40,6 +40,7 @@ export const AuthProvider = ({ children }) => {
   const [loading, setLoading] = useState(true);
   const [guestMessageCount, setGuestMessageCount] = useState(0);
   const [showWelcomeTour, setShowWelcomeTour] = useState(false);
+  const isLoggingOutRef = useRef(false); // Ref para evitar auto-login después de logout
 
   // Escuchar cambios de autenticación de Firebase
   useEffect(() => {
@@ -164,10 +165,16 @@ export const AuthProvider = ({ children }) => {
           });
         }
       } else {
-        // No hay usuario - iniciar sesión anónima automáticamente
-        signInAnonymously(auth).catch((error) => {
-          console.error('Error en inicio de sesión anónimo:', error);
-        });
+        // No hay usuario - NO hacer auto-login anónimo (optimización de velocidad)
+        setUser(null);
+        setGuestMessageCount(0);
+
+        // Resetear el flag de logout si estaba activo
+        if (isLoggingOutRef.current) {
+          setTimeout(() => {
+            isLoggingOutRef.current = false;
+          }, 1000);
+        }
       }
       setLoading(false);
     });
@@ -367,22 +374,12 @@ export const AuthProvider = ({ children }) => {
    */
   const signInAsGuest = async (username, avatarUrl) => {
     try {
-      // Crear usuario anónimo en Firebase
+      console.log('[AUTH] 🔑 Iniciando signInAnonymously...');
+      // Crear usuario anónimo en Firebase - RÁPIDO
       const userCredential = await signInAnonymously(auth);
+      console.log('[AUTH] ✅ signInAnonymously exitoso:', userCredential.user.uid);
 
-      // Guardar datos del guest en Firestore
-      const guestData = {
-        username: username,
-        avatar: avatarUrl,
-        createdAt: new Date().toISOString(),
-        messageCount: 0,
-        expiresAt: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString() // 30 días
-      };
-
-      const guestRef = doc(db, 'guests', userCredential.user.uid);
-      await setDoc(guestRef, guestData);
-
-      // Actualizar estado del usuario
+      // Actualizar estado del usuario INMEDIATAMENTE (sin esperar Firestore)
       const guestUser = {
         id: userCredential.user.uid,
         username: username,
@@ -390,17 +387,43 @@ export const AuthProvider = ({ children }) => {
         isAnonymous: true,
         isPremium: false,
         verified: false,
-        avatar: avatarUrl,
+        avatar: avatarUrl || null,
         quickPhrases: [],
         theme: {},
       };
 
       setUser(guestUser);
       setGuestMessageCount(0);
+      console.log('[AUTH] ✅ Estado de usuario actualizado localmente');
 
+      // Guardar en Firestore EN BACKGROUND (no bloqueante)
+      const guestData = {
+        username: username,
+        createdAt: new Date().toISOString(),
+        messageCount: 0,
+        expiresAt: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString() // 30 días
+      };
+
+      // Solo agregar avatar si existe
+      if (avatarUrl) {
+        guestData.avatar = avatarUrl;
+      }
+
+      const guestRef = doc(db, 'guests', userCredential.user.uid);
+
+      // ⚡ NO ESPERAR - Guardar en background
+      setDoc(guestRef, guestData)
+        .then(() => {
+          console.log('[AUTH] 💾 Datos guardados en Firestore (background)');
+        })
+        .catch((error) => {
+          console.error('[AUTH] ⚠️ Error al guardar en Firestore (no crítico):', error);
+        });
+
+      console.log('[AUTH] ⚡ signInAsGuest completado (rápido)');
       return true;
     } catch (error) {
-      console.error('Error signing in as guest:', error);
+      console.error('[AUTH] ❌ Error signing in as guest:', error);
       throw error;
     }
   };
@@ -409,18 +432,31 @@ export const AuthProvider = ({ children }) => {
    * Cerrar sesión
    */
   const logout = async () => {
-  try {
-    // Simplemente cierra la sesión. El useEffect se encargará del resto.
-    await signOut(auth);
+    try {
+      // Marcar que estamos haciendo logout para evitar auto-login
+      isLoggingOutRef.current = true;
+      
+      // Limpiar estado inmediatamente
+      setUser(null);
+      setGuestMessageCount(0);
+      
+      // Cerrar sesión en Firebase
+      await signOut(auth);
 
-    toast({
-      title: "Sesión cerrada",
-      description: "¡Hasta pronto! 👋",
-    });
-  } catch (error) {
-    // ...
-  }
-};
+      toast({
+        title: "Sesión cerrada",
+        description: "¡Hasta pronto! 👋",
+      });
+    } catch (error) {
+      console.error('Error al cerrar sesión:', error);
+      isLoggingOutRef.current = false; // Resetear flag en caso de error
+      toast({
+        title: "Error",
+        description: "No se pudo cerrar la sesión. Intenta nuevamente.",
+        variant: "destructive",
+      });
+    }
+  };
 
   /**
    * Actualizar perfil de usuario

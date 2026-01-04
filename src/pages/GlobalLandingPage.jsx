@@ -7,27 +7,27 @@ import { useAuth } from '@/contexts/AuthContext';
 import { useCanonical } from '@/hooks/useCanonical';
 import ChatDemo from '@/components/landing/ChatDemo';
 import { GuestUsernameModal } from '@/components/auth/GuestUsernameModal';
-import { EntryOptionsModal } from '@/components/auth/EntryOptionsModal';
+// ⚠️ MODAL COMENTADO - Usamos entrada directa como invitado (sin opciones)
+// import { EntryOptionsModal } from '@/components/auth/EntryOptionsModal';
 
 const GlobalLandingPage = () => {
   const navigate = useNavigate();
   const location = useLocation();
   const { user } = useAuth();
   const [showGuestModal, setShowGuestModal] = React.useState(false);
-  const [showEntryModal, setShowEntryModal] = React.useState(false);
+  // ⚠️ MODAL COMENTADO - Ya no usamos EntryOptionsModal
+  // const [showEntryModal, setShowEntryModal] = React.useState(false);
 
-  // ✅ Detectar si se debe abrir el modal automáticamente desde el Header
-  React.useEffect(() => {
-    const searchParams = new URLSearchParams(location.search);
-    if (searchParams.get('openEntry') === 'true') {
-      // Si el usuario no está logueado, abrir el modal de entrada
-      if (!user || user.isGuest || user.isAnonymous) {
-        setShowEntryModal(true);
-        // Limpiar el parámetro de la URL
-        navigate(location.pathname, { replace: true });
-      }
-    }
-  }, [location.search, user, navigate, location.pathname]);
+  // ⚠️ MODAL COMENTADO - Ya no usamos EntryOptionsModal, entrada directa como invitado
+  // React.useEffect(() => {
+  //   const searchParams = new URLSearchParams(location.search);
+  //   if (searchParams.get('openEntry') === 'true') {
+  //     if (!user || user.isGuest || user.isAnonymous) {
+  //       setShowGuestModal(true); // Abrir directamente el modal de invitado
+  //       navigate(location.pathname, { replace: true });
+  //     }
+  //   }
+  // }, [location.search, user, navigate, location.pathname]);
 
   // 🔥 Carrusel de imágenes - 5 modelos que cambian cada 3 segundos
   const [currentImageIndex, setCurrentImageIndex] = useState(0);
@@ -102,18 +102,18 @@ const GlobalLandingPage = () => {
       // Usuario ya anónimo/guest - ir directo al chat
       navigate('/chat/principal');
     } else {
-      // No hay usuario - mostrar modal de entrada
-      setShowEntryModal(true);
+      // No hay usuario - abrir modal de invitado directamente (sin opciones)
+      setShowGuestModal(true);
     }
   };
 
-  const handleContinueWithoutRegister = () => {
-    setShowEntryModal(false);
-    // ✅ Pequeño delay para evitar overlays conflictivos entre modales
-    setTimeout(() => {
-      setShowGuestModal(true);
-    }, 150); // Espera a que el primer modal termine su animación de cierre
-  };
+  // ⚠️ MODAL COMENTADO - Ya no usamos EntryOptionsModal
+  // const handleContinueWithoutRegister = () => {
+  //   setShowEntryModal(false);
+  //   setTimeout(() => {
+  //     setShowGuestModal(true);
+  //   }, 150);
+  // };
 
   // COMENTADO: Botón crear cuenta deshabilitado
   // const handleRegistrar = () => {
@@ -131,8 +131,8 @@ const GlobalLandingPage = () => {
       // Usuario ya anónimo/guest - ir directo al chat
       navigate('/chat/principal');
     } else {
-      // No hay usuario - mostrar modal de entrada
-      setShowEntryModal(true);
+      // No hay usuario - abrir modal de invitado directamente (sin opciones)
+      setShowGuestModal(true);
     }
   };
 
@@ -1208,13 +1208,13 @@ const GlobalLandingPage = () => {
         </Button>
       </motion.div>
 
-      {/* Modal de opciones de entrada */}
-      <EntryOptionsModal
+      {/* ⚠️ MODAL COMENTADO - EntryOptionsModal eliminado, entrada directa como invitado */}
+      {/* <EntryOptionsModal
         open={showEntryModal}
         onClose={() => setShowEntryModal(false)}
         chatRoomId="principal"
         onContinueWithoutRegister={handleContinueWithoutRegister}
-      />
+      /> */}
 
       {/* Guest Username Modal (Sin Registro) */}
       <GuestUsernameModal

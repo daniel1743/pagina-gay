@@ -35,7 +35,7 @@ const AVATAR_OPTIONS = [
 /**
  * Modal para verificar mayoría de edad, elegir nombre de usuario y avatar para usuarios anónimos
  */
-const AgeVerificationModal = ({ isOpen, onConfirm }) => {
+const AgeVerificationModal = ({ isOpen, onConfirm, onClose }) => {
   const [age, setAge] = useState('');
   const [username, setUsername] = useState('');
   const [selectedAvatar, setSelectedAvatar] = useState(null);
@@ -78,8 +78,18 @@ const AgeVerificationModal = ({ isOpen, onConfirm }) => {
     onConfirm(parsedAge, trimmedUsername, selectedAvatar);
   };
 
+  const handleClose = () => {
+    if (onClose) {
+      onClose();
+    }
+  };
+
   return (
-    <Dialog open={isOpen} onOpenChange={() => {}} modal>
+    <Dialog open={isOpen} onOpenChange={(open) => {
+      if (!open) {
+        handleClose();
+      }
+    }} modal>
       <DialogContent className="bg-gradient-to-b from-slate-950 via-slate-900 to-slate-950 text-white border border-fuchsia-500/30 shadow-2xl max-w-2xl">
         <div className="overflow-y-auto scrollbar-hide max-h-[calc(90vh-8rem)]">
           <DialogHeader>

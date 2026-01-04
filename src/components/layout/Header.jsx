@@ -9,7 +9,8 @@ import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel,
 import ComingSoonModal from '@/components/ui/ComingSoonModal';
 import SystemNotificationsPanel from '@/components/notifications/SystemNotificationsPanel';
 import ActivityDashboardModal from '@/components/dashboard/ActivityDashboardModal';
-import { EntryOptionsModal } from '@/components/auth/EntryOptionsModal';
+// ⚠️ MODAL COMENTADO - Usamos entrada directa como invitado (sin opciones)
+// import { EntryOptionsModal } from '@/components/auth/EntryOptionsModal';
 import { GuestUsernameModal } from '@/components/auth/GuestUsernameModal';
 import { doc, getDoc } from 'firebase/firestore';
 import { db } from '@/config/firebase';
@@ -28,7 +29,8 @@ const Header = () => {
   const [unreadNotificationsCount, setUnreadNotificationsCount] = useState(0);
   const [showBetaPulse, setShowBetaPulse] = useState(true);
   const [logoSrc, setLogoSrc] = useState("/LOGO-TRASPARENTE.png");
-  const [showEntryModal, setShowEntryModal] = useState(false);
+  // ⚠️ MODAL COMENTADO - Ya no usamos EntryOptionsModal
+  // const [showEntryModal, setShowEntryModal] = useState(false);
   const [showGuestModal, setShowGuestModal] = useState(false);
   const [showActivityDashboard, setShowActivityDashboard] = useState(false);
 
@@ -76,14 +78,13 @@ const Header = () => {
     setShowComingSoon(true);
   };
 
-  // ✅ Handler para transición entre modales (evita overlays conflictivos)
-  const handleContinueWithoutRegister = () => {
-    setShowEntryModal(false);
-    // Pequeño delay para evitar overlays conflictivos entre modales
-    setTimeout(() => {
-      setShowGuestModal(true);
-    }, 150); // Espera a que el primer modal termine su animación de cierre
-  };
+  // ⚠️ MODAL COMENTADO - Ya no usamos EntryOptionsModal, entrada directa
+  // const handleContinueWithoutRegister = () => {
+  //   setShowEntryModal(false);
+  //   setTimeout(() => {
+  //     setShowGuestModal(true);
+  //   }, 150);
+  // };
 
   // Suscribirse a notificaciones para obtener contador en tiempo real
   useEffect(() => {
@@ -256,8 +257,8 @@ const Header = () => {
                     // Usuario ya anónimo/guest - ir directo al chat
                     navigate('/chat/principal');
                   } else {
-                    // No hay usuario - abrir modal de entrada directamente
-                    setShowEntryModal(true);
+                    // No hay usuario - abrir modal de invitado directamente (sin opciones)
+                    setShowGuestModal(true);
                   }
                 }}
                 className="magenta-gradient text-white font-bold px-4 sm:px-6 py-2 sm:py-2.5 rounded-lg shadow-lg hover:shadow-[#E4007C]/50 transition-all hover:scale-105"
@@ -292,13 +293,13 @@ const Header = () => {
         />
       )}
 
-      {/* ✅ Modales de Entrada */}
-      <EntryOptionsModal
+      {/* ⚠️ MODAL COMENTADO - EntryOptionsModal eliminado, entrada directa como invitado */}
+      {/* <EntryOptionsModal
         open={showEntryModal}
         onClose={() => setShowEntryModal(false)}
         chatRoomId="principal"
         onContinueWithoutRegister={handleContinueWithoutRegister}
-      />
+      /> */}
 
       <GuestUsernameModal
         open={showGuestModal}

@@ -18,8 +18,10 @@ import PrivateChatInviteToast from '@/components/chat/PrivateChatInviteToast';
 import VerificationModal from '@/components/chat/VerificationModal';
 import TypingIndicator from '@/components/chat/TypingIndicator';
 import WelcomeTour from '@/components/onboarding/WelcomeTour';
-import { PremiumWelcomeModal } from '@/components/chat/PremiumWelcomeModal';
-import ChatRulesModal from '@/components/chat/ChatRulesModal';
+// ⚠️ MODAL COMENTADO - No está en uso hasta que se repare
+// import { PremiumWelcomeModal } from '@/components/chat/PremiumWelcomeModal';
+// ⚠️ MODAL COMENTADO - El bot moderador ya informa las reglas al ingresar
+// import ChatRulesModal from '@/components/chat/ChatRulesModal';
 import AgeVerificationModal from '@/components/chat/AgeVerificationModal';
 import ChatLandingPage from '@/components/chat/ChatLandingPage';
 import EmptyRoomNotificationPrompt from '@/components/chat/EmptyRoomNotificationPrompt';
@@ -102,13 +104,16 @@ const ChatPage = () => {
   const [activePrivateChat, setActivePrivateChat] = useState(null);
   const [dismissedPrivateChats, setDismissedPrivateChats] = useState(new Set()); // IDs de chats que el usuario cerró manualmente
   const [showVerificationModal, setShowVerificationModal] = useState(false);
-  const [showPremiumWelcome, setShowPremiumWelcome] = useState(false);
-  const [showChatRules, setShowChatRules] = useState(false); // ✅ Modal de reglas
+  // ⚠️ MODAL COMENTADO - No está en uso hasta que se repare
+  // const [showPremiumWelcome, setShowPremiumWelcome] = useState(false);
+  // ⚠️ MODAL COMENTADO - El bot moderador ya informa las reglas al ingresar
+  // const [showChatRules, setShowChatRules] = useState(false);
   const [showAgeVerification, setShowAgeVerification] = useState(false); // ✅ Modal de edad
   const [showRegistrationModal, setShowRegistrationModal] = useState(false);
   const [registrationModalFeature, setRegistrationModalFeature] = useState(null);
   const [isAgeVerified, setIsAgeVerified] = useState(false); // ✅ Flag mayor de edad
-  const [hasAcceptedRules, setHasAcceptedRules] = useState(false); // ✅ Flag de reglas aceptadas
+  // ⚠️ MODAL COMENTADO - El bot moderador ya informa las reglas al ingresar
+  // const [hasAcceptedRules, setHasAcceptedRules] = useState(false);
   const [roomCounts, setRoomCounts] = useState({}); // Contadores de usuarios por sala
   const [engagementTime, setEngagementTime] = useState(''); // ⏱️ Tiempo total de engagement
   const [showScreenSaver, setShowScreenSaver] = useState(false); // 🔒 Protector de pantalla
@@ -118,6 +123,7 @@ const ChatPage = () => {
   const unsubscribeRef = useRef(null);
   const aiActivatedRef = useRef(false); // Flag para evitar activaciones múltiples de IA
   const lastUserCountRef = useRef(0); // Para evitar ejecuciones innecesarias del useEffect
+  const moderatorWelcomeSentRef = useRef(new Set()); // Para evitar mensajes duplicados del moderador
   const previousMessageCountRef = useRef(0); // Para detectar nuevos mensajes y reproducir sonido
   const lastUserCountsRef = useRef({ total: 0, active: 0, real: 0 }); // Para rastrear conteos de usuarios
   const previousRealUserCountRef = useRef(0); // Para detectar cuando usuarios se desconectan y reproducir sonido
@@ -332,25 +338,26 @@ const ChatPage = () => {
     // return () => clearInterval(checkInterval);
   }, [user]);
 
+  // ⚠️ MODAL COMENTADO - No está en uso hasta que se repare
   // 🎁 Mostrar modal de bienvenida premium solo una vez
   // ⚠️ CRITICAL: Este hook DEBE ejecutarse siempre (antes del return)
-  useEffect(() => {
-    const hasSeenPremiumWelcome = localStorage.getItem('hasSeenPremiumWelcome');
+  // useEffect(() => {
+  //   const hasSeenPremiumWelcome = localStorage.getItem('hasSeenPremiumWelcome');
+  //
+  //   if (!hasSeenPremiumWelcome) {
+  //     // Mostrar después de 2 segundos de entrar a la sala
+  //     const timer = setTimeout(() => {
+  //       setShowPremiumWelcome(true);
+  //     }, 2000);
+  //
+  //     return () => clearTimeout(timer);
+  //   }
+  // }, []);
 
-    if (!hasSeenPremiumWelcome) {
-      // Mostrar después de 2 segundos de entrar a la sala
-      const timer = setTimeout(() => {
-        setShowPremiumWelcome(true);
-      }, 2000);
-
-      return () => clearTimeout(timer);
-    }
-  }, []);
-
-  const handleClosePremiumWelcome = () => {
-    setShowPremiumWelcome(false);
-    localStorage.setItem('hasSeenPremiumWelcome', 'true');
-  };
+  // const handleClosePremiumWelcome = () => {
+  //   setShowPremiumWelcome(false);
+  //   localStorage.setItem('hasSeenPremiumWelcome', 'true');
+  // };
 
   // 🤖 Callback para notificar cuando un bot se conecta
   const handleBotJoin = (botData) => {
@@ -374,39 +381,60 @@ const ChatPage = () => {
   useEffect(() => {
     if (!user || !user.id) return;
 
-    const ageKey = `age_verified_${user.id}`;
-    const storedAge = localStorage.getItem(ageKey);
+    // ✅ Verificar si viene desde landing page (sessionStorage tiene prioridad)
+    const ageVerifiedFromLanding = sessionStorage.getItem(`age_verified_${user.username}`) === 'true';
+    // ⚠️ MODAL COMENTADO - Ya no verificamos reglas
+    // const rulesAcceptedFromLanding = sessionStorage.getItem(`rules_accepted_${user.username}`) === 'true';
 
-    // ✅ Verificar si ya está confirmado (solo una vez por usuario)
-    if (storedAge && Number(storedAge) >= 18) {
+    // ✅ Si viene desde landing, NO mostrar modales
+    if (ageVerifiedFromLanding) {
       setIsAgeVerified(true);
-      setShowAgeVerification(false); // ✅ NO mostrar si ya está verificado
-      console.log(`[AGE VERIFICATION] ✅ Usuario ${user.id} ya verificó su edad (${storedAge} años)`);
+      setShowAgeVerification(false);
+      // Guardar en localStorage para futuras sesiones
+      localStorage.setItem(`age_verified_${user.id}`, '18');
+      console.log(`[AGE VERIFICATION] ✅ Usuario ${user.username} ya verificó edad en landing page`);
     } else {
-      // ✅ Solo mostrar si NO está verificado Y no se ha mostrado antes en esta sesión
-      setIsAgeVerified(false);
-      // ✅ Solo mostrar si no hay flag de "ya se mostró" en esta sesión
-      const hasShownKey = `age_modal_shown_${user.id}`;
-      const hasShown = sessionStorage.getItem(hasShownKey);
-      if (!hasShown) {
-        setShowAgeVerification(true);
-        sessionStorage.setItem(hasShownKey, 'true'); // Marcar que se mostró en esta sesión
-        console.log(`[AGE VERIFICATION] 📋 Mostrando modal de edad para usuario ${user.id}`);
+      // ✅ Verificar en localStorage (sesiones anteriores)
+      const ageKey = `age_verified_${user.id}`;
+      const storedAge = localStorage.getItem(ageKey);
+
+      if (storedAge && Number(storedAge) >= 18) {
+        setIsAgeVerified(true);
+        setShowAgeVerification(false);
+        console.log(`[AGE VERIFICATION] ✅ Usuario ${user.id} ya verificó su edad (${storedAge} años)`);
       } else {
-        console.log(`[AGE VERIFICATION] ⏭️ Modal ya se mostró en esta sesión para usuario ${user.id}`);
+        // ✅ Solo mostrar si NO está verificado Y no se ha mostrado antes en esta sesión
+        setIsAgeVerified(false);
+        const hasShownKey = `age_modal_shown_${user.id}`;
+        const hasShown = sessionStorage.getItem(hasShownKey);
+        if (!hasShown) {
+          setShowAgeVerification(true);
+          sessionStorage.setItem(hasShownKey, 'true');
+          console.log(`[AGE VERIFICATION] 📋 Mostrando modal de edad para usuario ${user.id}`);
+        } else {
+          console.log(`[AGE VERIFICATION] ⏭️ Modal ya se mostró en esta sesión para usuario ${user.id}`);
+        }
       }
     }
 
-    const rulesKey = `chat_rules_accepted_${user.id}`;
-    const hasAccepted = localStorage.getItem(rulesKey) === 'true';
-
-    if (!hasAccepted) {
-      // Mostrar modal de reglas si no las ha aceptado
-      setShowChatRules(true);
-      setHasAcceptedRules(false);
-    } else {
-      setHasAcceptedRules(true);
-    }
+    // ⚠️ MODAL COMENTADO - El bot moderador ya informa las reglas al ingresar
+    // Ya no verificamos ni mostramos el modal de reglas
+    // if (rulesAcceptedFromLanding) {
+    //   setHasAcceptedRules(true);
+    //   setShowChatRules(false);
+    //   localStorage.setItem(`chat_rules_accepted_${user.id}`, 'true');
+    //   console.log(`[CHAT RULES] ✅ Usuario ${user.username} ya aceptó reglas en landing page`);
+    // } else {
+    //   const rulesKey = `chat_rules_accepted_${user.id}`;
+    //   const hasAccepted = localStorage.getItem(rulesKey) === 'true';
+    //
+    //   if (!hasAccepted) {
+    //     setShowChatRules(true);
+    //     setHasAcceptedRules(false);
+    //   } else {
+    //     setHasAcceptedRules(true);
+    //   }
+    // }
   }, [user]);
 
   // 🔊 INICIALIZACIÓN DE SONIDOS: Forzar inicialización al montar componente
@@ -485,7 +513,20 @@ const ChatPage = () => {
     joinRoom(roomId, user);
 
     // ✅ Suscribirse a mensajes de Firebase (SOLO mensajes reales, sin estáticos)
+    // 🔒 CRITICAL: Limpiar suscripción anterior si existe
+    if (unsubscribeRef.current) {
+      console.log('🧹 [CHAT] Limpiando suscripción anterior antes de crear nueva');
+      unsubscribeRef.current();
+      unsubscribeRef.current = null;
+    }
+    
     const unsubscribeMessages = subscribeToRoomMessages(roomId, (newMessages) => {
+      console.log('📨 [CHAT] Mensajes recibidos de Firestore:', {
+        count: newMessages.length,
+        roomId,
+        messageIds: newMessages.slice(-3).map(m => ({ id: m.id, content: m.content?.substring(0, 20) }))
+      });
+      
       // 🔊 Reproducir sonido si llegaron mensajes nuevos (no en carga inicial)
       if (previousMessageCountRef.current > 0 && newMessages.length > previousMessageCountRef.current) {
         const newMessageCount = newMessages.length - previousMessageCountRef.current;
@@ -498,14 +539,87 @@ const ChatPage = () => {
       // Actualizar contador de mensajes
       previousMessageCountRef.current = newMessages.length;
 
-      // 🚀 OPTIMISTIC UI: Fusionar mensajes reales con optimistas
+      // 🚀 OPTIMISTIC UI: Fusionar mensajes reales con optimistas y DEDUPLICAR
       setMessages(prevMessages => {
         const optimisticMessages = prevMessages.filter(m => m._optimistic);
         const mergedMessages = [...newMessages];
+        
+        // ✅ DEDUPLICACIÓN MEJORADA: Eliminar mensajes optimistas cuando llega el mensaje real
         if (optimisticMessages.length > 0) {
-          mergedMessages.push(...optimisticMessages);
+          // Para cada mensaje optimista, verificar si ya llegó el mensaje real
+          const remainingOptimistic = optimisticMessages.filter(optMsg => {
+            // Método 1: Si el optimista tiene _realId, buscar por ID
+            if (optMsg._realId) {
+              const foundById = newMessages.find(realMsg => realMsg.id === optMsg._realId);
+              if (foundById) {
+                console.log('✅ [DEDUPLICACIÓN] Eliminando optimista por ID real:', {
+                  optimisticId: optMsg.id,
+                  realId: optMsg._realId,
+                  content: optMsg.content?.substring(0, 30)
+                });
+                return false; // Eliminar este optimista
+              }
+            }
+            
+            // Método 2: Buscar por contenido, userId y timestamp similar (fallback)
+            const matchingReal = newMessages.find(realMsg => {
+              const sameUser = realMsg.userId === optMsg.userId;
+              const sameContent = realMsg.content === optMsg.content;
+              const sameType = (realMsg.type || 'text') === (optMsg.type || 'text');
+              
+              // Comparar timestamps (dentro de 10 segundos de diferencia)
+              const optTime = new Date(optMsg.timestamp).getTime();
+              const realTime = new Date(realMsg.timestamp).getTime();
+              const timeDiff = Math.abs(realTime - optTime);
+              const similarTime = timeDiff < 10000; // 10 segundos de tolerancia
+              
+              return sameUser && sameContent && sameType && similarTime;
+            });
+            
+            // Si encontramos un match, eliminar el optimista (ya llegó el real)
+            if (matchingReal) {
+              console.log('✅ [DEDUPLICACIÓN] Eliminando optimista por match de contenido:', {
+                optimisticId: optMsg.id,
+                realId: matchingReal.id,
+                content: optMsg.content?.substring(0, 30)
+              });
+              return false; // Eliminar este optimista
+            }
+            
+            return true; // Mantener este optimista (aún no llegó el real)
+          });
+          
+          // Solo agregar optimistas que no tienen match
+          if (remainingOptimistic.length > 0) {
+            mergedMessages.push(...remainingOptimistic);
+          }
         }
-        return mergedMessages;
+        
+        // Ordenar por timestamp
+        const sorted = mergedMessages.sort((a, b) => {
+          const timeA = new Date(a.timestamp).getTime();
+          const timeB = new Date(b.timestamp).getTime();
+          return timeA - timeB;
+        });
+        
+        // 🔍 DEBUG: Detectar duplicados después de la fusión
+        const duplicateCheck = sorted.filter((msg, index, arr) => {
+          const duplicate = arr.findIndex(m => 
+            m.id === msg.id || 
+            (m.userId === msg.userId && 
+             m.content === msg.content && 
+             Math.abs(new Date(m.timestamp).getTime() - new Date(msg.timestamp).getTime()) < 1000)
+          );
+          return duplicate !== index;
+        });
+        
+        if (duplicateCheck.length > 0) {
+          console.warn('⚠️ [DEDUPLICACIÓN] Mensajes duplicados detectados después de fusión:', {
+            duplicates: duplicateCheck.map(m => ({ id: m.id, content: m.content?.substring(0, 30), isOptimistic: m._optimistic }))
+          });
+        }
+        
+        return sorted;
       });
     });
 
@@ -588,13 +702,17 @@ const ChatPage = () => {
     });
 
     // 👮 Mensaje de bienvenida del moderador (solo una vez)
-    const moderatorKey = `moderator_welcome_${roomId}_${user.id}`;
-    const hasSeenModerator = sessionStorage.getItem(moderatorKey);
-
-    if (!hasSeenModerator) {
+    const moderatorKey = `${roomId}_${user.id}`;
+    const hasSeenModerator = sessionStorage.getItem(`moderator_welcome_${moderatorKey}`);
+    
+    // Verificar también en el ref para evitar duplicados en el mismo render
+    if (!hasSeenModerator && !moderatorWelcomeSentRef.current.has(moderatorKey)) {
+      // Marcar inmediatamente para evitar duplicados
+      moderatorWelcomeSentRef.current.add(moderatorKey);
+      sessionStorage.setItem(`moderator_welcome_${moderatorKey}`, 'true');
+      
       setTimeout(() => {
         sendModeratorWelcome(roomId, user.username);
-        sessionStorage.setItem(moderatorKey, 'true');
       }, 2000); // Enviar después de 2 segundos
     }
 
@@ -823,16 +941,17 @@ const ChatPage = () => {
       }
     }
 
-    // ✅ CRÍTICO: Verificar que el usuario haya aceptado las reglas
-    if (!hasAcceptedRules) {
-      setShowChatRules(true);
-      toast({
-        title: "Reglas del Chat",
-        description: "Debes aceptar las reglas del chat antes de enviar mensajes.",
-        variant: "destructive",
-      });
-      return;
-    }
+    // ⚠️ MODAL COMENTADO - El bot moderador ya informa las reglas al ingresar
+    // Ya no verificamos si el usuario aceptó las reglas antes de enviar mensajes
+    // if (!hasAcceptedRules) {
+    //   setShowChatRules(true);
+    //   toast({
+    //     title: "Reglas del Chat",
+    //     description: "Debes aceptar las reglas del chat antes de enviar mensajes.",
+    //     variant: "destructive",
+    //   });
+    //   return;
+    // }
 
     // 🔥 DESHABILITADO: Invitados pueden chatear sin límite de tiempo
     // if (user.isAnonymous && hasReachedOneHourLimit(user)) {
@@ -923,8 +1042,15 @@ const ChatPage = () => {
       // Track GA4
       trackMessageSent(currentRoom, user.id);
 
-      // Eliminar mensaje optimista cuando llegue el real vía onSnapshot
-      // (onSnapshot se encargará de esto automáticamente)
+      // ✅ DEDUPLICACIÓN: Marcar el mensaje optimista con el ID real para eliminarlo cuando llegue
+      // El listener de onSnapshot se encargará de eliminar el optimista cuando detecte el real
+      if (sentMessage?.id) {
+        setMessages(prev => prev.map(msg => 
+          msg.id === optimisticId 
+            ? { ...msg, _realId: sentMessage.id, _sending: false }
+            : msg
+        ));
+      }
 
     } catch (error) {
       console.error('❌ Error enviando mensaje:', error);
@@ -1271,14 +1397,16 @@ const ChatPage = () => {
           <WelcomeTour onComplete={() => setShowWelcomeTour(false)} />
         )}
 
+        {/* ⚠️ MODAL COMENTADO - No está en uso hasta que se repare */}
         {/* 🎁 Modal de Bienvenida Premium */}
-        <PremiumWelcomeModal
+        {/* <PremiumWelcomeModal
           open={showPremiumWelcome}
           onClose={handleClosePremiumWelcome}
-        />
+        /> */}
 
         <AgeVerificationModal
           isOpen={showAgeVerification}
+          onClose={() => setShowAgeVerification(false)}
           onConfirm={async (age, username, avatar) => {
             if (!user || !user.id) return;
             
@@ -1324,24 +1452,7 @@ const ChatPage = () => {
           }}
         />
 
-        {/* ✅ NUEVO: Modal de reglas del chat */}
-        <ChatRulesModal
-          isOpen={showChatRules}
-          onAccept={() => {
-            // Guardar que el usuario aceptó las reglas
-            if (user) {
-              const rulesKey = `chat_rules_accepted_${user.id}`;
-              localStorage.setItem(rulesKey, 'true');
-              setHasAcceptedRules(true);
-              setShowChatRules(false);
-              
-              toast({
-                title: "✅ Reglas Aceptadas",
-                description: "¡Bienvenido al chat! Ya puedes empezar a chatear.",
-              });
-            }
-          }}
-        />
+        {/* ⚠️ MODAL COMENTADO - El bot moderador ya informa las reglas al ingresar */}
       </div>
 
       {/* Protector de pantalla - Se muestra sobre todo */}

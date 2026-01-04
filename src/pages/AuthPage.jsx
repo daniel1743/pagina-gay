@@ -7,9 +7,17 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { ArrowLeft, Mail, Eye, EyeOff, Zap, MessageSquare } from 'lucide-react';
+import { ArrowLeft, Mail, Eye, EyeOff, Check } from 'lucide-react';
 import { useCanonical } from '@/hooks/useCanonical';
-import { GuestUsernameModal } from '@/components/auth/GuestUsernameModal';
+import { toast } from '@/components/ui/use-toast';
+
+// 4 avatares predefinidos
+const AVATAR_OPTIONS = [
+  { id: 'avataaars', url: 'https://api.dicebear.com/7.x/avataaars/svg?seed=avatar1', name: 'Clásico' },
+  { id: 'bottts', url: 'https://api.dicebear.com/7.x/bottts/svg?seed=avatar2', name: 'Robot' },
+  { id: 'pixel-art', url: 'https://api.dicebear.com/7.x/pixel-art/svg?seed=avatar3', name: 'Retro' },
+  { id: 'identicon', url: 'https://api.dicebear.com/7.x/identicon/svg?seed=avatar4', name: 'Geométrico' }
+];
 
 const AuthPage = () => {
   // SEO: Canonical tag para página de autenticación
@@ -29,7 +37,7 @@ const AuthPage = () => {
   }, []);
 
   const navigate = useNavigate();
-  const { login, register } = useAuth();
+  const { login, register, signInAsGuest } = useAuth();
   const [loginData, setLoginData] = useState({ email: '', password: '' });
   const [registerData, setRegisterData] = useState({
     username: '',
@@ -41,7 +49,67 @@ const AuthPage = () => {
   const [ageError, setAgeError] = useState('');
   const [showLoginPassword, setShowLoginPassword] = useState(false);
   const [showRegisterPassword, setShowRegisterPassword] = useState(false);
-  const [showGuestModal, setShowGuestModal] = useState(false);
+
+  // Estados para formulario de invitado
+  const [guestNickname, setGuestNickname] = useState('');
+  const [guestAge, setGuestAge] = useState('');
+  const [selectedAvatar, setSelectedAvatar] = useState(AVATAR_OPTIONS[0]);
+  const [acceptRules, setAcceptRules] = useState(false);
+  const [isGuestLoading, setIsGuestLoading] = useState(false);
+  const [guestError, setGuestError] = useState('');
+
+  const handleGuestSubmit = async (e) => {
+    e.preventDefault();
+    setGuestError('');
+
+    // Validaciones
+    if (!guestNickname.trim()) {
+      setGuestError('Ingresa tu nickname');
+      return;
+    }
+    if (guestNickname.trim().length < 3) {
+      setGuestError('El nickname debe tener al menos 3 caracteres');
+      return;
+    }
+
+    const parsedAge = parseInt(guestAge, 10);
+    if (Number.isNaN(parsedAge)) {
+      setGuestError('Ingresa tu edad en números');
+      return;
+    }
+    if (parsedAge < 18) {
+      setGuestError('Debes ser mayor de 18 años');
+      return;
+    }
+
+    if (!acceptRules) {
+      setGuestError('Debes aceptar las reglas del chat');
+      return;
+    }
+
+    setIsGuestLoading(true);
+
+    try {
+      // Guardar flags en sessionStorage
+      sessionStorage.setItem(`age_verified_${guestNickname.trim()}`, 'true');
+      sessionStorage.setItem(`rules_accepted_${guestNickname.trim()}`, 'true');
+
+      // Crear usuario guest en Firebase
+      await signInAsGuest(guestNickname.trim(), selectedAvatar.url);
+
+      toast({
+        title: "¡Bienvenido! 🎉",
+        description: `Hola ${guestNickname.trim()}, ya puedes chatear`,
+      });
+
+      // Redirigir al chat
+      navigate('/chat/global', { replace: true });
+    } catch (error) {
+      console.error('Error creating guest user:', error);
+      setGuestError('Error al entrar. Intenta de nuevo.');
+      setIsGuestLoading(false);
+    }
+  };
 
   const handleLogin = (e) => {
     e.preventDefault();
@@ -88,72 +156,221 @@ const AuthPage = () => {
             Volver
           </Button>
 
-          {/* 🚀 HERO PRINCIPAL: ACCESO INVITADO - Prioridad #1 */}
+          {/* 🚀 FORMULARIO DIRECTO: ACCESO INVITADO - Prioridad #1 */}
+          <style>{`
+            .modal-scroll::-webkit-scrollbar {
+              display: none;
+            }
+            .modal-scroll {
+              -ms-overflow-style: none;
+              scrollbar-width: none;
+            }
+          `}</style>
           <motion.div
-            initial={{ opacity: 0, y: -20, scale: 0.98 }}
-            animate={{ opacity: 1, y: 0, scale: 1 }}
+            initial={{ opacity: 0, y: -20 }}
+            animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.5 }}
-            className="glass-effect rounded-3xl p-8 sm:p-10 mb-6 border-2 border-cyan-500/50 bg-gradient-to-br from-cyan-900/30 via-purple-900/30 to-fuchsia-900/30 relative overflow-hidden"
+            className="mb-6"
           >
-            {/* Efecto de brillo animado de fondo */}
-            <div className="absolute inset-0 bg-gradient-to-r from-cyan-500/10 via-transparent to-fuchsia-500/10 animate-pulse"></div>
-            
-            <div className="relative z-10 text-center">
-              {/* Icono animado */}
-              <motion.div
-                animate={{ 
-                  scale: [1, 1.1, 1],
-                  rotate: [0, 5, -5, 0]
-                }}
-                transition={{ 
-                  duration: 3,
-                  repeat: Infinity,
-                  ease: "easeInOut"
-                }}
-                className="inline-block mb-6"
-              >
-                <div className="w-24 h-24 mx-auto rounded-full bg-gradient-to-br from-cyan-400 to-fuchsia-400 flex items-center justify-center shadow-2xl shadow-cyan-500/50">
-                  <MessageSquare className="w-12 h-12 text-white" />
-                </div>
-              </motion.div>
-              
-              {/* H2 Principal */}
-              <h2 className="text-3xl sm:text-4xl md:text-5xl font-extrabold mb-4 bg-gradient-to-r from-cyan-400 via-purple-400 to-fuchsia-400 bg-clip-text text-transparent">
-                ¿Solo quieres mirar? No necesitas cuenta.
-              </h2>
-              
-              {/* Descripción */}
-              <p className="text-base sm:text-lg text-gray-300 mb-8 max-w-xl mx-auto leading-relaxed">
-                Entra y chatea ahora mismo. Sin email, sin contraseña, sin complicaciones.
-              </p>
+            <div
+              className="modal-scroll"
+              style={{
+                width: '100%',
+                maxHeight: '90vh',
+                overflowY: 'auto',
+                background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+                borderRadius: '20px',
+                padding: '40px',
+                boxShadow: '0 20px 60px rgba(0,0,0,0.3)'
+              }}
+            >
+              <div style={{ textAlign: 'center' }}>
+                <h1 style={{ fontSize: '32px', fontWeight: 'bold', color: 'white', marginBottom: '10px' }}>
+                  Entra SIN Registro
+                </h1>
+                <p style={{ fontSize: '14px', color: 'rgba(255,255,255,0.8)', marginBottom: '30px' }}>
+                  Completa estos datos para empezar a chatear
+                </p>
 
-              {/* Botón CTA Gigante */}
-              <motion.div
-                whileHover={{ scale: 1.02 }}
-                whileTap={{ scale: 0.98 }}
-                className="max-w-lg mx-auto mb-4"
-              >
-                <Button
-                  onClick={() => setShowGuestModal(true)}
-                  size="lg"
-                  className="w-full magenta-gradient text-white font-extrabold text-xl sm:text-2xl md:text-3xl px-6 sm:px-8 py-6 sm:py-8 md:py-10 rounded-2xl shadow-2xl hover:shadow-[#E4007C]/70 transition-all relative overflow-hidden group"
-                >
-                  {/* Efecto de brillo animado */}
-                  <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/20 to-transparent -translate-x-full group-hover:translate-x-full transition-transform duration-1000"></div>
-                  
-                  <span className="relative z-10 flex items-center justify-center gap-2 sm:gap-3">
-                    <MessageSquare className="w-6 h-6 sm:w-7 sm:h-7" />
-                    <span className="whitespace-nowrap">ENTRAR A CHATEAR AHORA</span>
-                    <span className="text-2xl sm:text-3xl">🚀</span>
-                    <span className="hidden sm:inline text-sm sm:text-base opacity-80">(Modo Invitado)</span>
-                  </span>
-                </Button>
-              </motion.div>
+                <form onSubmit={handleGuestSubmit} style={{ textAlign: 'left' }}>
+                  {/* Nickname */}
+                  <div style={{ marginBottom: '20px' }}>
+                    <label style={{ display: 'block', fontSize: '14px', fontWeight: '600', color: 'white', marginBottom: '8px' }}>
+                      Tu Nickname *
+                    </label>
+                    <input
+                      type="text"
+                      value={guestNickname}
+                      onChange={(e) => setGuestNickname(e.target.value)}
+                      placeholder="Ej: Carlos23"
+                      maxLength={20}
+                      required
+                      autoFocus
+                      style={{
+                        width: '100%',
+                        padding: '12px',
+                        fontSize: '16px',
+                        border: '2px solid #667eea',
+                        borderRadius: '10px',
+                        outline: 'none',
+                        boxSizing: 'border-box',
+                        backgroundColor: 'white',
+                        color: '#333'
+                      }}
+                    />
+                  </div>
 
-              {/* Micro-texto tranquilizador */}
-              <p className="text-xs sm:text-sm text-gray-400 font-medium">
-                100% Anónimo. Sin historial. Sin rastro.
-              </p>
+                  {/* Edad */}
+                  <div style={{ marginBottom: '20px' }}>
+                    <label style={{ display: 'block', fontSize: '14px', fontWeight: '600', color: 'white', marginBottom: '8px' }}>
+                      Tu Edad *
+                    </label>
+                    <input
+                      type="number"
+                      value={guestAge}
+                      onChange={(e) => setGuestAge(e.target.value)}
+                      placeholder="Ej: 24"
+                      min="18"
+                      required
+                      style={{
+                        width: '100%',
+                        padding: '12px',
+                        fontSize: '16px',
+                        border: '2px solid #667eea',
+                        borderRadius: '10px',
+                        outline: 'none',
+                        boxSizing: 'border-box',
+                        backgroundColor: 'white',
+                        color: '#333'
+                      }}
+                    />
+                  </div>
+
+                  {/* Avatar */}
+                  <div style={{ marginBottom: '20px' }}>
+                    <label style={{ display: 'block', fontSize: '14px', fontWeight: '600', color: 'white', marginBottom: '12px' }}>
+                      Elige tu Avatar *
+                    </label>
+                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '10px' }}>
+                      {AVATAR_OPTIONS.map((avatar) => (
+                        <button
+                          key={avatar.id}
+                          type="button"
+                          onClick={() => setSelectedAvatar(avatar)}
+                          style={{
+                            position: 'relative',
+                            padding: '10px',
+                            borderRadius: '10px',
+                            border: selectedAvatar.id === avatar.id ? '3px solid white' : '2px solid rgba(255,255,255,0.3)',
+                            backgroundColor: selectedAvatar.id === avatar.id ? 'rgba(255,255,255,0.2)' : 'rgba(255,255,255,0.1)',
+                            cursor: 'pointer',
+                            transition: 'all 0.2s',
+                            display: 'flex',
+                            flexDirection: 'column',
+                            alignItems: 'center',
+                            gap: '5px'
+                          }}
+                        >
+                          {selectedAvatar.id === avatar.id && (
+                            <div style={{
+                              position: 'absolute',
+                              top: '5px',
+                              right: '5px',
+                              backgroundColor: 'white',
+                              borderRadius: '50%',
+                              width: '20px',
+                              height: '20px',
+                              display: 'flex',
+                              alignItems: 'center',
+                              justifyContent: 'center'
+                            }}>
+                              <Check style={{ width: '14px', height: '14px', color: '#667eea' }} />
+                            </div>
+                          )}
+                          <img
+                            src={avatar.url}
+                            alt={avatar.name}
+                            style={{ width: '50px', height: '50px', borderRadius: '50%', backgroundColor: '#f5f5f5' }}
+                          />
+                          <span style={{ fontSize: '11px', color: 'white', fontWeight: '500' }}>
+                            {avatar.name}
+                          </span>
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+
+                  {/* Checkbox Reglas */}
+                  <div style={{ marginBottom: '20px' }}>
+                    <label style={{
+                      display: 'flex',
+                      alignItems: 'flex-start',
+                      gap: '10px',
+                      cursor: 'pointer',
+                      fontSize: '13px',
+                      color: 'white'
+                    }}>
+                      <input
+                        type="checkbox"
+                        checked={acceptRules}
+                        onChange={(e) => setAcceptRules(e.target.checked)}
+                        required
+                        style={{
+                          width: '18px',
+                          height: '18px',
+                          marginTop: '2px',
+                          cursor: 'pointer',
+                          accentColor: 'white'
+                        }}
+                      />
+                      <span>
+                        Acepto las reglas del chat. Tengo +18 años y entiendo que debo respetar a los demás usuarios.
+                      </span>
+                    </label>
+                  </div>
+
+                  {/* Error */}
+                  {guestError && (
+                    <div style={{
+                      padding: '12px',
+                      marginBottom: '20px',
+                      backgroundColor: 'rgba(255,255,255,0.2)',
+                      border: '1px solid rgba(255,255,255,0.3)',
+                      borderRadius: '8px',
+                      color: 'white',
+                      fontSize: '14px',
+                      fontWeight: '600'
+                    }}>
+                      ⚠️ {guestError}
+                    </div>
+                  )}
+
+                  {/* Botón Submit */}
+                  <button
+                    type="submit"
+                    disabled={isGuestLoading}
+                    style={{
+                      width: '100%',
+                      padding: '15px',
+                      fontSize: '18px',
+                      fontWeight: 'bold',
+                      color: '#667eea',
+                      background: 'white',
+                      border: 'none',
+                      borderRadius: '10px',
+                      cursor: isGuestLoading ? 'not-allowed' : 'pointer',
+                      opacity: isGuestLoading ? '0.7' : '1',
+                      boxShadow: '0 4px 15px rgba(0,0,0,0.2)'
+                    }}
+                  >
+                    {isGuestLoading ? 'Entrando...' : 'Entrar a Chatear 🚀'}
+                  </button>
+                </form>
+
+                <p style={{ fontSize: '11px', color: 'rgba(255,255,255,0.7)', marginTop: '20px', lineHeight: '1.5' }}>
+                  ✨ Sin registro • 100% Gratis • Anónimo
+                </p>
+              </div>
             </div>
           </motion.div>
 
@@ -164,18 +381,18 @@ const AuthPage = () => {
             <div className="flex-1 h-px bg-gradient-to-r from-transparent via-purple-500/50 to-transparent"></div>
           </div>
 
-          {/* 📋 FORMULARIO DE LOGIN/REGISTRO - Secundario (gris, más abajo) */}
+          {/* 📋 FORMULARIO DE LOGIN/REGISTRO - Secundario */}
           <motion.div
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.6, delay: 0.2 }}
             className="glass-effect rounded-2xl p-6 sm:p-8 opacity-80 hover:opacity-100 transition-opacity"
           >
-            <h1 className="text-2xl sm:text-3xl font-bold text-center mb-2 text-gray-400">
-              Inicia Sesión o Entra Libre
-            </h1>
+            <h2 className="text-2xl sm:text-3xl font-bold text-center mb-2 text-gray-400">
+              Iniciar Sesión o Registrarse
+            </h2>
             <p className="text-center text-gray-500 text-sm mb-6">
-              Usuarios recurrentes: inicia sesión con tu email y contraseña
+              ¿Ya tienes cuenta? Inicia sesión aquí
             </p>
 
             <Tabs defaultValue="login" className="w-full">
@@ -340,13 +557,6 @@ const AuthPage = () => {
           </motion.div>
         </div>
       </div>
-
-      {/* Modal de Invitado */}
-      <GuestUsernameModal
-        open={showGuestModal}
-        onClose={() => setShowGuestModal(false)}
-        chatRoomId="global"
-      />
     </>
   );
 };

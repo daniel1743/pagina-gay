@@ -6,6 +6,9 @@
 
 import { sendMessage } from './chatService';
 
+// Cache para evitar mensajes duplicados del moderador
+const sentWelcomeCache = new Set();
+
 /**
  * Envía mensaje de bienvenida del moderador
  *
@@ -13,6 +16,21 @@ import { sendMessage } from './chatService';
  * @param {string} username - Nombre del usuario que entra
  */
 export const sendModeratorWelcome = async (roomId, username) => {
+  // ✅ Verificar cache para evitar duplicados
+  const cacheKey = `${roomId}_${username}`;
+  if (sentWelcomeCache.has(cacheKey)) {
+    console.log(`⏭️ [MODERATOR] Mensaje ya enviado para ${username} en ${roomId}, omitiendo...`);
+    return;
+  }
+
+  // Marcar inmediatamente para evitar duplicados
+  sentWelcomeCache.add(cacheKey);
+  
+  // Limpiar cache después de 5 minutos (evitar memory leak)
+  setTimeout(() => {
+    sentWelcomeCache.delete(cacheKey);
+  }, 5 * 60 * 1000);
+
   console.log(`
 ╔════════════════════════════════════════════════════════════╗
 ║           👮 MODERADOR: MENSAJE DE BIENVENIDA              ║
@@ -46,5 +64,7 @@ Soy el moderador automático de esta sala. Aquí algunas reglas rápidas:
     console.log(`✅ [MODERATOR] Bienvenida enviada a ${username}`);
   } catch (error) {
     console.error(`❌ [MODERATOR] Error enviando bienvenida:`, error);
+    // Si falla, remover del cache para permitir reintento
+    sentWelcomeCache.delete(cacheKey);
   }
 };

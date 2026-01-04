@@ -26,6 +26,8 @@ import SpainLandingPage from '@/pages/SpainLandingPage';
 import BrazilLandingPage from '@/pages/BrazilLandingPage';
 import MexicoLandingPage from '@/pages/MexicoLandingPage';
 import ArgentinaLandingPage from '@/pages/ArgentinaLandingPage';
+import TestLandingPage from '@/pages/TestLandingPage';
+import TestModalPage from '@/pages/TestModalPage';
 import { ThemeProvider } from '@/contexts/ThemeContext';
 import PWASplashScreen from '@/components/pwa/PWASplashScreen';
 import ErrorBoundary from '@/components/ui/ErrorBoundary';
@@ -80,6 +82,11 @@ function MainLayout({ children }) {
 
 // ✅ Componente de rutas que está dentro del AuthProvider
 function AppRoutes() {
+  // 🔍 Debug: Log de la ruta actual
+  React.useEffect(() => {
+    console.log('🛣️ [APP ROUTES] Ruta actual:', window.location.pathname);
+  }, []);
+
   return (
     <Router
       future={{
@@ -88,17 +95,55 @@ function AppRoutes() {
       }}
     >
       <Routes>
-        {/* 🌍 LANDING PAGES INTERNACIONALES - Con MainLayout para Header/Footer/Estilos */}
-        <Route path="/es" element={<LandingRoute redirectTo="/home"><MainLayout><SpainLandingPage /></MainLayout></LandingRoute>} />
-        <Route path="/mx" element={<LandingRoute redirectTo="/home"><MainLayout><MexicoLandingPage /></MainLayout></LandingRoute>} />
-        <Route path="/ar" element={<LandingRoute redirectTo="/home"><MainLayout><ArgentinaLandingPage /></MainLayout></LandingRoute>} />
-        <Route path="/br" element={<LandingRoute redirectTo="/home"><MainLayout><BrazilLandingPage /></MainLayout></LandingRoute>} />
+        {/* 🧪 PÁGINA DE PRUEBA - SIN wrappers (funciona correctamente) */}
+        <Route path="/test" element={<TestLandingPage />} />
+        {/* 🧪 MODAL DE PRUEBA - Solo modal de nickname */}
+        <Route path="/test-modal" element={<TestModalPage />} />
         
-        {/* Redirecciones con trailing slash */}
-        <Route path="/es/" element={<Navigate to="/es" replace />} />
-        <Route path="/mx/" element={<Navigate to="/mx" replace />} />
-        <Route path="/ar/" element={<Navigate to="/ar" replace />} />
-        <Route path="/br/" element={<Navigate to="/br" replace />} />
+        {/* 🌍 LANDING PAGES INTERNACIONALES - RUTAS FUNCIONALES (Modal simple con SEO completo) */}
+        {/* ✅ Estas rutas funcionan correctamente y están listas para producción */}
+        <Route path="/modal-arg" element={<ArgentinaLandingPage />} />
+        <Route path="/modal-br" element={<BrazilLandingPage />} />
+        <Route path="/modal-mx" element={<MexicoLandingPage />} />
+        <Route path="/modal-es" element={<SpainLandingPage />} />
+
+        {/* 🔄 REDIRECCIONES: Rutas antiguas redirigen a las nuevas funcionales */}
+        {/* Esto mantiene compatibilidad con URLs antiguas y SEO existente */}
+        <Route path="/argentina" element={<Navigate to="/modal-arg" replace />} />
+        <Route path="/ar" element={<Navigate to="/modal-arg" replace />} />
+        <Route path="/brasil" element={<Navigate to="/modal-br" replace />} />
+        <Route path="/br" element={<Navigate to="/modal-br" replace />} />
+        <Route path="/mexico" element={<Navigate to="/modal-mx" replace />} />
+        <Route path="/mx" element={<Navigate to="/modal-mx" replace />} />
+        <Route path="/españa" element={<Navigate to="/modal-es" replace />} />
+        <Route path="/es" element={<Navigate to="/modal-es" replace />} />
+        <Route path="/es-test" element={<Navigate to="/modal-es" replace />} />
+        
+        {/* Redirecciones con trailing slash - Redirigen a las nuevas rutas funcionales */}
+        <Route path="/es/" element={<Navigate to="/modal-es" replace />} />
+        <Route path="/mx/" element={<Navigate to="/modal-mx" replace />} />
+        <Route path="/ar/" element={<Navigate to="/modal-arg" replace />} />
+        <Route path="/br/" element={<Navigate to="/modal-br" replace />} />
+        <Route path="/argentina/" element={<Navigate to="/modal-arg" replace />} />
+        <Route path="/brasil/" element={<Navigate to="/modal-br" replace />} />
+        <Route path="/mexico/" element={<Navigate to="/modal-mx" replace />} />
+        <Route path="/españa/" element={<Navigate to="/modal-es" replace />} />
+
+        {/* ⚠️ RUTAS ANTIGUAS COMENTADAS - NO ESTÁN EN USO HASTA QUE SE REPAREN */}
+        {/* 
+        ❌ NO FUNCIONAL - Comentado hasta reparar
+        Estas rutas causaban problemas de renderizado (pantalla blanca).
+        Se mantienen comentadas para referencia futura.
+        Las rutas antiguas ahora redirigen automáticamente a las nuevas funcionales.
+        
+        <Route path="/es" element={<SpainLandingPage />} />
+        <Route path="/mx" element={<MexicoLandingPage />} />
+        <Route path="/ar" element={<ArgentinaLandingPage />} />
+        <Route path="/br" element={<BrazilLandingPage />} />
+        <Route path="/argentina" element={<ArgentinaLandingPage />} />
+        <Route path="/brasil" element={<BrazilLandingPage />} />
+        <Route path="/es-test" element={<SpainLandingPage />} />
+        */}
 
         {/* ✅ ARQUITECTURA: Landing solo para usuarios no logueados */}
         <Route path="/landing" element={<LandingRoute redirectTo="/home"><MainLayout><GlobalLandingPage /></MainLayout></LandingRoute>} />
