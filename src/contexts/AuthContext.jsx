@@ -723,6 +723,106 @@ export const AuthProvider = ({ children }) => {
     }
   };
 
+  /**
+   * 🎭 Cambiar a identidad genérica (para admins)
+   * Guarda la identidad original y cambia a un nombre/avatar genérico
+   */
+  const switchToGenericIdentity = () => {
+    if (!user) return false;
+
+    try {
+      // Guardar identidad original si no existe
+      const savedOriginal = localStorage.getItem('admin_original_identity');
+      if (!savedOriginal) {
+        localStorage.setItem('admin_original_identity', JSON.stringify({
+          id: user.id,
+          username: user.username,
+          avatar: user.avatar,
+          isPremium: user.isPremium,
+          verified: user.verified,
+          isAdmin: user.isAdmin,
+          email: user.email,
+          timestamp: Date.now(),
+        }));
+      }
+
+      // Generar nombre genérico con número aleatorio
+      const randomNum = Math.floor(Math.random() * 9000) + 1000; // 1000-9999
+      const genericUsername = `Usuario${randomNum}`;
+      const genericAvatar = 'https://api.dicebear.com/7.x/pixel-art/svg?seed=generic' + randomNum;
+
+      // Aplicar identidad genérica
+      setUser({
+        ...user,
+        username: genericUsername,
+        avatar: genericAvatar,
+        _isUsingGenericIdentity: true, // Flag interno
+      });
+
+      // Guardar en localStorage para persistencia
+      localStorage.setItem('admin_generic_identity', JSON.stringify({
+        username: genericUsername,
+        avatar: genericAvatar,
+        timestamp: Date.now(),
+      }));
+
+      console.log(`[ADMIN IDENTITY] 🎭 Cambiado a identidad genérica: ${genericUsername}`);
+
+      toast({
+        title: "🎭 Identidad Cambiada",
+        description: `Ahora apareces como "${genericUsername}" en el chat`,
+        duration: 4000,
+      });
+
+      return true;
+    } catch (error) {
+      console.error('[ADMIN IDENTITY] Error cambiando identidad:', error);
+      return false;
+    }
+  };
+
+  /**
+   * 🛡️ Restaurar identidad original del admin
+   */
+  const restoreAdminIdentity = () => {
+    if (!user) return false;
+
+    try {
+      const savedOriginal = localStorage.getItem('admin_original_identity');
+      if (!savedOriginal) {
+        console.warn('[ADMIN IDENTITY] No hay identidad original guardada');
+        return false;
+      }
+
+      const originalData = JSON.parse(savedOriginal);
+
+      // Restaurar identidad original
+      setUser({
+        ...user,
+        username: originalData.username,
+        avatar: originalData.avatar,
+        _isUsingGenericIdentity: false,
+      });
+
+      // Limpiar localStorage
+      localStorage.removeItem('admin_generic_identity');
+      localStorage.removeItem('admin_original_identity');
+
+      console.log(`[ADMIN IDENTITY] 🛡️ Restaurado a identidad admin: ${originalData.username}`);
+
+      toast({
+        title: "🛡️ Identidad Restaurada",
+        description: `Has vuelto a ser "${originalData.username}"`,
+        duration: 4000,
+      });
+
+      return true;
+    } catch (error) {
+      console.error('[ADMIN IDENTITY] Error restaurando identidad:', error);
+      return false;
+    }
+  };
+
   const value = useMemo(() => ({
     user,
     loading,
@@ -740,6 +840,8 @@ export const AuthProvider = ({ children }) => {
     addQuickPhrase,
     removeQuickPhrase,
     updateAnonymousUserProfile,
+    switchToGenericIdentity,
+    restoreAdminIdentity,
   }), [user, loading, guestMessageCount, showWelcomeTour]);
 
   return (

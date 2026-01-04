@@ -5,7 +5,7 @@ import {
   Shield, AlertTriangle, Users, MessageSquare, TrendingUp, ArrowLeft,
   CheckCircle, XCircle, Clock, Eye, UserPlus, LogIn, BarChart3,
   Ticket, Activity, FileText, Search, Filter, Ban, VolumeX, Bell, Send, Megaphone,
-  Gift, Award, Star, Crown, Trophy, Zap, Download
+  Gift, Award, Star, Crown, Trophy, Zap, Download, User
 } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
 import { Button } from '@/components/ui/button';
@@ -56,6 +56,7 @@ import SanctionsFAQ from '@/components/sanctions/SanctionsFAQ';
 import AdminChatWindow from '@/components/admin/AdminChatWindow';
 import ReportStatusDropdown from '@/components/admin/ReportStatusDropdown';
 import RewardUserModal from '@/components/rewards/RewardUserModal';
+import RestoreIdentityButton from '@/components/admin/RestoreIdentityButton';
 import { searchUsers, getUserById } from '@/services/userService';
 import {
   subscribeToRewards,
@@ -78,7 +79,7 @@ import {
 
 const AdminPage = () => {
   const navigate = useNavigate();
-  const { user } = useAuth();
+  const { user, switchToGenericIdentity } = useAuth();
   const [reports, setReports] = useState([]);
   const [tickets, setTickets] = useState([]);
   const [sanctions, setSanctions] = useState([]);
@@ -881,12 +882,26 @@ const AdminPage = () => {
           </div>
 
           <div className="flex items-center gap-3">
+            {/* Botón: Cambiar a Identidad Genérica */}
+            {!user?._isUsingGenericIdentity && (
+              <Button
+                onClick={switchToGenericIdentity}
+                className="bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-700 hover:to-pink-700 text-white font-semibold"
+              >
+                <User className="w-4 h-4 mr-2" />
+                Cambiar a Usuario Genérico
+              </Button>
+            )}
+
             <div className="glass-effect px-4 py-2 rounded-full border border-purple-500/30">
               <Shield className="w-5 h-5 text-purple-400 inline mr-2" />
               <span className="text-sm font-semibold">Administrador</span>
             </div>
           </div>
         </div>
+
+        {/* Botón Flotante para Restaurar Identidad */}
+        <RestoreIdentityButton />
 
         {/* Título */}
         <motion.div

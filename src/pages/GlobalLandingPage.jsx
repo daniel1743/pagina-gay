@@ -7,6 +7,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import { useCanonical } from '@/hooks/useCanonical';
 import ChatDemo from '@/components/landing/ChatDemo';
 import { GuestUsernameModal } from '@/components/auth/GuestUsernameModal';
+import LandingCaptureToast from '@/components/landing/LandingCaptureToast';
 // ⚠️ MODAL COMENTADO - Usamos entrada directa como invitado (sin opciones)
 // import { EntryOptionsModal } from '@/components/auth/EntryOptionsModal';
 
@@ -903,6 +904,11 @@ const GlobalLandingPage = () => {
         chatRoomId="principal"
         onContinueWithoutRegister={handleContinueWithoutRegister}
       /> */}
+
+      {/* Toast de Captación Estratégico */}
+      <LandingCaptureToast
+        onEnterClick={handleChatearAhora}
+      />
 
       {/* Guest Username Modal (Sin Registro) */}
       <GuestUsernameModal
