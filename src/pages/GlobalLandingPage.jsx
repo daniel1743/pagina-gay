@@ -90,11 +90,11 @@ const InlineGuestEntry = ({ chatRoomId = 'principal' }) => {
         </div>
 
         <form onSubmit={handleSubmit} className="w-full">
-          <div className="flex flex-col sm:flex-row gap-3 sm:gap-4 items-end">
-            <div className="flex-1 w-full">
-              <label className="block text-sm font-semibold text-gray-300 mb-2 text-left">
-                Tu Nickname:
-              </label>
+          <div>
+            <label className="block text-sm font-semibold text-gray-300 mb-2 text-left">
+              Tu Nickname:
+            </label>
+            <div className="flex items-center gap-3">
               <input
                 type="text"
                 value={nickname}
@@ -104,29 +104,28 @@ const InlineGuestEntry = ({ chatRoomId = 'principal' }) => {
                 required
                 autoFocus
                 disabled={isLoading}
-                className="w-full px-4 py-3 sm:py-4 text-base sm:text-lg border-2 border-purple-500/50 rounded-xl outline-none focus:border-purple-500 focus:ring-2 focus:ring-purple-500/30 bg-white/95 text-gray-900 font-medium transition-all"
+                className="flex-1 px-4 py-3 sm:py-4 text-base sm:text-lg border-2 border-purple-500/50 rounded-xl outline-none focus:border-purple-500 focus:ring-2 focus:ring-purple-500/30 bg-white/95 text-gray-900 font-medium transition-all h-12 sm:h-14"
                 style={{ color: '#333' }}
               />
-              <p className="text-xs text-gray-400 mt-2 text-left">
-                ✨ Avatar asignado automáticamente
-              </p>
+              <button
+                type="submit"
+                disabled={isLoading || !nickname.trim()}
+                className="px-8 sm:px-10 py-3 sm:py-4 text-base sm:text-lg font-bold text-white rounded-xl transition-all disabled:opacity-50 disabled:cursor-not-allowed hover:scale-105 shadow-lg whitespace-nowrap h-12 sm:h-14 flex items-center justify-center"
+                style={{
+                  background: isLoading || !nickname.trim()
+                    ? 'linear-gradient(135deg, #999 0%, #888 100%)'
+                    : 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+                  boxShadow: isLoading || !nickname.trim()
+                    ? '0 4px 15px rgba(0,0,0,0.2)'
+                    : '0 6px 20px rgba(102, 126, 234, 0.4)',
+                }}
+              >
+                {isLoading ? '⏳ Entrando...' : '🚀 Ir al Chat'}
+              </button>
             </div>
-            
-            <button
-              type="submit"
-              disabled={isLoading || !nickname.trim()}
-              className="w-full sm:w-auto px-8 sm:px-10 py-3 sm:py-4 text-base sm:text-lg font-bold text-white rounded-xl transition-all disabled:opacity-50 disabled:cursor-not-allowed hover:scale-105 shadow-lg"
-              style={{
-                background: isLoading || !nickname.trim()
-                  ? 'linear-gradient(135deg, #999 0%, #888 100%)'
-                  : 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
-                boxShadow: isLoading || !nickname.trim()
-                  ? '0 4px 15px rgba(0,0,0,0.2)'
-                  : '0 6px 20px rgba(102, 126, 234, 0.4)',
-              }}
-            >
-              {isLoading ? '⏳ Entrando...' : '🚀 Ir al Chat'}
-            </button>
+            <p className="text-xs text-gray-400 mt-2 text-left">
+              ✨ Avatar asignado automáticamente
+            </p>
           </div>
 
           {error && (
