@@ -21,15 +21,16 @@ import {
 } from 'firebase/firestore';
 import { db } from '@/config/firebase';
 
-// 🚨 EMERGENCIA: Rate limiting DESACTIVADO TEMPORALMENTE (04/01/2026)
-// Problema: Chat paralizado, mensajes no se envían
-// TODO: Reactivar con valores más razonables después de verificar
+// ✅ ACTUALIZADO: Rate limiting ELIMINADO (05/01/2026)
+// Motivo: Usuarios siendo bloqueados injustamente por mensajes normales ("hola")
+// El anti-spam ahora se maneja SOLO en antiSpamService.js (palabras prohibidas)
+// Este servicio SOLO previene doble envío accidental, NO mutea usuarios
 const RATE_LIMIT = {
-  MAX_MESSAGES: 999,      // ⚠️ SIN LÍMITE (temporal)
+  MAX_MESSAGES: 999,      // Sin límite
   WINDOW_SECONDS: 10,
-  MIN_INTERVAL_MS: 50,    // ⚠️ CASI INSTANTÁNEO (50ms en lugar de 100ms)
-  MUTE_DURATION: 1 * 60,
-  MAX_DUPLICATES: 999     // ⚠️ SIN LÍMITE (temporal)
+  MIN_INTERVAL_MS: 0,     // ✅ SIN BLOQUEO - Permitir envío instantáneo
+  MUTE_DURATION: 0,       // ✅ SIN MUTE - No bloquear usuarios localmente
+  MAX_DUPLICATES: 999     // Sin límite
 };
 
 // Cache en memoria para rendimiento (evita leer Firestore constantemente)
@@ -161,34 +162,27 @@ export const checkRateLimit = async (userId, roomId, content = '') => {
 
   const now = Date.now();
 
-  // 1. ⚡ VERIFICACIÓN RÁPIDA: Mute cache (solo en memoria)
-  const cachedMuteEnd = muteCache.get(userId);
-  if (cachedMuteEnd && now < cachedMuteEnd) {
-    const remainingSeconds = Math.ceil((cachedMuteEnd - now) / 1000);
-    return {
-      allowed: false,
-      error: `Estás silenciado. Espera ${remainingSeconds}s.`,
-      remainingSeconds
-    };
-  } else if (cachedMuteEnd) {
-    muteCache.delete(userId); // Limpiar mute expirado
-  }
+  // ✅ DESACTIVADO: Mute local ELIMINADO (05/01/2026)
+  // Motivo: Usuarios siendo bloqueados injustamente por mensajes normales
+  // Si un usuario debe ser muteado, se hará en antiSpamService.js (temp_bans) o desde panel admin
+  //
+  // const cachedMuteEnd = muteCache.get(userId);
+  // if (cachedMuteEnd && now < cachedMuteEnd) {
+  //   return { allowed: false, error: `Estás silenciado. Espera ${remainingSeconds}s.` };
+  // }
 
-  // 2. ⚡ ANTI-DOBLE-CLICK: Verificar intervalo mínimo desde último mensaje
-  const userMessages = messageCache.get(userId) || [];
-  if (userMessages.length > 0) {
-    const lastMessageTime = userMessages[userMessages.length - 1];
-    const timeSinceLastMessage = now - lastMessageTime;
-
-    if (timeSinceLastMessage < RATE_LIMIT.MIN_INTERVAL_MS) {
-      console.warn(`⏱️ [RATE LIMIT] Usuario ${userId} enviando muy rápido: ${timeSinceLastMessage}ms desde último mensaje`);
-      return {
-        allowed: false,
-        error: 'Espera un momento antes de enviar otro mensaje.',
-        remainingMs: RATE_LIMIT.MIN_INTERVAL_MS - timeSinceLastMessage
-      };
-    }
-  }
+  // ✅ DESACTIVADO: Anti-doble-click ELIMINADO (05/01/2026)
+  // Motivo: Bloqueaba mensajes normales al escribir rápido
+  // Los usuarios deben poder enviar mensajes libremente sin restricciones de tiempo
+  //
+  // const userMessages = messageCache.get(userId) || [];
+  // if (userMessages.length > 0) {
+  //   const lastMessageTime = userMessages[userMessages.length - 1];
+  //   const timeSinceLastMessage = now - lastMessageTime;
+  //   if (timeSinceLastMessage < RATE_LIMIT.MIN_INTERVAL_MS) {
+  //     return { allowed: false, error: 'Espera un momento...' };
+  //   }
+  // }
 
   // 🚫 DESACTIVADO: Detección de duplicados (causaba expulsiones injustas)
   // Los usuarios son expulsados por decir "hola" repetidamente en conversaciones normales

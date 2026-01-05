@@ -336,6 +336,9 @@ export const AuthProvider = ({ children }) => {
         case 'auth/wrong-password':
           errorMessage = "Contraseña incorrecta";
           break;
+        case 'auth/invalid-credential':
+          errorMessage = "Email o contraseña incorrectos. Verifica tus datos e intenta nuevamente";
+          break;
         case 'auth/invalid-email':
           errorMessage = "Email inválido";
           break;

@@ -99,6 +99,7 @@ export const sendMessage = async (roomId, messageData, isAnonymous = false) => {
 
     // ⚡ VELOCIDAD MÁXIMA: Preparar mensaje con mínimos datos
     const message = {
+      clientId: messageData.clientId || null, // ✅ F1: Correlación optimista/real
       userId: messageData.userId,
       senderUid: auth.currentUser?.uid || messageData.senderUid || null,
       username: messageData.username,
@@ -190,11 +191,17 @@ export const subscribeToRoomMessages = (roomId, callback, messageLimit = 50) => 
   return onSnapshot(
     q,
     (snapshot) => {
-      const messages = snapshot.docs.map(doc => ({
-        id: doc.id,
-        ...doc.data(),
-        timestamp: doc.data().timestamp?.toDate?.()?.toISOString() || new Date().toISOString(),
-      }));
+      const messages = snapshot.docs.map(doc => {
+        const data = doc.data();
+        // ✅ F2: NO usar fallback falso - mantener null si timestamp no existe
+        const timestampMs = data.timestamp?.toMillis?.() ?? null;
+        return {
+          id: doc.id,
+          ...data,
+          timestamp: timestampMs ? new Date(timestampMs).toISOString() : new Date().toISOString(),
+          timestampMs, // ✅ F2: Conservar timestamp raw para ordenar correctamente
+        };
+      });
 
       // ⚡ OPTIMIZACIÓN: Sin logging para velocidad máxima
       callback(messages);

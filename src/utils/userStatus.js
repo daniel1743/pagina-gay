@@ -1,30 +1,57 @@
 /**
  * Utilidad para determinar el estado de conexión de un usuario
- * Basado en lastSeen timestamp
  * 
- * @param {object} user - Usuario con lastSeen
+ * REGLAS DE COLORES:
+ * 1) VERDE: si está conectado (online)
+ * 2) NARANJA: si está desconectado hace MENOS de 2 minutos (≤ 120 segundos)
+ * 3) ROJO: si está desconectado hace MÁS de 2 minutos (> 120 segundos)
+ * 
+ * PRIORIDAD: Si existe isOnline/online === true, siempre VERDE (independiente de timestamp)
+ * 
+ * @param {object} user - Usuario con lastSeen, isOnline, online, lastActiveAt, etc.
  * @returns {string} 'online' | 'recently_offline' | 'offline'
  */
 export const getUserConnectionStatus = (user) => {
-  if (!user || !user.lastSeen) {
+  if (!user) {
     return 'offline'; // Sin datos = offline
   }
 
-  const now = Date.now();
-  const lastSeen = user.lastSeen?.toMillis?.() || user.lastSeen;
-  const timeSinceLastSeen = now - lastSeen;
-
-  // Verde: Conectado (últimos 2 minutos)
-  if (timeSinceLastSeen <= 2 * 60 * 1000) {
+  // ✅ PRIORIDAD OBLIGATORIA: Si el usuario tiene flag online/isOnline === true, siempre VERDE
+  if (user.isOnline === true || user.online === true) {
     return 'online';
   }
 
-  // Naranja: Recién desconectado (2-10 minutos)
-  if (timeSinceLastSeen <= 10 * 60 * 1000) {
+  // Si no hay flag online, usar timestamps para determinar estado
+  // Buscar lastActiveAt, lastSeenAt, updatedAt, o lastSeen (en ese orden de preferencia)
+  const lastActiveAt = user.lastActiveAt?.toMillis?.() || 
+                       user.lastActiveAt || 
+                       user.lastSeenAt?.toMillis?.() || 
+                       user.lastSeenAt ||
+                       user.updatedAt?.toMillis?.() ||
+                       user.updatedAt ||
+                       user.lastSeen?.toMillis?.() || 
+                       user.lastSeen;
+
+  // Si no hay timestamp, considerar offline
+  if (!lastActiveAt) {
+    return 'offline';
+  }
+
+  const now = Date.now();
+  const deltaSeconds = (now - lastActiveAt) / 1000;
+
+  // ✅ VERDE: Solo si está realmente online (últimos 30 segundos como heurística)
+  // NOTA: Esto solo se usa si NO hay flag isOnline/online
+  if (deltaSeconds <= 30) {
+    return 'online';
+  }
+
+  // ✅ NARANJA: Desconectado hace ≤ 2 minutos (120 segundos) pero > 30 segundos
+  if (deltaSeconds <= 120) {
     return 'recently_offline';
   }
 
-  // Rojo: Desconectado hace tiempo (>10 minutos)
+  // ✅ ROJO: Desconectado hace > 2 minutos
   return 'offline';
 };
 

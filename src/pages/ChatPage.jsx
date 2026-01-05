@@ -586,12 +586,21 @@ const ChatPage = () => {
       setMessages(prevMessages => {
         const optimisticMessages = prevMessages.filter(m => m._optimistic);
         const mergedMessages = [...newMessages];
-        
-        // ✅ DEDUPLICACIÓN MEJORADA: Eliminar mensajes optimistas cuando llega el mensaje real
+
+        // ✅ F1: DEDUPLICACIÓN POR clientId (correlación optimista/real)
         if (optimisticMessages.length > 0) {
-          // Para cada mensaje optimista, verificar si ya llegó el mensaje real
+          // Construir Set de clientIds presentes en mensajes reales
+          const realClientIds = new Set(
+            newMessages.map(m => m.clientId).filter(Boolean)
+          );
+
+          // Filtrar optimistas: solo mantener los que NO tienen clientId en mensajes reales
           const remainingOptimistic = optimisticMessages.filter(optMsg => {
-            // ⚡ OPTIMIZACIÓN: Solo verificar por _realId (más rápido)
+            // Si el optimista tiene clientId y ya existe en reales, eliminarlo
+            if (optMsg.clientId && realClientIds.has(optMsg.clientId)) {
+              return false; // Eliminar este optimista (ya llegó el real)
+            }
+            // Fallback: verificar por _realId (compatibilidad)
             if (optMsg._realId) {
               const foundById = newMessages.find(realMsg => realMsg.id === optMsg._realId);
               if (foundById) {
@@ -600,7 +609,7 @@ const ChatPage = () => {
             }
             return true; // Mantener este optimista
           });
-          
+
           // Solo agregar optimistas que no tienen match
           if (remainingOptimistic.length > 0) {
             mergedMessages.push(...remainingOptimistic);
@@ -764,7 +773,7 @@ const ChatPage = () => {
         }
       });
     };
-  }, [roomId, user]); // ⚡ CRÍTICO: Remover isAgeVerified - la suscripción debe ejecutarse INMEDIATAMENTE
+  }, [roomId, user?.id]); // ✅ F3: user?.id en vez de user (evita re-suscripciones por cambio de referencia)
 
   // 💓 Heartbeat: Actualizar presencia cada 10 segundos + Limpiar inactivos cada 30s
   useEffect(() => {
@@ -1099,8 +1108,10 @@ const ChatPage = () => {
 
     // 🚀 OPTIMISTIC UI: Mostrar mensaje instantáneamente (como WhatsApp/Telegram)
     const optimisticId = `temp_${Date.now()}_${Math.random()}`;
+    const clientId = `client_${Date.now()}_${Math.random()}`; // ✅ F1: Correlación optimista/real
     const optimisticMessage = {
       id: optimisticId,
+      clientId, // ✅ F1: ID estable para correlación
       userId: user.id,
       username: user.username,
       avatar: user.avatar,
@@ -1138,6 +1149,7 @@ const ChatPage = () => {
     sendMessage(
       currentRoom,
       {
+        clientId, // ✅ F1: Pasar clientId para correlación
         userId: auth.currentUser.uid, // ✅ SIEMPRE usar auth.currentUser.uid (ya validado)
         username: user.username,
         avatar: user.avatar,

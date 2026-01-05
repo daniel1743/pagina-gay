@@ -2,12 +2,11 @@ import { collection, addDoc, serverTimestamp, query, where, orderBy, onSnapshot,
 import { db } from '@/config/firebase';
 import { auth } from '@/config/firebase';
 
-// ✅ Verificar si la API key está disponible antes de configurar
+// ✅ DESACTIVADO (05/01/2026): OpenAI NO puede llamarse desde frontend
+// Motivo: CORS bloqueado + API key expuesta = riesgo de seguridad
+// La moderación ahora se hace solo en antiSpamService.js (palabras prohibidas)
 const OPENAI_API_KEY = import.meta.env.VITE_OPENAI_API_KEY;
-const isOpenAIAvailable = OPENAI_API_KEY && 
-                          OPENAI_API_KEY !== 'TU_API_KEY_AQUI' && 
-                          !OPENAI_API_KEY.startsWith('#') &&
-                          OPENAI_API_KEY.trim() !== '';
+const isOpenAIAvailable = false; // ← FORZADO A FALSE
 
 const PROVIDERS = {
   openai: {

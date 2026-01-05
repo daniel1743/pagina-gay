@@ -10,15 +10,14 @@
 
 import OpenAI from 'openai';
 
-// ✅ Verificar si la API key está disponible antes de crear la instancia
+// ✅ DESACTIVADO (05/01/2026): OpenAI NO puede llamarse desde frontend
+// Motivo: CORS bloqueado + API key expuesta = riesgo de seguridad
+// TODO: Mover a Cloud Functions cuando se reactive
 const OPENAI_API_KEY = import.meta.env.VITE_OPENAI_API_KEY;
-const isOpenAIAvailable = OPENAI_API_KEY && OPENAI_API_KEY !== 'TU_API_KEY_AQUI' && !OPENAI_API_KEY.startsWith('#');
+const isOpenAIAvailable = false; // ← FORZADO A FALSE
 
-// Solo crear instancia si la API key está disponible
-const openai = isOpenAIAvailable ? new OpenAI({
-  apiKey: OPENAI_API_KEY,
-  dangerouslyAllowBrowser: true
-}) : null;
+// ❌ DESACTIVADO: No crear instancia de OpenAI desde frontend
+const openai = null;
 
 /**
  * Prompts del sistema según escenario
