@@ -33,7 +33,7 @@ import PrivateChatWindow from '@/components/chat/PrivateChatWindow';
 import { RegistrationRequiredModal } from '@/components/auth/RegistrationRequiredModal';
 import { sendMessage, subscribeToRoomMessages, addReactionToMessage, markMessagesAsRead, generateUUID } from '@/services/chatService';
 import { joinRoom, leaveRoom, subscribeToRoomUsers, subscribeToMultipleRoomCounts, updateUserActivity, cleanInactiveUsers, filterActiveUsers, subscribeToTypingUsers } from '@/services/presenceService';
-import { validateMessage, clearUserHistory } from '@/services/antiSpamService';
+import { validateMessage } from '@/services/antiSpamService';
 import { auth } from '@/config/firebase'; // ✅ CRÍTICO: Necesario para obtener UID real de Firebase Auth
 import { sendPrivateChatRequest, respondToPrivateChatRequest, subscribeToNotifications, markNotificationAsRead } from '@/services/socialService';
 import { sendModeratorWelcome } from '@/services/moderatorWelcome';
@@ -1120,6 +1120,7 @@ const ChatPage = () => {
     // 🚀 OPTIMISTIC UI: Mostrar mensaje instantáneamente (como WhatsApp/Telegram)
     const optimisticId = `temp_${Date.now()}_${Math.random()}`;
     const clientId = generateUUID(); // ✅ UUID real para correlación optimista/real (evitar colisiones)
+    const nowMs = Date.now();
     const optimisticMessage = {
       id: optimisticId,
       clientId, // ✅ F1: ID estable para correlación
@@ -1130,6 +1131,7 @@ const ChatPage = () => {
       content,
       type,
       timestamp: new Date().toISOString(),
+      timestampMs: nowMs, // ✅ CRÍTICO: timestampMs para ordenamiento correcto (sin esto aparecen arriba)
       replyTo: replyData,
       _optimistic: true, // Marca para saber que es temporal
       _sending: true, // Marca de "enviando"

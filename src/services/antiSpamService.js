@@ -174,8 +174,13 @@ export async function checkTempBan(userId) {
 
 /**
  * 🛡️ VALIDAR MENSAJE (FUNCIÓN PRINCIPAL)
+ * ⚠️ TEMPORALMENTE DESHABILITADO - Siempre permite mensajes
  */
 export async function validateMessage(message, userId, username, roomId) {
+  // ⚠️ ANTI-SPAM DESHABILITADO TEMPORALMENTE
+  return { allowed: true };
+
+  /* COMENTADO TEMPORALMENTE
   try {
     // FAIL-SAFE: Mensajes vacíos no se procesan, pero no se bloquean
     if (!message || !message.trim()) return { allowed: true };
@@ -234,6 +239,7 @@ export async function validateMessage(message, userId, username, roomId) {
     // Es mejor permitir un spam que bloquear a todos los usuarios.
     return { allowed: true };
   }
+  */
 }
 
 /**

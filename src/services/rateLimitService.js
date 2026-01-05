@@ -184,6 +184,7 @@ export const unmuteUser = async (userId) => {
 /**
  * 🚀 Verifica rate limit ULTRA RÁPIDO usando SOLO cache en memoria
  * NO consulta Firestore = instantáneo como WhatsApp
+ * ⚠️ TEMPORALMENTE DESHABILITADO - Siempre permite mensajes
  *
  * @param {string} userId - ID del usuario
  * @param {string} roomId - ID de la sala (no usado, solo por compatibilidad)
@@ -191,58 +192,7 @@ export const unmuteUser = async (userId) => {
  * @returns {object} { allowed: boolean, error?: string }
  */
 export const checkRateLimit = async (userId, roomId, content = '') => {
-  if (!userId) {
-    return { allowed: false, error: 'Usuario no identificado' };
-  }
-
-  const now = Date.now();
-
-  // ✅ DESACTIVADO: Mute local ELIMINADO (05/01/2026)
-  // Motivo: Usuarios siendo bloqueados injustamente por mensajes normales
-  // Si un usuario debe ser muteado, se hará en antiSpamService.js (temp_bans) o desde panel admin
-  //
-  // const cachedMuteEnd = muteCache.get(userId);
-  // if (cachedMuteEnd && now < cachedMuteEnd) {
-  //   return { allowed: false, error: `Estás silenciado. Espera ${remainingSeconds}s.` };
-  // }
-
-  // ✅ DESACTIVADO: Anti-doble-click ELIMINADO (05/01/2026)
-  // Motivo: Bloqueaba mensajes normales al escribir rápido
-  // Los usuarios deben poder enviar mensajes libremente sin restricciones de tiempo
-  //
-  // const userMessages = messageCache.get(userId) || [];
-  // if (userMessages.length > 0) {
-  //   const lastMessageTime = userMessages[userMessages.length - 1];
-  //   const timeSinceLastMessage = now - lastMessageTime;
-  //   if (timeSinceLastMessage < RATE_LIMIT.MIN_INTERVAL_MS) {
-  //     return { allowed: false, error: 'Espera un momento...' };
-  //   }
-  // }
-
-  // 🚫 DESACTIVADO: Detección de duplicados (causaba expulsiones injustas)
-  // Los usuarios son expulsados por decir "hola" repetidamente en conversaciones normales
-  //
-  // const recentContents = contentCache.get(userId) || [];
-  // const normalizedContent = content ? content.trim().toLowerCase() : '';
-  // if (normalizedContent && recentContents.length > 0) {
-  //   const duplicateCount = recentContents.filter(c => c === normalizedContent).length;
-  //   if (duplicateCount >= RATE_LIMIT.MAX_DUPLICATES) {
-  //     await muteUser(userId, RATE_LIMIT.MUTE_DURATION);
-  //     return { allowed: false, error: '...' };
-  //   }
-  // }
-
-  // 🚫 DESACTIVADO: Rate limiting por volumen (causaba expulsiones injustas)
-  // Los valores de 999 mensajes aún pueden causar problemas en casos extremos
-  //
-  // const windowStart = now - (RATE_LIMIT.WINDOW_SECONDS * 1000);
-  // const recentMessages = userMessages.filter(ts => ts > windowStart);
-  // if (recentMessages.length >= RATE_LIMIT.MAX_MESSAGES) {
-  //   await muteUser(userId, RATE_LIMIT.MUTE_DURATION);
-  //   return { allowed: false, error: '...' };
-  // }
-
-  // ✅ PERMITIR - Sin consultas a Firestore = INSTANTÁNEO
+  // ⚠️ RATE LIMITING DESHABILITADO TEMPORALMENTE
   return { allowed: true };
 };
 

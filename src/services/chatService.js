@@ -14,7 +14,6 @@ import {
   getDocs,
   where,
   limit,
-  limitToLast,
 } from 'firebase/firestore';
 import { db, auth } from '@/config/firebase';
 import { trackMessageSent, trackFirstMessage } from '@/services/ga4Service';
@@ -76,13 +75,13 @@ export const sendMessage = async (roomId, messageData, isAnonymous = false) => {
                   messageData.userId === 'system';
     const isRealUser = !isBot;
 
-    // ⚡ RATE LIMITING: Solo para usuarios reales (NO bloquea bots)
-    if (isRealUser) {
-      const rateLimitCheck = await checkRateLimit(messageData.userId, roomId, messageData.content);
-      if (!rateLimitCheck.allowed) {
-        throw new Error(rateLimitCheck.error);
-      }
-    }
+    // ⚡ RATE LIMITING: TEMPORALMENTE DESHABILITADO
+    // if (isRealUser) {
+    //   const rateLimitCheck = await checkRateLimit(messageData.userId, roomId, messageData.content);
+    //   if (!rateLimitCheck.allowed) {
+    //     throw new Error(rateLimitCheck.error);
+    //   }
+    // }
 
     const messagesRef = collection(db, 'rooms', roomId, 'messages');
 
@@ -177,34 +176,31 @@ export const sendMessage = async (roomId, messageData, isAnonymous = false) => {
 };
 
 /**
- * ⚡ Suscripción a mensajes en tiempo real - ULTRA-OPTIMIZADA para velocidad WhatsApp/Telegram
- * Offline persistence funciona automáticamente SIN includeMetadataChanges
+ * ⚡ Suscripción a mensajes en tiempo real - orden estable (nuevo→viejo en query, se invierte en cliente)
  */
-export const subscribeToRoomMessages = (roomId, callback, messageLimit = 50) => {
+export const subscribeToRoomMessages = (roomId, callback, messageLimit = 200) => {
   const messagesRef = collection(db, 'rooms', roomId, 'messages');
-  const q = query(messagesRef, orderBy('timestamp', 'asc'), limitToLast(messageLimit));
+  // Pedimos del más nuevo al más viejo para evitar saltos cuando timestamp llega null
+  const q = query(messagesRef, orderBy('timestamp', 'desc'), limit(messageLimit));
 
-  // ⚡ OPTIMIZACIÓN: Logging mínimo para velocidad máxima
-
-  // ✅ SIMPLE y CONFIABLE - sin includeMetadataChanges (causaba bugs)
-  // ⚡ OPTIMIZADO: onSnapshot se ejecuta inmediatamente y devuelve datos cached si están disponibles
   return onSnapshot(
     q,
     (snapshot) => {
       const messages = snapshot.docs.map(doc => {
         const data = doc.data();
-        // ✅ F2: NO usar fallback falso - mantener null si timestamp no existe
-        const timestampMs = data.timestamp?.toMillis?.() ?? null;
+        // Si timestamp es null (pending local), usar Date.now() para mantener orden al final
+        const timestampMs = data.timestamp?.toMillis?.() ?? Date.now();
         return {
           id: doc.id,
           ...data,
-          timestampMs, // ✅ Fuente de verdad para orden
-          timestamp: data.timestamp ?? null, // ✅ NO inventar ISO falso
+          timestampMs,
+          timestamp: data.timestamp ?? null,
         };
       });
 
-      // ⚡ OPTIMIZACIÓN: Sin logging para velocidad máxima
-      callback(messages);
+      // Firestore devolvió [nuevo..viejo]; invertimos a [viejo..nuevo]
+      const orderedMessages = messages.reverse();
+      callback(orderedMessages);
     },
     (error) => {
       if (error.name !== 'AbortError' && error.code !== 'cancelled') {
@@ -212,13 +208,10 @@ export const subscribeToRoomMessages = (roomId, callback, messageLimit = 50) => 
         callback([]);
       }
     },
-    { includeMetadataChanges: false } // ⚡ CRÍTICO: No incluir cambios de metadata para mejor rendimiento
+    { includeMetadataChanges: false }
   );
 };
 
-/**
- * Añade reacción a un mensaje
- */
 export const addReactionToMessage = async (roomId, messageId, reactionType) => {
   try {
     const messageRef = doc(db, 'rooms', roomId, 'messages', messageId);
@@ -283,3 +276,6 @@ export const createWelcomeMessage = async (roomId, welcomeText) => {
     throw error;
   }
 };
+
+
+

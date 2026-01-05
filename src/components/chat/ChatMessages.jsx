@@ -196,7 +196,6 @@ const ChatMessages = ({ messages, currentUserId, onUserClick, onReport, onPrivat
   
   const getBubbleStyle = () => {
     if(!authUser.isPremium || !authUser.theme?.bubble) return {};
-    // This is a placeholder. A real implementation would have more complex logic.
     switch(authUser.theme.bubble){
         case 'rounded': return { borderRadius: '24px' };
         case 'sharp': return { borderRadius: '4px' };
@@ -261,7 +260,7 @@ const ChatMessages = ({ messages, currentUserId, onUserClick, onReport, onPrivat
         (prevMessage.timestampMs || 
          (prevMessage.timestamp?.toMillis?.() || 
           (typeof prevMessage.timestamp === 'number' ? prevMessage.timestamp : 
-           (prevMessage.timestamp ? new Date(prevMessage.timestamp).getTime() : Date.now())))) : 
+            (prevMessage.timestamp ? new Date(prevMessage.timestamp).getTime() : Date.now())))) : 
         null;
 
       const timeDiff = prevTime ? messageTime - prevTime : Infinity;
@@ -270,10 +269,10 @@ const ChatMessages = ({ messages, currentUserId, onUserClick, onReport, onPrivat
       // 1. Es el mismo userId que el mensaje anterior
       // 2. La diferencia de tiempo es <= 2 minutos (o no hay timestamp confiable)
       const shouldGroup = prevMessage && 
-                         prevMessage.userId === message.userId && 
-                         !prevMessage.isSystem && 
-                         !prevMessage.isModerator &&
-                         timeDiff <= GROUP_TIME_THRESHOLD;
+                          prevMessage.userId === message.userId && 
+                          !prevMessage.isSystem && 
+                          !prevMessage.isModerator &&
+                          timeDiff <= GROUP_TIME_THRESHOLD;
 
       if (shouldGroup && currentGroup) {
         // Agregar al grupo actual
@@ -378,11 +377,12 @@ const ChatMessages = ({ messages, currentUserId, onUserClick, onReport, onPrivat
                 duration: 0.2,
                 ease: 'easeOut'
               }}
-              className={`flex gap-3 ${isOwn ? 'flex-row-reverse' : 'flex-row'} items-start py-2 px-1 hover:bg-gray-50/50 dark:hover:bg-gray-800/30 rounded-lg transition-colors`}
+              // ✅ FIX: order-1 (mensaje) y order-2 (avatar) para que el avatar quede a la derecha
+              className={`flex gap-3 ${isOwn ? 'flex-row justify-end' : 'flex-row'} items-start py-2 px-1 hover:bg-gray-50/50 dark:hover:bg-gray-800/30 rounded-lg transition-colors`}
             >
-              {/* ✅ Avatar: Solo mostrar en el primer grupo del usuario (o si es el primer mensaje del grupo) */}
+              {/* ✅ Avatar: Mostrar siempre, pero en diferente posición según el usuario */}
               <motion.div
-                className="relative w-10 h-10 sm:w-9 sm:h-9 rounded-full flex-shrink-0"
+                className={`relative w-10 h-10 sm:w-9 sm:h-9 rounded-full flex-shrink-0 ${isOwn ? 'order-2' : 'order-1'}`}
                 onClick={() => onUserClick({
                   username: group.username,
                   avatar: group.avatar,
@@ -415,7 +415,7 @@ const ChatMessages = ({ messages, currentUserId, onUserClick, onReport, onPrivat
                   </AvatarFallback>
                 </Avatar>
                 
-                {/* ⚡ PUNTO DE ESTADO: Verde/Naranja/Rojo */}
+                {/* ⚡ PUNTO DE ESTADO: Verde/Naranja/Rojo (solo para otros usuarios) */}
                 {!isOwn && (
                   (() => {
                     const userPresence = safeRoomUsers.find(u => (u.userId || u.id) === group.userId);
@@ -433,7 +433,7 @@ const ChatMessages = ({ messages, currentUserId, onUserClick, onReport, onPrivat
               </motion.div>
 
               {/* ✅ Mensajes del grupo */}
-              <div className={`group flex flex-col ${isOwn ? 'items-end' : 'items-start'} flex-1 min-w-0 ${isOwn ? 'mr-3' : 'ml-3'} space-y-1`}>
+              <div className={`group flex flex-col ${isOwn ? 'items-end' : 'items-start'} flex-1 min-w-0 ${isOwn ? 'order-1 mr-3' : 'order-2 ml-3'} space-y-1`}>
                 {/* ✅ Nombre del usuario: Solo mostrar en el primer mensaje del grupo (si NO es propio) */}
                 {!isOwn && (
                   <div className="flex items-center gap-1.5 mb-1">
@@ -469,34 +469,49 @@ const ChatMessages = ({ messages, currentUserId, onUserClick, onReport, onPrivat
                         </div>
                       )}
 
-                      {/* Contenido del mensaje - SIN BURBUJA */}
-                      <div
-                        className="cursor-pointer break-words overflow-wrap-anywhere"
-                        onClick={() => onPrivateChat({ username: message.username, avatar: message.avatar, userId: message.userId, isPremium: isUserPremium })}
-                      >
-                        {message.type === 'text' && (
-                          <p className="text-[15px] leading-[1.6] whitespace-pre-wrap break-words font-normal text-gray-900 dark:text-gray-100">
-                            {message.content}
-                          </p>
+                      {/* 🎨 BURBUJA DE MENSAJE - Estilo iMessage/Messenger Pixel-Perfect */}
+                      <div className={`inline-flex flex-row items-end gap-1.5 ${isOwn ? 'justify-end' : 'justify-start'} max-w-[85%] sm:max-w-[75%]`}>
+                        
+                        {/* ⚡ CORRECCIÓN CLAVE: Si es mensaje propio, poner la hora ANTES de la burbuja para que la burbuja quede pegada al avatar */}
+                        {isOwn && (
+                          <div className="flex items-center gap-1 mb-0.5 flex-shrink-0">
+                            <span className="text-[11px] text-gray-500 dark:text-gray-400">
+                              {formatTime(message.timestamp)}
+                            </span>
+                            {messageChecks[message.id] === 'double' ? (
+                              <CheckCheck className="w-3.5 h-3.5 text-[#007AFF]" />
+                            ) : messageChecks[message.id] === 'single' ? (
+                              <Check className="w-3.5 h-3.5 text-gray-400" />
+                            ) : null}
+                          </div>
                         )}
-                        {message.type === 'gif' && (
-                          <img src={message.content} alt="GIF" className="rounded-lg max-w-full sm:max-w-xs shadow-sm" />
-                        )}
-                      </div>
 
-                      {/* Hora y checks para mensajes propios */}
-                      {isOwn && (
-                        <div className="flex items-center gap-2 mt-1">
-                          <span className="text-xs text-gray-500 dark:text-gray-400">
+                        {/* Burbuja del mensaje */}
+                        <div
+                          className={`cursor-pointer break-words overflow-wrap-anywhere rounded-[18px] px-3 py-2 ${
+                            isOwn 
+                              ? 'bg-[#007AFF] text-white' // Azul iMessage para mensajes propios
+                              : 'bg-[#E5E5EA] text-[#000000]' // Gris claro para mensajes de otros
+                          }`}
+                          onClick={() => onPrivateChat({ username: message.username, avatar: message.avatar, userId: message.userId, isPremium: isUserPremium })}
+                        >
+                          {message.type === 'text' && (
+                            <p className="text-[15px] leading-[1.4] whitespace-pre-wrap break-words font-normal">
+                              {message.content}
+                            </p>
+                          )}
+                          {message.type === 'gif' && (
+                            <img src={message.content} alt="GIF" className="rounded-[12px] max-w-full sm:max-w-xs" />
+                          )}
+                        </div>
+
+                        {/* Hora para mensajes de otros (fuera de la burbuja, alineados a la izquierda) */}
+                        {!isOwn && (
+                          <span className="text-[11px] text-gray-500 mb-0.5 flex-shrink-0">
                             {formatTime(message.timestamp)}
                           </span>
-                          {messageChecks[message.id] === 'double' ? (
-                            <CheckCheck className="w-3.5 h-3.5 text-[#0084ff] dark:text-cyan-400" />
-                          ) : messageChecks[message.id] === 'single' ? (
-                            <Check className="w-3.5 h-3.5 text-gray-400 dark:text-gray-500" />
-                          ) : null}
-                        </div>
-                      )}
+                        )}
+                      </div>
 
                       {/* ⚡ ACCIONES: Reply, Like, Dislike (solo para mensajes de otros) */}
                       {!isOwn && (
