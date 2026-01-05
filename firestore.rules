@@ -134,6 +134,27 @@ service cloud.firestore {
              data.timestamp is timestamp;
     }
 
+    // ✅ NUEVO: Permite mensajes de sistema (moderador, VOC, etc.)
+    function isValidSystemMessage() {
+      let data = request.resource.data;
+      return isAuthenticated() &&
+             'userId' in data &&
+             data.userId is string &&
+             (data.userId == 'system' ||
+              data.userId == 'system_moderator' ||
+              data.userId == 'system_voc' ||
+              data.userId.matches('system_.*')) &&
+             'username' in data &&
+             data.username is string &&
+             'content' in data &&
+             data.content is string &&
+             data.content.size() > 0 &&
+             data.content.size() <= 2000 &&
+             'type' in data &&
+             'timestamp' in data &&
+             data.timestamp is timestamp;
+    }
+
     function isAdult(age) {
       return age == null || (age is number && age >= 18);
     }
@@ -240,6 +261,9 @@ service cloud.firestore {
                         // Bot messages: cualquier usuario autenticado puede enviar bots
                         (isValidBotMessage() &&
                          hasNoProhibitedWordsPublic(request.resource.data.content.lower()))
+                        ||
+                        // ✅ NUEVO: System messages (moderador, VOC, etc.) - SIN filtro de palabras prohibidas
+                        isValidSystemMessage()
                       );
 
       allow update: if isAuthenticated() &&

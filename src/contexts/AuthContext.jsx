@@ -469,10 +469,15 @@ export const AuthProvider = ({ children }) => {
     console.time('⏱️ [PASO 1] signInAnonymously Firebase');
 
     try {
-      // ⚡ OPTIMISTIC UI: Crear usuario local PRIMERO (instantáneo)
-      const tempUid = `temp_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
-      const tempUser = {
-        id: tempUid,
+      // 🚀 PASO 1: Crear usuario anónimo en Firebase PRIMERO (CRÍTICO para enviar mensajes)
+      // ⚠️ IMPORTANTE: Debe completarse ANTES de permitir enviar mensajes
+      // Sin esto, auth.currentUser será null y Firestore rechazará los mensajes
+      const userCredential = await signInAnonymously(auth);
+      console.timeEnd('⏱️ [PASO 1] signInAnonymously Firebase');
+
+      // ✅ Usuario autenticado en Firebase - ahora puede enviar mensajes
+      const realUser = {
+        id: userCredential.user.uid,
         username: username,
         isGuest: true,
         isAnonymous: true,
@@ -483,70 +488,41 @@ export const AuthProvider = ({ children }) => {
         theme: {},
       };
 
-      // ⚡ ACTUALIZAR UI INMEDIATAMENTE (0ms)
-      setUser(tempUser);
+      // ⚡ ACTUALIZAR UI (ahora con UID real de Firebase)
+      setUser(realUser);
       setGuestMessageCount(0);
 
-      // ⚡ Guardar backup temporal
+      // ⚡ Guardar backup con UID real
       localStorage.setItem('guest_session_backup', JSON.stringify({
-        uid: tempUid,
+        uid: userCredential.user.uid,
         username: username,
         avatar: avatarUrl,
         timestamp: Date.now(),
-        isTemporary: true,
       }));
 
-      console.log('%c✅ [TIMING] Usuario temporal creado - UI actualizada', 'color: #00ff00; font-weight: bold');
+      console.log('%c✅ [TIMING] Usuario autenticado - PUEDE enviar mensajes', 'color: #00ff00; font-weight: bold');
 
-      // ⚡ PASO 1: Crear usuario anónimo en Firebase EN BACKGROUND (no bloquea)
-      signInAnonymously(auth)
-        .then((userCredential) => {
-          console.timeEnd('⏱️ [PASO 1] signInAnonymously Firebase');
-          
-          // Actualizar con UID real
-          const realUser = {
-            ...tempUser,
-            id: userCredential.user.uid,
-          };
-          setUser(realUser);
-
-          // Actualizar backup con UID real
-          localStorage.setItem('guest_session_backup', JSON.stringify({
-            uid: userCredential.user.uid,
-            username: username,
-            avatar: avatarUrl,
-            timestamp: Date.now(),
-          }));
-
-          console.log('%c✅ [TIMING] Usuario real creado en Firebase', 'color: #00ff00; font-weight: bold');
-
-          // 🚀 TODO LO DEMÁS EN BACKGROUND (no bloquea)
-          setTimeout(() => {
-            console.time('⏱️ [BACKGROUND] Firestore setDoc');
-            // Guardar en Firestore
-            const guestRef = doc(db, 'guests', userCredential.user.uid);
-            setDoc(guestRef, {
-              username: username,
-              avatar: avatarUrl,
-              createdAt: new Date().toISOString(),
-              messageCount: 0,
-              expiresAt: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString()
-            })
-            .then(() => {
-              console.timeEnd('⏱️ [BACKGROUND] Firestore setDoc');
-              console.log('%c✅ [BACKGROUND] Datos guardados en Firestore', 'color: #888; font-style: italic');
-            })
-            .catch((err) => {
-              console.warn('⚠️ [BACKGROUND] Error en Firestore (no crítico):', err);
-            });
-          }, 0);
+      // 🚀 Guardar en Firestore EN BACKGROUND (no bloquea el login)
+      setTimeout(() => {
+        console.time('⏱️ [BACKGROUND] Firestore setDoc');
+        const guestRef = doc(db, 'guests', userCredential.user.uid);
+        setDoc(guestRef, {
+          username: username,
+          avatar: avatarUrl,
+          createdAt: new Date().toISOString(),
+          messageCount: 0,
+          expiresAt: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString()
         })
-        .catch((error) => {
-          console.error('%c❌ [TIMING] Error en Firebase (continuando con usuario temporal):', 'color: #ff0000; font-weight: bold', error);
-          // Continuar con usuario temporal - el usuario ya está en el chat
+        .then(() => {
+          console.timeEnd('⏱️ [BACKGROUND] Firestore setDoc');
+          console.log('%c✅ [BACKGROUND] Datos guardados en Firestore', 'color: #888; font-style: italic');
+        })
+        .catch((err) => {
+          console.warn('⚠️ [BACKGROUND] Error en Firestore (no crítico):', err);
         });
+      }, 0);
 
-      // ⚡ RETORNAR INMEDIATAMENTE (no esperar Firebase)
+      console.timeEnd('⏱️ [TOTAL] Entrada completa al chat');
       return true;
     } catch (error) {
       console.timeEnd('⏱️ [TOTAL] Entrada completa al chat');

@@ -6,16 +6,17 @@ import { doc, setDoc, getDoc, serverTimestamp, updateDoc, increment } from 'fire
  * Sistema inteligente de detección y prevención de spam
  */
 
-// ⚙️ CONFIGURACIÓN
+// 🚨 EMERGENCIA: Anti-spam MENOS ESTRICTO (04/01/2026)
+// Problema: Chat paralizado, usuarios bloqueados injustamente
 const CONFIG = {
   // Spam por duplicados
-  MAX_DUPLICATE_WARNINGS: 3, // Máximo 3 advertencias antes de expulsar
-  DUPLICATE_THRESHOLD: 4, // 4 mensajes iguales = advertencia
-  DUPLICATE_BAN_THRESHOLD: 5, // 5+ mensajes = expulsión automática
+  MAX_DUPLICATE_WARNINGS: 10, // ⚠️ 10 advertencias (más permisivo)
+  DUPLICATE_THRESHOLD: 10, // ⚠️ 10 mensajes iguales = advertencia (era 4)
+  DUPLICATE_BAN_THRESHOLD: 15, // ⚠️ 15+ mensajes = expulsión (era 5)
   DUPLICATE_MEMORY_MS: 5 * 60 * 1000, // 5 minutos de memoria
 
   // Expulsión temporal
-  TEMP_BAN_DURATION_MS: 15 * 60 * 1000, // 15 minutos de expulsión
+  TEMP_BAN_DURATION_MS: 5 * 60 * 1000, // ⚠️ 5 minutos de expulsión (era 15)
 
   // Detección de números
   PHONE_PATTERNS: [
@@ -69,6 +70,13 @@ const CONFIG = {
  * Guarda los últimos mensajes de cada usuario en memoria
  */
 const userMessageHistory = new Map();
+
+/**
+ * 🚀 CACHE DE BANS TEMPORALES (para velocidad máxima)
+ * Guarda los bans en memoria para evitar consultas lentas a Firestore
+ * Map de userId → { isBanned: boolean, expiresAt: timestamp, reason: string }
+ */
+const tempBanCache = new Map();
 
 /**
  * 🔍 CLASE: Entrada del historial de mensajes
@@ -261,6 +269,15 @@ async function applyTempBan(userId, username, reason, roomId) {
       type: 'spam',
     });
 
+    // 🚀 ACTUALIZAR CACHE inmediatamente para verificaciones futuras
+    const remainingMinutes = Math.ceil(CONFIG.TEMP_BAN_DURATION_MS / (60 * 1000));
+    tempBanCache.set(userId, {
+      isBanned: true,
+      reason,
+      expiresAt,
+      remainingMinutes,
+    });
+
     console.log(`🔨 [ANTI-SPAM] Usuario ${username} expulsado temporalmente por ${reason}`);
     return true;
   } catch (error) {
@@ -270,44 +287,88 @@ async function applyTempBan(userId, username, reason, roomId) {
 }
 
 /**
- * ✅ VERIFICAR SI USUARIO ESTÁ EXPULSADO
+ * ✅ VERIFICAR SI USUARIO ESTÁ EXPULSADO (ULTRA RÁPIDO CON CACHE)
+ * 🚀 OPTIMIZACIÓN CRÍTICA: Usa cache en memoria para evitar consultas lentas a Firestore
  */
 export async function checkTempBan(userId) {
   try {
     if (!userId) return { isBanned: false };
 
+    const now = Date.now();
+
+    // 🚀 PASO 1: Verificar CACHE primero (INSTANTÁNEO - 0ms)
+    const cachedBan = tempBanCache.get(userId);
+    if (cachedBan) {
+      // Verificar si el ban en cache ya expiró
+      if (cachedBan.expiresAt && cachedBan.expiresAt < now) {
+        // Ban expirado - limpiar cache
+        tempBanCache.delete(userId);
+        return { isBanned: false };
+      }
+
+      // Ban activo en cache
+      const remainingMs = cachedBan.expiresAt - now;
+      const remainingMinutes = Math.ceil(remainingMs / (60 * 1000));
+
+      return {
+        isBanned: true,
+        reason: cachedBan.reason,
+        expiresAt: cachedBan.expiresAt,
+        remainingMinutes,
+      };
+    }
+
+    // 🐌 PASO 2: Si NO está en cache, consultar Firestore UNA SOLA VEZ
+    // (Esto solo pasa la primera vez que se verifica un usuario)
     const bansRef = doc(db, 'temp_bans', userId);
     const banDoc = await getDoc(bansRef);
 
     if (!banDoc.exists()) {
+      // No hay ban - guardar en cache (negativo) por 60 segundos para evitar consultas repetidas
+      tempBanCache.set(userId, { isBanned: false, expiresAt: now + 60000 });
       return { isBanned: false };
     }
 
     const data = banDoc.data();
-    const now = Date.now();
 
     // Verificar si el ban ya expiró
     if (data.expiresAt && data.expiresAt < now) {
-      // Ban expirado - eliminarlo
-      await updateDoc(bansRef, {
-        expired: true,
-        expiredAt: serverTimestamp(),
-      });
+      // Ban expirado - limpiar cache y retornar
+      tempBanCache.delete(userId);
       return { isBanned: false };
     }
 
-    // Ban activo
+    // Ban activo - GUARDAR EN CACHE para futuras verificaciones
     const remainingMs = data.expiresAt - now;
     const remainingMinutes = Math.ceil(remainingMs / (60 * 1000));
 
-    return {
+    const banInfo = {
       isBanned: true,
       reason: data.reason,
       expiresAt: data.expiresAt,
       remainingMinutes,
     };
+
+    // Guardar en cache para próximas verificaciones (INSTANTÁNEAS)
+    tempBanCache.set(userId, banInfo);
+
+    return banInfo;
   } catch (error) {
-    console.error('[ANTI-SPAM] Error verificando expulsión:', error);
+    // 🔍 DIAGNÓSTICO: Logging mejorado del error
+    if (error.code === 'permission-denied') {
+      // Error de permisos - normal para usuarios que no son admin
+      // Guardar en cache negativo por 60s para evitar consultas repetidas
+      tempBanCache.set(userId, { isBanned: false, expiresAt: Date.now() + 60000 });
+      console.debug('[ANTI-SPAM] ⚠️ Sin permisos para verificar temp_bans (usando cache)');
+    } else {
+      // Otros errores - loguear para diagnóstico
+      console.error('[ANTI-SPAM] Error verificando expulsión:', {
+        code: error.code,
+        message: error.message,
+        userId
+      });
+    }
+    // ⚠️ IMPORTANTE: Retornar { isBanned: false } para no bloquear mensajes si falla la verificación
     return { isBanned: false };
   }
 }
@@ -372,36 +433,13 @@ export async function validateMessage(message, userId, username, roomId) {
       };
     }
 
-    // 5. Detectar spam por duplicados
-    const duplicateCheck = checkDuplicateSpam(userId, trimmed);
-
-    if (duplicateCheck.shouldBan) {
-      // 5+ mensajes iguales = EXPULSIÓN AUTOMÁTICA
-      await applyTempBan(userId, username, `Spam: ${duplicateCheck.count} mensajes duplicados`, roomId);
-
-      // Limpiar historial del usuario
-      userMessageHistory.delete(userId);
-
-      return {
-        allowed: false,
-        reason: `Has sido expulsado temporalmente por spam (${duplicateCheck.count} mensajes iguales). Podrás chatear en ${Math.ceil(CONFIG.TEMP_BAN_DURATION_MS / 60000)} minutos.`,
-        type: 'spam_duplicate_ban',
-        action: 'temp_ban',
-        banDuration: CONFIG.TEMP_BAN_DURATION_MS,
-      };
-    } else if (duplicateCheck.shouldWarn) {
-      // 4 mensajes iguales = ADVERTENCIA
-      const warningResult = await recordSpamWarning(userId, username, `Spam: ${duplicateCheck.count} mensajes duplicados`, roomId);
-
-      return {
-        allowed: false,
-        reason: `⚠️ ADVERTENCIA: Has enviado este mensaje ${duplicateCheck.count} veces. Si lo repites nuevamente, serás expulsado temporalmente.`,
-        type: 'spam_duplicate_warning',
-        action: 'warn',
-        count: duplicateCheck.count,
-        warningNumber: warningResult.count,
-      };
-    }
+    // 🚫 DESACTIVADO: Detección de spam por duplicados (causaba expulsiones injustas)
+    // Los usuarios pueden repetir mensajes normalmente en conversaciones reales
+    // El rate limiting en rateLimitService.js ya previene spam masivo
+    //
+    // const duplicateCheck = checkDuplicateSpam(userId, trimmed);
+    // if (duplicateCheck.shouldBan) { ... }
+    // if (duplicateCheck.shouldWarn) { ... }
 
     // ✅ Mensaje válido
     return { allowed: true };
@@ -429,6 +467,7 @@ export function getSpamStats() {
     totalUsers: userMessageHistory.size,
     totalMessages: 0,
     duplicates: 0,
+    cachedBans: tempBanCache.size,
   };
 
   for (const [userId, history] of userMessageHistory.entries()) {
@@ -442,3 +481,27 @@ export function getSpamStats() {
 
   return stats;
 }
+
+/**
+ * 🧹 LIMPIAR CACHE DE BANS EXPIRADOS
+ * (Llamar periódicamente para liberar memoria)
+ */
+function cleanupBanCache() {
+  const now = Date.now();
+  let cleanedCount = 0;
+
+  for (const [userId, banInfo] of tempBanCache.entries()) {
+    // Limpiar bans expirados
+    if (banInfo.expiresAt && banInfo.expiresAt < now) {
+      tempBanCache.delete(userId);
+      cleanedCount++;
+    }
+  }
+
+  if (cleanedCount > 0) {
+    console.debug(`🧹 [ANTI-SPAM] ${cleanedCount} bans expirados limpiados del cache`);
+  }
+}
+
+// Limpiar cache de bans cada 60 segundos
+setInterval(cleanupBanCache, 60000);

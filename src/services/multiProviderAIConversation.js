@@ -4,6 +4,24 @@ import { validateMessageForPersonality, getPersonalityTopics } from '@/lib/ai/pe
 import { validateMessageForSpam, isPenalized } from './spamDetectionService';
 
 /**
+ * 🔧 Genera UUID compatible con todos los navegadores
+ * Fallback para crypto.randomUUID() que no está disponible en todos los contextos
+ */
+function generateUUID() {
+  // Intentar usar crypto.randomUUID() si está disponible (más seguro)
+  if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') {
+    return crypto.randomUUID();
+  }
+
+  // Fallback: Generar UUID v4 manualmente (compatible con todos los navegadores)
+  return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function(c) {
+    const r = Math.random() * 16 | 0;
+    const v = c === 'x' ? r : (r & 0x3 | 0x8);
+    return v.toString(16);
+  });
+}
+
+/**
  * 🔍 SISTEMA DE TRAZABILIDAD ABSOLUTA
  * Genera metadata de trazabilidad para cada mensaje
  */
@@ -14,7 +32,7 @@ const createMessageTrace = (origin, source, actorId, actorType, system) => {
     actorId, // userId humano o aiId
     actorType, // "HUMAN" | "AI" | "BOT"
     system, // "multiProviderAIConversation" | "chatService" | "aiUserInteraction" | "botCoordinator" | "unknown"
-    traceId: crypto.randomUUID(),
+    traceId: generateUUID(), // ✅ Compatible con todos los navegadores
     createdAt: Date.now()
   };
 };

@@ -22,12 +22,53 @@ import { checkRateLimit, recordMessage, unmuteUser } from '@/services/rateLimitS
 import { moderateMessage } from '@/services/moderationService';
 
 /**
+ * 🔧 Genera UUID compatible con todos los navegadores
+ * Fallback para crypto.randomUUID() que no está disponible en todos los contextos
+ */
+function generateUUID() {
+  // Intentar usar crypto.randomUUID() si está disponible (más seguro)
+  if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') {
+    return crypto.randomUUID();
+  }
+
+  // Fallback: Generar UUID v4 manualmente (compatible con todos los navegadores)
+  return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function(c) {
+    const r = Math.random() * 16 | 0;
+    const v = c === 'x' ? r : (r & 0x3 | 0x8);
+    return v.toString(16);
+  });
+}
+
+/**
  * Envía un mensaje a una sala de chat
  * Para usuarios anónimos, usa transacción para incrementar contador
  * ✅ AÑADIDO 2025-12-11: Rate limiting implementado (máx 1 mensaje cada 3 segundos)
  */
 export const sendMessage = async (roomId, messageData, isAnonymous = false) => {
   try {
+    // ✅ CRÍTICO: Validar que auth.currentUser esté disponible (requerido por Firestore rules)
+    // Esto previene errores de permisos cuando se intenta enviar sin autenticación
+    if (!auth.currentUser) {
+      const error = new Error('Usuario no autenticado. Por favor, espera un momento o recarga la página.');
+      error.code = 'auth/user-not-authenticated';
+      throw error;
+    }
+
+    // ✅ CRÍTICO: Asegurar que userId coincida con auth.currentUser.uid
+    // EXCEPTO para mensajes de sistema (moderador, VOC, bots, etc.)
+    const isSystemMessage = messageData.userId?.startsWith('system') ||
+                           messageData.userId?.startsWith('bot_') ||
+                           messageData.userId?.startsWith('ai_') ||
+                           messageData.userId?.startsWith('seed_user_');
+
+    if (!isSystemMessage && messageData.userId !== auth.currentUser.uid) {
+      console.warn('[SEND] ⚠️ userId no coincide con auth.currentUser.uid, corrigiendo...', {
+        providedUserId: messageData.userId,
+        authCurrentUserUid: auth.currentUser.uid
+      });
+      messageData.userId = auth.currentUser.uid;
+    }
+
     // ⚡ VELOCIDAD CRÍTICA: Identificar tipo de remitente (sin logging)
     const isBot = messageData.userId?.startsWith('bot_') ||
                   messageData.userId?.startsWith('ai_') ||
@@ -52,7 +93,7 @@ export const sendMessage = async (roomId, messageData, isAnonymous = false) => {
       actorId: messageData.userId,
       actorType: isBot ? 'BOT' : 'HUMAN',
       system: 'chatService',
-      traceId: crypto.randomUUID(),
+      traceId: generateUUID(), // ✅ Compatible con todos los navegadores
       createdAt: Date.now()
     };
 
@@ -103,21 +144,46 @@ export const sendMessage = async (roomId, messageData, isAnonymous = false) => {
 
     return { id: docRef.id, ...message };
   } catch (error) {
-    // Solo loguear errores críticos (siempre)
-    console.error('[SEND] Error:', error.message);
+    // 🔍 DIAGNÓSTICO: Logging detallado de errores
+    console.error('[SEND] ❌ Error enviando mensaje:', {
+      error: error.message,
+      code: error.code,
+      name: error.name,
+      stack: error.stack?.split('\n').slice(0, 3).join('\n'),
+      roomId,
+      userId: messageData.userId,
+      username: messageData.username,
+      timestamp: new Date().toISOString()
+    });
+    
+    // Logging adicional para errores comunes
+    if (error.code === 'permission-denied') {
+      console.error('[SEND] 🚨 PERMISO DENEGADO - Verificar Firestore Rules', {
+        userId: messageData.userId,
+        authCurrentUserUid: auth.currentUser?.uid,
+        match: messageData.userId === auth.currentUser?.uid
+      });
+    } else if (error.code === 'auth/user-not-authenticated') {
+      console.error('[SEND] 🚨 USUARIO NO AUTENTICADO - auth.currentUser es null');
+    } else if (error.code === 'unavailable') {
+      console.error('[SEND] 🚨 FIREBASE NO DISPONIBLE - Problema de conexión');
+    } else if (error.message?.includes('rate limit') || error.message?.includes('Espera')) {
+      console.error('[SEND] 🚨 RATE LIMIT - Usuario bloqueado temporalmente');
+    }
+    
     throw error;
   }
 };
 
 /**
- * ✅ Suscripción a mensajes en tiempo real - SIMPLIFICADA para máxima confiabilidad
+ * ⚡ Suscripción a mensajes en tiempo real - ULTRA-OPTIMIZADA para velocidad WhatsApp/Telegram
  * Offline persistence funciona automáticamente SIN includeMetadataChanges
  */
-export const subscribeToRoomMessages = (roomId, callback, messageLimit = 100) => {
+export const subscribeToRoomMessages = (roomId, callback, messageLimit = 50) => {
   const messagesRef = collection(db, 'rooms', roomId, 'messages');
   const q = query(messagesRef, orderBy('timestamp', 'asc'), limitToLast(messageLimit));
 
-  console.log(`📡 [SUBSCRIBE] Iniciando suscripción a mensajes de sala: ${roomId}`);
+  // ⚡ OPTIMIZACIÓN: Logging mínimo para velocidad máxima
 
   // ✅ SIMPLE y CONFIABLE - sin includeMetadataChanges (causaba bugs)
   // ⚡ OPTIMIZADO: onSnapshot se ejecuta inmediatamente y devuelve datos cached si están disponibles
@@ -130,7 +196,7 @@ export const subscribeToRoomMessages = (roomId, callback, messageLimit = 100) =>
         timestamp: doc.data().timestamp?.toDate?.()?.toISOString() || new Date().toISOString(),
       }));
 
-      console.log(`📨 [SUBSCRIBE] ✅ Mensajes recibidos de Firestore (${messages.length} mensajes) para sala: ${roomId}`);
+      // ⚡ OPTIMIZACIÓN: Sin logging para velocidad máxima
       callback(messages);
     },
     (error) => {

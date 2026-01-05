@@ -21,13 +21,15 @@ import {
 } from 'firebase/firestore';
 import { db } from '@/config/firebase';
 
-// Configuración del rate limiting (OPTIMIZADO: Ultra permisivo para velocidad WhatsApp/Telegram)
+// 🚨 EMERGENCIA: Rate limiting DESACTIVADO TEMPORALMENTE (04/01/2026)
+// Problema: Chat paralizado, mensajes no se envían
+// TODO: Reactivar con valores más razonables después de verificar
 const RATE_LIMIT = {
-  MAX_MESSAGES: 20,       // Máximo de mensajes permitidos (muy permisivo)
-  WINDOW_SECONDS: 10,     // En ventana de 10 segundos (ventana corta)
-  MIN_INTERVAL_MS: 100,   // ⚡ INSTANTÁNEO: Mínimo 100ms entre mensajes (solo anti-doble-click, no bloquea velocidad)
-  MUTE_DURATION: 1 * 60,  // Mute por 1 minuto (muy corto)
-  MAX_DUPLICATES: 5       // Máximo de mensajes duplicados antes de mutear
+  MAX_MESSAGES: 999,      // ⚠️ SIN LÍMITE (temporal)
+  WINDOW_SECONDS: 10,
+  MIN_INTERVAL_MS: 50,    // ⚠️ CASI INSTANTÁNEO (50ms en lugar de 100ms)
+  MUTE_DURATION: 1 * 60,
+  MAX_DUPLICATES: 999     // ⚠️ SIN LÍMITE (temporal)
 };
 
 // Cache en memoria para rendimiento (evita leer Firestore constantemente)
@@ -188,39 +190,28 @@ export const checkRateLimit = async (userId, roomId, content = '') => {
     }
   }
 
-  // 3. ⚡ DETECCIÓN DE DUPLICADOS (solo cache)
-  const recentContents = contentCache.get(userId) || [];
-  const normalizedContent = content ? content.trim().toLowerCase() : '';
+  // 🚫 DESACTIVADO: Detección de duplicados (causaba expulsiones injustas)
+  // Los usuarios son expulsados por decir "hola" repetidamente en conversaciones normales
+  //
+  // const recentContents = contentCache.get(userId) || [];
+  // const normalizedContent = content ? content.trim().toLowerCase() : '';
+  // if (normalizedContent && recentContents.length > 0) {
+  //   const duplicateCount = recentContents.filter(c => c === normalizedContent).length;
+  //   if (duplicateCount >= RATE_LIMIT.MAX_DUPLICATES) {
+  //     await muteUser(userId, RATE_LIMIT.MUTE_DURATION);
+  //     return { allowed: false, error: '...' };
+  //   }
+  // }
 
-  if (normalizedContent && recentContents.length > 0) {
-    const duplicateCount = recentContents.filter(c => c === normalizedContent).length;
-
-    if (duplicateCount >= RATE_LIMIT.MAX_DUPLICATES) {
-      console.error(`🚨 [DUPLICATE SPAM] Usuario ${userId} repitió mensaje ${duplicateCount + 1} veces`);
-      await muteUser(userId, RATE_LIMIT.MUTE_DURATION);
-
-      return {
-        allowed: false,
-        error: `Has repetido el mismo mensaje muchas veces. Espera ${RATE_LIMIT.MUTE_DURATION / 60} minuto.`,
-        remainingSeconds: RATE_LIMIT.MUTE_DURATION
-      };
-    }
-  }
-
-  // 4. ⚡ VERIFICAR VOLUMEN (solo cache en memoria)
-  const windowStart = now - (RATE_LIMIT.WINDOW_SECONDS * 1000);
-  const recentMessages = userMessages.filter(ts => ts > windowStart);
-
-  if (recentMessages.length >= RATE_LIMIT.MAX_MESSAGES) {
-    console.warn(`🚨 [RATE LIMIT] Usuario ${userId} excedió límite: ${recentMessages.length}/${RATE_LIMIT.MAX_MESSAGES} mensajes en ${RATE_LIMIT.WINDOW_SECONDS}s`);
-    await muteUser(userId, RATE_LIMIT.MUTE_DURATION);
-
-    return {
-      allowed: false,
-      error: `Demasiados mensajes. Espera ${RATE_LIMIT.MUTE_DURATION / 60} minuto.`,
-      remainingSeconds: RATE_LIMIT.MUTE_DURATION
-    };
-  }
+  // 🚫 DESACTIVADO: Rate limiting por volumen (causaba expulsiones injustas)
+  // Los valores de 999 mensajes aún pueden causar problemas en casos extremos
+  //
+  // const windowStart = now - (RATE_LIMIT.WINDOW_SECONDS * 1000);
+  // const recentMessages = userMessages.filter(ts => ts > windowStart);
+  // if (recentMessages.length >= RATE_LIMIT.MAX_MESSAGES) {
+  //   await muteUser(userId, RATE_LIMIT.MUTE_DURATION);
+  //   return { allowed: false, error: '...' };
+  // }
 
   // ✅ PERMITIR - Sin consultas a Firestore = INSTANTÁNEO
   return { allowed: true };

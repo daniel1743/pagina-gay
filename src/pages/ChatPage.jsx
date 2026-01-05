@@ -564,12 +564,7 @@ const ChatPage = () => {
     console.log('📡 [CHAT] Suscribiéndose a mensajes INMEDIATAMENTE para sala:', roomId);
     setIsLoadingMessages(true); // ⏳ Marcar como cargando al iniciar suscripción
     const unsubscribeMessages = subscribeToRoomMessages(roomId, (newMessages) => {
-      console.log('📨 [CHAT] ✅ Mensajes recibidos de Firestore:', {
-        count: newMessages.length,
-        roomId,
-        timestamp: new Date().toISOString(),
-        messageIds: newMessages.slice(-3).map(m => ({ id: m.id, content: m.content?.substring(0, 20) }))
-      });
+      // ⚡ OPTIMIZACIÓN: Sin logging para velocidad máxima
       
       // ⏳ Marcar como cargado cuando llegan los mensajes
       setIsLoadingMessages(false);
@@ -596,45 +591,14 @@ const ChatPage = () => {
         if (optimisticMessages.length > 0) {
           // Para cada mensaje optimista, verificar si ya llegó el mensaje real
           const remainingOptimistic = optimisticMessages.filter(optMsg => {
-            // Método 1: Si el optimista tiene _realId, buscar por ID
+            // ⚡ OPTIMIZACIÓN: Solo verificar por _realId (más rápido)
             if (optMsg._realId) {
               const foundById = newMessages.find(realMsg => realMsg.id === optMsg._realId);
               if (foundById) {
-                console.log('✅ [DEDUPLICACIÓN] Eliminando optimista por ID real:', {
-                  optimisticId: optMsg.id,
-                  realId: optMsg._realId,
-                  content: optMsg.content?.substring(0, 30)
-                });
                 return false; // Eliminar este optimista
               }
             }
-            
-            // Método 2: Buscar por contenido, userId y timestamp similar (fallback)
-            const matchingReal = newMessages.find(realMsg => {
-              const sameUser = realMsg.userId === optMsg.userId;
-              const sameContent = realMsg.content === optMsg.content;
-              const sameType = (realMsg.type || 'text') === (optMsg.type || 'text');
-              
-              // Comparar timestamps (dentro de 10 segundos de diferencia)
-              const optTime = new Date(optMsg.timestamp).getTime();
-              const realTime = new Date(realMsg.timestamp).getTime();
-              const timeDiff = Math.abs(realTime - optTime);
-              const similarTime = timeDiff < 10000; // 10 segundos de tolerancia
-              
-              return sameUser && sameContent && sameType && similarTime;
-            });
-            
-            // Si encontramos un match, eliminar el optimista (ya llegó el real)
-            if (matchingReal) {
-              console.log('✅ [DEDUPLICACIÓN] Eliminando optimista por match de contenido:', {
-                optimisticId: optMsg.id,
-                realId: matchingReal.id,
-                content: optMsg.content?.substring(0, 30)
-              });
-              return false; // Eliminar este optimista
-            }
-            
-            return true; // Mantener este optimista (aún no llegó el real)
+            return true; // Mantener este optimista
           });
           
           // Solo agregar optimistas que no tienen match
@@ -650,24 +614,21 @@ const ChatPage = () => {
           return timeA - timeB;
         });
         
-        // 🔍 DEBUG: Detectar duplicados después de la fusión
-        const duplicateCheck = sorted.filter((msg, index, arr) => {
-          const duplicate = arr.findIndex(m => 
-            m.id === msg.id || 
-            (m.userId === msg.userId && 
-             m.content === msg.content && 
-             Math.abs(new Date(m.timestamp).getTime() - new Date(msg.timestamp).getTime()) < 1000)
-          );
-          return duplicate !== index;
-        });
+        // ⚡ DEDUPLICACIÓN ULTRA-RÁPIDA: Solo eliminar por ID (lo más rápido posible)
+        const uniqueMessages = [];
+        const seenIds = new Set();
         
-        if (duplicateCheck.length > 0) {
-          console.warn('⚠️ [DEDUPLICACIÓN] Mensajes duplicados detectados después de fusión:', {
-            duplicates: duplicateCheck.map(m => ({ id: m.id, content: m.content?.substring(0, 30), isOptimistic: m._optimistic }))
-          });
+        for (const msg of sorted) {
+          // Solo eliminar duplicados por ID (mismo ID = mismo mensaje)
+          if (seenIds.has(msg.id)) {
+            continue; // Saltar duplicado
+          }
+          
+          uniqueMessages.push(msg);
+          seenIds.add(msg.id);
         }
         
-        return sorted;
+        return uniqueMessages;
       });
 
     });
@@ -982,6 +943,30 @@ const ChatPage = () => {
       return;
     }
 
+    // ✅ CRÍTICO: Validar que auth.currentUser esté disponible (requerido por Firestore rules)
+    // Esto previene errores de permisos cuando auth.currentUser es null temporalmente
+    if (!auth.currentUser) {
+      // Esperar hasta 3 segundos a que auth.currentUser esté disponible
+      let attempts = 0;
+      const maxAttempts = 30; // 30 intentos * 100ms = 3 segundos máximo
+      
+      while (!auth.currentUser && attempts < maxAttempts) {
+        await new Promise(resolve => setTimeout(resolve, 100));
+        attempts++;
+      }
+      
+      // Si después de esperar aún no hay auth.currentUser, mostrar error
+      if (!auth.currentUser) {
+        toast({
+          title: "Error de autenticación",
+          description: "No se pudo completar la autenticación. Por favor, recarga la página.",
+          variant: "destructive",
+          duration: 5000,
+        });
+        return;
+      }
+    }
+
     // ✅ CRÍTICO: Validar mayoría de edad (verificar localStorage también)
     if (!isAgeVerified) {
       const ageKey = `age_verified_${user.id}`;
@@ -1148,10 +1133,12 @@ const ChatPage = () => {
 
     // ⚡ INSTANTÁNEO: Enviar mensaje a Firestore en segundo plano (NO bloquear UI)
     // El mensaje optimista ya está visible, Firestore se sincroniza en background
+    // ✅ CRÍTICO: Usar auth.currentUser.uid directamente (ya validado arriba)
+    // Firestore rules requieren que data.userId == request.auth.uid exactamente
     sendMessage(
       currentRoom,
       {
-        userId: auth.currentUser?.uid || user.id, // ✅ CRÍTICO: Firestore rules exigen auth.uid exacto
+        userId: auth.currentUser.uid, // ✅ SIEMPRE usar auth.currentUser.uid (ya validado)
         username: user.username,
         avatar: user.avatar,
         isPremium: user.isPremium,
