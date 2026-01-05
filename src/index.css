@@ -263,6 +263,16 @@
     }
   }
 
+  /* 🎨 Borde animado para avatares */
+  @keyframes avatar-border-spin {
+    from {
+      transform: rotate(0deg);
+    }
+    to {
+      transform: rotate(360deg);
+    }
+  }
+
   /* Glass variants */
   .glass-cyan {
     background: linear-gradient(145deg, rgba(0, 255, 240, 0.1), rgba(0, 255, 240, 0.05));

@@ -27,10 +27,11 @@ import ChatLandingPage from '@/components/chat/ChatLandingPage';
 import EmptyRoomNotificationPrompt from '@/components/chat/EmptyRoomNotificationPrompt';
 import LoadingMessagesPrompt from '@/components/chat/LoadingMessagesPrompt';
 import ReplyIndicator from '@/components/chat/ReplyIndicator';
+import RulesBanner from '@/components/chat/RulesBanner';
 import { toast } from '@/components/ui/use-toast';
 import PrivateChatWindow from '@/components/chat/PrivateChatWindow';
 import { RegistrationRequiredModal } from '@/components/auth/RegistrationRequiredModal';
-import { sendMessage, subscribeToRoomMessages, addReactionToMessage, markMessagesAsRead } from '@/services/chatService';
+import { sendMessage, subscribeToRoomMessages, addReactionToMessage, markMessagesAsRead, generateUUID } from '@/services/chatService';
 import { joinRoom, leaveRoom, subscribeToRoomUsers, subscribeToMultipleRoomCounts, updateUserActivity, cleanInactiveUsers, filterActiveUsers, subscribeToTypingUsers } from '@/services/presenceService';
 import { validateMessage, clearUserHistory } from '@/services/antiSpamService';
 import { auth } from '@/config/firebase'; // ✅ CRÍTICO: Necesario para obtener UID real de Firebase Auth
@@ -70,6 +71,7 @@ const ChatPage = () => {
   // ✅ Estados y refs - DEBEN estar ANTES del early return
   const [currentRoom, setCurrentRoom] = useState(roomId);
   const [messages, setMessages] = useState([]);
+  const [moderatorMessage, setModeratorMessage] = useState(null); // 👮 Mensaje del moderador (para RulesBanner)
   const [roomUsers, setRoomUsers] = useState([]); // 🤖 Usuarios en la sala (para sistema de bots)
   const [selectedUser, setSelectedUser] = useState(null);
   const [userActionsTarget, setUserActionsTarget] = useState(null);
@@ -565,33 +567,42 @@ const ChatPage = () => {
     setIsLoadingMessages(true); // ⏳ Marcar como cargando al iniciar suscripción
     const unsubscribeMessages = subscribeToRoomMessages(roomId, (newMessages) => {
       // ⚡ OPTIMIZACIÓN: Sin logging para velocidad máxima
-      
+
       // ⏳ Marcar como cargado cuando llegan los mensajes
       setIsLoadingMessages(false);
-      
+
+      // 👮 SEPARAR mensajes del moderador (para RulesBanner) del resto
+      const moderatorMsg = newMessages.find(m => m.userId === 'system_moderator');
+      const regularMessages = newMessages.filter(m => m.userId !== 'system_moderator');
+
+      // Si hay mensaje del moderador, guardarlo en estado separado (solo una vez)
+      if (moderatorMsg) {
+        setModeratorMessage(prev => prev || moderatorMsg); // Solo setear si no existe
+      }
+
       // 🔊 Reproducir sonido si llegaron mensajes nuevos (no en carga inicial)
-      if (previousMessageCountRef.current > 0 && newMessages.length > previousMessageCountRef.current) {
-        const newMessageCount = newMessages.length - previousMessageCountRef.current;
+      if (previousMessageCountRef.current > 0 && regularMessages.length > previousMessageCountRef.current) {
+        const newMessageCount = regularMessages.length - previousMessageCountRef.current;
         // Reproducir sonido por cada mensaje nuevo (el servicio agrupa automáticamente si son 4+)
         for (let i = 0; i < newMessageCount; i++) {
           notificationSounds.playMessageSound();
         }
       }
 
-      // Actualizar contador de mensajes
-      previousMessageCountRef.current = newMessages.length;
+      // Actualizar contador de mensajes (solo regulares)
+      previousMessageCountRef.current = regularMessages.length;
 
       // 🚀 OPTIMISTIC UI: Fusionar mensajes reales con optimistas y DEDUPLICAR
       // 💬 NOTA: La detección de respuestas se hace en el useEffect separado para mejor rendimiento
       setMessages(prevMessages => {
         const optimisticMessages = prevMessages.filter(m => m._optimistic);
-        const mergedMessages = [...newMessages];
+        const mergedMessages = [...regularMessages]; // ✅ Solo mensajes regulares (sin moderador)
 
         // ✅ F1: DEDUPLICACIÓN POR clientId (correlación optimista/real)
         if (optimisticMessages.length > 0) {
           // Construir Set de clientIds presentes en mensajes reales
           const realClientIds = new Set(
-            newMessages.map(m => m.clientId).filter(Boolean)
+            regularMessages.map(m => m.clientId).filter(Boolean)
           );
 
           // Filtrar optimistas: solo mantener los que NO tienen clientId en mensajes reales
@@ -602,7 +613,7 @@ const ChatPage = () => {
             }
             // Fallback: verificar por _realId (compatibilidad)
             if (optMsg._realId) {
-              const foundById = newMessages.find(realMsg => realMsg.id === optMsg._realId);
+              const foundById = regularMessages.find(realMsg => realMsg.id === optMsg._realId);
               if (foundById) {
                 return false; // Eliminar este optimista
               }
@@ -616,10 +627,10 @@ const ChatPage = () => {
           }
         }
         
-        // Ordenar por timestamp
+        // Ordenar por timestampMs (número) como fuente de verdad
         const sorted = mergedMessages.sort((a, b) => {
-          const timeA = new Date(a.timestamp).getTime();
-          const timeB = new Date(b.timestamp).getTime();
+          const timeA = a.timestampMs ?? 0;
+          const timeB = b.timestampMs ?? 0;
           return timeA - timeB;
         });
         
@@ -1108,7 +1119,7 @@ const ChatPage = () => {
 
     // 🚀 OPTIMISTIC UI: Mostrar mensaje instantáneamente (como WhatsApp/Telegram)
     const optimisticId = `temp_${Date.now()}_${Math.random()}`;
-    const clientId = `client_${Date.now()}_${Math.random()}`; // ✅ F1: Correlación optimista/real
+    const clientId = generateUUID(); // ✅ UUID real para correlación optimista/real (evitar colisiones)
     const optimisticMessage = {
       id: optimisticId,
       clientId, // ✅ F1: ID estable para correlación
@@ -1458,6 +1469,16 @@ const ChatPage = () => {
             onCancelReply={handleCancelReply}
           />
         </div>
+
+        {/* 👮 Banner de reglas del moderador (NO bloqueante) */}
+        {moderatorMessage && (
+          <RulesBanner
+            message={moderatorMessage}
+            onDismiss={() => setModeratorMessage(null)}
+            roomId={currentRoom}
+            userId={user?.id}
+          />
+        )}
 
         {/* 🤖 COMPANION AI Widget - Solo para usuarios anónimos */}
         {/* ⚠️ TEMPORALMENTE COMENTADO: Oculto hasta tener un mejor UX */}

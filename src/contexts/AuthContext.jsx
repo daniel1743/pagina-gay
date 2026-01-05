@@ -25,7 +25,7 @@ import { recordUserConnection, checkVerificationMaintenance } from '@/services/v
 import { checkUserSanctions } from '@/services/sanctionsService';
 import { createWelcomeNotification } from '@/services/systemNotificationsService';
 
-const AuthContext = createContext();
+export const AuthContext = createContext();
 
 export const useAuth = () => {
   const context = useContext(AuthContext);

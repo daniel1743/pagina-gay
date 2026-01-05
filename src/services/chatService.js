@@ -25,7 +25,7 @@ import { moderateMessage } from '@/services/moderationService';
  * 🔧 Genera UUID compatible con todos los navegadores
  * Fallback para crypto.randomUUID() que no está disponible en todos los contextos
  */
-function generateUUID() {
+export function generateUUID() {
   // Intentar usar crypto.randomUUID() si está disponible (más seguro)
   if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') {
     return crypto.randomUUID();
@@ -198,8 +198,8 @@ export const subscribeToRoomMessages = (roomId, callback, messageLimit = 50) => 
         return {
           id: doc.id,
           ...data,
-          timestamp: timestampMs ? new Date(timestampMs).toISOString() : new Date().toISOString(),
-          timestampMs, // ✅ F2: Conservar timestamp raw para ordenar correctamente
+          timestampMs, // ✅ Fuente de verdad para orden
+          timestamp: data.timestamp ?? null, // ✅ NO inventar ISO falso
         };
       });
 

@@ -1,480 +1,223 @@
 <!doctype html>
 <html lang="es" class="dark">
-	<head>
-		<!-- 🔥 APLICAR MODO OSCURO INMEDIATAMENTE (antes de React) -->
-		<script>
-			// Aplicar modo oscuro por defecto inmediatamente
-			(function() {
-				const savedTheme = localStorage.getItem('chactivo-theme');
-				const html = document.documentElement;
-				// Si no hay tema guardado o no es 'light', aplicar 'dark'
-				if (!savedTheme || savedTheme !== 'light') {
-					html.classList.remove('light');
-					html.classList.add('dark');
-				} else {
-					html.classList.remove('dark');
-					html.classList.add('light');
-				}
-			})();
-		</script>
-		<meta charset="UTF-8" />
-		<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=5.0, user-scalable=yes, viewport-fit=cover, interactive-widget=resizes-content" />
+  <head>
+    <meta charset="UTF-8" />
+    <meta
+      name="viewport"
+      content="width=device-width, initial-scale=1.0, maximum-scale=5.0, user-scalable=yes, viewport-fit=cover, interactive-widget=resizes-content"
+    />
 
-		<!-- Favicons -->
-		<link rel="icon" type="image/png" sizes="16x16" href="/favicon-16x16.png" />
-		<link rel="icon" type="image/png" sizes="32x32" href="/favicon-32x32.png" />
-		<link rel="icon" type="image/png" sizes="48x48" href="/icon-48.png" />
-		<link rel="shortcut icon" href="/favicon.ico" />
+    <!-- Tema rápido -->
+    <script>
+      (function () {
+        const savedTheme = localStorage.getItem("chactivo-theme");
+        const html = document.documentElement;
+        if (!savedTheme || savedTheme !== "light") {
+          html.classList.remove("light");
+          html.classList.add("dark");
+        } else {
+          html.classList.remove("dark");
+          html.classList.add("light");
+        }
+      })();
+    </script>
 
-		<!-- Google Search Console Verification -->
-		<meta name="google-site-verification" content="m4Wrv1KeHpGhpLDkbmTpQerXSbWIjF7_a02YdmQp0rM" />
+    <!-- Favicons -->
+    <link rel="icon" type="image/png" sizes="16x16" href="/favicon-16x16.png" />
+    <link rel="icon" type="image/png" sizes="32x32" href="/favicon-32x32.png" />
+    <link rel="icon" type="image/png" sizes="48x48" href="/icon-48.png" />
+    <link rel="shortcut icon" href="/favicon.ico" />
 
-		<!-- SEO Básico -->
-		<title>Chat Gay Chile 🏳️‍🌈 Entra y Habla (Sin Registro) | Chactivo</title>
-		<meta name="description" content="La comunidad más libre. Solo 4 salas activas con gente real: Santiago, Gaming y más. Sin perfiles, sin emails, solo entra y chatea." />
-		<meta name="keywords" content="chat gay santiago gratis, salas chat gay santiago, chat gay chile 2025, conocer gays santiago, chat gay santiago sin registro, chat homosexual santiago gratis, salas gay chile, chat gay valparaíso, chat gay viña del mar, comunidad gay santiago, chat lgbt santiago gratis, gays santiago online, app chat gay chile, chat gay providencia, chat gay las condes, chat gay ñuñoa, gays chilenos online, chat gay concepción, chat gay la serena, chat gay temuco, salas chat lgbt chile" />
-		<meta name="author" content="Chactivo" />
-		<meta name="robots" content="index, follow, max-snippet:-1, max-image-preview:large, max-video-preview:-1" />
-		<!-- Canonical tag dinámico manejado por JavaScript en cada página -->
+    <meta name="google-site-verification" content="m4Wrv1KeHpGhpLDkbmTpQerXSbWIjF7_a02YdmQp0rM" />
 
-		<!-- Sitemap y Robots -->
-		<link rel="sitemap" type="application/xml" title="Sitemap" href="/sitemap.xml" />
+    <!-- SEO -->
+    <title>Chat Gay Chile 🏳️‍🌈 Entra y Habla (Sin Registro) | Chactivo</title>
+    <meta
+      name="description"
+      content="Chat gay en Chile para conversar sin registro. Entra en 1 clic y chatea con gente real. Gratis, rápido y con salas activas."
+    />
+    <meta name="author" content="Chactivo" />
+    <meta name="robots" content="index, follow, max-snippet:-1, max-image-preview:large, max-video-preview:-1" />
 
-		<!-- SEO Local (Chile/Santiago) -->
-		<meta name="geo.region" content="CL-RM" />
-		<meta name="geo.placename" content="Santiago, Chile" />
-		<meta name="geo.position" content="-33.4489;-70.6693" />
-		<meta name="ICBM" content="-33.4489, -70.6693" />
+    <!-- Canonical (ok aunque / redirija; lo importante es coherencia) -->
+    <link rel="canonical" href="https://chactivo.com/" />
+    <link rel="sitemap" type="application/xml" title="Sitemap" href="/sitemap.xml" />
 
-		<!-- Open Graph (Facebook, WhatsApp) -->
-		<meta property="og:type" content="website" />
-		<meta property="og:site_name" content="Chactivo" />
-		<meta property="og:title" content="Chat Gay Chile 🏳️‍🌈 Entra y Habla (Sin Registro) | Chactivo" />
-		<meta property="og:description" content="La comunidad más libre. Solo 4 salas activas con gente real: Santiago, Gaming y más. Sin perfiles, sin emails, solo entra y chatea." />
-		<meta property="og:url" content="https://chactivo.com" />
-		<meta property="og:image" content="https://chactivo.com/icon-512.png" />
-		<meta property="og:image:alt" content="Chactivo - Chat Gay Chile LGBT+" />
-		<meta property="og:image:width" content="512" />
-		<meta property="og:image:height" content="512" />
-		<meta property="og:locale" content="es_CL" />
-		<meta property="og:locale:alternate" content="es_ES" />
-		<meta property="og:updated_time" content="2025-12-26T00:00:00Z" />
+    <!-- Open Graph -->
+    <meta property="og:type" content="website" />
+    <meta property="og:site_name" content="Chactivo" />
+    <meta property="og:title" content="Chat Gay Chile 🏳️‍🌈 Entra y Habla (Sin Registro) | Chactivo" />
+    <meta property="og:description" content="Chat gay Chile sin registro. Entra en 1 clic y conversa con gente real. Gratis y rápido." />
+    <meta property="og:url" content="https://chactivo.com/" />
+    <meta property="og:image" content="https://chactivo.com/icon-512.png" />
+    <meta property="og:locale" content="es_CL" />
 
-		<!-- Twitter Card -->
-		<meta name="twitter:card" content="summary_large_image" />
-		<meta name="twitter:site" content="@Chactivo" />
-		<meta name="twitter:creator" content="@Chactivo" />
-		<meta name="twitter:title" content="Chat Gay Chile 🏳️‍🌈 Entra y Habla (Sin Registro) | Chactivo" />
-		<meta name="twitter:description" content="La comunidad más libre. Solo 4 salas activas con gente real: Santiago, Gaming y más. Sin perfiles, sin emails, solo entra y chatea." />
-		<meta name="twitter:image" content="https://chactivo.com/icon-512.png" />
-		<meta name="twitter:image:alt" content="Chactivo - Chat Gay Chile LGBT+ 2025" />
+    <!-- Twitter -->
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:site" content="@Chactivo" />
+    <meta name="twitter:title" content="Chat Gay Chile 🏳️‍🌈 | Chactivo" />
+    <meta name="twitter:description" content="Chat Gay Chile sin registro. Únete ahora." />
+    <meta name="twitter:image" content="https://chactivo.com/icon-512.png" />
 
-		<!-- PWA -->
-		<meta name="theme-color" content="#E4007C" />
-		<meta name="mobile-web-app-capable" content="yes" />
-		<meta name="apple-mobile-web-app-capable" content="yes" />
-		<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
-		<meta name="apple-mobile-web-app-title" content="Chactivo" />
-		<link rel="manifest" href="/manifest.json" />
+    <!-- PWA -->
+    <meta name="theme-color" content="#E4007C" />
+    <meta name="mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-title" content="Chactivo" />
+    <link rel="manifest" href="/manifest.json" />
+    <link rel="apple-touch-icon" sizes="192x192" href="/icon-192.png" />
 
-		<!-- Apple Touch Icons -->
-		<link rel="apple-touch-icon" sizes="144x144" href="/icon-144.png" />
-		<link rel="apple-touch-icon" sizes="192x192" href="/icon-192.png" />
-		<link rel="apple-touch-icon" sizes="512x512" href="/icon-512.png" />
+    <!-- Performance hints -->
+    <link rel="preconnect" href="https://www.googletagmanager.com" crossorigin />
+    <link rel="preconnect" href="https://www.google-analytics.com" crossorigin />
+    <link rel="preconnect" href="https://firestore.googleapis.com" crossorigin />
+    <link rel="preconnect" href="https://firebase.googleapis.com" crossorigin />
+    <link rel="dns-prefetch" href="https://www.gstatic.com" />
 
-		<!-- Preconnect para Firebase (Performance) -->
-		<link rel="preconnect" href="https://firestore.googleapis.com" />
-		<link rel="preconnect" href="https://firebase.googleapis.com" />
-		<link rel="dns-prefetch" href="https://www.gstatic.com" />
+    <!-- GA4 (ok dejarlo; si te molesta en dev, puedes condicionarlo por env) -->
+    <script async src="https://www.googletagmanager.com/gtag/js?id=G-PZQQL7WH39"></script>
+    <script>
+      window.dataLayer = window.dataLayer || [];
+      function gtag() {
+        dataLayer.push(arguments);
+      }
+      gtag("js", new Date());
+      gtag("config", "G-PZQQL7WH39", {
+        send_page_view: true,
+        anonymize_ip: true,
+        cookie_flags: "SameSite=None;Secure",
+      });
+    </script>
 
-		<!-- Google Analytics 4 (GA4) -->
-		<!-- INSTRUCCIONES: Reemplaza 'G-XXXXXXXXXX' con tu ID de medición real de GA4 -->
-		<script>
-			// 🔇 INTERCEPTOR GLOBAL: Silenciar errores de GA4 ANTES de que se cargue el script
-			(function() {
-				// Interceptar console.error ANTES de que GA4 se cargue
-				const originalConsoleError = console.error;
-				console.error = function(...args) {
-					const message = args.length > 0 ? String(args[0]) : '';
-					const fullMessage = args.map(arg => String(arg)).join(' ');
-					
-					// ✅ Silenciar AbortError de Firebase (cancelaciones normales)
-					if (
-						fullMessage.includes('AbortError') ||
-						fullMessage.includes('signal is aborted') ||
-						(message.includes('AbortError')) ||
-						(args.some(arg => arg && typeof arg === 'object' && arg.name === 'AbortError'))
-					) {
-						return; // Ignorar silenciosamente
-					}
-					
-					// Silenciar errores relacionados con Google Analytics
-					if (
-						fullMessage.includes('Fetch error from') ||
-						fullMessage.includes('Fetch error') ||
-						message.includes('Fetch error') ||
-						fullMessage.includes('google-analytics.com') ||
-						fullMessage.includes('googletagmanager.com') ||
-						fullMessage.includes('analytics.google.com') ||
-						fullMessage.includes('generativelanguage.googleapis.com') ||
-						fullMessage.includes('G-PZQQL7WH39') ||
-						(message.includes('gtag') && (message.includes('error') || message.includes('fetch'))) ||
-						// Capturar errores de fetch genéricos que vienen de GA4
-						(args.some(arg => arg && typeof arg === 'object' && arg.stack && arg.stack.includes('gtag')))
-					) {
-						// Silenciosamente ignorar errores de GA4 (no son críticos)
-						return;
-					}
-					// Para otros errores, mostrar normalmente
-					originalConsoleError.apply(console, args);
-				};
-				
-				// Interceptar window.fetch para capturar errores de red de GA4
-				const originalFetch = window.fetch;
-				window.fetch = function(...args) {
-					const url = args[0];
-					return originalFetch.apply(this, args).catch(error => {
-						// Silenciar errores de fetch relacionados con Google Analytics
-						if (
-							typeof url === 'string' && (
-								url.includes('google-analytics.com') ||
-								url.includes('googletagmanager.com') ||
-								url.includes('analytics.google.com') ||
-								url.includes('generativelanguage.googleapis.com') ||
-								url.includes('G-PZQQL7WH39')
-							)
-						) {
-							// Silenciosamente ignorar (no lanzar error a consola)
-							return Promise.reject(error);
-						}
-						// Para otros errores, lanzar normalmente
-						throw error;
-					});
-				};
-				
-				// Interceptar errores no capturados (unhandled errors) de GA4
-				window.addEventListener('error', function(event) {
-					// ✅ Filtrar AbortError de Firebase (cancelaciones normales)
-					if (
-						event.error?.name === 'AbortError' ||
-						event.message?.includes('AbortError') ||
-						event.error?.message?.includes('signal is aborted')
-					) {
-						event.preventDefault();
-						event.stopPropagation();
-						return false;
-					}
-					
-					if (
-						event.message && (
-							event.message.includes('Fetch error') ||
-							event.message.includes('google-analytics.com') ||
-							event.message.includes('googletagmanager.com') ||
-							event.message.includes('analytics.google.com') ||
-							event.message.includes('generativelanguage.googleapis.com')
-						)
-					) {
-						event.preventDefault();
-						event.stopPropagation();
-						return false;
-					}
-				}, true);
-				
-				// Interceptar promesas rechazadas no manejadas (unhandled promise rejections)
-				window.addEventListener('unhandledrejection', function(event) {
-					const reason = event.reason;
-					const reasonStr = reason ? String(reason) : '';
-					
-					// ✅ Filtrar AbortError de Firebase (cancelaciones normales)
-					if (
-						reason?.name === 'AbortError' ||
-						reasonStr.includes('AbortError') ||
-						reasonStr.includes('signal is aborted') ||
-						(reason && reason.stack && reason.stack.includes('AbortError'))
-					) {
-						event.preventDefault();
-						return false;
-					}
-					
-					if (
-						reasonStr.includes('Fetch error') ||
-						reasonStr.includes('google-analytics.com') ||
-						reasonStr.includes('googletagmanager.com') ||
-						reasonStr.includes('analytics.google.com') ||
-						reasonStr.includes('generativelanguage.googleapis.com') ||
-						(reason && reason.stack && reason.stack.includes('gtag'))
-					) {
-						event.preventDefault();
-						return false;
-					}
-				});
-			})();
-		</script>
-		<script async src="https://www.googletagmanager.com/gtag/js?id=G-PZQQL7WH39
-"></script>
-		<script>
-			window.dataLayer = window.dataLayer || [];
-			function gtag(){dataLayer.push(arguments);}
-			gtag('js', new Date());
+    <!-- Structured Data: limpio y consistente -->
+    <script type="application/ld+json">
+      {
+        "@context": "https://schema.org",
+        "@type": "WebSite",
+        "@id": "https://chactivo.com/#website",
+        "url": "https://chactivo.com/",
+        "name": "Chactivo - Chat Gay Chile",
+        "description": "Chat gay en Chile para conversar sin registro. Gratis, rápido y con salas activas.",
+        "publisher": { "@id": "https://chactivo.com/#organization" }
+      }
+    </script>
 
-			// Configuración básica de GA4
-			gtag('config', 'G-PZQQL7WH39', {
-				'send_page_view': true,
-				'anonymize_ip': true, // Cumplimiento GDPR
-				'cookie_flags': 'SameSite=None;Secure'
-			});
-		</script>
+    <script type="application/ld+json">
+      {
+        "@context": "https://schema.org",
+        "@type": "Organization",
+        "@id": "https://chactivo.com/#organization",
+        "name": "Chactivo",
+        "url": "https://chactivo.com/",
+        "logo": "https://chactivo.com/icon-512.png"
+      }
+    </script>
 
-		<!-- Structured Data (JSON-LD) - WebApplication -->
-		<script type="application/ld+json">
-		{
-			"@context": "https://schema.org",
-			"@type": "WebApplication",
-			"@id": "https://chactivo.com/#webapp",
-			"name": "Chactivo - Chat Gay Chile",
-			"alternateName": ["Chat Gay Santiago", "Chactivo LGBT+"],
-			"description": "Chat gay Chile 100% gratis. Cientos de chicos gays chateando ahora. Acceso rápido, sin registro, comunidad activa 24/7. Salas temáticas: Gaming, +30, Osos, Amistad. Conecta rápido y chatea gratis.",
-			"url": "https://chactivo.com",
-			"applicationCategory": "SocialNetworkingApplication",
-			"operatingSystem": "Web, iOS, Android",
-			"browserRequirements": "Requires JavaScript. Requires HTML5.",
-			"offers": {
-				"@type": "Offer",
-				"price": "0",
-				"priceCurrency": "CLP",
-				"availability": "https://schema.org/InStock"
-			},
-			"audience": {
-				"@type": "Audience",
-				"audienceType": "Comunidad LGBT+ Chile",
-				"geographicArea": {
-					"@type": "Country",
-					"name": "Chile"
-				}
-			},
-			"serviceArea": {
-				"@type": "City",
-				"name": "Santiago",
-				"containedIn": {
-					"@type": "Country",
-					"name": "Chile"
-				}
-			},
-			"availableLanguage": ["es", "es-CL"],
-			"keywords": "chat gay chile, chat gay santiago, conocer gays chile, comunidad lgbt chile, chat homosexual, salas gay santiago",
-			"inLanguage": "es-CL",
-			"potentialAction": {
-				"@type": "InteractAction",
-				"name": "Chatear gratis",
-				"target": "https://chactivo.com/chat"
-			},
-			"datePublished": "2024-12-01",
-			"dateModified": "2025-12-11"
-		}
-		</script>
+    <script type="application/ld+json">
+      {
+        "@context": "https://schema.org",
+        "@type": "WebApplication",
+        "@id": "https://chactivo.com/#webapp",
+        "name": "Chactivo - Chat Gay Chile",
+        "description": "Chat gay en Chile 100% gratis. Entra sin registro y conversa en salas activas.",
+        "url": "https://chactivo.com/",
+        "applicationCategory": "SocialNetworkingApplication",
+        "operatingSystem": "Web, iOS, Android",
+        "offers": {
+          "@type": "Offer",
+          "price": "0",
+          "priceCurrency": "CLP",
+          "availability": "https://schema.org/InStock"
+        }
+      }
+    </script>
 
-		<!-- Structured Data (JSON-LD) - Organization -->
-		<script type="application/ld+json">
-		{
-			"@context": "https://schema.org",
-			"@type": "Organization",
-			"@id": "https://chactivo.com/#organization",
-			"name": "Chactivo",
-			"url": "https://chactivo.com",
-			"logo": "https://chactivo.com/icon-512.png",
-			"description": "Plataforma líder de chat gay en Chile. Comunidad LGBT+ segura para conocer gays en Santiago y todo Chile.",
-			"sameAs": [
-				"https://www.facebook.com/chactivo",
-				"https://www.instagram.com/chactivo",
-				"https://twitter.com/chactivo"
-			],
-			"contactPoint": {
-				"@type": "ContactPoint",
-				"contactType": "Customer Service",
-				"availableLanguage": "Spanish"
-			}
-		}
-		</script>
+    <!-- SEO shell styles -->
+    <style>
+      #seo-shell {
+        padding: 20px;
+        max-width: 980px;
+        margin: 0 auto;
+      }
+      #seo-shell a {
+        text-decoration: underline;
+      }
 
-		<!-- Structured Data (JSON-LD) - WebSite -->
-		<script type="application/ld+json">
-		{
-			"@context": "https://schema.org",
-			"@type": "WebSite",
-			"@id": "https://chactivo.com/#website",
-			"url": "https://chactivo.com",
-			"name": "Chactivo - Chat Gay Chile",
-			"description": "Chat gay Chile 100% gratis. Cientos de chicos gays chateando ahora. Acceso rápido, sin registro, comunidad activa 24/7. Salas temáticas, conversación real.",
-			"publisher": {
-				"@id": "https://chactivo.com/#organization"
-			},
-			"potentialAction": {
-				"@type": "SearchAction",
-				"target": "https://chactivo.com/buscar?q={search_term_string}",
-				"query-input": "required name=search_term_string"
-			}
-		}
-		</script>
+      /* Evitar CLS: si JS está activo, ocultamos rápido con clase */
+      html.app-loaded #seo-shell {
+        display: none;
+      }
+    </style>
 
-		<!-- Structured Data (JSON-LD) - BreadcrumbList -->
-		<script type="application/ld+json">
-		{
-			"@context": "https://schema.org",
-			"@type": "BreadcrumbList",
-			"itemListElement": [
-				{
-					"@type": "ListItem",
-					"position": 1,
-					"name": "Inicio",
-					"item": "https://chactivo.com/"
-				},
-				{
-					"@type": "ListItem",
-					"position": 2,
-					"name": "Salas de Chat Gratis",
-					"item": "https://chactivo.com/chat"
-				}
-			]
-		}
-		</script>
+    <!-- ✅ Ocultar SEO shell ASAP (sin esperar window.load) para minimizar FOUC/CLS -->
+    <script>
+      // En cuanto el navegador pueda ejecutar JS, marcamos app-loaded.
+      // React todavía no montó, pero esto evita que el usuario vea "2 páginas".
+      document.documentElement.classList.add("app-loaded");
+    </script>
+  </head>
 
-		<!-- Structured Data (JSON-LD) - FAQ Schema para Rich Snippets -->
-		<script type="application/ld+json">
-		{
-			"@context": "https://schema.org",
-			"@type": "FAQPage",
-			"mainEntity": [
-				{
-					"@type": "Question",
-					"name": "¿Es gratis el chat gay de Santiago en Chactivo?",
-					"acceptedAnswer": {
-						"@type": "Answer",
-						"text": "Sí, Chactivo es 100% gratis. Puedes chatear ilimitadamente en las salas de Santiago, Gaming y Foro Anónimo sin pagar nunca. Entras como invitado en 1 clic."
-					}
-				},
-				{
-					"@type": "Question",
-					"name": "¿Necesito registrarme para usar el chat?",
-					"acceptedAnswer": {
-						"@type": "Answer",
-						"text": "NO es obligatorio. Puedes usar el 'Modo Invitado' para entrar y chatear inmediatamente sin email ni contraseña. El registro es opcional solo si quieres reservar tu nombre de usuario."
-					}
-				},
-				{
-					"@type": "Question",
-					"name": "¿Qué salas de chat gay hay disponibles?",
-					"acceptedAnswer": {
-						"@type": "Answer",
-						"text": "Para asegurar que siempre encuentres gente hablando, concentramos la actividad en las 4 salas más populares: Chat General Santiago, Gaming Squads, Foro Anónimo y Conversas Libres. Menos salas vacías, más conversación real."
-					}
-				},
-				{
-					"@type": "Question",
-					"name": "¿El chat es seguro y anónimo?",
-					"acceptedAnswer": {
-						"@type": "Answer",
-						"text": "100% anónimo. En nuestra sala de Foro Anónimo tu identidad se oculta automáticamente (Usuario 1, Usuario 2) para que puedas expresarte libremente sin juicios."
-					}
-				}
-			]
-		}
-		</script>
+  <body>
+    <!-- ✅ CONTENIDO SEO REAL (sin SSR): para crawlers / fallback -->
+    <!-- Nota: se ocultará rápido con JS por app-loaded; Google igual puede leerlo en HTML inicial -->
+    <main id="seo-shell">
+      <header>
+        <h1>Chat Gay Chile: entra y conversa sin registro</h1>
+        <p>
+          En <strong>Chactivo</strong> puedes entrar en 1 clic y conversar con gente real.
+          Sin apps, sin correos, sin vueltas. Un chat gay en Chile pensado para hablar rápido,
+          conocer gente y mantener la conversación activa.
+        </p>
+      </header>
 
-		<!-- Structured Data (JSON-LD) - LocalBusiness para SEO Local Santiago -->
-		<script type="application/ld+json">
-		{
-			"@context": "https://schema.org",
-			"@type": "LocalBusiness",
-			"@id": "https://chactivo.com/#local-business",
-			"name": "Chactivo - Chat Gay Santiago Chile",
-			"image": "https://chactivo.com/icon-512.png",
-			"description": "Chat gay Chile 100% gratis. Cientos de chicos gays de Santiago y Chile chateando ahora. Acceso rápido, sin registro, comunidad activa 24/7. Salas temáticas, conversación real, sin presión.",
-			"address": {
-				"@type": "PostalAddress",
-				"addressLocality": "Santiago",
-				"addressRegion": "Región Metropolitana",
-				"addressCountry": "CL"
-			},
-			"geo": {
-				"@type": "GeoCoordinates",
-				"latitude": -33.4489,
-				"longitude": -70.6693
-			},
-			"url": "https://chactivo.com",
-			"telephone": "",
-			"priceRange": "Gratis",
-			"openingHoursSpecification": {
-				"@type": "OpeningHoursSpecification",
-				"dayOfWeek": [
-					"Monday",
-					"Tuesday",
-					"Wednesday",
-					"Thursday",
-					"Friday",
-					"Saturday",
-					"Sunday"
-				],
-				"opens": "00:00",
-				"closes": "23:59"
-			},
-			"servesCuisine": "",
-			"areaServed": [
-				{
-					"@type": "City",
-					"name": "Santiago"
-				},
-				{
-					"@type": "City",
-					"name": "Valparaíso"
-				},
-				{
-					"@type": "City",
-					"name": "Viña del Mar"
-				},
-				{
-					"@type": "City",
-					"name": "Concepción"
-				},
-				{
-					"@type": "Country",
-					"name": "Chile"
-				}
-			],
-			"hasOfferCatalog": {
-				"@type": "OfferCatalog",
-				"name": "Salas de Chat Gay",
-				"itemListElement": [
-					{
-						"@type": "Offer",
-						"itemOffered": {
-							"@type": "Service",
-							"name": "Chat Gay Santiago Gratis",
-							"description": "Salas de chat en vivo para conocer gays en Santiago"
-						}
-					},
-					{
-						"@type": "Offer",
-						"itemOffered": {
-							"@type": "Service",
-							"name": "Chat Anónimo LGBT+",
-							"description": "Chat sin registro, 100% anónimo y seguro"
-						}
-					},
-					{
-						"@type": "Offer",
-						"itemOffered": {
-							"@type": "Service",
-							"name": "Salas Temáticas Activas",
-							"description": "Salas concentradas con alta actividad: Gaming, Santiago y Foro."
-						}
-					}
-				]
-			}
-		}
-		</script>
-	</head>
-	<body>
-		<div id="root" role="application" aria-label="Aplicación de chat LGBTQ+ Chactivo"></div>
-		<script type="module" src="/src/main.jsx"></script>
-	</body>
+      <section>
+        <h2>Chat gay en Santiago y salas activas</h2>
+        <p>
+          Si buscas <strong>chat gay en Santiago</strong>, puedes entrar a una sala activa y empezar a conversar al instante.
+          También hay salas temáticas como Gaming o +30 (según disponibilidad).
+        </p>
+      </section>
+
+      <section>
+        <h2>¿Necesito registrarme?</h2>
+        <p>
+          No. Puedes entrar como invitado y chatear al instante. El registro es opcional si quieres reservar tu nombre.
+        </p>
+      </section>
+
+      <nav aria-label="Enlaces principales">
+        <p><strong>Enlaces útiles:</strong></p>
+        <ul>
+          <!-- ✅ FIX: /chat NO existe -->
+          <li><a href="/chat/principal">Entrar al chat ahora</a></li>
+
+          <!-- ✅ FIX: /chat-santiago NO existe -->
+          <li><a href="/chat/santiago">Chat Gay Santiago</a></li>
+
+          <!-- ❌ Eliminados: no existen / están desactivados según auditoría -->
+          <!-- /chat-valparaiso, /chat-vina-del-mar, /chat-concepcion -->
+        </ul>
+      </nav>
+
+      <footer>
+        <p>Consejo: para ver el chat en vivo necesitas JavaScript habilitado.</p>
+      </footer>
+    </main>
+
+    <!-- App React -->
+    <div id="root" role="application" aria-label="Aplicación de chat LGBTQ+ Chactivo"></div>
+
+    <!-- Noscript: enlaces corregidos -->
+    <noscript>
+      <div style="padding:20px;max-width:980px;margin:0 auto;">
+        <h1>Chat Gay Chile</h1>
+        <p>Chactivo es un chat gay en Chile para conversar sin registro. Activa JavaScript para acceder al chat en vivo.</p>
+        <p><a href="/chat/principal">Entrar al chat</a></p>
+      </div>
+    </noscript>
+
+    <!-- ✅ Vite DEV entry: evita 404 de /assets/index-hash.* -->
+    <!-- Cambia a /src/main.tsx si tu proyecto usa TS -->
+    <script type="module" src="/src/main.jsx"></script>
+  </body>
 </html>

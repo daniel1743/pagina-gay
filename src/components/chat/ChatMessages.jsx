@@ -219,6 +219,94 @@ const ChatMessages = ({ messages, currentUserId, onUserClick, onReport, onPrivat
     }
   };
 
+  // ✅ MESSAGE GROUPING: Agrupar mensajes consecutivos del mismo usuario (WhatsApp/Telegram-style)
+  const groupMessages = (messages) => {
+    if (!messages || messages.length === 0) return [];
+
+    const groups = [];
+    let currentGroup = null;
+    const GROUP_TIME_THRESHOLD = 2 * 60 * 1000; // 2 minutos en ms
+
+    messages.forEach((message, index) => {
+      const isSystem = message.userId === 'system';
+      const isModerator = message.userId === 'system_moderator';
+      
+      // Mensajes de sistema/moderador no se agrupan (siempre individuales)
+      if (isSystem || isModerator) {
+        if (currentGroup) {
+          groups.push(currentGroup);
+          currentGroup = null;
+        }
+        groups.push({
+          groupId: `single_${message.id}`,
+          userId: message.userId,
+          username: message.username,
+          avatar: message.avatar,
+          isPremium: message.isPremium || false,
+          messages: [message],
+          isSystem,
+          isModerator,
+        });
+        return;
+      }
+
+      // Obtener timestamp en ms para comparación
+      const messageTime = message.timestampMs || 
+                         (message.timestamp?.toMillis?.() || 
+                          (typeof message.timestamp === 'number' ? message.timestamp : 
+                           (message.timestamp ? new Date(message.timestamp).getTime() : Date.now())));
+
+      const prevMessage = index > 0 ? messages[index - 1] : null;
+      const prevTime = prevMessage ? 
+        (prevMessage.timestampMs || 
+         (prevMessage.timestamp?.toMillis?.() || 
+          (typeof prevMessage.timestamp === 'number' ? prevMessage.timestamp : 
+           (prevMessage.timestamp ? new Date(prevMessage.timestamp).getTime() : Date.now())))) : 
+        null;
+
+      const timeDiff = prevTime ? messageTime - prevTime : Infinity;
+
+      // Agrupar si:
+      // 1. Es el mismo userId que el mensaje anterior
+      // 2. La diferencia de tiempo es <= 2 minutos (o no hay timestamp confiable)
+      const shouldGroup = prevMessage && 
+                         prevMessage.userId === message.userId && 
+                         !prevMessage.isSystem && 
+                         !prevMessage.isModerator &&
+                         timeDiff <= GROUP_TIME_THRESHOLD;
+
+      if (shouldGroup && currentGroup) {
+        // Agregar al grupo actual
+        currentGroup.messages.push(message);
+      } else {
+        // Crear nuevo grupo
+        if (currentGroup) {
+          groups.push(currentGroup);
+        }
+        currentGroup = {
+          groupId: `group_${message.id}`,
+          userId: message.userId,
+          username: message.username,
+          avatar: message.avatar,
+          isPremium: message.isPremium || false,
+          messages: [message],
+          isSystem: false,
+          isModerator: false,
+        };
+      }
+    });
+
+    // Agregar el último grupo si existe
+    if (currentGroup) {
+      groups.push(currentGroup);
+    }
+
+    return groups;
+  };
+
+  // ✅ Agrupar mensajes antes de renderizar
+  const messageGroups = groupMessages(messages);
+
   return (
     <div
       ref={messagesContainerRef}
@@ -230,248 +318,278 @@ const ChatMessages = ({ messages, currentUserId, onUserClick, onReport, onPrivat
       onScroll={onScroll}
     >
       {newMessagesIndicator}
-      {messages.map((message, index) => {
-        const isOwn = message.userId === currentUserId;
-        const isSystem = message.userId === 'system';
-        const isModerator = message.userId === 'system_moderator';
-        const isUserPremium = findUserPremiumStatus(message.userId);
-        const isUserVerified = findUserVerifiedStatus(message.userId);
-        const userRole = findUserRole(message.userId);
-        const isHighlighted = highlightedMessageId === message.id;
-
-        // 📍 Mostrar divider "Mensajes nuevos" antes del primer mensaje no leído
-        const showDivider = lastReadMessageIndex >= 0 && index === lastReadMessageIndex + 1;
-
-        // 👮 Mensaje del moderador con temporizador y botón de cerrar
-        if (isModerator) {
-          return (
-            <ModeratorWelcomeMessage
-              key={message.id}
-              message={message}
-              showDivider={showDivider}
-            />
-          );
+      {messageGroups.map((group, groupIndex) => {
+        // Calcular índice absoluto del primer mensaje del grupo para el divider
+        let absoluteIndex = 0;
+        for (let i = 0; i < groupIndex; i++) {
+          absoluteIndex += messageGroups[i].messages.length;
         }
 
-        if (isSystem) {
-          return (
-            <React.Fragment key={message.id}>
-              {showDivider && <NewMessagesDivider show={true} />}
-              <motion.div
-                initial={{ opacity: 0, y: 10 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ duration: 0.2 }}
-                className="flex justify-center"
-              >
-                <div className="text-center text-xs text-muted-foreground bg-card px-3 py-1 rounded-full">
-                  {message.content}
-                </div>
-              </motion.div>
-            </React.Fragment>
-          )
+        // Renderizar mensajes de sistema/moderador de forma especial (sin agrupación visual)
+        if (group.isSystem || group.isModerator) {
+          return group.messages.map((message, msgIndexInGroup) => {
+            const messageIndex = absoluteIndex + msgIndexInGroup;
+            const showDivider = lastReadMessageIndex >= 0 && messageIndex === lastReadMessageIndex + 1;
+
+            if (group.isModerator) {
+              return (
+                <ModeratorWelcomeMessage
+                  key={message.id}
+                  message={message}
+                  showDivider={showDivider}
+                />
+              );
+            }
+
+            return (
+              <React.Fragment key={message.id}>
+                {showDivider && <NewMessagesDivider show={true} />}
+                <motion.div
+                  initial={{ opacity: 0, y: 10 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ duration: 0.2 }}
+                  className="flex justify-center"
+                >
+                  <div className="text-center text-xs text-muted-foreground bg-card px-3 py-1 rounded-full">
+                    {message.content}
+                  </div>
+                </motion.div>
+              </React.Fragment>
+            );
+          });
         }
+
+        // Renderizar grupo de mensajes normales
+        const isOwn = group.userId === currentUserId;
+        const isUserPremium = findUserPremiumStatus(group.userId);
+        const isUserVerified = findUserVerifiedStatus(group.userId);
+        const userRole = findUserRole(group.userId);
+        const firstMessage = group.messages[0];
+        const showDivider = lastReadMessageIndex >= 0 && absoluteIndex === lastReadMessageIndex + 1;
 
         return (
-          <React.Fragment key={message.id}>
+          <React.Fragment key={group.groupId}>
             {showDivider && <NewMessagesDivider show={true} />}
-          <motion.div
-            key={message.id}
-            data-message-id={message.id}
-            initial={{ opacity: 0, y: 5 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{
-              duration: 0.2,
-              ease: 'easeOut'
-            }}
-            className={`flex gap-3 ${isOwn ? 'flex-row-reverse' : 'flex-row'} items-start py-2 px-1 hover:bg-gray-50/50 dark:hover:bg-gray-800/30 rounded-lg transition-colors`}
-          >
             <motion.div
-              className="relative w-10 h-10 sm:w-9 sm:h-9 rounded-full flex-shrink-0"
-              onClick={() => onUserClick({
-                username: message.username,
-                avatar: message.avatar,
-                userId: message.userId,
-                isPremium: isUserPremium,
-                verified: isUserVerified,
-                role: userRole
-              })}
-              whileHover={{ scale: 1.05 }}
-              whileTap={{ scale: 0.95 }}
-              transition={{ duration: 0.2 }}
+              data-message-id={firstMessage.id}
+              initial={{ opacity: 0, y: 5 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{
+                duration: 0.2,
+                ease: 'easeOut'
+              }}
+              className={`flex gap-3 ${isOwn ? 'flex-row-reverse' : 'flex-row'} items-start py-2 px-1 hover:bg-gray-50/50 dark:hover:bg-gray-800/30 rounded-lg transition-colors`}
             >
-              <Avatar className="w-full h-full cursor-pointer rounded-full overflow-hidden border-2 border-gray-200 dark:border-gray-700">
-                <AvatarImage src={message.avatar} alt={message.username} className="object-cover" />
-                <AvatarFallback className="bg-secondary text-xs rounded-full">
-                  {message.username[0].toUpperCase()}
-                </AvatarFallback>
-              </Avatar>
-              
-              {/* ⚡ PUNTO DE ESTADO: Verde/Naranja/Rojo */}
-              {!isOwn && !isSystem && !isModerator && (
-                (() => {
-                  const userPresence = safeRoomUsers.find(u => (u.userId || u.id) === message.userId);
-                  const status = getUserConnectionStatus(userPresence);
-                  const statusColor = getStatusColor(status);
-                  
-                  return (
-                    <div
-                      className={`absolute bottom-0 right-0 w-3 h-3 ${statusColor} rounded-full border-2 border-white dark:border-gray-900 shadow-sm`}
-                      title={status === 'online' ? 'Conectado' : status === 'recently_offline' ? 'Recién desconectado' : 'Desconectado'}
-                    />
-                  );
-                })()
-              )}
-            </motion.div>
-
-            {/* ⚡ ESTILO SIN BURBUJAS: Mensaje directamente junto al avatar */}
-            <div className={`group flex flex-col ${isOwn ? 'items-end' : 'items-start'} flex-1 min-w-0 ml-3`}>
-              {/* Nombre del usuario (solo si NO es propio) */}
-              {!isOwn && (
-                <div className="flex items-center gap-1.5 mb-1">
-                  <span className="text-sm font-semibold text-gray-900 dark:text-gray-100 flex items-center gap-1.5">
-                    {message.username}
-                    {(isUserPremium || userRole === 'admin') && (
-                      <CheckCircle className="w-3.5 h-3.5 text-[#FFD700]" />
-                    )}
-                    {isUserVerified && !isUserPremium && userRole !== 'admin' && (
-                      <CheckCircle className="w-3.5 h-3.5 text-[#1DA1F2]" />
-                    )}
-                  </span>
-                  <span className="text-xs text-gray-500 dark:text-gray-400">
-                    {formatTime(message.timestamp)}
-                  </span>
-                </div>
-              )}
-
-              {/* 💬 QUOTE: Mostrar mensaje citado si existe */}
-              {message.replyTo && (
-                <div className="mb-2">
-                  <MessageQuote
-                    replyTo={message.replyTo}
-                    onJumpToMessage={handleJumpToMessage}
-                  />
-                </div>
-              )}
-
-              {/* Contenido del mensaje - SIN BURBUJA */}
-              <div
-                className="cursor-pointer break-words overflow-wrap-anywhere"
-                onClick={() => onPrivateChat({ username: message.username, avatar: message.avatar, userId: message.userId, isPremium: isUserPremium })}
+              {/* ✅ Avatar: Solo mostrar en el primer grupo del usuario (o si es el primer mensaje del grupo) */}
+              <motion.div
+                className="relative w-10 h-10 sm:w-9 sm:h-9 rounded-full flex-shrink-0"
+                onClick={() => onUserClick({
+                  username: group.username,
+                  avatar: group.avatar,
+                  userId: group.userId,
+                  isPremium: isUserPremium,
+                  verified: isUserVerified,
+                  role: userRole
+                })}
+                whileHover={{ scale: 1.05 }}
+                whileTap={{ scale: 0.95 }}
+                transition={{ duration: 0.2 }}
               >
-                {message.type === 'text' && (
-                  <p className="text-[15px] leading-[1.6] whitespace-pre-wrap break-words font-normal text-gray-900 dark:text-gray-100">
-                    {message.content}
-                  </p>
-                )}
-                {message.type === 'gif' && (
-                  <img src={message.content} alt="GIF" className="rounded-lg max-w-full sm:max-w-xs shadow-sm" />
-                )}
-              </div>
-
-              {/* Hora y checks para mensajes propios */}
-              {isOwn && (
-                <div className="flex items-center gap-2 mt-1">
-                  <span className="text-xs text-gray-500 dark:text-gray-400">
-                    {formatTime(message.timestamp)}
-                  </span>
-                  {messageChecks[message.id] === 'double' ? (
-                    <CheckCheck className="w-3.5 h-3.5 text-[#0084ff] dark:text-cyan-400" />
-                  ) : messageChecks[message.id] === 'single' ? (
-                    <Check className="w-3.5 h-3.5 text-gray-400 dark:text-gray-500" />
-                  ) : null}
+                {/* 🎨 Borde animado de colores (premium) */}
+                <div 
+                  className="absolute inset-0 rounded-full"
+                  style={{
+                    background: 'conic-gradient(from 0deg, #a855f7, #ec4899, #3b82f6, #8b5cf6, #a855f7)',
+                    padding: '2px',
+                    animation: 'avatar-border-spin 3s linear infinite',
+                    borderRadius: '50%',
+                    zIndex: 0
+                  }}
+                >
+                  <div className="w-full h-full rounded-full bg-gray-50 dark:bg-gray-900" style={{ borderRadius: '50%' }}></div>
                 </div>
-              )}
-
-
-              {/* ⚡ ACCIONES: Reply, Like, Dislike (solo para mensajes de otros) */}
-              {!isOwn && (
-                <motion.div
-                  className="flex items-center gap-2 mt-2 opacity-0 group-hover:opacity-100 transition-opacity"
-                  initial={{ y: 5 }}
-                  whileHover={{ y: 0 }}
-                >
-                  <motion.div whileHover={{ scale: 1.2 }} whileTap={{ scale: 0.9 }}>
-                    <Button
-                      size="icon"
-                      variant="ghost"
-                      className="h-6 w-6 text-muted-foreground hover:text-cyan-400"
-                      onClick={() => onReply?.({
-                        messageId: message.id,
-                        username: message.username,
-                        content: message.content
-                      })}
-                      title="Responder"
-                    >
-                      <Reply className="h-3.5 w-3.5" />
-                    </Button>
-                  </motion.div>
-                  <motion.div whileHover={{ scale: 1.2 }} whileTap={{ scale: 0.9 }}>
-                    <Button size="icon" variant="ghost" className="h-6 w-6 text-muted-foreground hover:text-green-400" onClick={() => onReaction(message.id, 'like')}>
-                      <ThumbsUp className="h-3.5 w-3.5" />
-                    </Button>
-                  </motion.div>
-                  <motion.div whileHover={{ scale: 1.2 }} whileTap={{ scale: 0.9 }}>
-                    <Button size="icon" variant="ghost" className="h-6 w-6 text-muted-foreground hover:text-red-400" onClick={() => onReaction(message.id, 'dislike')}>
-                      <ThumbsDown className="h-3.5 w-3.5" />
-                    </Button>
-                  </motion.div>
-                </motion.div>
-              )}
-
-              {/* ⚡ REACCIONES: Mostrar contadores de likes/dislikes */}
-              <div className="flex items-center gap-2 mt-1 text-[11px] text-muted-foreground">
-                {message.reactions?.like > 0 && (
-                  <motion.div
-                    className="flex items-center gap-0.5"
-                    initial={{ scale: 0 }}
-                    animate={{ scale: 1 }}
-                    transition={{ type: 'spring', stiffness: 500 }}
-                  >
-                    <ThumbsUp className="w-2.5 h-2.5 text-green-400" />
-                    <motion.span
-                      key={message.reactions.like}
-                      initial={{ scale: 1.5 }}
-                      animate={{ scale: 1 }}
-                    >
-                      {message.reactions.like}
-                    </motion.span>
-                  </motion.div>
+                <Avatar className="relative w-full h-full cursor-pointer rounded-full overflow-hidden z-10" style={{ border: 'none' }}>
+                  <AvatarImage src={group.avatar} alt={group.username} className="object-cover" />
+                  <AvatarFallback className="bg-secondary text-xs rounded-full">
+                    {group.username[0].toUpperCase()}
+                  </AvatarFallback>
+                </Avatar>
+                
+                {/* ⚡ PUNTO DE ESTADO: Verde/Naranja/Rojo */}
+                {!isOwn && (
+                  (() => {
+                    const userPresence = safeRoomUsers.find(u => (u.userId || u.id) === group.userId);
+                    const status = getUserConnectionStatus(userPresence);
+                    const statusColor = getStatusColor(status);
+                    
+                    return (
+                      <div
+                        className={`absolute bottom-0 right-0 w-3 h-3 ${statusColor} rounded-full border-2 border-white dark:border-gray-900 shadow-sm`}
+                        title={status === 'online' ? 'Conectado' : status === 'recently_offline' ? 'Recién desconectado' : 'Desconectado'}
+                      />
+                    );
+                  })()
                 )}
-                {message.reactions?.dislike > 0 && (
-                  <motion.div
-                    className="flex items-center gap-0.5"
-                    initial={{ scale: 0 }}
-                    animate={{ scale: 1 }}
-                    transition={{ type: 'spring', stiffness: 500 }}
-                  >
-                    <ThumbsDown className="w-2.5 h-2.5 text-red-400" />
-                    <motion.span
-                      key={message.reactions.dislike}
-                      initial={{ scale: 1.5 }}
-                      animate={{ scale: 1 }}
-                    >
-                      {message.reactions.dislike}
-                    </motion.span>
-                  </motion.div>
+              </motion.div>
+
+              {/* ✅ Mensajes del grupo */}
+              <div className={`group flex flex-col ${isOwn ? 'items-end' : 'items-start'} flex-1 min-w-0 ${isOwn ? 'mr-3' : 'ml-3'} space-y-1`}>
+                {/* ✅ Nombre del usuario: Solo mostrar en el primer mensaje del grupo (si NO es propio) */}
+                {!isOwn && (
+                  <div className="flex items-center gap-1.5 mb-1">
+                    <span className="text-sm font-semibold text-gray-900 dark:text-gray-100 flex items-center gap-1.5">
+                      {group.username}
+                      {(isUserPremium || userRole === 'admin') && (
+                        <CheckCircle className="w-3.5 h-3.5 text-[#FFD700]" />
+                      )}
+                      {isUserVerified && !isUserPremium && userRole !== 'admin' && (
+                        <CheckCircle className="w-3.5 h-3.5 text-[#1DA1F2]" />
+                      )}
+                    </span>
+                    <span className="text-xs text-gray-500 dark:text-gray-400">
+                      {formatTime(firstMessage.timestamp)}
+                    </span>
+                  </div>
                 )}
+
+                {/* ✅ Renderizar cada mensaje del grupo */}
+                {group.messages.map((message, msgIndexInGroup) => {
+                  const isHighlighted = highlightedMessageId === message.id;
+                  const isFirstInGroup = msgIndexInGroup === 0;
+
+                  return (
+                    <div key={message.id} className="w-full">
+                      {/* 💬 QUOTE: Mostrar mensaje citado si existe */}
+                      {message.replyTo && (
+                        <div className="mb-2">
+                          <MessageQuote
+                            replyTo={message.replyTo}
+                            onJumpToMessage={handleJumpToMessage}
+                          />
+                        </div>
+                      )}
+
+                      {/* Contenido del mensaje - SIN BURBUJA */}
+                      <div
+                        className="cursor-pointer break-words overflow-wrap-anywhere"
+                        onClick={() => onPrivateChat({ username: message.username, avatar: message.avatar, userId: message.userId, isPremium: isUserPremium })}
+                      >
+                        {message.type === 'text' && (
+                          <p className="text-[15px] leading-[1.6] whitespace-pre-wrap break-words font-normal text-gray-900 dark:text-gray-100">
+                            {message.content}
+                          </p>
+                        )}
+                        {message.type === 'gif' && (
+                          <img src={message.content} alt="GIF" className="rounded-lg max-w-full sm:max-w-xs shadow-sm" />
+                        )}
+                      </div>
+
+                      {/* Hora y checks para mensajes propios */}
+                      {isOwn && (
+                        <div className="flex items-center gap-2 mt-1">
+                          <span className="text-xs text-gray-500 dark:text-gray-400">
+                            {formatTime(message.timestamp)}
+                          </span>
+                          {messageChecks[message.id] === 'double' ? (
+                            <CheckCheck className="w-3.5 h-3.5 text-[#0084ff] dark:text-cyan-400" />
+                          ) : messageChecks[message.id] === 'single' ? (
+                            <Check className="w-3.5 h-3.5 text-gray-400 dark:text-gray-500" />
+                          ) : null}
+                        </div>
+                      )}
+
+                      {/* ⚡ ACCIONES: Reply, Like, Dislike (solo para mensajes de otros) */}
+                      {!isOwn && (
+                        <motion.div
+                          className="flex items-center gap-2 mt-2 opacity-0 group-hover:opacity-100 transition-opacity"
+                          initial={{ y: 5 }}
+                          whileHover={{ y: 0 }}
+                        >
+                          <motion.div whileHover={{ scale: 1.2 }} whileTap={{ scale: 0.9 }}>
+                            <Button
+                              size="icon"
+                              variant="ghost"
+                              className="h-6 w-6 text-muted-foreground hover:text-cyan-400"
+                              onClick={() => onReply?.({
+                                messageId: message.id,
+                                username: message.username,
+                                content: message.content
+                              })}
+                              title="Responder"
+                            >
+                              <Reply className="h-3.5 w-3.5" />
+                            </Button>
+                          </motion.div>
+                          <motion.div whileHover={{ scale: 1.2 }} whileTap={{ scale: 0.9 }}>
+                            <Button size="icon" variant="ghost" className="h-6 w-6 text-muted-foreground hover:text-green-400" onClick={() => onReaction(message.id, 'like')}>
+                              <ThumbsUp className="h-3.5 w-3.5" />
+                            </Button>
+                          </motion.div>
+                          <motion.div whileHover={{ scale: 1.2 }} whileTap={{ scale: 0.9 }}>
+                            <Button size="icon" variant="ghost" className="h-6 w-6 text-muted-foreground hover:text-red-400" onClick={() => onReaction(message.id, 'dislike')}>
+                              <ThumbsDown className="h-3.5 w-3.5" />
+                            </Button>
+                          </motion.div>
+                        </motion.div>
+                      )}
+
+                      {/* ⚡ REACCIONES: Mostrar contadores de likes/dislikes */}
+                      <div className="flex items-center gap-2 mt-1 text-[11px] text-muted-foreground">
+                        {message.reactions?.like > 0 && (
+                          <motion.div
+                            className="flex items-center gap-0.5"
+                            initial={{ scale: 0 }}
+                            animate={{ scale: 1 }}
+                            transition={{ type: 'spring', stiffness: 500 }}
+                          >
+                            <ThumbsUp className="w-2.5 h-2.5 text-green-400" />
+                            <motion.span
+                              key={message.reactions.like}
+                              initial={{ scale: 1.5 }}
+                              animate={{ scale: 1 }}
+                            >
+                              {message.reactions.like}
+                            </motion.span>
+                          </motion.div>
+                        )}
+                        {message.reactions?.dislike > 0 && (
+                          <motion.div
+                            className="flex items-center gap-0.5"
+                            initial={{ scale: 0 }}
+                            animate={{ scale: 1 }}
+                            transition={{ type: 'spring', stiffness: 500 }}
+                          >
+                            <ThumbsDown className="w-2.5 h-2.5 text-red-400" />
+                            <motion.span
+                              key={message.reactions.dislike}
+                              initial={{ scale: 1.5 }}
+                              animate={{ scale: 1 }}
+                            >
+                              {message.reactions.dislike}
+                            </motion.span>
+                          </motion.div>
+                        )}
+                      </div>
+
+                      {!isOwn && (
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => onReport({ type: 'message', id: message.id, username: message.username })}
+                          className="mt-0.5 h-5 text-[10px] text-red-500 hover:text-red-400 hover:bg-red-500/10 opacity-0 group-hover:opacity-100 transition-opacity px-1"
+                        >
+                          <Flag className="w-2.5 h-2.5 mr-0.5" />
+                          Reportar
+                        </Button>
+                      )}
+                    </div>
+                  );
+                })}
               </div>
-
-              {!isOwn && (
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  onClick={() => onReport({ type: 'message', id: message.id, username: message.username })}
-                  className="mt-0.5 h-5 text-[10px] text-red-500 hover:text-red-400 hover:bg-red-500/10 opacity-0 group-hover:opacity-100 transition-opacity px-1"
-                >
-                  <Flag className="w-2.5 h-2.5 mr-0.5" />
-                  Reportar
-                </Button>
-              )}
-            </div>
-          </motion.div>
+            </motion.div>
           </React.Fragment>
         );
-      })}
+      }).flat()}
       <div ref={messagesEndRef} />
     </div>
   );

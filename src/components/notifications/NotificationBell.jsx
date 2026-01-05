@@ -9,7 +9,7 @@ import { toast } from '@/components/ui/use-toast';
 import NotificationsPanel from './NotificationsPanel';
 
 const NotificationBell = ({ onOpenPrivateChat }) => {
-  const { user } = useAuth();
+  const { user } = useAuth(); // ✅ Usar useAuth normal (NotificationBell SIEMPRE está dentro de AuthProvider)
   const [isOpen, setIsOpen] = useState(false);
   const [notifications, setNotifications] = useState([]);
   const [unreadCount, setUnreadCount] = useState(0);

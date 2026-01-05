@@ -37,6 +37,7 @@ export const useChatScrollManager = ({ messages, currentUserId, isInputFocused }
   const topAnchorOffsetRef = useRef(0);
   const lastScrollTopRef = useRef(0); // Para detectar dirección de scroll
   const scrollDirectionRef = useRef('down'); // 'up' | 'down'
+  const didInitialScrollRef = useRef(false); // ✅ Track si ya se hizo scroll inicial
 
   // ========================================
   // STATE
@@ -48,7 +49,7 @@ export const useChatScrollManager = ({ messages, currentUserId, isInputFocused }
   // ========================================
   // CONSTANTS
   // ========================================
-  const THRESHOLD_AT_BOTTOM = 100; // px from bottom to consider "at bottom" (WhatsApp-style)
+  const THRESHOLD_AT_BOTTOM = 80; // px from bottom to consider "at bottom" (WhatsApp-style, ajustado a 80px como recomendado)
   const THRESHOLD_REJOIN = 300; // px from bottom to auto-rejoin (más generoso)
   const INACTIVITY_TIMEOUT = 5000; // ms before attempting soft rejoin (5 segundos como WhatsApp)
   const DEBOUNCE_SCROLL = 100; // ms debounce for scroll updates (más rápido)
@@ -256,6 +257,20 @@ export const useChatScrollManager = ({ messages, currentUserId, isInputFocused }
 
     const lastMessage = messages[messages.length - 1];
     const isOwnMessage = lastMessage?.userId === currentUserId;
+
+    // ✅ SCROLL INICIAL: Si es la primera carga, hacer scroll al bottom inmediatamente (WhatsApp-style)
+    if (!didInitialScrollRef.current) {
+      requestAnimationFrame(() => {
+        requestAnimationFrame(() => {
+          // Doble RAF para asegurar que el DOM está renderizado
+          scrollToBottom('auto');
+          setScrollState('AUTO_FOLLOW');
+          setUnreadCount(0);
+          didInitialScrollRef.current = true;
+        });
+      });
+      return; // Salir temprano, no procesar más lógica en la primera carga
+    }
 
     // 🚫 MANDATORY CHECK: Only scroll if user is at bottom (UI/UX best practice)
     const userIsAtBottom = isAtBottom();

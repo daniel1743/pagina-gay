@@ -51,7 +51,19 @@ export const isUserMuted = async (userId) => {
     const now = Date.now();
     if (now < cachedMuteEnd) {
       const remainingSeconds = Math.ceil((cachedMuteEnd - now) / 1000);
-      console.log(`🔇 Usuario ${userId} está muteado. Quedan ${remainingSeconds}s`);
+
+      // 🚨 LOG VISIBLE EN F12: Usuario muteado
+      console.warn(`
+╔═══════════════════════════════════════════════════════════════
+║ 🔇 USUARIO MUTEADO (Rate Limit)
+╠═══════════════════════════════════════════════════════════════
+║ Usuario ID: ${userId}
+║ Motivo: SPAM_RATE_LIMIT
+║ Tiempo restante: ${remainingSeconds} segundo(s)
+║ Fuente: Cache en memoria
+╚═══════════════════════════════════════════════════════════════
+      `);
+
       return {
         muted: true,
         remainingSeconds,
@@ -74,7 +86,19 @@ export const isUserMuted = async (userId) => {
       if (now < muteEnd) {
         const remainingSeconds = Math.ceil((muteEnd - now) / 1000);
         muteCache.set(userId, muteEnd); // Actualizar cache
-        console.log(`🔇 Usuario ${userId} está muteado (desde Firestore). Quedan ${remainingSeconds}s`);
+
+        // 🚨 LOG VISIBLE EN F12: Usuario muteado desde Firestore
+        console.warn(`
+╔═══════════════════════════════════════════════════════════════
+║ 🔇 USUARIO MUTEADO (Rate Limit)
+╠═══════════════════════════════════════════════════════════════
+║ Usuario ID: ${userId}
+║ Motivo: ${data.reason || 'SPAM_RATE_LIMIT'}
+║ Tiempo restante: ${remainingSeconds} segundo(s)
+║ Fuente: Firestore (muted_users)
+╚═══════════════════════════════════════════════════════════════
+        `);
+
         return {
           muted: true,
           remainingSeconds,
@@ -112,7 +136,18 @@ export const muteUser = async (userId, durationSeconds = RATE_LIMIT.MUTE_DURATIO
     // Actualizar cache
     muteCache.set(userId, muteEnd);
 
-    console.warn(`🔇 [RATE LIMIT] Usuario ${userId} MUTEADO por ${durationSeconds}s (spam detectado)`);
+    // 🚨 LOG VISIBLE EN F12: Mute aplicado
+    console.error(`
+╔═══════════════════════════════════════════════════════════════
+║ 🔨 MUTE APLICADO (Rate Limit)
+╠═══════════════════════════════════════════════════════════════
+║ Usuario ID: ${userId}
+║ Motivo: Exceso de mensajes (SPAM_RATE_LIMIT)
+║ Duración: ${durationSeconds} segundo(s)
+║ Expira: ${new Date(muteEnd).toLocaleString()}
+║ Límite excedido: ${RATE_LIMIT.MAX_MESSAGES} mensajes en ${RATE_LIMIT.WINDOW_SECONDS}s
+╚═══════════════════════════════════════════════════════════════
+    `);
   } catch (error) {
     console.error('Error muteando usuario:', error);
   }
