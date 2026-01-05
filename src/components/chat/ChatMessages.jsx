@@ -433,7 +433,13 @@ const ChatMessages = ({ messages, currentUserId, onUserClick, onReport, onPrivat
               </motion.div>
 
               {/* ✅ Mensajes del grupo */}
-              <div className={`group flex flex-col ${isOwn ? 'items-end' : 'items-start'} flex-1 min-w-0 ${isOwn ? 'order-1 mr-3' : 'order-2 ml-3'} space-y-1`}>
+              <div
+                className={`group flex flex-col ${
+                  isOwn
+                    ? 'items-end order-1 mr-3 max-w-[85%] sm:max-w-[75%]'
+                    : 'items-start order-2 ml-3 flex-1 min-w-0'
+                } space-y-1`}
+              >
                 {/* ✅ Nombre del usuario: Solo mostrar en el primer mensaje del grupo (si NO es propio) */}
                 {!isOwn && (
                   <div className="flex items-center gap-1.5 mb-1">
