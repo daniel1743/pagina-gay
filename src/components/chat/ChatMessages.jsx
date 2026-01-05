@@ -378,7 +378,7 @@ const ChatMessages = ({ messages, currentUserId, onUserClick, onReport, onPrivat
                 ease: 'easeOut'
               }}
               // ✅ FIX: order-1 (mensaje) y order-2 (avatar) para que el avatar quede a la derecha
-              className={`flex gap-3 ${isOwn ? 'flex-row justify-end' : 'flex-row'} items-start py-2 px-1 hover:bg-gray-50/50 dark:hover:bg-gray-800/30 rounded-lg transition-colors`}
+              className={`flex gap-3 ${isOwn ? 'flex-row justify-end' : 'flex-row'} items-start py-1 px-1 hover:bg-gray-50/50 dark:hover:bg-gray-800/30 rounded-lg transition-colors`}
             >
               {/* ✅ Avatar: Mostrar siempre, pero en diferente posición según el usuario */}
               <motion.div
@@ -438,7 +438,7 @@ const ChatMessages = ({ messages, currentUserId, onUserClick, onReport, onPrivat
                   isOwn
                     ? 'items-end order-1 mr-3 max-w-[85%] sm:max-w-[75%]'
                     : 'items-start order-2 ml-3 flex-1 min-w-0'
-                } space-y-1`}
+                } space-y-[2px]`}
               >
                 {/* ✅ Nombre del usuario: Solo mostrar en el primer mensaje del grupo (si NO es propio) */}
                 {!isOwn && (
@@ -476,7 +476,7 @@ const ChatMessages = ({ messages, currentUserId, onUserClick, onReport, onPrivat
                       )}
 
                       {/* 🎨 BURBUJA DE MENSAJE - Estilo iMessage/Messenger Pixel-Perfect */}
-                      <div className={`inline-flex flex-row items-end gap-1.5 ${isOwn ? 'justify-end' : 'justify-start'} max-w-[85%] sm:max-w-[75%]`}>
+                      <div className={`inline-flex flex-row items-end gap-1 ${isOwn ? 'justify-end' : 'justify-start'} max-w-[85%] sm:max-w-[75%]`}>
                         
                         {/* ⚡ CORRECCIÓN CLAVE: Si es mensaje propio, poner la hora ANTES de la burbuja para que la burbuja quede pegada al avatar */}
                         {isOwn && (
@@ -522,7 +522,7 @@ const ChatMessages = ({ messages, currentUserId, onUserClick, onReport, onPrivat
                       {/* ⚡ ACCIONES: Reply, Like, Dislike (solo para mensajes de otros) */}
                       {!isOwn && (
                         <motion.div
-                          className="flex items-center gap-2 mt-2 opacity-0 group-hover:opacity-100 transition-opacity"
+                          className="flex items-center gap-2 mt-1 opacity-0 group-hover:opacity-100 transition-opacity"
                           initial={{ y: 5 }}
                           whileHover={{ y: 0 }}
                         >
