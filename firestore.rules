@@ -59,6 +59,13 @@ service cloud.firestore {
       return isAuthenticated() && request.auth.token.firebase.sign_in_provider == 'anonymous';
     }
 
+    // ✅ FIX: Función isNotBanned estaba faltante
+    function isNotBanned() {
+      // Verificar si el usuario tiene el campo banned en true
+      return !exists(/databases/$(database)/documents/users/$(request.auth.uid)) ||
+             get(/databases/$(database)/documents/users/$(request.auth.uid)).data.get('banned', false) == false;
+    }
+
     // ===========================
     // FILTROS DE CONTENIDO
     // ===========================

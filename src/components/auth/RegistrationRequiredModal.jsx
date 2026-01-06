@@ -9,7 +9,7 @@ import {
   DialogDescription,
 } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
-import { Shield, UserPlus, ArrowRight } from 'lucide-react';
+import { Shield, UserPlus, ArrowRight, X } from 'lucide-react';
 
 /**
  * Modal que aparece cuando el usuario intenta acceder a funciones que requieren registro
@@ -67,6 +67,13 @@ export const RegistrationRequiredModal = ({
   return (
     <Dialog open={open} onOpenChange={onClose}>
       <DialogContent className="sm:max-w-[500px] neon-border-card text-white p-0">
+        <button 
+          onClick={onClose}
+          className="absolute right-4 top-4 p-2 rounded-full hover:bg-white/10 text-gray-400 hover:text-white transition-colors z-50"
+          aria-label="Cerrar"
+        >
+          <X className="h-6 w-6" />
+        </button>
         <div className="glass-effect rounded-3xl p-6 flex flex-col w-full overflow-y-auto scrollbar-hide max-h-[90vh]">
           <DialogHeader>
             {/* Icono con efecto */}

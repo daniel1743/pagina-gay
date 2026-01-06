@@ -228,11 +228,21 @@ const ChatMessages = ({ messages, currentUserId, onUserClick, onReport, onPrivat
     const GROUP_TIME_THRESHOLD = 2 * 60 * 1000; // 2 minutos en ms
 
     messages.forEach((message, index) => {
-      const isSystem = message.userId === 'system';
-      const isModerator = message.userId === 'system_moderator';
+      // ⚠️ FILTRAR MENSAJES DEL MODERADOR (06/01/2026) - A petición del usuario
+      // No mostrar mensajes del moderador en el chat
+      if (message.userId === 'system_moderator') {
+        return; // ✅ Saltar este mensaje completamente
+      }
       
+      const isSystem = message.userId === 'system';
+      // ⚠️ MENSAJES DEL MODERADOR COMENTADOS (06/01/2026) - A petición del usuario
+      // const isModerator = message.userId === 'system_moderator';
+      const isModerator = false; // ✅ Forzar a false, no procesar moderador
+      
+      // ⚠️ MENSAJES DEL MODERADOR COMENTADOS (06/01/2026)
       // Mensajes de sistema/moderador no se agrupan (siempre individuales)
-      if (isSystem || isModerator) {
+      // if (isSystem || isModerator) {
+      if (isSystem) { // ✅ Solo procesar mensajes de sistema, NO moderador
         if (currentGroup) {
           groups.push(currentGroup);
           currentGroup = null;
@@ -245,7 +255,7 @@ const ChatMessages = ({ messages, currentUserId, onUserClick, onReport, onPrivat
           isPremium: message.isPremium || false,
           messages: [message],
           isSystem,
-          isModerator,
+          isModerator: false, // ✅ Forzar a false
         });
         return;
       }
@@ -325,21 +335,28 @@ const ChatMessages = ({ messages, currentUserId, onUserClick, onReport, onPrivat
           absoluteIndex += messageGroups[i].messages.length;
         }
 
+        // ⚠️ MENSAJES DEL MODERADOR COMENTADOS (06/01/2026) - A petición del usuario
         // Renderizar mensajes de sistema/moderador de forma especial (sin agrupación visual)
         if (group.isSystem || group.isModerator) {
+          // ⚠️ FILTRAR MENSAJES DEL MODERADOR: No renderizar
+          if (group.isModerator) {
+            return null; // ✅ No renderizar mensajes del moderador
+          }
+          
           return group.messages.map((message, msgIndexInGroup) => {
             const messageIndex = absoluteIndex + msgIndexInGroup;
             const showDivider = lastReadMessageIndex >= 0 && messageIndex === lastReadMessageIndex + 1;
 
-            if (group.isModerator) {
-              return (
-                <ModeratorWelcomeMessage
-                  key={message.id}
-                  message={message}
-                  showDivider={showDivider}
-                />
-              );
-            }
+            // ⚠️ MENSAJES DEL MODERADOR COMENTADOS (06/01/2026)
+            // if (group.isModerator) {
+            //   return (
+            //     <ModeratorWelcomeMessage
+            //       key={message.id}
+            //       message={message}
+            //       showDivider={showDivider}
+            //     />
+            //   );
+            // }
 
             return (
               <React.Fragment key={message.id}>

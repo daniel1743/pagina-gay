@@ -34,7 +34,8 @@ import { RegistrationRequiredModal } from '@/components/auth/RegistrationRequire
 import { sendMessage, subscribeToRoomMessages, addReactionToMessage, markMessagesAsRead, generateUUID } from '@/services/chatService';
 import { joinRoom, leaveRoom, subscribeToRoomUsers, subscribeToMultipleRoomCounts, updateUserActivity, cleanInactiveUsers, filterActiveUsers, subscribeToTypingUsers } from '@/services/presenceService';
 import { validateMessage } from '@/services/antiSpamService';
-import { auth } from '@/config/firebase'; // ✅ CRÍTICO: Necesario para obtener UID real de Firebase Auth
+import { auth, db } from '@/config/firebase'; // ✅ CRÍTICO: Necesario para obtener UID real de Firebase Auth
+import { doc, getDoc } from 'firebase/firestore';
 import { sendPrivateChatRequest, respondToPrivateChatRequest, subscribeToNotifications, markNotificationAsRead } from '@/services/socialService';
 import { sendModeratorWelcome } from '@/services/moderatorWelcome';
 import { checkAndSeedConversations } from '@/services/seedConversationsService';
@@ -140,6 +141,7 @@ const ChatPage = () => {
   const previousRealUserCountRef = useRef(0); // Para detectar cuando usuarios se desconectan y reproducir sonido
   const deliveryTimeoutsRef = useRef(new Map()); // ⏱️ Timeouts para detectar fallos de entrega (20 segundos)
   const autoLoginAttemptedRef = useRef(false); // ✅ FIX: Prevenir múltiples intentos de auto-login
+  const userRolesCacheRef = useRef(new Map()); // ✅ Cache de roles de usuarios para filtrar moderadores
 
   // 🎯 PRO SCROLL MANAGER: Discord/Slack-inspired scroll behavior
   // ✅ IMPORTANTE: Debe estar ANTES del early return para respetar reglas de hooks
@@ -461,8 +463,8 @@ const ChatPage = () => {
       // Los usuarios registrados YA completaron su perfil (username, email, avatar) al registrarse
       // Por lo tanto, NO deben ver el modal de invitado (que pide edad, username y avatar)
       // console.log(`[AGE VERIFICATION] ✅ Usuario REGISTRADO ${user.username} (${user.id}) - Auto-verificado (ya tiene cuenta)`);
-      setIsAgeVerified(true);
-      setShowAgeVerification(false);
+        setIsAgeVerified(true);
+        setShowAgeVerification(false);
 
       // Guardar en localStorage para futuras sesiones
       const ageKey = `age_verified_${user.id}`;
@@ -578,14 +580,16 @@ const ChatPage = () => {
       // ⏳ Marcar como cargado cuando llegan los mensajes
       setIsLoadingMessages(false);
 
+      // ⚠️ VENTANA DE MODERACIÓN COMENTADA (06/01/2026) - A petición del usuario
       // 👮 SEPARAR mensajes del moderador (para RulesBanner) del resto
-      const moderatorMsg = newMessages.find(m => m.userId === 'system_moderator');
-      const regularMessages = newMessages.filter(m => m.userId !== 'system_moderator');
+      // const moderatorMsg = newMessages.find(m => m.userId === 'system_moderator');
+      // const regularMessages = newMessages.filter(m => m.userId !== 'system_moderator');
+      const regularMessages = newMessages; // ✅ Todos los mensajes son regulares ahora
 
       // Si hay mensaje del moderador, guardarlo en estado separado (solo una vez)
-      if (moderatorMsg) {
-        setModeratorMessage(prev => prev || moderatorMsg); // Solo setear si no existe
-      }
+      // if (moderatorMsg) {
+      //   setModeratorMessage(prev => prev || moderatorMsg); // Solo setear si no existe
+      // }
 
       // 🔊 Reproducir sonido si llegaron mensajes nuevos (no en carga inicial)
       if (previousMessageCountRef.current > 0 && regularMessages.length > previousMessageCountRef.current) {
@@ -593,8 +597,8 @@ const ChatPage = () => {
         // Reproducir sonido por cada mensaje nuevo (el servicio agrupa automáticamente si son 4+)
         // 🔊 Reproducir sonido: ENVOLVER EN TRY/CATCH para evitar que errores de audio bloqueen la UI
         try {
-          for (let i = 0; i < newMessageCount; i++) {
-            notificationSounds.playMessageSound();
+        for (let i = 0; i < newMessageCount; i++) {
+          notificationSounds.playMessageSound();
           }
         } catch (e) {
           console.warn('[CHAT] 🔇 Error reproduciendo sonido (UI segura):', e);
@@ -617,7 +621,7 @@ const ChatPage = () => {
             regularMessages.map(m => m.clientId).filter(Boolean)
           );
           const realIds = new Set(regularMessages.map(m => m.id));
-          
+
           // ⚡ DEDUPLICACIÓN RÁPIDA: Filtrar optimistas que ya tienen match
           const remainingOptimistic = optimisticMessages.filter(optMsg => {
             // Prioridad 1: clientId (más confiable, evita duplicados)
@@ -650,7 +654,7 @@ const ChatPage = () => {
             mergedMessages.push(...remainingOptimistic);
           }
         }
-
+        
         // ✅ ACTUALIZAR ESTADO DE ENTREGA: Marcar mensajes propios como 'delivered' si fueron recibidos
         // Esto detecta cuando nuestro mensaje es recibido por otro dispositivo
         const updatedMessages = mergedMessages.map(msg => {
@@ -703,7 +707,7 @@ const ChatPage = () => {
           
           // Si ambos tienen timestamp, ordenar normalmente
           if (timeA !== null && timeB !== null) {
-            return timeA - timeB;
+          return timeA - timeB;
           }
           // Si solo uno tiene timestamp, el que tiene timestamp va primero
           if (timeA !== null && timeB === null) return -1;
@@ -742,13 +746,118 @@ const ChatPage = () => {
       // ✅ Filtrar solo usuarios activos (<5min inactividad)
       const activeUsers = filterActiveUsers(users);
       
-      // ✅ Contar solo usuarios reales (excluir bots)
-      const realUsers = activeUsers.filter(u => {
+      // ✅ OCULTAR MODERADORES: Filtrar usuarios con rol admin o moderator
+      // Consultar roles de usuarios de forma asíncrona y cachear resultados
+      const filteredUsers = [];
+      const usersToCheck = [];
+      
+      // Primero filtrar bots y preparar lista de usuarios a verificar
+      for (const u of activeUsers) {
         const userId = u.userId || u.id;
-        return userId !== 'system' && 
-               !userId?.startsWith('bot_') && 
-               !userId?.startsWith('static_bot_');
-      });
+        
+        // Excluir bots y sistema
+        if (userId === 'system' || 
+            userId?.startsWith('bot_') || 
+            userId?.startsWith('static_bot_')) {
+          continue;
+        }
+        
+        // Verificar cache primero
+        const cachedRole = userRolesCacheRef.current.get(userId);
+        if (cachedRole === 'admin' || cachedRole === 'administrator' || cachedRole === 'moderator') {
+          continue; // Ocultar moderador
+        }
+        
+        if (cachedRole === 'user' || cachedRole === null) {
+          // Usuario normal, incluir
+          filteredUsers.push(u);
+        } else {
+          // No está en cache, agregar a lista para verificar
+          usersToCheck.push({ user: u, userId });
+        }
+      }
+      
+      // Consultar roles de usuarios que no están en cache (en paralelo)
+      if (usersToCheck.length > 0) {
+        Promise.all(
+          usersToCheck.map(async ({ user, userId }) => {
+            try {
+              const userDocRef = doc(db, 'users', userId);
+              const userDoc = await getDoc(userDocRef);
+              
+              if (userDoc.exists()) {
+                const userData = userDoc.data();
+                const userRole = userData.role || null;
+                
+                // Guardar en cache
+                userRolesCacheRef.current.set(userId, userRole);
+                
+                // Si es moderador, no incluir
+                if (userRole === 'admin' || userRole === 'administrator' || userRole === 'moderator') {
+                  return null; // No incluir
+                }
+              } else {
+                // Usuario no existe en users collection, asumir usuario normal
+                userRolesCacheRef.current.set(userId, null);
+              }
+              
+              return user; // Incluir usuario
+            } catch (error) {
+              // Si hay error, incluir el usuario (no bloquear por errores)
+              console.warn(`Error checking user role for ${userId}:`, error);
+              userRolesCacheRef.current.set(userId, null); // Cache como null para evitar consultas repetidas
+              return user;
+            }
+          })
+        ).then(checkedUsers => {
+          // Agregar usuarios verificados que no son moderadores
+          const validUsers = checkedUsers.filter(u => u !== null);
+          const finalUsers = [...filteredUsers, ...validUsers];
+          
+          // Actualizar contadores
+          const realUsers = finalUsers;
+          
+          const currentCounts = {
+            total: users.length,
+            active: activeUsers.length,
+            real: realUsers.length
+          };
+          
+          const hasChanged = 
+            currentCounts.total !== lastUserCountsRef.current.total ||
+            currentCounts.active !== lastUserCountsRef.current.active ||
+            currentCounts.real !== lastUserCountsRef.current.real;
+          
+          if (hasChanged) {
+            // 🔊 Reproducir sonido de INGRESO si un usuario real se conectó
+            if (previousRealUserCountRef.current > 0 && currentCounts.real > previousRealUserCountRef.current) {
+              notificationSounds.playUserJoinSound();
+            }
+
+            // 🔊 Reproducir sonido de SALIDA si un usuario real se desconectó
+            if (previousRealUserCountRef.current > 0 && currentCounts.real < previousRealUserCountRef.current) {
+              notificationSounds.playDisconnectSound();
+            }
+
+            // Actualizar contador de usuarios reales
+            previousRealUserCountRef.current = currentCounts.real;
+            lastUserCountsRef.current = currentCounts;
+          }
+          
+          setRoomUsers(finalUsers);
+        }).catch(error => {
+          console.error('Error checking user roles:', error);
+          // En caso de error, usar usuarios filtrados sin verificación de roles
+          setRoomUsers(filteredUsers);
+        });
+        
+        // Retornar usuarios filtrados inicialmente (sin verificación de roles aún)
+        // Se actualizará cuando las consultas completen
+        return;
+      }
+      
+      // ✅ Contar solo usuarios reales (excluir bots y moderadores)
+      const realUsers = filteredUsers;
       
       // ✅ Solo loggear cuando hay cambios significativos (evitar spam)
       const currentCounts = {
@@ -786,7 +895,7 @@ const ChatPage = () => {
         lastUserCountsRef.current = currentCounts;
       }
 
-      setRoomUsers(activeUsers);
+      setRoomUsers(filteredUsers);
     });
 
     // Guardar funciones de desuscripción
@@ -843,7 +952,7 @@ const ChatPage = () => {
       setTimeout(() => {
         // ✅ FIX: Validar que username existe antes de enviar bienvenida
         if (user?.username) {
-          sendModeratorWelcome(roomId, user.username);
+        sendModeratorWelcome(roomId, user.username);
         }
       }, 2000); // Enviar después de 2 segundos
     }
@@ -1219,55 +1328,55 @@ const ChatPage = () => {
     // ⚡ CRÍTICO: Las validaciones se ejecutan en background para no retrasar la experiencia visual
     const validationPromise = validateMessage(content, user.id, user.username, currentRoom)
       .then(validation => {
-        if (!validation.allowed) {
+    if (!validation.allowed) {
           // ❌ VALIDACIÓN FALLÓ: Eliminar mensaje optimista y mostrar error
           setMessages(prev => prev.filter(m => m.id !== optimisticId));
           
-          // Mostrar mensaje específico según el tipo de violación
-          if (validation.type === 'phone_number') {
-            toast({
-              title: "❌ Números de Teléfono Prohibidos",
-              description: validation.details || validation.reason,
-              variant: "destructive",
-              duration: 5000,
-            });
-          } else if (validation.type === 'forbidden_word') {
-            toast({
-              title: `❌ ${validation.reason}`,
-              description: validation.details || "Tu mensaje no será enviado por violar las reglas del chat.",
-              variant: "destructive",
-              duration: 5000,
-            });
-          } else if (validation.type === 'spam_duplicate_warning') {
-            toast({
-              title: "⚠️ ADVERTENCIA DE SPAM",
-              description: validation.reason,
-              variant: "destructive",
-              duration: 7000,
-            });
-          } else if (validation.type === 'spam_duplicate_ban') {
-            toast({
-              title: "🔨 EXPULSADO POR SPAM",
-              description: validation.reason,
-              variant: "destructive",
-              duration: 10000,
-            });
-          } else if (validation.type === 'temp_ban') {
-            toast({
-              title: "🔨 EXPULSADO TEMPORALMENTE",
-              description: validation.reason,
-              variant: "destructive",
-              duration: 10000,
-            });
-          } else {
-            // Genérico
-            toast({
-              title: "❌ Mensaje Bloqueado",
-              description: validation.reason,
-              variant: "destructive",
-              duration: 5000,
-            });
-          }
+      // Mostrar mensaje específico según el tipo de violación
+      if (validation.type === 'phone_number') {
+        toast({
+          title: "❌ Números de Teléfono Prohibidos",
+          description: validation.details || validation.reason,
+          variant: "destructive",
+          duration: 5000,
+        });
+      } else if (validation.type === 'forbidden_word') {
+        toast({
+          title: `❌ ${validation.reason}`,
+          description: validation.details || "Tu mensaje no será enviado por violar las reglas del chat.",
+          variant: "destructive",
+          duration: 5000,
+        });
+      } else if (validation.type === 'spam_duplicate_warning') {
+        toast({
+          title: "⚠️ ADVERTENCIA DE SPAM",
+          description: validation.reason,
+          variant: "destructive",
+          duration: 7000,
+        });
+      } else if (validation.type === 'spam_duplicate_ban') {
+        toast({
+          title: "🔨 EXPULSADO POR SPAM",
+          description: validation.reason,
+          variant: "destructive",
+          duration: 10000,
+        });
+      } else if (validation.type === 'temp_ban') {
+        toast({
+          title: "🔨 EXPULSADO TEMPORALMENTE",
+          description: validation.reason,
+          variant: "destructive",
+          duration: 10000,
+        });
+      } else {
+        // Genérico
+        toast({
+          title: "❌ Mensaje Bloqueado",
+          description: validation.reason,
+          variant: "destructive",
+          duration: 5000,
+        });
+      }
           return false; // No enviar
         }
         return true; // Validación OK, continuar
@@ -1293,8 +1402,8 @@ const ChatPage = () => {
         content,
         type,
         replyTo: replyData,
-          },
-          user.isAnonymous
+      },
+      user.isAnonymous
         );
       })
       .then((sentMessage) => {
@@ -1305,7 +1414,7 @@ const ChatPage = () => {
 
         // 🎯 VOC: Resetear cooldown cuando hay nueva actividad
         resetVOCCooldown(currentRoom);
-        
+
         // ⚡ LATENCY CHECK (SOLICITUD DE USUARIO): Medir tiempo de ciclo completo
         // Solo para el usuario que envió el mensaje y si está en localhost/dev o lo pide el admin
         const latency = Date.now() - optimisticMessage.timestampMs;
@@ -1757,15 +1866,16 @@ const ChatPage = () => {
           />
         </div>
 
+        {/* ⚠️ VENTANA DE MODERACIÓN COMENTADA (06/01/2026) - A petición del usuario */}
         {/* 👮 Banner de reglas del moderador (NO bloqueante) */}
-        {moderatorMessage && (
+        {/* {moderatorMessage && (
           <RulesBanner
             message={moderatorMessage}
             onDismiss={() => setModeratorMessage(null)}
             roomId={currentRoom}
             userId={user?.id}
           />
-        )}
+        )} */}
 
         {/* 🤖 COMPANION AI Widget - Solo para usuarios anónimos */}
         {/* ⚠️ TEMPORALMENTE COMENTADO: Oculto hasta tener un mejor UX */}

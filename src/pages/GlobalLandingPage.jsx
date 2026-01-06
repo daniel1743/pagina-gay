@@ -32,6 +32,7 @@ const InlineGuestEntry = ({ chatRoomId = 'principal' }) => {
   const navigate = useNavigate();
   const { signInAsGuest } = useAuth();
   const [nickname, setNickname] = useState('');
+  const [acceptedTerms, setAcceptedTerms] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState('');
 
@@ -45,6 +46,10 @@ const InlineGuestEntry = ({ chatRoomId = 'principal' }) => {
     }
     if (nickname.trim().length < 3) {
       setError('El nickname debe tener al menos 3 caracteres');
+      return;
+    }
+    if (!acceptedTerms) {
+      setError('Debes aceptar que eres mayor de 18 años');
       return;
     }
 
@@ -71,31 +76,40 @@ const InlineGuestEntry = ({ chatRoomId = 'principal' }) => {
   };
 
   return (
-    <div className="w-full max-w-4xl mx-auto">
+    <div className="w-full max-w-md mx-auto">
       <div 
-        className="glass-effect rounded-2xl p-6 sm:p-8 md:p-10 border-2 border-purple-500/30 hover:border-purple-500/50 transition-all"
+        className="glass-effect rounded-2xl border-2 border-purple-500/30 hover:border-purple-500/50 transition-all overflow-hidden"
         style={{
           background: 'linear-gradient(135deg, rgba(102, 126, 234, 0.1) 0%, rgba(118, 75, 162, 0.1) 100%)',
         }}
       >
-        <div className="text-center mb-6">
-          <h2 className="text-2xl sm:text-3xl md:text-4xl font-black mb-2 bg-gradient-to-r from-purple-500 via-purple-600 to-cyan-400 bg-clip-text text-transparent">
-            Chatea YA
-          </h2>
-          <p className="text-base sm:text-lg text-gray-300 font-semibold mb-1">
-            con Gente Real
-          </p>
-          <p className="text-xs sm:text-sm text-gray-400">
-            Sin registro • Sin esperas • 100% Gratis
-          </p>
+        {/* ✅ Header con Imagen (gente-guapa.png) */}
+        <div className="w-full h-40 bg-gray-900 relative">
+          <img 
+            src="/gente-guapa.png" 
+            alt="Gente Guapa" 
+            className="w-full h-full object-cover"
+            onError={(e) => {
+              // Fallback si no existe la imagen aún
+              e.target.style.display = 'none';
+              e.target.parentNode.classList.add('flex', 'items-center', 'justify-center');
+              e.target.parentNode.innerHTML += '<span class="text-purple-400 font-bold text-xl">Chatea con Gente Real</span>';
+            }}
+          />
+          <div className="absolute inset-0 bg-gradient-to-t from-black/80 to-transparent"></div>
+          <div className="absolute bottom-4 left-6">
+            <h2 className="text-2xl font-bold text-white shadow-black drop-shadow-md">
+              Chatea YA
+            </h2>
+          </div>
         </div>
 
-        <form onSubmit={handleSubmit} className="w-full">
-          <div>
-            <label className="block text-sm font-semibold text-gray-300 mb-2 text-left">
-              Tu Nickname:
-            </label>
-            <div className="flex items-center gap-3">
+        <div className="p-6 sm:p-8">
+          <form onSubmit={handleSubmit} className="w-full">
+            <div className="mb-6">
+              <label className="block text-lg font-bold text-white mb-2 text-left">
+                Coloca tu nombre o usuario:
+              </label>
               <input
                 type="text"
                 value={nickname}
@@ -103,42 +117,69 @@ const InlineGuestEntry = ({ chatRoomId = 'principal' }) => {
                 placeholder="Ej: Carlos23"
                 maxLength={20}
                 required
-                autoFocus
                 disabled={isLoading}
-                className="flex-1 px-4 py-3 sm:py-4 text-base sm:text-lg border-2 border-purple-500/50 rounded-xl outline-none focus:border-purple-500 focus:ring-2 focus:ring-purple-500/30 bg-white/95 text-gray-900 font-medium transition-all h-12 sm:h-14"
-                style={{ color: '#333' }}
+                className="w-full px-4 py-3 text-lg border-2 border-purple-500/50 rounded-xl outline-none focus:border-purple-500 focus:ring-2 focus:ring-purple-500/30 bg-white/95 text-gray-900 font-medium transition-all mb-2"
               />
-              <button
-                type="submit"
-                disabled={isLoading || !nickname.trim()}
-                className="px-8 sm:px-10 py-3 sm:py-4 text-base sm:text-lg font-bold text-white rounded-xl transition-all disabled:opacity-50 disabled:cursor-not-allowed hover:scale-105 shadow-lg whitespace-nowrap h-12 sm:h-14 flex items-center justify-center"
-                style={{
-                  background: isLoading || !nickname.trim()
-                    ? 'linear-gradient(135deg, #999 0%, #888 100%)'
-                    : 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
-                  boxShadow: isLoading || !nickname.trim()
-                    ? '0 4px 15px rgba(0,0,0,0.2)'
-                    : '0 6px 20px rgba(102, 126, 234, 0.4)',
-                }}
-              >
-                {isLoading ? '⏳ Entrando...' : '🚀 Ir al Chat'}
-              </button>
+              <p className="text-purple-300 font-medium text-sm text-center">
+                Chatea gratis y sin registro
+              </p>
             </div>
-            <p className="text-xs text-gray-400 mt-2 text-left">
-              ✨ Avatar asignado automáticamente
+
+            {/* ✅ Checkbox Mayor de 18 */}
+            <div className="mb-6 flex items-start gap-3 p-3 rounded-lg bg-purple-900/20 border border-purple-500/20">
+              <input
+                type="checkbox"
+                id="terms"
+                checked={acceptedTerms}
+                onChange={(e) => setAcceptedTerms(e.target.checked)}
+                className="mt-1 w-5 h-5 rounded border-gray-300 text-purple-600 focus:ring-purple-500 cursor-pointer"
+              />
+              <label htmlFor="terms" className="text-sm text-gray-300 cursor-pointer leading-snug">
+                Acepto que soy <span className="font-bold text-white">mayor de 18 años</span> y entro al sitio por mi voluntad.
+              </label>
+            </div>
+
+            {/* ✅ Desplegable de Reglas */}
+            <div className="mb-6">
+              <details className="group">
+                <summary className="flex items-center justify-between cursor-pointer text-sm font-medium text-purple-300 hover:text-purple-200 transition-colors p-2 rounded hover:bg-white/5">
+                  <span>📜 Reglas Anti-Spam y Conducta</span>
+                  <span className="transition-transform group-open:rotate-180">▼</span>
+                </summary>
+                <div className="mt-3 text-xs text-gray-300 space-y-2 p-3 bg-black/20 rounded-lg border border-white/10">
+                  <p>🚫 <span className="font-bold text-red-400">Prohibido Spam:</span> No promociones otros sitios, grupos o servicios.</p>
+                  <p>🚫 <span className="font-bold text-red-400">Cero Odio:</span> Discriminación, racismo o insultos serán baneados.</p>
+                  <p>🚫 <span className="font-bold text-red-400">No Venta:</span> Prohibida la venta de contenido o servicios.</p>
+                  <p>✅ <span className="font-bold text-green-400">Respeto:</span> Trata a los demás como quieres ser tratado.</p>
+                  <p className="text-[10px] text-gray-500 mt-2 italic">El incumplimiento resultará en bloqueo permanente.</p>
+                </div>
+              </details>
+            </div>
+
+            {error && (
+              <div className="mb-4 p-3 bg-red-500/20 border border-red-500/50 rounded-lg text-red-200 text-sm font-medium text-center animate-pulse">
+                {error}
+              </div>
+            )}
+
+            <button
+              type="submit"
+              disabled={isLoading || !nickname.trim() || !acceptedTerms}
+              className="w-full py-4 text-xl font-bold text-white rounded-xl transition-all disabled:opacity-50 disabled:cursor-not-allowed hover:scale-[1.02] shadow-xl hover:shadow-purple-500/40 flex items-center justify-center gap-2"
+              style={{
+                background: isLoading || !nickname.trim() || !acceptedTerms
+                  ? 'linear-gradient(135deg, #666 0%, #444 100%)'
+                  : 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+              }}
+            >
+              {isLoading ? '⏳ Entrando...' : '🚀 ENTRAR AL CHAT'}
+            </button>
+            
+            <p className="text-xs text-gray-400 mt-4 text-center">
+              Protegemos tu privacidad • 100% Anónimo
             </p>
-          </div>
-
-          {error && (
-            <div className="mt-4 p-3 bg-red-500/20 border border-red-500/50 rounded-lg text-red-300 text-sm">
-              {error}
-            </div>
-          )}
-
-          <p className="text-xs text-gray-400 mt-4 text-center">
-            Totalmente anónimo • Sin descargas • Desde tu navegador
-          </p>
-        </form>
+          </form>
+        </div>
       </div>
     </div>
   );
