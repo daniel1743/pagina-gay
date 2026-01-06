@@ -457,26 +457,17 @@ const ChatPage = () => {
         return; // NO mostrar modal adicional - CERO FRICCIÓN
       }
 
-      // ✅ Verificar en localStorage (sesiones anteriores) - SOLO para usuarios registrados
-      const ageKey = `age_verified_${user.id}`;
-      const storedAge = localStorage.getItem(ageKey);
+      // ✅ USUARIOS REGISTRADOS (NO invitados, NO anónimos): Auto-verificar SIEMPRE
+      // Los usuarios registrados YA completaron su perfil (username, email, avatar) al registrarse
+      // Por lo tanto, NO deben ver el modal de invitado (que pide edad, username y avatar)
+      console.log(`[AGE VERIFICATION] ✅ Usuario REGISTRADO ${user.username} (${user.id}) - Auto-verificado (ya tiene cuenta)`);
+      setIsAgeVerified(true);
+      setShowAgeVerification(false);
 
-      if (storedAge && Number(storedAge) >= 18) {
-        setIsAgeVerified(true);
-        setShowAgeVerification(false);
-        console.log(`[AGE VERIFICATION] ✅ Usuario ${user.id} ya verificó su edad (${storedAge} años)`);
-      } else {
-        // ✅ Solo mostrar modal para USUARIOS REGISTRADOS que NO están verificados
-        setIsAgeVerified(false);
-        const hasShownKey = `age_modal_shown_${user.id}`;
-        const hasShown = sessionStorage.getItem(hasShownKey);
-        if (!hasShown) {
-          setShowAgeVerification(true);
-          sessionStorage.setItem(hasShownKey, 'true');
-          console.log(`[AGE VERIFICATION] 📋 Mostrando modal de edad para usuario REGISTRADO ${user.id}`);
-        } else {
-          console.log(`[AGE VERIFICATION] ⏭️ Modal ya se mostró en esta sesión para usuario ${user.id}`);
-        }
+      // Guardar en localStorage para futuras sesiones
+      const ageKey = `age_verified_${user.id}`;
+      if (!localStorage.getItem(ageKey)) {
+        localStorage.setItem(ageKey, '18'); // Asumir +18 para usuarios registrados
       }
     }
 
@@ -599,8 +590,13 @@ const ChatPage = () => {
       if (previousMessageCountRef.current > 0 && regularMessages.length > previousMessageCountRef.current) {
         const newMessageCount = regularMessages.length - previousMessageCountRef.current;
         // Reproducir sonido por cada mensaje nuevo (el servicio agrupa automáticamente si son 4+)
-        for (let i = 0; i < newMessageCount; i++) {
-          notificationSounds.playMessageSound();
+        // 🔊 Reproducir sonido: ENVOLVER EN TRY/CATCH para evitar que errores de audio bloqueen la UI
+        try {
+          for (let i = 0; i < newMessageCount; i++) {
+            notificationSounds.playMessageSound();
+          }
+        } catch (e) {
+          console.warn('[CHAT] 🔇 Error reproduciendo sonido (UI segura):', e);
         }
       }
 
@@ -770,15 +766,17 @@ const ChatPage = () => {
 
         // 🔊 Reproducir sonido de INGRESO si un usuario real se conectó
         if (previousRealUserCountRef.current > 0 && currentCounts.real > previousRealUserCountRef.current) {
-          const usersJoined = currentCounts.real - previousRealUserCountRef.current;
-          console.debug(`🔊 [SOUNDS] ${usersJoined} usuario(s) ingresó/ingresaron, reproduciendo sonido de bienvenida`);
+          // ⚠️ LOG COMENTADO: Causaba sobrecarga en consola
+          // const usersJoined = currentCounts.real - previousRealUserCountRef.current;
+          // console.debug(`🔊 [SOUNDS] ${usersJoined} usuario(s) ingresó/ingresaron, reproduciendo sonido de bienvenida`);
           notificationSounds.playUserJoinSound();
         }
 
         // 🔊 Reproducir sonido de SALIDA si un usuario real se desconectó
         if (previousRealUserCountRef.current > 0 && currentCounts.real < previousRealUserCountRef.current) {
-          const usersLeft = previousRealUserCountRef.current - currentCounts.real;
-          console.debug(`🔊 [SOUNDS] ${usersLeft} usuario(s) se desconectó/desconectaron, reproduciendo sonido de salida`);
+          // ⚠️ LOG COMENTADO: Causaba sobrecarga en consola
+          // const usersLeft = previousRealUserCountRef.current - currentCounts.real;
+          // console.debug(`🔊 [SOUNDS] ${usersLeft} usuario(s) se desconectó/desconectaron, reproduciendo sonido de salida`);
           notificationSounds.playDisconnectSound();
         }
 

@@ -126,6 +126,8 @@ class NotificationSounds {
       console.log('[SOUNDS] 🔄 AudioContext suspendido, reanudando...');
       this.audioContext.resume().then(() => {
         console.log('[SOUNDS] ✅ AudioContext reanudado correctamente');
+      }).catch(err => {
+        console.warn('[SOUNDS] ⚠️ No se pudo reanudar AudioContext (autoplay policy):', err);
       });
     }
 
@@ -204,6 +206,8 @@ class NotificationSounds {
       console.log('[SOUNDS] 🔄 AudioContext suspendido, reanudando...');
       this.audioContext.resume().then(() => {
         console.log('[SOUNDS] ✅ AudioContext reanudado correctamente');
+      }).catch(err => {
+        console.warn('[SOUNDS] ⚠️ No se pudo reanudar AudioContext (autoplay policy):', err);
       });
     }
 
@@ -261,7 +265,9 @@ class NotificationSounds {
     }
 
     if (this.audioContext.state === 'suspended') {
-      this.audioContext.resume();
+      this.audioContext.resume().catch(err => {
+        console.warn('[SOUNDS] ⚠️ No se pudo reanudar AudioContext (autoplay policy):', err);
+      });
     }
 
     try {
@@ -308,7 +314,9 @@ class NotificationSounds {
     }
 
     if (this.audioContext.state === 'suspended') {
-      this.audioContext.resume();
+      this.audioContext.resume().catch(err => {
+        console.warn('[SOUNDS] ⚠️ No se pudo reanudar AudioContext (autoplay policy):', err);
+      });
     }
 
     try {

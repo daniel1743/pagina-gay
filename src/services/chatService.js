@@ -440,19 +440,35 @@ export const subscribeToRoomMessages = (roomId, callback, messageLimit = 50) => 
           const latencyColor = latency && latency < 1000 ? '#00ff00' : latency && latency < 3000 ? '#ffaa00' : '#ff0000';
           const latencyEmoji = latency && latency < 1000 ? '⚡' : latency && latency < 3000 ? '⚠️' : '🐌';
           
-          console.log(
-            `%c${latencyEmoji} [RECEPCIÓN] Mensaje recibido - Velocidad: ${latency ? latency + 'ms' : 'N/A'}`,
-            `color: ${latencyColor}; font-weight: bold; font-size: 13px`,
-            {
-              messageId: msg.id.substring(0, 8) + '...',
-              from: msg.username,
-              content: msg.content?.substring(0, 30) + (msg.content?.length > 30 ? '...' : ''),
-              roomId,
-              '⏱️ Latencia total': latency ? `${latency}ms (${(latency / 1000).toFixed(2)}s)` : 'N/A',
-              '📊 Velocidad': latency ? (latency < 1000 ? '⚡ RÁPIDO' : latency < 3000 ? '⚠️ NORMAL' : '🐌 LENTO') : 'N/A',
-              '📅 Recibido a las': new Date().toISOString(),
-            }
-          );
+          // ⚡ CLOCK SKEW DETECTION: Si la latencia es > 1 hora (3600000ms), es error de reloj
+          const isClockSkew = latency && latency > 3600000;
+
+          // ⚠️ LOGS COMENTADOS: Causaban sobrecarga en consola con cientos de mensajes
+          // if (isClockSkew) {
+          //    console.log(
+          //     `%c🕒 [RECEPCIÓN] Mensaje recibido - (Reloj desincronizado)`,
+          //     `color: #999; font-weight: normal; font-size: 11px`,
+          //     {
+          //       id: msg.id.substring(0, 8),
+          //       diff: `${(latency / 3600000).toFixed(1)} horas`,
+          //       note: 'Tu reloj va adelantado respecto al servidor'
+          //     }
+          //    );
+          // } else {
+          //   console.log(
+          //     `%c${latencyEmoji} [RECEPCIÓN] Mensaje recibido - Velocidad: ${latency ? latency + 'ms' : 'N/A'}`,
+          //     `color: ${latencyColor}; font-weight: bold; font-size: 13px`,
+          //     {
+          //       messageId: msg.id.substring(0, 8) + '...',
+          //       from: msg.username,
+          //       content: msg.content?.substring(0, 30) + (msg.content?.length > 30 ? '...' : ''),
+          //       roomId,
+          //       '⏱️ Latencia total': latency ? `${latency}ms (${(latency / 1000).toFixed(2)}s)` : 'N/A',
+          //       '📊 Velocidad': latency ? (latency < 1000 ? '⚡ RÁPIDO' : latency < 3000 ? '⚠️ NORMAL' : '🐌 LENTO') : 'N/A',
+          //       '📅 Recibido a las': new Date().toISOString(),
+          //     }
+          //   );
+          // }
 
           // Enviar ACK para mensajes de otros usuarios (background)
           deliveryService.markAsDelivered(roomId, msg.id, auth.currentUser.uid)
