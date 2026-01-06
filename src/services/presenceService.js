@@ -107,13 +107,23 @@ export const subscribeToRoomUserCount = (roomId, callback) => {
   return onSnapshot(usersRef, (snapshot) => {
     callback(snapshot.size);
   }, (error) => {
-    // ✅ Ignorar AbortError (normal cuando se cancela una suscripción)
-    if (error.name === 'AbortError' || error.code === 'cancelled') {
-      // No hacer nada, la suscripción fue cancelada intencionalmente
-      return;
+    // ✅ Ignorar errores transitorios de Firestore WebChannel (errores 400 internos)
+    const isTransientError = 
+      error.name === 'AbortError' ||
+      error.code === 'cancelled' ||
+      error.code === 'unavailable' ||
+      error.message?.includes('WebChannelConnection') ||
+      error.message?.includes('transport errored') ||
+      error.message?.includes('RPC') ||
+      error.message?.includes('stream') ||
+      error.message?.includes('INTERNAL ASSERTION FAILED') ||
+      error.message?.includes('Unexpected state');
+
+    if (!isTransientError) {
+      console.error('Error subscribing to room user count:', error);
+      callback(0);
     }
-    console.error('Error subscribing to room users:', error);
-    callback(0);
+    // Los errores transitorios se ignoran silenciosamente - Firestore se reconectará automáticamente
   });
 };
 
@@ -133,13 +143,23 @@ export const subscribeToRoomUsers = (roomId, callback) => {
     }));
     callback(users);
   }, (error) => {
-    // ✅ Ignorar AbortError (normal cuando se cancela una suscripción)
-    if (error.name === 'AbortError' || error.code === 'cancelled') {
-      // No hacer nada, la suscripción fue cancelada intencionalmente
-      return;
+    // ✅ Ignorar errores transitorios de Firestore WebChannel (errores 400 internos)
+    const isTransientError = 
+      error.name === 'AbortError' ||
+      error.code === 'cancelled' ||
+      error.code === 'unavailable' ||
+      error.message?.includes('WebChannelConnection') ||
+      error.message?.includes('transport errored') ||
+      error.message?.includes('RPC') ||
+      error.message?.includes('stream') ||
+      error.message?.includes('INTERNAL ASSERTION FAILED') ||
+      error.message?.includes('Unexpected state');
+
+    if (!isTransientError) {
+      console.error('Error subscribing to room users:', error);
+      callback([]);
     }
-    console.error('Error subscribing to room users:', error);
-    callback([]);
+    // Los errores transitorios se ignoran silenciosamente - Firestore se reconectará automáticamente
   });
 };
 
@@ -169,23 +189,24 @@ export const subscribeToMultipleRoomCounts = (roomIds, callback) => {
           console.error(`Error in callback for room ${roomId}:`, callbackError);
         }
       }, (error) => {
-        // ✅ Ignorar errores específicos de Firestore
-        if (error.name === 'AbortError' || error.code === 'cancelled') {
-          return;
-        }
-        
-        // ✅ Ignorar errores internos de Firestore que no podemos controlar
-        if (error?.message?.includes('INTERNAL ASSERTION FAILED') || 
-            error?.message?.includes('Unexpected state')) {
-          console.warn(`Firestore internal error for room ${roomId}, ignoring...`);
-          return;
-        }
-        
-        console.error(`Error subscribing to room ${roomId}:`, error);
-        if (!isUnsubscribed) {
+        // ✅ Ignorar errores transitorios de Firestore WebChannel (errores 400 internos)
+        const isTransientError = 
+          error.name === 'AbortError' ||
+          error.code === 'cancelled' ||
+          error.code === 'unavailable' ||
+          error.message?.includes('WebChannelConnection') ||
+          error.message?.includes('transport errored') ||
+          error.message?.includes('RPC') ||
+          error.message?.includes('stream') ||
+          error.message?.includes('INTERNAL ASSERTION FAILED') ||
+          error.message?.includes('Unexpected state');
+
+        if (!isTransientError && !isUnsubscribed) {
+          console.error(`Error subscribing to room ${roomId}:`, error);
           counts[roomId] = 0;
           callback({ ...counts });
         }
+        // Los errores transitorios se ignoran silenciosamente - Firestore se reconectará automáticamente
       });
 
       unsubscribers.push(unsubscribe);

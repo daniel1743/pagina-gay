@@ -212,7 +212,22 @@ export const subscribeToNotifications = (userId, callback) => {
       callback(notifications);
     },
     (error) => {
-      console.error('Error subscribing to notifications:', error);
+      // ✅ Ignorar errores transitorios de Firestore WebChannel (errores 400 internos)
+      const isTransientError = 
+        error.name === 'AbortError' ||
+        error.code === 'cancelled' ||
+        error.code === 'unavailable' ||
+        error.message?.includes('WebChannelConnection') ||
+        error.message?.includes('transport errored') ||
+        error.message?.includes('RPC') ||
+        error.message?.includes('stream') ||
+        error.message?.includes('INTERNAL ASSERTION FAILED') ||
+        error.message?.includes('Unexpected state');
+
+      if (!isTransientError) {
+        console.error('Error subscribing to notifications:', error);
+      }
+      // Los errores transitorios se ignoran silenciosamente - Firestore se reconectará automáticamente
     }
   );
 };

@@ -192,7 +192,24 @@ export const subscribeToSystemNotifications = (userId, callback) => {
         callback([]);
       }
     }, (error) => {
-      // ✅ Ignorar errores internos de Firestore
+      // ✅ Ignorar errores transitorios de Firestore WebChannel (errores 400 internos)
+      const isTransientError = 
+        error.name === 'AbortError' ||
+        error.code === 'cancelled' ||
+        error.code === 'unavailable' ||
+        error.message?.includes('WebChannelConnection') ||
+        error.message?.includes('transport errored') ||
+        error.message?.includes('RPC') ||
+        error.message?.includes('stream') ||
+        error.message?.includes('INTERNAL ASSERTION FAILED') ||
+        error.message?.includes('Unexpected state');
+
+      if (isTransientError) {
+        // Los errores transitorios se ignoran silenciosamente - Firestore se reconectará automáticamente
+        return;
+      }
+
+      // ✅ Intentar fallback solo para errores no transitorios
       if (error?.message?.includes('INTERNAL ASSERTION FAILED') || 
           error?.message?.includes('Unexpected state')) {
         console.warn('Firestore internal error in notifications, using fallback...');
@@ -221,14 +238,23 @@ export const subscribeToSystemNotifications = (userId, callback) => {
               callback([]);
             }
           }, (fallbackError) => {
-            // Ignorar errores internos también en fallback
-            if (fallbackError?.message?.includes('INTERNAL ASSERTION FAILED')) {
-              console.warn('Firestore internal error in fallback, returning empty array');
+            // ✅ Ignorar errores transitorios también en fallback
+            const isTransientError = 
+              fallbackError.name === 'AbortError' ||
+              fallbackError.code === 'cancelled' ||
+              fallbackError.code === 'unavailable' ||
+              fallbackError.message?.includes('WebChannelConnection') ||
+              fallbackError.message?.includes('transport errored') ||
+              fallbackError.message?.includes('RPC') ||
+              fallbackError.message?.includes('stream') ||
+              fallbackError.message?.includes('INTERNAL ASSERTION FAILED') ||
+              fallbackError.message?.includes('Unexpected state');
+
+            if (!isTransientError) {
+              console.error('Error in notifications subscription (fallback):', fallbackError);
               callback([]);
-              return;
             }
-            console.error('Error in notifications subscription (fallback):', fallbackError);
-            callback([]);
+            // Los errores transitorios se ignoran silenciosamente
           });
         } catch (fallbackSetupError) {
           console.error('Error setting up fallback query:', fallbackSetupError);

@@ -598,52 +598,48 @@ const ChatPage = () => {
         const optimisticMessages = prevMessages.filter(m => m._optimistic);
         const mergedMessages = [...regularMessages]; // ✅ Solo mensajes regulares (sin moderador)
 
-        // ✅ F1: DEDUPLICACIÓN POR clientId (correlación optimista/real)
+        // ⚡ DEDUPLICACIÓN ULTRA-OPTIMIZADA: Sin parpadeos, sin reordenamiento
         if (optimisticMessages.length > 0) {
-          // Construir Set de clientIds presentes en mensajes reales
+          // ⚡ OPTIMIZACIÓN: Construir mapas de búsqueda una sola vez (O(1) lookup)
           const realClientIds = new Set(
             regularMessages.map(m => m.clientId).filter(Boolean)
           );
-
-          // Filtrar optimistas: solo mantener los que NO tienen clientId en mensajes reales
+          const realIds = new Set(regularMessages.map(m => m.id));
+          
+          // ⚡ DEDUPLICACIÓN RÁPIDA: Filtrar optimistas que ya tienen match
           const remainingOptimistic = optimisticMessages.filter(optMsg => {
-            // Si el optimista tiene clientId y ya existe en reales, eliminarlo
+            // Prioridad 1: clientId (más confiable, evita duplicados)
             if (optMsg.clientId && realClientIds.has(optMsg.clientId)) {
-              return false; // Eliminar este optimista (ya llegó el real)
+              return false; // Ya llegó el real, eliminar optimista
             }
-            // Fallback: verificar por _realId (compatibilidad)
-            if (optMsg._realId) {
-              const foundById = regularMessages.find(realMsg => realMsg.id === optMsg._realId);
-              if (foundById) {
-                return false; // Eliminar este optimista
-              }
+            // Prioridad 2: _realId (compatibilidad con sistema anterior)
+            if (optMsg._realId && realIds.has(optMsg._realId)) {
+              return false; // Ya llegó el real
             }
-            return true; // Mantener este optimista
+            return true; // Mantener este optimista (aún no llegó el real)
           });
 
-          // Solo agregar optimistas que no tienen match
+          // ⚡ FUSIÓN: Agregar optimistas restantes (mantener orden temporal)
           if (remainingOptimistic.length > 0) {
             mergedMessages.push(...remainingOptimistic);
           }
         }
         
-        // Ordenar por timestampMs (número) como fuente de verdad
-        const sorted = mergedMessages.sort((a, b) => {
-          const timeA = a.timestampMs ?? 0;
-          const timeB = b.timestampMs ?? 0;
+        // ⚡ ORDENAMIENTO: Por timestampMs (mantener posición correcta, sin moverse)
+        mergedMessages.sort((a, b) => {
+          const timeA = a.timestampMs ?? (a.timestamp ? new Date(a.timestamp).getTime() : 0);
+          const timeB = b.timestampMs ?? (b.timestamp ? new Date(b.timestamp).getTime() : 0);
           return timeA - timeB;
         });
         
-        // ⚡ DEDUPLICACIÓN ULTRA-RÁPIDA: Solo eliminar por ID (lo más rápido posible)
+        // ⚡ DEDUPLICACIÓN FINAL: Eliminar duplicados por ID (evitar mensajes duplicados)
         const uniqueMessages = [];
         const seenIds = new Set();
         
-        for (const msg of sorted) {
-          // Solo eliminar duplicados por ID (mismo ID = mismo mensaje)
+        for (const msg of mergedMessages) {
           if (seenIds.has(msg.id)) {
             continue; // Saltar duplicado
           }
-          
           uniqueMessages.push(msg);
           seenIds.add(msg.id);
         }
@@ -1065,59 +1061,8 @@ const ChatPage = () => {
       }
     }
 
-    // 🛡️ ANTI-SPAM: Validar contenido del mensaje
-    const validation = await validateMessage(content, user.id, user.username, currentRoom);
-
-    if (!validation.allowed) {
-      // Mostrar mensaje específico según el tipo de violación
-      if (validation.type === 'phone_number') {
-        toast({
-          title: "❌ Números de Teléfono Prohibidos",
-          description: validation.details || validation.reason,
-          variant: "destructive",
-          duration: 5000,
-        });
-      } else if (validation.type === 'forbidden_word') {
-        toast({
-          title: `❌ ${validation.reason}`,
-          description: validation.details || "Tu mensaje no será enviado por violar las reglas del chat.",
-          variant: "destructive",
-          duration: 5000,
-        });
-      } else if (validation.type === 'spam_duplicate_warning') {
-        toast({
-          title: "⚠️ ADVERTENCIA DE SPAM",
-          description: validation.reason,
-          variant: "destructive",
-          duration: 7000,
-        });
-      } else if (validation.type === 'spam_duplicate_ban') {
-        toast({
-          title: "🔨 EXPULSADO POR SPAM",
-          description: validation.reason,
-          variant: "destructive",
-          duration: 10000,
-        });
-      } else if (validation.type === 'temp_ban') {
-        toast({
-          title: "🔨 EXPULSADO TEMPORALMENTE",
-          description: validation.reason,
-          variant: "destructive",
-          duration: 10000,
-        });
-      } else {
-        // Genérico
-        toast({
-          title: "❌ Mensaje Bloqueado",
-          description: validation.reason,
-          variant: "destructive",
-          duration: 5000,
-        });
-      }
-      return;
-    }
-
-    // 🚀 OPTIMISTIC UI: Mostrar mensaje instantáneamente (como WhatsApp/Telegram)
+    // 🚀 OPTIMISTIC UI: Mostrar mensaje INSTANTÁNEAMENTE (como WhatsApp/Telegram)
+    // ⚡ CRÍTICO: Mostrar primero, validar después (experiencia instantánea)
     const optimisticId = `temp_${Date.now()}_${Math.random()}`;
     const clientId = generateUUID(); // ✅ UUID real para correlación optimista/real (evitar colisiones)
     const nowMs = Date.now();
@@ -1140,26 +1085,87 @@ const ChatPage = () => {
     // ⚡ INSTANTÁNEO: Agregar mensaje inmediatamente a la UI (usuario lo ve al instante)
     setMessages(prev => [...prev, optimisticMessage]);
 
-    // ⚡ INSTANTÁNEO: Scroll inmediato al último mensaje (doble RAF para asegurar DOM actualizado)
-    // Doble requestAnimationFrame garantiza que React haya actualizado el DOM antes del scroll
-    requestAnimationFrame(() => {
-      requestAnimationFrame(() => {
-        const container = document.querySelector('.messages-container');
-        if (container) {
-          // Scroll directo sin animación para máxima velocidad (como WhatsApp/Telegram)
-          container.scrollTop = container.scrollHeight;
-        }
-      });
-    });
+    // ⚡ SCROLL ULTRA-RÁPIDO: Scroll inmediato sin esperar RAF (máxima velocidad)
+    // Usar setTimeout(0) es más rápido que RAF para scroll directo
+    setTimeout(() => {
+      const container = messagesContainerRef.current;
+      if (container) {
+        // Scroll directo sin animación para máxima velocidad (como WhatsApp/Telegram)
+        container.scrollTop = container.scrollHeight;
+      }
+    }, 0);
 
     // 🔊 Reproducir sonido inmediatamente (no bloquea UI, async)
     notificationSounds.playMessageSentSound();
+
+    // 🛡️ VALIDACIÓN EN BACKGROUND: Validar después de mostrar (no bloquea UI)
+    // ⚡ CRÍTICO: Las validaciones se ejecutan en background para no retrasar la experiencia visual
+    const validationPromise = validateMessage(content, user.id, user.username, currentRoom)
+      .then(validation => {
+        if (!validation.allowed) {
+          // ❌ VALIDACIÓN FALLÓ: Eliminar mensaje optimista y mostrar error
+          setMessages(prev => prev.filter(m => m.id !== optimisticId));
+          
+          // Mostrar mensaje específico según el tipo de violación
+          if (validation.type === 'phone_number') {
+            toast({
+              title: "❌ Números de Teléfono Prohibidos",
+              description: validation.details || validation.reason,
+              variant: "destructive",
+              duration: 5000,
+            });
+          } else if (validation.type === 'forbidden_word') {
+            toast({
+              title: `❌ ${validation.reason}`,
+              description: validation.details || "Tu mensaje no será enviado por violar las reglas del chat.",
+              variant: "destructive",
+              duration: 5000,
+            });
+          } else if (validation.type === 'spam_duplicate_warning') {
+            toast({
+              title: "⚠️ ADVERTENCIA DE SPAM",
+              description: validation.reason,
+              variant: "destructive",
+              duration: 7000,
+            });
+          } else if (validation.type === 'spam_duplicate_ban') {
+            toast({
+              title: "🔨 EXPULSADO POR SPAM",
+              description: validation.reason,
+              variant: "destructive",
+              duration: 10000,
+            });
+          } else if (validation.type === 'temp_ban') {
+            toast({
+              title: "🔨 EXPULSADO TEMPORALMENTE",
+              description: validation.reason,
+              variant: "destructive",
+              duration: 10000,
+            });
+          } else {
+            // Genérico
+            toast({
+              title: "❌ Mensaje Bloqueado",
+              description: validation.reason,
+              variant: "destructive",
+              duration: 5000,
+            });
+          }
+          return false; // No enviar
+        }
+        return true; // Validación OK, continuar
+      })
+      .catch(() => true); // Si falla validación, permitir envío (fail-open)
 
     // ⚡ INSTANTÁNEO: Enviar mensaje a Firestore en segundo plano (NO bloquear UI)
     // El mensaje optimista ya está visible, Firestore se sincroniza en background
     // ✅ CRÍTICO: Usar auth.currentUser.uid directamente (ya validado arriba)
     // Firestore rules requieren que data.userId == request.auth.uid exactamente
-    sendMessage(
+    Promise.all([validationPromise])
+      .then(([isValid]) => {
+        if (!isValid) return; // Validación falló, no enviar
+        
+        return sendMessage(
       currentRoom,
       {
         clientId, // ✅ F1: Pasar clientId para correlación
@@ -1170,10 +1176,12 @@ const ChatPage = () => {
         content,
         type,
         replyTo: replyData,
-      },
-      user.isAnonymous
-    )
+          },
+          user.isAnonymous
+        );
+      })
       .then((sentMessage) => {
+        if (!sentMessage) return; // Validación falló o no se envió
         // ✅ Mensaje enviado exitosamente - se actualizará automáticamente vía onSnapshot
         // Track GA4 (background, no bloquea)
         trackMessageSent(currentRoom, user.id);

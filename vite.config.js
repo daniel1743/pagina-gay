@@ -4,6 +4,7 @@ import { createLogger, defineConfig } from 'vite';
 import inlineEditPlugin from './plugins/visual-editor/vite-plugin-react-inline-editor.js';
 import editModeDevPlugin from './plugins/visual-editor/vite-plugin-edit-mode.js';
 import iframeRouteRestorationPlugin from './plugins/vite-plugin-iframe-route-restoration.js';
+import generateVersionPlugin from './vite-plugin-generate-version.js';
 
 const isDev = process.env.NODE_ENV !== 'production';
 
@@ -221,6 +222,7 @@ const removeConsolePlugin = {
 export default defineConfig({
 	customLogger: logger,
 	plugins: [
+		generateVersionPlugin(), // 🔄 Generar version.json en cada build
 		...(isDev ? [inlineEditPlugin(), editModeDevPlugin(), iframeRouteRestorationPlugin()] : []),
 		react(),
 		addTransformIndexHtml,

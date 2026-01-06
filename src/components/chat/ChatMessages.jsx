@@ -312,7 +312,7 @@ const ChatMessages = ({ messages, currentUserId, onUserClick, onReport, onPrivat
       role="log"
       aria-live="polite"
       aria-label="Área de mensajes del chat"
-      className="flex-1 overflow-y-auto px-3 py-2 sm:px-4 sm:py-3 space-y-1.5 scrollbar-hide relative"
+      className="messages-container flex-1 overflow-y-auto px-3 py-2 sm:px-4 sm:py-3 space-y-1.5 scrollbar-hide relative"
       style={{ WebkitOverflowScrolling: 'touch' }}
       onScroll={onScroll}
     >
@@ -436,7 +436,7 @@ const ChatMessages = ({ messages, currentUserId, onUserClick, onReport, onPrivat
               <div
                 className={`group flex flex-col ${
                   isOwn
-                    ? 'items-end order-1 mr-3 max-w-[85%] sm:max-w-[75%]'
+                    ? 'items-end order-1 mr-3 max-w-[95%] sm:max-w-[90%] md:max-w-[85%]'
                     : 'items-start order-2 ml-3 flex-1 min-w-0'
                 } space-y-[2px]`}
               >
@@ -476,7 +476,7 @@ const ChatMessages = ({ messages, currentUserId, onUserClick, onReport, onPrivat
                       )}
 
                       {/* 🎨 BURBUJA DE MENSAJE - Estilo iMessage/Messenger Pixel-Perfect */}
-                      <div className={`inline-flex flex-row items-end gap-1 ${isOwn ? 'justify-end' : 'justify-start'} max-w-[85%] sm:max-w-[75%]`}>
+                      <div className={`inline-flex flex-row items-end gap-1 ${isOwn ? 'justify-end' : 'justify-start'} max-w-[95%] sm:max-w-[90%] md:max-w-[85%]`}>
                         
                         {/* ⚡ CORRECCIÓN CLAVE: Si es mensaje propio, poner la hora ANTES de la burbuja para que la burbuja quede pegada al avatar */}
                         {isOwn && (
@@ -502,7 +502,7 @@ const ChatMessages = ({ messages, currentUserId, onUserClick, onReport, onPrivat
                           onClick={() => onPrivateChat({ username: message.username, avatar: message.avatar, userId: message.userId, isPremium: isUserPremium })}
                         >
                           {message.type === 'text' && (
-                            <p className="text-[15px] leading-[1.4] whitespace-pre-wrap break-words font-normal">
+                            <p className="text-[15px] leading-[1.4] whitespace-pre-wrap break-words font-normal" style={{ wordBreak: 'normal', overflowWrap: 'break-word' }}>
                               {message.content}
                             </p>
                           )}

@@ -32,6 +32,7 @@ import FAQPage from '@/pages/FAQPage';
 import { ThemeProvider } from '@/contexts/ThemeContext';
 import PWASplashScreen from '@/components/pwa/PWASplashScreen';
 import ErrorBoundary from '@/components/ui/ErrorBoundary';
+import { useVersionChecker } from '@/hooks/useVersionChecker';
 // import DebugOverlay from '@/components/DebugOverlay'; // Desactivado - Debug Console removido
 
 // ✅ Componentes que usan useAuth deben estar dentro del AuthProvider
@@ -251,6 +252,12 @@ function AppRoutes() {
 function App() {
   const [showSplash, setShowSplash] = useState(false);
   const [splashCompleted, setSplashCompleted] = useState(false);
+
+  // 🔄 Sistema de auto-actualización: Verifica nuevas versiones y limpia cache automáticamente
+  useVersionChecker({
+    checkInterval: 60000, // Verificar cada 60 segundos
+    autoReload: true // Recargar automáticamente si hay nueva versión
+  });
 
   useEffect(() => {
     // Detectar si está corriendo como PWA
