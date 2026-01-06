@@ -108,37 +108,46 @@ const doSendMessage = async (roomId, messageData, isAnonymous = false) => {
     console.log('🔍 [DIAGNÓSTICO] Estado antes de enviar mensaje:', diagnosticInfo);
   }
 
-  // ⚠️ Validar que auth.currentUser está disponible (requerido por Firestore rules)
-  if (!auth.currentUser) {
-    const error = new Error('Usuario no autenticado. Por favor, espera un momento o recarga la página.');
-    error.code = 'auth/user-not-authenticated';
-    
-    // 🔍 DIAGNÓSTICO: Información adicional cuando falla autenticación
-    if (import.meta.env.DEV) {
-      console.error('🔍 [DIAGNÓSTICO] Error de autenticación:', {
-        hasAuth: !!auth,
-        authState: auth.currentUser,
-        firebaseProjectId: db.app.options.projectId,
-        usingEmulator: import.meta.env.VITE_USE_FIREBASE_EMULATOR === 'true',
-        suggestion: 'Verifica que estés autenticado y que VITE_USE_FIREBASE_EMULATOR=false si quieres usar producción'
-      });
-    }
-    
+  // ✅ PERMITIR USUARIOS NO AUTENTICADOS (período de captación - 5 días)
+  // Fecha de lanzamiento: 2026-01-06 (ajustar según tu fecha real)
+  const LAUNCH_DATE = new Date('2026-01-06').getTime();
+  const CAPTURE_PERIOD_DAYS = 5;
+  const CAPTURE_PERIOD_MS = CAPTURE_PERIOD_DAYS * 24 * 60 * 60 * 1000;
+  const isWithinCapturePeriod = Date.now() < (LAUNCH_DATE + CAPTURE_PERIOD_MS);
+  
+  // Si estamos dentro del período de captación, permitir usuarios sin auth
+  if (!auth.currentUser && !isWithinCapturePeriod) {
+    const error = new Error('¿Disfrutas nuestra app? Regístrate ahora para seguir chateando.');
+    error.code = 'auth/registration-required';
     throw error;
   }
+  
+  // Si estamos dentro del período de captación, permitir continuar sin auth
+  // (no lanzar error, pero marcar como no autenticado)
 
-  // Asegurar que userId coincida con auth.currentUser.uid (excepto mensajes de sistema)
+  // Asegurar que userId coincida con auth.currentUser.uid (excepto mensajes de sistema y usuarios no autenticados)
   const isSystemMessage = messageData.userId?.startsWith('system') ||
                          messageData.userId?.startsWith('bot_') ||
                          messageData.userId?.startsWith('ai_') ||
                          messageData.userId?.startsWith('seed_user_');
 
-  if (!isSystemMessage && messageData.userId !== auth.currentUser.uid) {
+  // Para usuarios autenticados, validar que userId coincida
+  if (auth.currentUser && !isSystemMessage && messageData.userId !== auth.currentUser.uid) {
     console.warn('[SEND] ⚠️ userId no coincide con auth.currentUser.uid, corrigiendo...', {
       providedUserId: messageData.userId,
       authCurrentUserUid: auth.currentUser.uid
     });
     messageData.userId = auth.currentUser.uid;
+  }
+  
+  // Para usuarios NO autenticados, generar un userId temporal único
+  if (!auth.currentUser && !isSystemMessage) {
+    // Generar ID temporal basado en IP/sesión (se guarda en localStorage)
+    const unauthenticatedUserId = `unauthenticated_${localStorage.getItem('session_id') || `temp_${Date.now()}_${Math.random()}`}`;
+    if (!localStorage.getItem('session_id')) {
+      localStorage.setItem('session_id', unauthenticatedUserId.split('_')[1]);
+    }
+    messageData.userId = unauthenticatedUserId;
   }
 
   // Identificar tipo de remitente
@@ -170,20 +179,36 @@ const doSendMessage = async (roomId, messageData, isAnonymous = false) => {
   };
 
   // Payload de mensaje
+  // ✅ FIX: Validar que username no sea undefined (Firestore no acepta undefined)
+  const username = messageData.username || 'Usuario';
+  if (!username || username === 'undefined') {
+    console.error('[SEND] ❌ ERROR: username es inválido:', messageData.username);
+    throw new Error('Username es requerido para enviar mensajes');
+  }
+
+  // ⚠️ VALIDAR LINKS: Usuarios no autenticados NO pueden enviar links
+  if (!auth.currentUser) {
+    const linkPattern = /(https?:\/\/|www\.|@|#)/i;
+    if (linkPattern.test(messageData.content)) {
+      throw new Error('Los usuarios no registrados no pueden enviar links. Regístrate para compartir enlaces.');
+    }
+  }
+
   const message = {
     clientId: messageData.clientId || null,
     userId: messageData.userId,
     senderUid: auth.currentUser?.uid || messageData.senderUid || null,
-    username: messageData.username,
-    avatar: messageData.avatar,
+    username, // ✅ Validado arriba
+    avatar: messageData.avatar || null,
     isPremium: messageData.isPremium || false,
     content: messageData.content,
     type: messageData.type || 'text',
-    timestamp: serverTimestamp(),
+    timestamp: auth.currentUser ? serverTimestamp() : new Date().toISOString(), // ⚠️ Para no autenticados, usar timestamp del cliente
     reactions: { like: 0, dislike: 0 },
     read: false,
     replyTo: messageData.replyTo || null,
     trace,
+    _unauthenticated: !auth.currentUser, // ⚠️ Marca para identificar usuarios no autenticados
   };
 
   // Enviar a Firestore (persistencia local primero)
@@ -268,12 +293,53 @@ export const subscribeToRoomMessages = (roomId, callback, messageLimit = 200) =>
   const messagesRef = collection(db, 'rooms', roomId, 'messages');
   const q = query(messagesRef, orderBy('timestamp', 'desc'), limit(messageLimit));
 
+  // ⚡ OPTIMIZACIÓN CRÍTICA: Medir tiempo de entrega para diagnosticar retrasos
+  let lastSnapshotTime = Date.now();
+  let isFirstSnapshot = true; // Primera snapshot puede ser más lenta (carga inicial)
+
   return onSnapshot(
     q,
     (snapshot) => {
+      const snapshotReceivedTime = Date.now();
+      const timeSinceLastSnapshot = snapshotReceivedTime - lastSnapshotTime;
+      lastSnapshotTime = snapshotReceivedTime;
+
+      // ⚡ OPTIMIZACIÓN: Primera snapshot puede ser lenta (carga inicial), no alertar
+      const isFirstSnapshotNow = isFirstSnapshot;
+      if (isFirstSnapshot) {
+        isFirstSnapshot = false;
+        // Primera snapshot: solo loguear en modo debug explícito
+        if (import.meta.env.VITE_DEBUG_MESSAGES === 'true') {
+          console.log('[SUBSCRIBE] 📨 Snapshot inicial (carga inicial):', {
+            docsCount: snapshot.docs.length,
+            roomId,
+            fromCache: snapshot.metadata.fromCache
+          });
+        }
+      }
+
+      // 🔍 DIAGNÓSTICO: Solo alertar si hay retraso REAL (> 5 segundos) o viene de caché
+      const isActuallySlow = timeSinceLastSnapshot > 5000; // ⚠️ Solo alertar si > 5 segundos
+      const isFromCache = snapshot.metadata.fromCache;
+
+      // ⚠️ ALERTA: Solo si hay retraso REAL (> 5 segundos) o viene de caché (datos no en tiempo real)
+      // Ignorar primera snapshot (carga inicial es normal que sea lenta)
+      if ((isActuallySlow || isFromCache) && !isFirstSnapshotNow) {
+        console.warn('⚠️ [LENTO] Snapshot recibido:', {
+          docsCount: snapshot.docs.length,
+          roomId,
+          timeSinceLastSnapshot: `${timeSinceLastSnapshot}ms`,
+          fromCache: isFromCache,
+          hasPendingWrites: snapshot.metadata.hasPendingWrites,
+          timestamp: new Date().toISOString()
+        });
+      }
+
+      // ⚡ OPTIMIZACIÓN: Procesar mensajes de forma más eficiente
+      const startProcessTime = performance.now();
       const messages = snapshot.docs.map(doc => {
         const data = doc.data();
-        const timestampMs = data.timestamp?.toMillis?.() ?? Date.now();
+        const timestampMs = data.timestamp?.toMillis?.() ?? null;
         return {
           id: doc.id,
           ...data,
@@ -283,11 +349,19 @@ export const subscribeToRoomMessages = (roomId, callback, messageLimit = 200) =>
       });
 
       const orderedMessages = messages.reverse();
+      const processTime = performance.now() - startProcessTime;
+      
+      // ⚠️ ALERTA: Solo si el procesamiento toma más de 50ms (bloqueo real)
+      if (processTime > 50) {
+        console.warn(`⚠️ [LENTO] Procesamiento de mensajes tomó ${processTime.toFixed(2)}ms (puede estar bloqueando)`);
+      }
+      
+      // ⚡ CRÍTICO: Ejecutar callback INMEDIATAMENTE (sin delays)
+      // ⚡ CRÍTICO: Ejecutar callback INMEDIATAMENTE (sin delays)
       callback(orderedMessages);
     },
     (error) => {
       // ✅ Ignorar errores transitorios de Firestore WebChannel (errores 400 internos)
-      // Estos son errores de conexión internos que Firestore maneja automáticamente
       const isTransientError = 
         error.name === 'AbortError' ||
         error.code === 'cancelled' ||
@@ -300,13 +374,19 @@ export const subscribeToRoomMessages = (roomId, callback, messageLimit = 200) =>
         error.message?.includes('Unexpected state');
 
       if (!isTransientError) {
-        // Solo loguear errores reales que necesitan atención
         console.error('[SUBSCRIBE] ❌ Error:', error.code, error.message);
+        console.error('[SUBSCRIBE] 🔍 Detalles:', {
+          code: error.code,
+          message: error.message,
+          roomId,
+          timestamp: new Date().toISOString()
+        });
         callback([]);
       }
-      // Los errores transitorios se ignoran silenciosamente - Firestore se reconectará automáticamente
     },
-    { includeMetadataChanges: false }
+    { 
+      includeMetadataChanges: false // ⚡ OPTIMIZACIÓN: false = solo cambios reales, más rápido
+    }
   );
 };
 

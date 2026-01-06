@@ -66,7 +66,7 @@ const ChatPage = () => {
   const { roomId } = useParams();
   const navigate = useNavigate();
   const location = useLocation();
-  const { user, guestMessageCount, setGuestMessageCount, showWelcomeTour, setShowWelcomeTour, updateAnonymousUserProfile } = useAuth();
+  const { user, loading: authLoading, guestMessageCount, setGuestMessageCount, showWelcomeTour, setShowWelcomeTour, updateAnonymousUserProfile, signInAsGuest } = useAuth();
 
   // ✅ Estados y refs - DEBEN estar ANTES del early return
   const [currentRoom, setCurrentRoom] = useState(roomId);
@@ -138,6 +138,7 @@ const ChatPage = () => {
   const previousMessageCountRef = useRef(0); // Para detectar nuevos mensajes y reproducir sonido
   const lastUserCountsRef = useRef({ total: 0, active: 0, real: 0 }); // Para rastrear conteos de usuarios
   const previousRealUserCountRef = useRef(0); // Para detectar cuando usuarios se desconectan y reproducir sonido
+  const deliveryTimeoutsRef = useRef(new Map()); // ⏱️ Timeouts para detectar fallos de entrega (20 segundos)
 
   // 🎯 PRO SCROLL MANAGER: Discord/Slack-inspired scroll behavior
   // ✅ IMPORTANTE: Debe estar ANTES del early return para respetar reglas de hooks
@@ -566,7 +567,20 @@ const ChatPage = () => {
     console.log('📡 [CHAT] Suscribiéndose a mensajes INMEDIATAMENTE para sala:', roomId);
     setIsLoadingMessages(true); // ⏳ Marcar como cargando al iniciar suscripción
     const unsubscribeMessages = subscribeToRoomMessages(roomId, (newMessages) => {
-      // ⚡ OPTIMIZACIÓN: Sin logging para velocidad máxima
+      // 🔍 DEBUG: Solo loguear si hay cambios significativos o en modo debug
+      const shouldLog = import.meta.env.DEV && (
+        import.meta.env.VITE_DEBUG_MESSAGES === 'true' ||
+        newMessages.length === 0 ||
+        newMessages.length > previousMessageCountRef.current + 5 // Solo si hay muchos mensajes nuevos
+      );
+
+      if (shouldLog) {
+        console.log('[CHAT PAGE] 📨 Mensajes recibidos del listener:', {
+          count: newMessages.length,
+          roomId,
+          timestamp: new Date().toISOString()
+        });
+      }
 
       // ⏳ Marcar como cargado cuando llegan los mensajes
       setIsLoadingMessages(false);
@@ -610,10 +624,24 @@ const ChatPage = () => {
           const remainingOptimistic = optimisticMessages.filter(optMsg => {
             // Prioridad 1: clientId (más confiable, evita duplicados)
             if (optMsg.clientId && realClientIds.has(optMsg.clientId)) {
+              // ✅ DETECTAR ENTREGA: Si el mensaje real llegó, marcar como 'delivered'
+              const realMessage = regularMessages.find(m => m.clientId === optMsg.clientId);
+              if (realMessage && optMsg.userId === user?.id) {
+                // Este es nuestro mensaje que fue recibido por otro dispositivo
+                // Marcar como 'delivered' (doble check azul)
+                optMsg.status = 'delivered';
+                optMsg._deliveredAt = Date.now();
+              }
               return false; // Ya llegó el real, eliminar optimista
             }
             // Prioridad 2: _realId (compatibilidad con sistema anterior)
             if (optMsg._realId && realIds.has(optMsg._realId)) {
+              // ✅ DETECTAR ENTREGA: Si el mensaje real llegó, marcar como 'delivered'
+              const realMessage = regularMessages.find(m => m.id === optMsg._realId);
+              if (realMessage && optMsg.userId === user?.id) {
+                optMsg.status = 'delivered';
+                optMsg._deliveredAt = Date.now();
+              }
               return false; // Ya llegó el real
             }
             return true; // Mantener este optimista (aún no llegó el real)
@@ -624,19 +652,73 @@ const ChatPage = () => {
             mergedMessages.push(...remainingOptimistic);
           }
         }
+
+        // ✅ ACTUALIZAR ESTADO DE ENTREGA: Marcar mensajes propios como 'delivered' si fueron recibidos
+        // Esto detecta cuando nuestro mensaje es recibido por otro dispositivo
+        const updatedMessages = mergedMessages.map(msg => {
+          // Solo procesar mensajes propios que ya están en 'sent' o tienen _realId
+          if (msg.userId === user?.id && (msg.status === 'sent' || msg._realId) && !msg._deliveredAt) {
+            // Verificar si este mensaje fue recibido (existe en regularMessages)
+            // Un mensaje está "entregado" cuando aparece en regularMessages (fue recibido por otro dispositivo)
+            const wasReceived = regularMessages.some(realMsg => {
+              // Buscar por clientId (más confiable)
+              if (msg.clientId && realMsg.clientId === msg.clientId) return true;
+              // Buscar por _realId o id
+              if (msg._realId && realMsg.id === msg._realId) return true;
+              if (msg.id && realMsg.id === msg.id) return true;
+              return false;
+            });
+            
+            if (wasReceived) {
+              // ✅ MENSAJE ENTREGADO: Marcar como 'delivered' (doble check azul)
+              // Limpiar timeout si existe (mensaje entregado antes de 20s)
+              const timeoutId = deliveryTimeoutsRef.current.get(msg.id);
+              if (timeoutId) {
+                clearTimeout(timeoutId);
+                deliveryTimeoutsRef.current.delete(msg.id);
+              }
+              
+              // También limpiar por _realId si existe
+              if (msg._realId) {
+                const timeoutId2 = deliveryTimeoutsRef.current.get(msg._realId);
+                if (timeoutId2) {
+                  clearTimeout(timeoutId2);
+                  deliveryTimeoutsRef.current.delete(msg._realId);
+                }
+              }
+              
+              return {
+                ...msg,
+                status: 'delivered',
+                _deliveredAt: Date.now()
+              };
+            }
+          }
+          return msg;
+        });
         
         // ⚡ ORDENAMIENTO: Por timestampMs (mantener posición correcta, sin moverse)
-        mergedMessages.sort((a, b) => {
-          const timeA = a.timestampMs ?? (a.timestamp ? new Date(a.timestamp).getTime() : 0);
-          const timeB = b.timestampMs ?? (b.timestamp ? new Date(b.timestamp).getTime() : 0);
-          return timeA - timeB;
+        // ⚡ FIX: Mensajes con timestampMs null se ordenan al final temporalmente
+        updatedMessages.sort((a, b) => {
+          const timeA = a.timestampMs ?? (a.timestamp ? new Date(a.timestamp).getTime() : null);
+          const timeB = b.timestampMs ?? (b.timestamp ? new Date(b.timestamp).getTime() : null);
+          
+          // Si ambos tienen timestamp, ordenar normalmente
+          if (timeA !== null && timeB !== null) {
+            return timeA - timeB;
+          }
+          // Si solo uno tiene timestamp, el que tiene timestamp va primero
+          if (timeA !== null && timeB === null) return -1;
+          if (timeA === null && timeB !== null) return 1;
+          // Si ambos son null, mantener orden de llegada (por índice)
+          return 0;
         });
         
         // ⚡ DEDUPLICACIÓN FINAL: Eliminar duplicados por ID (evitar mensajes duplicados)
         const uniqueMessages = [];
         const seenIds = new Set();
         
-        for (const msg of mergedMessages) {
+        for (const msg of updatedMessages) {
           if (seenIds.has(msg.id)) {
             continue; // Saltar duplicado
           }
@@ -757,7 +839,10 @@ const ChatPage = () => {
       sessionStorage.setItem(`moderator_welcome_${moderatorKey}`, 'true');
       
       setTimeout(() => {
-        sendModeratorWelcome(roomId, user.username);
+        // ✅ FIX: Validar que username existe antes de enviar bienvenida
+        if (user?.username) {
+          sendModeratorWelcome(roomId, user.username);
+        }
       }, 2000); // Enviar después de 2 segundos
     }
 
@@ -907,6 +992,17 @@ const ChatPage = () => {
    * ✅ Actualiza Firestore directamente
    */
   const handleMessageReaction = async (messageId, reaction) => {
+    // ⚠️ RESTRICCIÓN: Usuarios no autenticados NO pueden dar reacciones
+    if (!auth.currentUser) {
+      toast({
+        title: "Regístrate para reaccionar",
+        description: "Los usuarios no registrados no pueden dar likes. Regístrate para interactuar más.",
+        variant: "default",
+        duration: 4000,
+      });
+      return;
+    }
+
     try {
       await addReactionToMessage(currentRoom, messageId, reaction);
       // El listener de onSnapshot actualizará automáticamente los mensajes
@@ -959,27 +1055,38 @@ const ChatPage = () => {
       return;
     }
 
-    // ✅ CRÍTICO: Validar que auth.currentUser esté disponible (requerido por Firestore rules)
-    // Esto previene errores de permisos cuando auth.currentUser es null temporalmente
-    if (!auth.currentUser) {
-      // Esperar hasta 3 segundos a que auth.currentUser esté disponible
+    // ✅ PERMITIR USUARIOS NO AUTENTICADOS (período de captación - 5 días)
+    // Fecha de lanzamiento: 2026-01-06 (ajustar según tu fecha real)
+    const LAUNCH_DATE = new Date('2026-01-06').getTime();
+    const CAPTURE_PERIOD_DAYS = 5;
+    const CAPTURE_PERIOD_MS = CAPTURE_PERIOD_DAYS * 24 * 60 * 60 * 1000;
+    const isWithinCapturePeriod = Date.now() < (LAUNCH_DATE + CAPTURE_PERIOD_MS);
+    
+    // Si estamos dentro del período de captación, permitir usuarios sin auth
+    if (!auth.currentUser && !isWithinCapturePeriod) {
+      toast({
+        title: "¿Disfrutas nuestra app?",
+        description: "Regístrate ahora para seguir chateando y desbloquear todas las funciones.",
+        variant: "default",
+        duration: 6000,
+        action: {
+          label: "Registrarse",
+          onClick: () => navigate('/auth')
+        }
+      });
+      return;
+    }
+    
+    // Si estamos dentro del período de captación pero no hay auth, continuar (permitir usuario no autenticado)
+    // Si hay auth, validar que esté disponible
+    if (auth.currentUser) {
+      // Esperar hasta 3 segundos a que auth.currentUser esté disponible (solo si existe)
       let attempts = 0;
-      const maxAttempts = 30; // 30 intentos * 100ms = 3 segundos máximo
+      const maxAttempts = 30;
       
       while (!auth.currentUser && attempts < maxAttempts) {
         await new Promise(resolve => setTimeout(resolve, 100));
         attempts++;
-      }
-      
-      // Si después de esperar aún no hay auth.currentUser, mostrar error
-      if (!auth.currentUser) {
-        toast({
-          title: "Error de autenticación",
-          description: "No se pudo completar la autenticación. Por favor, recarga la página.",
-          variant: "destructive",
-          duration: 5000,
-        });
-        return;
       }
     }
 
@@ -1061,7 +1168,7 @@ const ChatPage = () => {
       }
     }
 
-    // 🚀 OPTIMISTIC UI: Mostrar mensaje INSTANTÁNEAMENTE (como WhatsApp/Telegram)
+    // 🚀 OPTIMISTIC UI: Mostrar mensaje INSTANTÁNEAMENTE (Zero Latency - como WhatsApp/Telegram)
     // ⚡ CRÍTICO: Mostrar primero, validar después (experiencia instantánea)
     const optimisticId = `temp_${Date.now()}_${Math.random()}`;
     const clientId = generateUUID(); // ✅ UUID real para correlación optimista/real (evitar colisiones)
@@ -1070,16 +1177,17 @@ const ChatPage = () => {
       id: optimisticId,
       clientId, // ✅ F1: ID estable para correlación
       userId: user.id,
-      username: user.username,
-      avatar: user.avatar,
-      isPremium: user.isPremium,
+      username: user.username || 'Usuario', // ✅ FIX: Fallback si username es undefined
+      avatar: user.avatar || null,
+      isPremium: user.isPremium || false,
       content,
       type,
       timestamp: new Date().toISOString(),
       timestampMs: nowMs, // ✅ CRÍTICO: timestampMs para ordenamiento correcto (sin esto aparecen arriba)
       replyTo: replyData,
       _optimistic: true, // Marca para saber que es temporal
-      _sending: true, // Marca de "enviando"
+      status: 'sending', // ⚡ Estado: 'sending' -> 'sent' -> 'error' (para indicadores visuales)
+      _retryCount: 0, // Contador de reintentos
     };
 
     // ⚡ INSTANTÁNEO: Agregar mensaje inmediatamente a la UI (usuario lo ve al instante)
@@ -1088,7 +1196,7 @@ const ChatPage = () => {
     // ⚡ SCROLL ULTRA-RÁPIDO: Scroll inmediato sin esperar RAF (máxima velocidad)
     // Usar setTimeout(0) es más rápido que RAF para scroll directo
     setTimeout(() => {
-      const container = messagesContainerRef.current;
+      const container = scrollManager?.containerRef?.current;
       if (container) {
         // Scroll directo sin animación para máxima velocidad (como WhatsApp/Telegram)
         container.scrollTop = container.scrollHeight;
@@ -1170,9 +1278,9 @@ const ChatPage = () => {
       {
         clientId, // ✅ F1: Pasar clientId para correlación
         userId: auth.currentUser.uid, // ✅ SIEMPRE usar auth.currentUser.uid (ya validado)
-        username: user.username,
-        avatar: user.avatar,
-        isPremium: user.isPremium,
+        username: user.username || 'Usuario', // ✅ FIX: Fallback si username es undefined
+        avatar: user.avatar || null,
+        isPremium: user.isPremium || false,
         content,
         type,
         replyTo: replyData,
@@ -1189,28 +1297,118 @@ const ChatPage = () => {
         // 🎯 VOC: Resetear cooldown cuando hay nueva actividad
         resetVOCCooldown(currentRoom);
 
-        // ✅ DEDUPLICACIÓN: Marcar el mensaje optimista con el ID real para eliminarlo cuando llegue
+        // ✅ ACTUALIZAR ESTADO: Marcar como 'sent' cuando Firestore confirma
         // El listener de onSnapshot se encargará de eliminar el optimista cuando detecte el real
         if (sentMessage?.id) {
           setMessages(prev => prev.map(msg => 
             msg.id === optimisticId 
-              ? { ...msg, _realId: sentMessage.id, _sending: false }
+              ? { ...msg, _realId: sentMessage.id, status: 'sent', _sentAt: Date.now() } // ⚡ Estado: 'sent' (doble check gris)
               : msg
           ));
+
+          // ⏱️ TIMEOUT DE 20 SEGUNDOS: Si no se entrega en 20s, marcar como fallido
+          const deliveryTimeout = setTimeout(() => {
+            setMessages(prev => {
+              const message = prev.find(m => m.id === optimisticId || m._realId === sentMessage.id);
+              if (message && message.status !== 'delivered' && message.userId === user?.id) {
+                // ❌ MENSAJE NO ENTREGADO: Timeout de 20 segundos
+                console.error('🚨 [MENSAJE NO ENTREGADO] FALLA:', {
+                  messageId: message.id,
+                  realId: message._realId || sentMessage.id,
+                  content: message.content?.substring(0, 50) + '...',
+                  timestamp: new Date().toISOString(),
+                  elapsed: Date.now() - (message._sentAt || Date.now()),
+                  status: message.status
+                });
+                
+                return prev.map(msg => 
+                  (msg.id === optimisticId || msg._realId === sentMessage.id) && msg.userId === user?.id
+                    ? { ...msg, status: 'failed', _deliveryFailed: true }
+                    : msg
+                );
+              }
+              return prev;
+            });
+          }, 20000); // 20 segundos
+
+          // Guardar timeout para limpiarlo si el mensaje se entrega antes
+          deliveryTimeoutsRef.current.set(optimisticId, deliveryTimeout);
         }
       })
       .catch((error) => {
         console.error('❌ Error enviando mensaje:', error);
 
-        // ❌ FALLÓ - Eliminar mensaje optimista y mostrar error
-        setMessages(prev => prev.filter(m => m.id !== optimisticId));
+        // ❌ FALLÓ - Marcar como error (NO eliminar, permitir reintento)
+        setMessages(prev => prev.map(msg => 
+          msg.id === optimisticId 
+            ? { ...msg, status: 'error', _error: error } // ⚡ Estado: 'error' (mostrar indicador rojo)
+            : msg
+        ));
 
         toast({
           title: "No pudimos entregar este mensaje",
-          description: error.message || "Intenta de nuevo en un momento",
+          description: "Toca el mensaje para reintentar",
           variant: "destructive",
+          duration: 5000,
         });
       });
+  };
+
+  /**
+   * 🔄 REINTENTAR MENSAJE: Reintentar envío de mensaje fallido
+   */
+  const handleRetryMessage = async (optimisticMessage) => {
+    const { id: optimisticId, content, type, replyTo, _retryCount = 0 } = optimisticMessage;
+    
+    // Limitar reintentos (máximo 3)
+    if (_retryCount >= 3) {
+      toast({
+        title: "Límite de reintentos alcanzado",
+        description: "Por favor, recarga la página o verifica tu conexión",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    // Marcar como 'sending' nuevamente
+    setMessages(prev => prev.map(msg => 
+      msg.id === optimisticId 
+        ? { ...msg, status: 'sending', _retryCount: _retryCount + 1 }
+        : msg
+    ));
+
+    // Reintentar envío
+    try {
+      const sentMessage = await sendMessage(
+        currentRoom,
+        {
+          clientId: optimisticMessage.clientId,
+          userId: auth.currentUser.uid,
+          username: user.username,
+          avatar: user.avatar,
+          isPremium: user.isPremium,
+          content,
+          type,
+          replyTo,
+        },
+        user.isAnonymous
+      );
+
+      if (sentMessage?.id) {
+        setMessages(prev => prev.map(msg => 
+          msg.id === optimisticId 
+            ? { ...msg, _realId: sentMessage.id, status: 'sent' }
+            : msg
+        ));
+      }
+    } catch (error) {
+      // Marcar como error nuevamente
+      setMessages(prev => prev.map(msg => 
+        msg.id === optimisticId 
+          ? { ...msg, status: 'error', _error: error }
+          : msg
+      ));
+    }
   };
 
   /**
@@ -1226,6 +1424,21 @@ const ChatPage = () => {
    * Solicitud de chat privado
    */
   const handlePrivateChatRequest = async (targetUser) => {
+    // ⚠️ RESTRICCIÓN: Usuarios NO autenticados NO pueden enviar mensajes privados
+    if (!auth.currentUser) {
+      toast({
+        title: "Regístrate para chatear en privado",
+        description: "Los usuarios no registrados no pueden enviar mensajes privados. Regístrate para desbloquear esta función.",
+        variant: "default",
+        duration: 5000,
+        action: {
+          label: "Registrarse",
+          onClick: () => navigate('/auth')
+        }
+      });
+      return;
+    }
+
     // ✅ VALIDACIÓN: Si el usuario actual es anónimo o guest, mostrar modal de registro
     if (user.isGuest || user.isAnonymous) {
       setShowRegistrationModal(true);
@@ -1383,8 +1596,36 @@ const ChatPage = () => {
   // 🔒 LANDING PAGE: Guard clause para user === null
   // ========================================
   // ✅ CRITICAL: Este return DEBE estar DESPUÉS de TODOS los hooks
-  // NO afecta a guests (user.isGuest), solo a visitantes sin sesión
-  // Muestra landing page completa para mejor SEO y conversión
+  // ⚡ FIX: Solo mostrar landing si auth terminó de cargar Y no hay usuario
+  // Si está cargando, esperar (evita mostrar landing durante carga inicial)
+  // Si hay usuario (guest o registrado), mostrar chat directamente
+  
+  // ⚡ AUTO-LOGIN GUEST: Si accede directamente a /chat/principal sin sesión, crear sesión guest automáticamente
+  useEffect(() => {
+    if (!authLoading && !user && roomId === 'principal') {
+      // Usuario accedió directamente a /chat/principal sin sesión
+      // Crear sesión guest automáticamente para mejor UX
+      console.log('[CHAT PAGE] Usuario sin sesión accediendo a /chat/principal, creando sesión guest...');
+      signInAsGuest().catch(err => {
+        console.error('[CHAT PAGE] Error creando sesión guest:', err);
+        // Si falla, mostrar landing
+      });
+    }
+  }, [authLoading, user, roomId, signInAsGuest]);
+
+  // Mostrar loading mientras auth carga
+  if (authLoading) {
+    return (
+      <div className="h-screen flex items-center justify-center bg-background">
+        <div className="flex flex-col items-center gap-4">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-cyan-400"></div>
+          <p className="text-muted-foreground">Cargando...</p>
+        </div>
+      </div>
+    );
+  }
+
+  // Solo mostrar landing si definitivamente no hay usuario (después de carga)
   if (!user) {
     return <ChatLandingPage roomSlug={roomId} />;
   }

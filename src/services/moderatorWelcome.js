@@ -16,6 +16,12 @@ const sentWelcomeCache = new Set();
  * @param {string} username - Nombre del usuario que entra
  */
 export const sendModeratorWelcome = async (roomId, username) => {
+  // ✅ Validar parámetros
+  if (!roomId || !username) {
+    console.warn('⏭️ [MODERATOR] Parámetros inválidos, omitiendo bienvenida:', { roomId, username });
+    return;
+  }
+
   // ✅ Verificar cache para evitar duplicados
   const cacheKey = `${roomId}_${username}`;
   if (sentWelcomeCache.has(cacheKey)) {
@@ -31,12 +37,16 @@ export const sendModeratorWelcome = async (roomId, username) => {
     sentWelcomeCache.delete(cacheKey);
   }, 5 * 60 * 1000);
 
+  // ✅ Validar que username y roomId sean strings antes de usar padEnd
+  const safeUsername = String(username || 'Usuario').padEnd(20);
+  const safeRoomId = String(roomId || 'unknown').padEnd(23);
+
   console.log(`
 ╔════════════════════════════════════════════════════════════╗
 ║           👮 MODERADOR: MENSAJE DE BIENVENIDA              ║
 ╠════════════════════════════════════════════════════════════╣
-║ 👤 Usuario: ${username.padEnd(20)}                          ║
-║ 🏠 Sala: ${roomId.padEnd(23)}                          ║
+║ 👤 Usuario: ${safeUsername}                          ║
+║ 🏠 Sala: ${safeRoomId}                          ║
 ╚════════════════════════════════════════════════════════════╝
   `);
 

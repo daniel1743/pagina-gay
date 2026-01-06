@@ -83,12 +83,36 @@ if (import.meta.env.DEV) {
   console.log('ℹ️ Firestore en modo ONLINE (sin persistence) - mejor confiabilidad');
 }
 
-// Conectar a emuladores si está en desarrollo
-if (import.meta.env.VITE_USE_FIREBASE_EMULATOR === 'true') {
-  console.log('🔧 Usando emuladores de Firebase');
+// ✅ CRÍTICO: Localhost debe conectarse a PRODUCCIÓN por defecto
+// Solo usar emuladores si EXPLÍCITAMENTE se configura VITE_USE_FIREBASE_EMULATOR='true'
+// Esto permite probar localhost → producción antes de hacer deploy
+const usingEmulator = import.meta.env.VITE_USE_FIREBASE_EMULATOR === 'true';
+
+if (usingEmulator) {
+  console.warn('🔧 [FIREBASE] ⚠️⚠️⚠️ USANDO EMULADORES ⚠️⚠️⚠️');
+  console.warn('⚠️ [FIREBASE] ATENCIÓN: Estás usando emuladores. Los mensajes NO llegarán a producción.');
+  console.warn('⚠️ [FIREBASE] Para conectar a producción, asegúrate de que VITE_USE_FIREBASE_EMULATOR NO esté definido o sea "false"');
   connectAuthEmulator(auth, 'http://localhost:9099', { disableWarnings: true });
   connectFirestoreEmulator(db, 'localhost', 8080);
   connectStorageEmulator(storage, 'localhost', 9199);
+} else {
+  // ✅ PRODUCCIÓN: Localhost se conecta a Firebase producción
+  console.log('✅ [FIREBASE] ========================================');
+  console.log('✅ [FIREBASE] Localhost conectado a PRODUCCIÓN');
+  console.log('✅ [FIREBASE] Project ID:', firebaseConfig.projectId);
+  console.log('✅ [FIREBASE] Auth Domain:', firebaseConfig.authDomain);
+  console.log('✅ [FIREBASE] Puedes probar localhost → producción');
+  console.log('✅ [FIREBASE] ========================================');
+  
+  // ⚠️ VERIFICACIÓN: Asegurar que las variables de entorno están correctas
+  if (import.meta.env.DEV) {
+    if (!firebaseConfig.projectId || firebaseConfig.projectId === 'undefined') {
+      console.error('❌ [FIREBASE] ERROR: projectId no está definido. Verifica .env');
+    }
+    if (!firebaseConfig.apiKey || firebaseConfig.apiKey === 'undefined') {
+      console.error('❌ [FIREBASE] ERROR: apiKey no está definido. Verifica .env');
+    }
+  }
 }
 
 export default app;

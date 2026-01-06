@@ -1,0 +1,316 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // =========================================================
+    // 1. FUNCIONES AUXILIARES (LÓGICA DE NEGOCIO)
+    // =========================================================
+
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+
+    function isOwner(userId) {
+      return isAuthenticated() && request.auth.uid == userId;
+    }
+
+    // Identifica si es un usuario invitado/anónimo (Login anónimo de Firebase)
+    function isAnonymous() {
+      return isAuthenticated() && request.auth.token.firebase.sign_in_provider == 'anonymous';
+    }
+
+    // Verifica que el usuario NO esté en la lista de baneos temporales
+    function isNotBanned() {
+      // Si no tiene auth (es 100% invitado sin token), no podemos chequear ID en DB,
+      // así que confiamos en la validación IP del servidor/app.
+      // Si TIENE auth, verificamos que no exista su ID en temp_bans.
+      return !isAuthenticated() || !exists(/databases/$(database)/documents/temp_bans/$(request.auth.uid));
+    }
+
+    // Roles Administrativos
+    function isAdmin() {
+      return isAuthenticated() &&
+             exists(/databases/$(database)/documents/users/$(request.auth.uid)) &&
+             get(/databases/$(database)/documents/users/$(request.auth.uid)).data.keys().hasAny(['role']) &&
+             (get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin' || 
+              get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'administrator');
+    }
+
+    function isAdminOrSupport() {
+      return isAuthenticated() &&
+             exists(/databases/$(database)/documents/users/$(request.auth.uid)) &&
+             get(/databases/$(database)/documents/users/$(request.auth.uid)).data.keys().hasAny(['role']) &&
+             (get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin' || 
+              get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'administrator' ||
+              get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'support');
+    }
+
+    function isSuperAdmin() {
+      return isAuthenticated() && request.auth.token.email == 'caribenosvenezolanos@gmail.com';
+    }
+
+    // =========================================================
+    // 2. VALIDACIONES DE MENSAJES (CORREGIDAS PARA COMPATIBILIDAD)
+    // =========================================================
+
+    // ✅ PERMITIR USUARIOS NO AUTENTICADOS (período de captación - 5 días)
+    // Función para validar mensaje SIN requerir auth (permite usuarios no autenticados)
+    function isValidMessageUnauthenticated() {
+      let data = request.resource.data;
+      return 
+        'username' in data && 
+        data.username is string && 
+        data.username.size() > 0 &&
+        'content' in data && 
+        data.content is string &&
+        data.content.size() > 0 && 
+        data.content.size() <= 1000 &&
+        'type' in data;
+        // ⚠️ NO requiere timestamp para usuarios no autenticados (se genera en cliente)
+    }
+
+    // ✅ Validación para usuarios autenticados (con timestamp)
+    function isValidMessage() {
+      let data = request.resource.data;
+      return 
+        isAuthenticated() &&
+        'username' in data && 
+        data.username is string && 
+        data.username.size() > 0 &&
+        'content' in data && 
+        data.content is string &&
+        data.content.size() > 0 && 
+        data.content.size() <= 1000 &&
+        'type' in data &&
+        'timestamp' in data &&
+        data.timestamp is timestamp;
+    }
+
+    function isValidBotMessage() {
+      let data = request.resource.data;
+      return isAuthenticated() &&
+             'senderUid' in data && data.senderUid == request.auth.uid &&
+             'userId' in data &&
+             (data.userId.matches('bot_.*') || data.userId.matches('ai_.*') || data.userId.matches('seed_user_.*'));
+    }
+
+    function isValidSystemMessage() {
+      let data = request.resource.data;
+      return isAuthenticated() &&
+             'userId' in data &&
+             (data.userId == 'system' || data.userId.matches('system_.*'));
+    }
+
+    // =========================================================
+    // 3. REGLAS DE COLECCIONES
+    // =========================================================
+
+    // ✅ SALAS Y MENSAJES
+    match /rooms/{roomId} {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
+
+    match /rooms/{roomId}/messages/{messageId} {
+      allow read: if true;
+
+      // ✅ PERMITIR USUARIOS NO AUTENTICADOS (período de captación - 5 días)
+      // Permite que usuarios sin auth puedan enviar mensajes en salas públicas
+      allow create: if 
+        (
+          // OPCIÓN A: ADMINS Y BOTS (Siempre pasan, requieren auth)
+          (isAuthenticated() && (isAdmin() || isValidBotMessage() || isValidSystemMessage()))
+          
+          ||
+          
+          // OPCIÓN B: USUARIOS AUTENTICADOS (Registrados o Anónimos con auth)
+          (isAuthenticated() && 
+           isValidMessage() &&
+           isNotBanned() &&
+           (request.resource.data.userId == request.auth.uid || isAnonymous()))
+          
+          ||
+          
+          // OPCIÓN C: USUARIOS NO AUTENTICADOS (Solo en salas públicas, sin links, sin reacciones)
+          (!isAuthenticated() && 
+           isValidMessageUnauthenticated() &&
+           // ⚠️ Validar que NO contiene links (bloqueado para no autenticados)
+           !request.resource.data.content.matches('.*(https?://|www\\.|@|#).*') &&
+           // ⚠️ Validar que NO es mensaje privado
+           request.resource.data.type == 'text')
+        );
+
+      // Actualizar (reacciones, ediciones): Solo usuarios autenticados
+      // ⚠️ Usuarios NO autenticados NO pueden dar reacciones
+      allow update: if isAuthenticated() &&
+                      request.resource.data.userId == resource.data.userId &&
+                      request.resource.data.diff(resource.data).affectedKeys().hasOnly(['reactions', 'content']);
+
+      // Borrar: Solo usuarios autenticados (dueño o Admin)
+      allow delete: if isAuthenticated() && (resource.data.userId == request.auth.uid || isAdmin());
+    }
+
+    // ✅ CHATS PRIVADOS (SOLO REGISTRADOS - ANÓNIMOS NO)
+    match /private_chats/{chatId} {
+      // Leer: Si eres participante
+      allow read: if isAuthenticated() && request.auth.uid in resource.data.participants;
+      
+      // Crear: Solo si estás registrado (NO ANÓNIMO), son 2 personas y no estás baneado
+      allow create: if isAuthenticated() && 
+                      !isAnonymous() && 
+                      request.resource.data.participants.size() == 2 &&
+                      request.auth.uid in request.resource.data.participants &&
+                      isNotBanned();
+
+      match /messages/{messageId} {
+        allow read: if isAuthenticated() && request.auth.uid in get(/databases/$(database)/documents/private_chats/$(chatId)).data.participants;
+        allow create: if isAuthenticated() && 
+                        !isAnonymous() &&
+                        request.auth.uid in get(/databases/$(database)/documents/private_chats/$(chatId)).data.participants &&
+                        isValidMessage() &&
+                        isNotBanned();
+      }
+    }
+
+    // ✅ ANTI-SPAM & BANS
+    match /temp_bans/{userId} {
+      allow read: if isAuthenticated() && request.auth.uid == userId;
+      allow create, update, delete: if isAdmin();
+    }
+
+    match /spam_warnings/{userId} {
+      allow create, update: if isAuthenticated() && request.auth.uid == userId;
+      allow read: if isAdmin();
+    }
+
+    // ✅ USUARIOS ANÓNIMOS (Metadata)
+    match /guests/{guestId} {
+      allow read, write: if isAuthenticated() &&
+                           request.auth.uid == guestId &&
+                           isAnonymous();
+    }
+
+    // ✅ PERFILES DE USUARIO
+    match /users/{userId} {
+      allow read: if isSuperAdmin() || isAuthenticated();
+      
+      allow create: if isOwner(userId) &&
+                      request.resource.data.username is string &&
+                      request.resource.data.username.size() >= 3;
+
+      allow update: if isOwner(userId) &&
+                      request.resource.data.isPremium == resource.data.isPremium;
+
+      allow delete: if isOwner(userId);
+
+      match /notifications/{notificationId} {
+        allow read, write: if isOwner(userId);
+      }
+      match /sent_messages/{messageId} {
+        allow read: if isOwner(userId);
+        allow create: if isAuthenticated();
+      }
+    }
+
+    // ✅ REPORTES
+    match /reports/{reportId} {
+      allow read: if isAdmin() || (isAuthenticated() && resource.data.reporterId == request.auth.uid);
+      allow create: if isAuthenticated() && request.resource.data.reporterId == request.auth.uid; 
+      allow update: if isAdmin();
+    }
+
+    // ✅ SYSTEM & ADMIN
+    match /roomPresence/{roomId}/users/{userId} {
+      allow read: if isAuthenticated();
+      allow write: if isAuthenticated() && request.auth.uid == userId;
+    }
+
+    match /analytics_stats/{dateId} {
+      allow write: if isAuthenticated() && (isAdmin() || dateId == request.auth.uid || dateId.matches('\\d{4}-\\d{2}-\\d{2}'));
+      allow read: if isAuthenticated();
+    }
+
+    match /user_connections/{userId} {
+      allow read, write: if isAuthenticated() && request.auth.uid == userId;
+    }
+
+    match /sanctions/{sanctionId} {
+      allow read: if isAdmin() || (isAuthenticated() && resource.data.userId == request.auth.uid);
+      allow create, update: if isAdmin();
+    }
+
+    match /systemNotifications/{notificationId} {
+      allow read: if isAuthenticated() && resource.data.userId == request.auth.uid;
+      allow create: if isAdmin();
+      allow update: if (isAuthenticated() && resource.data.userId == request.auth.uid) || isAdmin();
+    }
+
+    match /usernames/{usernameLower} {
+      allow read: if isAuthenticated();
+      allow write: if isAdmin();
+    }
+    
+    match /admin_logs/{logId} {
+      allow read, create: if isAdmin();
+    }
+
+    // ✅ TICKETS (Soporte)
+    match /tickets/{ticketId} {
+      allow read: if isSuperAdmin() || isAdminOrSupport() || 
+                  (isAuthenticated() && (resource.data.userId == request.auth.uid || resource.data.userUid == request.auth.uid));
+
+      allow create: if isAuthenticated() && request.resource.data.userId == request.auth.uid;
+      allow update: if isSuperAdmin() || isAdminOrSupport();
+
+      match /messages/{messageId} {
+        allow read: if isSuperAdmin() || isAdminOrSupport() || 
+                    (isAuthenticated() && get(/databases/$(database)/documents/tickets/$(ticketId)).data.userId == request.auth.uid);
+        allow create: if isAuthenticated(); 
+      }
+      match /logs/{logId} {
+        allow read, create: if isSuperAdmin() || isAdminOrSupport();
+      }
+    }
+
+    // ✅ FORO PÚBLICO (Solo registrados NO anónimos)
+    match /forum_threads/{threadId} {
+      allow read: if true;
+      allow create: if isAuthenticated() && !isAnonymous() && isNotBanned() && isValidMessage();
+      allow update, delete: if isAuthenticated() && resource.data.authorId == request.auth.uid;
+    }
+
+    match /forum_replies/{replyId} {
+      allow read: if true;
+      allow create: if isAuthenticated() && !isAnonymous() && isNotBanned() && isValidMessage();
+      allow update, delete: if isAuthenticated() && resource.data.authorId == request.auth.uid;
+    }
+
+    // ✅ OTRAS COLECCIONES
+    match /globalActivity/{userId} {
+      allow read: if true;
+      allow write: if isAuthenticated() && request.auth.uid == userId;
+    }
+
+    match /rewards/{rewardId} {
+      allow read: if isAdmin() || (isAuthenticated() && resource.data.userId == request.auth.uid);
+      allow create, update: if isAdmin();
+    }
+
+    match /muted_users/{userId} {
+      allow read: if isAuthenticated();
+      allow create, update: if isAuthenticated();
+      allow delete: if isAdmin();
+    }
+
+    match /moderation_alerts/{alertId} {
+      allow read, update, delete: if isAdmin();
+      allow create: if isAuthenticated();
+    }
+
+    // Bloqueo por defecto
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}
+

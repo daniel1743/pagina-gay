@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Button } from '@/components/ui/button';
-import { Flag, ThumbsUp, ThumbsDown, CheckCircle, Check, CheckCheck, Reply, X } from 'lucide-react';
+import { Flag, ThumbsUp, ThumbsDown, CheckCircle, Check, CheckCheck, Reply, X, Clock, AlertCircle, RefreshCw } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
 import MessageQuote from './MessageQuote';
 import NewMessagesDivider from './NewMessagesDivider';
@@ -378,7 +378,7 @@ const ChatMessages = ({ messages, currentUserId, onUserClick, onReport, onPrivat
                 ease: 'easeOut'
               }}
               // ✅ FIX: order-1 (mensaje) y order-2 (avatar) para que el avatar quede a la derecha
-              className={`flex gap-3 ${isOwn ? 'flex-row justify-end' : 'flex-row'} items-start py-1 px-1 hover:bg-gray-50/50 dark:hover:bg-gray-800/30 rounded-lg transition-colors`}
+              className={`flex gap-2 ${isOwn ? 'flex-row justify-end' : 'flex-row'} items-start py-0.5 px-1 hover:bg-gray-50/50 dark:hover:bg-gray-800/30 rounded-lg transition-colors`}
             >
               {/* ✅ Avatar: Mostrar siempre, pero en diferente posición según el usuario */}
               <motion.div
@@ -409,9 +409,9 @@ const ChatMessages = ({ messages, currentUserId, onUserClick, onReport, onPrivat
                   <div className="w-full h-full rounded-full bg-gray-50 dark:bg-gray-900" style={{ borderRadius: '50%' }}></div>
                 </div>
                 <Avatar className="relative w-full h-full cursor-pointer rounded-full overflow-hidden z-10" style={{ border: 'none' }}>
-                  <AvatarImage src={group.avatar} alt={group.username} className="object-cover" />
+                  <AvatarImage src={group.avatar} alt={group.username || 'Usuario'} className="object-cover" />
                   <AvatarFallback className="bg-secondary text-xs rounded-full">
-                    {group.username[0].toUpperCase()}
+                    {(group.username && group.username[0]) ? group.username[0].toUpperCase() : '?'}
                   </AvatarFallback>
                 </Avatar>
                 
@@ -436,9 +436,9 @@ const ChatMessages = ({ messages, currentUserId, onUserClick, onReport, onPrivat
               <div
                 className={`group flex flex-col ${
                   isOwn
-                    ? 'items-end order-1 mr-3 max-w-[95%] sm:max-w-[90%] md:max-w-[85%]'
-                    : 'items-start order-2 ml-3 flex-1 min-w-0'
-                } space-y-[2px]`}
+                    ? 'items-end order-1 mr-3 max-w-[85%] sm:max-w-[80%] md:max-w-[75%]'
+                    : 'items-start order-2 ml-3 flex-1 min-w-0 max-w-[85%] sm:max-w-[80%] md:max-w-[75%]'
+                } space-y-0.5`}
               >
                 {/* ✅ Nombre del usuario: Solo mostrar en el primer mensaje del grupo (si NO es propio) */}
                 {!isOwn && (
@@ -464,10 +464,10 @@ const ChatMessages = ({ messages, currentUserId, onUserClick, onReport, onPrivat
                   const isFirstInGroup = msgIndexInGroup === 0;
 
                   return (
-                    <div key={message.id} className="w-full">
+                    <div key={message.id} className="w-full mb-0.5">
                       {/* 💬 QUOTE: Mostrar mensaje citado si existe */}
                       {message.replyTo && (
-                        <div className="mb-2">
+                        <div className="mb-1">
                           <MessageQuote
                             replyTo={message.replyTo}
                             onJumpToMessage={handleJumpToMessage}
@@ -475,8 +475,8 @@ const ChatMessages = ({ messages, currentUserId, onUserClick, onReport, onPrivat
                         </div>
                       )}
 
-                      {/* 🎨 BURBUJA DE MENSAJE - Estilo iMessage/Messenger Pixel-Perfect */}
-                      <div className={`inline-flex flex-row items-end gap-1 ${isOwn ? 'justify-end' : 'justify-start'} max-w-[95%] sm:max-w-[90%] md:max-w-[85%]`}>
+                      {/* 🎨 BURBUJA DE MENSAJE - Estilo WhatsApp Optimizado */}
+                      <div className={`inline-flex flex-row items-end gap-1 ${isOwn ? 'justify-end' : 'justify-start'} w-full`}>
                         
                         {/* ⚡ CORRECCIÓN CLAVE: Si es mensaje propio, poner la hora ANTES de la burbuja para que la burbuja quede pegada al avatar */}
                         {isOwn && (
@@ -484,25 +484,37 @@ const ChatMessages = ({ messages, currentUserId, onUserClick, onReport, onPrivat
                             <span className="text-[11px] text-gray-500 dark:text-gray-400">
                               {formatTime(message.timestamp)}
                             </span>
-                            {messageChecks[message.id] === 'double' ? (
-                              <CheckCheck className="w-3.5 h-3.5 text-[#007AFF]" />
-                            ) : messageChecks[message.id] === 'single' ? (
+                            {/* ⚡ INDICADORES DE ESTADO: Sistema de checks tipo WhatsApp */}
+                            {message.status === 'sending' ? (
+                              // ⏳ Enviando: Reloj animado
+                              <Clock className="w-3.5 h-3.5 text-gray-400 animate-pulse" />
+                            ) : message.status === 'error' || message.status === 'failed' ? (
+                              // ❌ Error/Fallo: Indicador rojo
+                              <AlertCircle className="w-3.5 h-3.5 text-red-500" />
+                            ) : message.status === 'delivered' ? (
+                              // ✅ Entregado: Doble check azul
+                              <CheckCheck className="w-3.5 h-3.5 text-[#34B7F1]" />
+                            ) : message.status === 'sent' || message._realId ? (
+                              // ✅ Enviado a Firestore: Doble check gris
+                              <CheckCheck className="w-3.5 h-3.5 text-gray-400" />
+                            ) : (
+                              // ⏳ Pendiente: Check simple gris
                               <Check className="w-3.5 h-3.5 text-gray-400" />
-                            ) : null}
+                            )}
                           </div>
                         )}
 
-                        {/* Burbuja del mensaje */}
+                        {/* Burbuja del mensaje - Estilo WhatsApp */}
                         <div
-                          className={`cursor-pointer break-words overflow-wrap-anywhere rounded-[18px] px-3 py-2 ${
+                          className={`cursor-pointer break-words overflow-wrap-anywhere rounded-[7.5px] px-2.5 py-1.5 max-w-full ${
                             isOwn 
-                              ? 'bg-[#007AFF] text-white' // Azul iMessage para mensajes propios
-                              : 'bg-[#E5E5EA] text-[#000000]' // Gris claro para mensajes de otros
+                              ? 'bg-[#DCF8C6] text-[#000000]' // Verde WhatsApp para mensajes propios
+                              : 'bg-white text-[#000000] border border-gray-200' // Blanco para mensajes de otros
                           }`}
                           onClick={() => onPrivateChat({ username: message.username, avatar: message.avatar, userId: message.userId, isPremium: isUserPremium })}
                         >
                           {message.type === 'text' && (
-                            <p className="text-[15px] leading-[1.4] whitespace-pre-wrap break-words font-normal" style={{ wordBreak: 'normal', overflowWrap: 'break-word' }}>
+                            <p className="text-[14.2px] leading-[1.35] whitespace-pre-wrap break-words font-normal" style={{ wordBreak: 'break-word', overflowWrap: 'break-word' }}>
                               {message.content}
                             </p>
                           )}
@@ -513,7 +525,7 @@ const ChatMessages = ({ messages, currentUserId, onUserClick, onReport, onPrivat
 
                         {/* Hora para mensajes de otros (fuera de la burbuja, alineados a la izquierda) */}
                         {!isOwn && (
-                          <span className="text-[11px] text-gray-500 mb-0.5 flex-shrink-0">
+                          <span className="text-[11px] text-gray-500 dark:text-gray-400 mb-0.5 flex-shrink-0">
                             {formatTime(message.timestamp)}
                           </span>
                         )}
@@ -522,7 +534,7 @@ const ChatMessages = ({ messages, currentUserId, onUserClick, onReport, onPrivat
                       {/* ⚡ ACCIONES: Reply, Like, Dislike (solo para mensajes de otros) */}
                       {!isOwn && (
                         <motion.div
-                          className="flex items-center gap-2 mt-1 opacity-0 group-hover:opacity-100 transition-opacity"
+                          className="flex items-center gap-2 mt-0.5 opacity-0 group-hover:opacity-100 transition-opacity"
                           initial={{ y: 5 }}
                           whileHover={{ y: 0 }}
                         >
@@ -541,21 +553,26 @@ const ChatMessages = ({ messages, currentUserId, onUserClick, onReport, onPrivat
                               <Reply className="h-3.5 w-3.5" />
                             </Button>
                           </motion.div>
-                          <motion.div whileHover={{ scale: 1.2 }} whileTap={{ scale: 0.9 }}>
-                            <Button size="icon" variant="ghost" className="h-6 w-6 text-muted-foreground hover:text-green-400" onClick={() => onReaction(message.id, 'like')}>
-                              <ThumbsUp className="h-3.5 w-3.5" />
-                            </Button>
-                          </motion.div>
-                          <motion.div whileHover={{ scale: 1.2 }} whileTap={{ scale: 0.9 }}>
-                            <Button size="icon" variant="ghost" className="h-6 w-6 text-muted-foreground hover:text-red-400" onClick={() => onReaction(message.id, 'dislike')}>
-                              <ThumbsDown className="h-3.5 w-3.5" />
-                            </Button>
-                          </motion.div>
+                          {/* ⚠️ REACCIONES: Solo usuarios autenticados pueden reaccionar */}
+                          {currentUserId && (
+                            <>
+                              <motion.div whileHover={{ scale: 1.2 }} whileTap={{ scale: 0.9 }}>
+                                <Button size="icon" variant="ghost" className="h-6 w-6 text-muted-foreground hover:text-green-400" onClick={() => onReaction(message.id, 'like')}>
+                                  <ThumbsUp className="h-3.5 w-3.5" />
+                                </Button>
+                              </motion.div>
+                              <motion.div whileHover={{ scale: 1.2 }} whileTap={{ scale: 0.9 }}>
+                                <Button size="icon" variant="ghost" className="h-6 w-6 text-muted-foreground hover:text-red-400" onClick={() => onReaction(message.id, 'dislike')}>
+                                  <ThumbsDown className="h-3.5 w-3.5" />
+                                </Button>
+                              </motion.div>
+                            </>
+                          )}
                         </motion.div>
                       )}
 
                       {/* ⚡ REACCIONES: Mostrar contadores de likes/dislikes */}
-                      <div className="flex items-center gap-2 mt-1 text-[11px] text-muted-foreground">
+                      <div className="flex items-center gap-2 mt-0.5 text-[11px] text-muted-foreground">
                         {message.reactions?.like > 0 && (
                           <motion.div
                             className="flex items-center gap-0.5"
