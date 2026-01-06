@@ -58,9 +58,14 @@ export const AuthProvider = ({ children }) => {
               try {
                 const backupData = JSON.parse(backup);
                 if (backupData.uid === firebaseUser.uid) {
+                  // ✅ FIX: Asegurar que el username del backup se use (no 'Invitado' por defecto)
+                  const backupUsername = backupData.username && backupData.username !== 'Invitado' 
+                    ? backupData.username 
+                    : 'Invitado';
+                  
                   guestUser = {
                     id: firebaseUser.uid,
-                    username: backupData.username || 'Invitado',
+                    username: backupUsername,
                     isGuest: true,
                     isAnonymous: true,
                     isPremium: false,
@@ -72,9 +77,30 @@ export const AuthProvider = ({ children }) => {
                   setGuestMessageCount(0);
                   setUser(guestUser);
 
-                  // Background: Sync con Firestore
+                  // Background: Sync con Firestore (actualizar username si es diferente)
                   getDoc(doc(db, 'guests', firebaseUser.uid))
-                    .then(snap => snap.exists() && setGuestMessageCount(snap.data().messageCount || 0))
+                    .then(snap => {
+                      if (snap.exists()) {
+                        const guestData = snap.data();
+                        setGuestMessageCount(guestData.messageCount || 0);
+                        
+                        // ✅ Si Firestore tiene un username diferente (más reciente), actualizar
+                        if (guestData.username && guestData.username !== backupUsername && guestData.username !== 'Invitado') {
+                          setUser({
+                            ...guestUser,
+                            username: guestData.username,
+                            avatar: guestData.avatar || guestUser.avatar,
+                          });
+                          // Actualizar backup con username de Firestore
+                          localStorage.setItem('guest_session_backup', JSON.stringify({
+                            uid: firebaseUser.uid,
+                            username: guestData.username,
+                            avatar: guestData.avatar || backupData.avatar,
+                            timestamp: Date.now(),
+                          }));
+                        }
+                      }
+                    })
                     .catch(() => {});
 
                   return;
@@ -85,9 +111,14 @@ export const AuthProvider = ({ children }) => {
             if (tempBackup) {
               try {
                 const tempData = JSON.parse(tempBackup);
+                // ✅ FIX: Asegurar que el username del tempBackup se use (no 'Invitado' por defecto)
+                const tempUsername = tempData.username && tempData.username !== 'Invitado' 
+                  ? tempData.username 
+                  : 'Invitado';
+                
                 guestUser = {
                   id: firebaseUser.uid,
-                  username: tempData.username || 'Invitado',
+                  username: tempUsername,
                   isGuest: true,
                   isAnonymous: true,
                   isPremium: false,
@@ -98,6 +129,16 @@ export const AuthProvider = ({ children }) => {
                 };
                 setGuestMessageCount(0);
                 setUser(guestUser);
+                
+                // ✅ Migrar tempBackup a backup permanente
+                localStorage.setItem('guest_session_backup', JSON.stringify({
+                  uid: firebaseUser.uid,
+                  username: tempUsername,
+                  avatar: tempData.avatar,
+                  timestamp: Date.now(),
+                }));
+                localStorage.removeItem('guest_session_temp');
+                
                 return;
               } catch {}
             }
@@ -118,29 +159,54 @@ export const AuthProvider = ({ children }) => {
             setUser(guestUser);
 
             // 🚀 Intentar cargar de Firestore EN BACKGROUND (no bloquea)
-            getDoc(doc(db, 'guests', firebaseUser.uid))
-              .then(guestSnap => {
-                if (guestSnap.exists()) {
-                  const guestData = guestSnap.data();
-                  // Actualizar con datos reales si los hay
+            // ✅ FIX: También verificar si hay backup en localStorage con username
+            const backupCheck = localStorage.getItem('guest_session_backup');
+            if (backupCheck) {
+              try {
+                const backupData = JSON.parse(backupCheck);
+                if (backupData.uid === firebaseUser.uid && backupData.username && backupData.username !== 'Invitado') {
+                  // ✅ Usar username del backup si existe y es válido
                   setUser({
                     id: firebaseUser.uid,
-                    username: guestData.username || 'Invitado',
+                    username: backupData.username,
                     isGuest: true,
                     isAnonymous: true,
                     isPremium: false,
                     verified: false,
-                    avatar: guestData.avatar || 'https://api.dicebear.com/7.x/pixel-art/svg?seed=guest',
+                    avatar: backupData.avatar || 'https://api.dicebear.com/7.x/pixel-art/svg?seed=guest',
                     quickPhrases: [],
                     theme: {},
                   });
-                  setGuestMessageCount(guestData.messageCount || 0);
-                  localStorage.setItem('guest_session_backup', JSON.stringify({
-                    uid: firebaseUser.uid,
-                    username: guestData.username,
-                    avatar: guestData.avatar,
-                    timestamp: Date.now(),
-                  }));
+                }
+              } catch {}
+            }
+            
+            getDoc(doc(db, 'guests', firebaseUser.uid))
+              .then(guestSnap => {
+                if (guestSnap.exists()) {
+                  const guestData = guestSnap.data();
+                  // ✅ Actualizar con datos reales de Firestore (prioridad sobre backup)
+                  if (guestData.username && guestData.username !== 'Invitado') {
+                    setUser({
+                      id: firebaseUser.uid,
+                      username: guestData.username,
+                      isGuest: true,
+                      isAnonymous: true,
+                      isPremium: false,
+                      verified: false,
+                      avatar: guestData.avatar || 'https://api.dicebear.com/7.x/pixel-art/svg?seed=guest',
+                      quickPhrases: [],
+                      theme: {},
+                    });
+                    setGuestMessageCount(guestData.messageCount || 0);
+                    // ✅ Actualizar backup con username de Firestore
+                    localStorage.setItem('guest_session_backup', JSON.stringify({
+                      uid: firebaseUser.uid,
+                      username: guestData.username,
+                      avatar: guestData.avatar,
+                      timestamp: Date.now(),
+                    }));
+                  }
                 }
               })
               .catch(() => {});
@@ -467,26 +533,57 @@ export const AuthProvider = ({ children }) => {
    * ⚡ ULTRA OPTIMIZADO: <500ms total
    */
   const signInAsGuest = async (username, avatarUrl) => {
+    // ✅ FIX: Prevenir múltiples llamadas simultáneas
+    if (signInAsGuest.inProgress) {
+      console.log('%c⚠️ [TIMING] signInAsGuest ya está en progreso, ignorando llamada duplicada', 'color: #ffaa00; font-weight: bold');
+      return false;
+    }
+    
+    signInAsGuest.inProgress = true;
+    
     console.log('%c🚀 [TIMING] Iniciando proceso de entrada...', 'color: #00ff00; font-weight: bold; font-size: 14px');
+    
+    // ✅ FIX: Limpiar timers anteriores si existen antes de crear nuevos
+    try {
+      console.timeEnd('⏱️ [TOTAL] Entrada completa al chat');
+    } catch {}
+    try {
+      console.timeEnd('⏱️ [PASO 1] signInAnonymously Firebase');
+    } catch {}
+    
     console.time('⏱️ [TOTAL] Entrada completa al chat');
     console.time('⏱️ [PASO 1] signInAnonymously Firebase');
+
+    // ✅ Valores por defecto si no se proporcionan
+    const defaultUsername = username || `Guest${Math.floor(Math.random() * 10000)}`;
+    const defaultAvatar = avatarUrl || `https://api.dicebear.com/7.x/avataaars/svg?seed=Guest${Math.random()}`;
+
+    // ⚡ FIX CRÍTICO: Guardar intención en temp ANTES de auth
+    // Esto asegura que el listener onAuthStateChanged encuentre los datos INMEDIATAMENTE
+    // y no cree al usuario como "Invitado" por defecto durante la carrera de eventos.
+    localStorage.setItem('guest_session_temp', JSON.stringify({
+      username: defaultUsername,
+      avatar: defaultAvatar,
+      timestamp: Date.now()
+    }));
 
     try {
       // 🚀 PASO 1: Crear usuario anónimo en Firebase PRIMERO (CRÍTICO para enviar mensajes)
       // ⚠️ IMPORTANTE: Debe completarse ANTES de permitir enviar mensajes
       // Sin esto, auth.currentUser será null y Firestore rechazará los mensajes
+      console.log('🔐 [AUTH] Iniciando signInAnonymously con username:', defaultUsername);
       const userCredential = await signInAnonymously(auth);
       console.timeEnd('⏱️ [PASO 1] signInAnonymously Firebase');
 
       // ✅ Usuario autenticado en Firebase - ahora puede enviar mensajes
       const realUser = {
         id: userCredential.user.uid,
-        username: username,
+        username: defaultUsername,
         isGuest: true,
         isAnonymous: true,
         isPremium: false,
         verified: false,
-        avatar: avatarUrl || null,
+        avatar: defaultAvatar,
         quickPhrases: [],
         theme: {},
       };
@@ -498,37 +595,55 @@ export const AuthProvider = ({ children }) => {
       // ⚡ Guardar backup con UID real
       localStorage.setItem('guest_session_backup', JSON.stringify({
         uid: userCredential.user.uid,
-        username: username,
-        avatar: avatarUrl,
+        username: defaultUsername,
+        avatar: defaultAvatar,
         timestamp: Date.now(),
       }));
 
       console.log('%c✅ [TIMING] Usuario autenticado - PUEDE enviar mensajes', 'color: #00ff00; font-weight: bold');
 
       // 🚀 Guardar en Firestore EN BACKGROUND (no bloquea el login)
-      setTimeout(() => {
-        console.time('⏱️ [BACKGROUND] Firestore setDoc');
-        const guestRef = doc(db, 'guests', userCredential.user.uid);
-        setDoc(guestRef, {
-          username: username,
-          avatar: avatarUrl,
-          createdAt: new Date().toISOString(),
-          messageCount: 0,
-          expiresAt: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString()
-        })
-        .then(() => {
-          console.timeEnd('⏱️ [BACKGROUND] Firestore setDoc');
-          console.log('%c✅ [BACKGROUND] Datos guardados en Firestore', 'color: #888; font-style: italic');
-        })
-        .catch((err) => {
-          console.warn('⚠️ [BACKGROUND] Error en Firestore (no crítico):', err);
-        });
-      }, 0);
+      // ✅ FIX: Guardar inmediatamente para que esté disponible al recargar
+      const guestRef = doc(db, 'guests', userCredential.user.uid);
+      setDoc(guestRef, {
+        username: defaultUsername,
+        avatar: defaultAvatar,
+        createdAt: new Date().toISOString(),
+        messageCount: 0,
+        expiresAt: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString()
+      })
+      .then(() => {
+        console.log('%c✅ [BACKGROUND] Datos guardados en Firestore', 'color: #888; font-style: italic');
+        // ✅ Actualizar backup después de guardar en Firestore
+        localStorage.setItem('guest_session_backup', JSON.stringify({
+          uid: userCredential.user.uid,
+          username: defaultUsername,
+          avatar: defaultAvatar,
+          timestamp: Date.now(),
+        }));
+      })
+      .catch((err) => {
+        console.warn('⚠️ [BACKGROUND] Error en Firestore (no crítico):', err);
+        // ✅ Aún así, actualizar backup local para que funcione sin Firestore
+        localStorage.setItem('guest_session_backup', JSON.stringify({
+          uid: userCredential.user.uid,
+          username: defaultUsername,
+          avatar: defaultAvatar,
+          timestamp: Date.now(),
+        }));
+      });
 
       console.timeEnd('⏱️ [TOTAL] Entrada completa al chat');
+      signInAsGuest.inProgress = false;
       return true;
     } catch (error) {
-      console.timeEnd('⏱️ [TOTAL] Entrada completa al chat');
+      try {
+        console.timeEnd('⏱️ [TOTAL] Entrada completa al chat');
+      } catch {}
+      try {
+        console.timeEnd('⏱️ [PASO 1] signInAnonymously Firebase');
+      } catch {}
+      signInAsGuest.inProgress = false;
       console.error('%c❌ [TIMING] Error en entrada:', 'color: #ff0000; font-weight: bold', error);
       throw error;
     }

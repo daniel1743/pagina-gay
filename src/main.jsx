@@ -2,6 +2,7 @@ import React from 'react';
 import ReactDOM from 'react-dom/client';
 import App from '@/App';
 import '@/index.css';
+import '@/utils/logFilter'; // 🔇 Filtro de logs - reduce ruido (debe ir ANTES de errorLogger)
 import '@/utils/errorLogger'; // 🔍 Sistema de detección de errores
 
 console.log('🚀 [MAIN] Iniciando aplicación...');

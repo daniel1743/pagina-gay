@@ -33,6 +33,8 @@ import { ThemeProvider } from '@/contexts/ThemeContext';
 import PWASplashScreen from '@/components/pwa/PWASplashScreen';
 import ErrorBoundary from '@/components/ui/ErrorBoundary';
 import { useVersionChecker } from '@/hooks/useVersionChecker';
+// import PerformanceDashboard from '@/components/PerformanceDashboard';
+// import DeliveryStatusMonitor from '@/components/DeliveryStatusMonitor';
 // import DebugOverlay from '@/components/DebugOverlay'; // Desactivado - Debug Console removido
 
 // ✅ Componentes que usan useAuth deben estar dentro del AuthProvider
@@ -84,18 +86,27 @@ function MainLayout({ children }) {
 
 // ✅ Componente de rutas que está dentro del AuthProvider
 function AppRoutes() {
-  // 🔍 Debug: Log de la ruta actual
-  React.useEffect(() => {
-    console.log('🛣️ [APP ROUTES] Ruta actual:', window.location.pathname);
-  }, []);
+  /* 
+  // 📊 Estado para mostrar/ocultar panel de diagnóstico de velocidad
+  // const [showPerformance, setShowPerformance] = React.useState(import.meta.env.DEV);
+
+  // ⌨️ Atajo de teclado removido
+  */
 
   return (
-    <Router
-      future={{
-        v7_startTransition: true,
-        v7_relativeSplatPath: true,
-      }}
-    >
+    <>
+      {/* 📊 Panel de Diagnóstico de Velocidad (REMOVIDO por solicitud) */}
+      {/* {showPerformance && <PerformanceDashboard />} */}
+
+      {/* 📬 Monitor de Estado de Entrega (REMOVIDO por solicitud) */}
+      {/* {import.meta.env.DEV && <DeliveryStatusMonitor />} */}
+
+      <Router
+        future={{
+          v7_startTransition: true,
+          v7_relativeSplatPath: true,
+        }}
+      >
       <Routes>
         {/* 🧪 PÁGINA DE PRUEBA - SIN wrappers (funciona correctamente) */}
         <Route path="/test" element={<TestLandingPage />} />
@@ -245,7 +256,8 @@ function AppRoutes() {
         <Route path="*" element={<Navigate to="/landing" />} />
       </Routes>
       <Toaster />
-    </Router>
+      </Router>
+    </>
   );
 }
 

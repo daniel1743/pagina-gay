@@ -51,3 +51,4 @@ Hacer que el chat sea súper rápido como WhatsApp/Telegram, eliminando todos lo
 - **Recepción de mensajes**: < 200ms (casi instantáneo)
 - **Renderizado**: < 50ms (fluido)
 
+

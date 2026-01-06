@@ -19,6 +19,8 @@ import { db, auth } from '@/config/firebase';
 import { trackMessageSent, trackFirstMessage } from '@/services/ga4Service';
 import { checkRateLimit, recordMessage, unmuteUser } from '@/services/rateLimitService';
 import { moderateMessage } from '@/services/moderationService';
+import { getPerformanceMonitor } from '@/services/performanceMonitor';
+import { getDeliveryService } from '@/services/messageDeliveryService';
 
 // Persistencia de envíos pendientes (cuando la red falla)
 const pendingMessages = [];
@@ -108,22 +110,16 @@ const doSendMessage = async (roomId, messageData, isAnonymous = false) => {
     console.log('🔍 [DIAGNÓSTICO] Estado antes de enviar mensaje:', diagnosticInfo);
   }
 
-  // ✅ PERMITIR USUARIOS NO AUTENTICADOS (período de captación - 5 días)
-  // Fecha de lanzamiento: 2026-01-06 (ajustar según tu fecha real)
-  const LAUNCH_DATE = new Date('2026-01-06').getTime();
-  const CAPTURE_PERIOD_DAYS = 5;
-  const CAPTURE_PERIOD_MS = CAPTURE_PERIOD_DAYS * 24 * 60 * 60 * 1000;
-  const isWithinCapturePeriod = Date.now() < (LAUNCH_DATE + CAPTURE_PERIOD_MS);
-  
-  // Si estamos dentro del período de captación, permitir usuarios sin auth
-  if (!auth.currentUser && !isWithinCapturePeriod) {
-    const error = new Error('¿Disfrutas nuestra app? Regístrate ahora para seguir chateando.');
-    error.code = 'auth/registration-required';
-    throw error;
-  }
-  
-  // Si estamos dentro del período de captación, permitir continuar sin auth
-  // (no lanzar error, pero marcar como no autenticado)
+  // ✅ ESTRATEGIA DE CAPTACIÓN: Permitir usuarios NO autenticados PERMANENTEMENTE
+  // Reducir fricción - usuarios pueden chatear en sala principal sin registrarse
+  // Restricciones para usuarios NO autenticados:
+  // - NO pueden enviar mensajes privados (requiere autenticación)
+  // - NO pueden enviar links externos
+  // - NO pueden enviar imágenes/voz (solo texto)
+  // - NO pueden personalizar avatar (avatar genérico)
+
+  // ✅ NO hay restricción de tiempo - usuarios NO autenticados pueden chatear siempre
+  // (La conversión a usuario registrado se incentiva con funciones premium)
 
   // Asegurar que userId coincida con auth.currentUser.uid (excepto mensajes de sistema y usuarios no autenticados)
   const isSystemMessage = messageData.userId?.startsWith('system') ||
@@ -203,16 +199,49 @@ const doSendMessage = async (roomId, messageData, isAnonymous = false) => {
     isPremium: messageData.isPremium || false,
     content: messageData.content,
     type: messageData.type || 'text',
-    timestamp: auth.currentUser ? serverTimestamp() : new Date().toISOString(), // ⚠️ Para no autenticados, usar timestamp del cliente
+    // ✅ USUARIOS NO AUTENTICADOS: usar timestamp del servidor siempre que sea posible
+    // Firestore acepta timestamp sin auth si las reglas lo permiten
+    timestamp: serverTimestamp(),
     reactions: { like: 0, dislike: 0 },
     read: false,
     replyTo: messageData.replyTo || null,
     trace,
-    _unauthenticated: !auth.currentUser, // ⚠️ Marca para identificar usuarios no autenticados
+    _unauthenticated: !auth.currentUser, // ⚠️ Marca para identificar usuarios no autenticados (para UI)
+    // 📬 Campos de verificación de entrega (sistema de checks)
+    status: 'sent', // sent | delivered | read
+    deliveredTo: [], // Array de userIds que recibieron el mensaje
+    readBy: [], // Array de userIds que leyeron el mensaje
+    deliveredAt: null, // Timestamp de primera entrega
+    readAt: null, // Timestamp de primera lectura
   };
+
+  // ⏱️ TIMING: Registrar timestamp de envío para medir velocidad
+  const sendTimestamp = Date.now();
+  const sendTimeISO = new Date().toISOString();
 
   // Enviar a Firestore (persistencia local primero)
   const docRef = await addDoc(messagesRef, message);
+
+  // ⏱️ TIMING: Calcular tiempo de envío a Firestore
+  const firestoreSendTime = Date.now() - sendTimestamp;
+
+  // 📬 Registrar mensaje en servicio de delivery para tracking
+  const deliveryService = getDeliveryService();
+  deliveryService.registerOutgoingMessage(docRef.id, {
+    ...messageData,
+    roomId,
+  });
+
+  // 🔍 Log detallado de mensaje enviado CON VELOCIDAD
+  console.log('%c📤 [ENVÍO] Mensaje enviado a Firestore', 'color: #00ff00; font-weight: bold; font-size: 14px', {
+    messageId: docRef.id.substring(0, 8) + '...',
+    roomId,
+    content: messageData.content.substring(0, 30) + (messageData.content.length > 30 ? '...' : ''),
+    username,
+    '⏱️ Tiempo a Firestore': `${firestoreSendTime}ms`,
+    '📅 Timestamp envío': sendTimeISO,
+    '🔑 Para rastrear': `Busca este ID en logs de recepción: ${docRef.id.substring(0, 8)}`
+  });
 
   // Cache rate limiting (memoria)
   recordMessage(messageData.userId, messageData.content);
@@ -241,10 +270,18 @@ const doSendMessage = async (roomId, messageData, isAnonymous = false) => {
 
 /**
  * Envío resiliente: usa cola cuando hay fallos de red
+ * 📊 Incluye monitoreo de rendimiento
  */
 export const sendMessage = async (roomId, messageData, isAnonymous = false, skipQueue = false) => {
+  // 📊 Medir velocidad de envío
+  const perfMonitor = getPerformanceMonitor();
+
   try {
-    return await doSendMessage(roomId, { ...messageData }, isAnonymous);
+    const { result, latency } = await perfMonitor.measureMessageSend(
+      () => doSendMessage(roomId, { ...messageData }, isAnonymous),
+      messageData
+    );
+    return result;
   } catch (error) {
     console.error('[SEND] ❌ Error enviando mensaje:', {
       error: error.message,
@@ -298,6 +335,9 @@ export const subscribeToRoomMessages = (roomId, callback, messageLimit = 50) => 
   let lastSnapshotTime = Date.now();
   let isFirstSnapshot = true; // Primera snapshot puede ser más lenta (carga inicial)
 
+  // 📊 Obtener monitor de rendimiento
+  const perfMonitor = getPerformanceMonitor();
+
   return onSnapshot(
     q,
     (snapshot) => {
@@ -349,16 +389,26 @@ export const subscribeToRoomMessages = (roomId, callback, messageLimit = 50) => 
       const startProcessTime = performance.now();
       
       // ⚡ OPTIMIZACIÓN: Usar for loop en vez de map para mejor rendimiento con muchos docs
+      // ⏱️ TIMING: Registrar cuando se reciben los mensajes
+      const receiveTimestamp = Date.now();
       const messages = [];
       for (let i = 0; i < snapshot.docs.length; i++) {
         const doc = snapshot.docs[i];
         const data = doc.data();
         const timestampMs = data.timestamp?.toMillis?.() ?? null;
+        
+        // ⏱️ TIMING: Calcular latencia si el mensaje tiene timestamp del servidor
+        let latency = null;
+        if (timestampMs) {
+          latency = receiveTimestamp - timestampMs;
+        }
+        
         messages.push({
           id: doc.id,
           ...data,
           timestampMs,
           timestamp: data.timestamp ?? null,
+          _receiveLatency: latency, // Latencia en ms desde que se creó hasta que llegó
         });
       }
 
@@ -374,8 +424,42 @@ export const subscribeToRoomMessages = (roomId, callback, messageLimit = 50) => 
       if (processTime > 50) {
         console.warn(`⚠️ [LENTO] Procesamiento de mensajes tomó ${processTime.toFixed(2)}ms (puede estar bloqueando)`);
       }
-      
-      // ⚡ CRÍTICO: Ejecutar callback INMEDIATAMENTE (sin delays)
+
+      // 📊 Registrar latencia de snapshot en el monitor
+      perfMonitor.recordSnapshotLatency(orderedMessages);
+
+      // 📬 Procesar mensajes para delivery tracking y enviar ACKs
+      const deliveryService = getDeliveryService();
+      orderedMessages.forEach(msg => {
+        // Procesar actualización de delivery para mensajes propios
+        deliveryService.processMessageUpdate(msg);
+
+        // 🔍 Log cuando recibimos mensaje de otro usuario CON VELOCIDAD
+        if (auth.currentUser && msg.userId !== auth.currentUser.uid) {
+          const latency = msg._receiveLatency;
+          const latencyColor = latency && latency < 1000 ? '#00ff00' : latency && latency < 3000 ? '#ffaa00' : '#ff0000';
+          const latencyEmoji = latency && latency < 1000 ? '⚡' : latency && latency < 3000 ? '⚠️' : '🐌';
+          
+          console.log(
+            `%c${latencyEmoji} [RECEPCIÓN] Mensaje recibido - Velocidad: ${latency ? latency + 'ms' : 'N/A'}`,
+            `color: ${latencyColor}; font-weight: bold; font-size: 13px`,
+            {
+              messageId: msg.id.substring(0, 8) + '...',
+              from: msg.username,
+              content: msg.content?.substring(0, 30) + (msg.content?.length > 30 ? '...' : ''),
+              roomId,
+              '⏱️ Latencia total': latency ? `${latency}ms (${(latency / 1000).toFixed(2)}s)` : 'N/A',
+              '📊 Velocidad': latency ? (latency < 1000 ? '⚡ RÁPIDO' : latency < 3000 ? '⚠️ NORMAL' : '🐌 LENTO') : 'N/A',
+              '📅 Recibido a las': new Date().toISOString(),
+            }
+          );
+
+          // Enviar ACK para mensajes de otros usuarios (background)
+          deliveryService.markAsDelivered(roomId, msg.id, auth.currentUser.uid)
+            .catch(() => {}); // Ignorar errores silenciosamente
+        }
+      });
+
       // ⚡ CRÍTICO: Ejecutar callback INMEDIATAMENTE (sin delays)
       callback(orderedMessages);
     },

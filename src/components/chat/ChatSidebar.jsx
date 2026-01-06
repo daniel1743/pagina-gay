@@ -108,8 +108,9 @@ const ChatSidebar = ({ currentRoom, setCurrentRoom, isOpen, onClose }) => {
         )}
       </AnimatePresence>
 
-      {/* Desktop: sidebar siempre visible */}
-      <aside className="hidden lg:flex lg:static w-72 h-full bg-card border-r border-border flex-col">
+      {/* Desktop: sidebar siempre visible - Solo en pantallas grandes */}
+      {/* ✅ FIX: Usar hidden lg:block para que no interfiera en el layout de móvil */}
+      <aside className="hidden lg:block w-72 h-full bg-card border-r border-border flex flex-col flex-shrink-0">
         <div className="p-4 border-b border-border flex items-center justify-between">
           <motion.div
             className="flex items-center gap-3 cursor-pointer"
@@ -348,13 +349,16 @@ const ChatSidebar = ({ currentRoom, setCurrentRoom, isOpen, onClose }) => {
       </aside>
 
       {/* Mobile: sidebar deslizable - Oculto por defecto, se muestra solo cuando isOpen=true */}
-      <motion.aside
-        initial={false}
-        animate={{ x: isOpen ? 0 : '-100%' }}
-        transition={{ type: 'spring', stiffness: 300, damping: 30 }}
-        className="lg:hidden fixed left-0 top-0 w-72 h-full bg-card border-r border-border flex flex-col z-50 shadow-2xl"
-        style={{ willChange: 'transform' }}
-      >
+      <AnimatePresence>
+        {isOpen && (
+          <motion.aside
+            initial={{ x: '-100%' }}
+            animate={{ x: 0 }}
+            exit={{ x: '-100%' }}
+            transition={{ type: 'spring', stiffness: 300, damping: 30 }}
+            className="lg:hidden fixed left-0 top-0 w-72 h-full bg-card border-r border-border flex flex-col z-50 shadow-2xl"
+            style={{ willChange: 'transform' }}
+          >
         <div className="p-4 border-b border-border flex items-center justify-between">
           <motion.div
             className="flex items-center gap-3 cursor-pointer"
@@ -604,6 +608,8 @@ const ChatSidebar = ({ currentRoom, setCurrentRoom, isOpen, onClose }) => {
           )}
         </div>
       </motion.aside>
+        )}
+      </AnimatePresence>
     </>
   );
 };

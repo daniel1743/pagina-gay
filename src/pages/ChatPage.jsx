@@ -139,6 +139,7 @@ const ChatPage = () => {
   const lastUserCountsRef = useRef({ total: 0, active: 0, real: 0 }); // Para rastrear conteos de usuarios
   const previousRealUserCountRef = useRef(0); // Para detectar cuando usuarios se desconectan y reproducir sonido
   const deliveryTimeoutsRef = useRef(new Map()); // ⏱️ Timeouts para detectar fallos de entrega (20 segundos)
+  const autoLoginAttemptedRef = useRef(false); // ✅ FIX: Prevenir múltiples intentos de auto-login
 
   // 🎯 PRO SCROLL MANAGER: Discord/Slack-inspired scroll behavior
   // ✅ IMPORTANTE: Debe estar ANTES del early return para respetar reglas de hooks
@@ -993,12 +994,17 @@ const ChatPage = () => {
    */
   const handleMessageReaction = async (messageId, reaction) => {
     // ⚠️ RESTRICCIÓN: Usuarios no autenticados NO pueden dar reacciones
-    if (!auth.currentUser) {
+    // ⚠️ RESTRICCIÓN: Usuarios no autenticados NO pueden dar reacciones
+    if (!auth.currentUser || user?.isGuest || user?.isAnonymous) {
       toast({
         title: "Regístrate para reaccionar",
         description: "Los usuarios no registrados no pueden dar likes. Regístrate para interactuar más.",
         variant: "default",
         duration: 4000,
+        action: {
+          label: "Registrarse",
+          onClick: () => navigate('/auth')
+        }
       });
       return;
     }
@@ -1296,6 +1302,22 @@ const ChatPage = () => {
 
         // 🎯 VOC: Resetear cooldown cuando hay nueva actividad
         resetVOCCooldown(currentRoom);
+        
+        // ⚡ LATENCY CHECK (SOLICITUD DE USUARIO): Medir tiempo de ciclo completo
+        // Solo para el usuario que envió el mensaje y si está en localhost/dev o lo pide el admin
+        const latency = Date.now() - optimisticMessage.timestampMs;
+        console.log(`⏱️ [LATENCY TEST] Mensaje sincronizado en ${latency}ms`);
+        
+        // Mostrar toast de latencia si tarda más de 100ms (para feedback visual de "lento") 
+        // o si estamos en modo debug explícito
+        if (import.meta.env.DEV || latency > 500) {
+           toast({
+             title: "⏱️ Diagnóstico de Velocidad",
+             description: `Latencia: ${latency}ms (Ida y vuelta)`,
+             duration: 2000,
+             variant: latency < 300 ? "default" : "destructive"
+           });
+        }
 
         // ✅ ACTUALIZAR ESTADO: Marcar como 'sent' cuando Firestore confirma
         // El listener de onSnapshot se encargará de eliminar el optimista cuando detecte el real
@@ -1602,12 +1624,20 @@ const ChatPage = () => {
   
   // ⚡ AUTO-LOGIN GUEST: Si accede directamente a /chat/principal sin sesión, crear sesión guest automáticamente
   useEffect(() => {
+    // ✅ FIX: Prevenir múltiples intentos de auto-login
+    if (autoLoginAttemptedRef.current) return;
+    
     if (!authLoading && !user && roomId === 'principal') {
       // Usuario accedió directamente a /chat/principal sin sesión
       // Crear sesión guest automáticamente para mejor UX
+      autoLoginAttemptedRef.current = true;
       console.log('[CHAT PAGE] Usuario sin sesión accediendo a /chat/principal, creando sesión guest...');
-      signInAsGuest().catch(err => {
+      
+      // ✅ FIX: Generar username temporal si no se proporciona
+      const tempUsername = `Guest${Math.floor(Math.random() * 10000)}`;
+      signInAsGuest(tempUsername).catch(err => {
         console.error('[CHAT PAGE] Error creando sesión guest:', err);
+        autoLoginAttemptedRef.current = false; // Permitir reintento si falla
         // Si falla, mostrar landing
       });
     }
@@ -1632,7 +1662,8 @@ const ChatPage = () => {
 
   return (
     <>
-      <div className="h-screen flex overflow-hidden bg-background" style={{ height: '100dvh', maxHeight: '100dvh' }}>
+      {/* ✅ FIX: Contenedor principal - En móvil no usar flex para evitar problemas con sidebar oculto */}
+      <div className="h-screen overflow-hidden bg-background lg:flex" style={{ height: '100dvh', maxHeight: '100dvh' }}>
         <ChatSidebar
           currentRoom={currentRoom}
           setCurrentRoom={setCurrentRoom}
@@ -1640,7 +1671,9 @@ const ChatPage = () => {
           onClose={() => setSidebarOpen(false)}
         />
 
-        <div className="flex-1 flex flex-col overflow-hidden">
+        {/* ✅ FIX: Contenedor del chat - Asegurar que esté visible en móvil cuando sidebar está cerrado */}
+        {/* En móvil: ancho completo (100vw), en desktop: flex-1 para ajustarse al sidebar */}
+        <div className="w-full lg:flex-1 flex flex-col overflow-hidden min-w-0 h-full">
           <ChatHeader
             currentRoom={currentRoom}
             onMenuClick={() => setSidebarOpen(true)}

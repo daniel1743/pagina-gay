@@ -28,13 +28,17 @@ export const joinRoom = async (roomId, userData) => {
                 userData.userId === 'system' ||
                 userData.userId === 'system_moderator';
 
+  // ✅ Validar username
+  const safeUsername = userData?.username || 'Unknown';
+  const safeRoomId = roomId || 'unknown';
+
   console.log(`
 ╔════════════════════════════════════════════════════════════╗
 ║           🔍 RASTREADOR DE PRESENCIA                       ║
 ╠════════════════════════════════════════════════════════════╣
 ║ 📍 FUNCIÓN: joinRoom()                                     ║
-║ 🏠 Sala: ${roomId.padEnd(20)}                          ║
-║ 👤 Usuario: ${userData.username.padEnd(17)} │ ID: ${auth.currentUser.uid.substring(0,8)}... ║
+║ 🏠 Sala: ${safeRoomId.padEnd(20)}                          ║
+║ 👤 Usuario: ${safeUsername.padEnd(17)} │ ID: ${auth.currentUser.uid.substring(0,8)}... ║
 ║ 🤖 Es Bot: ${(isBot ? 'SÍ ⚠️' : 'NO ✅').padEnd(20)}          ║
 ║ 👻 Anónimo: ${(auth.currentUser.isAnonymous ? 'SÍ' : 'NO').padEnd(18)}          ║
 ║ 📋 Stack: ${(new Error().stack?.split('\n')[2]?.trim() || 'N/A').substring(0,45)} ║
@@ -45,9 +49,9 @@ export const joinRoom = async (roomId, userData) => {
   if (isBot) {
     console.error(`
 🚫 [PRESENCIA BLOQUEADA] Intento de bot registrarse como usuario real
-   - Usuario: ${userData.username}
+   - Usuario: ${safeUsername}
    - ID: ${userData.userId}
-   - Sala: ${roomId}
+   - Sala: ${safeRoomId}
    ⚠️ Los bots NO deben crear presencia en Firestore
     `);
     return; // NO crear presencia para bots
@@ -296,7 +300,9 @@ export const cleanInactiveUsers = async (roomId) => {
       if (lastSeen === 0) {
         const joinedAt = data.joinedAt?.toMillis() || 0;
         if (joinedAt > 0 && (now - joinedAt) > 5 * 60 * 1000) {
-          console.log(`🧹 Eliminando usuario sin lastSeen antiguo: ${data.username || userId}`);
+          // ✅ TEMPORALMENTE COMENTADO: Para mantener consola limpia durante pruebas
+          // TODO: Descomentar cuando termine las pruebas de usuarios no logueados
+          // console.log(`🧹 Eliminando usuario sin lastSeen antiguo: ${data.username || userId}`);
           deletePromises.push(deleteDoc(docSnap.ref));
         }
         return;
@@ -306,14 +312,18 @@ export const cleanInactiveUsers = async (roomId) => {
 
       // Eliminar si no ha tenido actividad en más de 2 minutos
       if (timeSinceLastSeen > INACTIVITY_THRESHOLD) {
-        console.log(`🧹 Limpiando usuario inactivo: ${data.username || userId} (inactivo ${Math.round(timeSinceLastSeen / 1000)}s)`);
+        // ✅ TEMPORALMENTE COMENTADO: Para mantener consola limpia durante pruebas
+        // TODO: Descomentar cuando termine las pruebas de usuarios no logueados
+        // console.log(`🧹 Limpiando usuario inactivo: ${data.username || userId} (inactivo ${Math.round(timeSinceLastSeen / 1000)}s)`);
         deletePromises.push(deleteDoc(docSnap.ref));
       }
     });
 
     if (deletePromises.length > 0) {
       await Promise.all(deletePromises);
-      console.log(`✅ ${deletePromises.length} usuarios inactivos/bots eliminados de ${roomId}`);
+      // ✅ TEMPORALMENTE COMENTADO: Para mantener consola limpia durante pruebas
+      // TODO: Descomentar cuando termine las pruebas de usuarios no logueados
+      // console.log(`✅ ${deletePromises.length} usuarios inactivos/bots eliminados de ${roomId}`);
     }
   } catch (error) {
     // Silenciar errores de permisos (puede ser que el usuario no tenga permisos para limpiar)

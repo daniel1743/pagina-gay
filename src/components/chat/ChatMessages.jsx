@@ -7,6 +7,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import MessageQuote from './MessageQuote';
 import NewMessagesDivider from './NewMessagesDivider';
 import { getUserConnectionStatus, getStatusColor } from '@/utils/userStatus';
+import MessageDeliveryCheck from '@/components/MessageDeliveryCheck';
 
 /**
  * Componente especial para el mensaje de bienvenida del moderador
@@ -484,23 +485,8 @@ const ChatMessages = ({ messages, currentUserId, onUserClick, onReport, onPrivat
                             <span className="text-[11px] text-gray-500 dark:text-gray-400">
                               {formatTime(message.timestamp)}
                             </span>
-                            {/* ⚡ INDICADORES DE ESTADO: Sistema de checks tipo WhatsApp */}
-                            {message.status === 'sending' ? (
-                              // ⏳ Enviando: Reloj animado
-                              <Clock className="w-3.5 h-3.5 text-gray-400 animate-pulse" />
-                            ) : message.status === 'error' || message.status === 'failed' ? (
-                              // ❌ Error/Fallo: Indicador rojo
-                              <AlertCircle className="w-3.5 h-3.5 text-red-500" />
-                            ) : message.status === 'delivered' ? (
-                              // ✅ Entregado: Doble check azul
-                              <CheckCheck className="w-3.5 h-3.5 text-[#34B7F1]" />
-                            ) : message.status === 'sent' || message._realId ? (
-                              // ✅ Enviado a Firestore: Doble check gris
-                              <CheckCheck className="w-3.5 h-3.5 text-gray-400" />
-                            ) : (
-                              // ⏳ Pendiente: Check simple gris
-                              <Check className="w-3.5 h-3.5 text-gray-400" />
-                            )}
+                            {/* 📬 Nuevo sistema de checks con tracking de entrega */}
+                            <MessageDeliveryCheck message={message} isOwnMessage={isOwn} />
                           </div>
                         )}
 
