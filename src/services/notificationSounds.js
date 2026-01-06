@@ -35,16 +35,16 @@ class NotificationSounds {
     if (!this.audioContext) {
       try {
         this.audioContext = new (window.AudioContext || window.webkitAudioContext)();
-        console.log('[SOUNDS] 🔊 Sistema de sonidos inicializado correctamente');
-        console.log('[SOUNDS] 📊 Estado de AudioContext:', this.audioContext.state);
-        console.log('[SOUNDS] 🔇 Mute:', this.isMuted);
+        // console.log('[SOUNDS] 🔊 Sistema de sonidos inicializado correctamente');
+        // console.log('[SOUNDS] 📊 Estado de AudioContext:', this.audioContext.state);
+        // console.log('[SOUNDS] 🔇 Mute:', this.isMuted);
         return true;
       } catch (error) {
         console.error('[SOUNDS] ❌ Error al inicializar AudioContext:', error);
         return false;
       }
     } else {
-      console.log('[SOUNDS] ✅ AudioContext ya estaba inicializado');
+      // console.log('[SOUNDS] ✅ AudioContext ya estaba inicializado');
       return true;
     }
   }
@@ -91,7 +91,7 @@ class NotificationSounds {
   toggleMute() {
     this.isMuted = !this.isMuted;
     this.saveMuteSetting();
-    console.log(`[SOUNDS] 🔊 Sonidos ${this.isMuted ? 'desactivados' : 'activados'}`);
+    // console.log(`[SOUNDS] 🔊 Sonidos ${this.isMuted ? 'desactivados' : 'activados'}`);
     return this.isMuted;
   }
 
@@ -107,7 +107,7 @@ class NotificationSounds {
    */
   playMessageSound() {
     if (this.isMuted) {
-      console.log('[SOUNDS] 🔇 Sonido de mensaje bloqueado: MUTED');
+      // console.log('[SOUNDS] 🔇 Sonido de mensaje bloqueado: MUTED');
       return;
     }
 
@@ -123,9 +123,9 @@ class NotificationSounds {
 
     // Verificar si el AudioContext está suspendido (común en Chrome/Safari)
     if (this.audioContext.state === 'suspended') {
-      console.log('[SOUNDS] 🔄 AudioContext suspendido, reanudando...');
+      // console.log('[SOUNDS] 🔄 AudioContext suspendido, reanudando...');
       this.audioContext.resume().then(() => {
-        console.log('[SOUNDS] ✅ AudioContext reanudado correctamente');
+        // console.log('[SOUNDS] ✅ AudioContext reanudado correctamente');
       }).catch(err => {
         console.warn('[SOUNDS] ⚠️ No se pudo reanudar AudioContext (autoplay policy):', err);
       });
@@ -187,7 +187,7 @@ class NotificationSounds {
    */
   playDisconnectSound() {
     if (this.isMuted) {
-      console.log('[SOUNDS] 🔇 Sonido de desconexión bloqueado: MUTED');
+      // console.log('[SOUNDS] 🔇 Sonido de desconexión bloqueado: MUTED');
       return;
     }
 
@@ -254,12 +254,14 @@ class NotificationSounds {
    */
   playUserJoinSound() {
     if (this.isMuted) {
-      console.log('[SOUNDS] 🔇 Sonido de ingreso bloqueado: MUTED');
+      // ⚠️ LOG COMENTADO: Causaba sobrecarga en consola
+      // console.log('[SOUNDS] 🔇 Sonido de ingreso bloqueado: MUTED');
       return;
     }
 
     if (!this.audioContext) {
-      console.warn('[SOUNDS] ⚠️ Sonido de ingreso bloqueado: AudioContext NO INICIALIZADO');
+      // ⚠️ LOG COMENTADO: Causaba sobrecarga en consola
+      // console.warn('[SOUNDS] ⚠️ Sonido de ingreso bloqueado: AudioContext NO INICIALIZADO');
       this.init();
       if (!this.audioContext) return;
     }
@@ -291,8 +293,10 @@ class NotificationSounds {
       oscillator.start(this.audioContext.currentTime);
       oscillator.stop(this.audioContext.currentTime + 0.2);
 
-      console.log('[SOUNDS] 🎵 Reproduciendo sonido de ingreso (join)');
+      // ⚠️ LOG COMENTADO: Causaba sobrecarga en consola
+      // console.log('[SOUNDS] 🎵 Reproduciendo sonido de ingreso (join)');
     } catch (error) {
+      // Solo mostrar errores críticos
       console.error('[SOUNDS] Error reproduciendo sonido de ingreso:', error);
     }
   }
@@ -303,7 +307,7 @@ class NotificationSounds {
    */
   playMessageSentSound() {
     if (this.isMuted) {
-      console.log('[SOUNDS] 🔇 Sonido de envío bloqueado: MUTED');
+      // console.log('[SOUNDS] 🔇 Sonido de envío bloqueado: MUTED');
       return;
     }
 
@@ -345,7 +349,7 @@ class NotificationSounds {
       gainNode.gain.setValueAtTime(0.05, this.audioContext.currentTime);
       gainNode.gain.exponentialRampToValueAtTime(0.01, this.audioContext.currentTime + 0.1);
 
-      console.log('[SOUNDS] 📤 Reproduciendo sonido de envío (sent)');
+      // console.log('[SOUNDS] 📤 Reproduciendo sonido de envío (sent)');
     } catch (error) {
       console.error('[SOUNDS] Error reproduciendo sonido de envío:', error);
     }

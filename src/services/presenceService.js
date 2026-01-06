@@ -32,18 +32,18 @@ export const joinRoom = async (roomId, userData) => {
   const safeUsername = userData?.username || 'Unknown';
   const safeRoomId = roomId || 'unknown';
 
-  console.log(`
-╔════════════════════════════════════════════════════════════╗
-║           🔍 RASTREADOR DE PRESENCIA                       ║
-╠════════════════════════════════════════════════════════════╣
-║ 📍 FUNCIÓN: joinRoom()                                     ║
-║ 🏠 Sala: ${safeRoomId.padEnd(20)}                          ║
-║ 👤 Usuario: ${safeUsername.padEnd(17)} │ ID: ${auth.currentUser.uid.substring(0,8)}... ║
-║ 🤖 Es Bot: ${(isBot ? 'SÍ ⚠️' : 'NO ✅').padEnd(20)}          ║
-║ 👻 Anónimo: ${(auth.currentUser.isAnonymous ? 'SÍ' : 'NO').padEnd(18)}          ║
-║ 📋 Stack: ${(new Error().stack?.split('\n')[2]?.trim() || 'N/A').substring(0,45)} ║
-╚════════════════════════════════════════════════════════════╝
-  `);
+  // console.log(`
+  // ╔════════════════════════════════════════════════════════════╗
+  // ║           🔍 RASTREADOR DE PRESENCIA                       ║
+  // ╠════════════════════════════════════════════════════════════╣
+  // ║ 📍 FUNCIÓN: joinRoom()                                     ║
+  // ║ 🏠 Sala: ${safeRoomId.padEnd(20)}                          ║
+  // ║ 👤 Usuario: ${safeUsername.padEnd(17)} │ ID: ${auth.currentUser.uid.substring(0,8)}... ║
+  // ║ 🤖 Es Bot: ${(isBot ? 'SÍ ⚠️' : 'NO ✅').padEnd(20)}          ║
+  // ║ 👻 Anónimo: ${(auth.currentUser.isAnonymous ? 'SÍ' : 'NO').padEnd(18)}          ║
+  // ║ 📋 Stack: ${(new Error().stack?.split('\n')[2]?.trim() || 'N/A').substring(0,45)} ║
+  // ╚════════════════════════════════════════════════════════════╝
+  //   `);
 
   // ⚠️ BLOQUEADOR DE BOTS: NO permitir que bots se registren en presencia
   if (isBot) {
@@ -70,7 +70,7 @@ export const joinRoom = async (roomId, userData) => {
       lastSeen: serverTimestamp(),
     });
 
-    console.log(`✅ [PRESENCIA CREADA] ${userData.username} registrado en sala ${roomId}`);
+    // console.log(`✅ [PRESENCIA CREADA] ${userData.username} registrado en sala ${roomId}`);
 
     // ✅ Asegurar que la actividad se actualice inmediatamente
     // Esto ayuda a que el usuario sea detectado como activo de inmediato
@@ -284,7 +284,7 @@ export const cleanInactiveUsers = async (roomId) => {
 
       if (isBot) {
         // Eliminar bots/IAs inmediatamente si existen en la DB
-        console.log(`🤖 Eliminando bot/IA de presencia: ${data.username || userId}`);
+        // console.log(`🤖 Eliminando bot/IA de presencia: ${data.username || userId}`);
         deletePromises.push(deleteDoc(docSnap.ref));
         return;
       }
@@ -356,7 +356,7 @@ export const filterActiveUsers = (users) => {
                   userId.includes('bot_join');
 
     if (isBot) {
-      console.log(`🤖 [FILTRO PRESENCIA] Excluyendo bot/IA del conteo: ${user.username || userId}`);
+      // console.log(`🤖 [FILTRO PRESENCIA] Excluyendo bot/IA del conteo: ${user.username || userId}`);
       return false; // NO contar bots/IAs como usuarios activos
     }
 

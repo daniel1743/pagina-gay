@@ -429,7 +429,7 @@ const ChatPage = () => {
               if (storedAge && Number(storedAge) >= 18) {
                 setIsAgeVerified(true);
                 setShowAgeVerification(false);
-                console.log(`[AGE VERIFICATION] ✅ Usuario invitado ${user.username} ya verificó edad en sesión anterior`);
+                // console.log(`[AGE VERIFICATION] ✅ Usuario invitado ${user.username} ya verificó edad en sesión anterior`);
                 return; // No mostrar modal
               }
             }
@@ -446,11 +446,11 @@ const ChatPage = () => {
       setShowAgeVerification(false);
       // Guardar en localStorage para futuras sesiones
       localStorage.setItem(`age_verified_${user.id}`, '18');
-      console.log(`[AGE VERIFICATION] ✅ Usuario ${user.username} ya verificó edad en landing page`);
+      // console.log(`[AGE VERIFICATION] ✅ Usuario ${user.username} ya verificó edad en landing page`);
     } else {
       // ✅ SI ES INVITADO: Auto-verificar (asumimos +18 porque ya pasó formulario de entrada)
       if (user.isGuest || user.isAnonymous) {
-        console.log(`[AGE VERIFICATION] ✅ Usuario invitado ${user.username} - Auto-verificado (formulario de entrada simplificado)`);
+        // console.log(`[AGE VERIFICATION] ✅ Usuario invitado ${user.username} - Auto-verificado (formulario de entrada simplificado)`);
         setIsAgeVerified(true);
         setShowAgeVerification(false);
         localStorage.setItem(`age_verified_${user.id}`, '18');
@@ -460,7 +460,7 @@ const ChatPage = () => {
       // ✅ USUARIOS REGISTRADOS (NO invitados, NO anónimos): Auto-verificar SIEMPRE
       // Los usuarios registrados YA completaron su perfil (username, email, avatar) al registrarse
       // Por lo tanto, NO deben ver el modal de invitado (que pide edad, username y avatar)
-      console.log(`[AGE VERIFICATION] ✅ Usuario REGISTRADO ${user.username} (${user.id}) - Auto-verificado (ya tiene cuenta)`);
+      // console.log(`[AGE VERIFICATION] ✅ Usuario REGISTRADO ${user.username} (${user.id}) - Auto-verificado (ya tiene cuenta)`);
       setIsAgeVerified(true);
       setShowAgeVerification(false);
 
@@ -495,20 +495,20 @@ const ChatPage = () => {
   useEffect(() => {
     if (!user) return;
 
-    console.log('[CHAT] 🔊 Inicializando sistema de sonidos...');
+    // console.log('[CHAT] 🔊 Inicializando sistema de sonidos...');
 
     // Intentar inicializar inmediatamente (funcionará si el usuario ya interactuó)
     const initialized = notificationSounds.init();
 
     if (!initialized) {
-      console.log('[CHAT] ⏳ AudioContext requiere interacción del usuario, esperando...');
+      // console.log('[CHAT] ⏳ AudioContext requiere interacción del usuario, esperando...');
 
       // Si no se pudo inicializar, agregar listener para el primer click/touch
       const handleFirstInteraction = () => {
-        console.log('[CHAT] 👆 Primera interacción detectada, inicializando sonidos...');
+        // console.log('[CHAT] 👆 Primera interacción detectada, inicializando sonidos...');
         const success = notificationSounds.init();
         if (success) {
-          console.log('[CHAT] ✅ Sistema de sonidos listo');
+          // console.log('[CHAT] ✅ Sistema de sonidos listo');
           document.removeEventListener('click', handleFirstInteraction);
           document.removeEventListener('touchstart', handleFirstInteraction);
           document.removeEventListener('keydown', handleFirstInteraction);
@@ -525,7 +525,7 @@ const ChatPage = () => {
         document.removeEventListener('keydown', handleFirstInteraction);
       };
     } else {
-      console.log('[CHAT] ✅ Sistema de sonidos inicializado correctamente');
+      // console.log('[CHAT] ✅ Sistema de sonidos inicializado correctamente');
     }
   }, [user]);
 
@@ -534,7 +534,8 @@ const ChatPage = () => {
   useEffect(() => {
     // 🔒 SAFETY: Verificar que user existe (defensa en profundidad)
     if (!user || !user.id) {
-      console.warn('⚠️ [CHAT] useEffect de Firestore ejecutado sin user válido');
+      // ⚠️ LOG COMENTADO: Causaba sobrecarga en consola (loop durante carga)
+      // console.warn('⚠️ [CHAT] useEffect de Firestore ejecutado sin user válido');
       return;
     }
 
@@ -551,12 +552,12 @@ const ChatPage = () => {
     // ⚡ SUSCRIPCIÓN INMEDIATA: Suscribirse a mensajes SIN esperar verificación de edad
     // 🔒 CRITICAL: Limpiar suscripción anterior si existe
     if (unsubscribeRef.current) {
-      console.log('🧹 [CHAT] Limpiando suscripción anterior antes de crear nueva');
+      // console.log('🧹 [CHAT] Limpiando suscripción anterior antes de crear nueva');
       unsubscribeRef.current();
       unsubscribeRef.current = null;
     }
     
-    console.log('📡 [CHAT] Suscribiéndose a mensajes INMEDIATAMENTE para sala:', roomId);
+    // console.log('📡 [CHAT] Suscribiéndose a mensajes INMEDIATAMENTE para sala:', roomId);
     setIsLoadingMessages(true); // ⏳ Marcar como cargando al iniciar suscripción
     const unsubscribeMessages = subscribeToRoomMessages(roomId, (newMessages) => {
       // 🔍 DEBUG: Solo loguear si hay cambios significativos o en modo debug
@@ -567,11 +568,11 @@ const ChatPage = () => {
       );
 
       if (shouldLog) {
-        console.log('[CHAT PAGE] 📨 Mensajes recibidos del listener:', {
-          count: newMessages.length,
-          roomId,
-          timestamp: new Date().toISOString()
-        });
+        // console.log('[CHAT PAGE] 📨 Mensajes recibidos del listener:', {
+        //   count: newMessages.length,
+        //   roomId,
+        //   timestamp: new Date().toISOString()
+        // });
       }
 
       // ⏳ Marcar como cargado cuando llegan los mensajes
@@ -762,7 +763,7 @@ const ChatPage = () => {
         currentCounts.real !== lastUserCountsRef.current.real;
       
       if (hasChanged) {
-        console.debug(`👥 Sala ${roomId}: ${currentCounts.real} usuario(s) real(es) activo(s) | ${currentCounts.total} total en DB (incluye inactivos)`);
+        // console.debug(`👥 Sala ${roomId}: ${currentCounts.real} usuario(s) real(es) activo(s) | ${currentCounts.total} total en DB (incluye inactivos)`);
 
         // 🔊 Reproducir sonido de INGRESO si un usuario real se conectó
         if (previousRealUserCountRef.current > 0 && currentCounts.real > previousRealUserCountRef.current) {
@@ -883,7 +884,8 @@ const ChatPage = () => {
 
     // ? CRÍTICO: Validar que el usuario existe antes de continuar
     if (!user || !user.id || !user.username) {
-      console.warn('? [CHAT PAGE] Usuario no disponible, no se puede activar IA');
+      // ⚠️ LOG COMENTADO: Causaba sobrecarga en consola (loop durante carga)
+      // console.warn('? [CHAT PAGE] Usuario no disponible, no se puede activar IA');
       return;
     }
 

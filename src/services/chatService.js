@@ -91,24 +91,25 @@ export function generateUUID() {
  */
 const doSendMessage = async (roomId, messageData, isAnonymous = false) => {
   // 🔍 DIAGNÓSTICO: Logging detallado para identificar problemas localhost → producción
-  if (import.meta.env.DEV) {
-    const diagnosticInfo = {
-      timestamp: new Date().toISOString(),
-      roomId,
-      hasAuth: !!auth,
-      hasCurrentUser: !!auth.currentUser,
-      currentUserUid: auth.currentUser?.uid,
-      currentUserEmail: auth.currentUser?.email,
-      messageDataUserId: messageData.userId,
-      messageDataUsername: messageData.username,
-      userIdsMatch: messageData.userId === auth.currentUser?.uid,
-      isAnonymous,
-      firebaseProjectId: db.app.options.projectId,
-      firebaseAuthDomain: auth.app.options.authDomain,
-      usingEmulator: import.meta.env.VITE_USE_FIREBASE_EMULATOR === 'true'
-    };
-    console.log('🔍 [DIAGNÓSTICO] Estado antes de enviar mensaje:', diagnosticInfo);
-  }
+  // 🔍 DIAGNÓSTICO: Logging detallado para identificar problemas localhost → producción
+  // if (import.meta.env.DEV) {
+  //   const diagnosticInfo = {
+  //     timestamp: new Date().toISOString(),
+  //     roomId,
+  //     hasAuth: !!auth,
+  //     hasCurrentUser: !!auth.currentUser,
+  //     currentUserUid: auth.currentUser?.uid,
+  //     currentUserEmail: auth.currentUser?.email,
+  //     messageDataUserId: messageData.userId,
+  //     messageDataUsername: messageData.username,
+  //     userIdsMatch: messageData.userId === auth.currentUser?.uid,
+  //     isAnonymous,
+  //     firebaseProjectId: db.app.options.projectId,
+  //     firebaseAuthDomain: auth.app.options.authDomain,
+  //     usingEmulator: import.meta.env.VITE_USE_FIREBASE_EMULATOR === 'true'
+  //   };
+  //   console.log('🔍 [DIAGNÓSTICO] Estado antes de enviar mensaje:', diagnosticInfo);
+  // }
 
   // ✅ ESTRATEGIA DE CAPTACIÓN: Permitir usuarios NO autenticados PERMANENTEMENTE
   // Reducir fricción - usuarios pueden chatear en sala principal sin registrarse
@@ -233,15 +234,16 @@ const doSendMessage = async (roomId, messageData, isAnonymous = false) => {
   });
 
   // 🔍 Log detallado de mensaje enviado CON VELOCIDAD
-  console.log('%c📤 [ENVÍO] Mensaje enviado a Firestore', 'color: #00ff00; font-weight: bold; font-size: 14px', {
-    messageId: docRef.id.substring(0, 8) + '...',
-    roomId,
-    content: messageData.content.substring(0, 30) + (messageData.content.length > 30 ? '...' : ''),
-    username,
-    '⏱️ Tiempo a Firestore': `${firestoreSendTime}ms`,
-    '📅 Timestamp envío': sendTimeISO,
-    '🔑 Para rastrear': `Busca este ID en logs de recepción: ${docRef.id.substring(0, 8)}`
-  });
+  // 🔍 Log detallado de mensaje enviado CON VELOCIDAD
+  // console.log('%c📤 [ENVÍO] Mensaje enviado a Firestore', 'color: #00ff00; font-weight: bold; font-size: 14px', {
+  //   messageId: docRef.id.substring(0, 8) + '...',
+  //   roomId,
+  //   content: messageData.content.substring(0, 30) + (messageData.content.length > 30 ? '...' : ''),
+  //   username,
+  //   '⏱️ Tiempo a Firestore': `${firestoreSendTime}ms`,
+  //   '📅 Timestamp envío': sendTimeISO,
+  //   '🔑 Para rastrear': `Busca este ID en logs de recepción: ${docRef.id.substring(0, 8)}`
+  // });
 
   // Cache rate limiting (memoria)
   recordMessage(messageData.userId, messageData.content);
@@ -346,17 +348,18 @@ export const subscribeToRoomMessages = (roomId, callback, messageLimit = 50) => 
       lastSnapshotTime = snapshotReceivedTime;
 
       // ⚡ OPTIMIZACIÓN: Primera snapshot puede ser lenta (carga inicial), no alertar
+      // ⚡ OPTIMIZACIÓN: Primera snapshot puede ser lenta (carga inicial), no alertar
       const isFirstSnapshotNow = isFirstSnapshot;
       if (isFirstSnapshot) {
         isFirstSnapshot = false;
         // Primera snapshot: solo loguear en modo debug explícito
-        if (import.meta.env.VITE_DEBUG_MESSAGES === 'true') {
-          console.log('[SUBSCRIBE] 📨 Snapshot inicial (carga inicial):', {
-            docsCount: snapshot.docs.length,
-            roomId,
-            fromCache: snapshot.metadata.fromCache
-          });
-        }
+        // if (import.meta.env.VITE_DEBUG_MESSAGES === 'true') {
+        //   console.log('[SUBSCRIBE] 📨 Snapshot inicial (carga inicial):', {
+        //     docsCount: snapshot.docs.length,
+        //     roomId,
+        //     fromCache: snapshot.metadata.fromCache
+        //   });
+        // }
       }
 
       // 🔍 DIAGNÓSTICO: Alertar si hay retraso REAL (> 3 segundos) o viene de caché
@@ -367,23 +370,25 @@ export const subscribeToRoomMessages = (roomId, callback, messageLimit = 50) => 
 
       // ⚠️ ALERTA: Solo si hay retraso REAL (> 3 segundos) o viene de caché (datos no en tiempo real)
       // Ignorar primera snapshot (carga inicial es normal que sea lenta)
-      if ((isActuallySlow || isFromCache) && !isFirstSnapshotNow) {
-        const logLevel = isVerySlow ? 'error' : 'warn';
-        const logMethod = isVerySlow ? console.error : console.warn;
-        const emoji = isVerySlow ? '🔴' : '⚠️';
-        
-        logMethod(`${emoji} [${isVerySlow ? 'MUY LENTO' : 'LENTO'}] Snapshot recibido:`, {
-          docsCount: snapshot.docs.length,
-          roomId,
-          timeSinceLastSnapshot: `${timeSinceLastSnapshot}ms`,
-          fromCache: isFromCache,
-          hasPendingWrites: snapshot.metadata.hasPendingWrites,
-          timestamp: new Date().toISOString(),
-          ...(isVerySlow ? {
-            suggestion: 'Posibles causas: conexión lenta, demasiados mensajes, o problemas de red. Verificar conexión a internet y reducir límite de mensajes si es necesario.'
-          } : {})
-        });
-      }
+      // ⚠️ ALERTA: Solo si hay retraso REAL (> 3 segundos) o viene de caché (datos no en tiempo real)
+      // Ignorar primera snapshot (carga inicial es normal que sea lenta)
+      // if ((isActuallySlow || isFromCache) && !isFirstSnapshotNow) {
+      //   const logLevel = isVerySlow ? 'error' : 'warn';
+      //   const logMethod = isVerySlow ? console.error : console.warn;
+      //   const emoji = isVerySlow ? '🔴' : '⚠️';
+      //   
+      //   logMethod(`${emoji} [${isVerySlow ? 'MUY LENTO' : 'LENTO'}] Snapshot recibido:`, {
+      //     docsCount: snapshot.docs.length,
+      //     roomId,
+      //     timeSinceLastSnapshot: `${timeSinceLastSnapshot}ms`,
+      //     fromCache: isFromCache,
+      //     hasPendingWrites: snapshot.metadata.hasPendingWrites,
+      //     timestamp: new Date().toISOString(),
+      //     ...(isVerySlow ? {
+      //       suggestion: 'Posibles causas: conexión lenta, demasiados mensajes, o problemas de red. Verificar conexión a internet y reducir límite de mensajes si es necesario.'
+      //     } : {})
+      //   });
+      // }
 
       // ⚡ OPTIMIZACIÓN: Procesar mensajes de forma más eficiente
       const startProcessTime = performance.now();
@@ -422,7 +427,7 @@ export const subscribeToRoomMessages = (roomId, callback, messageLimit = 50) => 
       
       // ⚠️ ALERTA: Solo si el procesamiento toma más de 50ms (bloqueo real)
       if (processTime > 50) {
-        console.warn(`⚠️ [LENTO] Procesamiento de mensajes tomó ${processTime.toFixed(2)}ms (puede estar bloqueando)`);
+        // console.warn(`⚠️ [LENTO] Procesamiento de mensajes tomó ${processTime.toFixed(2)}ms (puede estar bloqueando)`);
       }
 
       // 📊 Registrar latencia de snapshot en el monitor
@@ -440,8 +445,10 @@ export const subscribeToRoomMessages = (roomId, callback, messageLimit = 50) => 
           const latencyColor = latency && latency < 1000 ? '#00ff00' : latency && latency < 3000 ? '#ffaa00' : '#ff0000';
           const latencyEmoji = latency && latency < 1000 ? '⚡' : latency && latency < 3000 ? '⚠️' : '🐌';
           
-          // ⚡ CLOCK SKEW DETECTION: Si la latencia es > 1 hora (3600000ms), es error de reloj
-          const isClockSkew = latency && latency > 3600000;
+           
+          // ⚡ CLOCK SKEW DETECTION & LOGGING DESACTIVADO POR PERFORMANCE
+          // const isClockSkew = latency && latency > 3600000;
+          // ... Logs comentados previamente ...
 
           // ⚠️ LOGS COMENTADOS: Causaban sobrecarga en consola con cientos de mensajes
           // if (isClockSkew) {
