@@ -829,6 +829,8 @@ const ChatPage = () => {
     });
 
     // 👮 Mensaje de bienvenida del moderador (solo una vez)
+    // ⚠️ MODERADOR COMENTADO (06/01/2026) - Desactivado a petición del usuario
+    /*
     const moderatorKey = `${roomId}_${user.id}`;
     const hasSeenModerator = sessionStorage.getItem(`moderator_welcome_${moderatorKey}`);
     
@@ -845,6 +847,7 @@ const ChatPage = () => {
         }
       }, 2000); // Enviar después de 2 segundos
     }
+    */
 
     // 🌱 Sembrar conversaciones genuinas en "Chat Principal"
     checkAndSeedConversations(roomId);

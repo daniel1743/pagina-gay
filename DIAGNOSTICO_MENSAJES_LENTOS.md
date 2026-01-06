@@ -124,3 +124,4 @@ Si Firestore está offline, los mensajes se quedan en cola local y no se sincron
 6. **Probar en diferentes navegadores** para descartar problemas específicos del navegador
 
 
+

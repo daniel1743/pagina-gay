@@ -16,6 +16,11 @@ const sentWelcomeCache = new Set();
  * @param {string} username - Nombre del usuario que entra
  */
 export const sendModeratorWelcome = async (roomId, username) => {
+  // ⚠️ MODERADOR DESACTIVADO (06/01/2026) - Ver docs/moderator_recovery.md para código original
+  console.log('[MODERATOR] 🔇 Bienvenida de moderador desactivada');
+  return;
+
+  /*
   // ✅ Validar parámetros
   if (!roomId || !username) {
     console.warn('⏭️ [MODERATOR] Parámetros inválidos, omitiendo bienvenida:', { roomId, username });
@@ -77,4 +82,5 @@ Soy el moderador automático de esta sala. Aquí algunas reglas rápidas:
     // Si falla, remover del cache para permitir reintento
     sentWelcomeCache.delete(cacheKey);
   }
+  */
 };

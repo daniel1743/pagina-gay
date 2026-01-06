@@ -234,16 +234,21 @@ const doSendMessage = async (roomId, messageData, isAnonymous = false) => {
   });
 
   // 🔍 Log detallado de mensaje enviado CON VELOCIDAD
-  // 🔍 Log detallado de mensaje enviado CON VELOCIDAD
-  // console.log('%c📤 [ENVÍO] Mensaje enviado a Firestore', 'color: #00ff00; font-weight: bold; font-size: 14px', {
-  //   messageId: docRef.id.substring(0, 8) + '...',
-  //   roomId,
-  //   content: messageData.content.substring(0, 30) + (messageData.content.length > 30 ? '...' : ''),
-  //   username,
-  //   '⏱️ Tiempo a Firestore': `${firestoreSendTime}ms`,
-  //   '📅 Timestamp envío': sendTimeISO,
-  //   '🔑 Para rastrear': `Busca este ID en logs de recepción: ${docRef.id.substring(0, 8)}`
-  // });
+  // 🔍 PRUEBA 6 ENERO: Ver comunicación entre logueados y no logueados
+  const isAuthenticated = !!auth.currentUser;
+  console.log(
+    `%c📤 ${isAuthenticated ? '🔐 LOGUEADO' : '👤 NO LOGUEADO'} → Mensaje enviado`,
+    `color: ${isAuthenticated ? '#00ff00' : '#ffaa00'}; font-weight: bold; font-size: 14px; background: ${isAuthenticated ? '#001100' : '#332200'}; padding: 4px 8px; border-radius: 4px;`,
+    {
+      '👤 Usuario': username,
+      '🔑 Tipo': isAuthenticated ? 'AUTENTICADO ✅' : 'NO AUTENTICADO ⚠️',
+      '💬 Mensaje': messageData.content.substring(0, 50) + (messageData.content.length > 50 ? '...' : ''),
+      '🆔 MessageID': docRef.id,
+      '🏠 Sala': roomId,
+      '⏱️ Tiempo': `${firestoreSendTime}ms`,
+      '📅 Hora': sendTimeISO,
+    }
+  );
 
   // Cache rate limiting (memoria)
   recordMessage(messageData.userId, messageData.content);
