@@ -27,7 +27,8 @@ import ChatLandingPage from '@/components/chat/ChatLandingPage';
 import EmptyRoomNotificationPrompt from '@/components/chat/EmptyRoomNotificationPrompt';
 import LoadingMessagesPrompt from '@/components/chat/LoadingMessagesPrompt';
 import ReplyIndicator from '@/components/chat/ReplyIndicator';
-import RulesBanner from '@/components/chat/RulesBanner';
+// ⚠️ MODERADOR ELIMINADO (06/01/2026) - A petición del usuario
+// import RulesBanner from '@/components/chat/RulesBanner';
 import { toast } from '@/components/ui/use-toast';
 import PrivateChatWindow from '@/components/chat/PrivateChatWindow';
 import { RegistrationRequiredModal } from '@/components/auth/RegistrationRequiredModal';
@@ -72,7 +73,8 @@ const ChatPage = () => {
   // ✅ Estados y refs - DEBEN estar ANTES del early return
   const [currentRoom, setCurrentRoom] = useState(roomId);
   const [messages, setMessages] = useState([]);
-  const [moderatorMessage, setModeratorMessage] = useState(null); // 👮 Mensaje del moderador (para RulesBanner)
+  // ⚠️ MODERADOR ELIMINADO (06/01/2026) - A petición del usuario
+  // const [moderatorMessage, setModeratorMessage] = useState(null); // 👮 Mensaje del moderador (para RulesBanner)
   const [roomUsers, setRoomUsers] = useState([]); // 🤖 Usuarios en la sala (para sistema de bots)
   const [selectedUser, setSelectedUser] = useState(null);
   const [userActionsTarget, setUserActionsTarget] = useState(null);
