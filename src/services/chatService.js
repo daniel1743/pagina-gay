@@ -445,12 +445,28 @@ export const subscribeToRoomMessages = (roomId, callback, messageLimit = 50) => 
         deliveryService.processMessageUpdate(msg);
 
         // 🔍 Log cuando recibimos mensaje de otro usuario CON VELOCIDAD
+        // 🔍 PRUEBA 6 ENERO: Ver comunicación entre logueados y no logueados
+        const isMessageFromAuth = !msg._unauthenticated && msg.senderUid;
+        const currentUserIsAuth = !!auth.currentUser;
+
+        console.log(
+          `%c📥 ${currentUserIsAuth ? '🔐 YO LOGUEADO' : '👤 YO NO LOGUEADO'} ← ${isMessageFromAuth ? '🔐 DE LOGUEADO' : '👤 DE NO LOGUEADO'}`,
+          `color: #00aaff; font-weight: bold; font-size: 13px; background: #001122; padding: 3px 6px; border-radius: 4px;`,
+          {
+            '👤 De': msg.username,
+            '🔑 Remitente tipo': isMessageFromAuth ? 'AUTENTICADO ✅' : 'NO AUTENTICADO ⚠️',
+            '💬 Mensaje': msg.content.substring(0, 50) + (msg.content.length > 50 ? '...' : ''),
+            '🆔 MessageID': msg.id,
+            '📅 Hora': new Date(msg.timestampMs).toLocaleTimeString(),
+          }
+        );
+
         if (auth.currentUser && msg.userId !== auth.currentUser.uid) {
           const latency = msg._receiveLatency;
           const latencyColor = latency && latency < 1000 ? '#00ff00' : latency && latency < 3000 ? '#ffaa00' : '#ff0000';
           const latencyEmoji = latency && latency < 1000 ? '⚡' : latency && latency < 3000 ? '⚠️' : '🐌';
-          
-           
+
+
           // ⚡ CLOCK SKEW DETECTION & LOGGING DESACTIVADO POR PERFORMANCE
           // const isClockSkew = latency && latency > 3600000;
           // ... Logs comentados previamente ...
