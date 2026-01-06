@@ -51,12 +51,12 @@ class MessageDeliveryService {
     this.pendingMessages.set(messageId, tracking);
 
     // Log inicial
-    console.log('📤 [DELIVERY] Mensaje enviado:', {
-      messageId,
-      clientId: messageData.clientId,
-      sentAt: new Date(now).toISOString(),
-      status: 'sent ✓',
-    });
+    // console.log('📤 [DELIVERY] Mensaje enviado:', {
+    //   messageId,
+    //   clientId: messageData.clientId,
+    //   sentAt: new Date(now).toISOString(),
+    //   status: 'sent ✓',
+    // });
 
     // Timeout para detectar mensaje suspendido
     setTimeout(() => {
@@ -64,12 +64,13 @@ class MessageDeliveryService {
         const msg = this.pendingMessages.get(messageId);
         if (msg.status === 'sent') {
           msg.status = 'suspended';
-          console.warn('⚠️ [DELIVERY] Mensaje suspendido (no entregado):', {
-            messageId,
-            sentAt: new Date(msg.sentAt).toISOString(),
-            timeElapsed: `${Date.now() - msg.sentAt}ms`,
-            suggestion: 'El mensaje no llegó a otros usuarios. Verificar conexión.',
-          });
+          // ⚠️ LOG COMENTADO: Causaba sobrecarga en consola
+          // console.warn('⚠️ [DELIVERY] Mensaje suspendido (no entregado):', {
+          //   messageId,
+          //   sentAt: new Date(msg.sentAt).toISOString(),
+          //   timeElapsed: `${Date.now() - msg.sentAt}ms`,
+          //   suggestion: 'El mensaje no llegó a otros usuarios. Verificar conexión.',
+          // });
         }
       }
     }, this.deliveryTimeout);
@@ -85,7 +86,8 @@ class MessageDeliveryService {
       const messageSnap = await getDoc(messageRef);
 
       if (!messageSnap.exists()) {
-        console.warn('⚠️ [DELIVERY] Mensaje no encontrado:', messageId);
+        // ⚠️ LOG COMENTADO: Causaba sobrecarga en consola
+        // console.warn('⚠️ [DELIVERY] Mensaje no encontrado:', messageId);
         return;
       }
 
@@ -96,11 +98,12 @@ class MessageDeliveryService {
         return;
       }
 
-      console.log('📬 [DELIVERY] Enviando ACK para mensaje:', {
-        messageId: messageId.substring(0, 8),
-        from: messageData.username,
-        to: receiverUserId.substring(0, 8),
-      });
+      // ⚠️ LOG COMENTADO: Causaba sobrecarga en consola (loop con cada mensaje)
+      // console.log('📬 [DELIVERY] Enviando ACK para mensaje:', {
+      //   messageId: messageId.substring(0, 8),
+      //   from: messageData.username,
+      //   to: receiverUserId.substring(0, 8),
+      // });
 
       // Actualizar deliveredTo array
       await updateDoc(messageRef, {
@@ -109,10 +112,11 @@ class MessageDeliveryService {
         status: 'delivered',
       });
 
-      console.log('✓✓ [DELIVERY] ACK enviado exitosamente:', {
-        messageId: messageId.substring(0, 8),
-        deliveredToCount: (messageData.deliveredTo?.length || 0) + 1,
-      });
+      // ⚠️ LOG COMENTADO: Causaba sobrecarga en consola (loop con cada mensaje)
+      // console.log('✓✓ [DELIVERY] ACK enviado exitosamente:', {
+      //   messageId: messageId.substring(0, 8),
+      //   deliveredToCount: (messageData.deliveredTo?.length || 0) + 1,
+      // });
     } catch (error) {
       // Log de errores para diagnóstico
       console.error('❌ [DELIVERY] Error marcando como entregado:', {
@@ -147,11 +151,11 @@ class MessageDeliveryService {
         status: 'read',
       });
 
-      console.log('✓✓ [DELIVERY] Mensaje marcado como leído:', {
-        messageId,
-        readerUserId,
-        senderUserId: messageData.userId,
-      });
+      // console.log('✓✓ [DELIVERY] Mensaje marcado como leído:', {
+      //   messageId,
+      //   readerUserId,
+      //   senderUserId: messageData.userId,
+      // });
     } catch (error) {
       if (import.meta.env.DEV && error.code !== 'permission-denied') {
         console.debug('⚠️ [DELIVERY] Error marcando como leído:', error.message);
@@ -175,14 +179,14 @@ class MessageDeliveryService {
 
         const deliveryTime = now - tracking.sentAt;
 
-        console.log('✓✓ [DELIVERY] Mensaje entregado:', {
-          messageId: message.id,
-          sentAt: new Date(tracking.sentAt).toISOString(),
-          deliveredAt: new Date(now).toISOString(),
-          deliveryTime: `${deliveryTime}ms`,
-          deliveredTo: message.deliveredTo.length + ' usuario(s)',
-          status: 'delivered ✓✓',
-        });
+        // console.log('✓✓ [DELIVERY] Mensaje entregado:', {
+        //   messageId: message.id,
+        //   sentAt: new Date(tracking.sentAt).toISOString(),
+        //   deliveredAt: new Date(now).toISOString(),
+        //   deliveryTime: `${deliveryTime}ms`,
+        //   deliveredTo: message.deliveredTo.length + ' usuario(s)',
+        //   status: 'delivered ✓✓',
+        // });
 
         // Guardar en log
         this.deliveryLogs.push({
@@ -201,14 +205,14 @@ class MessageDeliveryService {
 
         const readTime = now - tracking.sentAt;
 
-        console.log('✓✓ [DELIVERY] Mensaje leído:', {
-          messageId: message.id,
-          sentAt: new Date(tracking.sentAt).toISOString(),
-          readAt: new Date(now).toISOString(),
-          readTime: `${readTime}ms`,
-          readBy: message.readBy.length + ' usuario(s)',
-          status: 'read ✓✓ (azul)',
-        });
+        // console.log('✓✓ [DELIVERY] Mensaje leído:', {
+        //   messageId: message.id,
+        //   sentAt: new Date(tracking.sentAt).toISOString(),
+        //   readAt: new Date(now).toISOString(),
+        //   readTime: `${readTime}ms`,
+        //   readBy: message.readBy.length + ' usuario(s)',
+        //   status: 'read ✓✓ (azul)',
+        // });
 
         // Actualizar log
         const logIndex = this.deliveryLogs.findIndex(l => l.messageId === message.id);
