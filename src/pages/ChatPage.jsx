@@ -960,8 +960,9 @@ const ChatPage = () => {
     }
     */
 
+    // ⚠️ BOTS ELIMINADOS (06/01/2026) - A petición del usuario
     // 🌱 Sembrar conversaciones genuinas en "Chat Principal"
-    checkAndSeedConversations(roomId);
+    // checkAndSeedConversations(roomId);
 
 
     // Cleanup: desuscribirse y remover presencia cuando se desmonta o cambia de sala
