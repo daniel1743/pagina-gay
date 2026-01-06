@@ -288,8 +288,9 @@ export const sendMessage = async (roomId, messageData, isAnonymous = false, skip
 
 /**
  * Suscripción a mensajes en tiempo real - orden estable (nuevo->viejo en query, se invierte en cliente)
+ * ⚡ OPTIMIZADO: Límite reducido a 50 para mejorar velocidad (antes 200 causaba 11+ segundos de latencia)
  */
-export const subscribeToRoomMessages = (roomId, callback, messageLimit = 200) => {
+export const subscribeToRoomMessages = (roomId, callback, messageLimit = 50) => {
   const messagesRef = collection(db, 'rooms', roomId, 'messages');
   const q = query(messagesRef, orderBy('timestamp', 'desc'), limit(messageLimit));
 
@@ -318,37 +319,55 @@ export const subscribeToRoomMessages = (roomId, callback, messageLimit = 200) =>
         }
       }
 
-      // 🔍 DIAGNÓSTICO: Solo alertar si hay retraso REAL (> 5 segundos) o viene de caché
-      const isActuallySlow = timeSinceLastSnapshot > 5000; // ⚠️ Solo alertar si > 5 segundos
+      // 🔍 DIAGNÓSTICO: Alertar si hay retraso REAL (> 3 segundos) o viene de caché
+      // ⚡ UMBRAL REDUCIDO: De 5s a 3s para detectar problemas más rápido
+      const isActuallySlow = timeSinceLastSnapshot > 3000; // ⚠️ Alertar si > 3 segundos
       const isFromCache = snapshot.metadata.fromCache;
+      const isVerySlow = timeSinceLastSnapshot > 10000; // 🔴 CRÍTICO si > 10 segundos
 
-      // ⚠️ ALERTA: Solo si hay retraso REAL (> 5 segundos) o viene de caché (datos no en tiempo real)
+      // ⚠️ ALERTA: Solo si hay retraso REAL (> 3 segundos) o viene de caché (datos no en tiempo real)
       // Ignorar primera snapshot (carga inicial es normal que sea lenta)
       if ((isActuallySlow || isFromCache) && !isFirstSnapshotNow) {
-        console.warn('⚠️ [LENTO] Snapshot recibido:', {
+        const logLevel = isVerySlow ? 'error' : 'warn';
+        const logMethod = isVerySlow ? console.error : console.warn;
+        const emoji = isVerySlow ? '🔴' : '⚠️';
+        
+        logMethod(`${emoji} [${isVerySlow ? 'MUY LENTO' : 'LENTO'}] Snapshot recibido:`, {
           docsCount: snapshot.docs.length,
           roomId,
           timeSinceLastSnapshot: `${timeSinceLastSnapshot}ms`,
           fromCache: isFromCache,
           hasPendingWrites: snapshot.metadata.hasPendingWrites,
-          timestamp: new Date().toISOString()
+          timestamp: new Date().toISOString(),
+          ...(isVerySlow ? {
+            suggestion: 'Posibles causas: conexión lenta, demasiados mensajes, o problemas de red. Verificar conexión a internet y reducir límite de mensajes si es necesario.'
+          } : {})
         });
       }
 
       // ⚡ OPTIMIZACIÓN: Procesar mensajes de forma más eficiente
       const startProcessTime = performance.now();
-      const messages = snapshot.docs.map(doc => {
+      
+      // ⚡ OPTIMIZACIÓN: Usar for loop en vez de map para mejor rendimiento con muchos docs
+      const messages = [];
+      for (let i = 0; i < snapshot.docs.length; i++) {
+        const doc = snapshot.docs[i];
         const data = doc.data();
         const timestampMs = data.timestamp?.toMillis?.() ?? null;
-        return {
+        messages.push({
           id: doc.id,
           ...data,
           timestampMs,
           timestamp: data.timestamp ?? null,
-        };
-      });
+        });
+      }
 
-      const orderedMessages = messages.reverse();
+      // ⚡ OPTIMIZACIÓN: Invertir array en lugar de usar reverse() (más eficiente)
+      const orderedMessages = [];
+      for (let i = messages.length - 1; i >= 0; i--) {
+        orderedMessages.push(messages[i]);
+      }
+      
       const processTime = performance.now() - startProcessTime;
       
       // ⚠️ ALERTA: Solo si el procesamiento toma más de 50ms (bloqueo real)

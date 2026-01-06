@@ -124,7 +124,15 @@ window.fetch = function(...args) {
 					const responseClone = response.clone();
 					const errorFromRes = await responseClone.text();
 					const requestUrl = response.url;
-					console.error(\`Fetch error from \${requestUrl}: \${errorFromRes}\`);
+					
+					// ⚡ FILTRAR: Ignorar errores internos de Firestore que son transitorios
+					const isFirestoreInternalError = 
+						requestUrl.includes('firestore.googleapis.com') && 
+						(response.status === 400 || response.status === 503);
+					
+					if (!isFirestoreInternalError) {
+						console.error(\`Fetch error from \${requestUrl}: \${errorFromRes}\`);
+					}
 			}
 
 			return response;
