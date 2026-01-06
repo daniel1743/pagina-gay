@@ -234,21 +234,21 @@ const doSendMessage = async (roomId, messageData, isAnonymous = false) => {
   });
 
   // 🔍 Log detallado de mensaje enviado CON VELOCIDAD
-  // 🔍 PRUEBA 6 ENERO: Ver comunicación entre logueados y no logueados
-  const isAuthenticated = !!auth.currentUser;
-  console.log(
-    `%c📤 ${isAuthenticated ? '🔐 LOGUEADO' : '👤 NO LOGUEADO'} → Mensaje enviado`,
-    `color: ${isAuthenticated ? '#00ff00' : '#ffaa00'}; font-weight: bold; font-size: 14px; background: ${isAuthenticated ? '#001100' : '#332200'}; padding: 4px 8px; border-radius: 4px;`,
-    {
-      '👤 Usuario': username,
-      '🔑 Tipo': isAuthenticated ? 'AUTENTICADO ✅' : 'NO AUTENTICADO ⚠️',
-      '💬 Mensaje': messageData.content.substring(0, 50) + (messageData.content.length > 50 ? '...' : ''),
-      '🆔 MessageID': docRef.id,
-      '🏠 Sala': roomId,
-      '⏱️ Tiempo': `${firestoreSendTime}ms`,
-      '📅 Hora': sendTimeISO,
-    }
-  );
+  // 🔍 PRUEBA 6 ENERO: DESACTIVADO - Causaba sobrecarga en consola
+  // const isAuthenticated = !!auth.currentUser;
+  // console.log(
+  //   `%c📤 ${isAuthenticated ? '🔐 LOGUEADO' : '👤 NO LOGUEADO'} → Mensaje enviado`,
+  //   `color: ${isAuthenticated ? '#00ff00' : '#ffaa00'}; font-weight: bold; font-size: 14px; background: ${isAuthenticated ? '#001100' : '#332200'}; padding: 4px 8px; border-radius: 4px;`,
+  //   {
+  //     '👤 Usuario': username,
+  //     '🔑 Tipo': isAuthenticated ? 'AUTENTICADO ✅' : 'NO AUTENTICADO ⚠️',
+  //     '💬 Mensaje': messageData.content.substring(0, 50) + (messageData.content.length > 50 ? '...' : ''),
+  //     '🆔 MessageID': docRef.id,
+  //     '🏠 Sala': roomId,
+  //     '⏱️ Tiempo': `${firestoreSendTime}ms`,
+  //     '📅 Hora': sendTimeISO,
+  //   }
+  // );
 
   // Cache rate limiting (memoria)
   recordMessage(messageData.userId, messageData.content);
@@ -445,21 +445,21 @@ export const subscribeToRoomMessages = (roomId, callback, messageLimit = 50) => 
         deliveryService.processMessageUpdate(msg);
 
         // 🔍 Log cuando recibimos mensaje de otro usuario CON VELOCIDAD
-        // 🔍 PRUEBA 6 ENERO: Ver comunicación entre logueados y no logueados
-        const isMessageFromAuth = !msg._unauthenticated && msg.senderUid;
-        const currentUserIsAuth = !!auth.currentUser;
+        // 🔍 PRUEBA 6 ENERO: DESACTIVADO - Causaba sobrecarga en consola (se ejecuta por cada mensaje)
+        // const isMessageFromAuth = !msg._unauthenticated && msg.senderUid;
+        // const currentUserIsAuth = !!auth.currentUser;
 
-        console.log(
-          `%c📥 ${currentUserIsAuth ? '🔐 YO LOGUEADO' : '👤 YO NO LOGUEADO'} ← ${isMessageFromAuth ? '🔐 DE LOGUEADO' : '👤 DE NO LOGUEADO'}`,
-          `color: #00aaff; font-weight: bold; font-size: 13px; background: #001122; padding: 3px 6px; border-radius: 4px;`,
-          {
-            '👤 De': msg.username,
-            '🔑 Remitente tipo': isMessageFromAuth ? 'AUTENTICADO ✅' : 'NO AUTENTICADO ⚠️',
-            '💬 Mensaje': msg.content.substring(0, 50) + (msg.content.length > 50 ? '...' : ''),
-            '🆔 MessageID': msg.id,
-            '📅 Hora': new Date(msg.timestampMs).toLocaleTimeString(),
-          }
-        );
+        // console.log(
+        //   `%c📥 ${currentUserIsAuth ? '🔐 YO LOGUEADO' : '👤 YO NO LOGUEADO'} ← ${isMessageFromAuth ? '🔐 DE LOGUEADO' : '👤 DE NO LOGUEADO'}`,
+        //   `color: #00aaff; font-weight: bold; font-size: 13px; background: #001122; padding: 3px 6px; border-radius: 4px;`,
+        //   {
+        //     '👤 De': msg.username,
+        //     '🔑 Remitente tipo': isMessageFromAuth ? 'AUTENTICADO ✅' : 'NO AUTENTICADO ⚠️',
+        //     '💬 Mensaje': msg.content.substring(0, 50) + (msg.content.length > 50 ? '...' : ''),
+        //     '🆔 MessageID': msg.id,
+        //     '📅 Hora': new Date(msg.timestampMs).toLocaleTimeString(),
+        //   }
+        // );
 
         if (auth.currentUser && msg.userId !== auth.currentUser.uid) {
           const latency = msg._receiveLatency;

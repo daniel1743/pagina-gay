@@ -38,8 +38,10 @@ import { validateMessage } from '@/services/antiSpamService';
 import { auth, db } from '@/config/firebase'; // ✅ CRÍTICO: Necesario para obtener UID real de Firebase Auth
 import { doc, getDoc } from 'firebase/firestore';
 import { sendPrivateChatRequest, respondToPrivateChatRequest, subscribeToNotifications, markNotificationAsRead } from '@/services/socialService';
-import { sendModeratorWelcome } from '@/services/moderatorWelcome';
-import { checkAndSeedConversations } from '@/services/seedConversationsService';
+// ⚠️ MODERADOR ELIMINADO (06/01/2026) - A petición del usuario
+// import { sendModeratorWelcome } from '@/services/moderatorWelcome';
+// ⚠️ BOTS ELIMINADOS (06/01/2026) - A petición del usuario
+// import { checkAndSeedConversations } from '@/services/seedConversationsService';
 import { trackPageView, trackPageExit, trackRoomJoined, trackMessageSent } from '@/services/analyticsService';
 import { useCanonical } from '@/hooks/useCanonical';
 import { checkUserSanctions, SANCTION_TYPES } from '@/services/sanctionsService';
@@ -137,7 +139,8 @@ const ChatPage = () => {
   const unsubscribeRef = useRef(null);
   const aiActivatedRef = useRef(false); // Flag para evitar activaciones múltiples de IA
   const lastUserCountRef = useRef(0); // Para evitar ejecuciones innecesarias del useEffect
-  const moderatorWelcomeSentRef = useRef(new Set()); // Para evitar mensajes duplicados del moderador
+  // ⚠️ MODERADOR ELIMINADO (06/01/2026) - A petición del usuario
+  // const moderatorWelcomeSentRef = useRef(new Set()); // Para evitar mensajes duplicados del moderador
   const previousMessageCountRef = useRef(0); // Para detectar nuevos mensajes y reproducir sonido
   const lastUserCountsRef = useRef({ total: 0, active: 0, real: 0 }); // Para rastrear conteos de usuarios
   const previousRealUserCountRef = useRef(0); // Para detectar cuando usuarios se desconectan y reproducir sonido
@@ -831,15 +834,16 @@ const ChatPage = () => {
             currentCounts.real !== lastUserCountsRef.current.real;
           
           if (hasChanged) {
+            // ⚠️ NOTIFICACIONES DE SONIDO ELIMINADAS (06/01/2026) - A petición del usuario
             // 🔊 Reproducir sonido de INGRESO si un usuario real se conectó
-            if (previousRealUserCountRef.current > 0 && currentCounts.real > previousRealUserCountRef.current) {
-              notificationSounds.playUserJoinSound();
-            }
+            // if (previousRealUserCountRef.current > 0 && currentCounts.real > previousRealUserCountRef.current) {
+            //   notificationSounds.playUserJoinSound();
+            // }
 
             // 🔊 Reproducir sonido de SALIDA si un usuario real se desconectó
-            if (previousRealUserCountRef.current > 0 && currentCounts.real < previousRealUserCountRef.current) {
-              notificationSounds.playDisconnectSound();
-            }
+            // if (previousRealUserCountRef.current > 0 && currentCounts.real < previousRealUserCountRef.current) {
+            //   notificationSounds.playDisconnectSound();
+            // }
 
             // Actualizar contador de usuarios reales
             previousRealUserCountRef.current = currentCounts.real;
@@ -876,21 +880,16 @@ const ChatPage = () => {
       if (hasChanged) {
         // console.debug(`👥 Sala ${roomId}: ${currentCounts.real} usuario(s) real(es) activo(s) | ${currentCounts.total} total en DB (incluye inactivos)`);
 
+        // ⚠️ NOTIFICACIONES DE SONIDO ELIMINADAS (06/01/2026) - A petición del usuario
         // 🔊 Reproducir sonido de INGRESO si un usuario real se conectó
-        if (previousRealUserCountRef.current > 0 && currentCounts.real > previousRealUserCountRef.current) {
-          // ⚠️ LOG COMENTADO: Causaba sobrecarga en consola
-          // const usersJoined = currentCounts.real - previousRealUserCountRef.current;
-          // console.debug(`🔊 [SOUNDS] ${usersJoined} usuario(s) ingresó/ingresaron, reproduciendo sonido de bienvenida`);
-          notificationSounds.playUserJoinSound();
-        }
+        // if (previousRealUserCountRef.current > 0 && currentCounts.real > previousRealUserCountRef.current) {
+        //   notificationSounds.playUserJoinSound();
+        // }
 
         // 🔊 Reproducir sonido de SALIDA si un usuario real se desconectó
-        if (previousRealUserCountRef.current > 0 && currentCounts.real < previousRealUserCountRef.current) {
-          // ⚠️ LOG COMENTADO: Causaba sobrecarga en consola
-          // const usersLeft = previousRealUserCountRef.current - currentCounts.real;
-          // console.debug(`🔊 [SOUNDS] ${usersLeft} usuario(s) se desconectó/desconectaron, reproduciendo sonido de salida`);
-          notificationSounds.playDisconnectSound();
-        }
+        // if (previousRealUserCountRef.current > 0 && currentCounts.real < previousRealUserCountRef.current) {
+        //   notificationSounds.playDisconnectSound();
+        // }
 
         // Actualizar contador de usuarios reales
         previousRealUserCountRef.current = currentCounts.real;
@@ -933,11 +932,12 @@ const ChatPage = () => {
     
     unsubscribeRef.current = baseCleanup;
 
+    // ⚠️ TOAST DE BIENVENIDA ELIMINADO (06/01/2026) - A petición del usuario
     // Toast de bienvenida
-    toast({
-      title: `👋 ¡${user.username} se ha unido a la sala!`,
-      description: `Estás en #${roomId}`,
-    });
+    // toast({
+    //   title: `👋 ¡${user.username} se ha unido a la sala!`,
+    //   description: `Estás en #${roomId}`,
+    // });
 
     // 👮 Mensaje de bienvenida del moderador (solo una vez)
     // ⚠️ MODERADOR COMENTADO (06/01/2026) - Desactivado a petición del usuario
@@ -1868,8 +1868,9 @@ const ChatPage = () => {
           />
         </div>
 
-        {/* ⚠️ VENTANA DE MODERACIÓN COMENTADA (06/01/2026) - A petición del usuario */}
-        {/* 👮 Banner de reglas del moderador (NO bloqueante) */}
+        {/* ⚠️ MODERADOR COMPLETAMENTE ELIMINADO (06/01/2026) - A petición del usuario */}
+        {/* 👮 Banner de reglas del moderador (NO bloqueante) - ELIMINADO */}
+        {/* El componente RulesBanner y todo el sistema de moderador ha sido eliminado */}
         {/* {moderatorMessage && (
           <RulesBanner
             message={moderatorMessage}

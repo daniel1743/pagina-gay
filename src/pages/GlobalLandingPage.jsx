@@ -7,7 +7,8 @@ import { useAuth } from '@/contexts/AuthContext';
 import { useCanonical } from '@/hooks/useCanonical';
 import ChatDemo from '@/components/landing/ChatDemo';
 import { GuestUsernameModal } from '@/components/auth/GuestUsernameModal';
-import LandingCaptureToast from '@/components/landing/LandingCaptureToast';
+// ⚠️ TOAST ELIMINADO (06/01/2026) - A petición del usuario
+// import LandingCaptureToast from '@/components/landing/LandingCaptureToast';
 // ⚠️ MODAL COMENTADO - Usamos entrada directa como invitado (sin opciones)
 // import { EntryOptionsModal } from '@/components/auth/EntryOptionsModal';
 
@@ -86,7 +87,7 @@ const InlineGuestEntry = ({ chatRoomId = 'principal' }) => {
         {/* ✅ Header con Imagen (gente-guapa.png) */}
         <div className="w-full h-40 bg-gray-900 relative">
           <img 
-            src="/gente-guapa.png" 
+            src="/MODELO 1.jpeg" 
             alt="Gente Guapa" 
             className="w-full h-full object-cover"
             onError={(e) => {
@@ -946,10 +947,11 @@ const GlobalLandingPage = () => {
         onContinueWithoutRegister={handleContinueWithoutRegister}
       /> */}
 
+      {/* ⚠️ TOAST ELIMINADO (06/01/2026) - A petición del usuario */}
       {/* Toast de Captación Estratégico */}
-      <LandingCaptureToast
+      {/* <LandingCaptureToast
         onEnterClick={handleChatearAhora}
-      />
+      /> */}
 
       {/* Guest Username Modal (Sin Registro) */}
       <GuestUsernameModal
