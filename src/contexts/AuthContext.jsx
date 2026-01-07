@@ -352,6 +352,21 @@ export const AuthProvider = ({ children }) => {
           }
         }
       } else {
+        // No hay usuario - Verificar si hay sesión guardada para restaurar
+        const savedSession = localStorage.getItem('guest_session_saved');
+        if (savedSession && !isLoggingOutRef.current) {
+          try {
+            const sessionData = JSON.parse(savedSession);
+            // ✅ Auto-restaurar sesión guardada
+            console.log('[AUTH] ✅ Restaurando sesión guardada automáticamente');
+            signInAsGuest(sessionData.username, sessionData.avatar, false); // No volver a guardar (ya está guardada)
+            return; // No limpiar usuario todavía, esperar a que se restaure
+          } catch (e) {
+            console.warn('[AUTH] ⚠️ Error restaurando sesión guardada:', e);
+            // Continuar con limpieza normal
+          }
+        }
+
         // No hay usuario - NO hacer auto-login anónimo (optimización de velocidad)
         console.log('[AUTH] ⚠️ firebaseUser es NULL, limpiando estado de usuario...');
         setUser(null);
@@ -563,7 +578,23 @@ export const AuthProvider = ({ children }) => {
    * Iniciar sesión como invitado (guest)
    * ⚡ ULTRA OPTIMIZADO: <500ms total
    */
-  const signInAsGuest = async (username, avatarUrl) => {
+  const signInAsGuest = async (username = null, avatarUrl = null, keepSession = false) => {
+    // ✅ VERIFICAR SESIÓN GUARDADA: Si no se proporcionan username/avatar, intentar restaurar sesión
+    if (!username || !avatarUrl) {
+      const savedSession = localStorage.getItem('guest_session_saved');
+      if (savedSession) {
+        try {
+          const sessionData = JSON.parse(savedSession);
+          username = sessionData.username;
+          avatarUrl = sessionData.avatar;
+          console.log('[AUTH] ✅ Restaurando sesión guardada:', { username, avatarUrl });
+        } catch (e) {
+          console.warn('[AUTH] ⚠️ Error restaurando sesión guardada:', e);
+          // Continuar con valores por defecto
+        }
+      }
+    }
+
     // ✅ FIX: Prevenir múltiples llamadas simultáneas
     if (signInAsGuest.inProgress) {
       console.log('%c⚠️ [TIMING] signInAsGuest ya está en progreso, ignorando llamada duplicada', 'color: #ffaa00; font-weight: bold');
@@ -641,6 +672,19 @@ export const AuthProvider = ({ children }) => {
         avatar: defaultAvatar,
         timestamp: Date.now(),
       }));
+
+      // ✅ GUARDAR SESIÓN si el usuario marcó "Mantener sesión"
+      if (keepSession) {
+        localStorage.setItem('guest_session_saved', JSON.stringify({
+          username: defaultUsername,
+          avatar: defaultAvatar,
+          uid: userCredential.user.uid,
+          timestamp: Date.now(),
+        }));
+      } else {
+        // Si no marca mantener sesión, eliminar cualquier sesión guardada anterior
+        localStorage.removeItem('guest_session_saved');
+      }
 
       console.log('%c✅ [TIMING] Usuario autenticado - PUEDE enviar mensajes', 'color: #00ff00; font-weight: bold');
 

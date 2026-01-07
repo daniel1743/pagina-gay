@@ -4,6 +4,7 @@
  */
 
 // Capturar errores globales
+// ✅ CRÍTICO: Solo loguear en desarrollo, NO mostrar nada en producción
 window.addEventListener('error', (event) => {
   // ✅ Filtrar AbortError de Firebase (cancelaciones normales)
   if (event.error?.name === 'AbortError' || 
@@ -12,17 +13,21 @@ window.addEventListener('error', (event) => {
     return; // Ignorar silenciosamente
   }
 
-  console.error('🚨 [ERROR GLOBAL]:', {
-    message: event.message,
-    filename: event.filename,
-    lineno: event.lineno,
-    colno: event.colno,
-    error: event.error,
-    stack: event.error?.stack
-  });
+  // ✅ CRÍTICO: Solo en desarrollo
+  if (!import.meta.env.PROD) {
+    console.error('🚨 [ERROR GLOBAL]:', {
+      message: event.message,
+      filename: event.filename,
+      lineno: event.lineno,
+      colno: event.colno,
+      error: event.error,
+      stack: event.error?.stack
+    });
+  }
 });
 
 // Capturar rechazos de promesas no manejados
+// ✅ CRÍTICO: Solo loguear en desarrollo, NO mostrar nada en producción
 window.addEventListener('unhandledrejection', (event) => {
   const reason = event.reason;
   const reasonStr = reason ? String(reason) : '';
@@ -35,15 +40,26 @@ window.addEventListener('unhandledrejection', (event) => {
     return;
   }
 
-  console.error('🚨 [PROMISE REJECTION]:', {
-    reason: event.reason,
-    promise: event.promise
-  });
+  // ✅ CRÍTICO: Solo en desarrollo
+  if (!import.meta.env.PROD) {
+    console.error('🚨 [PROMISE REJECTION]:', {
+      reason: event.reason,
+      promise: event.promise
+    });
+  }
 });
 
 // Interceptar console.error para capturar errores de React
+// ✅ CRÍTICO: Solo en desarrollo, NO en producción
 const originalError = console.error;
 console.error = function(...args) {
+  // ✅ CRÍTICO: NO mostrar errores técnicos en producción
+  if (import.meta.env.PROD) {
+    // En producción, solo llamar al original (logs técnicos ocultos)
+    originalError.apply(console, args);
+    return;
+  }
+
   // ✅ Filtrar AbortError de Firebase (cancelaciones normales)
   const errorString = args.join(' ');
   if (errorString.includes('AbortError') || 
@@ -51,7 +67,7 @@ console.error = function(...args) {
     return; // Ignorar silenciosamente
   }
 
-  // Detectar errores de React
+  // Detectar errores de React (solo en desarrollo)
   if (errorString.includes('React') ||
       errorString.includes('hook') ||
       errorString.includes('component') ||
@@ -85,4 +101,7 @@ export const logError = (context, error) => {
   });
 };
 
-console.log('🔍 Error Logger initialized - All errors will appear in F12 Console');
+// ✅ CRÍTICO: Solo mostrar mensaje de inicialización en desarrollo
+if (!import.meta.env.PROD) {
+  console.log('🔍 Error Logger initialized - All errors will appear in F12 Console');
+}

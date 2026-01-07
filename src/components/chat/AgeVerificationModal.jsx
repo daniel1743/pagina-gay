@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { Checkbox } from '@/components/ui/checkbox';
 import { Check } from 'lucide-react';
 
 // 4 avatares predefinidos con descripciones
@@ -40,6 +41,7 @@ const AgeVerificationModal = ({ isOpen, onConfirm, onClose }) => {
   const [username, setUsername] = useState('');
   const [selectedAvatar, setSelectedAvatar] = useState(null);
   const [error, setError] = useState('');
+  const [keepSession, setKeepSession] = useState(false); // ✅ Checkbox "Mantener sesión"
 
   const handleConfirm = () => {
     // Validar edad
@@ -75,7 +77,7 @@ const AgeVerificationModal = ({ isOpen, onConfirm, onClose }) => {
     }
 
     setError('');
-    onConfirm(parsedAge, trimmedUsername, selectedAvatar);
+    onConfirm(parsedAge, trimmedUsername, selectedAvatar, keepSession);
   };
 
   const handleClose = () => {
@@ -179,7 +181,26 @@ const AgeVerificationModal = ({ isOpen, onConfirm, onClose }) => {
             </div>
           )}
 
-          <p className="text-xs text-slate-400">
+          {/* ✅ Checkbox "Mantener sesión" */}
+          <div className="flex items-center space-x-2 pt-2">
+            <Checkbox
+              id="keep-session"
+              checked={keepSession}
+              onCheckedChange={(checked) => setKeepSession(checked)}
+              className="border-slate-600"
+            />
+            <label
+              htmlFor="keep-session"
+              className="text-sm text-slate-300 cursor-pointer"
+            >
+              Mantener sesión
+            </label>
+          </div>
+          <p className="text-xs text-slate-400 mt-2">
+            Si marcas esta opción, la próxima vez que entres mantendrás el mismo avatar y nombre.
+          </p>
+
+          <p className="text-xs text-slate-400 mt-4">
             Al continuar confirmas que tienes 18 años o más y aceptas las normas del chat.
           </p>
           </div>

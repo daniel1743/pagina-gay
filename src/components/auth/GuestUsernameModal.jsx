@@ -36,6 +36,7 @@ export const GuestUsernameModal = ({ open, onClose, chatRoomId = 'principal' }) 
   const [nickname, setNickname] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState('');
+  const [keepSession, setKeepSession] = useState(false); // ✅ Checkbox "Mantener sesión"
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -71,7 +72,7 @@ export const GuestUsernameModal = ({ open, onClose, chatRoomId = 'principal' }) 
 
       // ⚡ Crear usuario guest en Firebase EN BACKGROUND (no bloquea navegación)
       console.time('⏱️ [MODAL] signInAsGuest completo');
-      signInAsGuest(nickname.trim(), randomAvatar)
+      signInAsGuest(nickname.trim(), randomAvatar, keepSession)
         .then(() => {
           console.timeEnd('⏱️ [MODAL] signInAsGuest completo');
           console.log('%c✅ Usuario creado en background', 'color: #888; font-style: italic');
@@ -181,8 +182,45 @@ export const GuestUsernameModal = ({ open, onClose, chatRoomId = 'principal' }) 
                     marginBottom: '16px'
                   }}
                 />
-                <p style={{ fontSize: '12px', color: '#999', marginBottom: '20px' }}>
+                <p style={{ fontSize: '12px', color: '#999', marginBottom: '16px' }}>
                   ✨ Avatar asignado automáticamente
+                </p>
+                
+                {/* ✅ Checkbox "Mantener sesión" */}
+                <div style={{ 
+                  display: 'flex', 
+                  alignItems: 'center', 
+                  gap: '8px', 
+                  marginBottom: '20px',
+                  padding: '12px',
+                  backgroundColor: '#f8f9fa',
+                  borderRadius: '8px'
+                }}>
+                  <input
+                    type="checkbox"
+                    id="keep-session-guest"
+                    checked={keepSession}
+                    onChange={(e) => setKeepSession(e.target.checked)}
+                    style={{
+                      width: '18px',
+                      height: '18px',
+                      cursor: 'pointer'
+                    }}
+                  />
+                  <label
+                    htmlFor="keep-session-guest"
+                    style={{
+                      fontSize: '14px',
+                      color: '#555',
+                      cursor: 'pointer',
+                      userSelect: 'none'
+                    }}
+                  >
+                    Mantener sesión
+                  </label>
+                </div>
+                <p style={{ fontSize: '11px', color: '#999', marginBottom: '20px', marginTop: '-12px' }}>
+                  Si marcas esta opción, la próxima vez mantendrás el mismo avatar y nombre
                 </p>
                 
                 <button

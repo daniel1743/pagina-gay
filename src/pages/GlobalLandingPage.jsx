@@ -108,21 +108,22 @@ const InlineGuestEntry = ({ chatRoomId = 'principal' }) => {
         <div className="p-6 sm:p-8">
           <form onSubmit={handleSubmit} className="w-full">
             <div className="mb-6">
-              <label className="block text-lg font-bold text-white mb-2 text-left">
-                Coloca tu nombre o usuario:
+              <label className="block text-xl font-black text-white mb-3 text-left">
+                🚀 Entra al Chat Ahora:
               </label>
               <input
                 type="text"
                 value={nickname}
                 onChange={(e) => setNickname(e.target.value)}
-                placeholder="Ej: Carlos23"
+                placeholder="Tu nombre (ej: Carlos23)"
                 maxLength={20}
                 required
                 disabled={isLoading}
-                className="w-full px-4 py-3 text-lg border-2 border-purple-500/50 rounded-xl outline-none focus:border-purple-500 focus:ring-2 focus:ring-purple-500/30 bg-white/95 text-gray-900 font-medium transition-all mb-2"
+                autoFocus
+                className="w-full px-4 py-4 text-lg border-2 border-purple-500/50 rounded-xl outline-none focus:border-purple-500 focus:ring-2 focus:ring-purple-500/30 bg-white/95 text-gray-900 font-bold transition-all mb-2"
               />
-              <p className="text-purple-300 font-medium text-sm text-center">
-                Chatea gratis y sin registro
+              <p className="text-green-300 font-bold text-base text-center">
+                ✅ 100% Gratis • Sin registro • Sin email
               </p>
             </div>
 
@@ -191,6 +192,58 @@ const GlobalLandingPage = () => {
   const location = useLocation();
   const { user } = useAuth();
   const [showGuestModal, setShowGuestModal] = React.useState(false);
+  const [loadTime, setLoadTime] = React.useState(null); // ⚡ Medir tiempo de carga
+  const [shouldAutoOpen, setShouldAutoOpen] = React.useState(false); // ⚡ Auto-abrir si carga es rápida
+  
+  // 🔥 Carrusel de imágenes - 5 modelos que cambian cada 3 segundos
+  const [currentImageIndex, setCurrentImageIndex] = useState(0);
+  const modelImages = [
+    '/MODELO 1.jpeg',
+    '/MODELO 2.jpeg',
+    '/MODELO 3.jpeg',
+    '/MODELO 4.jpeg',
+    '/MODELO 5.jpeg'
+  ];
+
+  // ⚡ MEDIR VELOCIDAD DE CARGA: Si carga en < 2 segundos, auto-abrir sala
+  React.useEffect(() => {
+    const startTime = performance.now();
+    
+    // Preload de recursos críticos
+    const preloadImages = modelImages.slice(0, 2); // Preload primeras 2 imágenes
+    preloadImages.forEach((img) => {
+      const link = document.createElement('link');
+      link.rel = 'preload';
+      link.as = 'image';
+      link.href = img;
+      document.head.appendChild(link);
+    });
+    
+    // Medir cuando la página está lista
+    const measureLoad = () => {
+      const endTime = performance.now();
+      const loadDuration = endTime - startTime;
+      setLoadTime(loadDuration);
+      
+      // ⚡ Si carga en menos de 2 segundos, auto-abrir sala
+      if (loadDuration < 2000 && !user) {
+        setShouldAutoOpen(true);
+        // Auto-abrir después de 500ms para que el usuario vea el mensaje
+        setTimeout(() => {
+          setShowGuestModal(true);
+        }, 500);
+      }
+    };
+    
+    // Medir cuando todo está listo
+    if (document.readyState === 'complete') {
+      measureLoad();
+    } else {
+      window.addEventListener('load', measureLoad);
+      return () => window.removeEventListener('load', measureLoad);
+    }
+  }, [user, modelImages]);
+  
   // ⚠️ MODAL COMENTADO - Ya no usamos EntryOptionsModal
   // const [showEntryModal, setShowEntryModal] = React.useState(false);
 
@@ -344,6 +397,8 @@ const GlobalLandingPage = () => {
                   alt="Chat activo en Chile"
                   className="absolute inset-0 w-full h-full object-cover object-center"
                   loading={currentImageIndex === 0 ? 'eager' : 'lazy'}
+                  decoding="async"
+                  fetchpriority={currentImageIndex === 0 ? 'high' : 'low'}
                   onError={(e) => {
                     console.error('Error cargando imagen:', modelImages[currentImageIndex]);
                     // Intentar con ruta alternativa sin espacios
@@ -366,27 +421,37 @@ const GlobalLandingPage = () => {
           {/* Contenido sobre la imagen - Fijo, no cambia con las imágenes */}
           <div className="absolute inset-0 z-10 h-full flex items-center justify-center px-4 sm:px-6">
             <div className="text-center max-w-3xl w-full">
-              {/* H1 Principal - SEO optimizado, tono urbano y directo */}
+              {/* H1 Principal - MENSAJE INICIAL CLARO Y DIRECTO */}
               <motion.h1
                 initial={{ opacity: 0, y: 20 }}
                 animate={{ opacity: 1, y: 0 }}
-                transition={{ duration: 0.6 }}
-                className="text-2xl sm:text-3xl md:text-4xl lg:text-5xl font-black mb-3 sm:mb-4 drop-shadow-2xl leading-tight px-2"
+                transition={{ duration: 0.4 }}
+                className="text-3xl sm:text-4xl md:text-5xl lg:text-6xl font-black mb-4 sm:mb-5 drop-shadow-2xl leading-tight px-2"
               >
                 <span className="bg-gradient-to-r from-purple-400 via-purple-500 to-cyan-400 bg-clip-text text-transparent">
-                  Chatea con Gays de Chile: Sin vueltas, sin registros y 100% Real.
+                  🏳️‍🌈 Chat Gay Chile
                 </span>
               </motion.h1>
               
-              {/* H2 - Tono auténtico y directo */}
+              {/* H2 - MENSAJE CLARO: Entra y chatea YA */}
               <motion.h2
                 initial={{ opacity: 0, y: 10 }}
                 animate={{ opacity: 1, y: 0 }}
-                transition={{ duration: 0.6, delay: 0.1 }}
-                className="text-base sm:text-lg md:text-xl text-white/95 font-semibold drop-shadow-lg mb-5 sm:mb-6 leading-relaxed px-2"
+                transition={{ duration: 0.4, delay: 0.1 }}
+                className="text-xl sm:text-2xl md:text-3xl text-white font-bold drop-shadow-lg mb-3 sm:mb-4 leading-tight px-2"
               >
-                Un espacio hecho por y para nosotros (Gente real de trabajo).
+                Entra y chatea con gente real. Sin registro, sin vueltas.
               </motion.h2>
+              
+              {/* H3 - MENSAJE ADICIONAL CLARO */}
+              <motion.p
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                transition={{ duration: 0.4, delay: 0.2 }}
+                className="text-base sm:text-lg md:text-xl text-white/90 font-medium drop-shadow-md mb-5 sm:mb-6 px-2"
+              >
+                Gente real de trabajo conversando ahora. 100% gratis y anónimo.
+              </motion.p>
               
               {/* CTA - Directo y urgente */}
               <motion.div
@@ -403,15 +468,22 @@ const GlobalLandingPage = () => {
                 </Button>
               </motion.div>
               
-              {/* Microcopy - Prueba social directa */}
-              <motion.p
+              {/* Microcopy - MENSAJE CLARO Y DIRECTO */}
+              <motion.div
                 initial={{ opacity: 0 }}
                 animate={{ opacity: 1 }}
-                transition={{ duration: 0.5, delay: 0.3 }}
-                className="text-sm sm:text-base text-white/80 mt-4 sm:mt-5 font-medium"
+                transition={{ duration: 0.4, delay: 0.3 }}
+                className="mt-4 sm:mt-5 space-y-2"
               >
-                Sin email • Sin tarjeta • Sin complicaciones
-              </motion.p>
+                <p className="text-base sm:text-lg text-white font-bold">
+                  ⚡ Entra en 1 clic • 💬 Chatea con gente real • 🔒 100% Anónimo
+                </p>
+                {loadTime && loadTime < 2000 && (
+                  <p className="text-sm text-green-300 font-semibold animate-pulse">
+                    ⚡ Carga ultra-rápida: {loadTime.toFixed(0)}ms
+                  </p>
+                )}
+              </motion.div>
             </div>
           </div>
 

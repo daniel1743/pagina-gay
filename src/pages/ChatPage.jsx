@@ -2196,7 +2196,7 @@ const ChatPage = () => {
         <AgeVerificationModal
           isOpen={showAgeVerification}
           onClose={() => setShowAgeVerification(false)}
-          onConfirm={async (age, username, avatar) => {
+          onConfirm={async (age, username, avatar, keepSession = false) => {
             if (!user || !user.id) return;
             
             try {
@@ -2222,6 +2222,19 @@ const ChatPage = () => {
                 const usernameAgeKey = `age_verified_${username.toLowerCase().trim()}`;
                 localStorage.setItem(usernameAgeKey, String(age));
                 
+                // ✅ GUARDAR SESIÓN si el usuario marcó "Mantener sesión"
+                if (keepSession) {
+                  localStorage.setItem('guest_session_saved', JSON.stringify({
+                    username: username,
+                    avatar: avatar.url,
+                    uid: user.id,
+                    timestamp: Date.now(),
+                  }));
+                } else {
+                  // Si no marca mantener sesión, eliminar cualquier sesión guardada anterior
+                  localStorage.removeItem('guest_session_saved');
+                }
+                
                 // Actualizar datos guardados del guest
                 const guestDataKey = `guest_data_${username.toLowerCase().trim()}`;
                 const savedData = localStorage.getItem(guestDataKey);
@@ -2230,6 +2243,9 @@ const ChatPage = () => {
                     const saved = JSON.parse(savedData);
                     saved.age = age;
                     saved.lastUsed = Date.now();
+                    if (keepSession) {
+                      saved.keepSession = true;
+                    }
                     localStorage.setItem(guestDataKey, JSON.stringify(saved));
                   } catch (e) {
                     console.debug('[AGE VERIFICATION] Error actualizando datos guardados:', e);

@@ -124,3 +124,4 @@ Si después del fix sigues viendo `ERR_INSUFFICIENT_RESOURCES`:
    - Verifica si hay memory leaks en la aplicación
 
 
+

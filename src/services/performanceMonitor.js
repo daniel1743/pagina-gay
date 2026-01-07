@@ -88,7 +88,10 @@ class PerformanceMonitor {
 
       this.metrics.messageSendLatency.push(metric);
 
-      console.error(`❌ [PERFORMANCE] Error enviando mensaje (${latency.toFixed(0)}ms):`, error.message);
+      // ✅ CRÍTICO: Solo mostrar errores de performance en desarrollo
+      if (!import.meta.env.PROD) {
+        console.error(`❌ [PERFORMANCE] Error enviando mensaje (${latency.toFixed(0)}ms):`, error.message);
+      }
 
       throw error;
     }
