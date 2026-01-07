@@ -108,7 +108,7 @@ const ChatHeader = ({ currentRoom, onMenuClick, onOpenPrivateChat, onSimulate })
         <Button
           variant="ghost"
           size="icon"
-          onClick={() => navigate('/')}
+          onClick={() => navigate('/landing')}
           className="text-muted-foreground hover:text-cyan-400 min-w-[44px] min-h-[44px] sm:min-w-0 sm:min-h-0"
           aria-label="Ir al inicio"
         >

@@ -114,7 +114,7 @@ const ChatSidebar = ({ currentRoom, setCurrentRoom, isOpen, onClose }) => {
         <div className="p-4 border-b border-border flex items-center justify-between">
           <motion.div
             className="flex items-center gap-3 cursor-pointer"
-            onClick={() => navigate('/')}
+            onClick={() => navigate('/landing')}
             whileHover={{ scale: 1.02 }}
             whileTap={{ scale: 0.98 }}
           >
@@ -362,7 +362,7 @@ const ChatSidebar = ({ currentRoom, setCurrentRoom, isOpen, onClose }) => {
         <div className="p-4 border-b border-border flex items-center justify-between">
           <motion.div
             className="flex items-center gap-3 cursor-pointer"
-            onClick={() => navigate('/')}
+            onClick={() => navigate('/landing')}
             whileHover={{ scale: 1.02 }}
             whileTap={{ scale: 0.98 }}
           >

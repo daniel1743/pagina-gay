@@ -49,6 +49,7 @@ import { roomsData } from '@/config/rooms';
 import { startEngagementTracking, hasReachedOneHourLimit, getTotalEngagementTime, hasSeenEngagementModal, markEngagementModalAsShown } from '@/services/engagementService';
 import { notificationSounds } from '@/services/notificationSounds';
 import { monitorActivityAndSendVOC, resetVOCCooldown } from '@/services/vocService';
+import '@/utils/chatDiagnostics'; // 🔍 Cargar diagnóstico en consola
 
 const roomWelcomeMessages = {
   // 'global': '¡Bienvenido a Chat Global! Habla de lo que quieras.', // ⚠️ DESACTIVADA
@@ -147,6 +148,8 @@ const ChatPage = () => {
   const deliveryTimeoutsRef = useRef(new Map()); // ⏱️ Timeouts para detectar fallos de entrega (20 segundos)
   const autoLoginAttemptedRef = useRef(false); // ✅ FIX: Prevenir múltiples intentos de auto-login
   const userRolesCacheRef = useRef(new Map()); // ✅ Cache de roles de usuarios para filtrar moderadores
+  const checkingRolesRef = useRef(new Set()); // ✅ Flag para evitar consultas duplicadas de roles
+  const roleCheckDebounceRef = useRef(null); // ✅ Debounce para consultas de roles
 
   // 🎯 PRO SCROLL MANAGER: Discord/Slack-inspired scroll behavior
   // ✅ IMPORTANTE: Debe estar ANTES del early return para respetar reglas de hooks
@@ -752,7 +755,7 @@ const ChatPage = () => {
       const activeUsers = filterActiveUsers(users);
       
       // ✅ OCULTAR MODERADORES: Filtrar usuarios con rol admin o moderator
-      // Consultar roles de usuarios de forma asíncrona y cachear resultados
+      // 🔒 CRÍTICO: Evitar consultas masivas con debounce y flags de control
       const filteredUsers = [];
       const usersToCheck = [];
       
@@ -777,88 +780,133 @@ const ChatPage = () => {
           // Usuario normal, incluir
           filteredUsers.push(u);
         } else {
-          // No está en cache, agregar a lista para verificar
-          usersToCheck.push({ user: u, userId });
+          // No está en cache, agregar a lista para verificar (solo si no está siendo verificado)
+          if (!checkingRolesRef.current.has(userId)) {
+            usersToCheck.push({ user: u, userId });
+          } else {
+            // Ya está siendo verificado, incluir temporalmente hasta que termine
+            filteredUsers.push(u);
+          }
         }
       }
       
-      // Consultar roles de usuarios que no están en cache (en paralelo)
+      // 🔒 CRÍTICO: Debounce para evitar consultas masivas cuando el callback se dispara repetidamente
+      // Limpiar debounce anterior si existe
+      if (roleCheckDebounceRef.current) {
+        clearTimeout(roleCheckDebounceRef.current);
+        roleCheckDebounceRef.current = null;
+      }
+      
+      // Consultar roles de usuarios que no están en cache (con debounce de 500ms)
       if (usersToCheck.length > 0) {
-        Promise.all(
-          usersToCheck.map(async ({ user, userId }) => {
-            try {
-              const userDocRef = doc(db, 'users', userId);
-              const userDoc = await getDoc(userDocRef);
-              
-              if (userDoc.exists()) {
-                const userData = userDoc.data();
-                const userRole = userData.role || null;
+        roleCheckDebounceRef.current = setTimeout(() => {
+          // Marcar usuarios como "en verificación" para evitar consultas duplicadas
+          usersToCheck.forEach(({ userId }) => {
+            checkingRolesRef.current.add(userId);
+          });
+          
+          Promise.all(
+            usersToCheck.map(async ({ user, userId }) => {
+              try {
+                const userDocRef = doc(db, 'users', userId);
+                const userDoc = await getDoc(userDocRef);
                 
-                // Guardar en cache
-                userRolesCacheRef.current.set(userId, userRole);
-                
-                // Si es moderador, no incluir
-                if (userRole === 'admin' || userRole === 'administrator' || userRole === 'moderator') {
-                  return null; // No incluir
+                if (userDoc.exists()) {
+                  const userData = userDoc.data();
+                  const userRole = userData.role || null;
+                  
+                  // Guardar en cache
+                  userRolesCacheRef.current.set(userId, userRole);
+                  
+                  // Si es moderador, no incluir
+                  if (userRole === 'admin' || userRole === 'administrator' || userRole === 'moderator') {
+                    return null; // No incluir
+                  }
+                } else {
+                  // Usuario no existe en users collection, asumir usuario normal
+                  userRolesCacheRef.current.set(userId, null);
                 }
-              } else {
-                // Usuario no existe en users collection, asumir usuario normal
-                userRolesCacheRef.current.set(userId, null);
+                
+                return user; // Incluir usuario
+              } catch (error) {
+                // Si hay error, incluir el usuario (no bloquear por errores)
+                console.warn(`Error checking user role for ${userId}:`, error);
+                userRolesCacheRef.current.set(userId, null); // Cache como null para evitar consultas repetidas
+                return user;
+              } finally {
+                // Remover del flag de "en verificación"
+                checkingRolesRef.current.delete(userId);
+              }
+            })
+          ).then(checkedUsers => {
+            // Agregar usuarios verificados que no son moderadores
+            const validUsers = checkedUsers.filter(u => u !== null);
+            const finalUsers = [...filteredUsers, ...validUsers];
+            
+            // Actualizar contadores
+            const realUsers = finalUsers;
+            
+            const currentCounts = {
+              total: users.length,
+              active: activeUsers.length,
+              real: realUsers.length
+            };
+            
+            const hasChanged = 
+              currentCounts.total !== lastUserCountsRef.current.total ||
+              currentCounts.active !== lastUserCountsRef.current.active ||
+              currentCounts.real !== lastUserCountsRef.current.real;
+            
+            if (hasChanged) {
+              // ⚠️ NOTIFICACIONES DE SONIDO ELIMINADAS (06/01/2026) - A petición del usuario
+              // 🔊 Reproducir sonido de INGRESO si un usuario real se conectó
+              // if (previousRealUserCountRef.current > 0 && currentCounts.real > previousRealUserCountRef.current) {
+              //   notificationSounds.playUserJoinSound();
+              // }
+
+              // 🔊 Reproducir sonido de SALIDA si un usuario real se desconectó
+              // if (previousRealUserCountRef.current > 0 && currentCounts.real < previousRealUserCountRef.current) {
+              //   notificationSounds.playDisconnectSound();
+              // }
+
+              // Actualizar contador de usuarios reales
+              previousRealUserCountRef.current = currentCounts.real;
+              lastUserCountsRef.current = currentCounts;
+            }
+            
+            // 🔒 CRÍTICO: Solo actualizar estado si realmente cambió (evitar re-renders innecesarios)
+            setRoomUsers(prevUsers => {
+              // Comparar por IDs para evitar actualizaciones si los usuarios son los mismos
+              const prevIds = new Set(prevUsers.map(u => (u.userId || u.id)));
+              const newIds = new Set(finalUsers.map(u => (u.userId || u.id)));
+              
+              if (prevIds.size !== newIds.size) {
+                return finalUsers;
               }
               
-              return user; // Incluir usuario
-            } catch (error) {
-              // Si hay error, incluir el usuario (no bloquear por errores)
-              console.warn(`Error checking user role for ${userId}:`, error);
-              userRolesCacheRef.current.set(userId, null); // Cache como null para evitar consultas repetidas
-              return user;
-            }
-          })
-        ).then(checkedUsers => {
-          // Agregar usuarios verificados que no son moderadores
-          const validUsers = checkedUsers.filter(u => u !== null);
-          const finalUsers = [...filteredUsers, ...validUsers];
-          
-          // Actualizar contadores
-          const realUsers = finalUsers;
-          
-          const currentCounts = {
-            total: users.length,
-            active: activeUsers.length,
-            real: realUsers.length
-          };
-          
-          const hasChanged = 
-            currentCounts.total !== lastUserCountsRef.current.total ||
-            currentCounts.active !== lastUserCountsRef.current.active ||
-            currentCounts.real !== lastUserCountsRef.current.real;
-          
-          if (hasChanged) {
-            // ⚠️ NOTIFICACIONES DE SONIDO ELIMINADAS (06/01/2026) - A petición del usuario
-            // 🔊 Reproducir sonido de INGRESO si un usuario real se conectó
-            // if (previousRealUserCountRef.current > 0 && currentCounts.real > previousRealUserCountRef.current) {
-            //   notificationSounds.playUserJoinSound();
-            // }
-
-            // 🔊 Reproducir sonido de SALIDA si un usuario real se desconectó
-            // if (previousRealUserCountRef.current > 0 && currentCounts.real < previousRealUserCountRef.current) {
-            //   notificationSounds.playDisconnectSound();
-            // }
-
-            // Actualizar contador de usuarios reales
-            previousRealUserCountRef.current = currentCounts.real;
-            lastUserCountsRef.current = currentCounts;
-          }
-          
-          setRoomUsers(finalUsers);
-        }).catch(error => {
-          console.error('Error checking user roles:', error);
-          // En caso de error, usar usuarios filtrados sin verificación de roles
-          setRoomUsers(filteredUsers);
-        });
+              for (const id of prevIds) {
+                if (!newIds.has(id)) {
+                  return finalUsers;
+                }
+              }
+              
+              // Si son los mismos usuarios, no actualizar (evitar re-render)
+              return prevUsers;
+            });
+          }).catch(error => {
+            console.error('Error checking user roles:', error);
+            // En caso de error, usar usuarios filtrados sin verificación de roles
+            setRoomUsers(filteredUsers);
+            // Limpiar flags de verificación en caso de error
+            usersToCheck.forEach(({ userId }) => {
+              checkingRolesRef.current.delete(userId);
+            });
+          });
+        }, 500); // 🔒 Debounce de 500ms para evitar consultas masivas
         
         // Retornar usuarios filtrados inicialmente (sin verificación de roles aún)
         // Se actualizará cuando las consultas completen
+        setRoomUsers(filteredUsers);
         return;
       }
       
@@ -896,7 +944,25 @@ const ChatPage = () => {
         lastUserCountsRef.current = currentCounts;
       }
 
-      setRoomUsers(filteredUsers);
+      // 🔒 CRÍTICO: Solo actualizar estado si realmente cambió (evitar re-renders innecesarios)
+      setRoomUsers(prevUsers => {
+        // Comparar por IDs para evitar actualizaciones si los usuarios son los mismos
+        const prevIds = new Set(prevUsers.map(u => (u.userId || u.id)));
+        const newIds = new Set(filteredUsers.map(u => (u.userId || u.id)));
+        
+        if (prevIds.size !== newIds.size) {
+          return filteredUsers;
+        }
+        
+        for (const id of prevIds) {
+          if (!newIds.has(id)) {
+            return filteredUsers;
+          }
+        }
+        
+        // Si son los mismos usuarios, no actualizar (evitar re-render)
+        return prevUsers;
+      });
     });
 
     // Guardar funciones de desuscripción
@@ -967,11 +1033,19 @@ const ChatPage = () => {
 
     // Cleanup: desuscribirse y remover presencia cuando se desmonta o cambia de sala
     return () => {
+      // 🔒 CRÍTICO: Limpiar debounce de consultas de roles
+      if (roleCheckDebounceRef.current) {
+        clearTimeout(roleCheckDebounceRef.current);
+        roleCheckDebounceRef.current = null;
+      }
+      
+      // Limpiar flags de verificación de roles
+      checkingRolesRef.current.clear();
+      
       if (unsubscribeRef.current) {
         unsubscribeRef.current();
         unsubscribeRef.current = null; // Limpiar referencia
       }
-
 
       leaveRoom(roomId).catch(error => {
         // Ignorar errores al salir de la sala
@@ -1013,11 +1087,11 @@ const ChatPage = () => {
     
     lastUserCountRef.current = realUserCount;
 
-  }, [roomUsers.length, roomId, user]); // ✅ Ejecutar cuando cambian usuarios, sala o usuario
+  }, [roomUsers.length, roomId, user?.id]); // 🔒 CRÍTICO: user?.id en vez de user (evita loops por cambio de referencia de objeto)
 
   // Suscribirse a contadores de todas las salas (para mensajes contextuales)
   useEffect(() => {
-    if (!user) return;
+    if (!user?.id) return;
 
     const roomIds = roomsData.map(room => room.id);
     const unsubscribe = subscribeToMultipleRoomCounts(roomIds, (counts) => {
@@ -1025,11 +1099,11 @@ const ChatPage = () => {
     });
 
     return () => unsubscribe();
-  }, [user]);
+  }, [user?.id]); // 🔒 CRÍTICO: user?.id en vez de user (evita re-suscripciones por cambio de referencia)
 
   // ✅ Suscribirse a notificaciones de chat privado
   useEffect(() => {
-    if (!user || user.isGuest || user.isAnonymous) return;
+    if (!user?.id || user.isGuest || user.isAnonymous) return;
 
     const unsubscribe = subscribeToNotifications(user.id, (notifications) => {
       // Buscar solicitudes de chat privado pendientes
@@ -1078,7 +1152,7 @@ const ChatPage = () => {
     });
 
     return () => unsubscribe();
-  }, [user, privateChatRequest, activePrivateChat, dismissedPrivateChats]);
+  }, [user?.id, privateChatRequest, activePrivateChat, dismissedPrivateChats]); // 🔒 CRÍTICO: user?.id en vez de user (evita loops)
 
   // Navegar cuando cambia la sala actual (solo si estamos en una ruta de chat)
   useEffect(() => {

@@ -22,6 +22,27 @@ class ErrorBoundary extends React.Component {
       return;
     }
 
+    // 🔴 CRÍTICO: Detectar cuota agotada de Firestore
+    const isQuotaExceeded = 
+      error?.message?.includes('Quota exceeded') ||
+      error?.message?.includes('Resource exhausted') ||
+      error?.code === 'resource-exhausted' ||
+      error?.code === 'quota-exceeded';
+
+    if (isQuotaExceeded) {
+      console.error('🚨 CRÍTICO: Cuota de Firestore agotada', error, errorInfo);
+      // Limpiar estado corrupto y recargar después de 5 segundos
+      setTimeout(() => {
+        try {
+          localStorage.clear();
+          sessionStorage.clear();
+        } catch (e) {
+          console.warn('Error clearing storage:', e);
+        }
+        window.location.reload();
+      }, 5000);
+    }
+
     // Log del error para debugging
     console.error('ErrorBoundary caught an error:', error, errorInfo);
     this.setState({
@@ -64,17 +85,41 @@ const ErrorFallback = ({ error, onReset }) => {
     window.location.href = '/';
   };
 
+  const handleForceReload = () => {
+    try {
+      localStorage.clear();
+      sessionStorage.clear();
+    } catch (e) {
+      console.warn('Error clearing storage:', e);
+    }
+    window.location.reload();
+  };
+
+  // 🔴 Detectar si es error de cuota agotada
+  const isQuotaExceeded = 
+    error?.message?.includes('Quota exceeded') ||
+    error?.message?.includes('Resource exhausted') ||
+    error?.code === 'resource-exhausted' ||
+    error?.code === 'quota-exceeded';
+
   return (
     <div className="min-h-screen bg-background flex items-center justify-center p-4">
       <div className="max-w-md w-full glass-effect rounded-2xl border border-red-500/30 p-8 text-center">
         <div className="mb-6">
           <AlertTriangle className="w-16 h-16 text-red-400 mx-auto mb-4" />
           <h1 className="text-2xl font-bold text-foreground mb-2">
-            Algo salió mal
+            {isQuotaExceeded ? 'Servicio Temporalmente No Disponible' : 'Algo salió mal'}
           </h1>
           <p className="text-muted-foreground mb-4">
-            Ocurrió un error inesperado. Por favor, intenta recargar la página.
+            {isQuotaExceeded 
+              ? 'Estamos experimentando problemas técnicos. La aplicación se recargará automáticamente en unos segundos.'
+              : 'Ocurrió un error inesperado. Por favor, intenta recargar la página.'}
           </p>
+          {isQuotaExceeded && (
+            <p className="text-xs text-muted-foreground mt-2">
+              Si el problema persiste, por favor contacta al soporte.
+            </p>
+          )}
         </div>
 
         {process.env.NODE_ENV === 'development' && error && (
@@ -86,13 +131,23 @@ const ErrorFallback = ({ error, onReset }) => {
         )}
 
         <div className="flex flex-col sm:flex-row gap-3 justify-center">
+          {!isQuotaExceeded && (
+            <Button
+              onClick={onReset}
+              variant="outline"
+              className="flex items-center gap-2"
+            >
+              <RefreshCw className="w-4 h-4" />
+              Reintentar
+            </Button>
+          )}
           <Button
-            onClick={onReset}
-            variant="outline"
+            onClick={handleForceReload}
+            variant={isQuotaExceeded ? "default" : "outline"}
             className="flex items-center gap-2"
           >
             <RefreshCw className="w-4 h-4" />
-            Reintentar
+            {isQuotaExceeded ? 'Recargar Ahora' : 'Recargar Aplicación'}
           </Button>
           <Button
             onClick={handleGoHome}

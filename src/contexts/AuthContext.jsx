@@ -54,23 +54,27 @@ export const AuthProvider = ({ children }) => {
             const backup = localStorage.getItem('guest_session_backup');
             const tempBackup = localStorage.getItem('guest_session_temp');
 
+            // 🔒 PRIORIDAD 2: Verificar backup (datos de sesión anterior)
             if (backup) {
               try {
                 const backupData = JSON.parse(backup);
                 if (backupData.uid === firebaseUser.uid) {
-                  // ✅ FIX: Asegurar que el username del backup se use (no 'Invitado' por defecto)
-                  const backupUsername = backupData.username && backupData.username !== 'Invitado' 
-                    ? backupData.username 
+                  // ✅ FIX: Usar nickname y avatar del backup (del modal)
+                  const backupUsername = backupData.username && backupData.username.trim() && backupData.username !== 'Invitado' 
+                    ? backupData.username.trim() 
                     : 'Invitado';
+                  
+                  // ✅ Asegurar que el avatar aleatorio del modal se use
+                  const backupAvatar = backupData.avatar || 'https://api.dicebear.com/7.x/pixel-art/svg?seed=guest';
                   
                   guestUser = {
                     id: firebaseUser.uid,
-                    username: backupUsername,
+                    username: backupUsername, // ✅ Nickname del input del modal
                     isGuest: true,
                     isAnonymous: true,
                     isPremium: false,
                     verified: false,
-                    avatar: backupData.avatar || 'https://api.dicebear.com/7.x/pixel-art/svg?seed=guest',
+                    avatar: backupAvatar, // ✅ Avatar aleatorio del modal
                     quickPhrases: [],
                     theme: {},
                   };
@@ -89,13 +93,13 @@ export const AuthProvider = ({ children }) => {
                           setUser({
                             ...guestUser,
                             username: guestData.username,
-                            avatar: guestData.avatar || guestUser.avatar,
+                            avatar: guestData.avatar || backupAvatar, // ✅ Mantener avatar del modal si Firestore no tiene
                           });
-                          // Actualizar backup con username de Firestore
+                          // Actualizar backup con username de Firestore pero mantener avatar del modal
                           localStorage.setItem('guest_session_backup', JSON.stringify({
                             uid: firebaseUser.uid,
                             username: guestData.username,
-                            avatar: guestData.avatar || backupData.avatar,
+                            avatar: guestData.avatar || backupAvatar, // ✅ Priorizar avatar del modal
                             timestamp: Date.now(),
                           }));
                         }
@@ -108,13 +112,17 @@ export const AuthProvider = ({ children }) => {
               } catch {}
             }
 
+            // 🔒 PRIORIDAD 1: Verificar tempBackup PRIMERO (datos del modal - más reciente)
             if (tempBackup) {
               try {
                 const tempData = JSON.parse(tempBackup);
-                // ✅ FIX: Asegurar que el username del tempBackup se use (no 'Invitado' por defecto)
-                const tempUsername = tempData.username && tempData.username !== 'Invitado' 
-                  ? tempData.username 
+                // ✅ FIX: Usar nickname del input y avatar aleatorio del modal
+                const tempUsername = tempData.username && tempData.username.trim() && tempData.username !== 'Invitado' 
+                  ? tempData.username.trim() 
                   : 'Invitado';
+                
+                // ✅ Asegurar que el avatar aleatorio del modal se use
+                const tempAvatar = tempData.avatar || 'https://api.dicebear.com/7.x/pixel-art/svg?seed=guest';
                 
                 guestUser = {
                   id: firebaseUser.uid,
@@ -123,21 +131,44 @@ export const AuthProvider = ({ children }) => {
                   isAnonymous: true,
                   isPremium: false,
                   verified: false,
-                  avatar: tempData.avatar || 'https://api.dicebear.com/7.x/pixel-art/svg?seed=guest',
+                  avatar: tempAvatar, // ✅ Avatar aleatorio del modal
                   quickPhrases: [],
                   theme: {},
                 };
                 setGuestMessageCount(0);
                 setUser(guestUser);
                 
-                // ✅ Migrar tempBackup a backup permanente
+                // ✅ Migrar tempBackup a backup permanente (con nickname y avatar del modal)
                 localStorage.setItem('guest_session_backup', JSON.stringify({
                   uid: firebaseUser.uid,
                   username: tempUsername,
-                  avatar: tempData.avatar,
+                  avatar: tempAvatar, // ✅ Guardar avatar aleatorio
                   timestamp: Date.now(),
                 }));
                 localStorage.removeItem('guest_session_temp');
+                
+                // 🚀 Sincronizar con Firestore EN BACKGROUND (no bloquea)
+                getDoc(doc(db, 'guests', firebaseUser.uid))
+                  .then(guestSnap => {
+                    if (guestSnap.exists()) {
+                      const guestData = guestSnap.data();
+                      // ✅ Si Firestore tiene datos más recientes, actualizar
+                      if (guestData.username && guestData.username !== tempUsername && guestData.username !== 'Invitado') {
+                        setUser({
+                          ...guestUser,
+                          username: guestData.username,
+                          avatar: guestData.avatar || tempAvatar,
+                        });
+                        localStorage.setItem('guest_session_backup', JSON.stringify({
+                          uid: firebaseUser.uid,
+                          username: guestData.username,
+                          avatar: guestData.avatar || tempAvatar,
+                          timestamp: Date.now(),
+                        }));
+                      }
+                    }
+                  })
+                  .catch(() => {});
                 
                 return;
               } catch {}
@@ -544,13 +575,24 @@ export const AuthProvider = ({ children }) => {
     console.log('%c🚀 [TIMING] Iniciando proceso de entrada...', 'color: #00ff00; font-weight: bold; font-size: 14px');
     
     // ✅ FIX: Limpiar timers anteriores si existen antes de crear nuevos
+    // ⚠️ NOTA: console.timeEnd no lanza excepciones, solo muestra advertencias si el timer no existe
+    // Esto es normal en React Strict Mode (doble render en desarrollo) y se puede ignorar
+    // Intentamos limpiar timers anteriores para evitar acumulación, pero si no existen, es OK
     try {
+      // Solo intentar detener si realmente existe (evitar advertencias innecesarias)
+      // Como no hay forma de verificar si un timer existe, simplemente lo intentamos
+      // La advertencia es inofensiva y solo aparece en desarrollo
       console.timeEnd('⏱️ [TOTAL] Entrada completa al chat');
-    } catch {}
+    } catch (e) {
+      // Ignorar silenciosamente
+    }
     try {
       console.timeEnd('⏱️ [PASO 1] signInAnonymously Firebase');
-    } catch {}
+    } catch (e) {
+      // Ignorar silenciosamente
+    }
     
+    // ✅ Iniciar nuevos timers
     console.time('⏱️ [TOTAL] Entrada completa al chat');
     console.time('⏱️ [PASO 1] signInAnonymously Firebase');
 
