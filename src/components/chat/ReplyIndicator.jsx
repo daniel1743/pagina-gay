@@ -1,42 +1,38 @@
 import React from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { ArrowDown, Reply } from 'lucide-react';
 
 /**
- * 💬 REPLY INDICATOR - WhatsApp/Instagram Style
+ * 💬 REPLY INDICATOR - Pequeño círculo con número de mensajes sin leer
  *
- * Shows when someone replies to the user's messages.
- * Appears as a floating badge with arrow icon.
- * Clicking scrolls to the reply.
+ * Shows un pequeño círculo con el número de respuestas no leídas.
+ * Clicking scrolls to the bottom.
  *
  * @param {boolean} show - Whether to show the indicator
  * @param {function} onClick - Callback when clicked
- * @param {string} username - Username of person who replied
+ * @param {number} count - Número de mensajes sin leer
  */
-const ReplyIndicator = ({ show, onClick, username }) => {
-  if (!show) return null;
+const ReplyIndicator = ({ show, onClick, count = 0 }) => {
+  if (!show || count === 0) return null;
 
   return (
     <AnimatePresence>
       <motion.button
-        initial={{ opacity: 0, y: 10, scale: 0.8 }}
-        animate={{ opacity: 1, y: 0, scale: 1 }}
-        exit={{ opacity: 0, y: 10, scale: 0.8 }}
+        initial={{ opacity: 0, scale: 0 }}
+        animate={{ opacity: 1, scale: 1 }}
+        exit={{ opacity: 0, scale: 0 }}
         transition={{ type: 'spring', stiffness: 500, damping: 30 }}
         onClick={onClick}
-        className="fixed bottom-24 left-1/2 -translate-x-1/2 z-50 flex items-center gap-2 px-4 py-2.5 rounded-full bg-blue-500 text-white shadow-2xl hover:shadow-blue-500/50 transition-all hover:scale-105 active:scale-95 cursor-pointer"
-        aria-label={`${username} respondió. Click para ver`}
-        whileHover={{ y: -3 }}
+        className="fixed bottom-24 left-1/2 -translate-x-1/2 z-50 w-6 h-6 rounded-full bg-cyan-500 text-white shadow-lg hover:shadow-cyan-500/50 transition-all hover:scale-110 active:scale-95 cursor-pointer flex items-center justify-center"
+        aria-label={`${count} mensaje${count > 1 ? 's' : ''} sin leer. Click para ver`}
+        whileHover={{ scale: 1.1 }}
         whileTap={{ scale: 0.9 }}
         style={{
-          boxShadow: '0 4px 20px rgba(59, 130, 246, 0.4)',
+          boxShadow: '0 2px 10px rgba(6, 182, 212, 0.5)',
         }}
       >
-        <Reply className="w-4 h-4" />
-        <span className="text-sm font-semibold whitespace-nowrap">
-          {username} respondió
+        <span className="text-xs font-bold">
+          {count > 9 ? '9+' : count}
         </span>
-        <ArrowDown className="w-4 h-4" />
       </motion.button>
     </AnimatePresence>
   );

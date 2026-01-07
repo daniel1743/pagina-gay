@@ -136,8 +136,7 @@ const ChatPage = () => {
   const [suggestedMessage, setSuggestedMessage] = useState(null); // 🤖 Mensaje sugerido por Companion AI
   const [replyTo, setReplyTo] = useState(null); // 💬 Mensaje al que se está respondiendo { messageId, username, content }
   const [isLoadingMessages, setIsLoadingMessages] = useState(true); // ⏳ Estado de carga de mensajes
-  const [hasUnreadReplies, setHasUnreadReplies] = useState(false); // 💬 Indicador de respuestas no leídas
-  const [lastReplyUsername, setLastReplyUsername] = useState(''); // 💬 Username de quien respondió
+  const [unreadRepliesCount, setUnreadRepliesCount] = useState(0); // 💬 Contador de respuestas no leídas
   const lastReadMessageIdRef = useRef(null); // Para rastrear último mensaje leído
   const unsubscribeRef = useRef(null);
   const aiActivatedRef = useRef(false); // Flag para evitar activaciones múltiples de IA
@@ -1851,19 +1850,30 @@ const ChatPage = () => {
       m.userId !== user.id // No contar respuestas propias
     );
 
-    if (repliesToUser.length > 0 && scrollManager.scrollState !== 'AUTO_FOLLOW') {
-      // Hay respuestas y el usuario está leyendo arriba - mostrar indicador
-      const latestReply = repliesToUser[repliesToUser.length - 1];
-      setHasUnreadReplies(true);
-      if (latestReply.username) {
-        setLastReplyUsername(latestReply.username);
+    // Filtrar solo respuestas que están después del último mensaje leído
+    let unreadReplies = repliesToUser;
+    if (lastReadMessageIdRef.current) {
+      const lastReadIndex = messages.findIndex(m => m.id === lastReadMessageIdRef.current);
+      if (lastReadIndex >= 0) {
+        unreadReplies = repliesToUser.filter((reply) => {
+          const replyIndex = messages.findIndex(m => m.id === reply.id);
+          return replyIndex > lastReadIndex;
+        });
       }
-    } else if (scrollManager.scrollState === 'AUTO_FOLLOW') {
-      // Usuario está en el bottom - ocultar indicador
-      setHasUnreadReplies(false);
+    }
+
+    if (scrollManager.scrollState === 'AUTO_FOLLOW') {
+      // Usuario está en el bottom - ocultar indicador y actualizar último mensaje leído
+      setUnreadRepliesCount(0);
       if (messages.length > 0) {
         lastReadMessageIdRef.current = messages[messages.length - 1].id;
       }
+    } else if (unreadReplies.length > 0) {
+      // Usuario está scrolleado arriba y hay respuestas no leídas
+      setUnreadRepliesCount(unreadReplies.length);
+    } else {
+      // No hay respuestas no leídas
+      setUnreadRepliesCount(0);
     }
   }, [messages, user, scrollManager.scrollState]);
 
@@ -1897,7 +1907,7 @@ const ChatPage = () => {
   }, [authLoading, user, roomId, signInAsGuest]);
 
   // 📜 DETECCIÓN DE SCROLL: Toast para usuarios no logueados
-  // Si un usuario no logueado scrollea hasta arriba y hay más de 50 mensajes, mostrar toast
+  // Si un usuario no logueado llega al tope (50 mensajes), mostrar toast
   // ✅ CRITICAL: Este hook DEBE estar ANTES de cualquier return condicional
   // ✅ FIX: Asegurar que siempre se ejecute (no condicionalmente) para respetar reglas de hooks
   useEffect(() => {
@@ -1917,34 +1927,40 @@ const ChatPage = () => {
       // Si ya mostró el toast, no volver a mostrar
       if (hasShownToast) return;
 
-      // Si está scrolleando cerca del tope (primeros 100px)
-      const scrollTop = container.scrollTop;
-      const isNearTop = scrollTop < 100;
+      // Verificar que tiene exactamente 50 mensajes (límite para no autenticados)
+      if (messages.length !== 50) return;
 
-      // Si alcanzó el límite de 50 mensajes y scrollea arriba
-      if (isNearTop && messages.length >= 50) {
+      // Si está en el tope (scrollTop === 0 o muy cerca, primeros 50px)
+      const scrollTop = container.scrollTop;
+      const isAtTop = scrollTop <= 50;
+
+      // Si alcanzó el límite de 50 mensajes y está en el tope
+      if (isAtTop && messages.length === 50) {
         hasShownToast = true;
         toast({
-          title: "📜 Más Historial Disponible",
-          description: "Para ver más de 50 mensajes anteriores, debes estar registrado. ¡Regístrate gratis en 30 segundos!",
-          duration: 5000,
-          action: {
-            label: "Registrarme",
-            onClick: () => {
-              setShowRegistrationModal(true);
-              setRegistrationModalFeature('historial');
-            }
-          }
+          title: "Para ver más historial, regístrate",
+          description: "Los usuarios registrados pueden ver hasta 100 mensajes",
+          duration: 4000, // 4 segundos
         });
       }
     };
 
     container.addEventListener('scroll', handleScroll);
 
+    // También verificar al montar si ya está en el tope
+    setTimeout(() => {
+      if (!hasShownToast && messages.length === 50) {
+        const scrollTop = container.scrollTop;
+        if (scrollTop <= 50) {
+          handleScroll();
+        }
+      }
+    }, 1000);
+
     return () => {
       container.removeEventListener('scroll', handleScroll);
     };
-  }, [user, messages.length, scrollManager, setShowRegistrationModal, setRegistrationModalFeature]);
+  }, [user, messages.length, scrollManager]);
 
   // Mostrar loading mientras auth carga
   if (authLoading) {
@@ -2021,14 +2037,14 @@ const ChatPage = () => {
 
           <TypingIndicator typingUsers={[]} />
 
-          {/* 💬 Indicador de respuestas (WhatsApp-style) */}
+          {/* 💬 Indicador de respuestas - pequeño círculo con número */}
           <ReplyIndicator
-            show={hasUnreadReplies && scrollManager.scrollState !== 'AUTO_FOLLOW'}
+            show={unreadRepliesCount > 0 && scrollManager.scrollState !== 'AUTO_FOLLOW'}
             onClick={() => {
               scrollManager.scrollToBottom();
-              setHasUnreadReplies(false);
+              setUnreadRepliesCount(0);
             }}
-            username={lastReplyUsername}
+            count={unreadRepliesCount}
           />
 
           <ChatInput
