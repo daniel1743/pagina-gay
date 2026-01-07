@@ -258,17 +258,7 @@ const GlobalLandingPage = () => {
   //   }
   // }, [location.search, user, navigate, location.pathname]);
 
-  // 🔥 Carrusel de imágenes - 5 modelos que cambian cada 3 segundos
-  const [currentImageIndex, setCurrentImageIndex] = useState(0);
-  const modelImages = [
-    '/MODELO 1.jpeg',
-    '/MODELO 2.jpeg',
-    '/MODELO 3.jpeg',
-    '/MODELO 4.jpeg',
-    '/MODELO 5.jpeg'
-  ];
-
-  // Cambiar imagen cada 3 segundos
+  // Cambiar imagen cada 3 segundos (declaraciones en línea 199-200)
   useEffect(() => {
     const interval = setInterval(() => {
       setCurrentImageIndex((prevIndex) => (prevIndex + 1) % modelImages.length);

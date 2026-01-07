@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
-import { Menu, Home, ArrowLeft, Volume2, VolumeX, X, Eye } from 'lucide-react';
+import { Menu, Home, Volume2, VolumeX, X, Eye } from 'lucide-react';
 import NotificationBell from '@/components/notifications/NotificationBell';
 import { notificationSounds } from '@/services/notificationSounds';
 
@@ -37,15 +37,7 @@ const ChatHeader = ({ currentRoom, onMenuClick, onOpenPrivateChat, onSimulate })
   return (
     <header className="bg-card border-b p-3 sm:p-4 flex items-center justify-between shrink-0">
       <div className="flex items-center gap-2 sm:gap-3 min-w-0 flex-1">
-        <Button
-          variant="ghost"
-          size="icon"
-          onClick={() => navigate(-1)}
-          className="text-muted-foreground hover:text-cyan-400 min-w-[44px] min-h-[44px] sm:min-w-0 sm:min-h-0 flex-shrink-0"
-          aria-label="Volver a la página anterior"
-        >
-          <ArrowLeft className="w-5 h-5" />
-        </Button>
+        {/* ✅ FLECHA ELIMINADA - A petición del usuario */}
         <Button
           variant="ghost"
           size="icon"
