@@ -24,8 +24,9 @@ import WelcomeTour from '@/components/onboarding/WelcomeTour';
 // import ChatRulesModal from '@/components/chat/ChatRulesModal';
 import AgeVerificationModal from '@/components/chat/AgeVerificationModal';
 import ChatLandingPage from '@/components/chat/ChatLandingPage';
-import EmptyRoomNotificationPrompt from '@/components/chat/EmptyRoomNotificationPrompt';
-import LoadingMessagesPrompt from '@/components/chat/LoadingMessagesPrompt';
+// ⚠️ MODALES DE INSTRUCCIONES ELIMINADOS (17/01/2026) - A petición del usuario
+// import EmptyRoomNotificationPrompt from '@/components/chat/EmptyRoomNotificationPrompt';
+// import LoadingMessagesPrompt from '@/components/chat/LoadingMessagesPrompt';
 import ReplyIndicator from '@/components/chat/ReplyIndicator';
 // ⚠️ MODERADOR ELIMINADO (06/01/2026) - A petición del usuario
 // import RulesBanner from '@/components/chat/RulesBanner';
@@ -1889,30 +1890,15 @@ const ChatPage = () => {
           />
 
           <div className="flex-1 overflow-hidden flex flex-col min-h-0">
-            {/* Prompt de notificaciones cuando no hay usuarios conectados (excluyendo al usuario actual) */}
-            {(() => {
-              // Contar usuarios reales excluyendo al usuario actual
-              const realUsersCount = roomUsers.filter(u => {
-                const userId = u.userId || u.id;
-                return userId !== user.id && 
-                       userId !== 'system' && 
-                       !userId?.startsWith('bot_') && 
-                       !userId?.startsWith('static_bot_');
-              }).length;
-              
-              return (
-                <EmptyRoomNotificationPrompt
-                  roomName={roomsData.find(r => r.id === currentRoom)?.name || currentRoom}
-                  isVisible={realUsersCount === 0}
-                />
-              );
-            })()}
-            
-            {/* ⏳ Mostrar prompt de carga cuando no hay mensajes y está cargando */}
+            {/* ⚠️ MODALES DE INSTRUCCIONES ELIMINADOS (17/01/2026) - A petición del usuario */}
+            {/* ⏳ Mostrar loading simple cuando no hay mensajes y está cargando */}
             {isLoadingMessages && messages.length === 0 ? (
-              <LoadingMessagesPrompt 
-                roomName={roomsData.find(r => r.id === currentRoom)?.name || currentRoom}
-              />
+              <div className="flex-1 flex items-center justify-center">
+                <div className="text-center space-y-2">
+                  <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-purple-500 mx-auto"></div>
+                  <p className="text-sm text-muted-foreground">Se están cargando tus mensajes...</p>
+                </div>
+              </div>
             ) : (
               <ChatMessages
               messages={messages}

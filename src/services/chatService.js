@@ -91,25 +91,25 @@ export function generateUUID() {
  */
 const doSendMessage = async (roomId, messageData, isAnonymous = false) => {
   // 🔍 DIAGNÓSTICO: Logging detallado para identificar problemas localhost → producción
-  // 🔍 DIAGNÓSTICO: Logging detallado para identificar problemas localhost → producción
-  // if (import.meta.env.DEV) {
-  //   const diagnosticInfo = {
-  //     timestamp: new Date().toISOString(),
-  //     roomId,
-  //     hasAuth: !!auth,
-  //     hasCurrentUser: !!auth.currentUser,
-  //     currentUserUid: auth.currentUser?.uid,
-  //     currentUserEmail: auth.currentUser?.email,
-  //     messageDataUserId: messageData.userId,
-  //     messageDataUsername: messageData.username,
-  //     userIdsMatch: messageData.userId === auth.currentUser?.uid,
-  //     isAnonymous,
-  //     firebaseProjectId: db.app.options.projectId,
-  //     firebaseAuthDomain: auth.app.options.authDomain,
-  //     usingEmulator: import.meta.env.VITE_USE_FIREBASE_EMULATOR === 'true'
-  //   };
-  //   console.log('🔍 [DIAGNÓSTICO] Estado antes de enviar mensaje:', diagnosticInfo);
-  // }
+  // ✅ HABILITADO TEMPORALMENTE PARA DEBUGGING URGENTE
+  if (import.meta.env.DEV) {
+    const diagnosticInfo = {
+      timestamp: new Date().toISOString(),
+      roomId,
+      hasAuth: !!auth,
+      hasCurrentUser: !!auth.currentUser,
+      currentUserUid: auth.currentUser?.uid,
+      currentUserEmail: auth.currentUser?.email,
+      messageDataUserId: messageData.userId,
+      messageDataUsername: messageData.username,
+      userIdsMatch: messageData.userId === auth.currentUser?.uid,
+      isAnonymous,
+      firebaseProjectId: db.app.options.projectId,
+      firebaseAuthDomain: auth.app.options.authDomain,
+      usingEmulator: import.meta.env.VITE_USE_FIREBASE_EMULATOR === 'true'
+    };
+    console.log('🔍 [DIAGNÓSTICO] Estado antes de enviar mensaje:', diagnosticInfo);
+  }
 
   // ✅ ESTRATEGIA DE CAPTACIÓN: Permitir usuarios NO autenticados PERMANENTEMENTE
   // Reducir fricción - usuarios pueden chatear en sala principal sin registrarse
@@ -234,19 +234,19 @@ const doSendMessage = async (roomId, messageData, isAnonymous = false) => {
   });
 
   // 🔍 Log detallado de mensaje enviado CON VELOCIDAD
-  // 🔍 PRUEBA 6 ENERO: DESACTIVADO - Causaba sobrecarga en consola
-  // const isAuthenticated = !!auth.currentUser;
-  // console.log(
-  //   `%c📤 ${isAuthenticated ? '🔐 LOGUEADO' : '👤 NO LOGUEADO'} → Mensaje enviado`,
-  //   `color: ${isAuthenticated ? '#00ff00' : '#ffaa00'}; font-weight: bold; font-size: 14px; background: ${isAuthenticated ? '#001100' : '#332200'}; padding: 4px 8px; border-radius: 4px;`,
-  //   {
-  //     '👤 Usuario': username,
-  //     '🔑 Tipo': isAuthenticated ? 'AUTENTICADO ✅' : 'NO AUTENTICADO ⚠️',
-  //     '💬 Mensaje': messageData.content.substring(0, 50) + (messageData.content.length > 50 ? '...' : ''),
-  //     '🆔 MessageID': docRef.id,
-  //     '🏠 Sala': roomId,
-  //     '⏱️ Tiempo': `${firestoreSendTime}ms`,
-  //     '📅 Hora': sendTimeISO,
+  // ✅ HABILITADO TEMPORALMENTE PARA DEBUGGING URGENTE
+  const isAuthenticated = !!auth.currentUser;
+  console.log(
+    `%c📤 ${isAuthenticated ? '🔐 LOGUEADO' : '👤 NO LOGUEADO'} → Mensaje enviado`,
+    `color: ${isAuthenticated ? '#00ff00' : '#ffaa00'}; font-weight: bold; font-size: 14px; background: ${isAuthenticated ? '#001100' : '#332200'}; padding: 4px 8px; border-radius: 4px;`,
+    {
+      '👤 Usuario': username,
+      '🔑 Tipo': isAuthenticated ? 'AUTENTICADO ✅' : 'NO AUTENTICADO ⚠️',
+      '💬 Mensaje': messageData.content.substring(0, 50) + (messageData.content.length > 50 ? '...' : ''),
+      '🆔 MessageID': docRef.id,
+      '🏠 Sala': roomId,
+      '⏱️ Tiempo': `${firestoreSendTime}ms`,
+      '📅 Hora': sendTimeISO,
   //   }
   // );
 

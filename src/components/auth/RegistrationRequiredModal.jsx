@@ -77,8 +77,17 @@ export const RegistrationRequiredModal = ({
     >
       <DialogContent 
         className="sm:max-w-[500px] neon-border-card text-white p-0"
-        onInteractOutside={handleDialogClose}
+        onInteractOutside={(e) => {
+          // ✅ Permitir cerrar haciendo clic fuera del modal
+          e.preventDefault();
+          handleDialogClose();
+        }}
         onEscapeKeyDown={handleDialogClose}
+        onPointerDownOutside={(e) => {
+          // ✅ Permitir cerrar haciendo clic fuera del modal (móvil)
+          e.preventDefault();
+          handleDialogClose();
+        }}
       >
         <button 
           onClick={handleDialogClose}
@@ -158,8 +167,22 @@ export const RegistrationRequiredModal = ({
               </Button>
             </motion.div>
 
+            {/* Botón de cierre: Despedir */}
+            <motion.div
+              whileHover={{ scale: 1.01 }}
+              whileTap={{ scale: 0.99 }}
+            >
+              <Button
+                onClick={handleDialogClose}
+                variant="ghost"
+                className="w-full text-gray-400 hover:text-white font-medium py-4 text-sm rounded-xl hover:bg-gray-800/30 transition-all"
+              >
+                Cerrar
+              </Button>
+            </motion.div>
+
             {/* Info adicional */}
-            <div className="bg-purple-900/20 rounded-lg p-3 border border-purple-500/30 mt-4">
+            <div className="bg-purple-900/20 rounded-lg p-3 border border-purple-500/30 mt-2">
               <p className="text-xs text-gray-300 text-center">
                 💡 El registro es <span className="text-purple-300 font-semibold">gratis y rápido</span>. Solo necesitas un email.
               </p>

@@ -57,6 +57,7 @@ const ChatSidebar = ({ currentRoom, setCurrentRoom, isOpen, onClose }) => {
 
   const handleRoomChange = (roomId) => {
     setCurrentRoom(roomId);
+    navigate(`/chat/${roomId}`);
     // ✅ Cerrar sidebar automáticamente en móvil al cambiar de sala
     if (typeof window !== 'undefined' && window.innerWidth < 1024) {
       onClose();
@@ -187,7 +188,7 @@ const ChatSidebar = ({ currentRoom, setCurrentRoom, isOpen, onClose }) => {
                           setPendingRoomId(room.id);
                           setShowRegistrationModal(true);
                         } else {
-                          setCurrentRoom(room.id);
+                          handleRoomChange(room.id);
                         }
                       }}
                     >
