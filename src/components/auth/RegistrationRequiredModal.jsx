@@ -64,11 +64,24 @@ export const RegistrationRequiredModal = ({
     onClose();
   };
 
+  const handleDialogClose = () => {
+    if (onClose) onClose();
+  };
+
   return (
-    <Dialog open={open} onOpenChange={onClose}>
-      <DialogContent className="sm:max-w-[500px] neon-border-card text-white p-0">
+    <Dialog 
+      open={open} 
+      onOpenChange={(isOpen) => {
+        if (!isOpen) handleDialogClose();
+      }}
+    >
+      <DialogContent 
+        className="sm:max-w-[500px] neon-border-card text-white p-0"
+        onInteractOutside={handleDialogClose}
+        onEscapeKeyDown={handleDialogClose}
+      >
         <button 
-          onClick={onClose}
+          onClick={handleDialogClose}
           className="absolute right-4 top-4 p-2 rounded-full hover:bg-white/10 text-gray-400 hover:text-white transition-colors z-50"
           aria-label="Cerrar"
         >

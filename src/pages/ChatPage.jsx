@@ -150,6 +150,7 @@ const ChatPage = () => {
   const userRolesCacheRef = useRef(new Map()); // ✅ Cache de roles de usuarios para filtrar moderadores
   const checkingRolesRef = useRef(new Set()); // ✅ Flag para evitar consultas duplicadas de roles
   const roleCheckDebounceRef = useRef(null); // ✅ Debounce para consultas de roles
+  const usersUpdateInProgressRef = useRef(false); // 🔒 CRÍTICO: Evitar loops infinitos en setRoomUsers
 
   // 🎯 PRO SCROLL MANAGER: Discord/Slack-inspired scroll behavior
   // ✅ IMPORTANTE: Debe estar ANTES del early return para respetar reglas de hooks
@@ -751,6 +752,11 @@ const ChatPage = () => {
     */
 
     const unsubscribeUsers = subscribeToRoomUsers(roomId, (users) => {
+      // 🔒 CRÍTICO: Evitar procesamiento si ya hay una actualización en progreso (previene loops infinitos)
+      if (usersUpdateInProgressRef.current) {
+        return; // Ignorar este callback para evitar re-renders masivos
+      }
+      
       // ✅ Filtrar solo usuarios activos (<5min inactividad)
       const activeUsers = filterActiveUsers(users);
       
@@ -875,28 +881,34 @@ const ChatPage = () => {
             }
             
             // 🔒 CRÍTICO: Solo actualizar estado si realmente cambió (evitar re-renders innecesarios)
+            usersUpdateInProgressRef.current = true; // ✅ Marcar en progreso
             setRoomUsers(prevUsers => {
               // Comparar por IDs para evitar actualizaciones si los usuarios son los mismos
               const prevIds = new Set(prevUsers.map(u => (u.userId || u.id)));
               const newIds = new Set(finalUsers.map(u => (u.userId || u.id)));
               
               if (prevIds.size !== newIds.size) {
+                setTimeout(() => { usersUpdateInProgressRef.current = false; }, 50);
                 return finalUsers;
               }
               
               for (const id of prevIds) {
                 if (!newIds.has(id)) {
+                  setTimeout(() => { usersUpdateInProgressRef.current = false; }, 50);
                   return finalUsers;
                 }
               }
               
               // Si son los mismos usuarios, no actualizar (evitar re-render)
+              setTimeout(() => { usersUpdateInProgressRef.current = false; }, 50);
               return prevUsers;
             });
           }).catch(error => {
             console.error('Error checking user roles:', error);
             // En caso de error, usar usuarios filtrados sin verificación de roles
+            usersUpdateInProgressRef.current = true;
             setRoomUsers(filteredUsers);
+            setTimeout(() => { usersUpdateInProgressRef.current = false; }, 50);
             // Limpiar flags de verificación en caso de error
             usersToCheck.forEach(({ userId }) => {
               checkingRolesRef.current.delete(userId);
@@ -904,9 +916,8 @@ const ChatPage = () => {
           });
         }, 500); // 🔒 Debounce de 500ms para evitar consultas masivas
         
-        // Retornar usuarios filtrados inicialmente (sin verificación de roles aún)
-        // Se actualizará cuando las consultas completen
-        setRoomUsers(filteredUsers);
+        // ❌ ELIMINADO: setRoomUsers(filteredUsers) - Causaba doble actualización y loops infinitos
+        // ✅ Los usuarios se actualizarán cuando las consultas completen (dentro del setTimeout)
         return;
       }
       
@@ -945,22 +956,26 @@ const ChatPage = () => {
       }
 
       // 🔒 CRÍTICO: Solo actualizar estado si realmente cambió (evitar re-renders innecesarios)
+      usersUpdateInProgressRef.current = true; // ✅ Marcar en progreso
       setRoomUsers(prevUsers => {
         // Comparar por IDs para evitar actualizaciones si los usuarios son los mismos
         const prevIds = new Set(prevUsers.map(u => (u.userId || u.id)));
         const newIds = new Set(filteredUsers.map(u => (u.userId || u.id)));
         
         if (prevIds.size !== newIds.size) {
+          setTimeout(() => { usersUpdateInProgressRef.current = false; }, 50);
           return filteredUsers;
         }
         
         for (const id of prevIds) {
           if (!newIds.has(id)) {
+            setTimeout(() => { usersUpdateInProgressRef.current = false; }, 50);
             return filteredUsers;
           }
         }
         
         // Si son los mismos usuarios, no actualizar (evitar re-render)
+        setTimeout(() => { usersUpdateInProgressRef.current = false; }, 50);
         return prevUsers;
       });
     });
@@ -1041,6 +1056,9 @@ const ChatPage = () => {
       
       // Limpiar flags de verificación de roles
       checkingRolesRef.current.clear();
+      
+      // 🔒 CRÍTICO: Limpiar flag de actualización en progreso
+      usersUpdateInProgressRef.current = false;
       
       if (unsubscribeRef.current) {
         unsubscribeRef.current();

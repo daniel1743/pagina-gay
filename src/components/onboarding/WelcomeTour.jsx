@@ -59,7 +59,7 @@ const WelcomeTour = ({ onComplete }) => {
       initial={{ opacity: 0 }}
       animate={{ opacity: 1 }}
       exit={{ opacity: 0 }}
-      className="fixed inset-0 bg-black/80 backdrop-blur-sm z-[100] flex items-center justify-center p-4"
+      className="fixed inset-0 bg-black/80 backdrop-blur-sm z-[100] flex items-center justify-center p-4 pointer-events-none"
     >
       <AnimatePresence mode="wait">
         <motion.div
@@ -68,7 +68,7 @@ const WelcomeTour = ({ onComplete }) => {
           animate={{ scale: 1, opacity: 1, y: 0 }}
           exit={{ scale: 0.9, opacity: 0, y: -20 }}
           transition={{ type: 'spring', stiffness: 300, damping: 25 }}
-          className="bg-card border-2 border-accent/50 rounded-2xl p-8 max-w-md w-full relative shadow-2xl"
+          className="bg-card border-2 border-accent/50 rounded-2xl p-8 max-w-md w-full relative shadow-2xl pointer-events-auto"
         >
           {/* Botón de cerrar */}
           <button
