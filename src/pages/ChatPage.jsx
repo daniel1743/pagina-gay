@@ -1201,30 +1201,16 @@ const ChatPage = () => {
    * 🤖 Activa respuesta de bots si están activos
    */
   const handleSendMessage = async (content, type = 'text', replyData = null) => {
-    // ✅ ESTRATEGIA DE CAPTACIÓN: Permitir invitados chatear sin restricciones
-    // Si no hay user, crear uno temporal para permitir el chat
+    // ✅ NO crear usuarios automáticos - el usuario debe elegir su nombre
+    // Si no hay user, mostrar mensaje para que pase por el modal de entrada
     if (!user || !user.id) {
-      // Intentar crear sesión guest automáticamente
-      const tempUsername = `Guest${Math.floor(Math.random() * 10000)}`;
-      const tempAvatar = `https://api.dicebear.com/7.x/avataaars/svg?seed=${tempUsername}`;
-      
-      try {
-        await signInAsGuest(tempUsername, tempAvatar);
-        // Esperar un momento para que se actualice el estado
-        setTimeout(() => {
-          // Reintentar envío después de crear sesión
-          handleSendMessage(content, type, replyData);
-        }, 500);
-        return;
-      } catch (error) {
-        console.error('[CHAT] Error creando sesión guest automática:', error);
       toast({
-        title: "Error",
-          description: "No se pudo iniciar sesión. Por favor, recarga la página.",
+        title: "Necesitas ingresar primero",
+        description: "Por favor, ingresa un nombre para chatear",
         variant: "destructive",
+        duration: 3000,
       });
       return;
-      }
     }
 
     // ✅ PERMITIR USUARIOS NO AUTENTICADOS (período de captación - 5 días)
@@ -1890,20 +1876,10 @@ const ChatPage = () => {
     // ✅ FIX: Prevenir múltiples intentos de auto-login
     if (autoLoginAttemptedRef.current) return;
     
-    if (!authLoading && !user && roomId === 'principal') {
-      // Usuario accedió directamente a /chat/principal sin sesión
-      // Crear sesión guest automáticamente para mejor UX
-      autoLoginAttemptedRef.current = true;
-      console.log('[CHAT PAGE] Usuario sin sesión accediendo a /chat/principal, creando sesión guest...');
-      
-      // ✅ FIX: Generar username temporal si no se proporciona
-      const tempUsername = `Guest${Math.floor(Math.random() * 10000)}`;
-      signInAsGuest(tempUsername).catch(err => {
-        console.error('[CHAT PAGE] Error creando sesión guest:', err);
-        autoLoginAttemptedRef.current = false; // Permitir reintento si falla
-        // Si falla, mostrar landing
-      });
-    }
+    // ✅ NO crear usuarios automáticos - el usuario debe elegir su nombre
+    // Si accede directamente sin sesión, se mostrará el ChatLandingPage
+    // que tiene el formulario de entrada donde puede elegir su nombre
+    // (No generamos nombres automáticos tipo "GuestXXXX")
   }, [authLoading, user, roomId, signInAsGuest]);
 
   // 📜 DETECCIÓN DE SCROLL: Toast para usuarios no logueados

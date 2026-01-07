@@ -7,7 +7,7 @@ import { notificationSounds } from '@/services/notificationSounds';
 
 const roomNames = {
   // 'global': 'Chat Global', // ⚠️ DESACTIVADA
-  'principal': 'Chat Principal', // Sala principal nueva
+  'principal': 'Principal', // ✅ Título limpio y profesional
   'gaming': 'Gaming',
   'mas-30': '+30',
   'amistad': 'Amistad',
@@ -49,7 +49,7 @@ const ChatHeader = ({ currentRoom, onMenuClick, onOpenPrivateChat, onSimulate })
         </Button>
         <div className="min-w-0 flex-1">
           <h2 className="font-bold text-foreground text-base sm:text-lg truncate">
-            # {roomNames[currentRoom] || 'Sala de Chat'}
+            {roomNames[currentRoom] || 'Chat'}
           </h2>
         </div>
       </div>

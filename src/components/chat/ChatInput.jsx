@@ -400,8 +400,8 @@ const ChatInput = ({ onSendMessage, onFocus, onBlur, externalMessage = null, roo
       </AnimatePresence>
 
       <form onSubmit={handleSubmit} className="flex items-end gap-1.5 sm:gap-2 flex-nowrap">
-        {/* ✅ Botones con tamaño mínimo táctil (44px) para móvil */}
-        <Button
+        {/* ✅ Iconos comentados - Más espacio para el input */}
+        {/* <Button
           type="button"
           variant="ghost"
           size="icon"
@@ -413,7 +413,7 @@ const ChatInput = ({ onSendMessage, onFocus, onBlur, externalMessage = null, roo
           aria-pressed={showQuickPhrases}
         >
             <MessageSquarePlus className="w-5 h-5 sm:w-5 sm:h-5" />
-        </Button>
+        </Button> */}
         <Button
           type="button"
           variant="ghost"
@@ -428,7 +428,8 @@ const ChatInput = ({ onSendMessage, onFocus, onBlur, externalMessage = null, roo
           {showEmojiPicker ? <X className="w-5 h-5"/> : <Smile className="w-5 h-5" />}
         </Button>
 
-        <Button
+        {/* ✅ Icono de foto comentado - Más espacio para el input */}
+        {/* <Button
           type="button"
           variant="ghost"
           size="icon"
@@ -438,9 +439,10 @@ const ChatInput = ({ onSendMessage, onFocus, onBlur, externalMessage = null, roo
           aria-label="Enviar imagen (función Premium)"
         >
           <Image className="w-5 h-5" />
-        </Button>
+        </Button> */}
 
-        <Button
+        {/* ✅ Icono de audio comentado - Más espacio para el input */}
+        {/* <Button
           type="button"
           variant="ghost"
           size="icon"
@@ -450,7 +452,7 @@ const ChatInput = ({ onSendMessage, onFocus, onBlur, externalMessage = null, roo
           aria-label="Enviar mensaje de voz (función Premium)"
         >
           <Mic className="w-5 h-5" />
-        </Button>
+        </Button> */}
 
         <textarea
           ref={textareaRef}
