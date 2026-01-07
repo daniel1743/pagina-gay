@@ -47,6 +47,7 @@ import { trackPageView, trackPageExit, trackRoomJoined, trackMessageSent } from 
 import { useCanonical } from '@/hooks/useCanonical';
 import { checkUserSanctions, SANCTION_TYPES } from '@/services/sanctionsService';
 import { roomsData } from '@/config/rooms';
+import { traceEvent, TRACE_EVENTS } from '@/utils/messageTrace';
 import { startEngagementTracking, hasReachedOneHourLimit, getTotalEngagementTime, hasSeenEngagementModal, markEngagementModalAsShown } from '@/services/engagementService';
 import { notificationSounds } from '@/services/notificationSounds';
 import { monitorActivityAndSendVOC, resetVOCCooldown } from '@/services/vocService';
@@ -596,6 +597,33 @@ const ChatPage = () => {
       // const regularMessages = newMessages.filter(m => m.userId !== 'system_moderator');
       const regularMessages = newMessages; // ✅ Todos los mensajes son regulares ahora
 
+      // 🔍 TRACE: Estado actualizado con mensajes recibidos
+      traceEvent(TRACE_EVENTS.STATE_UPDATED, {
+        roomId,
+        messageCount: regularMessages.length,
+        newMessageIds: regularMessages.slice(-5).map(m => m.id), // Últimos 5 IDs
+      });
+      
+      // 🔍 TRACE: Verificar si hay mensajes optimistas que deben ser reemplazados
+      regularMessages.forEach(msg => {
+        if (msg.clientId) {
+          // Buscar si hay un mensaje optimista con el mismo clientId
+          const hasOptimistic = messages.some(m => 
+            m.clientId === msg.clientId && m._optimistic
+          );
+          
+          if (hasOptimistic) {
+            traceEvent(TRACE_EVENTS.OPTIMISTIC_MESSAGE_REPLACED, {
+              traceId: msg.clientId,
+              optimisticId: messages.find(m => m.clientId === msg.clientId && m._optimistic)?.id,
+              realId: msg.id,
+              userId: msg.userId,
+              roomId,
+            });
+          }
+        }
+      });
+
       // Si hay mensaje del moderador, guardarlo en estado separado (solo una vez)
       // if (moderatorMsg) {
       //   setModeratorMessage(prev => prev || moderatorMsg); // Solo setear si no existe
@@ -797,150 +825,30 @@ const ChatPage = () => {
         }
       }
       
-      // 🔒 CRÍTICO: Debounce para evitar consultas masivas cuando el callback se dispara repetidamente
-      // Limpiar debounce anterior si existe
-      if (roleCheckDebounceRef.current) {
-        clearTimeout(roleCheckDebounceRef.current);
-        roleCheckDebounceRef.current = null;
-      }
-      
-      // Consultar roles de usuarios que no están en cache (con debounce de 500ms)
-      if (usersToCheck.length > 0) {
-        roleCheckDebounceRef.current = setTimeout(() => {
-          // Marcar usuarios como "en verificación" para evitar consultas duplicadas
-          usersToCheck.forEach(({ userId }) => {
-            checkingRolesRef.current.add(userId);
-          });
-          
-          Promise.all(
-            usersToCheck.map(async ({ user, userId }) => {
-              try {
-                const userDocRef = doc(db, 'users', userId);
-                const userDoc = await getDoc(userDocRef);
-                
-                if (userDoc.exists()) {
-                  const userData = userDoc.data();
-                  const userRole = userData.role || null;
-                  
-                  // Guardar en cache
-                  userRolesCacheRef.current.set(userId, userRole);
-                  
-                  // Si es moderador, no incluir
-                  if (userRole === 'admin' || userRole === 'administrator' || userRole === 'moderator') {
-                    return null; // No incluir
-                  }
-                } else {
-                  // Usuario no existe en users collection, asumir usuario normal
-                  userRolesCacheRef.current.set(userId, null);
-                }
-                
-                return user; // Incluir usuario
-              } catch (error) {
-                // Si hay error, incluir el usuario (no bloquear por errores)
-                console.warn(`Error checking user role for ${userId}:`, error);
-                userRolesCacheRef.current.set(userId, null); // Cache como null para evitar consultas repetidas
-                return user;
-              } finally {
-                // Remover del flag de "en verificación"
-                checkingRolesRef.current.delete(userId);
-              }
-            })
-          ).then(checkedUsers => {
-            // Agregar usuarios verificados que no son moderadores
-            const validUsers = checkedUsers.filter(u => u !== null);
-            const finalUsers = [...filteredUsers, ...validUsers];
-            
-            // Actualizar contadores
-            const realUsers = finalUsers;
-            
-            const currentCounts = {
-              total: users.length,
-              active: activeUsers.length,
-              real: realUsers.length
-            };
-            
-            const hasChanged = 
-              currentCounts.total !== lastUserCountsRef.current.total ||
-              currentCounts.active !== lastUserCountsRef.current.active ||
-              currentCounts.real !== lastUserCountsRef.current.real;
-            
-            if (hasChanged) {
-              // ⚠️ NOTIFICACIONES DE SONIDO ELIMINADAS (06/01/2026) - A petición del usuario
-              // 🔊 Reproducir sonido de INGRESO si un usuario real se conectó
-              if (previousRealUserCountRef.current > 0 && currentCounts.real > previousRealUserCountRef.current) {
-                notificationSounds.playUserJoinSound();
-              }
+      // ❌ DESHABILITADO TEMPORALMENTE - Loop infinito de Firebase (07/01/2026)
+      // getDoc queries masivas sin throttle efectivo causaban lecturas infinitas
+      // Cada cambio en roomPresence disparaba consultas masivas
+      // TODO: Re-habilitar con mejor estrategia (verificar roles en batch 1 vez al día)
 
-              // 🔊 Reproducir sonido de SALIDA si un usuario real se desconectó
-              if (previousRealUserCountRef.current > 0 && currentCounts.real < previousRealUserCountRef.current) {
-                notificationSounds.playDisconnectSound();
-              }
+      // ✅ HOTFIX: Incluir TODOS los usuarios sin verificar roles
+      // Asumir que todos son usuarios normales temporalmente
+      const finalUsers = [...filteredUsers, ...usersToCheck.map(({ user }) => user)];
 
-              // Actualizar contador de usuarios reales
-              previousRealUserCountRef.current = currentCounts.real;
-              lastUserCountsRef.current = currentCounts;
-            }
-            
-            // 🔒 CRÍTICO: Solo actualizar estado si realmente cambió (evitar re-renders innecesarios)
-            usersUpdateInProgressRef.current = true; // ✅ Marcar en progreso
-            setRoomUsers(prevUsers => {
-              // Comparar por IDs para evitar actualizaciones si los usuarios son los mismos
-              const prevIds = new Set(prevUsers.map(u => (u.userId || u.id)));
-              const newIds = new Set(finalUsers.map(u => (u.userId || u.id)));
-              
-              if (prevIds.size !== newIds.size) {
-                setTimeout(() => { usersUpdateInProgressRef.current = false; }, 50);
-                return finalUsers;
-              }
-              
-              for (const id of prevIds) {
-                if (!newIds.has(id)) {
-                  setTimeout(() => { usersUpdateInProgressRef.current = false; }, 50);
-                  return finalUsers;
-                }
-              }
-              
-              // Si son los mismos usuarios, no actualizar (evitar re-render)
-              setTimeout(() => { usersUpdateInProgressRef.current = false; }, 50);
-              return prevUsers;
-            });
-          }).catch(error => {
-            console.error('Error checking user roles:', error);
-            // En caso de error, usar usuarios filtrados sin verificación de roles
-            usersUpdateInProgressRef.current = true;
-            setRoomUsers(filteredUsers);
-            setTimeout(() => { usersUpdateInProgressRef.current = false; }, 50);
-            // Limpiar flags de verificación en caso de error
-            usersToCheck.forEach(({ userId }) => {
-              checkingRolesRef.current.delete(userId);
-            });
-          });
-        }, 500); // 🔒 Debounce de 500ms para evitar consultas masivas
-        
-        // ❌ ELIMINADO: setRoomUsers(filteredUsers) - Causaba doble actualización y loops infinitos
-        // ✅ Los usuarios se actualizarán cuando las consultas completen (dentro del setTimeout)
-        return;
-      }
-      
-      // ✅ Contar solo usuarios reales (excluir bots y moderadores)
-      const realUsers = filteredUsers;
-      
-      // ✅ Solo loggear cuando hay cambios significativos (evitar spam)
+      // Actualizar contadores
+      const realUsers = finalUsers;
+
       const currentCounts = {
         total: users.length,
         active: activeUsers.length,
         real: realUsers.length
       };
-      
-      const hasChanged = 
+
+      const hasChanged =
         currentCounts.total !== lastUserCountsRef.current.total ||
         currentCounts.active !== lastUserCountsRef.current.active ||
         currentCounts.real !== lastUserCountsRef.current.real;
-      
-      if (hasChanged) {
-        // console.debug(`👥 Sala ${roomId}: ${currentCounts.real} usuario(s) real(es) activo(s) | ${currentCounts.total} total en DB (incluye inactivos)`);
 
-        // ⚠️ NOTIFICACIONES DE SONIDO ELIMINADAS (06/01/2026) - A petición del usuario
+      if (hasChanged) {
         // 🔊 Reproducir sonido de INGRESO si un usuario real se conectó
         if (previousRealUserCountRef.current > 0 && currentCounts.real > previousRealUserCountRef.current) {
           notificationSounds.playUserJoinSound();
@@ -961,24 +869,54 @@ const ChatPage = () => {
       setRoomUsers(prevUsers => {
         // Comparar por IDs para evitar actualizaciones si los usuarios son los mismos
         const prevIds = new Set(prevUsers.map(u => (u.userId || u.id)));
-        const newIds = new Set(filteredUsers.map(u => (u.userId || u.id)));
-        
+        const newIds = new Set(finalUsers.map(u => (u.userId || u.id)));
+
         if (prevIds.size !== newIds.size) {
           setTimeout(() => { usersUpdateInProgressRef.current = false; }, 50);
-          return filteredUsers;
+          return finalUsers;
         }
-        
+
         for (const id of prevIds) {
           if (!newIds.has(id)) {
             setTimeout(() => { usersUpdateInProgressRef.current = false; }, 50);
-            return filteredUsers;
+            return finalUsers;
           }
         }
-        
+
         // Si son los mismos usuarios, no actualizar (evitar re-render)
         setTimeout(() => { usersUpdateInProgressRef.current = false; }, 50);
         return prevUsers;
       });
+
+      // ❌ COMENTADO - Loop infinito de getDoc queries
+      // if (roleCheckDebounceRef.current) {
+      //   clearTimeout(roleCheckDebounceRef.current);
+      //   roleCheckDebounceRef.current = null;
+      // }
+      //
+      // if (usersToCheck.length > 0) {
+      //   roleCheckDebounceRef.current = setTimeout(() => {
+      //     usersToCheck.forEach(({ userId }) => {
+      //       checkingRolesRef.current.add(userId);
+      //     });
+      //
+      //     Promise.all(
+      //       usersToCheck.map(async ({ user, userId }) => {
+      //         try {
+      //           const userDocRef = doc(db, 'users', userId);
+      //           const userDoc = await getDoc(userDocRef);
+      //           // ...
+      //         } catch (error) {
+      //           // ...
+      //         }
+      //       })
+      //     ).then(checkedUsers => {
+      //       // ...
+      //     }).catch(error => {
+      //       // ...
+      //     });
+      //   }, 500);
+      // }
     });
 
     // Guardar funciones de desuscripción
@@ -1108,17 +1046,16 @@ const ChatPage = () => {
 
   }, [roomUsers.length, roomId, user?.id]); // 🔒 CRÍTICO: user?.id en vez de user (evita loops por cambio de referencia de objeto)
 
-  // Suscribirse a contadores de todas las salas (para mensajes contextuales)
-  useEffect(() => {
-    if (!user?.id) return;
-
-    const roomIds = roomsData.map(room => room.id);
-    const unsubscribe = subscribeToMultipleRoomCounts(roomIds, (counts) => {
-      setRoomCounts(counts);
-    });
-
-    return () => unsubscribe();
-  }, [user?.id]); // 🔒 CRÍTICO: user?.id en vez de user (evita re-suscripciones por cambio de referencia)
+  // ⚠️ DESACTIVADO TEMPORALMENTE: Contadores de salas (causa consumo excesivo)
+  // Solo necesitamos el chat básico funcionando
+  // useEffect(() => {
+  //   if (!user?.id) return;
+  //   const priorityRooms = ['principal'];
+  //   const unsubscribe = subscribeToMultipleRoomCounts(priorityRooms, (counts) => {
+  //     setRoomCounts(counts);
+  //   });
+  //   return () => unsubscribe();
+  // }, [user?.id]);
 
   // ✅ Suscribirse a notificaciones de chat privado
   useEffect(() => {
@@ -1398,6 +1335,15 @@ const ChatPage = () => {
       }
     }
 
+    // 🔍 TRACE: Usuario escribió mensaje
+    traceEvent(TRACE_EVENTS.USER_INPUT_TYPED, {
+      content: content.substring(0, 50),
+      type,
+      userId: user.id,
+      username: user.username,
+      roomId: currentRoom,
+    });
+
     // 🚀 OPTIMISTIC UI: Mostrar mensaje INSTANTÁNEAMENTE (Zero Latency - como WhatsApp/Telegram)
     // ⚡ CRÍTICO: Mostrar primero, validar después (experiencia instantánea)
     const optimisticId = `temp_${Date.now()}_${Math.random()}`;
@@ -1428,6 +1374,24 @@ const ChatPage = () => {
 
     // ⚡ INSTANTÁNEO: Agregar mensaje inmediatamente a la UI (usuario lo ve al instante)
     setMessages(prev => [...prev, optimisticMessage]);
+    
+    // 🔍 TRACE: Mensaje optimista renderizado localmente
+    traceEvent(TRACE_EVENTS.UI_LOCAL_RENDER, {
+      traceId: clientId,
+      optimisticId,
+      content: content.substring(0, 50),
+      userId: user.id,
+      roomId: currentRoom,
+    });
+    
+    // 🔍 TRACE: Mensaje optimista creado
+    traceEvent(TRACE_EVENTS.OPTIMISTIC_MESSAGE_CREATED, {
+      traceId: clientId,
+      optimisticId,
+      content: content.substring(0, 50),
+      userId: user.id,
+      roomId: currentRoom,
+    });
 
     // ⚡ SCROLL ULTRA-RÁPIDO: Scroll inmediato sin esperar RAF (máxima velocidad)
     // Usar setTimeout(0) es más rápido que RAF para scroll directo
@@ -1442,11 +1406,26 @@ const ChatPage = () => {
     // 🔊 Reproducir sonido inmediatamente (no bloquea UI, async)
     notificationSounds.playMessageSentSound();
 
+    // 🔍 TRACE: Handler de envío activado
+    traceEvent(TRACE_EVENTS.SEND_HANDLER_TRIGGERED, {
+      traceId: clientId,
+      content: content.substring(0, 50),
+      userId: user.id,
+      roomId: currentRoom,
+    });
+
     // 🛡️ VALIDACIÓN EN BACKGROUND: Validar después de mostrar (no bloquea UI)
     // ⚡ CRÍTICO: Las validaciones se ejecutan en background para no retrasar la experiencia visual
     const validationPromise = validateMessage(content, user.id, user.username, currentRoom)
       .then(validation => {
     if (!validation.allowed) {
+          // 🔍 TRACE: Validación falló
+          traceEvent(TRACE_EVENTS.PAYLOAD_VALIDATION_FAILED, {
+            traceId: clientId,
+            reason: validation.reason,
+            userId: user.id,
+            roomId: currentRoom,
+          });
           // ❌ VALIDACIÓN FALLÓ: Eliminar mensaje optimista y mostrar error
           setMessages(prev => prev.filter(m => m.id !== optimisticId));
           
@@ -1497,6 +1476,14 @@ const ChatPage = () => {
       }
           return false; // No enviar
         }
+        
+        // 🔍 TRACE: Validación exitosa
+        traceEvent(TRACE_EVENTS.PAYLOAD_VALIDATED, {
+          traceId: clientId,
+          userId: user.id,
+          roomId: currentRoom,
+        });
+        
         return true; // Validación OK, continuar
       })
       .catch(() => true); // Si falla validación, permitir envío (fail-open)
@@ -1514,6 +1501,14 @@ const ChatPage = () => {
           ? user.avatar
           : `https://api.dicebear.com/7.x/avataaars/svg?seed=${encodeURIComponent(user.username || user.id || 'guest')}`;
 
+        // 🔍 TRACE: Intentando escribir en Firebase
+        traceEvent(TRACE_EVENTS.FIREBASE_WRITE_ATTEMPT, {
+          traceId: clientId,
+          userId: auth.currentUser?.uid || user.id,
+          roomId: currentRoom,
+          content: content.substring(0, 50),
+        });
+
         return sendMessage(
       currentRoom,
       {
@@ -1525,12 +1520,23 @@ const ChatPage = () => {
         content,
         type,
         replyTo: replyData,
+        traceId: clientId, // ✅ Pasar traceId para correlación
       },
       user.isAnonymous
         );
       })
       .then((sentMessage) => {
         if (!sentMessage) return; // Validación falló o no se envió
+        
+        // 🔍 TRACE: Escritura en Firebase exitosa
+        traceEvent(TRACE_EVENTS.FIREBASE_WRITE_SUCCESS, {
+          traceId: clientId,
+          messageId: sentMessage.id,
+          userId: user.id,
+          roomId: currentRoom,
+          firestoreId: sentMessage.id,
+        });
+        
         // ✅ Mensaje enviado exitosamente - se actualizará automáticamente vía onSnapshot
         // Track GA4 (background, no bloquea)
         trackMessageSent(currentRoom, user.id);
@@ -1594,6 +1600,15 @@ const ChatPage = () => {
       })
       .catch((error) => {
         console.error('❌ Error enviando mensaje:', error);
+
+        // 🔍 TRACE: Escritura en Firebase falló
+        traceEvent(TRACE_EVENTS.FIREBASE_WRITE_FAIL, {
+          traceId: clientId,
+          error: error.message,
+          errorCode: error.code,
+          userId: user.id,
+          roomId: currentRoom,
+        });
 
         // ❌ FALLÓ - Marcar como error (NO eliminar, permitir reintento)
         setMessages(prev => prev.map(msg => 

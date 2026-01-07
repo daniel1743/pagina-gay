@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Button } from '@/components/ui/button';
@@ -8,6 +8,7 @@ import MessageQuote from './MessageQuote';
 import NewMessagesDivider from './NewMessagesDivider';
 import { getUserConnectionStatus, getStatusColor } from '@/utils/userStatus';
 import MessageDeliveryCheck from '@/components/MessageDeliveryCheck';
+import { traceEvent, TRACE_EVENTS } from '@/utils/messageTrace';
 
 /**
  * Componente especial para el mensaje de bienvenida del moderador
@@ -118,9 +119,41 @@ const ChatMessages = ({ messages, currentUserId, onUserClick, onReport, onPrivat
   // 📱 Sistema de doble check dinámico (like WhatsApp)
   const [messageChecks, setMessageChecks] = useState({});
   const [highlightedMessageId, setHighlightedMessageId] = useState(null);
+  const renderedMessageIdsRef = useRef(new Set());
   
   // ⚡ SEGURIDAD: Asegurar que roomUsers siempre sea un array
   const safeRoomUsers = Array.isArray(roomUsers) ? roomUsers : [];
+  
+  // 🔍 TRACE: Rastrear cuando se renderizan mensajes nuevos
+  useEffect(() => {
+    if (!messages || messages.length === 0) return;
+    
+    // Identificar mensajes nuevos que no se han renderizado antes
+    const newMessages = messages.filter(msg => {
+      const msgId = msg.id || msg._realId || msg.clientId;
+      if (!msgId) return false;
+      if (renderedMessageIdsRef.current.has(msgId)) return false;
+      renderedMessageIdsRef.current.add(msgId);
+      return true;
+    });
+    
+    // Rastrear cada mensaje nuevo que se renderiza
+    newMessages.forEach(msg => {
+      const msgId = msg.id || msg._realId || msg.clientId;
+      const isOwn = msg.userId === currentUserId;
+      
+      traceEvent(TRACE_EVENTS.REMOTE_UI_RENDER, {
+        traceId: msg.clientId || msg.trace?.traceId || msgId,
+        messageId: msgId,
+        userId: msg.userId,
+        username: msg.username,
+        content: msg.content?.substring(0, 50),
+        isOwn,
+        isOptimistic: msg._optimistic || false,
+        timestamp: msg.timestampMs || Date.now(),
+      });
+    });
+  }, [messages, currentUserId]);
   const formatTime = (timestamp) => {
     try {
       let date;

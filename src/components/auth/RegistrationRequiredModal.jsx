@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import {
@@ -14,6 +14,7 @@ import { Shield, UserPlus, ArrowRight, X } from 'lucide-react';
 /**
  * Modal que aparece cuando el usuario intenta acceder a funciones que requieren registro
  * Explica que Chactivo mantiene el anonimato pero algunas funciones requieren registro
+ * ✅ Auto-cierre después de 5 segundos
  */
 export const RegistrationRequiredModal = ({ 
   open, 
@@ -24,6 +25,7 @@ export const RegistrationRequiredModal = ({
   featureName = null // Nombre de la función (ej: "favoritos", "chat privado", "invitar")
 }) => {
   const navigate = useNavigate();
+  const autoCloseTimeoutRef = useRef(null);
 
   // Mensajes personalizados según la función
   const featureMessages = {
@@ -65,8 +67,42 @@ export const RegistrationRequiredModal = ({
   };
 
   const handleDialogClose = () => {
+    // ✅ Limpiar timeout de auto-cierre si existe
+    if (autoCloseTimeoutRef.current) {
+      clearTimeout(autoCloseTimeoutRef.current);
+      autoCloseTimeoutRef.current = null;
+    }
     if (onClose) onClose();
   };
+
+  // ✅ AUTO-CIERRE: Cerrar automáticamente después de 5 segundos
+  useEffect(() => {
+    if (open) {
+      // Limpiar timeout anterior si existe
+      if (autoCloseTimeoutRef.current) {
+        clearTimeout(autoCloseTimeoutRef.current);
+      }
+      
+      // Configurar auto-cierre después de 5 segundos
+      autoCloseTimeoutRef.current = setTimeout(() => {
+        handleDialogClose();
+      }, 5000); // 5 segundos
+    } else {
+      // Si el modal se cierra manualmente, limpiar timeout
+      if (autoCloseTimeoutRef.current) {
+        clearTimeout(autoCloseTimeoutRef.current);
+        autoCloseTimeoutRef.current = null;
+      }
+    }
+
+    // Cleanup al desmontar
+    return () => {
+      if (autoCloseTimeoutRef.current) {
+        clearTimeout(autoCloseTimeoutRef.current);
+        autoCloseTimeoutRef.current = null;
+      }
+    };
+  }, [open]);
 
   return (
     <Dialog 
@@ -77,15 +113,13 @@ export const RegistrationRequiredModal = ({
     >
       <DialogContent 
         className="sm:max-w-[500px] neon-border-card text-white p-0"
-        onInteractOutside={(e) => {
+        onInteractOutside={() => {
           // ✅ Permitir cerrar haciendo clic fuera del modal
-          e.preventDefault();
           handleDialogClose();
         }}
         onEscapeKeyDown={handleDialogClose}
-        onPointerDownOutside={(e) => {
+        onPointerDownOutside={() => {
           // ✅ Permitir cerrar haciendo clic fuera del modal (móvil)
-          e.preventDefault();
           handleDialogClose();
         }}
       >

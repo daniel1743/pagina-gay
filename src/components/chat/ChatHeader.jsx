@@ -30,8 +30,8 @@ const ChatHeader = ({ currentRoom, onMenuClick, onOpenPrivateChat, onSimulate })
   };
 
   const handleQuickEscape = () => {
-    // Redirect to Google for quick escape
-    window.location.href = 'https://www.google.com/search?q=Google.com';
+    // Redirect to Google for quick escape without leaving history
+    window.location.replace('https://www.google.com/search?q=Google.com');
   };
 
   return (

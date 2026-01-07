@@ -21,6 +21,7 @@ import { checkRateLimit, recordMessage, unmuteUser } from '@/services/rateLimitS
 import { moderateMessage } from '@/services/moderationService';
 import { getPerformanceMonitor } from '@/services/performanceMonitor';
 import { getDeliveryService } from '@/services/messageDeliveryService';
+import { traceEvent, TRACE_EVENTS } from '@/utils/messageTrace';
 
 // Persistencia de envíos pendientes (cuando la red falla)
 const pendingMessages = [];
@@ -90,26 +91,7 @@ export function generateUUID() {
  * Envío directo (sin cola) - usado internamente
  */
 const doSendMessage = async (roomId, messageData, isAnonymous = false) => {
-  // 🔍 DIAGNÓSTICO: Logging detallado para identificar problemas localhost → producción
-  // ✅ HABILITADO TEMPORALMENTE PARA DEBUGGING URGENTE
-  if (import.meta.env.DEV) {
-    const diagnosticInfo = {
-      timestamp: new Date().toISOString(),
-      roomId,
-      hasAuth: !!auth,
-      hasCurrentUser: !!auth.currentUser,
-      currentUserUid: auth.currentUser?.uid,
-      currentUserEmail: auth.currentUser?.email,
-      messageDataUserId: messageData.userId,
-      messageDataUsername: messageData.username,
-      userIdsMatch: messageData.userId === auth.currentUser?.uid,
-      isAnonymous,
-      firebaseProjectId: db.app.options.projectId,
-      firebaseAuthDomain: auth.app.options.authDomain,
-      usingEmulator: import.meta.env.VITE_USE_FIREBASE_EMULATOR === 'true'
-    };
-    console.log('🔍 [DIAGNÓSTICO] Estado antes de enviar mensaje:', diagnosticInfo);
-  }
+  // Diagnósticos desactivados para reducir logs
 
   // ✅ ESTRATEGIA DE CAPTACIÓN: Permitir usuarios NO autenticados PERMANENTEMENTE
   // Reducir fricción - usuarios pueden chatear en sala principal sin registrarse
@@ -201,6 +183,12 @@ const doSendMessage = async (roomId, messageData, isAnonymous = false) => {
     return `https://api.dicebear.com/7.x/avataaars/svg?seed=${encodeURIComponent(seed)}`;
   };
 
+  // ✅ Asegurar que traceId se propague correctamente
+  const finalTraceId = messageData.traceId || trace?.traceId || trace.traceId;
+  if (finalTraceId) {
+    trace.traceId = finalTraceId;
+  }
+
   const message = {
     clientId: messageData.clientId || null,
     userId: messageData.userId,
@@ -210,8 +198,7 @@ const doSendMessage = async (roomId, messageData, isAnonymous = false) => {
     isPremium: messageData.isPremium || false,
     content: messageData.content,
     type: messageData.type || 'text',
-    // ✅ USUARIOS NO AUTENTICADOS: usar timestamp del servidor siempre que sea posible
-    // Firestore acepta timestamp sin auth si las reglas lo permiten
+    // ✅ Usar serverTimestamp() para sincronización correcta entre clientes
     timestamp: serverTimestamp(),
     reactions: { like: 0, dislike: 0 },
     read: false,
@@ -230,8 +217,75 @@ const doSendMessage = async (roomId, messageData, isAnonymous = false) => {
   const sendTimestamp = Date.now();
   const sendTimeISO = new Date().toISOString();
 
+  // Logs de debug desactivados
+
+  // 🔍 TRACE: Intentando escribir en Firestore (dentro de doSendMessage)
+  const traceId = messageData.traceId || trace?.traceId || generateUUID();
+  traceEvent(TRACE_EVENTS.FIREBASE_WRITE_ATTEMPT, {
+    traceId,
+    roomId,
+    userId: messageData.userId,
+    username: username,
+    content: messageData.content?.substring(0, 50),
+    messagePath: `rooms/${roomId}/messages`,
+  });
+
   // Enviar a Firestore (persistencia local primero)
-  const docRef = await addDoc(messagesRef, message);
+  let docRef;
+  try {
+    // 🔧 TIMEOUT AUMENTADO: 30s para tolerar alta latencia de Firestore
+    // ✅ ESTRATEGIA: Esperar pacientemente, NO lanzar error si responde tarde
+    const addDocWithTimeout = (ref, data, timeoutMs = 30000) => {
+      return new Promise(async (resolve, reject) => {
+        let timeoutReached = false;
+
+        const timeoutId = setTimeout(() => {
+          timeoutReached = true;
+          // ⚠️ NO rechazar - solo loguear advertencia
+          console.warn(`⏳ addDoc tardó más de ${timeoutMs}ms pero seguimos esperando...`);
+        }, timeoutMs);
+
+        try {
+          const result = await addDoc(ref, data);
+          clearTimeout(timeoutId);
+
+          if (timeoutReached) {
+            console.warn(`✅ addDoc respondió después de ${timeoutMs}ms - mensaje guardado OK`);
+          }
+
+          resolve(result);
+        } catch (error) {
+          clearTimeout(timeoutId);
+          reject(error);
+        }
+      });
+    };
+
+    docRef = await addDocWithTimeout(messagesRef, message);
+    
+    // 🔍 TRACE: Escritura en Firestore exitosa
+    traceEvent(TRACE_EVENTS.FIREBASE_WRITE_SUCCESS, {
+      traceId,
+      messageId: docRef.id,
+      roomId,
+      userId: messageData.userId,
+      firestoreId: docRef.id,
+    });
+  } catch (addDocError) {
+    console.error('❌ Error enviando mensaje:', {
+      error: addDocError,
+      code: addDocError.code,
+      message: addDocError.message,
+      name: addDocError.name,
+      stack: addDocError.stack,
+      // 🔍 Información adicional de diagnóstico
+      firebaseConnected: !!db,
+      authConnected: !!auth,
+      currentUser: auth.currentUser?.uid || 'NO AUTH',
+      messagesRefPath: `rooms/${roomId}/messages`,
+    });
+    throw addDocError; // Re-lanzar para que el catch externo lo maneje
+  }
 
   // ⏱️ TIMING: Calcular tiempo de envío a Firestore
   const firestoreSendTime = Date.now() - sendTimestamp;
@@ -328,23 +382,34 @@ export const sendMessage = async (roomId, messageData, isAnonymous = false, skip
       console.error('[SEND] ⏳ RATE LIMIT - Usuario bloqueado temporalmente');
     }
 
-    // Cola solo para errores de red y cuando no estamos en un flush
-    if (!skipQueue && isNetworkError(error)) {
-      pendingMessages.push({ roomId, messageData, isAnonymous });
-      console.warn('[SEND][QUEUE] Mensaje en cola por problema de red. Total en cola:', pendingMessages.length);
-      flushPendingMessages().catch(() => {});
-      return { queued: true };
-    }
+    // ❌ COLA DESHABILITADA (07/01/2026) - ESTABILIZACIÓN
+    // Reintentos automáticos causaban loops y estados inconsistentes
+    // ESTRATEGIA: Si falla, falla. El usuario puede reintentar manualmente.
+    // NO agregamos a cola, NO flusheamos, NO reintentos automáticos.
 
+    // ⚠️ COMENTADO - Cola de pendingMessages deshabilitada
+    // if (!skipQueue && isNetworkError(error)) {
+    //   pendingMessages.push({ roomId, messageData, isAnonymous });
+    //   console.warn('[SEND][QUEUE] Mensaje en cola por problema de red. Total en cola:', pendingMessages.length);
+    //   flushPendingMessages().catch(() => {});
+    //   return { queued: true };
+    // }
+
+    console.error('❌ [SEND] Mensaje NO enviado - sin reintentos automáticos');
     throw error;
   }
 };
+
+// 🔍 DIAGNÓSTICO: Contador global de listeners activos (para debugging)
+if (typeof window !== 'undefined') {
+  window.__activeFirestoreListeners = window.__activeFirestoreListeners || 0;
+}
 
 /**
  * Suscripción a mensajes en tiempo real - orden estable (nuevo->viejo en query, se invierte en cliente)
  * ⚡ OPTIMIZADO: Límite reducido a 50 para mejorar velocidad (antes 200 causaba 11+ segundos de latencia)
  */
-export const subscribeToRoomMessages = (roomId, callback, messageLimit = 50) => {
+export const subscribeToRoomMessages = (roomId, callback, messageLimit = 60) => {
   const messagesRef = collection(db, 'rooms', roomId, 'messages');
   const q = query(messagesRef, orderBy('timestamp', 'desc'), limit(messageLimit));
 
@@ -355,7 +420,7 @@ export const subscribeToRoomMessages = (roomId, callback, messageLimit = 50) => 
   // 📊 Obtener monitor de rendimiento
   const perfMonitor = getPerformanceMonitor();
 
-  return onSnapshot(
+  const unsubscribe = onSnapshot(
     q,
     (snapshot) => {
       const snapshotReceivedTime = Date.now();
@@ -363,19 +428,11 @@ export const subscribeToRoomMessages = (roomId, callback, messageLimit = 50) => 
       lastSnapshotTime = snapshotReceivedTime;
 
       // ⚡ OPTIMIZACIÓN: Primera snapshot puede ser lenta (carga inicial), no alertar
-      // ⚡ OPTIMIZACIÓN: Primera snapshot puede ser lenta (carga inicial), no alertar
       const isFirstSnapshotNow = isFirstSnapshot;
       if (isFirstSnapshot) {
         isFirstSnapshot = false;
-        // Primera snapshot: solo loguear en modo debug explícito
-        // if (import.meta.env.VITE_DEBUG_MESSAGES === 'true') {
-        //   console.log('[SUBSCRIBE] 📨 Snapshot inicial (carga inicial):', {
-        //     docsCount: snapshot.docs.length,
-        //     roomId,
-        //     fromCache: snapshot.metadata.fromCache
-        //   });
-        // }
       }
+      // Logs de actualización desactivados para reducir spam en consola
 
       // 🔍 DIAGNÓSTICO: Alertar si hay retraso REAL (> 3 segundos) o viene de caché
       // ⚡ UMBRAL REDUCIDO: De 5s a 3s para detectar problemas más rápido
@@ -450,68 +507,47 @@ export const subscribeToRoomMessages = (roomId, callback, messageLimit = 50) => 
 
       // 📬 Procesar mensajes para delivery tracking y enviar ACKs
       const deliveryService = getDeliveryService();
-      orderedMessages.forEach(msg => {
-        // Procesar actualización de delivery para mensajes propios
-        deliveryService.processMessageUpdate(msg);
 
-        // 🔍 Log cuando recibimos mensaje de otro usuario CON VELOCIDAD
-        // 🔍 PRUEBA 6 ENERO: DESACTIVADO - Causaba sobrecarga en consola (se ejecuta por cada mensaje)
-        // const isMessageFromAuth = !msg._unauthenticated && msg.senderUid;
-        // const currentUserIsAuth = !!auth.currentUser;
+      // ❌ DESHABILITADO TEMPORALMENTE - Loop infinito de Firebase (07/01/2026)
+      // markAsDelivered ejecutaba escrituras por cada mensaje recibido
+      // Causaba miles de escrituras adicionales en cada snapshot
+      // TODO: Re-habilitar con batch writes y throttling agresivo
+      const shouldProcessDelivery = false; // ✅ DESHABILITADO temporalmente
 
-        // console.log(
-        //   `%c📥 ${currentUserIsAuth ? '🔐 YO LOGUEADO' : '👤 YO NO LOGUEADO'} ← ${isMessageFromAuth ? '🔐 DE LOGUEADO' : '👤 DE NO LOGUEADO'}`,
-        //   `color: #00aaff; font-weight: bold; font-size: 13px; background: #001122; padding: 3px 6px; border-radius: 4px;`,
-        //   {
-        //     '👤 De': msg.username,
-        //     '🔑 Remitente tipo': isMessageFromAuth ? 'AUTENTICADO ✅' : 'NO AUTENTICADO ⚠️',
-        //     '💬 Mensaje': msg.content.substring(0, 50) + (msg.content.length > 50 ? '...' : ''),
-        //     '🆔 MessageID': msg.id,
-        //     '📅 Hora': new Date(msg.timestampMs).toLocaleTimeString(),
-        //   }
-        // );
+      // ❌ COMENTADO - Loop infinito
+      // const shouldProcessDelivery = !snapshot.metadata.hasPendingWrites && !isFirstSnapshotNow;
 
-        if (auth.currentUser && msg.userId !== auth.currentUser.uid) {
-          const latency = msg._receiveLatency;
-          const latencyColor = latency && latency < 1000 ? '#00ff00' : latency && latency < 3000 ? '#ffaa00' : '#ff0000';
-          const latencyEmoji = latency && latency < 1000 ? '⚡' : latency && latency < 3000 ? '⚠️' : '🐌';
+      if (shouldProcessDelivery) {
+        orderedMessages.forEach(msg => {
+          // Procesar actualización de delivery para mensajes propios
+          deliveryService.processMessageUpdate(msg);
 
+          if (auth.currentUser && msg.userId !== auth.currentUser.uid) {
+            // ⚠️ FIX: Solo marcar como delivered si NO lo hemos hecho antes
+            // Usar un Set para trackear mensajes ya procesados
+            if (!window.__deliveredMessages) {
+              window.__deliveredMessages = new Set();
+            }
 
-          // ⚡ CLOCK SKEW DETECTION & LOGGING DESACTIVADO POR PERFORMANCE
-          // const isClockSkew = latency && latency > 3600000;
-          // ... Logs comentados previamente ...
+            const deliveryKey = `${roomId}:${msg.id}:${auth.currentUser.uid}`;
+            if (!window.__deliveredMessages.has(deliveryKey)) {
+              window.__deliveredMessages.add(deliveryKey);
 
-          // ⚠️ LOGS COMENTADOS: Causaban sobrecarga en consola con cientos de mensajes
-          // if (isClockSkew) {
-          //    console.log(
-          //     `%c🕒 [RECEPCIÓN] Mensaje recibido - (Reloj desincronizado)`,
-          //     `color: #999; font-weight: normal; font-size: 11px`,
-          //     {
-          //       id: msg.id.substring(0, 8),
-          //       diff: `${(latency / 3600000).toFixed(1)} horas`,
-          //       note: 'Tu reloj va adelantado respecto al servidor'
-          //     }
-          //    );
-          // } else {
-          //   console.log(
-          //     `%c${latencyEmoji} [RECEPCIÓN] Mensaje recibido - Velocidad: ${latency ? latency + 'ms' : 'N/A'}`,
-          //     `color: ${latencyColor}; font-weight: bold; font-size: 13px`,
-          //     {
-          //       messageId: msg.id.substring(0, 8) + '...',
-          //       from: msg.username,
-          //       content: msg.content?.substring(0, 30) + (msg.content?.length > 30 ? '...' : ''),
-          //       roomId,
-          //       '⏱️ Latencia total': latency ? `${latency}ms (${(latency / 1000).toFixed(2)}s)` : 'N/A',
-          //       '📊 Velocidad': latency ? (latency < 1000 ? '⚡ RÁPIDO' : latency < 3000 ? '⚠️ NORMAL' : '🐌 LENTO') : 'N/A',
-          //       '📅 Recibido a las': new Date().toISOString(),
-          //     }
-          //   );
-          // }
+              // Enviar ACK para mensajes de otros usuarios (background)
+              deliveryService.markAsDelivered(roomId, msg.id, auth.currentUser.uid)
+                .catch(() => {}); // Ignorar errores silenciosamente
+            }
+          }
+        });
+      }
 
-          // Enviar ACK para mensajes de otros usuarios (background)
-          deliveryService.markAsDelivered(roomId, msg.id, auth.currentUser.uid)
-            .catch(() => {}); // Ignorar errores silenciosamente
-        }
+      // 🔍 TRACE: Callback ejecutado con mensajes recibidos
+      traceEvent(TRACE_EVENTS.CALLBACK_EXECUTED, {
+        roomId,
+        messageCount: orderedMessages.length,
+        messageIds: orderedMessages.slice(-5).map(m => m.id), // Últimos 5 IDs
+        fromCache: snapshot.metadata.fromCache,
+        hasPendingWrites: snapshot.metadata.hasPendingWrites,
       });
 
       // ⚡ CRÍTICO: Ejecutar callback INMEDIATAMENTE (sin delays)
@@ -541,10 +577,12 @@ export const subscribeToRoomMessages = (roomId, callback, messageLimit = 50) => 
         callback([]);
       }
     },
-    { 
+    {
       includeMetadataChanges: false // ⚡ OPTIMIZACIÓN: false = solo cambios reales, más rápido
     }
   );
+
+  return unsubscribe;
 };
 
 export const addReactionToMessage = async (roomId, messageId, reactionType) => {
@@ -606,6 +644,293 @@ export const createWelcomeMessage = async (roomId, welcomeText) => {
     await addDoc(messagesRef, welcomeMessage);
   } catch (error) {
     console.error('Error creating welcome message:', error);
+    throw error;
+  }
+};
+
+// ========================================
+// 🆕 SALAS SECUNDARIAS: Funciones para chat secundario
+// ========================================
+
+/**
+ * Envío directo para salas secundarias (sin cola) - usado internamente
+ */
+const doSendSecondaryMessage = async (roomId, messageData, isAnonymous = false) => {
+  // Misma lógica que doSendMessage pero con colección 'secondary-rooms'
+  const isSystemMessage = messageData.userId?.startsWith('system') ||
+                         messageData.userId?.startsWith('bot_') ||
+                         messageData.userId?.startsWith('ai_') ||
+                         messageData.userId?.startsWith('seed_user_');
+
+  if (auth.currentUser && !isSystemMessage && messageData.userId !== auth.currentUser.uid) {
+    console.warn('[SEND SECONDARY] ⚠️ userId no coincide con auth.currentUser.uid, corrigiendo...');
+    messageData.userId = auth.currentUser.uid;
+  }
+  
+  if (!auth.currentUser && !isSystemMessage) {
+    const unauthenticatedUserId = `unauthenticated_${localStorage.getItem('session_id') || `temp_${Date.now()}_${Math.random()}`}`;
+    if (!localStorage.getItem('session_id')) {
+      localStorage.setItem('session_id', unauthenticatedUserId.split('_')[1]);
+    }
+    messageData.userId = unauthenticatedUserId;
+  }
+
+  const isBot = messageData.userId?.startsWith('bot_') ||
+                messageData.userId?.startsWith('ai_') ||
+                messageData.userId?.startsWith('static_bot_') ||
+                messageData.userId === 'system';
+
+  // Usar colección 'secondary-rooms' en lugar de 'rooms'
+  const messagesRef = collection(db, 'secondary-rooms', roomId, 'messages');
+
+  const trace = messageData.trace || {
+    origin: isBot ? 'SYSTEM' : 'HUMAN',
+    source: isBot ? 'LEGACY_BOT' : 'USER_INPUT',
+    actorId: messageData.userId,
+    actorType: isBot ? 'BOT' : 'HUMAN',
+    system: 'chatService',
+    traceId: generateUUID(),
+    createdAt: Date.now()
+  };
+
+  const username = messageData.username || 'Usuario';
+  if (!username || username === 'undefined') {
+    console.error('[SEND SECONDARY] ❌ ERROR: username es inválido:', messageData.username);
+    throw new Error('Username es requerido para enviar mensajes');
+  }
+
+  if (!auth.currentUser) {
+    const linkPattern = /(https?:\/\/|www\.|@|#)/i;
+    if (linkPattern.test(messageData.content)) {
+      throw new Error('Los usuarios no registrados no pueden enviar links. Regístrate para compartir enlaces.');
+    }
+  }
+
+  const ensureAvatar = (avatar, username) => {
+    if (avatar && avatar.trim() && !avatar.includes('undefined')) {
+      return avatar;
+    }
+    const seed = username || 'guest';
+    return `https://api.dicebear.com/7.x/avataaars/svg?seed=${encodeURIComponent(seed)}`;
+  };
+
+  const message = {
+    clientId: messageData.clientId || null,
+    userId: messageData.userId,
+    senderUid: auth.currentUser?.uid || messageData.senderUid || null,
+    username,
+    avatar: ensureAvatar(messageData.avatar, username),
+    isPremium: messageData.isPremium || false,
+    content: messageData.content,
+    type: messageData.type || 'text',
+    timestamp: serverTimestamp(),
+    reactions: { like: 0, dislike: 0 },
+    read: false,
+    replyTo: messageData.replyTo || null,
+    trace,
+    _unauthenticated: !auth.currentUser,
+    status: 'sent',
+    deliveredTo: [],
+    readBy: [],
+    deliveredAt: null,
+    readAt: null,
+  };
+
+  const sendTimestamp = Date.now();
+  let docRef;
+  
+  try {
+    const addDocWithTimeout = (ref, data, timeoutMs = 15000) => {
+      return new Promise(async (resolve, reject) => {
+        const timeoutId = setTimeout(() => {
+          reject(new Error(`⏱️ TIMEOUT: addDoc tardó más de ${timeoutMs}ms`));
+        }, timeoutMs);
+
+        try {
+          const result = await addDoc(ref, data);
+          clearTimeout(timeoutId);
+          resolve(result);
+        } catch (error) {
+          clearTimeout(timeoutId);
+          reject(error);
+        }
+      });
+    };
+
+    docRef = await addDocWithTimeout(messagesRef, message);
+  } catch (addDocError) {
+    console.error('❌ Error enviando mensaje a sala secundaria:', addDocError);
+    throw addDocError;
+  }
+
+  const firestoreSendTime = Date.now() - sendTimestamp;
+  const deliveryService = getDeliveryService();
+  deliveryService.registerOutgoingMessage(docRef.id, {
+    ...messageData,
+    roomId: `secondary-${roomId}`,
+  });
+
+  const isAuthenticated = !!auth.currentUser;
+  console.log(
+    `%c📤 ${isAuthenticated ? '🔐 LOGUEADO' : '👤 NO LOGUEADO'} → Mensaje enviado (SECUNDARIA)`,
+    `color: ${isAuthenticated ? '#00ff00' : '#ffaa00'}; font-weight: bold;`,
+    {
+      '👤 Usuario': username,
+      '🆔 MessageID': docRef.id,
+      '🏠 Sala': `secondary-${roomId}`,
+      '⏱️ Tiempo': `${firestoreSendTime}ms`,
+    }
+  );
+
+  recordMessage(messageData.userId, messageData.content);
+
+  return { id: docRef.id, ...message };
+};
+
+/**
+ * Envía un mensaje a una sala secundaria
+ * Usa la colección 'secondary-rooms' en lugar de 'rooms'
+ */
+export const sendSecondaryMessage = async (roomId, messageData, isAnonymous = false, skipQueue = false) => {
+  const perfMonitor = getPerformanceMonitor();
+
+  try {
+    const { result, latency } = await perfMonitor.measureMessageSend(
+      () => doSendSecondaryMessage(roomId, { ...messageData }, isAnonymous),
+      messageData
+    );
+    return result;
+  } catch (error) {
+    console.error('[SEND SECONDARY] ❌ Error enviando mensaje:', error);
+
+    if (!skipQueue && isNetworkError(error)) {
+      // Podríamos agregar una cola separada para secundarias si es necesario
+      console.warn('[SEND SECONDARY][QUEUE] Mensaje en cola por problema de red');
+      throw error; // Por ahora, solo relanzar el error
+    }
+
+    throw error;
+  }
+};
+
+/**
+ * Suscripción a mensajes en tiempo real para salas secundarias
+ * Usa la colección 'secondary-rooms' en lugar de 'rooms'
+ */
+export const subscribeToSecondaryRoomMessages = (roomId, callback, messageLimit = 60) => {
+  const messagesRef = collection(db, 'secondary-rooms', roomId, 'messages');
+  const q = query(messagesRef, orderBy('timestamp', 'desc'), limit(messageLimit));
+
+  let lastSnapshotTime = Date.now();
+  let isFirstSnapshot = true;
+
+  const perfMonitor = getPerformanceMonitor();
+
+  const unsubscribe = onSnapshot(
+    q,
+    (snapshot) => {
+      const snapshotReceivedTime = Date.now();
+      const timeSinceLastSnapshot = snapshotReceivedTime - lastSnapshotTime;
+      lastSnapshotTime = snapshotReceivedTime;
+
+      const isFirstSnapshotNow = isFirstSnapshot;
+      if (isFirstSnapshot) {
+        isFirstSnapshot = false;
+      }
+
+      const startProcessTime = performance.now();
+      const receiveTimestamp = Date.now();
+      const messages = [];
+      
+      for (let i = 0; i < snapshot.docs.length; i++) {
+        const doc = snapshot.docs[i];
+        const data = doc.data();
+        const timestampMs = data.timestamp?.toMillis?.() ?? null;
+        
+        let latency = null;
+        if (timestampMs) {
+          latency = receiveTimestamp - timestampMs;
+        }
+        
+        messages.push({
+          id: doc.id,
+          ...data,
+          timestampMs,
+          timestamp: data.timestamp ?? null,
+          _receiveLatency: latency,
+        });
+      }
+
+      // Invertir para mostrar más antiguos primero
+      messages.reverse();
+      
+      const processTime = performance.now() - startProcessTime;
+      perfMonitor.recordMetric('messageProcessing', processTime);
+
+      callback(messages);
+    },
+    (error) => {
+      console.error('Error en suscripción a sala secundaria:', error);
+      callback([]);
+    }
+  );
+
+  if (typeof window !== 'undefined') {
+    window.__activeFirestoreListeners = (window.__activeFirestoreListeners || 0) + 1;
+  }
+
+  return unsubscribe;
+};
+
+/**
+ * Marca mensajes como leídos en salas secundarias
+ */
+export const markSecondaryMessagesAsRead = async (roomId, currentUserId) => {
+  try {
+    const messagesRef = collection(db, 'secondary-rooms', roomId, 'messages');
+    const q = query(
+      messagesRef,
+      where('read', '==', false),
+      where('userId', '!=', currentUserId)
+    );
+
+    const snapshot = await getDocs(q);
+
+    const batch = [];
+    snapshot.docs.forEach(doc => {
+      batch.push(updateDoc(doc.ref, { read: true }));
+    });
+
+    await Promise.all(batch);
+  } catch (error) {
+    console.error('Error marking secondary messages as read:', error);
+  }
+};
+
+/**
+ * Agrega reacción a mensaje en sala secundaria
+ */
+export const addReactionToSecondaryMessage = async (roomId, messageId, reaction) => {
+  try {
+    const messageRef = doc(db, 'secondary-rooms', roomId, 'messages', messageId);
+    const messageDoc = await getDoc(messageRef);
+    
+    if (!messageDoc.exists()) {
+      throw new Error('Mensaje no encontrado');
+    }
+
+    const currentData = messageDoc.data();
+    const currentReactions = currentData.reactions || { like: 0, dislike: 0 };
+    
+    // Incrementar reacción
+    const newReactions = {
+      ...currentReactions,
+      [reaction]: (currentReactions[reaction] || 0) + 1
+    };
+
+    await updateDoc(messageRef, { reactions: newReactions });
+  } catch (error) {
+    console.error('Error adding reaction to secondary message:', error);
     throw error;
   }
 };

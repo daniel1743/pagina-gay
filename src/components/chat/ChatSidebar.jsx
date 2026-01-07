@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
 import { Button } from '@/components/ui/button';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
@@ -34,12 +34,16 @@ const getRoomActivityStatus = (realUserCount) => {
 
 const ChatSidebar = ({ currentRoom, setCurrentRoom, isOpen, onClose }) => {
   const navigate = useNavigate();
+  const location = useLocation();
   const { user, logout } = useAuth();
   const [roomCounts, setRoomCounts] = useState({});
   const [logoSrc, setLogoSrc] = useState("/LOGO-TRASPARENTE.png");
   const [showRegistrationModal, setShowRegistrationModal] = useState(false);
   const [pendingRoomId, setPendingRoomId] = useState(null);
   const [showAuthModal, setShowAuthModal] = useState(false);
+  
+  // ✅ Detectar si estamos en una sala secundaria
+  const isSecondaryRoom = location.pathname.startsWith('/chat-secondary/');
 
   // Suscribirse a contadores en tiempo real (todos los usuarios pueden ver)
   useEffect(() => {
@@ -55,9 +59,14 @@ const ChatSidebar = ({ currentRoom, setCurrentRoom, isOpen, onClose }) => {
     return () => unsubscribe();
   }, [user]);
 
-  const handleRoomChange = (roomId) => {
+  const handleRoomChange = (roomId, isSecondary = false) => {
     setCurrentRoom(roomId);
-    navigate(`/chat/${roomId}`);
+    // ✅ Navegar a sala secundaria si tiene el flag isSecondary
+    if (isSecondary) {
+      navigate(`/chat-secondary/${roomId}`);
+    } else {
+      navigate(`/chat/${roomId}`);
+    }
     // ✅ Cerrar sidebar automáticamente en móvil al cambiar de sala
     if (typeof window !== 'undefined' && window.innerWidth < 1024) {
       onClose();
@@ -164,7 +173,9 @@ const ChatSidebar = ({ currentRoom, setCurrentRoom, isOpen, onClose }) => {
                 const isGuestOrAnonymous = user && (user.isGuest || user.isAnonymous);
                 const requiresAuth = isRestrictedRoom && isGuestOrAnonymous;
                 
-                const isActive = currentRoom === room.id;
+                // ✅ Verificar si la sala está activa (incluyendo salas secundarias)
+                const isActive = currentRoom === room.id || 
+                  (isSecondaryRoom && room.isSecondary && location.pathname.includes(`/chat-secondary/${room.id}`));
 
                 return (
                   <motion.div
@@ -188,7 +199,7 @@ const ChatSidebar = ({ currentRoom, setCurrentRoom, isOpen, onClose }) => {
                           setPendingRoomId(room.id);
                           setShowRegistrationModal(true);
                         } else {
-                          handleRoomChange(room.id);
+                          handleRoomChange(room.id, room.isSecondary);
                         }
                       }}
                     >
@@ -420,7 +431,9 @@ const ChatSidebar = ({ currentRoom, setCurrentRoom, isOpen, onClose }) => {
                 const isGuestOrAnonymous = user && (user.isGuest || user.isAnonymous);
                 const requiresAuth = isRestrictedRoom && isGuestOrAnonymous;
                 
-                const isActive = currentRoom === room.id;
+                // ✅ Verificar si la sala está activa (incluyendo salas secundarias)
+                const isActive = currentRoom === room.id || 
+                  (isSecondaryRoom && room.isSecondary && location.pathname.includes(`/chat-secondary/${room.id}`));
 
                 return (
                   <motion.div
@@ -443,7 +456,7 @@ const ChatSidebar = ({ currentRoom, setCurrentRoom, isOpen, onClose }) => {
                           navigate('/auth?redirect=/chat/' + room.id);
                           onClose();
                         } else {
-                          handleRoomChange(room.id);
+                          handleRoomChange(room.id, room.isSecondary);
                         }
                       }}
                     >

@@ -126,12 +126,24 @@ window.fetch = function(...args) {
 					const requestUrl = response.url;
 					
 					// ⚡ FILTRAR: Ignorar errores internos de Firestore que son transitorios
+					// Los errores 400, 500 y 503 son errores transitorios del servidor de Firebase
+					// que no podemos controlar desde el cliente y se resuelven automáticamente
 					const isFirestoreInternalError = 
 						requestUrl.includes('firestore.googleapis.com') && 
-						(response.status === 400 || response.status === 503);
+						(response.status === 400 || response.status === 500 || response.status === 503);
 					
-					if (!isFirestoreInternalError) {
+					// ⚡ FILTRAR: También ignorar errores de Firebase Auth que son transitorios
+					const isFirebaseAuthError = 
+						requestUrl.includes('identitytoolkit.googleapis.com') && 
+						(response.status === 500 || response.status === 503);
+					
+					if (!isFirestoreInternalError && !isFirebaseAuthError) {
 						console.error(\`Fetch error from \${requestUrl}: \${errorFromRes}\`);
+					} else {
+						// Log silencioso para debugging (solo en desarrollo)
+						if (import.meta.env.DEV) {
+							console.debug(\`[IGNORED] Firestore/Firebase transient error (\${response.status}): \${requestUrl}\`);
+						}
 					}
 			}
 

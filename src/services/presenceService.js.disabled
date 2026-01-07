@@ -1,0 +1,70 @@
+/**
+ * 🚨 EMERGENCY MODE - TODOS LOS LISTENERS DESHABILITADOS
+ * Este archivo reemplaza presenceService.js temporalmente
+ * para detener TODAS las lecturas de Firebase
+ */
+
+// ✅ Funciones dummy que NO hacen nada
+export const joinRoom = async () => {
+  console.warn('🚫 [EMERGENCY] joinRoom DESHABILITADO temporalmente');
+  return Promise.resolve();
+};
+
+export const leaveRoom = async () => {
+  console.warn('🚫 [EMERGENCY] leaveRoom DESHABILITADO temporalmente');
+  return Promise.resolve();
+};
+
+export const subscribeToRoomUserCount = (roomId, callback) => {
+  console.warn('🚫 [EMERGENCY] subscribeToRoomUserCount DESHABILITADO temporalmente');
+  callback(0); // Devolver 0 usuarios
+  return () => {}; // Cleanup vacío
+};
+
+export const subscribeToRoomUsers = (roomId, callback) => {
+  console.warn('🚫 [EMERGENCY] subscribeToRoomUsers DESHABILITADO temporalmente');
+  callback([]); // Devolver array vacío
+  return () => {}; // Cleanup vacío
+};
+
+export const subscribeToMultipleRoomCounts = (roomIds, callback) => {
+  console.warn('🚫 [EMERGENCY] subscribeToMultipleRoomCounts DESHABILITADO - NO CREAR LISTENERS');
+  // Devolver objeto con todas las salas en 0
+  const counts = roomIds.reduce((acc, id) => ({ ...acc, [id]: 0 }), {});
+  callback(counts);
+  return () => {}; // Cleanup vacío
+};
+
+export const updateUserActivity = async () => {
+  // No hacer nada
+  return Promise.resolve();
+};
+
+export const cleanInactiveUsers = async () => {
+  // No hacer nada
+  return Promise.resolve();
+};
+
+export const filterActiveUsers = (users) => {
+  // Devolver array vacío
+  return [];
+};
+
+export const subscribeToTypingUsers = (roomId, currentUserId, callback) => {
+  console.warn('🚫 [EMERGENCY] subscribeToTypingUsers DESHABILITADO temporalmente');
+  callback([]);
+  return () => {};
+};
+
+export const recordGlobalActivity = async () => {
+  return Promise.resolve();
+};
+
+export const subscribeToLastActivity = (callback) => {
+  callback(null);
+  return () => {};
+};
+
+export const updateTypingStatus = async () => {
+  return Promise.resolve();
+};

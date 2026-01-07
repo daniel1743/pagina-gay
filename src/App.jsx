@@ -4,6 +4,7 @@ import { Toaster } from '@/components/ui/toaster';
 import LobbyPage from '@/pages/LobbyPage';
 import AuthPage from '@/pages/AuthPage';
 import ChatPage from '@/pages/ChatPage';
+import ChatSecondaryPage from '@/pages/ChatSecondaryPage';
 import ProfilePage from '@/pages/ProfilePage';
 import PremiumPage from '@/pages/PremiumPage';
 import AdminPage from '@/pages/AdminPage';
@@ -194,6 +195,7 @@ function AppRoutes() {
         />
 
         <Route path="/chat/:roomId" element={<ChatPage />} />
+        <Route path="/chat-secondary/:roomId" element={<ChatSecondaryPage />} />
         <Route path="/anonymous-chat" element={<AnonymousChatPage />} />
         <Route path="/anonymous-forum" element={<AnonymousForumPage />} />
         <Route path="/thread/:threadId" element={<MainLayout><ThreadDetailPage /></MainLayout>} />

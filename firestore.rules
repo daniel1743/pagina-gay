@@ -287,16 +287,12 @@ service cloud.firestore {
       // Esto permite que usuarios que lleguen desde Google puedan ver el chat
       allow read: if true;
 
-      // ✅ ESCRITURA PÚBLICA (SOLICITADA POR USUARIO)
-      // Permite que CUALQUIER usuario (Autenticado, Anónimo, o Sin Auth/Localhost) escriba.
-      allow create: if 
-        // 1. Validar formato básico del mensaje (evitar basura)
+      // 🔥 TEMPORAL: Reglas MUY PERMISIVAS para debugging
+      // Permite CUALQUIER mensaje con content válido
+      allow create: if
         request.resource.data.content is string &&
         request.resource.data.content.size() > 0 &&
-        request.resource.data.content.size() <= 1000 &&
-        
-        // 2. Si está baneado, BLOQUEAR (solo si podemos identificarlo)
-        (!isAuthenticated() || isNotBanned());
+        request.resource.data.content.size() <= 1000;
 
       // ✅ Permitir actualizar reacciones, deliveredTo, readBy, status (para sistema de checks)
       // ✅ Permitir actualizar reacciones, deliveredTo, readBy, status (para sistema de checks)

@@ -43,13 +43,23 @@ const LobbyPage = () => {
   const showHeroSection = !user; // Solo para visitantes
   const showWelcomeBack = user && !user.isGuest && !user.isAnonymous;
 
-  // Suscribirse a contadores de usuarios en tiempo real
+  // ❌ DESHABILITADO TEMPORALMENTE - Loop infinito de Firebase (07/01/2026)
+  // subscribeToMultipleRoomCounts creaba 75+ listeners activos simultáneos
+  // Causó 500,000+ lecturas en 6 minutos
+  // TODO: Re-habilitar con throttling y deduplicación
   useEffect(() => {
+    // ✅ HOTFIX: Valores estáticos temporales (0 usuarios en todas las salas)
     const roomIds = roomsData.map(room => room.id);
-    const unsubscribe = subscribeToMultipleRoomCounts(roomIds, (counts) => {
-      setRoomCounts(counts);
-    });
-    return () => unsubscribe();
+    const staticCounts = roomIds.reduce((acc, id) => ({ ...acc, [id]: 0 }), {});
+    setRoomCounts(staticCounts);
+
+    // ❌ COMENTADO - Loop infinito
+    // const unsubscribe = subscribeToMultipleRoomCounts(roomIds, (counts) => {
+    //   setRoomCounts(counts);
+    // });
+    // return () => unsubscribe();
+
+    return () => {}; // Cleanup vacío
   }, []);
 
   // Track page view

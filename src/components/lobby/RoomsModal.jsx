@@ -38,16 +38,25 @@ const RoomsModal = ({ isOpen, onClose }) => {
   // ✅ MODIFICADO: Usuarios anónimos pueden ver el modal pero solo acceder a "conversas-libres"
   // No redirigimos automáticamente, permitimos que vean las salas disponibles
 
-  // Suscribirse a contadores de usuarios en tiempo real (solo si está registrado)
+  // ❌ DESHABILITADO TEMPORALMENTE - Loop infinito de Firebase (07/01/2026)
+  // subscribeToMultipleRoomCounts creaba 75+ listeners activos simultáneos
+  // Causó 500,000+ lecturas en 6 minutos
+  // TODO: Re-habilitar con throttling y deduplicación
   useEffect(() => {
     if (!user || user.isAnonymous || user.isGuest) return;
-    
-    const roomIds = roomsData.map(room => room.id);
-    const unsubscribe = subscribeToMultipleRoomCounts(roomIds, (counts) => {
-      setRoomCounts(counts);
-    });
 
-    return () => unsubscribe();
+    // ✅ HOTFIX: Valores estáticos temporales (0 usuarios en todas las salas)
+    const roomIds = roomsData.map(room => room.id);
+    const staticCounts = roomIds.reduce((acc, id) => ({ ...acc, [id]: 0 }), {});
+    setRoomCounts(staticCounts);
+
+    // ❌ COMENTADO - Loop infinito
+    // const unsubscribe = subscribeToMultipleRoomCounts(roomIds, (counts) => {
+    //   setRoomCounts(counts);
+    // });
+    // return () => unsubscribe();
+
+    return () => {}; // Cleanup vacío
   }, [user]);
 
   const filteredRooms = roomsData.filter(room =>
