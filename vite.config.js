@@ -126,23 +126,44 @@ window.fetch = function(...args) {
 					const requestUrl = response.url;
 					
 					// ⚡ FILTRAR: Ignorar errores internos de Firestore que son transitorios
-					// Los errores 400, 500 y 503 son errores transitorios del servidor de Firebase
-					// que no podemos controlar desde el cliente y se resuelven automáticamente
 					const isFirestoreInternalError = 
 						requestUrl.includes('firestore.googleapis.com') && 
 						(response.status === 400 || response.status === 500 || response.status === 503);
 					
-					// ⚡ FILTRAR: También ignorar errores de Firebase Auth que son transitorios
+					// ⚡ FILTRAR: Ignorar errores de Firebase Auth que son transitorios
 					const isFirebaseAuthError = 
 						requestUrl.includes('identitytoolkit.googleapis.com') && 
 						(response.status === 500 || response.status === 503);
 					
-					if (!isFirestoreInternalError && !isFirebaseAuthError) {
+					// ⚡ FILTRAR: Ignorar errores de Google Analytics (ERR_INSUFFICIENT_RESOURCES es común)
+					const isGoogleAnalyticsError = 
+						requestUrl.includes('google-analytics.com') || 
+						requestUrl.includes('googletagmanager.com') ||
+						requestUrl.includes('analytics.google.com') ||
+						requestUrl.includes('G-PZQQL7WH39') ||
+						requestUrl.includes('gtag');
+					
+					// ⚡ FILTRAR: Ignorar errores 304 (Not Modified) - son normales, no son errores
+					const isNotModified = response.status === 304;
+					
+					// ⚡ FILTRAR: Ignorar errores de recursos locales en desarrollo (hot reload)
+					const isLocalResourceError = 
+						import.meta.env.DEV && 
+						(requestUrl.includes('localhost') || requestUrl.includes('127.0.0.1')) &&
+						(requestUrl.includes('.jsx') || requestUrl.includes('.js') || requestUrl.includes('.ts'));
+					
+					// ⚡ FILTRAR: Ignorar errores de recursos insuficientes (ERR_INSUFFICIENT_RESOURCES)
+					// Estos son errores del navegador cuando hay demasiadas peticiones, no errores reales
+					const isInsufficientResources = 
+						errorFromRes.includes('ERR_INSUFFICIENT_RESOURCES') ||
+						errorFromRes.includes('net::ERR_INSUFFICIENT_RESOURCES');
+					
+					if (!isFirestoreInternalError && !isFirebaseAuthError && !isGoogleAnalyticsError && !isNotModified && !isLocalResourceError && !isInsufficientResources) {
 						console.error(\`Fetch error from \${requestUrl}: \${errorFromRes}\`);
 					} else {
 						// Log silencioso para debugging (solo en desarrollo)
 						if (import.meta.env.DEV) {
-							console.debug(\`[IGNORED] Firestore/Firebase transient error (\${response.status}): \${requestUrl}\`);
+							console.debug(\`[IGNORED] Transient error (\${response.status}): \${requestUrl}\`);
 						}
 					}
 			}
@@ -150,7 +171,24 @@ window.fetch = function(...args) {
 			return response;
 		})
 		.catch(error => {
-			if (!url.match(/\.html?$/i)) {
+			// ⚡ FILTRAR: Ignorar errores de recursos insuficientes y Google Analytics
+			const isInsufficientResources = 
+				error.message?.includes('ERR_INSUFFICIENT_RESOURCES') ||
+				error.message?.includes('net::ERR_INSUFFICIENT_RESOURCES');
+			
+			const isGoogleAnalyticsError = 
+				url.includes('google-analytics.com') || 
+				url.includes('googletagmanager.com') ||
+				url.includes('analytics.google.com') ||
+				url.includes('G-PZQQL7WH39') ||
+				url.includes('gtag');
+			
+			const isLocalResourceError = 
+				import.meta.env.DEV && 
+				(url.includes('localhost') || url.includes('127.0.0.1')) &&
+				(url.includes('.jsx') || url.includes('.js') || url.includes('.ts'));
+			
+			if (!url.match(/\.html?$/i) && !isInsufficientResources && !isGoogleAnalyticsError && !isLocalResourceError) {
 				console.error(error);
 			}
 

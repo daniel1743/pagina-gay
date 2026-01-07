@@ -37,7 +37,9 @@ export default function PerformanceDashboard() {
     return () => clearInterval(interval);
   }, []);
 
-  if (!isVisible) return null;
+  // ✅ DESHABILITADO: El usuario no necesita ver diagnósticos de velocidad
+  // if (!isVisible) return null;
+  return null; // Siempre oculto - no mostrar a usuarios
 
   const formatLatency = (value) => {
     if (value === 0 || value === undefined) return '-';

@@ -570,6 +570,12 @@ const ChatPage = () => {
       unsubscribeRef.current = null;
     }
     
+    // 📊 LÍMITE DE MENSAJES según tipo de usuario
+    // - No logueados (guest/anonymous): 50 mensajes
+    // - Logueados (registrados): 100 mensajes
+    const messageLimit = (user && !user.isGuest && !user.isAnonymous) ? 100 : 50;
+    console.log(`📊 [CHAT] Límite de mensajes para ${user?.username}: ${messageLimit} (${user?.isGuest || user?.isAnonymous ? 'invitado' : 'registrado'})`);
+
     // console.log('📡 [CHAT] Suscribiéndose a mensajes INMEDIATAMENTE para sala:', roomId);
     setIsLoadingMessages(true); // ⏳ Marcar como cargando al iniciar suscripción
     const unsubscribeMessages = subscribeToRoomMessages(roomId, (newMessages) => {
@@ -769,7 +775,7 @@ const ChatPage = () => {
         return uniqueMessages;
       });
 
-    });
+    }, messageLimit); // ✅ Pasar límite de mensajes según tipo de usuario
 
     // 🤖 Suscribirse a usuarios de la sala (para sistema de bots)
     // ⚠️ TYPING STATUS: DESHABILITADO - causaba errores (setTypingUsers no definido)
@@ -1544,21 +1550,13 @@ const ChatPage = () => {
         // 🎯 VOC: Resetear cooldown cuando hay nueva actividad
         resetVOCCooldown(currentRoom);
 
-        // ⚡ LATENCY CHECK (SOLICITUD DE USUARIO): Medir tiempo de ciclo completo
-        // Solo para el usuario que envió el mensaje y si está en localhost/dev o lo pide el admin
+        // ⚡ LATENCY CHECK: Solo log en consola (sin toast al usuario)
         const latency = Date.now() - optimisticMessage.timestampMs;
         console.log(`⏱️ [LATENCY TEST] Mensaje sincronizado en ${latency}ms`);
-        
-        // Mostrar toast de latencia si tarda más de 100ms (para feedback visual de "lento") 
-        // o si estamos en modo debug explícito
-        if (import.meta.env.DEV || latency > 500) {
-           toast({
-             title: "⏱️ Diagnóstico de Velocidad",
-             description: `Latencia: ${latency}ms (Ida y vuelta)`,
-             duration: 2000,
-             variant: latency < 300 ? "default" : "destructive"
-           });
-        }
+
+        // ❌ TOAST DE LATENCIA ELIMINADO (07/01/2026) - No interesa al usuario
+        // El usuario no necesita ver información técnica de latencia
+        // Solo mantener log en consola para debugging
 
         // ✅ ACTUALIZAR ESTADO: Marcar como 'sent' cuando Firestore confirma
         // El listener de onSnapshot se encargará de eliminar el optimista cuando detecte el real
@@ -1897,6 +1895,56 @@ const ChatPage = () => {
       });
     }
   }, [authLoading, user, roomId, signInAsGuest]);
+
+  // 📜 DETECCIÓN DE SCROLL: Toast para usuarios no logueados
+  // Si un usuario no logueado scrollea hasta arriba y hay más de 50 mensajes, mostrar toast
+  // ✅ CRITICAL: Este hook DEBE estar ANTES de cualquier return condicional
+  // ✅ FIX: Asegurar que siempre se ejecute (no condicionalmente) para respetar reglas de hooks
+  useEffect(() => {
+    // Guard interno: solo ejecutar lógica si hay user y es guest/anonymous
+    if (!user || (!user.isGuest && !user.isAnonymous)) {
+      return;
+    }
+
+    // Guard interno: solo ejecutar si scrollManager está disponible
+    if (!scrollManager?.containerRef?.current) return;
+    
+    const container = scrollManager.containerRef.current;
+
+    let hasShownToast = false; // Flag para mostrar toast solo una vez por sesión
+
+    const handleScroll = () => {
+      // Si ya mostró el toast, no volver a mostrar
+      if (hasShownToast) return;
+
+      // Si está scrolleando cerca del tope (primeros 100px)
+      const scrollTop = container.scrollTop;
+      const isNearTop = scrollTop < 100;
+
+      // Si alcanzó el límite de 50 mensajes y scrollea arriba
+      if (isNearTop && messages.length >= 50) {
+        hasShownToast = true;
+        toast({
+          title: "📜 Más Historial Disponible",
+          description: "Para ver más de 50 mensajes anteriores, debes estar registrado. ¡Regístrate gratis en 30 segundos!",
+          duration: 5000,
+          action: {
+            label: "Registrarme",
+            onClick: () => {
+              setShowRegistrationModal(true);
+              setRegistrationModalFeature('historial');
+            }
+          }
+        });
+      }
+    };
+
+    container.addEventListener('scroll', handleScroll);
+
+    return () => {
+      container.removeEventListener('scroll', handleScroll);
+    };
+  }, [user, messages.length, scrollManager, setShowRegistrationModal, setRegistrationModalFeature]);
 
   // Mostrar loading mientras auth carga
   if (authLoading) {

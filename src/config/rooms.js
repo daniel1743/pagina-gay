@@ -94,15 +94,16 @@ export const roomsData = [
     color: 'blue'
   },
 
+  // ⚠️ SALA SECUNDARIA - COMENTADA (a petición del usuario)
   // 🆕 SALA SECUNDARIA - Chat secundario con conversación bidireccional
-  {
-    id: 'secundaria',
-    name: 'Sala Secundaria 💬',
-    description: 'Chat secundario - Conversación bidireccional',
-    icon: Hash,
-    color: 'purple',
-    isSecondary: true // ✅ Flag para identificar que es sala secundaria
-  },
+  // {
+  //   id: 'secundaria',
+  //   name: 'Sala Secundaria 💬',
+  //   description: 'Chat secundario - Conversación bidireccional',
+  //   icon: Hash,
+  //   color: 'purple',
+  //   isSecondary: true // ✅ Flag para identificar que es sala secundaria
+  // },
 
   // 💤 SALAS DESACTIVADAS TEMPORALMENTE (Reactivar cuando haya más tráfico)
   // {
