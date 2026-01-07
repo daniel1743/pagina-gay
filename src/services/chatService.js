@@ -191,12 +191,22 @@ const doSendMessage = async (roomId, messageData, isAnonymous = false) => {
     }
   }
 
+  // ✅ GARANTIZAR AVATAR: Nunca enviar null, siempre tener un avatar válido
+  const ensureAvatar = (avatar, username) => {
+    if (avatar && avatar.trim() && !avatar.includes('undefined')) {
+      return avatar;
+    }
+    // Fallback: Generar avatar basado en username usando DiceBear
+    const seed = username || 'guest';
+    return `https://api.dicebear.com/7.x/avataaars/svg?seed=${encodeURIComponent(seed)}`;
+  };
+
   const message = {
     clientId: messageData.clientId || null,
     userId: messageData.userId,
     senderUid: auth.currentUser?.uid || messageData.senderUid || null,
     username, // ✅ Validado arriba
-    avatar: messageData.avatar || null,
+    avatar: ensureAvatar(messageData.avatar, username), // ✅ NUNCA null
     isPremium: messageData.isPremium || false,
     content: messageData.content,
     type: messageData.type || 'text',
@@ -247,8 +257,8 @@ const doSendMessage = async (roomId, messageData, isAnonymous = false) => {
       '🏠 Sala': roomId,
       '⏱️ Tiempo': `${firestoreSendTime}ms`,
       '📅 Hora': sendTimeISO,
-  //   }
-  // );
+    }
+  );
 
   // Cache rate limiting (memoria)
   recordMessage(messageData.userId, messageData.content);

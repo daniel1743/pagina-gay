@@ -867,14 +867,14 @@ const ChatPage = () => {
             if (hasChanged) {
               // ⚠️ NOTIFICACIONES DE SONIDO ELIMINADAS (06/01/2026) - A petición del usuario
               // 🔊 Reproducir sonido de INGRESO si un usuario real se conectó
-              // if (previousRealUserCountRef.current > 0 && currentCounts.real > previousRealUserCountRef.current) {
-              //   notificationSounds.playUserJoinSound();
-              // }
+              if (previousRealUserCountRef.current > 0 && currentCounts.real > previousRealUserCountRef.current) {
+                notificationSounds.playUserJoinSound();
+              }
 
               // 🔊 Reproducir sonido de SALIDA si un usuario real se desconectó
-              // if (previousRealUserCountRef.current > 0 && currentCounts.real < previousRealUserCountRef.current) {
-              //   notificationSounds.playDisconnectSound();
-              // }
+              if (previousRealUserCountRef.current > 0 && currentCounts.real < previousRealUserCountRef.current) {
+                notificationSounds.playDisconnectSound();
+              }
 
               // Actualizar contador de usuarios reales
               previousRealUserCountRef.current = currentCounts.real;
@@ -942,14 +942,14 @@ const ChatPage = () => {
 
         // ⚠️ NOTIFICACIONES DE SONIDO ELIMINADAS (06/01/2026) - A petición del usuario
         // 🔊 Reproducir sonido de INGRESO si un usuario real se conectó
-        // if (previousRealUserCountRef.current > 0 && currentCounts.real > previousRealUserCountRef.current) {
-        //   notificationSounds.playUserJoinSound();
-        // }
+        if (previousRealUserCountRef.current > 0 && currentCounts.real > previousRealUserCountRef.current) {
+          notificationSounds.playUserJoinSound();
+        }
 
         // 🔊 Reproducir sonido de SALIDA si un usuario real se desconectó
-        // if (previousRealUserCountRef.current > 0 && currentCounts.real < previousRealUserCountRef.current) {
-        //   notificationSounds.playDisconnectSound();
-        // }
+        if (previousRealUserCountRef.current > 0 && currentCounts.real < previousRealUserCountRef.current) {
+          notificationSounds.playDisconnectSound();
+        }
 
         // Actualizar contador de usuarios reales
         previousRealUserCountRef.current = currentCounts.real;
@@ -1259,14 +1259,30 @@ const ChatPage = () => {
    * 🤖 Activa respuesta de bots si están activos
    */
   const handleSendMessage = async (content, type = 'text', replyData = null) => {
-    // ✅ CRÍTICO: Validar que el usuario existe
+    // ✅ ESTRATEGIA DE CAPTACIÓN: Permitir invitados chatear sin restricciones
+    // Si no hay user, crear uno temporal para permitir el chat
     if (!user || !user.id) {
+      // Intentar crear sesión guest automáticamente
+      const tempUsername = `Guest${Math.floor(Math.random() * 10000)}`;
+      const tempAvatar = `https://api.dicebear.com/7.x/avataaars/svg?seed=${tempUsername}`;
+      
+      try {
+        await signInAsGuest(tempUsername, tempAvatar);
+        // Esperar un momento para que se actualice el estado
+        setTimeout(() => {
+          // Reintentar envío después de crear sesión
+          handleSendMessage(content, type, replyData);
+        }, 500);
+        return;
+      } catch (error) {
+        console.error('[CHAT] Error creando sesión guest automática:', error);
       toast({
         title: "Error",
-        description: "No se puede enviar mensajes. Por favor, inicia sesión.",
+          description: "No se pudo iniciar sesión. Por favor, recarga la página.",
         variant: "destructive",
       });
       return;
+      }
     }
 
     // ✅ PERMITIR USUARIOS NO AUTENTICADOS (período de captación - 5 días)
@@ -1387,12 +1403,18 @@ const ChatPage = () => {
     const optimisticId = `temp_${Date.now()}_${Math.random()}`;
     const clientId = generateUUID(); // ✅ UUID real para correlación optimista/real (evitar colisiones)
     const nowMs = Date.now();
+    
+    // ✅ GARANTIZAR AVATAR: Nunca enviar null o undefined en optimistic message
+    const optimisticAvatar = user.avatar && user.avatar.trim() && !user.avatar.includes('undefined')
+      ? user.avatar
+      : `https://api.dicebear.com/7.x/avataaars/svg?seed=${encodeURIComponent(user.username || user.id || 'guest')}`;
+    
     const optimisticMessage = {
       id: optimisticId,
       clientId, // ✅ F1: ID estable para correlación
       userId: user.id,
       username: user.username || 'Usuario', // ✅ FIX: Fallback si username es undefined
-      avatar: user.avatar || null,
+      avatar: optimisticAvatar, // ✅ SIEMPRE tiene valor válido
       isPremium: user.isPremium || false,
       content,
       type,
@@ -1487,13 +1509,18 @@ const ChatPage = () => {
       .then(([isValid]) => {
         if (!isValid) return; // Validación falló, no enviar
         
+        // ✅ GARANTIZAR AVATAR: Nunca enviar null o undefined
+        const messageAvatar = user.avatar && user.avatar.trim() && !user.avatar.includes('undefined')
+          ? user.avatar
+          : `https://api.dicebear.com/7.x/avataaars/svg?seed=${encodeURIComponent(user.username || user.id || 'guest')}`;
+
         return sendMessage(
       currentRoom,
       {
         clientId, // ✅ F1: Pasar clientId para correlación
         userId: auth.currentUser.uid, // ✅ SIEMPRE usar auth.currentUser.uid (ya validado)
         username: user.username || 'Usuario', // ✅ FIX: Fallback si username es undefined
-        avatar: user.avatar || null,
+        avatar: messageAvatar, // ✅ SIEMPRE tiene valor válido
         isPremium: user.isPremium || false,
         content,
         type,
@@ -1609,13 +1636,18 @@ const ChatPage = () => {
 
     // Reintentar envío
     try {
+      // ✅ GARANTIZAR AVATAR: Nunca enviar null o undefined
+      const messageAvatar = user.avatar && user.avatar.trim() && !user.avatar.includes('undefined')
+        ? user.avatar
+        : `https://api.dicebear.com/7.x/avataaars/svg?seed=${encodeURIComponent(user.username || user.id || 'guest')}`;
+
       const sentMessage = await sendMessage(
         currentRoom,
         {
           clientId: optimisticMessage.clientId,
           userId: auth.currentUser.uid,
           username: user.username,
-          avatar: user.avatar,
+          avatar: messageAvatar, // ✅ SIEMPRE tiene valor válido
           isPremium: user.isPremium,
           content,
           type,

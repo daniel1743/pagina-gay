@@ -170,9 +170,9 @@ class NotificationSounds {
       oscillator.frequency.setValueAtTime(800, this.audioContext.currentTime);
       oscillator.frequency.exponentialRampToValueAtTime(400, this.audioContext.currentTime + 0.1);
 
-      // Volumen muy bajo (sutil)
-      gainNode.gain.setValueAtTime(0.08, this.audioContext.currentTime);
-      gainNode.gain.exponentialRampToValueAtTime(0.01, this.audioContext.currentTime + 0.15);
+      // Volumen ajustado (audible pero suave)
+      gainNode.gain.setValueAtTime(0.25, this.audioContext.currentTime);
+      gainNode.gain.exponentialRampToValueAtTime(0.05, this.audioContext.currentTime + 0.15);
 
       oscillator.type = 'sine';
       oscillator.start(this.audioContext.currentTime);
@@ -239,8 +239,8 @@ class NotificationSounds {
       filter.connect(gainNode);
       gainNode.connect(this.audioContext.destination);
 
-      // Volumen muy bajo (sutil)
-      gainNode.gain.setValueAtTime(0.12, this.audioContext.currentTime);
+      // Volumen ajustado (audible pero suave)
+      gainNode.gain.setValueAtTime(0.35, this.audioContext.currentTime);
 
       source.start(this.audioContext.currentTime);
     } catch (error) {
@@ -284,10 +284,10 @@ class NotificationSounds {
       oscillator.frequency.setValueAtTime(400, this.audioContext.currentTime);
       oscillator.frequency.exponentialRampToValueAtTime(800, this.audioContext.currentTime + 0.12);
 
-      // Volumen muy suave con fade in/out
+      // Volumen ajustado con fade in/out
       gainNode.gain.setValueAtTime(0, this.audioContext.currentTime);
-      gainNode.gain.linearRampToValueAtTime(0.06, this.audioContext.currentTime + 0.02);
-      gainNode.gain.exponentialRampToValueAtTime(0.01, this.audioContext.currentTime + 0.2);
+      gainNode.gain.linearRampToValueAtTime(0.2, this.audioContext.currentTime + 0.02);
+      gainNode.gain.exponentialRampToValueAtTime(0.05, this.audioContext.currentTime + 0.2);
 
       oscillator.type = 'sine';
       oscillator.start(this.audioContext.currentTime);
@@ -345,9 +345,9 @@ class NotificationSounds {
       oscillator2.start(this.audioContext.currentTime + 0.05);
       oscillator2.stop(this.audioContext.currentTime + 0.09);
 
-      // Volumen muy suave
-      gainNode.gain.setValueAtTime(0.05, this.audioContext.currentTime);
-      gainNode.gain.exponentialRampToValueAtTime(0.01, this.audioContext.currentTime + 0.1);
+      // Volumen ajustado
+      gainNode.gain.setValueAtTime(0.15, this.audioContext.currentTime);
+      gainNode.gain.exponentialRampToValueAtTime(0.03, this.audioContext.currentTime + 0.1);
 
       // console.log('[SOUNDS] 📤 Reproduciendo sonido de envío (sent)');
     } catch (error) {

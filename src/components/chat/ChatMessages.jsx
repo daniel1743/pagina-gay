@@ -427,8 +427,20 @@ const ChatMessages = ({ messages, currentUserId, onUserClick, onReport, onPrivat
                   <div className="w-full h-full rounded-full bg-gray-50 dark:bg-gray-900" style={{ borderRadius: '50%' }}></div>
                 </div>
                 <Avatar className="relative w-full h-full cursor-pointer rounded-full overflow-hidden z-10" style={{ border: 'none' }}>
-                  <AvatarImage src={group.avatar} alt={group.username || 'Usuario'} className="object-cover" />
-                  <AvatarFallback className="bg-secondary text-xs rounded-full">
+                  <AvatarImage 
+                    src={group.avatar || `https://api.dicebear.com/7.x/avataaars/svg?seed=${group.username || 'guest'}`} 
+                    alt={group.username || 'Usuario'} 
+                    className="object-cover"
+                    onError={(e) => {
+                      // ✅ FALLBACK INSTANTÁNEO: Si la imagen falla, mostrar iniciales inmediatamente
+                      e.target.style.display = 'none';
+                      const fallback = e.target.nextElementSibling;
+                      if (fallback) {
+                        fallback.style.display = 'flex';
+                      }
+                    }}
+                  />
+                  <AvatarFallback className="bg-gradient-to-br from-purple-500 to-pink-500 text-white text-xs rounded-full flex items-center justify-center font-bold">
                     {(group.username && group.username[0]) ? group.username[0].toUpperCase() : '?'}
                   </AvatarFallback>
                 </Avatar>
