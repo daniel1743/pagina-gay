@@ -108,6 +108,27 @@ export const uploadProfilePhoto = async (file, userId = null) => {
     const fileExtension = file.name.split('.').pop() || 'jpg';
     const fileName = `${currentUserId}/${timestamp}.${fileExtension}`;
 
+    // ✅ VERIFICAR SI SUPABASE ESTÁ CONFIGURADO
+    if (!supabase) {
+      console.warn('⚠️ [UPLOAD] Supabase no configurado - Usando Firebase Storage como fallback');
+
+      // 🔥 FALLBACK: Usar Firebase Storage
+      const { storage: firebaseStorage } = await import('@/config/firebase');
+      const { ref, uploadBytes, getDownloadURL } = await import('firebase/storage');
+
+      const storageRef = ref(firebaseStorage, `profile-photos/${fileName}`);
+      const uploadResult = await uploadBytes(storageRef, compressedFile, {
+        contentType: compressedFile.type,
+        cacheControl: 'public, max-age=31536000',
+      });
+
+      const publicUrl = await getDownloadURL(uploadResult.ref);
+      console.log('✅ [FIREBASE] Foto subida exitosamente a Firebase Storage:', publicUrl);
+      console.timeEnd('⏱️ [UPLOAD] Tiempo total de subida');
+      return publicUrl;
+    }
+
+    // ✅ SUPABASE CONFIGURADO - Usar Supabase Storage
     console.time('⏱️ [SUPABASE] Tiempo de subida a Supabase Storage');
 
     // Subir archivo comprimido a Supabase Storage

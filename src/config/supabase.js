@@ -7,7 +7,7 @@
 
 import { createClient } from '@supabase/supabase-js';
 
-// Validar variables de entorno críticas
+// ⚠️ Validar variables de entorno (OPCIONAL - no rompe la app si faltan)
 const requiredEnvVars = {
   VITE_SUPABASE_URL: import.meta.env.VITE_SUPABASE_URL,
   VITE_SUPABASE_ANON_KEY: import.meta.env.VITE_SUPABASE_ANON_KEY,
@@ -18,15 +18,12 @@ const missingVars = Object.entries(requiredEnvVars)
   .map(([key]) => key);
 
 if (missingVars.length > 0) {
-  const errorMessage = `❌ ERROR: Faltan variables de entorno de Supabase:\n${missingVars.join('\n')}\n\nPor favor, crea un archivo .env con estas variables.`;
-  console.error(errorMessage);
-  
-  // En desarrollo, mostrar alerta
-  if (import.meta.env.DEV) {
-    alert(errorMessage);
-  }
-  
-  throw new Error(`Variables de entorno de Supabase faltantes: ${missingVars.join(', ')}`);
+  const errorMessage = `⚠️ [SUPABASE] Variables faltantes: ${missingVars.join(', ')}`;
+  console.warn(errorMessage);
+  console.warn('⚠️ [SUPABASE] La app funcionará sin Supabase (solo Firebase)');
+
+  // ⚠️ NO ROMPER LA APP - Solo advertir en consola
+  // La funcionalidad de Supabase estará deshabilitada pero Firebase funcionará
 }
 
 // Configuración de Supabase desde variables de entorno
@@ -35,34 +32,42 @@ const supabaseConfig = {
   anonKey: requiredEnvVars.VITE_SUPABASE_ANON_KEY,
 };
 
-// Inicializar cliente de Supabase
-export const supabase = createClient(
-  supabaseConfig.url,
-  supabaseConfig.anonKey,
-  {
-    auth: {
-      persistSession: true,
-      autoRefreshToken: true,
-      detectSessionInUrl: true,
-      storage: window?.localStorage,
-      storageKey: 'supabase.auth.token',
-    },
-    global: {
-      headers: {
-        'x-client-info': 'chactivo-web',
-      },
-    },
-  }
-);
+// ✅ Inicializar cliente de Supabase SOLO si las variables existen
+let supabase = null;
 
-// Verificar conexión en desarrollo
-if (import.meta.env.DEV) {
+if (supabaseConfig.url && supabaseConfig.anonKey) {
+  supabase = createClient(
+    supabaseConfig.url,
+    supabaseConfig.anonKey,
+    {
+      auth: {
+        persistSession: true,
+        autoRefreshToken: true,
+        detectSessionInUrl: true,
+        storage: window?.localStorage,
+        storageKey: 'supabase.auth.token',
+      },
+      global: {
+        headers: {
+          'x-client-info': 'chactivo-web',
+        },
+      },
+    }
+  );
+} else {
+  console.warn('⚠️ [SUPABASE] Cliente no inicializado - Variables faltantes');
+}
+
+export { supabase };
+
+// Verificar conexión en desarrollo (solo si Supabase está configurado)
+if (import.meta.env.DEV && supabase) {
   console.log('✅ [SUPABASE] ========================================');
   console.log('✅ [SUPABASE] Cliente inicializado');
   console.log('✅ [SUPABASE] URL:', supabaseConfig.url);
   console.log('✅ [SUPABASE] Auth persistente: localStorage');
   console.log('✅ [SUPABASE] ========================================');
-  
+
   // Verificar conexión
   supabase
     .from('_health')
@@ -77,17 +82,22 @@ if (import.meta.env.DEV) {
 }
 
 // Exportar servicios individuales para compatibilidad con código existente
-export const auth = supabase.auth;
-export const db = supabase;
-export const storage = supabase.storage;
+// ⚠️ Pueden ser null si Supabase no está configurado
+export const auth = supabase?.auth || null;
+export const db = supabase || null;
+export const storage = supabase?.storage || null;
 
 // Helper para verificar si Supabase está configurado
 export const isSupabaseConfigured = () => {
-  return !!supabaseConfig.url && !!supabaseConfig.anonKey;
+  return !!supabase && !!supabaseConfig.url && !!supabaseConfig.anonKey;
 };
 
 // Helper para obtener el usuario actual
 export const getCurrentUser = async () => {
+  if (!supabase) {
+    console.warn('⚠️ [SUPABASE] Cliente no disponible');
+    return null;
+  }
   const { data: { user }, error } = await supabase.auth.getUser();
   if (error) {
     console.error('Error obteniendo usuario:', error);
@@ -98,6 +108,7 @@ export const getCurrentUser = async () => {
 
 // Helper para verificar autenticación
 export const isAuthenticated = async () => {
+  if (!supabase) return false;
   const user = await getCurrentUser();
   return !!user;
 };
