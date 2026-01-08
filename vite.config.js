@@ -286,6 +286,12 @@ export default defineConfig({
 		addTransformIndexHtml,
 		// removeConsolePlugin // ⚠️ TEMPORALMENTE DESHABILITADO - Causa error de parseo
 	],
+	define: {
+		// ✅ Fix para Supabase 2.90.0 - Definir variables de entorno
+		'import.meta.env.DEV': JSON.stringify(isDev),
+		'import.meta.env.PROD': JSON.stringify(!isDev),
+		'import.meta.env.MODE': JSON.stringify(isDev ? 'development' : 'production'),
+	},
 	server: {
 		cors: true,
 		headers: {

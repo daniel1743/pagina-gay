@@ -58,6 +58,13 @@ config.local.js
 secrets.json
 credentials.json
 
+# Documentation files with credentials (Supabase migration)
+*MIGRACION*.md
+*RESUMEN*.md
+CONFIGURAR-*.md
+VERIFICAR-*.md
+cors.json
+
 # Backup files
 *.backup
 *.bak

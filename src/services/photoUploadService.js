@@ -1,41 +1,39 @@
-import { ref, uploadBytes, getDownloadURL, deleteObject } from 'firebase/storage';
-import { storage } from '@/config/firebase';
-import { auth } from '@/config/firebase';
+/**
+ * 📁 SERVICIO DE SUBIDA DE FOTOS - SUPABASE STORAGE
+ *
+ * Servicio migrado de Firebase Storage a Supabase Storage
+ * Comprime imágenes a 60-90 KB y las sube al bucket 'profile-photos'
+ */
+
+import { supabase } from '@/config/supabase';
 import imageCompression from 'browser-image-compression';
 
 /**
- * 🚀 VERSIÓN OPTIMIZADA: Comprime una imagen en UNA SOLA PASADA
- * Reduce tiempo de 10+ segundos a 2-3 segundos
+ * 🚀 VERSIÓN ULTRA-OPTIMIZADA: Comprime a 60-90 KB en una sola pasada
+ * Reduce tiempo y garantiza tamaño pequeño manteniendo calidad visual
  *
  * @param {File} file - Archivo de imagen a comprimir
- * @param {number} maxSizeKB - Tamaño máximo en KB (default: 150)
+ * @param {number} maxSizeKB - Tamaño máximo en KB (default: 80)
  * @returns {Promise<File>} - Archivo comprimido
  */
-export const compressImage = async (file, maxSizeKB = 150) => {
+export const compressImage = async (file, maxSizeKB = 80) => {
   try {
     console.time('⏱️ [COMPRESS] Tiempo total de compresión');
 
-    // Calcular dimensiones óptimas basadas en el tamaño del archivo
     const fileSizeMB = file.size / (1024 * 1024);
-    let maxWidthOrHeight;
 
-    if (fileSizeMB > 5) {
-      maxWidthOrHeight = 600; // Fotos grandes: reducir agresivamente
-    } else if (fileSizeMB > 2) {
-      maxWidthOrHeight = 800;
-    } else if (fileSizeMB > 1) {
-      maxWidthOrHeight = 1000;
-    } else {
-      maxWidthOrHeight = 1200; // Fotos pequeñas: mantener más calidad
-    }
+    // ✅ Dimensiones más agresivas para garantizar 60-90 KB
+    let maxWidthOrHeight = 400; // Tamaño fijo para avatares
+    let initialQuality = 0.7; // Calidad más baja pero aceptable
 
-    // ✅ UNA SOLA COMPRESIÓN con configuración óptima
+    // ✅ Configuración ultra-agresiva para archivo pequeño
     const options = {
-      maxSizeMB: maxSizeKB / 1024,
-      maxWidthOrHeight,
-      useWebWorker: true,
+      maxSizeMB: maxSizeKB / 1024, // 0.08 MB (80 KB)
+      maxWidthOrHeight, // 400px es perfecto para avatares
+      useWebWorker: false, // Más estable sin worker
       fileType: file.type,
-      initialQuality: 0.85, // Calidad inicial alta
+      initialQuality, // 0.7 balance calidad/tamaño
+      maxIteration: 15, // Más iteraciones para alcanzar objetivo
       alwaysKeepResolution: false,
     };
 
@@ -45,22 +43,6 @@ export const compressImage = async (file, maxSizeKB = 150) => {
     console.log(`✅ [COMPRESS] Original: ${fileSizeMB.toFixed(2)} MB → Comprimido: ${finalSizeKB.toFixed(2)} KB`);
     console.timeEnd('⏱️ [COMPRESS] Tiempo total de compresión');
 
-    // ⚠️ Si aún es muy grande (>200 KB), hacer segunda compresión más agresiva
-    if (finalSizeKB > 200) {
-      console.log('⚠️ [COMPRESS] Archivo aún grande, aplicando compresión extra...');
-      const extraOptions = {
-        maxSizeMB: 0.15, // 150 KB
-        maxWidthOrHeight: 500,
-        useWebWorker: true,
-        fileType: file.type,
-        initialQuality: 0.75,
-      };
-      const secondCompression = await imageCompression(compressedFile, extraOptions);
-      const secondSizeKB = secondCompression.size / 1024;
-      console.log(`✅ [COMPRESS] Segunda compresión: ${secondSizeKB.toFixed(2)} KB`);
-      return secondCompression;
-    }
-
     return compressedFile;
   } catch (error) {
     console.error('❌ [COMPRESS] Error comprimiendo imagen:', error);
@@ -69,19 +51,38 @@ export const compressImage = async (file, maxSizeKB = 150) => {
 };
 
 /**
- * Sube una foto de perfil a Firebase Storage
+ * Sube una foto de perfil a Supabase Storage
  * @param {File} file - Archivo de imagen a subir
- * @param {string} userId - ID del usuario (opcional, usa auth.currentUser si no se provee)
- * @returns {Promise<string>} - URL de descarga de la imagen
+ * @param {string} userId - ID del usuario (opcional, usa Firebase Auth o genera uno temporal)
+ * @returns {Promise<string>} - URL pública de la imagen
  */
 export const uploadProfilePhoto = async (file, userId = null) => {
   try {
     console.time('⏱️ [UPLOAD] Tiempo total de subida');
 
-    const currentUserId = userId || auth.currentUser?.uid;
+    // Obtener userId de múltiples fuentes (compatibilidad Firebase + Supabase)
+    let currentUserId = userId;
 
     if (!currentUserId) {
-      throw new Error('Usuario no autenticado');
+      // Intentar obtener de Supabase Auth
+      const { data: { user } } = await supabase.auth.getUser();
+      currentUserId = user?.id;
+    }
+
+    if (!currentUserId) {
+      // Intentar obtener de Firebase Auth (importar dinámicamente)
+      try {
+        const { auth } = await import('@/config/firebase');
+        currentUserId = auth.currentUser?.uid;
+      } catch (error) {
+        console.warn('⚠️ Firebase Auth no disponible:', error.message);
+      }
+    }
+
+    if (!currentUserId) {
+      // Generar ID temporal basado en timestamp (para usuarios anónimos)
+      currentUserId = `guest_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+      console.warn('⚠️ [UPLOAD] Usuario sin auth, usando ID temporal:', currentUserId);
     }
 
     // Validar tipo de archivo
@@ -99,32 +100,41 @@ export const uploadProfilePhoto = async (file, userId = null) => {
 
     console.log(`📤 [UPLOAD] Iniciando subida de ${file.name} (${fileSizeMB.toFixed(2)} MB)`);
 
-    // Comprimir imagen a ~150 KB (más rápido que 80 KB)
-    const compressedFile = await compressImage(file, 150);
+    // Comprimir imagen a ~80 KB (60-90 KB final)
+    const compressedFile = await compressImage(file, 80);
 
-    // Crear referencia en Storage
+    // Crear nombre único para el archivo
     const timestamp = Date.now();
     const fileExtension = file.name.split('.').pop() || 'jpg';
-    const fileName = `profile_photos/${currentUserId}/${timestamp}.${fileExtension}`;
-    const storageRef = ref(storage, fileName);
+    const fileName = `${currentUserId}/${timestamp}.${fileExtension}`;
 
-    console.time('⏱️ [FIREBASE] Tiempo de subida a Firebase');
+    console.time('⏱️ [SUPABASE] Tiempo de subida a Supabase Storage');
 
-    // Subir archivo comprimido
-    await uploadBytes(storageRef, compressedFile, {
-      contentType: compressedFile.type,
-      cacheControl: 'public, max-age=31536000', // Cache por 1 año
-    });
+    // Subir archivo comprimido a Supabase Storage
+    const { data, error } = await supabase.storage
+      .from('profile-photos')
+      .upload(fileName, compressedFile, {
+        contentType: compressedFile.type,
+        cacheControl: '31536000', // Cache por 1 año
+        upsert: false, // No sobrescribir si existe
+      });
 
-    console.timeEnd('⏱️ [FIREBASE] Tiempo de subida a Firebase');
+    console.timeEnd('⏱️ [SUPABASE] Tiempo de subida a Supabase Storage');
 
-    // Obtener URL de descarga
-    const downloadURL = await getDownloadURL(storageRef);
+    if (error) {
+      console.error('❌ [SUPABASE] Error subiendo archivo:', error);
+      throw new Error(`Error al subir la foto: ${error.message}`);
+    }
+
+    // Obtener URL pública
+    const { data: { publicUrl } } = supabase.storage
+      .from('profile-photos')
+      .getPublicUrl(fileName);
 
     console.timeEnd('⏱️ [UPLOAD] Tiempo total de subida');
-    console.log('✅ [UPLOAD] Foto subida exitosamente:', downloadURL);
+    console.log('✅ [UPLOAD] Foto subida exitosamente:', publicUrl);
 
-    return downloadURL;
+    return publicUrl;
   } catch (error) {
     console.error('❌ [UPLOAD] Error subiendo foto de perfil:', error);
     throw error;
@@ -132,29 +142,40 @@ export const uploadProfilePhoto = async (file, userId = null) => {
 };
 
 /**
- * Elimina una foto de perfil de Firebase Storage
+ * Elimina una foto de perfil de Supabase Storage
  * @param {string} photoURL - URL de la foto a eliminar
  * @returns {Promise<void>}
  */
 export const deleteProfilePhoto = async (photoURL) => {
   try {
-    if (!photoURL || !photoURL.includes('profile_photos')) {
+    if (!photoURL || !photoURL.includes('profile-photos')) {
       return; // No es una foto de perfil subida, no hacer nada
     }
 
-    // Extraer la ruta del Storage desde la URL
-    const urlParts = photoURL.split('/');
-    const pathIndex = urlParts.findIndex(part => part === 'profile_photos');
-    if (pathIndex === -1) return;
+    // Extraer el path desde la URL pública de Supabase
+    // URL format: https://xlnwpixqkjcozkqgoutf.supabase.co/storage/v1/object/public/profile-photos/{userId}/{timestamp}.jpg
+    const urlParts = photoURL.split('/profile-photos/');
+    if (urlParts.length < 2) {
+      console.warn('⚠️ [DELETE] URL no válida:', photoURL);
+      return;
+    }
 
-    const path = urlParts.slice(pathIndex).join('/');
-    const storageRef = ref(storage, decodeURIComponent(path));
+    const filePath = urlParts[1];
 
-    await deleteObject(storageRef);
+    const { error } = await supabase.storage
+      .from('profile-photos')
+      .remove([filePath]);
+
+    if (error) {
+      console.error('❌ [DELETE] Error eliminando foto:', error);
+      // No lanzar error, solo loguear (puede que el archivo ya no exista)
+      return;
+    }
+
     console.log('✅ [DELETE] Foto eliminada exitosamente');
   } catch (error) {
     console.error('❌ [DELETE] Error eliminando foto de perfil:', error);
-    // No lanzar error, solo loguear (puede que el archivo ya no exista)
+    // No lanzar error, solo loguear
   }
 };
 

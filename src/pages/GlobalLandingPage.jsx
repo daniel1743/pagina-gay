@@ -205,10 +205,10 @@ const GlobalLandingPage = () => {
     '/MODELO 5.jpeg'
   ];
 
-  // ⚡ MEDIR VELOCIDAD DE CARGA: Si carga en < 2 segundos, auto-abrir sala
+  // ⚡ MEDIR VELOCIDAD DE CARGA (Solo para mostrar métrica, sin auto-abrir modal)
   React.useEffect(() => {
     const startTime = performance.now();
-    
+
     // Preload de recursos críticos
     const preloadImages = modelImages.slice(0, 2); // Preload primeras 2 imágenes
     preloadImages.forEach((img) => {
@@ -218,23 +218,25 @@ const GlobalLandingPage = () => {
       link.href = img;
       document.head.appendChild(link);
     });
-    
+
     // Medir cuando la página está lista
     const measureLoad = () => {
       const endTime = performance.now();
       const loadDuration = endTime - startTime;
       setLoadTime(loadDuration);
-      
-      // ⚡ Si carga en menos de 2 segundos, auto-abrir sala
+
+      // ⚠️ AUTO-APERTURA DESACTIVADA - El usuario puede explorar la landing libremente
+      // La entrada al chat ahora es 100% voluntaria mediante los botones CTA
+      /*
       if (loadDuration < 2000 && !user) {
         setShouldAutoOpen(true);
-        // Auto-abrir después de 500ms para que el usuario vea el mensaje
         setTimeout(() => {
           setShowGuestModal(true);
         }, 500);
       }
+      */
     };
-    
+
     // Medir cuando todo está listo
     if (document.readyState === 'complete') {
       measureLoad();
@@ -363,10 +365,6 @@ const GlobalLandingPage = () => {
         animate={{ opacity: 1 }}
         transition={{ duration: 0.6 }}
         className="w-full relative overflow-hidden"
-        style={{ 
-          marginTop: '-4rem',
-          zIndex: 1
-        }}
       >
         {/* Mobile: max 60vh, Desktop: max 75vh */}
         <div className="w-full h-[60vh] md:h-[75vh] relative group">

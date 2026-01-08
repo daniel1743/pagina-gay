@@ -159,10 +159,10 @@ function AppRoutes() {
         <Route path="/es-test" element={<SpainLandingPage />} />
         */}
 
-        {/* ✅ ARQUITECTURA: Landing solo para usuarios no logueados */}
-        <Route path="/landing" element={<LandingRoute redirectTo="/home"><MainLayout><GlobalLandingPage /></MainLayout></LandingRoute>} />
-        {/* ✅ REDIRECCIÓN: / → /landing para mantener compatibilidad */}
-        <Route path="/" element={<Navigate to="/landing" replace />} />
+         {/* ✅ ARQUITECTURA: Landing solo para usuarios no logueados - SIN MainLayout para evitar Header superpuesto */}
+         <Route path="/landing" element={<LandingRoute redirectTo="/home"><GlobalLandingPage /></LandingRoute>} />
+         {/* ✅ REDIRECCIÓN: / → /landing para mantener compatibilidad */}
+         <Route path="/" element={<Navigate to="/landing" replace />} />
         
         {/* ✅ ARQUITECTURA: Home solo para usuarios logueados */}
         <Route path="/home" element={<HomeRoute><MainLayout><LobbyPage /></MainLayout></HomeRoute>} />

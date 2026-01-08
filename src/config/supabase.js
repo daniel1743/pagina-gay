@@ -1,6 +1,6 @@
 /**
  * 🔵 CONFIGURACIÓN DE SUPABASE
- * 
+ *
  * Configuración centralizada para Supabase
  * Equivalente a src/config/firebase.js pero para Supabase
  */
@@ -44,14 +44,8 @@ export const supabase = createClient(
       persistSession: true,
       autoRefreshToken: true,
       detectSessionInUrl: true,
-      // Usar localStorage en vez de sessionStorage para persistencia
-      storage: window.localStorage,
+      storage: window?.localStorage,
       storageKey: 'supabase.auth.token',
-    },
-    realtime: {
-      params: {
-        eventsPerSecond: 10,
-      },
     },
     global: {
       headers: {
