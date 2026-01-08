@@ -58,19 +58,15 @@ const InlineGuestEntry = ({ chatRoomId = 'principal' }) => {
 
     try {
       const randomAvatar = AVATAR_OPTIONS[Math.floor(Math.random() * AVATAR_OPTIONS.length)];
-      
-      // Navegación optimista
-      navigate(`/chat/${chatRoomId}`, { replace: true });
 
-      // Crear usuario en background
-      signInAsGuest(nickname.trim(), randomAvatar)
-        .then(() => {
-          console.log('✅ Usuario creado en background');
-        })
-        .catch((error) => {
-          console.error('❌ Error en background:', error);
-        });
+      // ✅ ESPERAR autenticación ANTES de navegar (evita loading infinito)
+      await signInAsGuest(nickname.trim(), randomAvatar);
+      console.log('✅ Usuario autenticado correctamente');
+
+      // ✅ Solo navegar DESPUÉS de autenticación exitosa
+      navigate(`/chat/${chatRoomId}`, { replace: true });
     } catch (error) {
+      console.error('❌ Error en autenticación:', error);
       setError(`Error al entrar: ${error.message || 'Intenta de nuevo.'}`);
       setIsLoading(false);
     }

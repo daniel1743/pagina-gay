@@ -607,25 +607,9 @@ export const AuthProvider = ({ children }) => {
     
     // ✅ FIX: Limpiar timers anteriores si existen antes de crear nuevos
     // ⚠️ NOTA: console.timeEnd no lanza excepciones, solo muestra advertencias si el timer no existe
-    // Esto es normal en React Strict Mode (doble render en desarrollo) y se puede ignorar
-    // Intentamos limpiar timers anteriores para evitar acumulación, pero si no existen, es OK
-    try {
-      // Solo intentar detener si realmente existe (evitar advertencias innecesarias)
-      // Como no hay forma de verificar si un timer existe, simplemente lo intentamos
-      // La advertencia es inofensiva y solo aparece en desarrollo
-      console.timeEnd('⏱️ [TOTAL] Entrada completa al chat');
-    } catch (e) {
-      // Ignorar silenciosamente
-    }
-    try {
-      console.timeEnd('⏱️ [PASO 1] signInAnonymously Firebase');
-    } catch (e) {
-      // Ignorar silenciosamente
-    }
-    
-    // ✅ Iniciar nuevos timers
-    console.time('⏱️ [TOTAL] Entrada completa al chat');
-    console.time('⏱️ [PASO 1] signInAnonymously Firebase');
+    // ✅ Iniciar timers de medición de rendimiento
+    const startTime = performance.now();
+    const step1Start = performance.now();
 
     // ✅ Valores por defecto si no se proporcionan
     const defaultUsername = username || `Guest${Math.floor(Math.random() * 10000)}`;
@@ -646,7 +630,8 @@ export const AuthProvider = ({ children }) => {
       // Sin esto, auth.currentUser será null y Firestore rechazará los mensajes
       console.log('🔐 [AUTH] Iniciando signInAnonymously con username:', defaultUsername);
       const userCredential = await signInAnonymously(auth);
-      console.timeEnd('⏱️ [PASO 1] signInAnonymously Firebase');
+      const step1Duration = performance.now() - step1Start;
+      console.log(`⏱️ [PASO 1] signInAnonymously Firebase: ${step1Duration.toFixed(2)}ms`);
 
       // ✅ Usuario autenticado en Firebase - ahora puede enviar mensajes
       const realUser = {
@@ -719,16 +704,13 @@ export const AuthProvider = ({ children }) => {
         }));
       });
 
-      console.timeEnd('⏱️ [TOTAL] Entrada completa al chat');
+      const totalDuration = performance.now() - startTime;
+      console.log(`⏱️ [TOTAL] Entrada completa al chat: ${totalDuration.toFixed(2)}ms`);
       signInAsGuest.inProgress = false;
       return true;
     } catch (error) {
-      try {
-        console.timeEnd('⏱️ [TOTAL] Entrada completa al chat');
-      } catch {}
-      try {
-        console.timeEnd('⏱️ [PASO 1] signInAnonymously Firebase');
-      } catch {}
+      const totalDuration = performance.now() - startTime;
+      console.log(`⏱️ [TOTAL] Proceso fallido después de: ${totalDuration.toFixed(2)}ms`);
       signInAsGuest.inProgress = false;
       console.error('%c❌ [TIMING] Error en entrada:', 'color: #ff0000; font-weight: bold', error);
       throw error;
