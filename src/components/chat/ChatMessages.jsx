@@ -9,6 +9,7 @@ import NewMessagesDivider from './NewMessagesDivider';
 import { getUserConnectionStatus, getStatusColor } from '@/utils/userStatus';
 import MessageDeliveryCheck from '@/components/MessageDeliveryCheck';
 import { traceEvent, TRACE_EVENTS } from '@/utils/messageTrace';
+import './ChatMessages.css'; // ⚡ Estilos optimizados para WhatsApp/Telegram-style
 
 /**
  * Componente especial para el mensaje de bienvenida del moderador
@@ -428,8 +429,8 @@ const ChatMessages = ({ messages, currentUserId, onUserClick, onReport, onPrivat
                 duration: 0.2,
                 ease: 'easeOut'
               }}
-              // ✅ AGRUPACIÓN COMPACTA: Contenedor del grupo sin hover global
-              className={`flex gap-2 ${isOwn ? 'flex-row justify-end' : 'flex-row'} items-start py-0.5 px-1`}
+              // ⚡ AGRUPACIÓN COMPACTA: Contenedor del grupo optimizado
+              className={`message-group flex gap-2 ${isOwn ? 'flex-row justify-end' : 'flex-row'} items-start`}
             >
               {/* ✅ Avatar: Mostrar SOLO en el primer mensaje del grupo */}
               {group.messages.length > 0 && (
@@ -496,45 +497,63 @@ const ChatMessages = ({ messages, currentUserId, onUserClick, onReport, onPrivat
                 </motion.div>
               )}
 
-              {/* ✅ Mensajes del grupo - AGRUPACIÓN COMPACTA */}
+              {/* ✅ Contenedor de mensajes del grupo */}
               <div
                 className={`flex flex-col ${
                   isOwn
-                    ? 'items-end order-1 mr-3 max-w-[85%] sm:max-w-[80%] md:max-w-[75%]'
-                    : 'items-start order-2 ml-3 flex-1 min-w-0 max-w-[85%] sm:max-w-[80%] md:max-w-[75%]'
+                    ? 'items-end order-1 max-w-[85%] sm:max-w-[80%] md:max-w-[75%]'
+                    : 'items-start order-2 max-w-[85%] sm:max-w-[80%] md:max-w-[75%]'
                 }`}
               >
-                {/* ✅ Nombre del usuario: Solo mostrar en el primer mensaje del grupo (si NO es propio) */}
-                {!isOwn && group.messages.length > 0 && (
-                  <div className="flex items-center gap-1.5 mb-0.5">
-                    <span className="text-sm font-semibold text-gray-900 dark:text-gray-100 flex items-center gap-1.5">
-                      {group.username}
-                      {(isUserPremium || userRole === 'admin') && (
-                        <CheckCircle className="w-3.5 h-3.5 text-[#FFD700]" />
-                      )}
-                      {isUserVerified && !isUserPremium && userRole !== 'admin' && (
-                        <CheckCircle className="w-3.5 h-3.5 text-[#1DA1F2]" />
-                      )}
-                    </span>
-                    <span className="text-xs text-gray-500 dark:text-gray-400">
-                      {formatTime(firstMessage.timestamp)}
-                    </span>
-                  </div>
+                {/* ✅ Nombre del usuario: Solo UNA VEZ por grupo (solo para otros) */}
+                {!isOwn && (
+                  <span className="text-[11px] font-bold ml-2 mb-1 text-muted-foreground opacity-70">
+                    {group.username}
+                    {(isUserPremium || userRole === 'admin') && (
+                      <CheckCircle className="inline w-3 h-3 ml-1 text-[#FFD700]" />
+                    )}
+                    {isUserVerified && !isUserPremium && userRole !== 'admin' && (
+                      <CheckCircle className="inline w-3 h-3 ml-1 text-[#1DA1F2]" />
+                    )}
+                  </span>
                 )}
 
-                {/* ✅ Renderizar cada mensaje del grupo - COMPACTO */}
-                {group.messages.map((message, msgIndexInGroup) => {
-                  const isHighlighted = highlightedMessageId === message.id;
+                {/* ⚡ CONTENEDOR DE BURBUJAS PEGADAS - gap-[2px] es la clave del glue effect */}
+                <div className="flex flex-col gap-[2px]">
+                  {group.messages.map((message, msgIndexInGroup) => {
                   const isFirstInGroup = msgIndexInGroup === 0;
                   const isLastInGroup = msgIndexInGroup === group.messages.length - 1;
-                  
-                  // ✅ Separación compacta: 1-2px entre mensajes del mismo grupo
-                  const spacingClass = isLastInGroup ? 'mb-0' : 'mb-[2px]';
+                  const isSingleMessage = group.messages.length === 1;
+
+                  // ⚡ BORDER RADIUS DINÁMICO (glue effect)
+                  let radiusClass = '';
+                  if (isSingleMessage) {
+                    // Mensaje único: todos los bordes redondeados
+                    radiusClass = 'rounded-2xl';
+                  } else if (isFirstInGroup) {
+                    // Primer mensaje: bordes superiores redondeados
+                    radiusClass = isOwn
+                      ? 'rounded-2xl rounded-tr-sm'
+                      : 'rounded-2xl rounded-tl-sm';
+                  } else if (isLastInGroup) {
+                    // Último mensaje: bordes inferiores redondeados
+                    radiusClass = isOwn
+                      ? 'rounded-l-2xl rounded-br-2xl rounded-tr-sm'
+                      : 'rounded-r-2xl rounded-bl-2xl rounded-tl-sm';
+                  } else {
+                    // Mensajes intermedios: solo bordes externos redondeados
+                    radiusClass = isOwn
+                      ? 'rounded-l-2xl rounded-r-sm'
+                      : 'rounded-r-2xl rounded-l-sm';
+                  }
+
+                  // ⚡ TIMESTAMPS COMPACTOS
+                  const showTimestamp = isLastInGroup || msgIndexInGroup % 5 === 0;
 
                   return (
-                    <div 
-                      key={message.id} 
-                      className={`message-bubble-wrapper ${spacingClass} group/message`}
+                    <div
+                      key={message.id}
+                      className="group/message"
                       data-message-id={message.id}
                     >
                       {/* 💬 QUOTE: Mostrar mensaje citado si existe */}
@@ -547,41 +566,42 @@ const ChatMessages = ({ messages, currentUserId, onUserClick, onReport, onPrivat
                         </div>
                       )}
 
-                      {/* 🎨 BURBUJA DE MENSAJE - Estilo WhatsApp Compacto */}
-                      <div className={`inline-flex flex-row items-end gap-1 ${isOwn ? 'justify-end' : 'justify-start'} w-full`}>
-                        
-                        {/* ⚡ Hora y checks para mensajes propios */}
-                        {isOwn && (
-                          <div className="flex items-center gap-1 mb-0.5 flex-shrink-0">
-                            <span className="text-[11px] text-gray-500 dark:text-gray-400">
-                              {formatTime(message.timestamp)}
-                            </span>
-                            <MessageDeliveryCheck message={message} isOwnMessage={isOwn} />
-                          </div>
+                      {/* ⚡ BURBUJA DE MENSAJE con GLUE EFFECT */}
+                      <div className="flex items-end gap-1">
+                        {/* Timestamp IZQUIERDA (solo mensajes propios) */}
+                        {isOwn && showTimestamp && (
+                          <span className="text-[10px] text-gray-500 dark:text-gray-400 mb-0.5">
+                            {formatTime(message.timestamp)}
+                          </span>
                         )}
 
-                        {/* Burbuja del mensaje - Hover individual */}
+                        {/* ⚡ BURBUJA con border-radius dinámico */}
                         <div
-                          className={`message-bubble cursor-pointer break-words overflow-wrap-anywhere rounded-[7.5px] px-2.5 py-1.5 max-w-full transition-all ${
-                            isOwn 
-                              ? 'bg-[#DCF8C6] text-[#000000] hover:bg-[#D4F0B8]' // Verde WhatsApp para mensajes propios
-                              : 'bg-white text-[#000000] border border-gray-200 hover:bg-gray-50 hover:border-gray-300' // Blanco para mensajes de otros
-                          }`}
+                          className={`
+                            message-bubble px-3 py-1.5 text-[14.5px] shadow-sm
+                            ${radiusClass}
+                            ${isOwn
+                              ? 'bg-[#DCF8C6] text-black self-end'
+                              : 'bg-white dark:bg-gray-800 text-foreground self-start border border-gray-200 dark:border-gray-700'
+                            }
+                            cursor-pointer transition-colors
+                            hover:${isOwn ? 'bg-[#D4F0B8]' : 'bg-gray-50 dark:bg-gray-750'}
+                          `.trim()}
                           onClick={() => onPrivateChat({ username: message.username, avatar: message.avatar, userId: message.userId, isPremium: isUserPremium })}
                         >
                           {message.type === 'text' && (
-                            <p className="text-[14.2px] leading-[1.35] whitespace-pre-wrap break-words font-normal" style={{ wordBreak: 'break-word', overflowWrap: 'break-word' }}>
+                            <p className="leading-[1.35] whitespace-pre-wrap break-words">
                               {message.content}
                             </p>
                           )}
                           {message.type === 'gif' && (
-                            <img src={message.content} alt="GIF" className="rounded-[12px] max-w-full sm:max-w-xs" />
+                            <img src={message.content} alt="GIF" className="rounded-lg max-w-full" />
                           )}
                         </div>
 
-                        {/* Hora para mensajes de otros */}
-                        {!isOwn && (
-                          <span className="text-[11px] text-gray-500 dark:text-gray-400 mb-0.5 flex-shrink-0">
+                        {/* Timestamp DERECHA (solo mensajes de otros) */}
+                        {!isOwn && showTimestamp && (
+                          <span className="text-[10px] text-gray-500 dark:text-gray-400 mb-0.5">
                             {formatTime(message.timestamp)}
                           </span>
                         )}
@@ -700,7 +720,10 @@ const ChatMessages = ({ messages, currentUserId, onUserClick, onReport, onPrivat
                     </div>
                   );
                 })}
+                </div>
+                {/* ⚡ Cierre del contenedor de burbujas pegadas (gap-[2px]) */}
               </div>
+              {/* ⚡ Cierre del contenedor principal de mensajes */}
             </motion.div>
           </React.Fragment>
         );

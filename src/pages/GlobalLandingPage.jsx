@@ -220,17 +220,6 @@ const GlobalLandingPage = () => {
       const endTime = performance.now();
       const loadDuration = endTime - startTime;
       setLoadTime(loadDuration);
-
-      // ⚠️ AUTO-APERTURA DESACTIVADA - El usuario puede explorar la landing libremente
-      // La entrada al chat ahora es 100% voluntaria mediante los botones CTA
-      /*
-      if (loadDuration < 2000 && !user) {
-        setShouldAutoOpen(true);
-        setTimeout(() => {
-          setShowGuestModal(true);
-        }, 500);
-      }
-      */
     };
 
     // Medir cuando todo está listo
@@ -240,7 +229,7 @@ const GlobalLandingPage = () => {
       window.addEventListener('load', measureLoad);
       return () => window.removeEventListener('load', measureLoad);
     }
-  }, [user, modelImages]);
+  }, [modelImages]); // ✅ REMOVED 'user' dependency to avoid loop
   
   // ⚠️ MODAL COMENTADO - Ya no usamos EntryOptionsModal
   // const [showEntryModal, setShowEntryModal] = React.useState(false);

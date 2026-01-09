@@ -1,0 +1,78 @@
+/**
+ * CHAT MESSAGES - WhatsApp/Telegram-style UI Optimization
+ * ⚡ GLUE EFFECT: Mensajes consecutivos visualmente "pegados"
+ */
+
+/* ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+   1. CONTENEDOR PRINCIPAL - Alta densidad, scroll optimizado
+   ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */
+
+.messages-container {
+  padding: 8px 12px !important;
+  /* Eliminar cualquier margen/padding que afecte la densidad */
+}
+
+/* ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+   2. GRUPOS DE MENSAJES - Espaciado SOLO entre usuarios diferentes
+   ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */
+
+.message-group {
+  margin-bottom: 16px; /* Espacio entre grupos de DIFERENTES usuarios */
+  padding: 0 !important; /* ⚡ SIN padding interno - no debe separar burbujas */
+}
+
+.message-group:last-child {
+  margin-bottom: 0;
+}
+
+/* ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+   3. BURBUJAS DE MENSAJE - SIN márgenes, el gap lo controla el padre
+   ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */
+
+.message-bubble {
+  /* ⚡ CRÍTICO: SIN margin-top ni margin-bottom */
+  margin: 0 !important;
+  /* ⚡ El espaciado lo controla el contenedor padre con gap-[2px] */
+
+  /* Optimizaciones de rendering */
+  will-change: transform;
+  backface-visibility: hidden;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* ⚠️ NOTA: Los border-radius se aplican dinámicamente vía Tailwind en el JSX
+   No necesitamos clases CSS separadas para .single, .first-in-group, etc.
+*/
+
+/* ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+   4. OPTIMIZACIONES DE PERFORMANCE
+   ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */
+
+/* Transitions suaves para cambios de color */
+.message-bubble {
+  transition: background-color 0.15s ease, border-color 0.15s ease;
+}
+
+/* ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+   5. RESPONSIVE - Ajustes para móvil
+   ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */
+
+@media (max-width: 640px) {
+  .messages-container {
+    padding: 6px 8px !important;
+  }
+
+  .message-group {
+    margin-bottom: 12px; /* Menos espacio en móvil */
+  }
+}
+
+/* ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+   6. ACCESSIBILITY - Mejoras de accesibilidad
+   ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */
+
+/* Focus visible para navegación por teclado */
+.message-bubble:focus-visible {
+  outline: 2px solid hsl(var(--primary));
+  outline-offset: 2px;
+}

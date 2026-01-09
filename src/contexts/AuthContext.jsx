@@ -24,6 +24,15 @@ import { trackRegistration, trackLogin } from '@/services/ga4Service';
 import { recordUserConnection, checkVerificationMaintenance } from '@/services/verificationService';
 import { checkUserSanctions } from '@/services/sanctionsService';
 import { createWelcomeNotification } from '@/services/systemNotificationsService';
+import {
+  getGuestIdentity,
+  createGuestIdentity,
+  getTempGuestData,
+  saveTempGuestData,
+  linkGuestToFirebase,
+  clearGuestIdentity,
+  hasGuestIdentity,
+} from '@/utils/guestIdentity';
 
 export const AuthContext = createContext();
 
@@ -50,131 +59,106 @@ export const AuthProvider = ({ children }) => {
           if (firebaseUser.isAnonymous) {
             let guestUser;
 
-            // ⚡ VELOCIDAD: localStorage PRIMERO (instantáneo)
-            const backup = localStorage.getItem('guest_session_backup');
-            const tempBackup = localStorage.getItem('guest_session_temp');
+            // ⚡ NUEVO SISTEMA: Priorizar identidad persistente con UUID
+            const identity = getGuestIdentity();
+            const tempData = getTempGuestData();
 
-            // 🔒 PRIORIDAD 2: Verificar backup (datos de sesión anterior)
-            if (backup) {
-              try {
-                const backupData = JSON.parse(backup);
-                if (backupData.uid === firebaseUser.uid) {
-                  // ✅ FIX: Usar nickname y avatar del backup (del modal)
-                  const backupUsername = backupData.username && backupData.username.trim() && backupData.username !== 'Invitado' 
-                    ? backupData.username.trim() 
-                    : 'Invitado';
-                  
-                  // ✅ Asegurar que el avatar aleatorio del modal se use
-                  const backupAvatar = backupData.avatar || 'https://api.dicebear.com/7.x/pixel-art/svg?seed=guest';
-                  
-                  guestUser = {
-                    id: firebaseUser.uid,
-                    username: backupUsername, // ✅ Nickname del input del modal
-                    isGuest: true,
-                    isAnonymous: true,
-                    isPremium: false,
-                    verified: false,
-                    avatar: backupAvatar, // ✅ Avatar aleatorio del modal
-                    quickPhrases: [],
-                    theme: {},
-                  };
-                  setGuestMessageCount(0);
-                  setUser(guestUser);
+            // 🔒 PRIORIDAD 1: Identidad persistente (con UUID)
+            if (identity) {
+              console.log('[AUTH] ✅ Identidad persistente detectada:', identity.guestId);
 
-                  // Background: Sync con Firestore (actualizar username si es diferente)
-                  getDoc(doc(db, 'guests', firebaseUser.uid))
-                    .then(snap => {
-                      if (snap.exists()) {
-                        const guestData = snap.data();
-                        setGuestMessageCount(guestData.messageCount || 0);
-                        
-                        // ✅ Si Firestore tiene un username diferente (más reciente), actualizar
-                        if (guestData.username && guestData.username !== backupUsername && guestData.username !== 'Invitado') {
-                          setUser({
-                            ...guestUser,
-                            username: guestData.username,
-                            avatar: guestData.avatar || backupAvatar, // ✅ Mantener avatar del modal si Firestore no tiene
-                          });
-                          // Actualizar backup con username de Firestore pero mantener avatar del modal
-                          localStorage.setItem('guest_session_backup', JSON.stringify({
-                            uid: firebaseUser.uid,
-                            username: guestData.username,
-                            avatar: guestData.avatar || backupAvatar, // ✅ Priorizar avatar del modal
-                            timestamp: Date.now(),
-                          }));
-                        }
-                      }
-                    })
-                    .catch(() => {});
+              guestUser = {
+                id: firebaseUser.uid,
+                username: identity.nombre,
+                isGuest: true,
+                isAnonymous: true,
+                isPremium: false,
+                verified: false,
+                avatar: identity.avatar,
+                quickPhrases: [],
+                theme: {},
+                guestId: identity.guestId, // ✅ UUID inmutable
+              };
 
-                  return;
-                }
-              } catch {}
+              // Vincular con Firebase UID si no está vinculado
+              if (identity.firebaseUid !== firebaseUser.uid) {
+                linkGuestToFirebase(firebaseUser.uid);
+              }
+
+              setGuestMessageCount(0);
+              setUser(guestUser);
+
+              // Background: Sync con Firestore
+              getDoc(doc(db, 'guests', firebaseUser.uid))
+                .then(snap => {
+                  if (snap.exists()) {
+                    const guestData = snap.data();
+                    setGuestMessageCount(guestData.messageCount || 0);
+                  }
+                })
+                .catch(() => {});
+
+              return;
             }
 
-            // 🔒 PRIORIDAD 1: Verificar tempBackup PRIMERO (datos del modal - más reciente)
-            if (tempBackup) {
-              try {
-                const tempData = JSON.parse(tempBackup);
-                // ✅ FIX: Usar nickname del input y avatar aleatorio del modal
-                const tempUsername = tempData.username && tempData.username.trim() && tempData.username !== 'Invitado' 
-                  ? tempData.username.trim() 
-                  : 'Invitado';
-                
-                // ✅ Asegurar que el avatar aleatorio del modal se use
-                const tempAvatar = tempData.avatar || 'https://api.dicebear.com/7.x/pixel-art/svg?seed=guest';
-                
-                guestUser = {
-                  id: firebaseUser.uid,
-                  username: tempUsername,
-                  isGuest: true,
-                  isAnonymous: true,
-                  isPremium: false,
-                  verified: false,
-                  avatar: tempAvatar, // ✅ Avatar aleatorio del modal
-                  quickPhrases: [],
-                  theme: {},
-                };
-                setGuestMessageCount(0);
-                setUser(guestUser);
-                
-                // ✅ Migrar tempBackup a backup permanente (con nickname y avatar del modal)
-                localStorage.setItem('guest_session_backup', JSON.stringify({
-                  uid: firebaseUser.uid,
-                  username: tempUsername,
-                  avatar: tempAvatar, // ✅ Guardar avatar aleatorio
-                  timestamp: Date.now(),
-                }));
-                localStorage.removeItem('guest_session_temp');
-                
-                // 🚀 Sincronizar con Firestore EN BACKGROUND (no bloquea)
-                getDoc(doc(db, 'guests', firebaseUser.uid))
-                  .then(guestSnap => {
-                    if (guestSnap.exists()) {
-                      const guestData = guestSnap.data();
-                      // ✅ Si Firestore tiene datos más recientes, actualizar
-                      if (guestData.username && guestData.username !== tempUsername && guestData.username !== 'Invitado') {
-                        setUser({
-                          ...guestUser,
-                          username: guestData.username,
-                          avatar: guestData.avatar || tempAvatar,
-                        });
-                        localStorage.setItem('guest_session_backup', JSON.stringify({
-                          uid: firebaseUser.uid,
-                          username: guestData.username,
-                          avatar: guestData.avatar || tempAvatar,
-                          timestamp: Date.now(),
-                        }));
-                      }
-                    }
-                  })
-                  .catch(() => {});
-                
-                return;
-              } catch {}
+            // 🔒 PRIORIDAD 2: Datos temporales del modal (antes de crear identidad)
+            if (tempData) {
+              console.log('[AUTH] ✅ Datos temporales detectados, creando identidad...');
+
+              const tempUsername = tempData.nombre || 'Invitado';
+              const tempAvatar = tempData.avatar || 'https://api.dicebear.com/7.x/pixel-art/svg?seed=guest';
+
+              // Crear identidad persistente con UUID
+              const newIdentity = createGuestIdentity({
+                nombre: tempUsername,
+                avatar: tempAvatar
+              });
+
+              // Vincular con Firebase
+              linkGuestToFirebase(firebaseUser.uid);
+
+              console.log('[AUTH] ✅ Identidad creada con UUID:', newIdentity.guestId);
+
+              // Crear usuario CON guestId en una sola operación
+              guestUser = {
+                id: firebaseUser.uid,
+                username: tempUsername,
+                isGuest: true,
+                isAnonymous: true,
+                isPremium: false,
+                verified: false,
+                avatar: tempAvatar,
+                quickPhrases: [],
+                theme: {},
+                guestId: newIdentity.guestId, // ✅ UUID desde el inicio
+              };
+
+              setGuestMessageCount(0);
+              setUser(guestUser); // ✅ UN SOLO setUser
+
+              // 🚀 Guardar en Firestore EN BACKGROUND
+              const guestRef = doc(db, 'guests', firebaseUser.uid);
+              setDoc(guestRef, {
+                username: tempUsername,
+                avatar: tempAvatar,
+                guestId: newIdentity.guestId,
+                createdAt: new Date().toISOString(),
+                messageCount: 0,
+                expiresAt: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString()
+              })
+              .then(() => {
+                console.log('[AUTH] ✅ Firestore: Invitado guardado con UUID');
+              })
+              .catch((err) => {
+                console.warn('[AUTH] ⚠️ Error guardando en Firestore (no crítico):', err);
+              });
+
+              return;
             }
 
-            // ⚡ FALLBACK RÁPIDO: Crear usuario básico INMEDIATAMENTE (no esperar Firestore)
+            // ⚡ FALLBACK: Crear usuario básico INMEDIATAMENTE (no esperar Firestore)
+            console.log('[AUTH] ⚠️ Sin identidad ni datos temp, creando usuario básico...');
+
             guestUser = {
               id: firebaseUser.uid,
               username: 'Invitado',
@@ -190,33 +174,10 @@ export const AuthProvider = ({ children }) => {
             setUser(guestUser);
 
             // 🚀 Intentar cargar de Firestore EN BACKGROUND (no bloquea)
-            // ✅ FIX: También verificar si hay backup en localStorage con username
-            const backupCheck = localStorage.getItem('guest_session_backup');
-            if (backupCheck) {
-              try {
-                const backupData = JSON.parse(backupCheck);
-                if (backupData.uid === firebaseUser.uid && backupData.username && backupData.username !== 'Invitado') {
-                  // ✅ Usar username del backup si existe y es válido
-                  setUser({
-                    id: firebaseUser.uid,
-                    username: backupData.username,
-                    isGuest: true,
-                    isAnonymous: true,
-                    isPremium: false,
-                    verified: false,
-                    avatar: backupData.avatar || 'https://api.dicebear.com/7.x/pixel-art/svg?seed=guest',
-                    quickPhrases: [],
-                    theme: {},
-                  });
-                }
-              } catch {}
-            }
-            
             getDoc(doc(db, 'guests', firebaseUser.uid))
               .then(guestSnap => {
                 if (guestSnap.exists()) {
                   const guestData = guestSnap.data();
-                  // ✅ Actualizar con datos reales de Firestore (prioridad sobre backup)
                   if (guestData.username && guestData.username !== 'Invitado') {
                     setUser({
                       id: firebaseUser.uid,
@@ -230,13 +191,6 @@ export const AuthProvider = ({ children }) => {
                       theme: {},
                     });
                     setGuestMessageCount(guestData.messageCount || 0);
-                    // ✅ Actualizar backup con username de Firestore
-                    localStorage.setItem('guest_session_backup', JSON.stringify({
-                      uid: firebaseUser.uid,
-                      username: guestData.username,
-                      avatar: guestData.avatar,
-                      timestamp: Date.now(),
-                    }));
                   }
                 }
               })
@@ -352,22 +306,7 @@ export const AuthProvider = ({ children }) => {
           }
         }
       } else {
-        // No hay usuario - Verificar si hay sesión guardada para restaurar
-        const savedSession = localStorage.getItem('guest_session_saved');
-        if (savedSession && !isLoggingOutRef.current) {
-          try {
-            const sessionData = JSON.parse(savedSession);
-            // ✅ Auto-restaurar sesión guardada
-            console.log('[AUTH] ✅ Restaurando sesión guardada automáticamente');
-            signInAsGuest(sessionData.username, sessionData.avatar, false); // No volver a guardar (ya está guardada)
-            return; // No limpiar usuario todavía, esperar a que se restaure
-          } catch (e) {
-            console.warn('[AUTH] ⚠️ Error restaurando sesión guardada:', e);
-            // Continuar con limpieza normal
-          }
-        }
-
-        // No hay usuario - NO hacer auto-login anónimo (optimización de velocidad)
+        // No hay usuario - Limpiar estado
         console.log('[AUTH] ⚠️ firebaseUser es NULL, limpiando estado de usuario...');
         setUser(null);
         setGuestMessageCount(0);
@@ -577,37 +516,19 @@ export const AuthProvider = ({ children }) => {
   /**
    * Iniciar sesión como invitado (guest)
    * ⚡ ULTRA OPTIMIZADO: <500ms total
+   * ✅ Integrado con sistema de persistencia UUID
    */
   const signInAsGuest = async (username = null, avatarUrl = null, keepSession = false) => {
-    // ✅ VERIFICAR SESIÓN GUARDADA: Si no se proporcionan username/avatar, intentar restaurar sesión
-    if (!username || !avatarUrl) {
-      const savedSession = localStorage.getItem('guest_session_saved');
-      if (savedSession) {
-        try {
-          const sessionData = JSON.parse(savedSession);
-          username = sessionData.username;
-          avatarUrl = sessionData.avatar;
-          console.log('[AUTH] ✅ Restaurando sesión guardada:', { username, avatarUrl });
-        } catch (e) {
-          console.warn('[AUTH] ⚠️ Error restaurando sesión guardada:', e);
-          // Continuar con valores por defecto
-        }
-      }
-    }
-
     // ✅ FIX: Prevenir múltiples llamadas simultáneas
     if (signInAsGuest.inProgress) {
       console.log('%c⚠️ [TIMING] signInAsGuest ya está en progreso, ignorando llamada duplicada', 'color: #ffaa00; font-weight: bold');
       return false;
     }
-    
+
     signInAsGuest.inProgress = true;
-    
+
     console.log('%c🚀 [TIMING] Iniciando proceso de entrada...', 'color: #00ff00; font-weight: bold; font-size: 14px');
-    
-    // ✅ FIX: Limpiar timers anteriores si existen antes de crear nuevos
-    // ⚠️ NOTA: console.timeEnd no lanza excepciones, solo muestra advertencias si el timer no existe
-    // ✅ Iniciar timers de medición de rendimiento
+
     const startTime = performance.now();
     const step1Start = performance.now();
 
@@ -615,97 +536,28 @@ export const AuthProvider = ({ children }) => {
     const defaultUsername = username || `Guest${Math.floor(Math.random() * 10000)}`;
     const defaultAvatar = avatarUrl || `https://api.dicebear.com/7.x/avataaars/svg?seed=Guest${Math.random()}`;
 
-    // ⚡ FIX CRÍTICO: Guardar intención en temp ANTES de auth
-    // Esto asegura que el listener onAuthStateChanged encuentre los datos INMEDIATAMENTE
-    // y no cree al usuario como "Invitado" por defecto durante la carrera de eventos.
-    localStorage.setItem('guest_session_temp', JSON.stringify({
-      username: defaultUsername,
-      avatar: defaultAvatar,
-      timestamp: Date.now()
-    }));
+    // ⚡ NUEVO SISTEMA: Guardar datos temporales para que onAuthStateChanged los encuentre
+    saveTempGuestData({
+      nombre: defaultUsername,
+      avatar: defaultAvatar
+    });
 
     try {
-      // 🚀 PASO 1: Crear usuario anónimo en Firebase PRIMERO (CRÍTICO para enviar mensajes)
-      // ⚠️ IMPORTANTE: Debe completarse ANTES de permitir enviar mensajes
-      // Sin esto, auth.currentUser será null y Firestore rechazará los mensajes
+      // 🚀 PASO 1: Crear usuario anónimo en Firebase
+      // ⚠️ CRÍTICO: onAuthStateChanged creará la identidad, NO lo hacemos aquí
       console.log('🔐 [AUTH] Iniciando signInAnonymously con username:', defaultUsername);
       const userCredential = await signInAnonymously(auth);
       const step1Duration = performance.now() - step1Start;
       console.log(`⏱️ [PASO 1] signInAnonymously Firebase: ${step1Duration.toFixed(2)}ms`);
 
-      // ✅ Usuario autenticado en Firebase - ahora puede enviar mensajes
-      const realUser = {
-        id: userCredential.user.uid,
-        username: defaultUsername,
-        isGuest: true,
-        isAnonymous: true,
-        isPremium: false,
-        verified: false,
-        avatar: defaultAvatar,
-        quickPhrases: [],
-        theme: {},
-      };
+      console.log('%c✅ [TIMING] Usuario autenticado - onAuthStateChanged creará identidad', 'color: #00ff00; font-weight: bold');
 
-      // ⚡ ACTUALIZAR UI (ahora con UID real de Firebase)
-      setUser(realUser);
-      setGuestMessageCount(0);
-
-      // ⚡ Guardar backup con UID real
-      localStorage.setItem('guest_session_backup', JSON.stringify({
-        uid: userCredential.user.uid,
-        username: defaultUsername,
-        avatar: defaultAvatar,
-        timestamp: Date.now(),
-      }));
-
-      // ✅ GUARDAR SESIÓN si el usuario marcó "Mantener sesión"
-      if (keepSession) {
-        localStorage.setItem('guest_session_saved', JSON.stringify({
-          username: defaultUsername,
-          avatar: defaultAvatar,
-          uid: userCredential.user.uid,
-          timestamp: Date.now(),
-        }));
-      } else {
-        // Si no marca mantener sesión, eliminar cualquier sesión guardada anterior
-        localStorage.removeItem('guest_session_saved');
-      }
-
-      console.log('%c✅ [TIMING] Usuario autenticado - PUEDE enviar mensajes', 'color: #00ff00; font-weight: bold');
-
-      // 🚀 Guardar en Firestore EN BACKGROUND (no bloquea el login)
-      // ✅ FIX: Guardar inmediatamente para que esté disponible al recargar
-      const guestRef = doc(db, 'guests', userCredential.user.uid);
-      setDoc(guestRef, {
-        username: defaultUsername,
-        avatar: defaultAvatar,
-        createdAt: new Date().toISOString(),
-        messageCount: 0,
-        expiresAt: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString()
-      })
-      .then(() => {
-        console.log('%c✅ [BACKGROUND] Datos guardados en Firestore', 'color: #888; font-style: italic');
-        // ✅ Actualizar backup después de guardar en Firestore
-        localStorage.setItem('guest_session_backup', JSON.stringify({
-          uid: userCredential.user.uid,
-          username: defaultUsername,
-          avatar: defaultAvatar,
-          timestamp: Date.now(),
-        }));
-      })
-      .catch((err) => {
-        console.warn('⚠️ [BACKGROUND] Error en Firestore (no crítico):', err);
-        // ✅ Aún así, actualizar backup local para que funcione sin Firestore
-        localStorage.setItem('guest_session_backup', JSON.stringify({
-          uid: userCredential.user.uid,
-          username: defaultUsername,
-          avatar: defaultAvatar,
-          timestamp: Date.now(),
-        }));
-      });
+      // ⚠️ NO creamos identidad aquí - onAuthStateChanged lo hará al detectar tempData
+      // ⚠️ NO llamamos setUser aquí - onAuthStateChanged lo hará
+      // ⚠️ Firestore se guardará desde onAuthStateChanged en background
 
       const totalDuration = performance.now() - startTime;
-      console.log(`⏱️ [TOTAL] Entrada completa al chat: ${totalDuration.toFixed(2)}ms`);
+      console.log(`⏱️ [TOTAL] signInAsGuest completado: ${totalDuration.toFixed(2)}ms`);
       signInAsGuest.inProgress = false;
       return true;
     } catch (error) {
@@ -719,7 +571,7 @@ export const AuthProvider = ({ children }) => {
 
   /**
    * Cerrar sesión
-   * ✅ ARREGLADO: Si es usuario invitado, NO limpiar localStorage para permitir re-login automático
+   * ✅ Integrado con sistema de persistencia UUID
    */
   const logout = async () => {
     try {
@@ -732,11 +584,10 @@ export const AuthProvider = ({ children }) => {
       setUser(null);
       setGuestMessageCount(0);
 
-      // ⚠️ CRÍTICO: Solo limpiar localStorage si NO es invitado
-      // Los invitados deben mantener su sesión para re-login automático
-      if (!wasGuest) {
-        localStorage.removeItem('guest_session_backup');
-        localStorage.removeItem('guest_session_temp');
+      // ✅ NUEVO SISTEMA: Limpiar identidad persistente
+      if (wasGuest) {
+        console.log('[AUTH] Limpiando identidad de invitado...');
+        clearGuestIdentity(); // Limpia chactivo_guest_identity + temp + legacy
       }
 
       // Cerrar sesión en Firebase

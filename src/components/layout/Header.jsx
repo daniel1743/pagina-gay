@@ -9,6 +9,7 @@ import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel,
 import ComingSoonModal from '@/components/ui/ComingSoonModal';
 import SystemNotificationsPanel from '@/components/notifications/SystemNotificationsPanel';
 import ActivityDashboardModal from '@/components/dashboard/ActivityDashboardModal';
+import { AvatarMenu } from '@/components/layout/AvatarMenu'; // ⚡ NUEVO: Menu unificado para todos los usuarios
 // ⚠️ MODAL COMENTADO - Usamos entrada directa como invitado (sin opciones)
 // import { EntryOptionsModal } from '@/components/auth/EntryOptionsModal';
 import { GuestUsernameModal } from '@/components/auth/GuestUsernameModal';
@@ -173,77 +174,9 @@ const Header = () => {
             </>
           )}
 
-          {user && !user.isGuest ? (
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <div className="flex items-center gap-3 cursor-pointer">
-                  <div className={`rounded-full ${
-                    (user.role === 'admin' || user.role === 'administrator')
-                      ? 'admin-avatar-ring'
-                      : user.verified
-                        ? 'verified-avatar-ring'
-                        : user.isPremium
-                          ? 'premium-avatar-ring'
-                          : ''
-                  }`}>
-                    <Avatar className="w-10 h-10">
-                      <AvatarImage src={user.avatar} alt={user.username} />
-                      <AvatarFallback className="bg-secondary">{user.username[0].toUpperCase()}</AvatarFallback>
-                    </Avatar>
-                  </div>
-                  <div className="hidden md:flex flex-col items-start">
-                    <span className="text-sm font-semibold text-foreground flex items-center gap-1">
-                      {user.username}
-                      {(user.isPremium || user.role === 'admin' || user.role === 'administrator') && (
-                        <CheckCircle className="w-4 h-4 text-[#FFD700]"/>
-                      )}
-                      {user.verified && !user.isPremium && user.role !== 'admin' && user.role !== 'administrator' && (
-                        <CheckCircle className="w-4 h-4 text-[#1DA1F2]"/>
-                      )}
-                    </span>
-                    <span className="text-xs text-green-400 flex items-center gap-1">
-                      <Circle className="w-2 h-2 fill-current" /> Conectado
-                    </span>
-                  </div>
-                  <ChevronDown className="w-4 h-4 text-muted-foreground hidden md:block" />
-                </div>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent align="end" className="bg-card border-border text-foreground">
-                <DropdownMenuLabel>{user.username}</DropdownMenuLabel>
-                <DropdownMenuItem onClick={() => navigate('/profile')}>Perfil</DropdownMenuItem>
-                <DropdownMenuSeparator />
-
-                {/* Panel Admin - Solo visible para administradores */}
-                {isAdmin && (
-                  <>
-                    <DropdownMenuItem onClick={() => navigate('/admin')} className="text-purple-400 hover:text-purple-300">
-                      <Shield className="w-4 h-4 mr-2" />
-                      Panel Admin
-                    </DropdownMenuItem>
-                    <DropdownMenuSeparator />
-                  </>
-                )}
-
-                <DropdownMenuItem onClick={() => handleFeatureComingSoon('Mis Favoritos', 'Próximamente podrás ver tus usuarios favoritos.')}>
-                  <Heart className="w-4 h-4 mr-2" />
-                  Mis Favoritos
-                </DropdownMenuItem>
-                <DropdownMenuItem onClick={() => navigate('/home')}>
-                  <MessageSquare className="w-4 h-4 mr-2" />
-                  Salas
-                </DropdownMenuItem>
-                <DropdownMenuItem onClick={() => setShowNotifications(true)}>
-                  <Bell className="w-4 h-4 mr-2" />
-                  Notificaciones
-                </DropdownMenuItem>
-                <DropdownMenuItem onClick={() => setShowActivityDashboard(true)}>
-                  <BarChart3 className="w-4 h-4 mr-2" />
-                  Tu Actividad Hoy
-                </DropdownMenuItem>
-                <DropdownMenuSeparator />
-                <DropdownMenuItem onClick={logout} className="text-red-400 focus:text-red-400">Cerrar Sesión</DropdownMenuItem>
-              </DropdownMenuContent>
-            </DropdownMenu>
+          {/* ⚡ NUEVO: AvatarMenu unificado para TODOS los usuarios (guest + registered) */}
+          {user ? (
+            <AvatarMenu />
           ) : (
             /* ✅ FASE URGENTE: CTAs para visitantes - Navbar que VENDE */
             <>

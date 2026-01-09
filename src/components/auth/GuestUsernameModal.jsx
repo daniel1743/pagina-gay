@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   Dialog,
@@ -9,6 +9,10 @@ import {
 } from '@/components/ui/dialog';
 import { useAuth } from '@/contexts/AuthContext';
 import { toast } from '@/components/ui/use-toast';
+import {
+  hasGuestIdentity,
+  saveTempGuestData,
+} from '@/utils/guestIdentity';
 
 // 10 avatares para asignación aleatoria
 const AVATAR_OPTIONS = [
@@ -36,7 +40,17 @@ export const GuestUsernameModal = ({ open, onClose, chatRoomId = 'principal' }) 
   const [nickname, setNickname] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState('');
-  const [keepSession, setKeepSession] = useState(false); // ✅ Checkbox "Mantener sesión"
+  const [keepSession, setKeepSession] = useState(true); // ✅ Default TRUE - persistencia por defecto
+
+  // ⚡ NUEVO: Verificar identidad existente y auto-entrar al chat
+  useEffect(() => {
+    if (open && hasGuestIdentity()) {
+      console.log('[GuestModal] ✅ Identidad persistente detectada - entrando automáticamente...');
+      // No mostrar modal, entrar directamente
+      onClose();
+      navigate(`/chat/${chatRoomId}`, { replace: true });
+    }
+  }, [open, chatRoomId, navigate, onClose]);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -64,6 +78,15 @@ export const GuestUsernameModal = ({ open, onClose, chatRoomId = 'principal' }) 
       const randomAvatar = AVATAR_OPTIONS[Math.floor(Math.random() * AVATAR_OPTIONS.length)];
       console.log(`🎨 Avatar seleccionado: ${randomAvatar.split('seed=')[1]}`);
 
+      // ⚡ NUEVO: Guardar datos temporales para el sistema de persistencia
+      if (keepSession) {
+        saveTempGuestData({
+          nombre: nickname.trim(),
+          avatar: randomAvatar
+        });
+        console.log('[GuestModal] ✅ Datos guardados para persistencia');
+      }
+
       // ⚡ OPTIMISTIC NAVIGATION: Navegar INMEDIATAMENTE (antes de Firebase)
       // Esto elimina la fricción de espera - el usuario ve el chat al instante
       console.log('%c✅ NAVEGANDO INMEDIATAMENTE (optimistic)...', 'color: #00ff00; font-weight: bold; font-size: 14px');
@@ -75,7 +98,7 @@ export const GuestUsernameModal = ({ open, onClose, chatRoomId = 'principal' }) 
       signInAsGuest(nickname.trim(), randomAvatar, keepSession)
         .then(() => {
           console.timeEnd('⏱️ [MODAL] signInAsGuest completo');
-          console.log('%c✅ Usuario creado en background', 'color: #888; font-style: italic');
+          console.log('%c✅ Usuario creado en background con persistencia', 'color: #888; font-style: italic');
         })
         .catch((error) => {
           console.error('%c❌ Error en background (no crítico):', 'color: #ff0000; font-weight: bold', error);

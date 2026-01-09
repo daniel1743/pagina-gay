@@ -305,18 +305,43 @@ export default defineConfig({
 			'@': path.resolve(__dirname, './src'),
 		},
 	},
+	// ⚡ OPTIMIZACIÓN: Pre-bundlear dependencias pesadas para dev server más rápido
+	optimizeDeps: {
+		include: [
+			'react',
+			'react-dom',
+			'react-router-dom',
+			'firebase/app',
+			'firebase/auth',
+			'firebase/firestore',
+			'firebase/storage',
+			'framer-motion',
+			'date-fns',
+		],
+		// Excluir módulos problemáticos del pre-bundling
+		exclude: [],
+	},
 	build: {
 		target: 'es2015',
 		minify: 'terser',
+		sourcemap: false, // ⚡ Desactivar sourcemaps en producción (reduce tamaño)
 		terserOptions: {
 			compress: {
 				drop_console: true, // Eliminar console.log en producción
 				drop_debugger: true,
 				pure_funcs: ['console.log', 'console.debug', 'console.info'],
 				passes: 2,
+				// ⚡ Optimizaciones adicionales
+				ecma: 2015,
+				toplevel: true,
+				unsafe_arrows: true,
+				unsafe_methods: true,
 			},
 			mangle: {
 				safari10: true,
+			},
+			format: {
+				comments: false, // ⚡ Eliminar comentarios
 			},
 		},
 		rollupOptions: {
@@ -336,7 +361,8 @@ export default defineConfig({
 					'firebase-vendor': [
 						'firebase/app',
 						'firebase/auth',
-						'firebase/firestore'
+						'firebase/firestore',
+						'firebase/storage'
 					],
 
 					// UI Libraries (Radix UI - solo se carga cuando se necesita)
