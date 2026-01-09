@@ -1025,10 +1025,11 @@ const Mas30LandingPage = () => {
         </motion.section>
       </div>
 
-      {/* Guest Username Modal (Sin Registro) */}
+      {/* ✅ FASE 1: GuestUsernameModal - ÚNICO punto de entrada para invitados */}
       <GuestUsernameModal
         open={showGuestModal}
         onClose={() => setShowGuestModal(false)}
+        chatRoomId="principal" // Ignorado, siempre navega a /chat/principal
       />
     </div>
   );

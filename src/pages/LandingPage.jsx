@@ -3,103 +3,29 @@ import { useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import ChatDemo from '../components/landing/ChatDemo';
 import { useAuth } from '@/contexts/AuthContext';
-import { toast } from '@/components/ui/use-toast';
-
-// 10 avatares aleatorios para asignar
-const AVATAR_OPTIONS = [
-  'https://api.dicebear.com/7.x/avataaars/svg?seed=avatar1',
-  'https://api.dicebear.com/7.x/avataaars/svg?seed=avatar2',
-  'https://api.dicebear.com/7.x/bottts/svg?seed=avatar3',
-  'https://api.dicebear.com/7.x/pixel-art/svg?seed=avatar4',
-  'https://api.dicebear.com/7.x/identicon/svg?seed=avatar5',
-  'https://api.dicebear.com/7.x/avataaars/svg?seed=avatar6',
-  'https://api.dicebear.com/7.x/bottts/svg?seed=avatar7',
-  'https://api.dicebear.com/7.x/pixel-art/svg?seed=avatar8',
-  'https://api.dicebear.com/7.x/identicon/svg?seed=avatar9',
-  'https://api.dicebear.com/7.x/avataaars/svg?seed=avatar10',
-];
+import { GuestUsernameModal } from '@/components/auth/GuestUsernameModal';
 
 export default function LandingPage() {
   const navigate = useNavigate();
-  const { user, signInAsGuest } = useAuth();
-  const [nickname, setNickname] = useState('');
-  const [isLoading, setIsLoading] = useState(false);
+  const { user } = useAuth();
+  const [showGuestModal, setShowGuestModal] = useState(false);
 
   // ✅ Redirigir usuarios autenticados (no guests) directamente al home
   useEffect(() => {
     if (user && !user.isGuest && !user.isAnonymous) {
       navigate('/home', { replace: true });
+    } else if (user && (user.isGuest || user.isAnonymous)) {
+      // Usuario ya invitado - ir directo al chat principal
+      navigate('/chat/principal', { replace: true });
     }
   }, [user, navigate]);
 
-  // ⚡ ENTRADA DIRECTA - Solo nickname, avatar aleatorio
-  const handleQuickJoin = async (e) => {
-    e.preventDefault();
-
-    if (!nickname.trim()) {
-      toast({
-        title: "Ingresa tu nickname",
-        description: "Necesitas un nombre para chatear",
-        variant: "destructive",
-      });
-      return;
-    }
-
-    if (nickname.trim().length < 3) {
-      toast({
-        title: "Nickname muy corto",
-        description: "Debe tener al menos 3 caracteres",
-        variant: "destructive",
-      });
-      return;
-    }
-
-    console.log('%c═══════════════════════════════════════════', 'color: #00ffff; font-weight: bold');
-    console.log('%c🚀 INICIO - Proceso de entrada al chat', 'color: #00ffff; font-weight: bold; font-size: 16px');
-    console.log('%c═══════════════════════════════════════════', 'color: #00ffff; font-weight: bold');
-    console.time('⏱️ [LANDING] Desde click hasta navegación');
-
-    setIsLoading(true);
-
-    try {
-      // Elegir avatar ALEATORIO de las 10 opciones
-      const randomAvatar = AVATAR_OPTIONS[Math.floor(Math.random() * AVATAR_OPTIONS.length)];
-      console.log(`🎨 Avatar seleccionado: ${randomAvatar.split('seed=')[1]}`);
-
-      // Crear usuario guest en Firebase
-      console.time('⏱️ [LANDING] signInAsGuest completo');
-      await signInAsGuest(nickname.trim(), randomAvatar);
-      console.timeEnd('⏱️ [LANDING] signInAsGuest completo');
-
-      console.timeEnd('⏱️ [LANDING] Desde click hasta navegación');
-      console.log('%c✅ NAVEGANDO AL CHAT...', 'color: #00ff00; font-weight: bold; font-size: 14px');
-
-      // 🚀 REDIRIGIR INMEDIATAMENTE - NO ESPERAR
+  // ✅ FASE 1: Abrir modal único para invitados
+  const handleQuickJoin = () => {
+    if (user && (user.isGuest || user.isAnonymous)) {
       navigate('/chat/principal', { replace: true });
-
-      // Toast DESPUÉS de navegar (no bloquea)
-      setTimeout(() => {
-        toast({
-          title: "¡Bienvenido! 🎉",
-          description: `Hola ${nickname.trim()}`,
-        });
-        console.timeEnd('⏱️ [TOTAL] Entrada completa al chat');
-        console.log('%c═══════════════════════════════════════════', 'color: #00ffff; font-weight: bold');
-        console.log('%c✅ PROCESO COMPLETADO', 'color: #00ff00; font-weight: bold; font-size: 16px');
-        console.log('%c═══════════════════════════════════════════', 'color: #00ffff; font-weight: bold');
-      }, 100);
-    } catch (error) {
-      console.timeEnd('⏱️ [LANDING] Desde click hasta navegación');
-      console.timeEnd('⏱️ [TOTAL] Entrada completa al chat');
-      console.error('%c❌ ERROR EN ENTRADA:', 'color: #ff0000; font-weight: bold; font-size: 14px', error);
-      console.log('%c═══════════════════════════════════════════', 'color: #ff0000; font-weight: bold');
-
-      toast({
-        title: "Error al entrar",
-        description: error.message || "Intenta de nuevo",
-        variant: "destructive",
-      });
-      setIsLoading(false);
+    } else {
+      setShowGuestModal(true);
     }
   };
 
@@ -132,42 +58,28 @@ export default function LandingPage() {
             </p>
           </motion.div>
 
-          {/* ⚡ INPUT DIRECTO - SOLO NICKNAME */}
-          <motion.form
+          {/* ✅ FASE 1: Botón para abrir modal único (formulario inline desactivado) */}
+          <motion.div
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.5, delay: 0.4 }}
-            onSubmit={handleQuickJoin}
             className="max-w-xl mx-auto mb-8"
           >
-            <div className="bg-white/10 backdrop-blur-lg border-2 border-purple-500/50 rounded-2xl p-6 shadow-2xl">
-              <label className="block text-left text-white font-semibold text-lg mb-3">
-                Tu Nickname:
-              </label>
-              <div className="flex flex-col sm:flex-row gap-3">
-                <input
-                  type="text"
-                  value={nickname}
-                  onChange={(e) => setNickname(e.target.value)}
-                  placeholder="Ej: Carlos23"
-                  maxLength={20}
-                  disabled={isLoading}
-                  className="flex-1 px-6 py-4 text-lg font-medium rounded-xl border-2 border-purple-400 focus:border-pink-400 focus:ring-4 focus:ring-pink-400/20 outline-none transition-all"
-                  autoFocus
-                />
-                <button
-                  type="submit"
-                  disabled={isLoading || !nickname.trim()}
-                  className="bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-700 hover:to-pink-700 disabled:opacity-50 disabled:cursor-not-allowed text-white text-xl font-bold px-10 py-4 rounded-xl shadow-lg transform hover:scale-105 transition-all duration-200 whitespace-nowrap"
-                >
-                  {isLoading ? '⏳ Entrando...' : '🚀 Ir al Chat'}
-                </button>
-              </div>
+            <div className="bg-white/10 backdrop-blur-lg border-2 border-purple-500/50 rounded-2xl p-6 shadow-2xl text-center">
+              <p className="text-white font-semibold text-lg mb-4">
+                Chatea con Gente Real
+              </p>
+              <button
+                onClick={handleQuickJoin}
+                className="bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-700 hover:to-pink-700 text-white text-xl font-bold px-10 py-4 rounded-xl shadow-lg transform hover:scale-105 transition-all duration-200 whitespace-nowrap w-full sm:w-auto"
+              >
+                🚀 Entrar al Chat
+              </button>
               <p className="text-purple-200 text-sm mt-4">
-                ✨ Avatar asignado automáticamente • Entra en 1 segundo
+                ✨ Sin registro • Avatar automático • Entra en segundos
               </p>
             </div>
-          </motion.form>
+          </motion.div>
 
           {/* Indicadores de actividad */}
           <motion.div
@@ -193,7 +105,7 @@ export default function LandingPage() {
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.6, delay: 0.8 }}
         >
-          <ChatDemo onJoinClick={() => document.querySelector('input[type="text"]').focus()} />
+          <ChatDemo onJoinClick={handleQuickJoin} />
         </motion.div>
 
         {/* Features */}
@@ -228,7 +140,7 @@ export default function LandingPage() {
           className="text-center mt-16"
         >
           <button
-            onClick={() => document.querySelector('input[type="text"]').focus()}
+            onClick={handleQuickJoin}
             className="bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-700 hover:to-pink-700 text-white text-xl font-bold px-12 py-4 rounded-full shadow-2xl transform hover:scale-105 transition-all duration-200"
           >
             💬 Empieza a Chatear
@@ -243,6 +155,13 @@ export default function LandingPage() {
           <p>© 2025 Chactivo • Chat gay Chile • Conversaciones libres y seguras</p>
         </div>
       </div>
+
+      {/* ✅ FASE 1: GuestUsernameModal - ÚNICO punto de entrada para invitados */}
+      <GuestUsernameModal
+        open={showGuestModal}
+        onClose={() => setShowGuestModal(false)}
+        chatRoomId="principal"
+      />
     </div>
   );
 }

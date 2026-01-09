@@ -1,5 +1,4 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { useNavigate } from 'react-router-dom';
 import {
   Dialog,
   DialogContent,
@@ -30,29 +29,45 @@ const AVATAR_OPTIONS = [
 ];
 
 /**
- * Modal de Entrada ULTRA RÁPIDA para Guests
- * ✅ NUEVA VERSIÓN: Solo nickname + avatar aleatorio
- * ⚡ CERO FRICCIÓN - Entrada en 1 segundo
+ * ✅ FASE 1.1: MODAL ÚNICO PARA INVITADOS - FIX CRÍTICO
+ * Modal canónico y único punto de entrada para usuarios invitados
+ * ⚡ CERO FRICCIÓN - Entrada en segundos con solo nickname + ENTER
+ * 🔒 Restricción: Invitados solo pueden acceder a /chat/principal
+ *
+ * @param {boolean} open - Estado de apertura del modal
+ * @param {function} onClose - Callback para cerrar el modal
+ * @param {string} chatRoomId - (deprecated) Siempre usa 'principal'
+ * @param {'auto'|'user'} openSource - Origen de apertura: 'auto' (automático) o 'user' (click manual del usuario)
+ * @param {function} onGuestReady - Callback invocado cuando el invitado está listo (para que parent navegue)
  */
-export const GuestUsernameModal = ({ open, onClose, chatRoomId = 'principal' }) => {
-  const navigate = useNavigate();
+export const GuestUsernameModal = ({
+  open,
+  onClose,
+  chatRoomId = 'principal',
+  openSource = 'user', // Default: apertura manual por el usuario
+  onGuestReady // Callback para que el parent maneje la navegación
+}) => {
   const { signInAsGuest } = useAuth();
 
   const [nickname, setNickname] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState('');
-  const [keepSession, setKeepSession] = useState(true); // ✅ Default TRUE - persistencia por defecto
+  const [ageConfirmed, setAgeConfirmed] = useState(false); // ✅ Cambiado: checkbox de edad (no mantener sesión)
   const modalOpenTimeRef = useRef(null); // 📊 Timestamp cuando se abre el modal
 
-  // ⚡ NUEVO: Verificar identidad existente y auto-entrar al chat
+  // ⚡ FIX CRÍTICO: Auto-skip SOLO si openSource === 'auto'
+  // Si es 'user' (click manual), el modal DEBE mostrarse incluso con identidad existente
   useEffect(() => {
-    if (open && hasGuestIdentity()) {
-      console.log('[GuestModal] ✅ Identidad persistente detectada - entrando automáticamente...');
-      // No mostrar modal, entrar directamente
+    if (open && openSource === 'auto' && hasGuestIdentity()) {
+      console.log('[GuestModal] ✅ Identidad persistente detectada (apertura AUTO) - notificando al parent...');
+      // Cerrar modal y notificar al parent para que navegue
       onClose();
-      navigate(`/chat/${chatRoomId}`, { replace: true });
+      // Notificar al parent que hay identidad y puede navegar directamente
+      if (onGuestReady) {
+        onGuestReady({ hasExistingIdentity: true });
+      }
     }
-  }, [open, chatRoomId, navigate, onClose]);
+  }, [open, openSource, onClose, onGuestReady]);
 
   // 📊 PERFORMANCE MONITOR: Rastrear apertura del modal
   useEffect(() => {
@@ -62,64 +77,105 @@ export const GuestUsernameModal = ({ open, onClose, chatRoomId = 'principal' }) 
     }
   }, [open]);
 
+  // ⚡ Auto-marcar checkbox de edad al presionar ENTER
+  const handleKeyDown = (e) => {
+    if (e.key === 'Enter' && !isLoading && nickname.trim().length >= 3) {
+      // Auto-confirmar edad al presionar ENTER
+      setAgeConfirmed(true);
+      // El submit se maneja automáticamente por el formulario
+    }
+  };
+
   const handleSubmit = async (e) => {
     e.preventDefault();
     setError('');
 
+    // ✅ Auto-confirmar edad al hacer submit (si no está marcado)
+    if (!ageConfirmed) {
+      setAgeConfirmed(true);
+    }
+
     // 📊 PERFORMANCE MONITOR: Iniciar medición de entrada al chat
     const chatEntryStartTime = performance.now();
 
-    // ✅ Validación SIMPLE - solo nickname
+    // ✅ Validación - nickname
     if (!nickname.trim()) {
       setError('Ingresa tu nickname');
+      setAgeConfirmed(false); // Reset si hay error
       return;
     }
     if (nickname.trim().length < 3) {
       setError('El nickname debe tener al menos 3 caracteres');
+      setAgeConfirmed(false);
+      return;
+    }
+    if (nickname.trim().length > 20) {
+      setError('El nickname no puede tener más de 20 caracteres');
+      setAgeConfirmed(false);
       return;
     }
 
     console.log('%c═══════════════════════════════════════════', 'color: #00ffff; font-weight: bold');
-    console.log('%c🚀 INICIO - Proceso de entrada al chat (MODAL)', 'color: #00ffff; font-weight: bold; font-size: 16px');
+    console.log('%c🚀 FASE 1: Entrada OPTIMISTIC - Navegación instantánea', 'color: #00ffff; font-weight: bold; font-size: 16px');
     console.log('%c═══════════════════════════════════════════', 'color: #00ffff; font-weight: bold');
-    console.time('⏱️ [MODAL] Desde click hasta navegación');
 
     setIsLoading(true);
 
     try {
-      // ⚡ Avatar ALEATORIO de las 10 opciones
+      // ⚡ Avatar ALEATORIO automático (usuario NO puede elegir)
       const randomAvatar = AVATAR_OPTIONS[Math.floor(Math.random() * AVATAR_OPTIONS.length)];
-      console.log(`🎨 Avatar seleccionado: ${randomAvatar.split('seed=')[1]}`);
+      console.log(`🎨 Avatar asignado automáticamente: ${randomAvatar.split('seed=')[1]}`);
 
-      // ⚡ NUEVO: Guardar datos temporales para el sistema de persistencia
-      if (keepSession) {
-        saveTempGuestData({
-          nombre: nickname.trim(),
-          avatar: randomAvatar
-        });
-        console.log('[GuestModal] ✅ Datos guardados para persistencia');
-      }
-
-      // ⚡ OPTIMISTIC NAVIGATION: Navegar INMEDIATAMENTE (antes de Firebase)
-      // Esto elimina la fricción de espera - el usuario ve el chat al instante
-      console.log('%c✅ NAVEGANDO INMEDIATAMENTE (optimistic)...', 'color: #00ff00; font-weight: bold; font-size: 14px');
+      // ✅ SIEMPRE guardar para persistencia (implícito keepSession=true)
+      saveTempGuestData({
+        nombre: nickname.trim(),
+        avatar: randomAvatar
+      });
+      console.log('[GuestModal] ✅ Datos guardados para persistencia automática');
 
       // 📊 PERFORMANCE MONITOR: Registrar entrada al chat
       trackChatEntry(chatEntryStartTime);
 
-      onClose();
-      navigate(`/chat/${chatRoomId}`, { replace: true });
+      // ⚡ ESTRATEGIA OPTIMISTIC MEJORADA:
+      // 1. Iniciar signInAsGuest (setea usuario optimistic inmediatamente)
+      // 2. Esperar solo 100ms para que el usuario se setee
+      // 3. Navegar (usuario ya está disponible, ChatPage NO muestra landing)
+      // 4. Firebase completa en background (30+ segundos, invisible)
 
-      // ⚡ Crear usuario guest en Firebase EN BACKGROUND (no bloquea navegación)
-      console.time('⏱️ [MODAL] signInAsGuest completo');
-      signInAsGuest(nickname.trim(), randomAvatar, keepSession)
+      console.log('%c✅ Iniciando signInAsGuest para setear usuario optimistic...', 'color: #00ff00; font-weight: bold; font-size: 14px');
+
+      // Iniciar proceso (esto setea usuario en ~50ms)
+      const guestPromise = signInAsGuest(nickname.trim(), randomAvatar, true);
+
+      // Esperar SOLO lo necesario para que setUser() se ejecute
+      await new Promise(resolve => setTimeout(resolve, 100));
+
+      console.log('%c✅ Usuario optimistic seteado - navegando ahora...', 'color: #00ff00; font-weight: bold; font-size: 14px');
+
+      // Cerrar modal
+      onClose();
+
+      // Notificar al parent para que navegue (usuario YA está seteado)
+      if (onGuestReady) {
+        onGuestReady({
+          hasExistingIdentity: false,
+          nickname: nickname.trim(),
+          avatar: randomAvatar,
+          authenticated: false,
+          optimistic: true
+        });
+      }
+
+      // ⚡ Firebase continúa en BACKGROUND (no bloquea navegación)
+      console.time('⏱️ [MODAL] Firebase completo (background)');
+      guestPromise
         .then(() => {
-          console.timeEnd('⏱️ [MODAL] signInAsGuest completo');
-          console.log('%c✅ Usuario creado en background con persistencia', 'color: #888; font-style: italic');
+          console.timeEnd('⏱️ [MODAL] Firebase completo (background)');
+          console.log('%c✅ Firebase autenticación completada en background', 'color: #888; font-style: italic');
         })
         .catch((error) => {
-          console.error('%c❌ Error en background (no crítico):', 'color: #ff0000; font-weight: bold', error);
-          // Si falla, el usuario ya está en el chat - puede intentar de nuevo
+          console.timeEnd('⏱️ [MODAL] Firebase completo (background)');
+          console.error('%c❌ Error en Firebase background (no crítico):', 'color: #ff0000; font-weight: bold', error);
         });
 
       // Toast DESPUÉS de navegar (no bloquea)
@@ -128,18 +184,16 @@ export const GuestUsernameModal = ({ open, onClose, chatRoomId = 'principal' }) 
           title: "¡Bienvenido! 🎉",
           description: `Hola ${nickname.trim()}`,
         });
-        console.timeEnd('⏱️ [TOTAL] Entrada completa al chat');
         console.log('%c═══════════════════════════════════════════', 'color: #00ffff; font-weight: bold');
-        console.log('%c✅ PROCESO COMPLETADO (MODAL)', 'color: #00ff00; font-weight: bold; font-size: 16px');
+        console.log('%c✅ FASE 1 COMPLETADA: Usuario invitado en /chat/principal (OPTIMISTIC)', 'color: #00ff00; font-weight: bold; font-size: 16px');
         console.log('%c═══════════════════════════════════════════', 'color: #00ffff; font-weight: bold');
       }, 100);
     } catch (error) {
-      console.timeEnd('⏱️ [MODAL] Desde click hasta navegación');
-      console.timeEnd('⏱️ [TOTAL] Entrada completa al chat');
       console.error('%c❌ ERROR EN ENTRADA (MODAL):', 'color: #ff0000; font-weight: bold; font-size: 14px', error);
       console.log('%c═══════════════════════════════════════════', 'color: #ff0000; font-weight: bold');
 
       setError(`Error al entrar: ${error.message || 'Intenta de nuevo.'}`);
+      setAgeConfirmed(false); // Reset en caso de error
       setIsLoading(false);
     }
   };
@@ -203,6 +257,7 @@ export const GuestUsernameModal = ({ open, onClose, chatRoomId = 'principal' }) 
                   type="text"
                   value={nickname}
                   onChange={(e) => setNickname(e.target.value)}
+                  onKeyDown={handleKeyDown}
                   placeholder="Ej: Carlos23"
                   maxLength={20}
                   required
@@ -223,10 +278,10 @@ export const GuestUsernameModal = ({ open, onClose, chatRoomId = 'principal' }) 
                   }}
                 />
                 <p style={{ fontSize: '12px', color: '#999', marginBottom: '16px' }}>
-                  ✨ Avatar asignado automáticamente
+                  ✨ Avatar asignado automáticamente • Presiona ENTER para entrar
                 </p>
                 
-                {/* ✅ Checkbox "Mantener sesión" */}
+                {/* ✅ Checkbox "Soy mayor de edad" (se auto-marca con ENTER o submit) */}
                 <div style={{ 
                   display: 'flex', 
                   alignItems: 'center', 
@@ -238,9 +293,9 @@ export const GuestUsernameModal = ({ open, onClose, chatRoomId = 'principal' }) 
                 }}>
                   <input
                     type="checkbox"
-                    id="keep-session-guest"
-                    checked={keepSession}
-                    onChange={(e) => setKeepSession(e.target.checked)}
+                    id="age-confirmation-guest"
+                    checked={ageConfirmed}
+                    onChange={(e) => setAgeConfirmed(e.target.checked)}
                     style={{
                       width: '18px',
                       height: '18px',
@@ -248,7 +303,7 @@ export const GuestUsernameModal = ({ open, onClose, chatRoomId = 'principal' }) 
                     }}
                   />
                   <label
-                    htmlFor="keep-session-guest"
+                    htmlFor="age-confirmation-guest"
                     style={{
                       fontSize: '14px',
                       color: '#555',
@@ -256,15 +311,16 @@ export const GuestUsernameModal = ({ open, onClose, chatRoomId = 'principal' }) 
                       userSelect: 'none'
                     }}
                   >
-                    Mantener sesión
+                    Soy mayor de edad y entiendo que entro a una sala para adultos
                   </label>
                 </div>
                 <p style={{ fontSize: '11px', color: '#999', marginBottom: '20px', marginTop: '-12px' }}>
-                  Si marcas esta opción, la próxima vez mantendrás el mismo avatar y nombre
+                  Se marca automáticamente al presionar ENTER o hacer click en "Ir al Chat"
                 </p>
                 
                 <button
                   type="submit"
+                  onClick={() => setAgeConfirmed(true)} // ✅ Auto-marcar checkbox al hacer click
                   disabled={isLoading || !nickname.trim()}
                   style={{
                     width: '100%',

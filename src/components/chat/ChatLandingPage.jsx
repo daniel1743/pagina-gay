@@ -1,4 +1,4 @@
-import React, { useEffect } from 'react';
+import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
@@ -17,6 +17,7 @@ import {
 } from 'lucide-react';
 import { motion } from 'framer-motion';
 import EventsCalendar from '@/components/events/EventsCalendar';
+import { GuestUsernameModal } from '@/components/auth/GuestUsernameModal';
 
 /**
  * LANDING PAGE PARA SALAS DE CHAT
@@ -128,6 +129,7 @@ const ROOM_CONTENT = {
 const ChatLandingPage = ({ roomSlug }) => {
   const navigate = useNavigate();
   const content = ROOM_CONTENT[roomSlug] || ROOM_CONTENT['global'];
+  const [showGuestModal, setShowGuestModal] = useState(false);
 
   // SEO: Meta tags dinámicos
   useEffect(() => {
@@ -169,8 +171,9 @@ const ChatLandingPage = ({ roomSlug }) => {
     };
   }, [content, roomSlug]);
 
+  // ✅ FASE 1: Abrir modal único para invitados (ya no redirige a /auth)
   const handleJoinChat = () => {
-    navigate(`/auth?redirect=/chat/${roomSlug}&mode=guest`);
+    setShowGuestModal(true);
   };
 
   const handleSignup = () => {
@@ -411,7 +414,7 @@ const ChatLandingPage = ({ roomSlug }) => {
           </p>
         </motion.div>
 
-        {/* Footer Links */}
+          {/* Footer Links */}
         <div className="mt-12 text-center text-sm text-gray-500">
           <button
             onClick={handleGoHome}
@@ -421,6 +424,14 @@ const ChatLandingPage = ({ roomSlug }) => {
           </button>
         </div>
       </div>
+
+      {/* ✅ FASE 1: GuestUsernameModal - ÚNICO punto de entrada para invitados */}
+      {/* Nota: Invitados siempre van a /chat/principal (ignora roomSlug) */}
+      <GuestUsernameModal
+        open={showGuestModal}
+        onClose={() => setShowGuestModal(false)}
+        chatRoomId="principal"
+      />
     </div>
   );
 };

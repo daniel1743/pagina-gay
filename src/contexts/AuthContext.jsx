@@ -87,6 +87,7 @@ export const AuthProvider = ({ children }) => {
 
               setGuestMessageCount(0);
               setUser(guestUser);
+              setLoading(false); // ✅ FIX: Asegurar que loading se actualice
 
               // Background: Sync con Firestore
               getDoc(doc(db, 'guests', firebaseUser.uid))
@@ -130,6 +131,7 @@ export const AuthProvider = ({ children }) => {
 
               setGuestMessageCount(0);
               setUser(guestUser); // ✅ Actualizar con ID real
+              setLoading(false); // ✅ FIX: Asegurar que loading se actualice
 
               // 🚀 Guardar en Firestore EN BACKGROUND
               const guestRef = doc(db, 'guests', firebaseUser.uid);
@@ -167,6 +169,7 @@ export const AuthProvider = ({ children }) => {
             };
             setGuestMessageCount(0);
             setUser(guestUser);
+            setLoading(false); // ✅ FIX: Asegurar que loading se actualice
 
             // 🚀 Intentar cargar de Firestore EN BACKGROUND (no bloquea)
             getDoc(doc(db, 'guests', firebaseUser.uid))
@@ -228,6 +231,7 @@ export const AuthProvider = ({ children }) => {
             if (sanctions.isBanned) {
               // Usuario está baneado
               await signOut(auth);
+              setLoading(false); // ✅ FIX: Asegurar que loading se actualice antes de return
               toast({
                 title: "Acceso Denegado",
                 description: sanctions.banType === 'perm_ban' 
@@ -254,12 +258,13 @@ export const AuthProvider = ({ children }) => {
 
             setUser(userProfile);
             setGuestMessageCount(0); // Los usuarios registrados no tienen límite
+            setLoading(false); // ✅ FIX: Asegurar que loading se actualice
 
-            // Registrar conexión para sistema de verificación
-            recordUserConnection(firebaseUser.uid);
+            // Registrar conexión para sistema de verificación (en background, no bloquea)
+            recordUserConnection(firebaseUser.uid).catch(() => {});
 
-            // Verificar mantenimiento de verificación
-            checkVerificationMaintenance(firebaseUser.uid);
+            // Verificar mantenimiento de verificación (en background, no bloquea)
+            checkVerificationMaintenance(firebaseUser.uid).catch(() => {});
           }
         } catch (error) {
           console.error('[AUTH] ❌ ERROR CRÍTICO al cargar perfil:', error);
@@ -283,6 +288,7 @@ export const AuthProvider = ({ children }) => {
               theme: {},
             };
             setUser(basicGuestProfile);
+            setLoading(false); // ✅ FIX: Asegurar que loading se actualice
           } else {
             console.log('[AUTH] 🔄 Usuario registrado con error en Firestore - usando perfil básico');
             const basicProfile = {
@@ -298,6 +304,7 @@ export const AuthProvider = ({ children }) => {
               theme: {},
             };
             setUser(basicProfile);
+            setLoading(false); // ✅ FIX: Asegurar que loading se actualice
           }
         }
       } else {
@@ -563,28 +570,31 @@ export const AuthProvider = ({ children }) => {
       guestId: newIdentity.guestId // Pasar el UUID para mantenerlo
     });
 
-    // 🚀 Firebase EN BACKGROUND (no bloquea UI)
+    // 🚀 Firebase - Esperar a que complete (evita loading infinito en ChatPage)
     const step1Start = performance.now();
-    console.log('🔐 [AUTH] Iniciando signInAnonymously EN BACKGROUND con username:', defaultUsername);
+    console.log('🔐 [AUTH] Iniciando signInAnonymously con username:', defaultUsername);
 
-    signInAnonymously(auth)
-      .then((userCredential) => {
-        const step1Duration = performance.now() - step1Start;
-        console.log(`⏱️ [BACKGROUND] signInAnonymously Firebase: ${step1Duration.toFixed(2)}ms`);
-        console.log('%c✅ [BACKGROUND] Firebase completado, onAuthStateChanged actualizará ID real', 'color: #888; font-style: italic');
-      })
-      .catch((error) => {
-        console.error('%c❌ [BACKGROUND] Error en Firebase (usuario ya funciona localmente):', 'color: #ff6600; font-weight: bold', error);
-        // Usuario sigue funcionando con identidad local
-      })
-      .finally(() => {
-        const totalDuration = performance.now() - startTime;
-        console.log(`⏱️ [TOTAL] Proceso completo: ${totalDuration.toFixed(2)}ms`);
-        signInAsGuest.inProgress = false;
-      });
-
-    // ✅ Retornar TRUE inmediatamente (usuario ya está listo)
-    return true;
+    try {
+      // ✅ Esperar a que Firebase complete ANTES de retornar
+      const userCredential = await signInAnonymously(auth);
+      const step1Duration = performance.now() - step1Start;
+      console.log(`⏱️ [AUTH] signInAnonymously Firebase completado: ${step1Duration.toFixed(2)}ms`);
+      console.log('%c✅ [AUTH] Firebase completado, onAuthStateChanged actualizará ID real', 'color: #00ff00; font-weight: bold');
+      
+      // Esperar un breve momento para que onAuthStateChanged actualice el estado
+      await new Promise(resolve => setTimeout(resolve, 100));
+      
+      const totalDuration = performance.now() - startTime;
+      console.log(`⏱️ [TOTAL] Proceso completo: ${totalDuration.toFixed(2)}ms`);
+      signInAsGuest.inProgress = false;
+      
+      return true;
+    } catch (error) {
+      console.error('%c❌ [AUTH] Error en Firebase:', 'color: #ff0000; font-weight: bold', error);
+      signInAsGuest.inProgress = false;
+      // El usuario optimista ya está seteado, pero Firebase falló
+      throw error; // Propagar error para que el modal pueda manejarlo
+    }
   };
 
   /**

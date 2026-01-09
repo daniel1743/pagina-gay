@@ -353,6 +353,24 @@ const GlobalLandingPage = () => {
     }
   };
 
+  // ✅ FASE 1.1: Handler para cuando el invitado está listo (FIX CRÍTICO + OPTIMISTIC)
+  // El modal YA NO controla navegación - este handler es responsable de navegar
+  const handleGuestReady = (payload) => {
+    console.log('[Landing] 🎯 Invitado listo - navegando a /chat/principal', payload);
+
+    // Navegar INMEDIATAMENTE en todos los casos
+    // Firebase completará en background, el usuario ve el chat al instante
+    if (payload.hasExistingIdentity) {
+      console.log('[Landing] ✅ Identidad existente - navegando inmediatamente');
+    } else if (payload.optimistic) {
+      console.log('[Landing] ⚡ Navegación OPTIMISTIC - Firebase en background');
+    } else {
+      console.log('[Landing] ✅ Invitado autenticado - navegando');
+    }
+
+    navigate('/chat/principal', { replace: true });
+  };
+
   return (
     <div className="min-h-screen">
       {/* 🎯 HERO MOBILE-FIRST - Un solo hero, copy directo, CTA único */}
@@ -493,15 +511,15 @@ const GlobalLandingPage = () => {
       <div className="px-3 sm:px-4 py-4 sm:py-6">
         <div className="max-w-5xl mx-auto">
         
-        {/* 🎯 MODAL INLINE - Entrada directa entre hero y chat demo */}
-        <motion.section
+        {/* ⚠️ FASE 1: InlineGuestEntry DESACTIVADO - Usar GuestUsernameModal único */}
+        {/* <motion.section
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.5, delay: 0.1 }}
           className="mb-8 sm:mb-12 w-full"
         >
           <InlineGuestEntry chatRoomId="principal" />
-        </motion.section>
+        </motion.section> */}
         
         {/* 🔥 CHAT DEMO - Vista previa interactiva con animaciones avanzadas */}
         <motion.section
@@ -1009,11 +1027,13 @@ const GlobalLandingPage = () => {
         onEnterClick={handleChatearAhora}
       /> */}
 
-      {/* Guest Username Modal (Sin Registro) */}
+      {/* ✅ FASE 1.1: GuestUsernameModal - ÚNICO punto de entrada para invitados (FIX CRÍTICO) */}
       <GuestUsernameModal
         open={showGuestModal}
         onClose={() => setShowGuestModal(false)}
-        chatRoomId="principal"
+        chatRoomId="principal" // Ignorado, siempre usa principal
+        openSource="user" // Apertura manual por click del usuario
+        onGuestReady={handleGuestReady} // Parent maneja navegación
       />
     </div>
   );

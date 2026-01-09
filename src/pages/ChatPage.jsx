@@ -1968,6 +1968,23 @@ const ChatPage = () => {
     return <ChatLandingPage roomSlug={roomId} />;
   }
 
+  // 🔒 FASE 1: RESTRICCIÓN - Invitados solo pueden acceder a /chat/principal
+  if (user && (user.isGuest || user.isAnonymous)) {
+    if (roomId !== 'principal') {
+      // Invitado intenta acceder a otra sala → Redirigir a principal
+      console.log(`[ChatPage] ⚠️ Invitado intentando acceder a /chat/${roomId} → Redirigiendo a /chat/principal`);
+      navigate('/chat/principal', { replace: true });
+      return (
+        <div className="h-screen flex items-center justify-center bg-background">
+          <div className="flex flex-col items-center gap-4">
+            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-cyan-400"></div>
+            <p className="text-muted-foreground">Redirigiendo a la sala principal...</p>
+          </div>
+        </div>
+      );
+    }
+  }
+
   return (
     <>
       {/* ✅ FIX: Contenedor principal - En móvil no usar flex para evitar problemas con sidebar oculto */}
