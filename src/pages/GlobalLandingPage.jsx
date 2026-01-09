@@ -7,6 +7,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import { useCanonical } from '@/hooks/useCanonical';
 import ChatDemo from '@/components/landing/ChatDemo';
 import { GuestUsernameModal } from '@/components/auth/GuestUsernameModal';
+import { trackLandingLoad } from '@/utils/performanceMonitor';
 // ⚠️ TOAST ELIMINADO (06/01/2026) - A petición del usuario
 // import LandingCaptureToast from '@/components/landing/LandingCaptureToast';
 // ⚠️ MODAL COMENTADO - Usamos entrada directa como invitado (sin opciones)
@@ -190,7 +191,10 @@ const GlobalLandingPage = () => {
   const [showGuestModal, setShowGuestModal] = React.useState(false);
   const [loadTime, setLoadTime] = React.useState(null); // ⚡ Medir tiempo de carga
   const [shouldAutoOpen, setShouldAutoOpen] = React.useState(false); // ⚡ Auto-abrir si carga es rápida
-  
+
+  // 📊 PERFORMANCE MONITOR: Guard para evitar tracking duplicado
+  const landingLoadTrackedRef = React.useRef(false);
+
   // 🔥 Carrusel de imágenes - 5 modelos que cambian cada 3 segundos
   const [currentImageIndex, setCurrentImageIndex] = useState(0);
   const modelImages = [
@@ -220,6 +224,12 @@ const GlobalLandingPage = () => {
       const endTime = performance.now();
       const loadDuration = endTime - startTime;
       setLoadTime(loadDuration);
+
+      // 📊 PERFORMANCE MONITOR: Registrar carga del landing (solo una vez)
+      if (!landingLoadTrackedRef.current) {
+        trackLandingLoad();
+        landingLoadTrackedRef.current = true;
+      }
     };
 
     // Medir cuando todo está listo
@@ -229,7 +239,8 @@ const GlobalLandingPage = () => {
       window.addEventListener('load', measureLoad);
       return () => window.removeEventListener('load', measureLoad);
     }
-  }, [modelImages]); // ✅ REMOVED 'user' dependency to avoid loop
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []); // 📊 Solo ejecutar una vez al montar el componente
   
   // ⚠️ MODAL COMENTADO - Ya no usamos EntryOptionsModal
   // const [showEntryModal, setShowEntryModal] = React.useState(false);

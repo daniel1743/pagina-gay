@@ -52,6 +52,7 @@ import { startEngagementTracking, hasReachedOneHourLimit, getTotalEngagementTime
 import { notificationSounds } from '@/services/notificationSounds';
 import { monitorActivityAndSendVOC, resetVOCCooldown } from '@/services/vocService';
 import '@/utils/chatDiagnostics'; // 🔍 Cargar diagnóstico en consola
+import { trackChatLoad } from '@/utils/performanceMonitor';
 
 const roomWelcomeMessages = {
   // 'global': '¡Bienvenido a Chat Global! Habla de lo que quieras.', // ⚠️ DESACTIVADA
@@ -152,6 +153,8 @@ const ChatPage = () => {
   const checkingRolesRef = useRef(new Set()); // ✅ Flag para evitar consultas duplicadas de roles
   const roleCheckDebounceRef = useRef(null); // ✅ Debounce para consultas de roles
   const usersUpdateInProgressRef = useRef(false); // 🔒 CRÍTICO: Evitar loops infinitos en setRoomUsers
+  const chatLoadStartTimeRef = useRef(null); // 📊 PERFORMANCE: Timestamp cuando inicia carga del chat
+  const chatLoadTrackedRef = useRef(false); // 📊 PERFORMANCE: Flag para evitar tracking duplicado
 
   // 🎯 PRO SCROLL MANAGER: Discord/Slack-inspired scroll behavior
   // ✅ IMPORTANTE: Debe estar ANTES del early return para respetar reglas de hooks
@@ -555,6 +558,10 @@ const ChatPage = () => {
     setIsLoadingMessages(true); // ⏳ Marcar como cargando al cambiar de sala
     aiActivatedRef.current = false; // Resetear flag de IA cuando cambia de sala
 
+    // 📊 PERFORMANCE MONITOR: Iniciar medición de carga del chat
+    chatLoadStartTimeRef.current = performance.now();
+    chatLoadTrackedRef.current = false; // Reset tracking flag
+
     // 🧹 Limpiar usuarios inactivos al entrar a la sala
     cleanInactiveUsers(roomId);
 
@@ -595,6 +602,12 @@ const ChatPage = () => {
 
       // ⏳ Marcar como cargado cuando llegan los mensajes
       setIsLoadingMessages(false);
+
+      // 📊 PERFORMANCE MONITOR: Registrar carga completa del chat (solo la primera vez)
+      if (!chatLoadTrackedRef.current && chatLoadStartTimeRef.current && newMessages.length > 0) {
+        trackChatLoad(chatLoadStartTimeRef.current);
+        chatLoadTrackedRef.current = true; // Marcar como ya tracked
+      }
 
       // ⚠️ VENTANA DE MODERACIÓN COMENTADA (06/01/2026) - A petición del usuario
       // 👮 SEPARAR mensajes del moderador (para RulesBanner) del resto

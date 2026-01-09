@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   Dialog,
@@ -13,6 +13,7 @@ import {
   hasGuestIdentity,
   saveTempGuestData,
 } from '@/utils/guestIdentity';
+import { trackModalOpen, trackChatEntry } from '@/utils/performanceMonitor';
 
 // 10 avatares para asignación aleatoria
 const AVATAR_OPTIONS = [
@@ -41,6 +42,7 @@ export const GuestUsernameModal = ({ open, onClose, chatRoomId = 'principal' }) 
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState('');
   const [keepSession, setKeepSession] = useState(true); // ✅ Default TRUE - persistencia por defecto
+  const modalOpenTimeRef = useRef(null); // 📊 Timestamp cuando se abre el modal
 
   // ⚡ NUEVO: Verificar identidad existente y auto-entrar al chat
   useEffect(() => {
@@ -52,9 +54,20 @@ export const GuestUsernameModal = ({ open, onClose, chatRoomId = 'principal' }) 
     }
   }, [open, chatRoomId, navigate, onClose]);
 
+  // 📊 PERFORMANCE MONITOR: Rastrear apertura del modal
+  useEffect(() => {
+    if (open) {
+      modalOpenTimeRef.current = performance.now();
+      trackModalOpen(modalOpenTimeRef.current);
+    }
+  }, [open]);
+
   const handleSubmit = async (e) => {
     e.preventDefault();
     setError('');
+
+    // 📊 PERFORMANCE MONITOR: Iniciar medición de entrada al chat
+    const chatEntryStartTime = performance.now();
 
     // ✅ Validación SIMPLE - solo nickname
     if (!nickname.trim()) {
@@ -90,6 +103,10 @@ export const GuestUsernameModal = ({ open, onClose, chatRoomId = 'principal' }) 
       // ⚡ OPTIMISTIC NAVIGATION: Navegar INMEDIATAMENTE (antes de Firebase)
       // Esto elimina la fricción de espera - el usuario ve el chat al instante
       console.log('%c✅ NAVEGANDO INMEDIATAMENTE (optimistic)...', 'color: #00ff00; font-weight: bold; font-size: 14px');
+
+      // 📊 PERFORMANCE MONITOR: Registrar entrada al chat
+      trackChatEntry(chatEntryStartTime);
+
       onClose();
       navigate(`/chat/${chatRoomId}`, { replace: true });
 

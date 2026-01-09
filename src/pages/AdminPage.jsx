@@ -174,6 +174,7 @@ const AdminPage = () => {
     icon: '📢',
     priority: 'normal',
     link: '',
+    targetAudience: 'all', // ⚡ NUEVO: 'all', 'registered', 'guests'
   });
   const [updateVersion, setUpdateVersion] = useState('');
   const [extraExplanation, setExtraExplanation] = useState('');
@@ -2477,6 +2478,24 @@ const AdminPage = () => {
                     </Select>
                   </div>
 
+                  {/* ⚡ NUEVO: Destinatarios */}
+                  <div className="space-y-2">
+                    <label className="text-sm font-medium text-foreground">Destinatarios</label>
+                    <Select
+                      value={notificationForm.targetAudience}
+                      onValueChange={(value) => setNotificationForm({ ...notificationForm, targetAudience: value })}
+                    >
+                      <SelectTrigger className="bg-background border-border">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="all">👥 Todos los usuarios</SelectItem>
+                        <SelectItem value="registered">🔐 Solo usuarios registrados</SelectItem>
+                        <SelectItem value="guests">👤 Solo invitados</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+
                   {/* Icono */}
                   <div className="space-y-2">
                     <label className="text-sm font-medium text-foreground">Icono (Emoji)</label>
@@ -2596,7 +2615,12 @@ const AdminPage = () => {
                 <div className="flex items-center justify-between pt-4 border-t border-border">
                   <p className="text-sm text-muted-foreground">
                     <Megaphone className="w-4 h-4 inline mr-1" />
-                    Esta notificación se enviará a <strong>TODOS</strong> los usuarios registrados
+                    Esta notificación se enviará a{' '}
+                    <strong>
+                      {notificationForm.targetAudience === 'all' && '👥 TODOS los usuarios (registrados e invitados)'}
+                      {notificationForm.targetAudience === 'registered' && '🔐 Solo usuarios REGISTRADOS'}
+                      {notificationForm.targetAudience === 'guests' && '👤 Solo usuarios INVITADOS'}
+                    </strong>
                   </p>
                   <Button
                     onClick={async () => {
@@ -2638,6 +2662,7 @@ const AdminPage = () => {
                           icon: '📢',
                           priority: 'normal',
                           link: '',
+                          targetAudience: 'all', // ⚡ Resetear a 'all'
                         });
                         setUpdateVersion('');
                         setExtraExplanation('');

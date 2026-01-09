@@ -101,27 +101,22 @@ export const AuthProvider = ({ children }) => {
               return;
             }
 
-            // 🔒 PRIORIDAD 2: Datos temporales del modal (antes de crear identidad)
+            // 🔒 PRIORIDAD 2: Datos temporales del modal (identidad ya creada)
             if (tempData) {
-              console.log('[AUTH] ✅ Datos temporales detectados, creando identidad...');
+              console.log('[AUTH] ✅ Datos temporales detectados, actualizando con ID real de Firebase...');
 
               const tempUsername = tempData.nombre || 'Invitado';
               const tempAvatar = tempData.avatar || 'https://api.dicebear.com/7.x/pixel-art/svg?seed=guest';
+              const existingGuestId = tempData.guestId; // UUID ya creado optimísticamente
 
-              // Crear identidad persistente con UUID
-              const newIdentity = createGuestIdentity({
-                nombre: tempUsername,
-                avatar: tempAvatar
-              });
-
-              // Vincular con Firebase
+              // Vincular con Firebase UID real
               linkGuestToFirebase(firebaseUser.uid);
 
-              console.log('[AUTH] ✅ Identidad creada con UUID:', newIdentity.guestId);
+              console.log('[AUTH] ✅ Actualizando usuario con ID real de Firebase:', firebaseUser.uid);
 
-              // Crear usuario CON guestId en una sola operación
+              // Actualizar usuario con ID REAL de Firebase
               guestUser = {
-                id: firebaseUser.uid,
+                id: firebaseUser.uid, // ✅ ID real de Firebase (reemplaza temp_xxx)
                 username: tempUsername,
                 isGuest: true,
                 isAnonymous: true,
@@ -130,18 +125,18 @@ export const AuthProvider = ({ children }) => {
                 avatar: tempAvatar,
                 quickPhrases: [],
                 theme: {},
-                guestId: newIdentity.guestId, // ✅ UUID desde el inicio
+                guestId: existingGuestId, // ✅ Mantener el UUID existente
               };
 
               setGuestMessageCount(0);
-              setUser(guestUser); // ✅ UN SOLO setUser
+              setUser(guestUser); // ✅ Actualizar con ID real
 
               // 🚀 Guardar en Firestore EN BACKGROUND
               const guestRef = doc(db, 'guests', firebaseUser.uid);
               setDoc(guestRef, {
                 username: tempUsername,
                 avatar: tempAvatar,
-                guestId: newIdentity.guestId,
+                guestId: existingGuestId, // ✅ UUID ya creado
                 createdAt: new Date().toISOString(),
                 messageCount: 0,
                 expiresAt: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString()
@@ -530,43 +525,66 @@ export const AuthProvider = ({ children }) => {
     console.log('%c🚀 [TIMING] Iniciando proceso de entrada...', 'color: #00ff00; font-weight: bold; font-size: 14px');
 
     const startTime = performance.now();
-    const step1Start = performance.now();
 
     // ✅ Valores por defecto si no se proporcionan
     const defaultUsername = username || `Guest${Math.floor(Math.random() * 10000)}`;
     const defaultAvatar = avatarUrl || `https://api.dicebear.com/7.x/avataaars/svg?seed=Guest${Math.random()}`;
 
-    // ⚡ NUEVO SISTEMA: Guardar datos temporales para que onAuthStateChanged los encuentre
-    saveTempGuestData({
+    // ⚡ NUEVO: Crear identidad UUID INMEDIATAMENTE (sin esperar Firebase)
+    const newIdentity = createGuestIdentity({
       nombre: defaultUsername,
       avatar: defaultAvatar
     });
+    console.log('⚡ [OPTIMISTIC] Identidad creada inmediatamente:', newIdentity.guestId);
 
-    try {
-      // 🚀 PASO 1: Crear usuario anónimo en Firebase
-      // ⚠️ CRÍTICO: onAuthStateChanged creará la identidad, NO lo hacemos aquí
-      console.log('🔐 [AUTH] Iniciando signInAnonymously con username:', defaultUsername);
-      const userCredential = await signInAnonymously(auth);
-      const step1Duration = performance.now() - step1Start;
-      console.log(`⏱️ [PASO 1] signInAnonymously Firebase: ${step1Duration.toFixed(2)}ms`);
+    // ⚡ NUEVO: Crear usuario optimista INMEDIATAMENTE (sin esperar Firebase)
+    const optimisticUser = {
+      id: `temp_${newIdentity.guestId}`, // ID temporal hasta que Firebase responda
+      username: defaultUsername,
+      isGuest: true,
+      isAnonymous: true,
+      isPremium: false,
+      verified: false,
+      avatar: defaultAvatar,
+      quickPhrases: [],
+      theme: {},
+      guestId: newIdentity.guestId,
+    };
 
-      console.log('%c✅ [TIMING] Usuario autenticado - onAuthStateChanged creará identidad', 'color: #00ff00; font-weight: bold');
+    // ⚡ SETEAR USUARIO INMEDIATAMENTE (sin esperar Firebase)
+    setUser(optimisticUser);
+    setGuestMessageCount(0);
+    console.log('⚡ [OPTIMISTIC] Usuario seteado INMEDIATAMENTE para UI responsiva');
 
-      // ⚠️ NO creamos identidad aquí - onAuthStateChanged lo hará al detectar tempData
-      // ⚠️ NO llamamos setUser aquí - onAuthStateChanged lo hará
-      // ⚠️ Firestore se guardará desde onAuthStateChanged en background
+    // ⚡ Guardar datos temporales para que onAuthStateChanged actualice el ID real
+    saveTempGuestData({
+      nombre: defaultUsername,
+      avatar: defaultAvatar,
+      guestId: newIdentity.guestId // Pasar el UUID para mantenerlo
+    });
 
-      const totalDuration = performance.now() - startTime;
-      console.log(`⏱️ [TOTAL] signInAsGuest completado: ${totalDuration.toFixed(2)}ms`);
-      signInAsGuest.inProgress = false;
-      return true;
-    } catch (error) {
-      const totalDuration = performance.now() - startTime;
-      console.log(`⏱️ [TOTAL] Proceso fallido después de: ${totalDuration.toFixed(2)}ms`);
-      signInAsGuest.inProgress = false;
-      console.error('%c❌ [TIMING] Error en entrada:', 'color: #ff0000; font-weight: bold', error);
-      throw error;
-    }
+    // 🚀 Firebase EN BACKGROUND (no bloquea UI)
+    const step1Start = performance.now();
+    console.log('🔐 [AUTH] Iniciando signInAnonymously EN BACKGROUND con username:', defaultUsername);
+
+    signInAnonymously(auth)
+      .then((userCredential) => {
+        const step1Duration = performance.now() - step1Start;
+        console.log(`⏱️ [BACKGROUND] signInAnonymously Firebase: ${step1Duration.toFixed(2)}ms`);
+        console.log('%c✅ [BACKGROUND] Firebase completado, onAuthStateChanged actualizará ID real', 'color: #888; font-style: italic');
+      })
+      .catch((error) => {
+        console.error('%c❌ [BACKGROUND] Error en Firebase (usuario ya funciona localmente):', 'color: #ff6600; font-weight: bold', error);
+        // Usuario sigue funcionando con identidad local
+      })
+      .finally(() => {
+        const totalDuration = performance.now() - startTime;
+        console.log(`⏱️ [TOTAL] Proceso completo: ${totalDuration.toFixed(2)}ms`);
+        signInAsGuest.inProgress = false;
+      });
+
+    // ✅ Retornar TRUE inmediatamente (usuario ya está listo)
+    return true;
   };
 
   /**

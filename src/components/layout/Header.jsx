@@ -87,13 +87,23 @@ const Header = () => {
   //   }, 150);
   // };
 
-  // Suscribirse a notificaciones para obtener contador en tiempo real
+  // ⚡ NUEVO: Suscribirse a notificaciones para TODOS (invitados + registrados)
   useEffect(() => {
-    if (!user || user.isGuest || user.isAnonymous) {
+    if (!user) {
       setUnreadNotificationsCount(0);
       return;
     }
 
+    // ⚠️ NO suscribirse si el ID es temporal (esperar a que Firebase responda con ID real)
+    if (user.id?.startsWith('temp_')) {
+      console.log('[Header] ⏳ Esperando ID real de Firebase antes de suscribirse a notificaciones...');
+      setUnreadNotificationsCount(0);
+      return;
+    }
+
+    console.log('[Header] ✅ Suscribiéndose a notificaciones con ID real:', user.id);
+
+    // ✅ Suscribirse solo cuando tengamos ID real de Firebase
     const unsubscribe = subscribeToSystemNotifications(user.id, (notifications) => {
       const unreadCount = notifications.filter(n => !n.read).length;
       setUnreadNotificationsCount(unreadCount);
@@ -137,19 +147,23 @@ const Header = () => {
         </div>
 
         <div className="flex items-center gap-2 sm:gap-4">
-          {/* ✅ FASE URGENTE: Navbar dinámica - Solo mostrar tema/notificaciones para usuarios logueados */}
-          {user && !user.isGuest && (
+          {/* ✅ Navbar dinámica - Mostrar para TODOS los usuarios (invitados + registrados) */}
+          {user && (
             <>
-              <Button
-                variant="ghost"
-                size="icon"
-                className="text-muted-foreground hover:text-accent hover:bg-transparent"
-                onClick={toggleTheme}
-                aria-label={theme === 'dark' ? 'Cambiar a tema claro' : 'Cambiar a tema oscuro'}
-              >
-                {theme === 'dark' ? <Sun className="w-6 h-6" /> : <Moon className="w-6 h-6" />}
-              </Button>
+              {/* Botón de tema - solo para usuarios registrados */}
+              {!user.isGuest && (
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="text-muted-foreground hover:text-accent hover:bg-transparent"
+                  onClick={toggleTheme}
+                  aria-label={theme === 'dark' ? 'Cambiar a tema claro' : 'Cambiar a tema oscuro'}
+                >
+                  {theme === 'dark' ? <Sun className="w-6 h-6" /> : <Moon className="w-6 h-6" />}
+                </Button>
+              )}
 
+              {/* ⚡ NUEVO: Notificaciones para TODOS (invitados + registrados) */}
               <Button
                 variant="ghost"
                 size="icon"

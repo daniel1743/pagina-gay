@@ -9,7 +9,7 @@
  * - Cerrar sesión
  */
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   DropdownMenu,
@@ -34,6 +34,8 @@ import { Label } from '@/components/ui/label';
 import { useAuth } from '@/contexts/AuthContext';
 import { updateGuestName } from '@/utils/guestIdentity';
 import { toast } from '@/components/ui/use-toast';
+import { doc, getDoc } from 'firebase/firestore';
+import { db } from '@/config/firebase';
 import {
   User,
   Edit3,
@@ -41,6 +43,7 @@ import {
   LogIn,
   LogOut,
   Settings,
+  Shield,
 } from 'lucide-react';
 
 export function AvatarMenu() {
@@ -50,10 +53,44 @@ export function AvatarMenu() {
   const [showChangeNameModal, setShowChangeNameModal] = useState(false);
   const [newName, setNewName] = useState('');
   const [isChangingName, setIsChangingName] = useState(false);
+  const [isAdmin, setIsAdmin] = useState(false);
 
   if (!user) return null;
 
   const isGuest = user.isGuest || user.isAnonymous;
+
+  // Verificar si el usuario es admin
+  useEffect(() => {
+    const checkAdminRole = async () => {
+      if (!user || user.isGuest || user.isAnonymous) {
+        setIsAdmin(false);
+        return;
+      }
+
+      // Primero verificar si ya está en el objeto user
+      if (user.role === 'admin' || user.role === 'administrator' || user.role === 'superAdmin') {
+        setIsAdmin(true);
+        return;
+      }
+
+      // Si no está, consultar Firestore directamente
+      try {
+        const userDoc = await getDoc(doc(db, 'users', user.id));
+        if (userDoc.exists()) {
+          const userData = userDoc.data();
+          const role = userData.role;
+          setIsAdmin(role === 'admin' || role === 'administrator' || role === 'superAdmin');
+        } else {
+          setIsAdmin(false);
+        }
+      } catch (error) {
+        console.error('[AvatarMenu] Error checking admin role:', error);
+        setIsAdmin(false);
+      }
+    };
+
+    checkAdminRole();
+  }, [user]);
 
   const handleChangeName = async () => {
     if (!newName.trim() || newName.trim().length < 3) {
@@ -150,47 +187,60 @@ export function AvatarMenu() {
             <div className="flex flex-col space-y-1">
               <p className="text-sm font-medium leading-none">{user.username || 'Usuario'}</p>
               <p className="text-xs leading-none text-muted-foreground">
-                {isGuest ? 'Invitado' : user.email || 'Usuario registrado'}
+                {isGuest ? 'Invitado' : isAdmin ? 'Administrador' : user.email || 'Usuario registrado'}
               </p>
             </div>
           </DropdownMenuLabel>
 
           <DropdownMenuSeparator />
 
-          {/* Cambiar nombre */}
-          <DropdownMenuItem onClick={() => setShowChangeNameModal(true)}>
-            <Edit3 className="mr-2 h-4 w-4" />
-            <span>Cambiar nombre</span>
-          </DropdownMenuItem>
-
-          {/* Hacer denuncia */}
-          <DropdownMenuItem onClick={handleReport}>
-            <Flag className="mr-2 h-4 w-4" />
-            <span>Hacer denuncia</span>
-          </DropdownMenuItem>
-
-          {/* Perfil (solo usuarios registrados) */}
-          {!isGuest && (
-            <DropdownMenuItem onClick={() => navigate('/profile')}>
-              <User className="mr-2 h-4 w-4" />
-              <span>Mi perfil</span>
-            </DropdownMenuItem>
-          )}
-
-          <DropdownMenuSeparator />
-
-          {/* Iniciar sesión (solo invitados) */}
+          {/* ⚡ OPCIONES PARA INVITADOS */}
           {isGuest && (
             <>
+              {/* Cambiar nombre */}
+              <DropdownMenuItem onClick={() => setShowChangeNameModal(true)}>
+                <Edit3 className="mr-2 h-4 w-4" />
+                <span>Cambiar nombre</span>
+              </DropdownMenuItem>
+
+              {/* Hacer denuncia */}
+              <DropdownMenuItem onClick={handleReport}>
+                <Flag className="mr-2 h-4 w-4" />
+                <span>Hacer denuncia</span>
+              </DropdownMenuItem>
+
+              <DropdownMenuSeparator />
+
+              {/* Iniciar sesión */}
               <DropdownMenuItem onClick={handleGoToAuth}>
                 <LogIn className="mr-2 h-4 w-4" />
                 <span>Iniciar sesión</span>
               </DropdownMenuItem>
-              <DropdownMenuSeparator />
             </>
           )}
 
-          {/* Cerrar sesión */}
+          {/* ⚡ OPCIONES PARA USUARIOS REGISTRADOS */}
+          {!isGuest && (
+            <>
+              {/* Mi perfil */}
+              <DropdownMenuItem onClick={() => navigate('/profile')}>
+                <User className="mr-2 h-4 w-4" />
+                <span>Mi perfil</span>
+              </DropdownMenuItem>
+
+              {/* Panel de Admin (solo para admins) */}
+              {isAdmin && (
+                <DropdownMenuItem onClick={() => navigate('/admin')}>
+                  <Shield className="mr-2 h-4 w-4" />
+                  <span>Panel de Admin</span>
+                </DropdownMenuItem>
+              )}
+            </>
+          )}
+
+          <DropdownMenuSeparator />
+
+          {/* Cerrar sesión (para todos) */}
           <DropdownMenuItem onClick={handleLogout} className="text-red-600 dark:text-red-400">
             <LogOut className="mr-2 h-4 w-4" />
             <span>Cerrar sesión</span>

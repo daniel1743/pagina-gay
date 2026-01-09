@@ -92,35 +92,62 @@ Bienvenido a Chactivo.`,
 };
 
 /**
- * Crea una difusión (broadcast) a todos los usuarios
+ * Crea una difusión (broadcast) a usuarios seleccionados
  * @param {object} broadcastData - Datos de la difusión
  * @param {string} adminId - ID del admin que crea la difusión
  * @returns {Promise<number>} Número de notificaciones creadas
  */
 export const createBroadcastNotification = async (broadcastData, adminId) => {
   try {
-    // Obtener todos los usuarios (máximo 500 por batch)
-    const usersRef = collection(db, 'users');
-    const usersSnapshot = await getDocs(query(usersRef, limit(500)));
-
+    const targetAudience = broadcastData.targetAudience || 'all'; // 'all', 'registered', 'guests'
     let count = 0;
     const promises = [];
 
-    usersSnapshot.forEach((userDoc) => {
-      const promise = createSystemNotification(userDoc.id, {
-        type: NOTIFICATION_TYPES.BROADCAST,
-        title: broadcastData.title,
-        message: broadcastData.message,
-        icon: broadcastData.icon || '📢',
-        link: broadcastData.link || null,
-        priority: broadcastData.priority || 'normal',
-        createdBy: adminId,
+    // ⚡ NUEVO: Filtrar destinatarios según targetAudience
+
+    // Obtener usuarios REGISTRADOS si targetAudience es 'all' o 'registered'
+    if (targetAudience === 'all' || targetAudience === 'registered') {
+      const usersRef = collection(db, 'users');
+      const usersSnapshot = await getDocs(query(usersRef, limit(500)));
+
+      usersSnapshot.forEach((userDoc) => {
+        const promise = createSystemNotification(userDoc.id, {
+          type: NOTIFICATION_TYPES.BROADCAST,
+          title: broadcastData.title,
+          message: broadcastData.message,
+          icon: broadcastData.icon || '📢',
+          link: broadcastData.link || null,
+          priority: broadcastData.priority || 'normal',
+          createdBy: adminId,
+        });
+        promises.push(promise);
+        count++;
       });
-      promises.push(promise);
-      count++;
-    });
+    }
+
+    // ⚡ NUEVO: Obtener usuarios INVITADOS si targetAudience es 'all' o 'guests'
+    if (targetAudience === 'all' || targetAudience === 'guests') {
+      const guestsRef = collection(db, 'guests');
+      const guestsSnapshot = await getDocs(query(guestsRef, limit(500)));
+
+      guestsSnapshot.forEach((guestDoc) => {
+        const promise = createSystemNotification(guestDoc.id, {
+          type: NOTIFICATION_TYPES.BROADCAST,
+          title: broadcastData.title,
+          message: broadcastData.message,
+          icon: broadcastData.icon || '📢',
+          link: broadcastData.link || null,
+          priority: broadcastData.priority || 'normal',
+          createdBy: adminId,
+        });
+        promises.push(promise);
+        count++;
+      });
+    }
 
     await Promise.all(promises);
+
+    console.log(`✅ Notificación enviada a ${count} usuarios (targetAudience: ${targetAudience})`);
     return count;
   } catch (error) {
     console.error('Error creating broadcast notification:', error);
@@ -163,6 +190,13 @@ export const getUserSystemNotifications = async (userId, limitCount = 50) => {
  * @returns {function} Función para cancelar la suscripción
  */
 export const subscribeToSystemNotifications = (userId, callback) => {
+  // ⚠️ Validación: NO suscribirse si el userId es temporal
+  if (!userId || userId.startsWith('temp_')) {
+    console.warn('[Notifications] ⏳ ID temporal detectado, esperando ID real de Firebase...');
+    callback([]);
+    return () => {}; // Retornar unsubscribe vacío
+  }
+
   try {
     const notificationsRef = collection(db, 'systemNotifications');
     // Intentar query con orderBy primero
@@ -178,7 +212,7 @@ export const subscribeToSystemNotifications = (userId, callback) => {
 
     const unsubscribe = onSnapshot(q, (snapshot) => {
       if (isUnsubscribed) return;
-      
+
       try {
         const notifications = snapshot.docs.map((doc) => ({
           id: doc.id,
@@ -188,12 +222,12 @@ export const subscribeToSystemNotifications = (userId, callback) => {
 
         callback(notifications);
       } catch (callbackError) {
-        console.error('Error processing notifications:', callbackError);
+        // Silenciar errores de callback - solo retornar array vacío
         callback([]);
       }
     }, (error) => {
-      // ✅ Ignorar errores transitorios de Firestore WebChannel (errores 400 internos)
-      const isTransientError = 
+      // ✅ Ignorar TODOS los errores internos de Firestore (transitorios y de estado)
+      const isFirestoreInternalError =
         error.name === 'AbortError' ||
         error.code === 'cancelled' ||
         error.code === 'unavailable' ||
@@ -202,10 +236,12 @@ export const subscribeToSystemNotifications = (userId, callback) => {
         error.message?.includes('RPC') ||
         error.message?.includes('stream') ||
         error.message?.includes('INTERNAL ASSERTION FAILED') ||
-        error.message?.includes('Unexpected state');
+        error.message?.includes('Unexpected state') ||
+        error.message?.includes('INTERNAL') ||
+        error.message?.includes('CONTEXT');
 
-      if (isTransientError) {
-        // Los errores transitorios se ignoran silenciosamente - Firestore se reconectará automáticamente
+      if (isFirestoreInternalError) {
+        // Silenciar completamente - Firestore se recuperará automáticamente
         return;
       }
 
