@@ -285,7 +285,7 @@ const GlobalLandingPage = () => {
     const hadMetaDescription = !!metaDescription;
     const previousDescription = metaDescription?.getAttribute('content') ?? '';
 
-    document.title = 'Chat gay Chile | Gratis y anónimo';
+    document.title = 'chat gay chile | hombres gays chat gratis sin anuncios';
     
     let ensuredMeta = metaDescription;
     if (!ensuredMeta) {

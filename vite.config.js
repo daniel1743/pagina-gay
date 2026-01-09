@@ -306,14 +306,70 @@ export default defineConfig({
 		},
 	},
 	build: {
+		target: 'es2015',
+		minify: 'terser',
+		terserOptions: {
+			compress: {
+				drop_console: true, // Eliminar console.log en producción
+				drop_debugger: true,
+				pure_funcs: ['console.log', 'console.debug', 'console.info'],
+				passes: 2,
+			},
+			mangle: {
+				safari10: true,
+			},
+		},
 		rollupOptions: {
 			external: [
 				'@babel/parser',
 				'@babel/traverse',
 				'@babel/generator',
 				'@babel/types'
-			]
-		}
+			],
+			output: {
+				// ⚡ MANUAL CHUNKS: Separar vendors grandes para mejor caching
+				manualChunks: {
+					// React core (carga en todas las páginas, buen candidato para cache)
+					'react-vendor': ['react', 'react-dom', 'react-router-dom'],
+
+					// Firebase (grande, separado para no afectar bundle principal)
+					'firebase-vendor': [
+						'firebase/app',
+						'firebase/auth',
+						'firebase/firestore'
+					],
+
+					// UI Libraries (Radix UI - solo se carga cuando se necesita)
+					'ui-vendor': [
+						'@radix-ui/react-avatar',
+						'@radix-ui/react-dialog',
+						'@radix-ui/react-dropdown-menu',
+						'@radix-ui/react-select',
+						'@radix-ui/react-tabs',
+						'@radix-ui/react-toast',
+						'@radix-ui/react-alert-dialog',
+						'@radix-ui/react-checkbox',
+						'@radix-ui/react-label',
+						'@radix-ui/react-radio-group',
+						'@radix-ui/react-scroll-area',
+						'@radix-ui/react-slider',
+						'@radix-ui/react-slot'
+					],
+
+					// Animations (Framer Motion - pesado, separado)
+					'animation-vendor': ['framer-motion'],
+
+					// Utils (pequeños, pueden estar juntos)
+					'utils-vendor': [
+						'date-fns',
+						'clsx',
+						'tailwind-merge',
+						'class-variance-authority'
+					],
+				},
+			},
+		},
+		chunkSizeWarningLimit: 500, // Advertir si un chunk > 500KB
 	},
 	publicDir: 'public'
 });
