@@ -428,16 +428,22 @@ const ChatSecondaryPage = () => {
         if (!sentMessage) return;
         trackMessageSent(currentRoom, user.id);
         if (sentMessage?.id) {
-          setMessages(prev => prev.map(msg => 
-            msg.id === optimisticId 
+          setMessages(prev => prev.map(msg =>
+            msg.id === optimisticId
               ? { ...msg, _realId: sentMessage.id, status: 'sent', _sentAt: Date.now() }
               : msg
           ));
+
+          // ⏱️ DESHABILITADO: Timeout de 20 segundos causaba falsos positivos
+          // Si el mensaje se escribió exitosamente en Firebase (.then), confiar en que se envió
+          // El estado 'delivered' se detectará automáticamente cuando llegue el snapshot
+
+          /* CÓDIGO ANTERIOR: Timeout que marcaba mensajes como fallidos incorrectamente
           const deliveryTimeout = setTimeout(() => {
             setMessages(prev => {
               const message = prev.find(m => m.id === optimisticId || m._realId === sentMessage.id);
               if (message && message.status !== 'delivered' && message.userId === user?.id) {
-                return prev.map(msg => 
+                return prev.map(msg =>
                   (msg.id === optimisticId || msg._realId === sentMessage.id) && msg.userId === user?.id
                     ? { ...msg, status: 'failed', _deliveryFailed: true }
                     : msg
@@ -447,6 +453,7 @@ const ChatSecondaryPage = () => {
             });
           }, 20000);
           deliveryTimeoutsRef.current.set(optimisticId, deliveryTimeout);
+          */
         }
       })
       .catch((error) => {

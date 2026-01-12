@@ -1612,12 +1612,15 @@ const ChatPage = () => {
               : msg
           ));
 
-          // ⏱️ TIMEOUT DE 20 SEGUNDOS: Si no se entrega en 20s, marcar como fallido
+          // ⏱️ DESHABILITADO: Timeout de 20 segundos causaba falsos positivos
+          // Si el mensaje se escribió exitosamente en Firebase (.then), confiar en que se envió
+          // El estado 'delivered' se detectará automáticamente cuando llegue el snapshot
+
+          /* CÓDIGO ANTERIOR: Timeout agresivo que marcaba mensajes como fallidos incorrectamente
           const deliveryTimeout = setTimeout(() => {
             setMessages(prev => {
               const message = prev.find(m => m.id === optimisticId || m._realId === sentMessage.id);
               if (message && message.status !== 'delivered' && message.userId === user?.id) {
-                // ❌ MENSAJE NO ENTREGADO: Timeout de 20 segundos
                 console.error('🚨 [MENSAJE NO ENTREGADO] FALLA:', {
                   messageId: message.id,
                   realId: message._realId || sentMessage.id,
@@ -1626,8 +1629,8 @@ const ChatPage = () => {
                   elapsed: Date.now() - (message._sentAt || Date.now()),
                   status: message.status
                 });
-                
-                return prev.map(msg => 
+
+                return prev.map(msg =>
                   (msg.id === optimisticId || msg._realId === sentMessage.id) && msg.userId === user?.id
                     ? { ...msg, status: 'failed', _deliveryFailed: true }
                     : msg
@@ -1635,10 +1638,10 @@ const ChatPage = () => {
               }
               return prev;
             });
-          }, 20000); // 20 segundos
+          }, 20000);
 
-          // Guardar timeout para limpiarlo si el mensaje se entrega antes
           deliveryTimeoutsRef.current.set(optimisticId, deliveryTimeout);
+          */
         }
       })
       .catch((error) => {
