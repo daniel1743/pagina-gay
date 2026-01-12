@@ -1,12 +1,22 @@
 /**
  * 🔇 Filtro de Logs - Solo mostrar logs importantes de delivery
  *
- * Uso: Agrega ?logs=delivery a la URL para ver solo logs de entrega
+ * Comportamiento:
+ * - PRODUCCIÓN: Solo errores críticos (sin logs de debugging)
+ * - DESARROLLO: Todos los logs (a menos que uses ?logs= en URL)
+ *
+ * Uso manual: Agrega ?logs=delivery a la URL para ver solo logs de entrega
  */
+
+// ⚡ Detectar si estamos en producción
+const isProduction = import.meta.env.PROD;
 
 // Detectar modo de logs desde URL
 const params = new URLSearchParams(window.location.search);
 const logMode = params.get('logs'); // ?logs=delivery o ?logs=minimal o ?logs=all
+
+// ⚡ En producción, forzar modo silencioso (a menos que se especifique lo contrario)
+const effectiveLogMode = isProduction && !logMode ? 'production' : logMode;
 
 // Original console methods
 const originalLog = console.log;
@@ -48,22 +58,58 @@ const silenceKeywords = [
   'idb-set',    // ⚡ Suprimir warnings de IndexedDB write errors
 ];
 
+// ⚡ Palabras clave a silenciar SOLO EN PRODUCCIÓN
+const productionSilenceKeywords = [
+  '[PERFORMANCE]',
+  '[CHAT SERVICE]',
+  '[AUTH]',
+  '[PRESENCE]',
+  '[TRACE',
+  '🔄 [TRACE',
+  '📊',
+  '✅ [',
+  '⚡',
+  '🔍',
+  '📥',
+  '📤',
+  'Monitor iniciado',
+  'Configurando onSnapshot',
+  'Snapshot recibido',
+  'onAuthStateChanged',
+  'Round-trip',
+  'clientId',
+];
+
 function shouldShowLog(args) {
   const message = args.join(' ');
 
-  // Sin modo de logs: mostrar todo (comportamiento por defecto)
-  if (!logMode) return true;
+  // ⚡ MODO PRODUCCIÓN: Silenciar logs de debugging
+  if (effectiveLogMode === 'production') {
+    // Silenciar todos los logs de debugging
+    if (productionSilenceKeywords.some(keyword => message.includes(keyword))) {
+      return false;
+    }
+    // Silenciar ruido general
+    if (silenceKeywords.some(keyword => message.includes(keyword))) {
+      return false;
+    }
+    // Solo mostrar logs críticos (errores de usuario, warnings importantes)
+    return true;
+  }
+
+  // Sin modo de logs: mostrar todo (comportamiento por defecto en desarrollo)
+  if (!effectiveLogMode) return true;
 
   // Modo all: mostrar todo
-  if (logMode === 'all') return true;
+  if (effectiveLogMode === 'all') return true;
 
   // Modo delivery: solo logs de delivery
-  if (logMode === 'delivery') {
+  if (effectiveLogMode === 'delivery') {
     return importantKeywords.some(keyword => message.includes(keyword));
   }
 
   // Modo minimal: ocultar ruido pero mostrar importantes
-  if (logMode === 'minimal') {
+  if (effectiveLogMode === 'minimal') {
     // Mostrar logs importantes PRIMERO
     if (importantKeywords.some(keyword => message.includes(keyword))) {
       return true;
@@ -108,20 +154,33 @@ if (typeof window !== 'undefined') {
   };
 
   // Info inicial
-  if (logMode) {
+  if (isProduction) {
+    // ⚡ En producción: informar que los logs están filtrados
+    originalLog(`
+╔════════════════════════════════════════════════════════════╗
+║         🚀 MODO PRODUCCIÓN - Logs filtrados                ║
+╠════════════════════════════════════════════════════════════╣
+║ Solo se muestran logs críticos de usuario                 ║
+║ Logs de debugging/performance están ocultos               ║
+║                                                            ║
+║ Para ver todos los logs: ?logs=all en URL                 ║
+╚════════════════════════════════════════════════════════════╝
+    `);
+  } else if (effectiveLogMode) {
+    // En desarrollo con filtro manual activado
     originalLog(`
 ╔════════════════════════════════════════════════════════════╗
 ║              🔇 FILTRO DE LOGS ACTIVADO                    ║
 ╠════════════════════════════════════════════════════════════╣
-║ Modo actual: ${logMode.toUpperCase().padEnd(45)} ║
+║ Modo actual: ${effectiveLogMode.toUpperCase().padEnd(45)} ║
 ║                                                            ║
 ║ Comandos disponibles:                                      ║
 ║ • setLogMode('delivery')  - Solo logs de entrega          ║
-║ • setLogMode('minimal')   - Logs mínimos (por defecto)    ║
+║ • setLogMode('minimal')   - Logs mínimos                  ║
 ║ • setLogMode('all')       - Todos los logs                ║
 ╚════════════════════════════════════════════════════════════╝
     `);
   }
 }
 
-export { logMode };
+export { logMode, effectiveLogMode, isProduction };
