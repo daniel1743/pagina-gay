@@ -127,8 +127,12 @@ const ChatMessages = ({ messages, currentUserId, onUserClick, onReport, onPrivat
   
   // 🔍 TRACE: Rastrear cuando se renderizan mensajes nuevos
   useEffect(() => {
-    if (!messages || messages.length === 0) return;
-    
+    // ⚡ FIX: NO retornar JSX en useEffect (solo funciones de cleanup)
+    // El JSX de "No hay mensajes" está en el render principal del componente
+    if (!messages || messages.length === 0) {
+      return; // Salir temprano si no hay mensajes
+    }
+
     // Identificar mensajes nuevos que no se han renderizado antes
     const newMessages = messages.filter(msg => {
       const msgId = msg.id || msg._realId || msg.clientId;
@@ -137,12 +141,12 @@ const ChatMessages = ({ messages, currentUserId, onUserClick, onReport, onPrivat
       renderedMessageIdsRef.current.add(msgId);
       return true;
     });
-    
+
     // Rastrear cada mensaje nuevo que se renderiza
     newMessages.forEach(msg => {
       const msgId = msg.id || msg._realId || msg.clientId;
       const isOwn = msg.userId === currentUserId;
-      
+
       traceEvent(TRACE_EVENTS.REMOTE_UI_RENDER, {
         traceId: msg.clientId || msg.trace?.traceId || msgId,
         messageId: msgId,
@@ -362,7 +366,16 @@ const ChatMessages = ({ messages, currentUserId, onUserClick, onReport, onPrivat
       onScroll={onScroll}
     >
       {newMessagesIndicator}
-      {messageGroups.map((group, groupIndex) => {
+      {messageGroups.length === 0 ? (
+        <div className="flex-1 flex items-center justify-center py-8">
+          <div className="text-center space-y-2">
+            <p className="text-sm text-muted-foreground">No hay mensajes todavía</p>
+            <p className="text-xs text-muted-foreground/70">Sé el primero en escribir</p>
+          </div>
+        </div>
+      ) : (
+        <>
+          {messageGroups.map((group, groupIndex) => {
         // Calcular índice absoluto del primer mensaje del grupo para el divider
         let absoluteIndex = 0;
         for (let i = 0; i < groupIndex; i++) {
@@ -377,7 +390,9 @@ const ChatMessages = ({ messages, currentUserId, onUserClick, onReport, onPrivat
             return null; // ✅ No renderizar mensajes del moderador
           }
           
-          return group.messages.map((message, msgIndexInGroup) => {
+          return (
+            <React.Fragment key={group.groupId}>
+              {group.messages.map((message, msgIndexInGroup) => {
             const messageIndex = absoluteIndex + msgIndexInGroup;
             const showDivider = lastReadMessageIndex >= 0 && messageIndex === lastReadMessageIndex + 1;
 
@@ -407,7 +422,9 @@ const ChatMessages = ({ messages, currentUserId, onUserClick, onReport, onPrivat
                 </motion.div>
               </React.Fragment>
             );
-          });
+          })}
+            </React.Fragment>
+          );
         }
 
         // Renderizar grupo de mensajes normales
@@ -727,7 +744,9 @@ const ChatMessages = ({ messages, currentUserId, onUserClick, onReport, onPrivat
             </motion.div>
           </React.Fragment>
         );
-      }).flat()}
+      })}
+        </>
+      )}
       <div ref={messagesEndRef} />
     </div>
   );

@@ -44,6 +44,8 @@ const silenceKeywords = [
   '[APP ROUTES]',
   'seedConversations',
   'Error Logger',
+  'IndexedDB',  // ⚡ Suprimir warnings de IndexedDB (heartbeat de Firebase, no-crítico)
+  'idb-set',    // ⚡ Suprimir warnings de IndexedDB write errors
 ];
 
 function shouldShowLog(args) {

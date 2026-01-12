@@ -52,7 +52,14 @@ import { startEngagementTracking, hasReachedOneHourLimit, getTotalEngagementTime
 import { notificationSounds } from '@/services/notificationSounds';
 import { monitorActivityAndSendVOC, resetVOCCooldown } from '@/services/vocService';
 import '@/utils/chatDiagnostics'; // 🔍 Cargar diagnóstico en consola
-import { trackChatLoad } from '@/utils/performanceMonitor';
+import { 
+  trackChatLoad, 
+  trackMessagesLoad, 
+  trackMessagesSubscription,
+  trackMessageSent as trackMessageSentPerformance,
+  startTiming,
+  endTiming,
+} from '@/utils/performanceMonitor';
 
 const roomWelcomeMessages = {
   // 'global': '¡Bienvenido a Chat Global! Habla de lo que quieras.', // ⚠️ DESACTIVADA
@@ -561,6 +568,8 @@ const ChatPage = () => {
     // 📊 PERFORMANCE MONITOR: Iniciar medición de carga del chat
     chatLoadStartTimeRef.current = performance.now();
     chatLoadTrackedRef.current = false; // Reset tracking flag
+    startTiming('chatLoad', { roomId });
+    startTiming('messagesSubscription', { roomId }); // Iniciar tracking de suscripción
 
     // 🧹 Limpiar usuarios inactivos al entrar a la sala
     cleanInactiveUsers(roomId);
@@ -584,29 +593,45 @@ const ChatPage = () => {
 
     // console.log('📡 [CHAT] Suscribiéndose a mensajes INMEDIATAMENTE para sala:', roomId);
     setIsLoadingMessages(true); // ⏳ Marcar como cargando al iniciar suscripción
+
+    // ⚡ TIMEOUT DE SEGURIDAD: Desactivar loading después de 2 segundos
+    // Optimizado: Firebase ahora usa solo memoria (sin IndexedDB) = respuesta más rápida
+    const loadingTimeoutId = setTimeout(() => {
+      console.warn('⏰ [CHAT] Timeout de carga alcanzado (2s) - desactivando loading de seguridad');
+      setIsLoadingMessages(false);
+    }, 2000);
+
+    console.log(`[CHAT PAGE] 🚀 Llamando a subscribeToRoomMessages para sala ${roomId} con límite ${messageLimit}`);
     const unsubscribeMessages = subscribeToRoomMessages(roomId, (newMessages) => {
-      // 🔍 DEBUG: Solo loguear si hay cambios significativos o en modo debug
-      const shouldLog = import.meta.env.DEV && (
-        import.meta.env.VITE_DEBUG_MESSAGES === 'true' ||
-        newMessages.length === 0 ||
-        newMessages.length > previousMessageCountRef.current + 5 // Solo si hay muchos mensajes nuevos
-      );
-
-      if (shouldLog) {
-        // console.log('[CHAT PAGE] 📨 Mensajes recibidos del listener:', {
-        //   count: newMessages.length,
-        //   roomId,
-        //   timestamp: new Date().toISOString()
-        // });
+      console.log(`[CHAT PAGE] 📨 Callback ejecutado con ${newMessages.length} mensajes para sala ${roomId}`);
+      if (newMessages.length === 0) {
+        console.warn(`[CHAT PAGE] ⚠️ ARRAY VACÍO recibido en callback para sala ${roomId} - esto NO debería pasar si la sala tiene mensajes`);
       }
-
+      // ✅ Limpiar timeout cuando llegan los mensajes
+      clearTimeout(loadingTimeoutId);
+      
       // ⏳ Marcar como cargado cuando llegan los mensajes
       setIsLoadingMessages(false);
+      
+      // 🔍 DEBUG: Loguear siempre en desarrollo para diagnóstico
+      if (import.meta.env.DEV) {
+        console.log('[CHAT PAGE] 📨 Mensajes recibidos del listener:', {
+          count: newMessages.length,
+          roomId,
+          timestamp: new Date().toISOString(),
+          firstMessage: newMessages[0]?.content?.substring(0, 50) || 'N/A'
+        });
+      }
 
       // 📊 PERFORMANCE MONITOR: Registrar carga completa del chat (solo la primera vez)
       if (!chatLoadTrackedRef.current && chatLoadStartTimeRef.current && newMessages.length > 0) {
         trackChatLoad(chatLoadStartTimeRef.current);
         chatLoadTrackedRef.current = true; // Marcar como ya tracked
+        
+        // 📊 PERFORMANCE MONITOR: Completar tracking de carga
+        endTiming('chatLoad', { roomId, messageCount: newMessages.length });
+        trackMessagesLoad(chatLoadStartTimeRef.current, newMessages.length);
+        endTiming('messagesSubscription', { roomId, messageCount: newMessages.length });
       }
 
       // ⚠️ VENTANA DE MODERACIÓN COMENTADA (06/01/2026) - A petición del usuario
@@ -939,6 +964,9 @@ const ChatPage = () => {
 
     // Guardar funciones de desuscripción
     const baseCleanup = () => {
+      // ✅ Limpiar timeout de loading
+      clearTimeout(loadingTimeoutId);
+
       try {
         unsubscribeMessages();
       } catch (error) {
@@ -1513,6 +1541,14 @@ const ChatPage = () => {
           content: content.substring(0, 50),
         });
 
+        // 📊 PERFORMANCE MONITOR: Iniciar tracking de envío de mensaje
+        const messageSendStartTime = performance.now();
+        startTiming('messageSent', { 
+          clientId,
+          roomId: currentRoom,
+          contentLength: content.length 
+        });
+
         return sendMessage(
       currentRoom,
       {
@@ -1544,6 +1580,17 @@ const ChatPage = () => {
         // ✅ Mensaje enviado exitosamente - se actualizará automáticamente vía onSnapshot
         // Track GA4 (background, no bloquea)
         trackMessageSent(currentRoom, user.id);
+        
+        // 📊 PERFORMANCE MONITOR: Completar tracking de envío
+        endTiming('messageSent', { 
+          clientId,
+          messageId: sentMessage?.id,
+          status: 'success' 
+        });
+        trackMessageSentPerformance(messageSendStartTime, sentMessage?.id || clientId, {
+          roomId: currentRoom,
+          contentLength: content.length,
+        });
 
         // 🎯 VOC: Resetear cooldown cuando hay nueva actividad
         resetVOCCooldown(currentRoom);

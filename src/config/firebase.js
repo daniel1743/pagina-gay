@@ -1,6 +1,6 @@
 import { initializeApp } from 'firebase/app';
 import { getAuth, connectAuthEmulator, setPersistence, inMemoryPersistence } from 'firebase/auth';
-import { getFirestore, connectFirestoreEmulator, enableIndexedDbPersistence } from 'firebase/firestore';
+import { getFirestore, connectFirestoreEmulator } from 'firebase/firestore';
 import { getStorage, connectStorageEmulator } from 'firebase/storage';
 
 // Validar variables de entorno críticas
@@ -43,14 +43,16 @@ const firebaseConfig = {
 // Inicializar Firebase
 const app = initializeApp(firebaseConfig);
 
-// Inicializar servicios
+// Inicializar servicios (sin configuración especial de Firestore)
+// ⚡ NOTA: Firestore usará configuración por defecto (modo online, sin persistence)
 export const auth = getAuth(app);
 export const db = getFirestore(app);
 export const storage = getStorage(app);
 
-// ⚡ ULTRA OPTIMIZADO: Usar MEMORIA en vez de IndexedDB
-// IndexedDB causa timeouts de 58+ segundos - INACEPTABLE
-// Usamos nuestro propio sistema de localStorage en AuthContext
+// ⚡ DESHABILITADO: setPersistence estaba bloqueando onAuthStateChanged
+// Firebase Auth usa persistence por defecto (browserLocalPersistence)
+// Esto permite que onAuthStateChanged funcione correctamente
+/*
 setPersistence(auth, inMemoryPersistence)
   .then(() => {
     if (import.meta.env.DEV) console.log('✅ [FIREBASE] Auth en modo MEMORIA (sin IndexedDB)');
@@ -58,6 +60,7 @@ setPersistence(auth, inMemoryPersistence)
   .catch((error) => {
     console.warn('⚠️ [FIREBASE] Error configurando persistence (no crítico):', error);
   });
+*/
 
 // ⚠️ OFFLINE PERSISTENCE DESHABILITADO TEMPORALMENTE
 // Causa problemas de sincronización - mensajes no llegan entre dispositivos

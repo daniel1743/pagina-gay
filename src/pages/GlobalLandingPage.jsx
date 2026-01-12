@@ -8,6 +8,7 @@ import { useCanonical } from '@/hooks/useCanonical';
 import ChatDemo from '@/components/landing/ChatDemo';
 import { GuestUsernameModal } from '@/components/auth/GuestUsernameModal';
 import { trackLandingLoad } from '@/utils/performanceMonitor';
+import { hasGuestIdentity } from '@/utils/guestIdentity'; // ✅ FASE 2: Auto-login para invitados con identidad persistente
 // ⚠️ TOAST ELIMINADO (06/01/2026) - A petición del usuario
 // import LandingCaptureToast from '@/components/landing/LandingCaptureToast';
 // ⚠️ MODAL COMENTADO - Usamos entrada directa como invitado (sin opciones)
@@ -232,12 +233,14 @@ const GlobalLandingPage = () => {
       }
     };
 
-    // Medir cuando todo está listo
-    if (document.readyState === 'complete') {
+    // ⚡ Medir cuando la página es interactiva (no esperar a que todo cargue)
+    // Esto refleja mejor la experiencia real del usuario
+    if (document.readyState === 'complete' || document.readyState === 'interactive') {
       measureLoad();
     } else {
-      window.addEventListener('load', measureLoad);
-      return () => window.removeEventListener('load', measureLoad);
+      // Usar 'DOMContentLoaded' en vez de 'load' = más rápido
+      window.addEventListener('DOMContentLoaded', measureLoad);
+      return () => window.removeEventListener('DOMContentLoaded', measureLoad);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []); // 📊 Solo ejecutar una vez al montar el componente
@@ -343,12 +346,19 @@ const GlobalLandingPage = () => {
 
   const handleEnterChat = () => {
     if (user && !user.isGuest && !user.isAnonymous) {
+      // Usuario registrado - navegar directo
       navigate('/chat/principal');
     } else if (user && (user.isGuest || user.isAnonymous)) {
       // Usuario ya anónimo/guest - ir directo al chat
       navigate('/chat/principal');
+    } else if (hasGuestIdentity()) {
+      // ✅ FASE 2: Identidad persistente detectada - AUTO-LOGIN sin modal
+      console.log('[Landing] ✅ Identidad persistente detectada - navegando directo sin modal');
+      navigate('/chat/principal');
+      // AuthContext cargará automáticamente el usuario desde la identidad persistente
     } else {
-      // No hay usuario - abrir modal de invitado directamente (sin opciones)
+      // No hay usuario ni identidad - abrir modal de invitado
+      console.log('[Landing] ⚠️ Sin identidad - abriendo modal de registro');
       setShowGuestModal(true);
     }
   };

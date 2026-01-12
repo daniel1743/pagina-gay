@@ -41,6 +41,25 @@ const PremiumPage = () => {
 
   React.useEffect(() => {
     document.title = "Premium - Chactivo | Chat Gay Chile";
+    
+    // ✅ SEO: Meta robots noindex - Página requiere autenticación (PrivateRoute)
+    // Esto evita que Google Search Console marque error por redirección
+    // Google no intentará indexar esta página privada
+    let metaRobots = document.querySelector('meta[name="robots"]');
+    if (!metaRobots) {
+      metaRobots = document.createElement('meta');
+      metaRobots.name = 'robots';
+      document.head.appendChild(metaRobots);
+    }
+    metaRobots.setAttribute('content', 'noindex, nofollow');
+
+    return () => {
+      // Limpiar al desmontar si el contenido es el que establecimos
+      const metaRobots = document.querySelector('meta[name="robots"]');
+      if (metaRobots && metaRobots.content === 'noindex, nofollow') {
+        metaRobots.remove();
+      }
+    };
   }, []);
 
   return (

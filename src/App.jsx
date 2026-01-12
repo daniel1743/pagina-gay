@@ -2,6 +2,7 @@ import React, { useState, useEffect, Suspense, lazy } from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 import { Toaster } from '@/components/ui/toaster';
 import PageLoader from '@/components/ui/PageLoader';
+import { LoadingOverlay } from '@/components/ui/LoadingOverlay'; // ✅ FASE 2: Overlay de loading
 
 // ⚡ CRITICAL COMPONENTS - Cargados síncronamente (necesarios para primera carga)
 import Header from '@/components/layout/Header';
@@ -12,6 +13,7 @@ import { ThemeProvider } from '@/contexts/ThemeContext';
 import PWASplashScreen from '@/components/pwa/PWASplashScreen';
 import ErrorBoundary from '@/components/ui/ErrorBoundary';
 import { useVersionChecker } from '@/hooks/useVersionChecker';
+import PerformanceSummaryButton from '@/components/PerformanceSummaryButton'; // 📊 Performance Monitor Button
 import GlobalLandingPage from '@/pages/GlobalLandingPage'; // Landing principal - crítica para SEO
 
 // ⚡ CODE SPLITTING - Lazy loading de páginas (reducción de 80% del bundle inicial)
@@ -85,6 +87,21 @@ function MainLayout({ children }) {
       <main className="flex-1 pt-16 sm:pt-20">{children}</main>
       <Footer />
     </div>
+  );
+}
+
+// ⚡ OPTIMIZACIÓN CRÍTICA: LoadingOverlay DESHABILITADO para VELOCIDAD FLASH
+// La navegación optimista permite que el usuario entre al chat INSTANTÁNEAMENTE
+// sin esperar a que Firebase complete (que puede tardar 155+ segundos)
+function AppWithOverlay() {
+  // const { guestAuthInProgress } = useAuth(); // Ya no necesitamos este estado
+
+  return (
+    <>
+      <AppRoutes />
+      {/* ⚡ LoadingOverlay DESHABILITADO - Bloqueaba la UI por 155+ segundos */}
+      {/* <LoadingOverlay show={guestAuthInProgress} /> */}
+    </>
   );
 }
 
@@ -250,6 +267,8 @@ function AppRoutes() {
         </Routes>
       </Suspense>
       <Toaster />
+      {/* 📊 Performance Monitor - Botón flotante para ver resumen */}
+      {import.meta.env.DEV && <PerformanceSummaryButton />}
     </Router>
   );
 }
@@ -292,7 +311,7 @@ function App() {
           {showSplash && !splashCompleted && (
             <PWASplashScreen onComplete={handleSplashComplete} />
           )}
-          {(!showSplash || splashCompleted) && <AppRoutes />}
+          {(!showSplash || splashCompleted) && <AppWithOverlay />}
         </AuthProvider>
       </ThemeProvider>
     </ErrorBoundary>

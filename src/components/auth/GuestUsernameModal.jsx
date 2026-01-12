@@ -12,7 +12,13 @@ import {
   hasGuestIdentity,
   saveTempGuestData,
 } from '@/utils/guestIdentity';
-import { trackModalOpen, trackChatEntry } from '@/utils/performanceMonitor';
+import { 
+  trackModalOpen, 
+  trackChatEntry, 
+  trackGuestAuth,
+  startTiming,
+  endTiming,
+} from '@/utils/performanceMonitor';
 
 // 10 avatares para asignación aleatoria
 const AVATAR_OPTIONS = [
@@ -47,7 +53,7 @@ export const GuestUsernameModal = ({
   openSource = 'user', // Default: apertura manual por el usuario
   onGuestReady // Callback para que el parent maneje la navegación
 }) => {
-  const { signInAsGuest } = useAuth();
+  const { signInAsGuest, setGuestAuthInProgress } = useAuth(); // ✅ FASE 2: Acceso al setter del loading overlay
 
   const [nickname, setNickname] = useState('');
   const [isLoading, setIsLoading] = useState(false);
@@ -74,6 +80,7 @@ export const GuestUsernameModal = ({
     if (open) {
       modalOpenTimeRef.current = performance.now();
       trackModalOpen(modalOpenTimeRef.current);
+      startTiming('guestModalInteraction', { action: 'modal_opened' });
     }
   }, [open]);
 
@@ -120,6 +127,7 @@ export const GuestUsernameModal = ({
     console.log('%c═══════════════════════════════════════════', 'color: #00ffff; font-weight: bold');
 
     setIsLoading(true);
+    setGuestAuthInProgress(true); // ✅ FASE 2: Activar loading overlay INMEDIATAMENTE
 
     try {
       // ⚡ Avatar ALEATORIO automático (usuario NO puede elegir)
@@ -132,6 +140,10 @@ export const GuestUsernameModal = ({
         avatar: randomAvatar
       });
       console.log('[GuestModal] ✅ Datos guardados para persistencia automática');
+
+      // 📊 PERFORMANCE MONITOR: Iniciar tracking de autenticación
+      const authStartTime = performance.now();
+      startTiming('guestAuth', { username: nickname.trim() });
 
       // 📊 PERFORMANCE MONITOR: Registrar entrada al chat
       trackChatEntry(chatEntryStartTime);
@@ -172,10 +184,21 @@ export const GuestUsernameModal = ({
         .then(() => {
           console.timeEnd('⏱️ [MODAL] Firebase completo (background)');
           console.log('%c✅ Firebase autenticación completada en background', 'color: #888; font-style: italic');
+          
+          // 📊 PERFORMANCE MONITOR: Completar tracking de autenticación
+          endTiming('guestAuth', { status: 'success' });
+          trackGuestAuth(authStartTime, { 
+            method: 'optimistic',
+            username: nickname.trim(),
+            completed: true 
+          });
         })
         .catch((error) => {
           console.timeEnd('⏱️ [MODAL] Firebase completo (background)');
           console.error('%c❌ Error en Firebase background (no crítico):', 'color: #ff0000; font-weight: bold', error);
+          
+          // 📊 PERFORMANCE MONITOR: Registrar error en autenticación
+          endTiming('guestAuth', { status: 'error', error: error.message });
         });
 
       // Toast DESPUÉS de navegar (no bloquea)
@@ -195,6 +218,10 @@ export const GuestUsernameModal = ({
       setError(`Error al entrar: ${error.message || 'Intenta de nuevo.'}`);
       setAgeConfirmed(false); // Reset en caso de error
       setIsLoading(false);
+      setGuestAuthInProgress(false); // ✅ FASE 2: Desactivar loading overlay en caso de error
+      
+      // 📊 PERFORMANCE MONITOR: Registrar error
+      endTiming('guestModalInteraction', { action: 'error', error: error.message });
     }
   };
 

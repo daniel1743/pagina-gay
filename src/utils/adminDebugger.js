@@ -9,8 +9,10 @@
  * - Log visual en consola con colores
  */
 
-import { getAuth } from 'firebase/auth';
-import { getFirestore, doc, getDoc } from 'firebase/firestore';
+// ⚡ FIX CRÍTICO: Usar instancias singleton exportadas de firebase.js
+// NO crear nuevas instancias con getAuth()/getFirestore()
+import { auth, db } from '@/config/firebase';
+import { doc, getDoc } from 'firebase/firestore';
 
 // ============================
 // CONFIGURACIÓN
@@ -43,8 +45,7 @@ const CONSOLE_STYLES = {
 // ============================
 
 export const checkAdminStatus = async () => {
-  const auth = getAuth();
-  const db = getFirestore();
+  // ⚡ Usar instancias singleton importadas (auth, db ya están disponibles)
 
   console.log('%c🔍 ADMIN DEBUGGER - Verificación de Permisos', CONSOLE_STYLES.title);
   console.log('%c━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━', CONSOLE_STYLES.divider);
@@ -174,8 +175,7 @@ export const checkAdminStatus = async () => {
 // ============================
 
 export const diagnosePermissions = async () => {
-  const auth = getAuth();
-  const db = getFirestore();
+  // ⚡ Usar instancias singleton importadas (auth, db ya están disponibles)
 
   console.log('%c🔬 DIAGNÓSTICO COMPLETO DE PERMISOS', CONSOLE_STYLES.title);
   console.log('%c━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━', CONSOLE_STYLES.divider);

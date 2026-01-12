@@ -34,12 +34,13 @@ Allow: /anonymous-chat
 Allow: /anonymous-forum
 
 # ❌ BLOQUEAR páginas privadas/autenticadas
-Disallow: /auth
+# NOTA: /auth y /premium NO están bloqueadas aquí porque:
+#   - /auth es pública (registro/login) y debe ser indexada
+#   - /premium tiene meta tag noindex (mejor práctica para evitar errores de redirección)
 Disallow: /home
 Disallow: /inicio
 Disallow: /lobby
 Disallow: /profile
-Disallow: /premium
 
 # ❌ BLOQUEAR panel de administración y herramientas
 Disallow: /admin/

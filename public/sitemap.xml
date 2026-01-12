@@ -70,6 +70,24 @@
     <mobile:mobile/>
   </url>
 
+  <!-- ✅ AUTENTICACIÓN (Registro/Login - Pública) -->
+  <url>
+    <loc>https://chactivo.com/auth</loc>
+    <lastmod>2026-01-11</lastmod>
+    <changefreq>monthly</changefreq>
+    <priority>0.6</priority>
+    <mobile:mobile/>
+  </url>
+
+  <!-- ✅ PREGUNTAS FRECUENTES (FAQ - Pública) -->
+  <url>
+    <loc>https://chactivo.com/faq</loc>
+    <lastmod>2026-01-11</lastmod>
+    <changefreq>weekly</changefreq>
+    <priority>0.7</priority>
+    <mobile:mobile/>
+  </url>
+
   <!-- ✅ FORO ANÓNIMO (Alto engagement - 17 clics GSC) -->
   <url>
     <loc>https://chactivo.com/anonymous-forum</loc>

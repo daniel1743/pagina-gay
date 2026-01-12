@@ -410,8 +410,11 @@ if (typeof window !== 'undefined') {
  * ⚡ OPTIMIZADO: Límite reducido a 50 para mejorar velocidad (antes 200 causaba 11+ segundos de latencia)
  */
 export const subscribeToRoomMessages = (roomId, callback, messageLimit = 60) => {
+  console.log(`[CHAT SERVICE] 🔍 Iniciando suscripción a sala ${roomId} con límite ${messageLimit}`);
   const messagesRef = collection(db, 'rooms', roomId, 'messages');
   const q = query(messagesRef, orderBy('timestamp', 'desc'), limit(messageLimit));
+  
+  console.log(`[CHAT SERVICE] 📡 Query configurada: rooms/${roomId}/messages, ordenado por timestamp desc, límite ${messageLimit}`);
 
   // ⚡ OPTIMIZACIÓN CRÍTICA: Medir tiempo de entrega para diagnosticar retrasos
   let lastSnapshotTime = Date.now();
@@ -420,9 +423,17 @@ export const subscribeToRoomMessages = (roomId, callback, messageLimit = 60) => 
   // 📊 Obtener monitor de rendimiento
   const perfMonitor = getPerformanceMonitor();
 
+  console.log(`[CHAT SERVICE] 🎯 Configurando onSnapshot para sala ${roomId}...`);
   const unsubscribe = onSnapshot(
     q,
     (snapshot) => {
+      console.log(`[CHAT SERVICE] 📥 Snapshot recibido para sala ${roomId}:`, {
+        docsCount: snapshot.docs.length,
+        empty: snapshot.empty,
+        fromCache: snapshot.metadata.fromCache,
+        hasPendingWrites: snapshot.metadata.hasPendingWrites,
+        isFirstSnapshot: isFirstSnapshot
+      });
       const snapshotReceivedTime = Date.now();
       const timeSinceLastSnapshot = snapshotReceivedTime - lastSnapshotTime;
       lastSnapshotTime = snapshotReceivedTime;
@@ -469,10 +480,24 @@ export const subscribeToRoomMessages = (roomId, callback, messageLimit = 60) => 
       // ⏱️ TIMING: Registrar cuando se reciben los mensajes
       const receiveTimestamp = Date.now();
       const messages = [];
+      let messagesWithoutTimestamp = 0;
+      
       for (let i = 0; i < snapshot.docs.length; i++) {
         const doc = snapshot.docs[i];
         const data = doc.data();
         const timestampMs = data.timestamp?.toMillis?.() ?? null;
+        
+        // ⚠️ DIAGNÓSTICO: Contar mensajes sin timestamp
+        if (!timestampMs && !data.timestamp) {
+          messagesWithoutTimestamp++;
+          console.warn(`[CHAT SERVICE] ⚠️ Mensaje sin timestamp encontrado:`, {
+            id: doc.id,
+            username: data.username,
+            content: data.content?.substring(0, 30),
+            hasTimestampField: !!data.timestamp,
+            hasToMillis: !!data.timestamp?.toMillis
+          });
+        }
         
         // ⏱️ TIMING: Calcular latencia si el mensaje tiene timestamp del servidor
         let latency = null;
@@ -488,11 +513,33 @@ export const subscribeToRoomMessages = (roomId, callback, messageLimit = 60) => 
           _receiveLatency: latency, // Latencia en ms desde que se creó hasta que llegó
         });
       }
+      
+      if (messagesWithoutTimestamp > 0) {
+        console.warn(`[CHAT SERVICE] ⚠️ ${messagesWithoutTimestamp} mensajes sin timestamp en sala ${roomId} - esto podría causar problemas de ordenamiento`);
+      }
 
       // ⚡ OPTIMIZACIÓN: Invertir array en lugar de usar reverse() (más eficiente)
       const orderedMessages = [];
       for (let i = messages.length - 1; i >= 0; i--) {
         orderedMessages.push(messages[i]);
+      }
+      
+      console.log(`[CHAT SERVICE] ✅ Mensajes procesados: ${orderedMessages.length} mensajes ordenados para sala ${roomId}`);
+      if (orderedMessages.length > 0) {
+        console.log(`[CHAT SERVICE] 📝 Primer mensaje:`, {
+          id: orderedMessages[0].id,
+          username: orderedMessages[0].username,
+          content: orderedMessages[0].content?.substring(0, 50),
+          timestamp: orderedMessages[0].timestamp?.toMillis?.() || 'N/A'
+        });
+        console.log(`[CHAT SERVICE] 📝 Último mensaje:`, {
+          id: orderedMessages[orderedMessages.length - 1].id,
+          username: orderedMessages[orderedMessages.length - 1].username,
+          content: orderedMessages[orderedMessages.length - 1].content?.substring(0, 50),
+          timestamp: orderedMessages[orderedMessages.length - 1].timestamp?.toMillis?.() || 'N/A'
+        });
+      } else {
+        console.warn(`[CHAT SERVICE] ⚠️ ARRAY VACÍO: No se procesaron mensajes para sala ${roomId} aunque snapshot tenía ${snapshot.docs.length} documentos`);
       }
       
       const processTime = performance.now() - startProcessTime;
@@ -551,9 +598,18 @@ export const subscribeToRoomMessages = (roomId, callback, messageLimit = 60) => 
       });
 
       // ⚡ CRÍTICO: Ejecutar callback INMEDIATAMENTE (sin delays)
+      console.log(`[CHAT SERVICE] 📨 Ejecutando callback con ${orderedMessages.length} mensajes para sala ${roomId}`);
       callback(orderedMessages);
     },
     (error) => {
+      console.error(`[CHAT SERVICE] ❌ ERROR en onSnapshot para sala ${roomId}:`, {
+        name: error.name,
+        code: error.code,
+        message: error.message,
+        stack: error.stack,
+        timestamp: new Date().toISOString()
+      });
+      
       // ✅ Ignorar errores transitorios de Firestore WebChannel (errores 400 internos)
       const isTransientError = 
         error.name === 'AbortError' ||
@@ -567,14 +623,19 @@ export const subscribeToRoomMessages = (roomId, callback, messageLimit = 60) => 
         error.message?.includes('Unexpected state');
 
       if (!isTransientError) {
-        console.error('[SUBSCRIBE] ❌ Error:', error.code, error.message);
-        console.error('[SUBSCRIBE] 🔍 Detalles:', {
+        console.error(`[CHAT SERVICE] 🚨 ERROR NO TRANSITORIO para sala ${roomId}:`, error.code, error.message);
+        console.error('[SUBSCRIBE] 🔍 Detalles completos:', {
           code: error.code,
           message: error.message,
           roomId,
-          timestamp: new Date().toISOString()
+          timestamp: new Date().toISOString(),
+          error: error
         });
-        callback([]);
+        // ⚠️ CRÍTICO: No devolver array vacío silenciosamente - esto oculta el problema
+        // callback([]);
+        throw error; // Re-lanzar para que el componente pueda manejarlo
+      } else {
+        console.warn(`[CHAT SERVICE] ⚠️ Error transitorio ignorado para sala ${roomId}:`, error.code);
       }
     },
     {

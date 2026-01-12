@@ -34,6 +34,16 @@ import {
   hasGuestIdentity,
 } from '@/utils/guestIdentity';
 
+// ⚡ Helper para agregar timeout a promesas de Firestore (evita delays de 41+ segundos)
+const withTimeout = (promise, timeoutMs = 3000) => {
+  return Promise.race([
+    promise,
+    new Promise((_, reject) =>
+      setTimeout(() => reject(new Error('Firestore timeout')), timeoutMs)
+    ),
+  ]);
+};
+
 export const AuthContext = createContext();
 
 export const useAuth = () => {
@@ -49,11 +59,37 @@ export const AuthProvider = ({ children }) => {
   const [loading, setLoading] = useState(true);
   const [guestMessageCount, setGuestMessageCount] = useState(0);
   const [showWelcomeTour, setShowWelcomeTour] = useState(false);
+  const [guestAuthInProgress, setGuestAuthInProgress] = useState(false); // ✅ FASE 2: Estado para loading overlay
   const isLoggingOutRef = useRef(false); // Ref para evitar auto-login después de logout
+  const loadingTimeoutRef = useRef(null); // ✅ FIX: Timeout de seguridad para loading
+  const authStateChangedCalledRef = useRef(false); // ✅ FIX: Flag para rastrear si onAuthStateChanged se ha ejecutado
 
   // Escuchar cambios de autenticación de Firebase
   useEffect(() => {
+    console.log('[AUTH] 🔄 Configurando onAuthStateChanged listener...');
+    
+    // ✅ FIX: Resetear el flag cuando se recrea el listener (React.StrictMode)
+    authStateChangedCalledRef.current = false;
+    
+    // ✅ FIX: Timeout de seguridad - Si onAuthStateChanged no se ejecuta en 3 segundos, forzar loading a false
+    loadingTimeoutRef.current = setTimeout(() => {
+      if (!authStateChangedCalledRef.current) {
+        console.warn('[AUTH] ⚠️ Timeout de seguridad: onAuthStateChanged no se ejecutó en 3s, forzando loading a false');
+        setLoading(false);
+      }
+    }, 3000); // 3 segundos máximo
+    
     const unsubscribe = onAuthStateChanged(auth, async (firebaseUser) => {
+      // ✅ FIX: Marcar que onAuthStateChanged se ejecutó
+      authStateChangedCalledRef.current = true;
+      
+      // ✅ FIX: Limpiar timeout cuando se actualiza el estado
+      if (loadingTimeoutRef.current) {
+        clearTimeout(loadingTimeoutRef.current);
+        loadingTimeoutRef.current = null;
+      }
+      
+      console.log('[AUTH] 🔄 onAuthStateChanged ejecutado, firebaseUser:', firebaseUser ? 'presente' : 'null');
       if (firebaseUser) {
         try {
           if (firebaseUser.isAnonymous) {
@@ -89,15 +125,17 @@ export const AuthProvider = ({ children }) => {
               setUser(guestUser);
               setLoading(false); // ✅ FIX: Asegurar que loading se actualice
 
-              // Background: Sync con Firestore
-              getDoc(doc(db, 'guests', firebaseUser.uid))
+              // Background: Sync con Firestore (con timeout de 3 segundos)
+              withTimeout(getDoc(doc(db, 'guests', firebaseUser.uid)), 3000)
                 .then(snap => {
                   if (snap.exists()) {
                     const guestData = snap.data();
                     setGuestMessageCount(guestData.messageCount || 0);
                   }
                 })
-                .catch(() => {});
+                .catch(() => {
+                  // Timeout o error - no crítico, continuar con datos locales
+                });
 
               return;
             }
@@ -133,21 +171,21 @@ export const AuthProvider = ({ children }) => {
               setUser(guestUser); // ✅ Actualizar con ID real
               setLoading(false); // ✅ FIX: Asegurar que loading se actualice
 
-              // 🚀 Guardar en Firestore EN BACKGROUND
+              // 🚀 Guardar en Firestore EN BACKGROUND (con timeout de 3 segundos)
               const guestRef = doc(db, 'guests', firebaseUser.uid);
-              setDoc(guestRef, {
+              withTimeout(setDoc(guestRef, {
                 username: tempUsername,
                 avatar: tempAvatar,
                 guestId: existingGuestId, // ✅ UUID ya creado
                 createdAt: new Date().toISOString(),
                 messageCount: 0,
                 expiresAt: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString()
-              })
+              }), 3000)
               .then(() => {
                 console.log('[AUTH] ✅ Firestore: Invitado guardado con UUID');
               })
               .catch((err) => {
-                console.warn('[AUTH] ⚠️ Error guardando en Firestore (no crítico):', err);
+                console.warn('[AUTH] ⚠️ Error guardando en Firestore (timeout o error, no crítico):', err.message);
               });
 
               return;
@@ -171,8 +209,8 @@ export const AuthProvider = ({ children }) => {
             setUser(guestUser);
             setLoading(false); // ✅ FIX: Asegurar que loading se actualice
 
-            // 🚀 Intentar cargar de Firestore EN BACKGROUND (no bloquea)
-            getDoc(doc(db, 'guests', firebaseUser.uid))
+            // 🚀 Intentar cargar de Firestore EN BACKGROUND (con timeout de 3 segundos)
+            withTimeout(getDoc(doc(db, 'guests', firebaseUser.uid)), 3000)
               .then(guestSnap => {
                 if (guestSnap.exists()) {
                   const guestData = guestSnap.data();
@@ -192,7 +230,9 @@ export const AuthProvider = ({ children }) => {
                   }
                 }
               })
-              .catch(() => {});
+              .catch(() => {
+                // Timeout o error - no crítico, continuar con usuario básico
+              });
           } else {
             // Usuario registrado - obtener perfil de Firestore
             let userProfile;
@@ -320,10 +360,19 @@ export const AuthProvider = ({ children }) => {
           }, 1000);
         }
       }
+      console.log('[AUTH] ✅ setLoading(false) llamado');
       setLoading(false);
     });
 
-    return () => unsubscribe();
+    return () => {
+      console.log('[AUTH] 🧹 Limpiando onAuthStateChanged listener...');
+      unsubscribe();
+      // ✅ FIX: Limpiar timeout al desmontar
+      if (loadingTimeoutRef.current) {
+        clearTimeout(loadingTimeoutRef.current);
+        loadingTimeoutRef.current = null;
+      }
+    };
   }, []);
 
   /**
@@ -573,13 +622,21 @@ export const AuthProvider = ({ children }) => {
     // 🚀 Firebase - Esperar a que complete (evita loading infinito en ChatPage)
     const step1Start = performance.now();
     console.log('🔐 [AUTH] Iniciando signInAnonymously con username:', defaultUsername);
+    
+      // 📊 PERFORMANCE MONITOR: Tracking de Firebase auth
+    const perfMonitor = await import('@/utils/performanceMonitor');
+    perfMonitor.startTiming('authStateChange', { type: 'signInAnonymously', username: defaultUsername });
 
     try {
-      // ✅ Esperar a que Firebase complete ANTES de retornar
+      // ⚡ NO usar timeout aquí - debe completar sin importar cuánto tarde
+      // El usuario ya navega optimísticamente, esto se completa en background
       const userCredential = await signInAnonymously(auth);
       const step1Duration = performance.now() - step1Start;
-      console.log(`⏱️ [AUTH] signInAnonymously Firebase completado: ${step1Duration.toFixed(2)}ms`);
+      console.log(`⚡ [AUTH] signInAnonymously Firebase completado: ${step1Duration.toFixed(2)}ms`);
       console.log('%c✅ [AUTH] Firebase completado, onAuthStateChanged actualizará ID real', 'color: #00ff00; font-weight: bold');
+      
+      // 📊 PERFORMANCE MONITOR: Completar tracking
+      perfMonitor.endTiming('authStateChange', { status: 'success', duration: step1Duration });
       
       // Esperar un breve momento para que onAuthStateChanged actualice el estado
       await new Promise(resolve => setTimeout(resolve, 100));
@@ -587,11 +644,31 @@ export const AuthProvider = ({ children }) => {
       const totalDuration = performance.now() - startTime;
       console.log(`⏱️ [TOTAL] Proceso completo: ${totalDuration.toFixed(2)}ms`);
       signInAsGuest.inProgress = false;
+      setGuestAuthInProgress(false); // ✅ FASE 2: Desactivar loading overlay
       
+      // 📊 PERFORMANCE MONITOR: Tracking completo de signInAsGuest
+      perfMonitor.trackGuestAuth(startTime, { 
+        username: defaultUsername,
+        method: 'signInAnonymously',
+        firebaseDuration: step1Duration,
+        totalDuration 
+      });
+
       return true;
     } catch (error) {
       console.error('%c❌ [AUTH] Error en Firebase:', 'color: #ff0000; font-weight: bold', error);
+      
+      // 📊 PERFORMANCE MONITOR: Registrar error
+      perfMonitor.endTiming('authStateChange', { status: 'error', error: error.message });
+      perfMonitor.trackGuestAuth(startTime, { 
+        username: defaultUsername,
+        method: 'signInAnonymously',
+        error: error.message,
+        failed: true 
+      });
+      
       signInAsGuest.inProgress = false;
+      setGuestAuthInProgress(false); // ✅ FASE 2: Desactivar loading overlay incluso en error
       // El usuario optimista ya está seteado, pero Firebase falló
       throw error; // Propagar error para que el modal pueda manejarlo
     }
@@ -864,6 +941,22 @@ export const AuthProvider = ({ children }) => {
     }
   };
 
+  // ✅ FASE 2: AUTO-RESTAURACIÓN de identidad persistente
+  // Cuando el componente carga y NO hay usuario pero SÍ hay identidad guardada,
+  // restaurar automáticamente la sesión sin mostrar modal
+  useEffect(() => {
+    // Solo ejecutar cuando loading termina y confirmamos que no hay usuario
+    // y NO se está ejecutando ya otro proceso de autenticación
+    if (!loading && !user && !isLoggingOutRef.current && !guestAuthInProgress && hasGuestIdentity()) {
+      console.log('[AUTH] 🔄 Auto-restaurando identidad persistente...');
+      const identity = getGuestIdentity();
+      if (identity) {
+        // Restaurar sesión automáticamente (sin mostrar modal)
+        signInAsGuest(identity.nombre, identity.avatar, true);
+      }
+    }
+  }, [loading, user, guestAuthInProgress]);
+
   const value = useMemo(() => ({
     user,
     loading,
@@ -871,6 +964,8 @@ export const AuthProvider = ({ children }) => {
     setGuestMessageCount,
     showWelcomeTour,
     setShowWelcomeTour,
+    guestAuthInProgress, // ✅ FASE 2: Estado de loading
+    setGuestAuthInProgress, // ✅ FASE 2: Setter para controlar loading
     login,
     register,
     signInAsGuest,
@@ -883,7 +978,7 @@ export const AuthProvider = ({ children }) => {
     updateAnonymousUserProfile,
     switchToGenericIdentity,
     restoreAdminIdentity,
-  }), [user, loading, guestMessageCount, showWelcomeTour]);
+  }), [user, loading, guestMessageCount, showWelcomeTour, guestAuthInProgress]);
 
   return (
     <AuthContext.Provider value={value}>
