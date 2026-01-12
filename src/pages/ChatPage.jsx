@@ -1654,18 +1654,21 @@ const ChatPage = () => {
         });
 
         // ❌ FALLÓ - Marcar como error (NO eliminar, permitir reintento)
-        setMessages(prev => prev.map(msg => 
-          msg.id === optimisticId 
+        setMessages(prev => prev.map(msg =>
+          msg.id === optimisticId
             ? { ...msg, status: 'error', _error: error } // ⚡ Estado: 'error' (mostrar indicador rojo)
             : msg
         ));
 
-        toast({
-          title: "No pudimos entregar este mensaje",
-          description: "Toca el mensaje para reintentar",
-          variant: "destructive",
-          duration: 5000,
-        });
+        // ⚡ Toast de error solo en desarrollo (en producción solo indicador visual)
+        if (import.meta.env.DEV) {
+          toast({
+            title: "No pudimos entregar este mensaje",
+            description: "Toca el mensaje para reintentar",
+            variant: "destructive",
+            duration: 5000,
+          });
+        }
       });
   };
 

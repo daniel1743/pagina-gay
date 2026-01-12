@@ -294,7 +294,9 @@ class PerformanceMonitor {
     this.metrics.roundTripTime = [];
     this.metrics.pendingMessages.clear();
     this.isFirstSnapshot = true;
-    console.log('📊 [PERFORMANCE] Métricas reseteadas');
+    if (import.meta.env.DEV) {
+      console.log('📊 [PERFORMANCE] Métricas reseteadas');
+    }
   }
 
   /**

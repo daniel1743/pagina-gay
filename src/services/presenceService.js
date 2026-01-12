@@ -85,7 +85,9 @@ export const leaveRoom = async (roomId) => {
 export const subscribeToRoomUsers = (roomId, callback) => {
   const usersRef = collection(db, 'roomPresence', roomId, 'users');
 
-  console.log(`📊 [PRESENCE] Listener para usuarios de ${roomId} CREADO`);
+  if (import.meta.env.DEV) {
+    console.log(`📊 [PRESENCE] Listener para usuarios de ${roomId} CREADO`);
+  }
 
   const unsubscribe = onSnapshot(usersRef, (snapshot) => {
     const users = snapshot.docs
@@ -115,7 +117,9 @@ export const subscribeToRoomUsers = (roomId, callback) => {
   });
 
   return () => {
-    console.log(`📊 [PRESENCE] Listener para usuarios de ${roomId} DESTRUIDO`);
+    if (import.meta.env.DEV) {
+      console.log(`📊 [PRESENCE] Listener para usuarios de ${roomId} DESTRUIDO`);
+    }
     unsubscribe();
   };
 };
