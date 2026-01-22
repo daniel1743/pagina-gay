@@ -7,6 +7,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import { useCanonical } from '@/hooks/useCanonical';
 import ChatDemo from '@/components/landing/ChatDemo';
 import { GuestUsernameModal } from '@/components/auth/GuestUsernameModal';
+import TelegramBanner from '@/components/ui/TelegramBanner';
 
 const SantiagoLandingPage = () => {
   // SEO: Canonical tag
@@ -59,7 +60,11 @@ const SantiagoLandingPage = () => {
   };
 
   return (
-    <div className="min-h-screen px-4 py-8 sm:py-12">
+    <div className="min-h-screen">
+      {/* 📢 Banner Telegram - Fijo en la parte superior */}
+      <TelegramBanner className="sticky top-0 z-50" />
+
+      <div className="px-4 py-8 sm:py-12">
       {/* Hero Section */}
       <div className="max-w-6xl mx-auto">
         <motion.div
@@ -1299,6 +1304,7 @@ const SantiagoLandingPage = () => {
         onClose={() => setShowGuestModal(false)}
         chatRoomId="principal" // Ignorado, siempre navega a /chat/principal
       />
+      </div>
     </div>
   );
 };

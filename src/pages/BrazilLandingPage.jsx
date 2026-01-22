@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
 import { useCanonical } from '@/hooks/useCanonical';
 import { Check } from 'lucide-react';
+import TelegramBanner from '@/components/ui/TelegramBanner';
 
 // 4 avatares predefinidos
 const AVATAR_OPTIONS = [
@@ -38,10 +39,11 @@ const BrazilLandingPage = () => {
   const [isLoading, setIsLoading] = React.useState(false);
   const [error, setError] = React.useState('');
 
-  useCanonical('/modal-br');
+  useCanonical('https://chactivo.com/modal-br');
 
   React.useEffect(() => {
-    document.title = 'Chat Gay Brasil 🏳️‍🌈 Grátis - São Paulo, Rio, SP | Chactivo';
+    document.documentElement.lang = 'pt-BR';
+    document.title = 'Chat Gay Brasil 🏳️‍🌈 Grátis - São Paulo, Rio, BH | Chactivo';
 
     const metaDescription = document.querySelector('meta[name="description"]');
     let ensuredMeta = metaDescription;
@@ -50,7 +52,62 @@ const BrazilLandingPage = () => {
       ensuredMeta.name = 'description';
       document.head.appendChild(ensuredMeta);
     }
-    ensuredMeta.content = 'Chat gay Brasil 100% grátis. Conhece caras de São Paulo, Rio, BH e todo Brasil. Sem enrolação, mano. Entre já e converse com gays brasileiros.';
+    ensuredMeta.content = 'Chat gay Brasil 100% grátis. Conhece caras de São Paulo, Rio de Janeiro, Belo Horizonte, Brasília e todo Brasil. Sem enrolação, mano. Entre já!';
+
+    const ogTags = [
+      { property: 'og:title', content: 'Chat Gay Brasil 🏳️‍🌈 Grátis - São Paulo, Rio | Chactivo' },
+      { property: 'og:description', content: 'Chat gay Brasil 100% grátis. Conhece caras de São Paulo, Rio, BH e todo Brasil. Sem enrolação, mano.' },
+      { property: 'og:type', content: 'website' },
+      { property: 'og:url', content: 'https://chactivo.com/modal-br' },
+      { property: 'og:image', content: 'https://chactivo.com/LOGO_CHACTIVO.png' },
+      { property: 'og:locale', content: 'pt_BR' },
+      { name: 'twitter:card', content: 'summary_large_image' },
+      { name: 'twitter:title', content: 'Chat Gay Brasil 🏳️‍🌈 Grátis' },
+      { name: 'twitter:description', content: 'Conhece caras de São Paulo, Rio, BH. 100% grátis e anônimo.' },
+      { name: 'twitter:image', content: 'https://chactivo.com/LOGO_CHACTIVO.png' },
+      { name: 'keywords', content: 'chat gay brasil, chat gay são paulo, chat gay rio, chat gay bh, chat lgbt brasil, gays brasil, chat gay sp, conhecer gays brasil' }
+    ];
+
+    ogTags.forEach(tag => {
+      const prop = tag.property || tag.name;
+      const attr = tag.property ? 'property' : 'name';
+      let metaTag = document.querySelector(`meta[${attr}="${prop}"]`);
+      if (!metaTag) {
+        metaTag = document.createElement('meta');
+        metaTag.setAttribute(attr, prop);
+        document.head.appendChild(metaTag);
+      }
+      metaTag.content = tag.content;
+    });
+
+    const schemaScript = document.createElement('script');
+    schemaScript.type = 'application/ld+json';
+    schemaScript.text = JSON.stringify({
+      "@context": "https://schema.org",
+      "@type": "WebApplication",
+      "name": "Chat Gay Brasil - Chactivo",
+      "description": "Chat gay Brasil 100% grátis. Conhece caras de São Paulo, Rio de Janeiro, Belo Horizonte e todo Brasil.",
+      "url": "https://chactivo.com/modal-br",
+      "applicationCategory": "SocialNetworkingApplication",
+      "operatingSystem": "Any",
+      "offers": {
+        "@type": "Offer",
+        "price": "0",
+        "priceCurrency": "BRL"
+      },
+      "areaServed": {
+        "@type": "Country",
+        "name": "Brasil"
+      },
+      "inLanguage": "pt-BR"
+    });
+    document.head.appendChild(schemaScript);
+
+    return () => {
+      if (schemaScript.parentNode) {
+        schemaScript.parentNode.removeChild(schemaScript);
+      }
+    };
   }, []);
 
   const handleSubmit = async (e) => {
@@ -113,6 +170,8 @@ const BrazilLandingPage = () => {
           scrollbar-width: none;
         }
       `}</style>
+      {/* 📢 Banner Telegram - Fijo en la parte superior */}
+      <TelegramBanner className="fixed top-0 left-0 right-0 z-50" />
       <div style={{
         width: '100vw',
         minHeight: '100vh',
@@ -123,6 +182,7 @@ const BrazilLandingPage = () => {
         background: 'linear-gradient(135deg, #11998e 0%, #38ef7d 100%)',
         fontFamily: 'Arial, sans-serif',
         padding: '20px',
+        paddingTop: '50px',
         boxSizing: 'border-box'
       }}>
         <div 
@@ -341,6 +401,83 @@ const BrazilLandingPage = () => {
         }}>
           ✨ Sem registro • 100% Grátis • Anônimo
         </p>
+
+        {/* 🚀 SECCIÓN SEO - Contenido optimizado para Google Brasil */}
+        <div style={{
+          marginTop: '40px',
+          textAlign: 'left',
+          lineHeight: '1.7',
+          borderTop: '1px solid #e0e0e0',
+          paddingTop: '30px'
+        }}>
+          <h2 style={{
+            fontSize: '22px',
+            fontWeight: 'bold',
+            color: '#11998e',
+            marginBottom: '15px',
+            lineHeight: '1.3'
+          }}>
+            O Maior Chat Gay do Brasil
+          </h2>
+          <p style={{
+            fontSize: '14px',
+            color: '#555',
+            marginBottom: '20px',
+            lineHeight: '1.7'
+          }}>
+            Chactivo é a <strong>maior comunidade LGBT+ do Brasil</strong>, conectando milhares de caras gays, bissexuais e trans de todo o país. De São Paulo ao Rio, Belo Horizonte, Brasília e centenas de cidades. <strong>100% grátis, sem cadastro obrigatório</strong>, e completamente anônimo. Sem enrolação, mano.
+          </p>
+
+          <h3 style={{
+            fontSize: '18px',
+            fontWeight: '600',
+            color: '#38ef7d',
+            marginBottom: '12px',
+            marginTop: '25px'
+          }}>
+            Por que o Chactivo é o melhor chat gay do Brasil?
+          </h3>
+          <ul style={{
+            fontSize: '14px',
+            color: '#555',
+            marginBottom: '20px',
+            paddingLeft: '20px',
+            lineHeight: '1.8'
+          }}>
+            <li><strong>Milhares de usuários ativos</strong> todos os dias em todos os estados</li>
+            <li><strong>Totalmente grátis</strong> - Não pedimos cartão nem pagamentos ocultos</li>
+            <li><strong>Anônimo e seguro</strong> - Sua privacidade é nossa prioridade</li>
+            <li><strong>Sem downloads</strong> - Funciona direto no seu navegador</li>
+            <li><strong>Comunidade respeitosa</strong> - Moderação ativa 24/7</li>
+          </ul>
+
+          <h3 style={{
+            fontSize: '18px',
+            fontWeight: '600',
+            color: '#38ef7d',
+            marginBottom: '12px'
+          }}>
+            Cidades com mais atividade no Chactivo Brasil
+          </h3>
+          <p style={{
+            fontSize: '13px',
+            color: '#666',
+            lineHeight: '1.9',
+            marginBottom: '20px'
+          }}>
+            <strong>São Paulo</strong> • <strong>Rio de Janeiro</strong> • <strong>Belo Horizonte</strong> • <strong>Brasília</strong> • <strong>Curitiba</strong> • <strong>Salvador</strong> • Fortaleza • Porto Alegre • Recife • Manaus • Goiânia • Belém • Guarulhos • Campinas • São Luís • São Gonçalo • Maceió • Duque de Caxias • Natal • Teresina • Campo Grande • Nova Iguaçu • João Pessoa • Santo André • Osasco • São Bernardo • Jaboatão • Ribeirão Preto • Uberlândia • Sorocaba • Contagem • Aracaju • Feira de Santana • Juiz de Fora • Londrina • Aparecida • Joinville • Niterói • Ananindeua • Florianópolis • Santos
+          </p>
+
+          <p style={{
+            fontSize: '12px',
+            color: '#999',
+            marginTop: '25px',
+            fontStyle: 'italic',
+            lineHeight: '1.6'
+          }}>
+            Chactivo é uma plataforma inclusiva para a comunidade LGBT+ do Brasil. Respeitamos a diversidade e promovemos um espaço seguro para que gays, lésbicas, bissexuais e pessoas trans possam se conhecer, conversar e criar amizades. Todos os usuários devem ter mais de 18 anos.
+          </p>
+        </div>
       </div>
     </div>
     </>

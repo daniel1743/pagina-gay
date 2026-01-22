@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
 import { useCanonical } from '@/hooks/useCanonical';
 import { Check } from 'lucide-react';
+import TelegramBanner from '@/components/ui/TelegramBanner';
 
 const AVATAR_OPTIONS = [
   { id: 'avataaars', url: 'https://api.dicebear.com/7.x/avataaars/svg?seed=avatar1', name: 'Clásico' },
@@ -21,10 +22,12 @@ const MexicoLandingPage = () => {
   const [isLoading, setIsLoading] = React.useState(false);
   const [error, setError] = React.useState('');
 
-  useCanonical('/modal-mx');
+  useCanonical('https://chactivo.com/modal-mx');
 
   React.useEffect(() => {
+    document.documentElement.lang = 'es-MX';
     document.title = 'Chat Gay México 🏳️‍🌈 Gratis - CDMX, Zona Rosa, Guadalajara | Chactivo';
+
     const metaDescription = document.querySelector('meta[name="description"]');
     let ensuredMeta = metaDescription;
     if (!ensuredMeta) {
@@ -32,7 +35,62 @@ const MexicoLandingPage = () => {
       ensuredMeta.name = 'description';
       document.head.appendChild(ensuredMeta);
     }
-    ensuredMeta.content = 'Chat gay México 100% gratis. Conoce chavos de CDMX, Zona Rosa, Guadalajara y todo México. Sin pedos, wey. Entra ya y chatea con gays mexicanos.';
+    ensuredMeta.content = 'Chat gay México 100% gratis. Conoce chavos de CDMX, Zona Rosa, Guadalajara, Monterrey y todo México. Sin pedos, wey. Entra ya!';
+
+    const ogTags = [
+      { property: 'og:title', content: 'Chat Gay México 🏳️‍🌈 Gratis - CDMX, Guadalajara | Chactivo' },
+      { property: 'og:description', content: 'Chat gay México 100% gratis. Conoce chavos de CDMX, Zona Rosa, Guadalajara y todo México. Sin pedos, wey.' },
+      { property: 'og:type', content: 'website' },
+      { property: 'og:url', content: 'https://chactivo.com/modal-mx' },
+      { property: 'og:image', content: 'https://chactivo.com/LOGO_CHACTIVO.png' },
+      { property: 'og:locale', content: 'es_MX' },
+      { name: 'twitter:card', content: 'summary_large_image' },
+      { name: 'twitter:title', content: 'Chat Gay México 🏳️‍🌈 Gratis' },
+      { name: 'twitter:description', content: 'Conoce chavos de CDMX, Zona Rosa, Guadalajara. 100% gratis y anónimo.' },
+      { name: 'twitter:image', content: 'https://chactivo.com/LOGO_CHACTIVO.png' },
+      { name: 'keywords', content: 'chat gay méxico, chat gay cdmx, chat gay guadalajara, chat gay monterrey, chat lgbt méxico, gays méxico, chat gay zona rosa, conocer gays méxico' }
+    ];
+
+    ogTags.forEach(tag => {
+      const prop = tag.property || tag.name;
+      const attr = tag.property ? 'property' : 'name';
+      let metaTag = document.querySelector(`meta[${attr}="${prop}"]`);
+      if (!metaTag) {
+        metaTag = document.createElement('meta');
+        metaTag.setAttribute(attr, prop);
+        document.head.appendChild(metaTag);
+      }
+      metaTag.content = tag.content;
+    });
+
+    const schemaScript = document.createElement('script');
+    schemaScript.type = 'application/ld+json';
+    schemaScript.text = JSON.stringify({
+      "@context": "https://schema.org",
+      "@type": "WebApplication",
+      "name": "Chat Gay México - Chactivo",
+      "description": "Chat gay México 100% gratis. Conoce chavos de CDMX, Zona Rosa, Guadalajara, Monterrey y todo México.",
+      "url": "https://chactivo.com/modal-mx",
+      "applicationCategory": "SocialNetworkingApplication",
+      "operatingSystem": "Any",
+      "offers": {
+        "@type": "Offer",
+        "price": "0",
+        "priceCurrency": "MXN"
+      },
+      "areaServed": {
+        "@type": "Country",
+        "name": "México"
+      },
+      "inLanguage": "es-MX"
+    });
+    document.head.appendChild(schemaScript);
+
+    return () => {
+      if (schemaScript.parentNode) {
+        schemaScript.parentNode.removeChild(schemaScript);
+      }
+    };
   }, []);
 
   const handleSubmit = async (e) => {
@@ -65,7 +123,10 @@ const MexicoLandingPage = () => {
   };
 
   return (
-    <div style={{ width: '100vw', minHeight: '100vh', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', background: 'linear-gradient(135deg, #f093fb 0%, #f5576c 100%)', fontFamily: 'Arial, sans-serif', padding: '20px', boxSizing: 'border-box' }}>
+    <>
+      {/* 📢 Banner Telegram - Fijo en la parte superior */}
+      <TelegramBanner className="fixed top-0 left-0 right-0 z-50" />
+      <div style={{ width: '100vw', minHeight: '100vh', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', background: 'linear-gradient(135deg, #f093fb 0%, #f5576c 100%)', fontFamily: 'Arial, sans-serif', padding: '20px', paddingTop: '50px', boxSizing: 'border-box' }}>
       <div 
         style={{ 
           width: '100%', 
@@ -130,8 +191,41 @@ const MexicoLandingPage = () => {
         </form>
 
         <p style={{ fontSize: '11px', color: '#999', marginTop: '20px', lineHeight: '1.5' }}>✨ Sin registro • 100% Gratis • Anónimo</p>
+
+        {/* 🚀 SECCIÓN SEO - Contenido optimizado para Google México */}
+        <div style={{ marginTop: '40px', textAlign: 'left', lineHeight: '1.7', borderTop: '1px solid #e0e0e0', paddingTop: '30px' }}>
+          <h2 style={{ fontSize: '22px', fontWeight: 'bold', color: '#f5576c', marginBottom: '15px', lineHeight: '1.3' }}>
+            El Chat Gay Más Grande de México
+          </h2>
+          <p style={{ fontSize: '14px', color: '#555', marginBottom: '20px', lineHeight: '1.7' }}>
+            Chactivo es la <strong>comunidad LGBT+ más activa de México</strong>, conectando miles de chavos gays, bisexuales y trans de todo el país. Desde CDMX y Zona Rosa hasta Guadalajara, Monterrey, Puebla y cientos de ciudades más. <strong>100% gratis, sin registro obligatorio</strong>, y completamente anónimo. Sin pedos, wey.
+          </p>
+
+          <h3 style={{ fontSize: '18px', fontWeight: '600', color: '#f093fb', marginBottom: '12px', marginTop: '25px' }}>
+            ¿Por qué Chactivo es el mejor chat gay de México?
+          </h3>
+          <ul style={{ fontSize: '14px', color: '#555', marginBottom: '20px', paddingLeft: '20px', lineHeight: '1.8' }}>
+            <li><strong>Miles de usuarios activos</strong> cada día en todos los estados</li>
+            <li><strong>Totalmente gratis</strong> - No pedimos tarjeta ni pagos ocultos</li>
+            <li><strong>Anónimo y seguro</strong> - Tu privacidad es nuestra prioridad</li>
+            <li><strong>Sin descargas</strong> - Funciona directo en tu navegador</li>
+            <li><strong>Comunidad respetuosa</strong> - Moderación activa 24/7</li>
+          </ul>
+
+          <h3 style={{ fontSize: '18px', fontWeight: '600', color: '#f093fb', marginBottom: '12px' }}>
+            Ciudades con más actividad en Chactivo México
+          </h3>
+          <p style={{ fontSize: '13px', color: '#666', lineHeight: '1.9', marginBottom: '20px' }}>
+            <strong>CDMX</strong> • <strong>Zona Rosa</strong> • <strong>Guadalajara</strong> • <strong>Monterrey</strong> • <strong>Puebla</strong> • <strong>Tijuana</strong> • León • Juárez • Zapopan • Mérida • San Luis Potosí • Aguascalientes • Querétaro • Morelia • Saltillo • Toluca • Cancún • Chihuahua • Culiacán • Hermosillo • Mexicali • Acapulco • Veracruz • Tlalnepantla • Cuernavaca • Durango • Torreón • Tuxtla • Pachuca • Reynosa • Oaxaca • Tlaxcala • Mazatlán • Xalapa • Puerto Vallarta • Celaya • Tampico • Irapuato • Playa del Carmen • Ensenada
+          </p>
+
+          <p style={{ fontSize: '12px', color: '#999', marginTop: '25px', fontStyle: 'italic', lineHeight: '1.6' }}>
+            Chactivo es una plataforma inclusiva para la comunidad LGBT+ de México. Respetamos la diversidad y promovemos un espacio seguro para que gays, lesbianas, bisexuales y personas trans puedan conocerse, chatear y crear amistades. Todos los usuarios deben ser mayores de 18 años.
+          </p>
+        </div>
       </div>
     </div>
+    </>
   );
 };
 

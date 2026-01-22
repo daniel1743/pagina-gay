@@ -1,0 +1,44 @@
+// 🔥 COPIA ESTAS REGLAS A FIREBASE CONSOLE AHORA
+
+// Ve a: Firebase Console → Firestore Database → Rules
+// PEGA ESTO AL FINAL de tus rules existentes (NO borres las que ya tienes)
+
+// 🎯 OPIN Posts - Discovery Wall
+match /opin_posts/{postId} {
+  // Lectura: Todos pueden leer posts activos
+  allow read: if request.auth != null;
+
+  // Creación: Solo usuarios registrados (no guests)
+  allow create: if request.auth != null &&
+                  request.auth.token.firebase.sign_in_provider != 'anonymous' &&
+                  request.resource.data.userId == request.auth.uid;
+
+  // Actualización: Solo para contadores (likes, views, commentCount)
+  allow update: if request.auth != null;
+
+  // Eliminación: Solo el autor
+  allow delete: if request.auth != null &&
+                  resource.data.userId == request.auth.uid;
+}
+
+// 💬 OPIN Comments - Comentarios en posts
+match /opin_comments/{commentId} {
+  // Lectura: Todos los autenticados pueden leer comentarios
+  allow read: if request.auth != null;
+
+  // Creación: Solo usuarios registrados (no guests)
+  allow create: if request.auth != null &&
+                  request.auth.token.firebase.sign_in_provider != 'anonymous' &&
+                  request.resource.data.userId == request.auth.uid &&
+                  request.resource.data.comment.size() >= 1 &&
+                  request.resource.data.comment.size() <= 500;
+
+  // Actualización: NO permitida (comentarios inmutables)
+  allow update: if false;
+
+  // Eliminación: Solo el autor del comentario
+  allow delete: if request.auth != null &&
+                  resource.data.userId == request.auth.uid;
+}
+
+// Luego click "Publish"

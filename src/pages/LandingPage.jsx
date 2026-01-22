@@ -4,6 +4,7 @@ import { motion } from 'framer-motion';
 import ChatDemo from '../components/landing/ChatDemo';
 import { useAuth } from '@/contexts/AuthContext';
 import { GuestUsernameModal } from '@/components/auth/GuestUsernameModal';
+import TelegramBanner from '@/components/ui/TelegramBanner';
 
 export default function LandingPage() {
   const navigate = useNavigate();
@@ -31,6 +32,9 @@ export default function LandingPage() {
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-gray-950 via-purple-950 to-gray-950">
+      {/* 📢 Banner Telegram - Fijo en la parte superior */}
+      <TelegramBanner className="sticky top-0 z-50" />
+
       {/* Hero Section - CTA GRANDE */}
       <div className="container mx-auto px-4 pt-12 pb-12">
         <motion.div

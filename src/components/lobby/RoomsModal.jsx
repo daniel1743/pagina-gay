@@ -128,7 +128,15 @@ const RoomsModal = ({ isOpen, onClose }) => {
               // 🔒 Salas restringidas: mas-30, santiago, gaming requieren autenticación
               const restrictedRooms = ['mas-30', 'santiago', 'gaming'];
               const isRestrictedRoom = restrictedRooms.includes(room.id);
-              const canAccess = !isRestrictedRoom || !isAnonymousUser; // Solo usuarios registrados pueden acceder a salas restringidas
+
+              // 🌍 SALAS INTERNACIONALES: España, Brasil, México, Argentina bloqueadas para guests
+              // Usa la propiedad room.disabled de rooms.js para detectar salas internacionales
+              const isDisabledForGuests = room.disabled && isAnonymousUser;
+
+              // Usuario puede acceder si:
+              // 1. No es sala restringida, O es usuario registrado (para restringidas)
+              // 2. Y NO es sala disabled para guests (internacionales)
+              const canAccess = (!isRestrictedRoom || !isAnonymousUser) && !isDisabledForGuests;
 
               const handleRoomClick = () => {
                 if (!canAccess) {
@@ -169,7 +177,9 @@ const RoomsModal = ({ isOpen, onClose }) => {
                         )}
                       </div>
                       {!canAccess && (
-                        <p className="text-xs text-orange-500 mt-1">Requiere registro</p>
+                        <p className="text-xs text-orange-500 mt-1">
+                          {room.disabledMessage || 'Requiere registro'}
+                        </p>
                       )}
                     </div>
                   </div>

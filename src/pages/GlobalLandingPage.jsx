@@ -9,6 +9,7 @@ import ChatDemo from '@/components/landing/ChatDemo';
 import { GuestUsernameModal } from '@/components/auth/GuestUsernameModal';
 import { trackLandingLoad } from '@/utils/performanceMonitor';
 import { hasGuestIdentity } from '@/utils/guestIdentity'; // ✅ FASE 2: Auto-login para invitados con identidad persistente
+import TelegramBanner from '@/components/ui/TelegramBanner';
 // ⚠️ TOAST ELIMINADO (06/01/2026) - A petición del usuario
 // import LandingCaptureToast from '@/components/landing/LandingCaptureToast';
 // ⚠️ MODAL COMENTADO - Usamos entrada directa como invitado (sin opciones)
@@ -383,6 +384,9 @@ const GlobalLandingPage = () => {
 
   return (
     <div className="min-h-screen">
+      {/* 📢 Banner Telegram - Fijo en la parte superior */}
+      <TelegramBanner className="sticky top-0 z-50" />
+
       {/* 🎯 HERO MOBILE-FIRST - Un solo hero, copy directo, CTA único */}
       <motion.div
         initial={{ opacity: 0 }}

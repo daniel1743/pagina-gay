@@ -313,6 +313,20 @@ const LobbyPage = () => {
     isHorizontal: true // ✅ Flag para tarjeta horizontal
   };
 
+  // 🎯 Tarjeta horizontal de OPIN - Discovery Wall
+  const opinCard = {
+    id: 'opin',
+    icon: <Sparkles className="w-8 h-8" />,
+    title: "OPIN - Descubrimiento",
+    description: "Publica lo que buscas y deja que otros te descubran. Posts activos 24h. Encuentra conexiones reales más allá del chat efímero.",
+    onClick: () => navigate('/opin'),
+    variant: "default",
+    badge: "🆕 Nuevo",
+    stats: { label: "💜 Descubre perfiles", icon: Users },
+    accentColor: "purple",
+    isHorizontal: true // ✅ Flag para tarjeta horizontal
+  };
+
   const handleCardClick = (modalId, card) => {
     // Premium card - usar onClick personalizado si existe
     if (card?.onClick) {
@@ -1988,6 +2002,20 @@ const LobbyPage = () => {
                 badge="Activo"
                 stats={{ label: "💬 Comunidad activa", icon: MessageCircle }}
                 accentColor="green"
+              />
+
+              {/* 🎯 OPIN - Discovery Wall */}
+              <FeatureCard
+                key="opin-discovery"
+                icon={<Sparkles className="w-8 h-8" />}
+                title="OPIN - Descubrimiento"
+                description="Publica lo que buscas y descubre perfiles interesantes. Posts activos 24h. Encuentra conexiones reales más allá del chat efímero."
+                onClick={() => navigate('/opin')}
+                index={2}
+                variant="default"
+                badge="🆕 Nuevo"
+                stats={{ label: "💜 Descubre perfiles", icon: Users }}
+                accentColor="purple"
               />
 
               {/* 3. Chat Gamers */}

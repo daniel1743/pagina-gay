@@ -65,33 +65,42 @@ export const roomsData = [
   },
 
   // 🌍 SALAS POR PAÍS - Nuevas rutas internacionales
+  // ⚠️ DESHABILITADAS temporalmente - Requieren registro para acceder
   {
     id: 'es-main',
     name: 'España 🇪🇸',
     description: 'Chat principal de España',
     icon: Hash,
-    color: 'red'
+    color: 'red',
+    disabled: true, // ⚠️ Requiere registro
+    disabledMessage: 'Regístrate para acceder a esta sala'
   },
   {
     id: 'br-main',
     name: 'Brasil 🇧🇷',
     description: 'Chat principal do Brasil',
     icon: Hash,
-    color: 'green'
+    color: 'green',
+    disabled: true, // ⚠️ Requiere registro
+    disabledMessage: 'Regístrate para acceder a esta sala'
   },
   {
     id: 'mx-main',
     name: 'México 🇲🇽',
     description: 'Chat principal de México',
     icon: Hash,
-    color: 'green'
+    color: 'green',
+    disabled: true, // ⚠️ Requiere registro
+    disabledMessage: 'Regístrate para acceder a esta sala'
   },
   {
     id: 'ar-main',
     name: 'Argentina 🇦🇷',
     description: 'Chat principal de Argentina',
     icon: Hash,
-    color: 'blue'
+    color: 'blue',
+    disabled: true, // ⚠️ Requiere registro
+    disabledMessage: 'Regístrate para acceder a esta sala'
   },
 
   // ⚠️ SALA SECUNDARIA - COMENTADA (a petición del usuario)

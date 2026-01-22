@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
 import { useCanonical } from '@/hooks/useCanonical';
 import { Check } from 'lucide-react';
+import TelegramBanner from '@/components/ui/TelegramBanner';
 
 // 4 avatares predefinidos
 const AVATAR_OPTIONS = [
@@ -38,11 +39,16 @@ const SpainLandingPage = () => {
   const [isLoading, setIsLoading] = React.useState(false);
   const [error, setError] = React.useState('');
 
-  useCanonical('/modal-es');
+  useCanonical('https://chactivo.com/modal-es');
 
   React.useEffect(() => {
+    // Idioma HTML
+    document.documentElement.lang = 'es';
+
+    // Title
     document.title = 'Chat Gay España 🏳️‍🌈 Gratis - Madrid, Barcelona, Valencia | Chactivo';
 
+    // Meta Description
     const metaDescription = document.querySelector('meta[name="description"]');
     let ensuredMeta = metaDescription;
     if (!ensuredMeta) {
@@ -50,7 +56,65 @@ const SpainLandingPage = () => {
       ensuredMeta.name = 'description';
       document.head.appendChild(ensuredMeta);
     }
-    ensuredMeta.content = 'Chat gay España 100% gratis. Conoce tíos de Madrid, Barcelona, Valencia y toda España. Sin rollos, tío. Entra ya y chatea con gays españoles.';
+    ensuredMeta.content = 'Chat gay España 100% gratis. Conoce tíos de Madrid, Barcelona, Valencia, Sevilla, Bilbao y toda España. Sin rollos, tío. Entra ya y chatea con gays españoles.';
+
+    // Open Graph Tags
+    const ogTags = [
+      { property: 'og:title', content: 'Chat Gay España 🏳️‍🌈 Gratis - Madrid, Barcelona | Chactivo' },
+      { property: 'og:description', content: 'Chat gay España 100% gratis. Conoce tíos de Madrid, Barcelona, Valencia y toda España. Sin rollos, tío.' },
+      { property: 'og:type', content: 'website' },
+      { property: 'og:url', content: 'https://chactivo.com/modal-es' },
+      { property: 'og:image', content: 'https://chactivo.com/LOGO_CHACTIVO.png' },
+      { property: 'og:locale', content: 'es_ES' },
+      { name: 'twitter:card', content: 'summary_large_image' },
+      { name: 'twitter:title', content: 'Chat Gay España 🏳️‍🌈 Gratis' },
+      { name: 'twitter:description', content: 'Conoce tíos de Madrid, Barcelona, Valencia. 100% gratis y anónimo.' },
+      { name: 'twitter:image', content: 'https://chactivo.com/LOGO_CHACTIVO.png' },
+      { name: 'keywords', content: 'chat gay españa, chat gay madrid, chat gay barcelona, chat gay valencia, chat lgbt españa, gays españa, chat homosexual españa, conocer gays españa' }
+    ];
+
+    ogTags.forEach(tag => {
+      const prop = tag.property || tag.name;
+      const attr = tag.property ? 'property' : 'name';
+      let metaTag = document.querySelector(`meta[${attr}="${prop}"]`);
+      if (!metaTag) {
+        metaTag = document.createElement('meta');
+        metaTag.setAttribute(attr, prop);
+        document.head.appendChild(metaTag);
+      }
+      metaTag.content = tag.content;
+    });
+
+    // Schema.org JSON-LD
+    const schemaScript = document.createElement('script');
+    schemaScript.type = 'application/ld+json';
+    schemaScript.text = JSON.stringify({
+      "@context": "https://schema.org",
+      "@type": "WebApplication",
+      "name": "Chat Gay España - Chactivo",
+      "description": "Chat gay España 100% gratis. Conoce tíos de Madrid, Barcelona, Valencia y toda España.",
+      "url": "https://chactivo.com/modal-es",
+      "applicationCategory": "SocialNetworkingApplication",
+      "operatingSystem": "Any",
+      "offers": {
+        "@type": "Offer",
+        "price": "0",
+        "priceCurrency": "EUR"
+      },
+      "areaServed": {
+        "@type": "Country",
+        "name": "España"
+      },
+      "inLanguage": "es"
+    });
+    document.head.appendChild(schemaScript);
+
+    return () => {
+      // Cleanup schema script on unmount
+      if (schemaScript.parentNode) {
+        schemaScript.parentNode.removeChild(schemaScript);
+      }
+    };
   }, []);
 
   const handleSubmit = async (e) => {
@@ -114,6 +178,8 @@ const SpainLandingPage = () => {
           scrollbar-width: none;
         }
       `}</style>
+      {/* 📢 Banner Telegram - Fijo en la parte superior */}
+      <TelegramBanner className="fixed top-0 left-0 right-0 z-50" />
       <div style={{
         width: '100vw',
         minHeight: '100vh',
@@ -124,6 +190,7 @@ const SpainLandingPage = () => {
         background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
         fontFamily: 'Arial, sans-serif',
         padding: '20px',
+        paddingTop: '50px',
         boxSizing: 'border-box'
       }}>
         {/* Modal */}
@@ -349,6 +416,83 @@ const SpainLandingPage = () => {
         }}>
           ✨ Sin registro • 100% Gratis • Anónimo
         </p>
+
+        {/* 🚀 SECCIÓN SEO - Contenido optimizado para Google */}
+        <div style={{
+          marginTop: '40px',
+          textAlign: 'left',
+          lineHeight: '1.7',
+          borderTop: '1px solid #e0e0e0',
+          paddingTop: '30px'
+        }}>
+          <h2 style={{
+            fontSize: '22px',
+            fontWeight: 'bold',
+            color: '#667eea',
+            marginBottom: '15px',
+            lineHeight: '1.3'
+          }}>
+            El Chat Gay Más Grande de España
+          </h2>
+          <p style={{
+            fontSize: '14px',
+            color: '#555',
+            marginBottom: '20px',
+            lineHeight: '1.7'
+          }}>
+            Chactivo es la <strong>comunidad LGBT+ más activa de España</strong>, conectando miles de chicos gays, bisexuales y trans de todo el país. Desde Madrid hasta Barcelona, Valencia, Sevilla, Bilbao y cientos de ciudades más. <strong>100% gratis, sin registro obligatorio</strong>, y completamente anónimo. Sin rollos, tío.
+          </p>
+
+          <h3 style={{
+            fontSize: '18px',
+            fontWeight: '600',
+            color: '#764ba2',
+            marginBottom: '12px',
+            marginTop: '25px'
+          }}>
+            ¿Por qué Chactivo es el mejor chat gay de España?
+          </h3>
+          <ul style={{
+            fontSize: '14px',
+            color: '#555',
+            marginBottom: '20px',
+            paddingLeft: '20px',
+            lineHeight: '1.8'
+          }}>
+            <li><strong>Miles de usuarios activos</strong> cada día en todas las provincias</li>
+            <li><strong>Totalmente gratis</strong> - No pedimos tarjeta ni pagos ocultos</li>
+            <li><strong>Anónimo y seguro</strong> - Tu privacidad es nuestra prioridad</li>
+            <li><strong>Sin descargas</strong> - Funciona directo en tu navegador</li>
+            <li><strong>Comunidad respetuosa</strong> - Moderación activa 24/7</li>
+          </ul>
+
+          <h3 style={{
+            fontSize: '18px',
+            fontWeight: '600',
+            color: '#764ba2',
+            marginBottom: '12px'
+          }}>
+            Ciudades con más actividad en Chactivo España
+          </h3>
+          <p style={{
+            fontSize: '13px',
+            color: '#666',
+            lineHeight: '1.9',
+            marginBottom: '20px'
+          }}>
+            <strong>Madrid</strong> • <strong>Barcelona</strong> • <strong>Valencia</strong> • <strong>Sevilla</strong> • <strong>Bilbao</strong> • Málaga • Zaragoza • Murcia • Palma de Mallorca • Las Palmas • Alicante • Córdoba • Valladolid • Vigo • Gijón • Hospitalet • Vitoria • Granada • Elche • Oviedo • Badalona • Cartagena • Terrassa • Jerez • Sabadell • Santa Cruz • Pamplona • Almería • Fuenlabrada • San Sebastián • Burgos • Albacete • Santander • Castellón • Alcalá • La Coruña • Logroño • Salamanca • Huelva • Badajoz • Tarragona
+          </p>
+
+          <p style={{
+            fontSize: '12px',
+            color: '#999',
+            marginTop: '25px',
+            fontStyle: 'italic',
+            lineHeight: '1.6'
+          }}>
+            Chactivo es una plataforma inclusiva para la comunidad LGBT+ de España. Respetamos la diversidad y promovemos un espacio seguro para que gays, lesbianas, bisexuales y personas trans puedan conocerse, chatear y crear amistades. Todos los usuarios deben ser mayores de 18 años.
+          </p>
+        </div>
       </div>
     </div>
     </>

@@ -28,6 +28,10 @@ import ChatLandingPage from '@/components/chat/ChatLandingPage';
 // import EmptyRoomNotificationPrompt from '@/components/chat/EmptyRoomNotificationPrompt';
 // import LoadingMessagesPrompt from '@/components/chat/LoadingMessagesPrompt';
 import ReplyIndicator from '@/components/chat/ReplyIndicator';
+// 🎯 OPIN Discovery Banner - Para que invitados descubran OPIN
+import OpinDiscoveryBanner from '@/components/opin/OpinDiscoveryBanner';
+// 📢 Telegram Banner - Promoción del grupo
+import TelegramBanner from '@/components/ui/TelegramBanner';
 // ⚠️ MODERADOR ELIMINADO (06/01/2026) - A petición del usuario
 // import RulesBanner from '@/components/chat/RulesBanner';
 import { toast } from '@/components/ui/use-toast';
@@ -2059,7 +2063,17 @@ const ChatPage = () => {
             onSimulate={() => setShowScreenSaver(true)}
           />
 
+          {/* 📢 Banner Telegram - Fijo en todas las salas */}
+          <TelegramBanner />
+
           <div className="flex-1 overflow-hidden flex flex-col min-h-0">
+            {/* 🎯 OPIN Discovery Banner - Solo para invitados */}
+            {user && (user.isGuest || user.isAnonymous) && (
+              <div className="px-4 pt-4">
+                <OpinDiscoveryBanner />
+              </div>
+            )}
+
             {/* ⚠️ MODALES DE INSTRUCCIONES ELIMINADOS (17/01/2026) - A petición del usuario */}
             {/* ⏳ Mostrar loading simple cuando no hay mensajes y está cargando */}
             {isLoadingMessages && messages.length === 0 ? (

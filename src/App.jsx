@@ -43,6 +43,10 @@ const TestLandingPage = lazy(() => import('@/pages/TestLandingPage'));
 const TestModalPage = lazy(() => import('@/pages/TestModalPage'));
 const FAQPage = lazy(() => import('@/pages/FAQPage'));
 
+// 🎯 OPIN - Discovery Wall
+const OpinFeedPage = lazy(() => import('@/pages/OpinFeedPage'));
+const OpinComposerPage = lazy(() => import('@/pages/OpinComposerPage'));
+
 // ✅ Componentes que usan useAuth deben estar dentro del AuthProvider
 function PrivateRoute({ children }) {
   const { user } = useAuth();
@@ -207,13 +211,25 @@ function AppRoutes() {
         <Route path="/anonymous-chat" element={<AnonymousChatPage />} />
         <Route path="/anonymous-forum" element={<AnonymousForumPage />} />
         <Route path="/thread/:threadId" element={<MainLayout><ThreadDetailPage /></MainLayout>} />
-        <Route 
-          path="/profile" 
+
+        {/* 🎯 OPIN - Discovery Wall */}
+        <Route path="/opin" element={<MainLayout><OpinFeedPage /></MainLayout>} />
+        <Route
+          path="/opin/new"
+          element={
+            <PrivateRoute>
+              <MainLayout><OpinComposerPage /></MainLayout>
+            </PrivateRoute>
+          }
+        />
+
+        <Route
+          path="/profile"
           element={
             <PrivateRoute>
               <MainLayout><ProfilePage /></MainLayout>
             </PrivateRoute>
-          } 
+          }
         />
         <Route
           path="/premium"
