@@ -112,9 +112,9 @@ const OpinFeedPage = () => {
       {/* Banner de modo solo lectura para usuarios no logueados */}
       {isReadOnlyMode && (
         <motion.div
-          initial={{ y: -100, opacity: 0 }}
-          animate={{ y: 0, opacity: 1 }}
-          className="sticky top-0 z-20 bg-gradient-to-r from-purple-600 to-pink-600 text-white py-3 px-4 shadow-lg"
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          className="bg-gradient-to-r from-purple-600 to-pink-600 text-white py-2.5 px-4"
         >
           <div className="max-w-6xl mx-auto flex items-center justify-between gap-4 flex-wrap">
             <div className="flex items-center gap-2">
@@ -136,7 +136,7 @@ const OpinFeedPage = () => {
       )}
 
       {/* Header */}
-      <div className={`sticky ${isReadOnlyMode ? 'top-12' : 'top-0'} z-10 bg-card/80 backdrop-blur-xl border-b border-border`}>
+      <div className="sticky top-0 z-10 bg-card/80 backdrop-blur-xl border-b border-border">
         <div className="max-w-6xl mx-auto px-4 py-4">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-3">

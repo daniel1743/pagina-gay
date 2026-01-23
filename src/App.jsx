@@ -94,6 +94,28 @@ function MainLayout({ children }) {
   );
 }
 
+// Layout especial para OPIN - sin padding-top cuando usuario no está logueado
+function OpinLayout({ children }) {
+  const { user } = useAuth();
+  const isReadOnlyMode = !user || user.isAnonymous || user.isGuest;
+
+  return (
+    <div className="flex flex-col min-h-screen">
+      <style>{`
+        :root {
+          ${user?.theme?.colors || ''}
+        }
+        body {
+          ${user?.theme?.font ? `font-family: ${user.theme.font};` : ''}
+        }
+      `}</style>
+      <Header />
+      <main className={`flex-1 ${isReadOnlyMode ? '' : 'pt-16 sm:pt-20'}`}>{children}</main>
+      <Footer />
+    </div>
+  );
+}
+
 // ⚡ OPTIMIZACIÓN CRÍTICA: LoadingOverlay DESHABILITADO para VELOCIDAD FLASH
 // La navegación optimista permite que el usuario entre al chat INSTANTÁNEAMENTE
 // sin esperar a que Firebase complete (que puede tardar 155+ segundos)
@@ -213,7 +235,7 @@ function AppRoutes() {
         <Route path="/thread/:threadId" element={<MainLayout><ThreadDetailPage /></MainLayout>} />
 
         {/* 🎯 OPIN - Discovery Wall */}
-        <Route path="/opin" element={<MainLayout><OpinFeedPage /></MainLayout>} />
+        <Route path="/opin" element={<OpinLayout><OpinFeedPage /></OpinLayout>} />
         <Route
           path="/opin/new"
           element={

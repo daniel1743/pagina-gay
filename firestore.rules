@@ -641,6 +641,50 @@ service cloud.firestore {
     }
 
     // ===========================
+    // OPIN - DISCOVERY WALL
+    // ===========================
+
+    match /opin_posts/{postId} {
+      // ✅ Lectura pública - cualquiera puede ver posts (incluso sin autenticación)
+      allow read: if true;
+
+      // Crear: solo usuarios registrados (no anónimos)
+      allow create: if isRegistered() &&
+                      'userId' in request.resource.data &&
+                      request.resource.data.userId == request.auth.uid &&
+                      'text' in request.resource.data &&
+                      request.resource.data.text is string &&
+                      request.resource.data.text.size() >= 10 &&
+                      request.resource.data.text.size() <= 500;
+
+      // Actualizar: propietario o admin (para likes, views, etc.)
+      allow update: if isAuthenticated() &&
+                      (resource.data.userId == request.auth.uid || isAdmin());
+
+      // Eliminar: solo el propietario
+      allow delete: if isAuthenticated() &&
+                      resource.data.userId == request.auth.uid;
+    }
+
+    match /opin_comments/{commentId} {
+      // ✅ Lectura pública
+      allow read: if true;
+
+      // Crear: solo usuarios registrados
+      allow create: if isRegistered() &&
+                      'userId' in request.resource.data &&
+                      request.resource.data.userId == request.auth.uid &&
+                      'comment' in request.resource.data &&
+                      request.resource.data.comment is string &&
+                      request.resource.data.comment.size() > 0 &&
+                      request.resource.data.comment.size() <= 500;
+
+      // Eliminar: solo el autor
+      allow delete: if isAuthenticated() &&
+                      resource.data.userId == request.auth.uid;
+    }
+
+    // ===========================
     // RECOMPENSAS
     // ===========================
 
