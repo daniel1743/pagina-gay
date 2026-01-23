@@ -14,8 +14,9 @@
  */
 
 import React, { useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
-import { Eye, User, Clock, CheckCircle, Crown, Flame, Heart, MessageCircle } from 'lucide-react';
+import { Eye, User, Clock, CheckCircle, Crown, Flame, Heart, MessageCircle, Lock } from 'lucide-react';
 import { incrementProfileClickCount, getTimeRemaining, toggleLike, hasUserLiked, OPIN_COLORS } from '@/services/opinService';
 import { useAuth } from '@/contexts/AuthContext';
 import { toast } from '@/components/ui/use-toast';
@@ -40,7 +41,8 @@ const getUserBadge = (post) => {
   return null;
 };
 
-const OpinCard = ({ post, index, onProfileClick, onCommentsClick }) => {
+const OpinCard = ({ post, index, onProfileClick, onCommentsClick, isReadOnlyMode = false }) => {
+  const navigate = useNavigate();
   const { user } = useAuth();
   const [timeRemaining, setTimeRemaining] = React.useState('');
   const [likeCount, setLikeCount] = useState(post.likeCount || 0);
@@ -61,6 +63,23 @@ const OpinCard = ({ post, index, onProfileClick, onCommentsClick }) => {
   }, [post.expiresAt]);
 
   const handleProfileClick = async () => {
+    // Si está en modo solo lectura, mostrar toast y redirigir a registro
+    if (isReadOnlyMode) {
+      toast({
+        title: '¡Regístrate para ver perfiles!',
+        description: 'Crea una cuenta gratis para conocer a otros usuarios',
+        action: (
+          <button
+            onClick={() => navigate('/auth')}
+            className="px-3 py-1 rounded bg-purple-500 text-white text-xs font-semibold hover:bg-purple-600"
+          >
+            Registrarse
+          </button>
+        ),
+      });
+      return;
+    }
+
     // Incrementar contador de clicks
     await incrementProfileClickCount(post.id);
 
@@ -71,6 +90,23 @@ const OpinCard = ({ post, index, onProfileClick, onCommentsClick }) => {
   };
 
   const handleLikeClick = async () => {
+    // Si está en modo solo lectura, mostrar toast y redirigir a registro
+    if (isReadOnlyMode) {
+      toast({
+        title: '¡Regístrate para dar like!',
+        description: 'Crea una cuenta gratis para interactuar',
+        action: (
+          <button
+            onClick={() => navigate('/auth')}
+            className="px-3 py-1 rounded bg-purple-500 text-white text-xs font-semibold hover:bg-purple-600"
+          >
+            Registrarse
+          </button>
+        ),
+      });
+      return;
+    }
+
     if (!user) {
       toast({
         title: 'Inicia sesión',
@@ -114,6 +150,23 @@ const OpinCard = ({ post, index, onProfileClick, onCommentsClick }) => {
   };
 
   const handleCommentsClick = () => {
+    // Si está en modo solo lectura, mostrar toast y redirigir a registro
+    if (isReadOnlyMode) {
+      toast({
+        title: '¡Regístrate para comentar!',
+        description: 'Crea una cuenta gratis para participar en la conversación',
+        action: (
+          <button
+            onClick={() => navigate('/auth')}
+            className="px-3 py-1 rounded bg-purple-500 text-white text-xs font-semibold hover:bg-purple-600"
+          >
+            Registrarse
+          </button>
+        ),
+      });
+      return;
+    }
+
     if (onCommentsClick) {
       onCommentsClick(post);
     }
@@ -200,33 +253,50 @@ const OpinCard = ({ post, index, onProfileClick, onCommentsClick }) => {
             disabled={likingInProgress}
             className={`flex-1 flex items-center justify-center gap-2 px-4 py-2 rounded-lg
                      transition-all font-semibold text-sm
-                     ${liked
-                       ? 'bg-red-500/20 text-red-400 border border-red-500/50 hover:bg-red-500/30'
-                       : 'bg-white/5 text-foreground border border-white/10 hover:bg-white/10'
+                     ${isReadOnlyMode
+                       ? 'bg-white/5 text-muted-foreground border border-white/10 hover:bg-white/10 cursor-pointer'
+                       : liked
+                         ? 'bg-red-500/20 text-red-400 border border-red-500/50 hover:bg-red-500/30'
+                         : 'bg-white/5 text-foreground border border-white/10 hover:bg-white/10'
                      }`}
           >
-            <Heart className={`w-4 h-4 ${liked ? 'fill-current' : ''}`} />
-            <span>{liked ? 'Te gusta' : 'Me gusta'}</span>
+            {isReadOnlyMode ? (
+              <Lock className="w-4 h-4" />
+            ) : (
+              <Heart className={`w-4 h-4 ${liked ? 'fill-current' : ''}`} />
+            )}
+            <span>{isReadOnlyMode ? 'Me gusta' : liked ? 'Te gusta' : 'Me gusta'}</span>
           </button>
 
           {/* Botón Comentarios */}
           <button
             onClick={handleCommentsClick}
-            className="flex-1 flex items-center justify-center gap-2 px-4 py-2 rounded-lg
-                     bg-white/5 text-foreground border border-white/10 hover:bg-white/10
-                     transition-all font-semibold text-sm"
+            className={`flex-1 flex items-center justify-center gap-2 px-4 py-2 rounded-lg
+                     transition-all font-semibold text-sm
+                     ${isReadOnlyMode
+                       ? 'bg-white/5 text-muted-foreground border border-white/10 hover:bg-white/10 cursor-pointer'
+                       : 'bg-white/5 text-foreground border border-white/10 hover:bg-white/10'
+                     }`}
           >
-            <MessageCircle className="w-4 h-4" />
+            {isReadOnlyMode ? (
+              <Lock className="w-4 h-4" />
+            ) : (
+              <MessageCircle className="w-4 h-4" />
+            )}
             <span>Comentar</span>
           </button>
 
           {/* Botón Ver perfil */}
           <button
             onClick={handleProfileClick}
-            className={`flex-1 px-4 py-2 rounded-lg bg-gradient-to-r ${colorConfig.gradient}
-                     hover:opacity-90 text-white text-sm font-semibold
-                     transition-all shadow-md hover:shadow-lg`}
+            className={`flex-1 flex items-center justify-center gap-2 px-4 py-2 rounded-lg
+                     ${isReadOnlyMode
+                       ? 'bg-white/5 text-muted-foreground border border-white/10 hover:bg-white/10'
+                       : `bg-gradient-to-r ${colorConfig.gradient} text-white shadow-md hover:shadow-lg hover:opacity-90`
+                     }
+                     text-sm font-semibold transition-all`}
           >
+            {isReadOnlyMode && <Lock className="w-4 h-4" />}
             Ver perfil
           </button>
         </div>

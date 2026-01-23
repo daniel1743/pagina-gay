@@ -78,6 +78,13 @@ const ChatSidebar = ({ currentRoom, setCurrentRoom, isOpen, onClose }) => {
     navigate('/');
   }
 
+  // Ocultar salas internacionales a invitados/anon si están en la sala principal
+  const countryRoomsToHide = ['es-main', 'br-main', 'mx-main', 'ar-main'];
+  const shouldHideCountryRooms = (!user || user.isGuest || user.isAnonymous) && currentRoom === 'principal';
+  const visibleRooms = shouldHideCountryRooms
+    ? roomsData.filter((room) => !countryRoomsToHide.includes(room.id))
+    : roomsData;
+
   return (
     <>
       {/* Modal de autenticación (Login/Registro) */}
@@ -160,7 +167,7 @@ const ChatSidebar = ({ currentRoom, setCurrentRoom, isOpen, onClose }) => {
           <div className="mb-2">
             <h3 className="text-xs font-semibold text-muted-foreground uppercase mb-2 px-2">Salas de Chat</h3>
             <div className="space-y-1">
-              {roomsData.map((room, index) => {
+              {visibleRooms.map((room, index) => {
                 const IconComponent = room.icon;
                 const realUserCount = roomCounts[room.id] || 0;
                 
@@ -418,7 +425,7 @@ const ChatSidebar = ({ currentRoom, setCurrentRoom, isOpen, onClose }) => {
           <div className="mb-2">
             <h3 className="text-xs font-semibold text-muted-foreground uppercase mb-2 px-2">Salas de Chat</h3>
             <div className="space-y-1">
-              {roomsData.map((room, index) => {
+              {visibleRooms.map((room, index) => {
                 const IconComponent = room.icon;
                 const realUserCount = roomCounts[room.id] || 0;
                 

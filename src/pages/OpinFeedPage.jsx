@@ -11,7 +11,7 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Plus, Sparkles, RefreshCw } from 'lucide-react';
+import { Plus, Sparkles, RefreshCw, Eye, Lock, UserPlus } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
 import { getOpinFeed, canCreatePost } from '@/services/opinService';
 import OpinCard from '@/components/opin/OpinCard';
@@ -30,6 +30,9 @@ const OpinFeedPage = () => {
   const [showProfileModal, setShowProfileModal] = useState(false);
   const [selectedPost, setSelectedPost] = useState(null);
   const [showCommentsModal, setShowCommentsModal] = useState(false);
+
+  // 👁️ Verificar si el usuario está en modo "solo lectura"
+  const isReadOnlyMode = !user || user.isAnonymous || user.isGuest;
 
   // Cargar feed al montar
   useEffect(() => {
@@ -106,13 +109,45 @@ const OpinFeedPage = () => {
 
   return (
     <div className="min-h-screen bg-background pb-20">
+      {/* Banner de modo solo lectura para usuarios no logueados */}
+      {isReadOnlyMode && (
+        <motion.div
+          initial={{ y: -100, opacity: 0 }}
+          animate={{ y: 0, opacity: 1 }}
+          className="sticky top-0 z-20 bg-gradient-to-r from-purple-600 to-pink-600 text-white py-3 px-4 shadow-lg"
+        >
+          <div className="max-w-6xl mx-auto flex items-center justify-between gap-4 flex-wrap">
+            <div className="flex items-center gap-2">
+              <Eye className="w-5 h-5" />
+              <span className="text-sm font-medium">
+                Modo solo lectura - Puedes ver pero no interactuar
+              </span>
+            </div>
+            <button
+              onClick={() => navigate('/auth')}
+              className="flex items-center gap-2 px-4 py-1.5 rounded-full bg-white text-purple-600
+                       font-semibold text-sm hover:bg-white/90 transition-all"
+            >
+              <UserPlus className="w-4 h-4" />
+              Regístrate para participar
+            </button>
+          </div>
+        </motion.div>
+      )}
+
       {/* Header */}
-      <div className="sticky top-0 z-10 bg-card/80 backdrop-blur-xl border-b border-border">
+      <div className={`sticky ${isReadOnlyMode ? 'top-12' : 'top-0'} z-10 bg-card/80 backdrop-blur-xl border-b border-border`}>
         <div className="max-w-6xl mx-auto px-4 py-4">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-3">
               <Sparkles className="w-6 h-6 text-purple-400" />
               <h1 className="text-2xl font-bold text-foreground">OPIN</h1>
+              {isReadOnlyMode && (
+                <span className="flex items-center gap-1 px-2 py-0.5 rounded-full bg-yellow-500/20 text-yellow-400 text-xs font-medium">
+                  <Lock className="w-3 h-3" />
+                  Solo lectura
+                </span>
+              )}
             </div>
             <button
               onClick={loadFeed}
@@ -256,6 +291,7 @@ const OpinFeedPage = () => {
                   index={index}
                   onProfileClick={handleProfileClick}
                   onCommentsClick={handleCommentsClick}
+                  isReadOnlyMode={isReadOnlyMode}
                 />
               ))}
             </AnimatePresence>
@@ -263,8 +299,35 @@ const OpinFeedPage = () => {
         )}
       </div>
 
-      {/* Botón flotante "Publicar" */}
-      {canCreate && (
+      {/* Botón flotante - Publicar o CTA de registro */}
+      {isReadOnlyMode ? (
+        // Banner flotante para usuarios no logueados
+        <motion.div
+          initial={{ y: 100, opacity: 0 }}
+          animate={{ y: 0, opacity: 1 }}
+          className="fixed bottom-0 left-0 right-0 z-50 bg-gradient-to-r from-purple-600 to-pink-600
+                   p-4 shadow-2xl border-t border-white/20"
+        >
+          <div className="max-w-6xl mx-auto flex items-center justify-between gap-4 flex-wrap">
+            <div className="flex items-center gap-3 text-white">
+              <Lock className="w-5 h-5" />
+              <div>
+                <p className="font-semibold">¿Te gusta lo que ves?</p>
+                <p className="text-sm text-white/80">Regístrate para dar likes, comentar y publicar</p>
+              </div>
+            </div>
+            <button
+              onClick={() => navigate('/auth')}
+              className="flex items-center gap-2 px-6 py-3 rounded-xl bg-white text-purple-600
+                       font-bold hover:bg-white/90 transition-all shadow-lg"
+            >
+              <UserPlus className="w-5 h-5" />
+              Crear cuenta gratis
+            </button>
+          </div>
+        </motion.div>
+      ) : canCreate ? (
+        // Botón flotante de publicar para usuarios logueados
         <motion.button
           initial={{ scale: 0 }}
           animate={{ scale: 1 }}
@@ -277,7 +340,7 @@ const OpinFeedPage = () => {
         >
           <Plus className="w-8 h-8" />
         </motion.button>
-      )}
+      ) : null}
 
       {/* Modal de perfil */}
       {showProfileModal && selectedUserId && (

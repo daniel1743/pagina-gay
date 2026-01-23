@@ -65,19 +65,19 @@ const OpinDiscoveryBanner = ({ onClose }) => {
               🆕 OPIN - Descubre Perfiles
             </h3>
             <p className="text-sm text-foreground/80 mb-3 leading-relaxed">
-              Más allá del chat: <strong>Publica lo que buscas</strong> y deja que otros descubran tu perfil.
+              Más allá del chat: <strong>Mira lo que otros buscan</strong> y descubre perfiles interesantes.
               Posts activos 24h, conexiones reales.
             </p>
 
             {/* Stats */}
             <div className="flex items-center gap-4 mb-3 text-xs text-muted-foreground">
               <div className="flex items-center gap-1">
-                <Users className="w-3.5 h-3.5" />
-                <span>Descubre perfiles</span>
+                <Eye className="w-3.5 h-3.5" />
+                <span>Puedes ver sin registrarte</span>
               </div>
               <div className="flex items-center gap-1">
-                <Eye className="w-3.5 h-3.5" />
-                <span>Posts 24h</span>
+                <Users className="w-3.5 h-3.5" />
+                <span>Regístrate para participar</span>
               </div>
             </div>
 
@@ -88,7 +88,7 @@ const OpinDiscoveryBanner = ({ onClose }) => {
                        hover:from-purple-600 hover:to-pink-600 text-white text-sm font-semibold
                        transition-all shadow-md hover:shadow-lg"
             >
-              Ver OPIN ahora
+              👁️ Ver OPIN ahora
             </button>
           </div>
         </div>
