@@ -113,6 +113,10 @@
   background-color: #d9fdd3 !important;
   border: none !important;
   color: #1a1a1a !important;
+  /* ⚡ FIX: Evitar que se estreche - usar max-content para ajustar al texto */
+  width: max-content !important;
+  max-width: 75% !important;
+  white-space: pre-wrap !important; /* Preservar espacios, solo dividir cuando sea necesario */
 }
 
 /* Dark mode */
@@ -126,6 +130,9 @@
   .message-bubble.own {
     background-color: #005c4b !important;
     color: #e5e5e5 !important;
+    width: max-content !important;
+    max-width: 75% !important;
+    white-space: pre-wrap !important;
   }
 }
 
@@ -139,6 +146,9 @@
 .dark .message-bubble.own {
   background-color: #005c4b !important;
   color: #e5e5e5 !important;
+  width: max-content !important;
+  max-width: 75% !important;
+  white-space: pre-wrap !important;
 }
 
 /* ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
