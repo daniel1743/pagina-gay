@@ -58,7 +58,7 @@ export const GuestUsernameModal = ({
   const [nickname, setNickname] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState('');
-  const [ageConfirmed, setAgeConfirmed] = useState(false); // ✅ Cambiado: checkbox de edad (no mantener sesión)
+  const [ageConfirmed, setAgeConfirmed] = useState(true); // ✅ PRE-MARCADO: Menos fricción para el usuario
   const modalOpenTimeRef = useRef(null); // 📊 Timestamp cuando se abre el modal
 
   // ⚡ FIX CRÍTICO: Auto-skip SOLO si openSource === 'auto'

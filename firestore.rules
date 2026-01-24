@@ -684,6 +684,24 @@ service cloud.firestore {
                       resource.data.userId == request.auth.uid;
     }
 
+    // Registro de acciones de OPIN (para límite de 4 en 24h)
+    match /opin_actions/{actionId} {
+      // Leer: solo el propietario de la acción
+      allow read: if isAuthenticated() &&
+                    resource.data.userId == request.auth.uid;
+
+      // Crear: usuarios registrados
+      allow create: if isRegistered() &&
+                      'userId' in request.resource.data &&
+                      request.resource.data.userId == request.auth.uid &&
+                      'actionType' in request.resource.data &&
+                      request.resource.data.actionType in ['edit', 'delete'] &&
+                      'postId' in request.resource.data;
+
+      // No se puede editar ni eliminar
+      allow update, delete: if false;
+    }
+
     // ===========================
     // RECOMPENSAS
     // ===========================

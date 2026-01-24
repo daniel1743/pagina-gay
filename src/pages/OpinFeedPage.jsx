@@ -15,7 +15,6 @@ import { Plus, Sparkles, RefreshCw, Eye, Lock, UserPlus } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
 import { getOpinFeed, canCreatePost } from '@/services/opinService';
 import OpinCard from '@/components/opin/OpinCard';
-import UserProfileModal from '@/components/chat/UserProfileModal';
 import OpinCommentsModal from '@/components/opin/OpinCommentsModal';
 import { toast } from '@/components/ui/use-toast';
 
@@ -25,9 +24,6 @@ const OpinFeedPage = () => {
   const [posts, setPosts] = useState([]);
   const [loading, setLoading] = useState(true);
   const [canCreate, setCanCreate] = useState(false);
-  const [selectedUserId, setSelectedUserId] = useState(null);
-  const [selectedUsername, setSelectedUsername] = useState('');
-  const [showProfileModal, setShowProfileModal] = useState(false);
   const [selectedPost, setSelectedPost] = useState(null);
   const [showCommentsModal, setShowCommentsModal] = useState(false);
 
@@ -67,15 +63,25 @@ const OpinFeedPage = () => {
     setCanCreate(result.canCreate);
   };
 
-  const handleProfileClick = (userId, username) => {
-    setSelectedUserId(userId);
-    setSelectedUsername(username);
-    setShowProfileModal(true);
-  };
-
   const handleCommentsClick = (post) => {
     setSelectedPost(post);
     setShowCommentsModal(true);
+  };
+
+  // Manejar cuando un post es eliminado
+  const handlePostDeleted = (postId) => {
+    setPosts(prevPosts => prevPosts.filter(p => p.id !== postId));
+    // Ahora el usuario puede crear uno nuevo
+    setCanCreate(true);
+  };
+
+  // Manejar cuando un post es editado
+  const handlePostEdited = (postId, updatedData) => {
+    setPosts(prevPosts => prevPosts.map(p =>
+      p.id === postId
+        ? { ...p, ...updatedData }
+        : p
+    ));
   };
 
   const handleCreatePost = () => {
@@ -289,8 +295,9 @@ const OpinFeedPage = () => {
                   key={post.id}
                   post={post}
                   index={index}
-                  onProfileClick={handleProfileClick}
                   onCommentsClick={handleCommentsClick}
+                  onPostDeleted={handlePostDeleted}
+                  onPostEdited={handlePostEdited}
                   isReadOnlyMode={isReadOnlyMode}
                 />
               ))}
@@ -310,46 +317,39 @@ const OpinFeedPage = () => {
         >
           <div className="max-w-6xl mx-auto flex items-center justify-between gap-4 flex-wrap">
             <div className="flex items-center gap-3 text-white">
-              <Lock className="w-5 h-5" />
+              <Lock className="w-5 h-5 flex-shrink-0" />
               <div>
-                <p className="font-semibold">¿Te gusta lo que ves?</p>
-                <p className="text-sm text-white/80">Regístrate para dar likes, comentar y publicar</p>
+                <p className="font-semibold text-sm sm:text-base">¿Te gusta lo que ves?</p>
+                <p className="text-xs sm:text-sm text-white/80">Regístrate para participar</p>
               </div>
             </div>
             <button
               onClick={() => navigate('/auth')}
-              className="flex items-center gap-2 px-6 py-3 rounded-xl bg-white text-purple-600
-                       font-bold hover:bg-white/90 transition-all shadow-lg"
+              className="flex items-center gap-2 px-4 sm:px-6 py-2.5 sm:py-3 rounded-xl bg-white text-purple-600
+                       font-bold hover:bg-white/90 transition-all shadow-lg text-sm sm:text-base"
             >
-              <UserPlus className="w-5 h-5" />
-              Crear cuenta gratis
+              <UserPlus className="w-4 h-4 sm:w-5 sm:h-5" />
+              <span className="hidden sm:inline">Crear cuenta gratis</span>
+              <span className="sm:hidden">Registrarse</span>
             </button>
           </div>
         </motion.div>
-      ) : canCreate ? (
-        // Botón flotante de publicar para usuarios logueados
+      ) : (
+        // Botón flotante de publicar para usuarios logueados - SIEMPRE VISIBLE
         <motion.button
           initial={{ scale: 0 }}
           animate={{ scale: 1 }}
           whileHover={{ scale: 1.05 }}
           whileTap={{ scale: 0.95 }}
           onClick={handleCreatePost}
-          className="fixed bottom-6 right-6 w-16 h-16 rounded-full bg-gradient-to-r from-purple-500 to-pink-500
-                   shadow-2xl flex items-center justify-center text-white hover:shadow-purple-500/50
-                   transition-all z-50"
+          className="fixed bottom-6 right-4 sm:right-6 z-50 flex items-center gap-2 px-5 py-4 sm:px-6 sm:py-4
+                   rounded-full bg-gradient-to-r from-purple-500 to-pink-500
+                   shadow-2xl text-white font-bold hover:shadow-purple-500/50
+                   transition-all"
         >
-          <Plus className="w-8 h-8" />
+          <Plus className="w-6 h-6" />
+          <span className="text-sm sm:text-base">Publicar OPIN</span>
         </motion.button>
-      ) : null}
-
-      {/* Modal de perfil */}
-      {showProfileModal && selectedUserId && (
-        <UserProfileModal
-          open={showProfileModal}
-          onClose={() => setShowProfileModal(false)}
-          userId={selectedUserId}
-          username={selectedUsername}
-        />
       )}
 
       {/* Modal de comentarios */}

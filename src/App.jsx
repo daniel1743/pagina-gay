@@ -69,7 +69,7 @@ function HomeRoute({ children }) {
   const { user } = useAuth();
   // ✅ Solo mostrar home si está logueado (NO guests)
   if (!user || user.isGuest || user.isAnonymous) {
-    return <Navigate to="/landing" replace />;
+    return <Navigate to="/chat/principal" replace />;
   }
   return children;
 }
@@ -148,55 +148,37 @@ function AppRoutes() {
         {/* 🧪 MODAL DE PRUEBA - Solo modal de nickname */}
         <Route path="/test-modal" element={<TestModalPage />} />
         
-        {/* 🌍 LANDING PAGES INTERNACIONALES - RUTAS FUNCIONALES (Modal simple con SEO completo) */}
-        {/* ✅ Estas rutas funcionan correctamente y están listas para producción */}
-        <Route path="/modal-arg" element={<ArgentinaLandingPage />} />
-        <Route path="/modal-br" element={<BrazilLandingPage />} />
-        <Route path="/modal-mx" element={<MexicoLandingPage />} />
-        <Route path="/modal-es" element={<SpainLandingPage />} />
+        {/* 🚀 EXPERIMENTO: DIRECTO AL CHAT - Sin landing para reducir rebote del 90% */}
+        {/* Landing comentado temporalmente - 200,000 visitas, solo 2,130 entraron */}
 
-        {/* 🔄 REDIRECCIONES: Rutas antiguas redirigen a las nuevas funcionales */}
-        {/* Esto mantiene compatibilidad con URLs antiguas y SEO existente */}
-        <Route path="/argentina" element={<Navigate to="/modal-arg" replace />} />
-        <Route path="/ar" element={<Navigate to="/modal-arg" replace />} />
-        <Route path="/brasil" element={<Navigate to="/modal-br" replace />} />
-        <Route path="/br" element={<Navigate to="/modal-br" replace />} />
-        <Route path="/mexico" element={<Navigate to="/modal-mx" replace />} />
-        <Route path="/mx" element={<Navigate to="/modal-mx" replace />} />
-        <Route path="/españa" element={<Navigate to="/modal-es" replace />} />
-        <Route path="/es" element={<Navigate to="/modal-es" replace />} />
-        <Route path="/es-test" element={<Navigate to="/modal-es" replace />} />
-        
-        {/* Redirecciones con trailing slash - Redirigen a las nuevas rutas funcionales */}
-        <Route path="/es/" element={<Navigate to="/modal-es" replace />} />
-        <Route path="/mx/" element={<Navigate to="/modal-mx" replace />} />
-        <Route path="/ar/" element={<Navigate to="/modal-arg" replace />} />
-        <Route path="/br/" element={<Navigate to="/modal-br" replace />} />
-        <Route path="/argentina/" element={<Navigate to="/modal-arg" replace />} />
-        <Route path="/brasil/" element={<Navigate to="/modal-br" replace />} />
-        <Route path="/mexico/" element={<Navigate to="/modal-mx" replace />} />
-        <Route path="/españa/" element={<Navigate to="/modal-es" replace />} />
+        {/* ✅ RUTA PRINCIPAL: Directo al chat */}
+        <Route path="/" element={<Navigate to="/chat/principal" replace />} />
+        <Route path="/landing" element={<Navigate to="/chat/principal" replace />} />
 
-        {/* ⚠️ RUTAS ANTIGUAS COMENTADAS - NO ESTÁN EN USO HASTA QUE SE REPAREN */}
-        {/* 
-        ❌ NO FUNCIONAL - Comentado hasta reparar
-        Estas rutas causaban problemas de renderizado (pantalla blanca).
-        Se mantienen comentadas para referencia futura.
-        Las rutas antiguas ahora redirigen automáticamente a las nuevas funcionales.
-        
-        <Route path="/es" element={<SpainLandingPage />} />
-        <Route path="/mx" element={<MexicoLandingPage />} />
-        <Route path="/ar" element={<ArgentinaLandingPage />} />
-        <Route path="/br" element={<BrazilLandingPage />} />
-        <Route path="/argentina" element={<ArgentinaLandingPage />} />
-        <Route path="/brasil" element={<BrazilLandingPage />} />
-        <Route path="/es-test" element={<SpainLandingPage />} />
-        */}
+        {/* 🌍 RUTAS REGIONALES: Directo a sus chats respectivos */}
+        <Route path="/modal-arg" element={<Navigate to="/chat/argentina" replace />} />
+        <Route path="/modal-br" element={<Navigate to="/chat/brasil" replace />} />
+        <Route path="/modal-mx" element={<Navigate to="/chat/mexico" replace />} />
+        <Route path="/modal-es" element={<Navigate to="/chat/espana" replace />} />
+        <Route path="/argentina" element={<Navigate to="/chat/argentina" replace />} />
+        <Route path="/ar" element={<Navigate to="/chat/argentina" replace />} />
+        <Route path="/brasil" element={<Navigate to="/chat/brasil" replace />} />
+        <Route path="/br" element={<Navigate to="/chat/brasil" replace />} />
+        <Route path="/mexico" element={<Navigate to="/chat/mexico" replace />} />
+        <Route path="/mx" element={<Navigate to="/chat/mexico" replace />} />
+        <Route path="/españa" element={<Navigate to="/chat/espana" replace />} />
+        <Route path="/es" element={<Navigate to="/chat/espana" replace />} />
+        <Route path="/es-test" element={<Navigate to="/chat/espana" replace />} />
 
-         {/* ✅ ARQUITECTURA: Landing solo para usuarios no logueados - SIN MainLayout para evitar Header superpuesto */}
-         <Route path="/landing" element={<LandingRoute redirectTo="/home"><GlobalLandingPage /></LandingRoute>} />
-         {/* ✅ REDIRECCIÓN: / → /landing para mantener compatibilidad */}
-         <Route path="/" element={<Navigate to="/landing" replace />} />
+        {/* Trailing slashes */}
+        <Route path="/es/" element={<Navigate to="/chat/espana" replace />} />
+        <Route path="/mx/" element={<Navigate to="/chat/mexico" replace />} />
+        <Route path="/ar/" element={<Navigate to="/chat/argentina" replace />} />
+        <Route path="/br/" element={<Navigate to="/chat/brasil" replace />} />
+        <Route path="/argentina/" element={<Navigate to="/chat/argentina" replace />} />
+        <Route path="/brasil/" element={<Navigate to="/chat/brasil" replace />} />
+        <Route path="/mexico/" element={<Navigate to="/chat/mexico" replace />} />
+        <Route path="/españa/" element={<Navigate to="/chat/espana" replace />} />
         
         {/* ✅ ARQUITECTURA: Home solo para usuarios logueados */}
         <Route path="/home" element={<HomeRoute><MainLayout><LobbyPage /></MainLayout></HomeRoute>} />
@@ -210,11 +192,18 @@ function AppRoutes() {
         <Route path="/faq" element={<MainLayout><FAQPage /></MainLayout>} />
         <Route path="/preguntas-frecuentes" element={<MainLayout><FAQPage /></MainLayout>} />
 
-        {/* ✅ SEO: Landing pages específicas optimizadas para CTR - Solo no logueados */}
+        {/* 🚫 LANDING PAGES COMENTADAS - Experimento sin landing para reducir rebote */}
+        {/*
         <Route path="/global" element={<LandingRoute redirectTo="/home"><MainLayout><GlobalLandingPage /></MainLayout></LandingRoute>} />
         <Route path="/gaming" element={<LandingRoute redirectTo="/home"><MainLayout><GamingLandingPage /></MainLayout></LandingRoute>} />
         <Route path="/mas-30" element={<LandingRoute redirectTo="/home"><MainLayout><Mas30LandingPage /></MainLayout></LandingRoute>} />
         <Route path="/santiago" element={<LandingRoute redirectTo="/home"><MainLayout><SantiagoLandingPage /></MainLayout></LandingRoute>} />
+        */}
+        {/* Redirigir estas rutas al chat principal */}
+        <Route path="/global" element={<Navigate to="/chat/principal" replace />} />
+        <Route path="/gaming" element={<Navigate to="/chat/principal" replace />} />
+        <Route path="/mas-30" element={<Navigate to="/chat/principal" replace />} />
+        <Route path="/santiago" element={<Navigate to="/chat/principal" replace />} />
 
         {/* ✅ REDIRECCIÓN: conversas-libres → principal (sala limpia sin spam) */}
         <Route
@@ -301,7 +290,7 @@ function AppRoutes() {
             </PrivateRoute>
           }
         />
-        <Route path="*" element={<Navigate to="/landing" />} />
+        <Route path="*" element={<Navigate to="/chat/principal" />} />
         </Routes>
       </Suspense>
       <Toaster />

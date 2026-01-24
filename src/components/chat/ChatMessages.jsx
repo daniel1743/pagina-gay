@@ -214,28 +214,28 @@ const ChatMessages = ({ messages, currentUserId, onUserClick, onReport, onPrivat
   }, [messages, currentUserId, messageChecks]);
 
   const findUserPremiumStatus = (userId) => {
-    if (authUser.id === userId) return authUser.isPremium;
+    if (authUser?.id === userId) return authUser?.isPremium || false;
     const userMessage = messages.find(m => m.userId === userId);
     if(userMessage && userMessage.isPremium) return true;
     return false;
   };
 
   const findUserVerifiedStatus = (userId) => {
-    if (authUser.id === userId) return authUser.verified;
+    if (authUser?.id === userId) return authUser?.verified || false;
     const userMessage = messages.find(m => m.userId === userId);
     if(userMessage && userMessage.verified) return true;
     return false;
   };
 
   const findUserRole = (userId) => {
-    if (authUser.id === userId) return authUser.role;
+    if (authUser?.id === userId) return authUser?.role || null;
     const userMessage = messages.find(m => m.userId === userId);
     return userMessage?.role || null;
   };
-  
+
   const getBubbleStyle = () => {
-    if(!authUser.isPremium || !authUser.theme?.bubble) return {};
-    switch(authUser.theme.bubble){
+    if(!authUser?.isPremium || !authUser?.theme?.bubble) return {};
+    switch(authUser?.theme?.bubble){
         case 'rounded': return { borderRadius: '24px' };
         case 'sharp': return { borderRadius: '4px' };
         default: return {};

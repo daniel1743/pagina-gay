@@ -211,11 +211,133 @@ export const incrementProfileClickCount = async (postId) => {
 };
 
 /**
+ * ✅ Verificar límite de acciones (editar/eliminar) en 24h
+ * Máximo 4 acciones por día
+ */
+export const checkActionLimit = async () => {
+  if (!auth.currentUser) {
+    return { canAct: false, remaining: 0, reason: 'no_auth' };
+  }
+
+  const userId = auth.currentUser.uid;
+  const now = new Date();
+  const last24h = new Date(now.getTime() - 24 * 60 * 60 * 1000);
+
+  // Buscar acciones del usuario en las últimas 24h
+  const actionsRef = collection(db, 'opin_actions');
+  const q = query(
+    actionsRef,
+    where('userId', '==', userId),
+    where('timestamp', '>=', Timestamp.fromDate(last24h)),
+    orderBy('timestamp', 'desc'),
+    limit(10)
+  );
+
+  try {
+    const snapshot = await getDocs(q);
+    const actionCount = snapshot.size;
+    const remaining = Math.max(0, 4 - actionCount);
+
+    return {
+      canAct: actionCount < 4,
+      remaining,
+      actionCount,
+      reason: actionCount >= 4 ? 'limit_reached' : null
+    };
+  } catch (error) {
+    // Si hay error (ej: índice faltante), permitir la acción
+    console.warn('[OPIN] Error verificando límite, permitiendo acción:', error);
+    return { canAct: true, remaining: 4, actionCount: 0 };
+  }
+};
+
+/**
+ * ✅ Registrar una acción (editar/eliminar)
+ */
+const logAction = async (actionType, postId) => {
+  if (!auth.currentUser) return;
+
+  try {
+    const actionsRef = collection(db, 'opin_actions');
+    await addDoc(actionsRef, {
+      userId: auth.currentUser.uid,
+      actionType, // 'edit' o 'delete'
+      postId,
+      timestamp: serverTimestamp(),
+    });
+    console.log(`📝 [OPIN] Acción registrada: ${actionType}`);
+  } catch (error) {
+    console.error('[OPIN] Error registrando acción:', error);
+  }
+};
+
+/**
+ * ✅ Editar post del usuario
+ */
+export const editOpinPost = async (postId, { title, text, color }) => {
+  if (!auth.currentUser) {
+    throw new Error('Usuario no autenticado');
+  }
+
+  // Verificar límite de acciones
+  const limitCheck = await checkActionLimit();
+  if (!limitCheck.canAct) {
+    throw new Error(`Has alcanzado el límite de 4 ediciones/eliminaciones en 24h. Espera un poco.`);
+  }
+
+  const postRef = doc(db, 'opin_posts', postId);
+  const postDoc = await getDoc(postRef);
+
+  if (!postDoc.exists()) {
+    throw new Error('Post no encontrado');
+  }
+
+  const postData = postDoc.data();
+
+  // Solo el autor puede editar
+  if (postData.userId !== auth.currentUser.uid) {
+    throw new Error('No tienes permiso para editar este post');
+  }
+
+  // Validar texto
+  if (text && (text.trim().length < 10 || text.length > 500)) {
+    throw new Error('El texto debe tener entre 10 y 500 caracteres');
+  }
+
+  // Validar título
+  if (title && title.length > 50) {
+    throw new Error('El título no puede superar 50 caracteres');
+  }
+
+  // Actualizar
+  const updateData = {
+    ...(title !== undefined && { title: title.trim() }),
+    ...(text && { text: text.trim() }),
+    ...(color && OPIN_COLORS[color] && { color }),
+    editedAt: serverTimestamp(),
+  };
+
+  await updateDoc(postRef, updateData);
+
+  // Registrar acción
+  await logAction('edit', postId);
+
+  console.log('✏️ [OPIN] Post editado:', postId);
+  return { success: true, remaining: limitCheck.remaining - 1 };
+};
+
+/**
  * ✅ Eliminar post del usuario
  */
 export const deleteOpinPost = async (postId) => {
   if (!auth.currentUser) {
     throw new Error('Usuario no autenticado');
+  }
+
+  // Verificar límite de acciones
+  const limitCheck = await checkActionLimit();
+  if (!limitCheck.canAct) {
+    throw new Error(`Has alcanzado el límite de 4 ediciones/eliminaciones en 24h. Espera un poco.`);
   }
 
   const postRef = doc(db, 'opin_posts', postId);
@@ -233,7 +355,12 @@ export const deleteOpinPost = async (postId) => {
   }
 
   await deleteDoc(postRef);
+
+  // Registrar acción
+  await logAction('delete', postId);
+
   console.log('🗑️ [OPIN] Post eliminado:', postId);
+  return { success: true, remaining: limitCheck.remaining - 1 };
 };
 
 /**

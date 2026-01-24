@@ -23,7 +23,9 @@ import WelcomeTour from '@/components/onboarding/WelcomeTour';
 // ⚠️ MODAL COMENTADO - El bot moderador ya informa las reglas al ingresar
 // import ChatRulesModal from '@/components/chat/ChatRulesModal';
 import AgeVerificationModal from '@/components/chat/AgeVerificationModal';
-import ChatLandingPage from '@/components/chat/ChatLandingPage';
+// ⚠️ ChatLandingPage COMENTADO - Experimento directo al chat sin landing
+// import ChatLandingPage from '@/components/chat/ChatLandingPage';
+import { GuestUsernameModal } from '@/components/auth/GuestUsernameModal';
 // ⚠️ MODALES DE INSTRUCCIONES ELIMINADOS (17/01/2026) - A petición del usuario
 // import EmptyRoomNotificationPrompt from '@/components/chat/EmptyRoomNotificationPrompt';
 // import LoadingMessagesPrompt from '@/components/chat/LoadingMessagesPrompt';
@@ -138,6 +140,8 @@ const ChatPage = () => {
   const [showAgeVerification, setShowAgeVerification] = useState(false); // ✅ Modal de edad
   const [showRegistrationModal, setShowRegistrationModal] = useState(false);
   const [registrationModalFeature, setRegistrationModalFeature] = useState(null);
+  const [showGuestNicknameModal, setShowGuestNicknameModal] = useState(false); // 🚀 Modal para usuarios sin sesión
+  const loadingTimeoutRef = useRef(null); // 🚀 Ref para timeout de loading
   const [isAgeVerified, setIsAgeVerified] = useState(false); // ✅ Flag mayor de edad
   // ⚠️ MODAL COMENTADO - El bot moderador ya informa las reglas al ingresar
   // const [hasAcceptedRules, setHasAcceptedRules] = useState(false);
@@ -555,16 +559,27 @@ const ChatPage = () => {
     }
   }, [user]);
 
-  // ⚡ SUSCRIPCIÓN INMEDIATA: Suscribirse a mensajes ANTES de verificar edad
-  // Esto permite que los mensajes carguen instantáneamente, incluso con usuario temporal
+  // 🚀 EXPERIMENTO: Safety timeout - Forzar loading a false después de 3 segundos si no hay usuario
+  // Esto evita el loading infinito cuando el usuario no está autenticado
   useEffect(() => {
-    // 🔒 SAFETY: Verificar que user existe (defensa en profundidad)
-    if (!user || !user.id) {
-      // ⚠️ LOG COMENTADO: Causaba sobrecarga en consola (loop durante carga)
-      // console.warn('⚠️ [CHAT] useEffect de Firestore ejecutado sin user válido');
-      return;
+    if (!user && isLoadingMessages) {
+      loadingTimeoutRef.current = setTimeout(() => {
+        console.log('🚀 [CHAT] Safety timeout: Forzando loading a false para usuarios no autenticados');
+        setIsLoadingMessages(false);
+      }, 3000);
     }
 
+    return () => {
+      if (loadingTimeoutRef.current) {
+        clearTimeout(loadingTimeoutRef.current);
+      }
+    };
+  }, [user, isLoadingMessages]);
+
+  // ⚡ SUSCRIPCIÓN INMEDIATA: Suscribirse a mensajes ANTES de verificar edad
+  // Esto permite que los mensajes carguen instantáneamente, incluso con usuario temporal
+  // 🚀 EXPERIMENTO: Permitir suscripción SIN usuario para ver mensajes inmediatamente
+  useEffect(() => {
     setCurrentRoom(roomId);
     setIsLoadingMessages(true); // ⏳ Marcar como cargando al cambiar de sala
     aiActivatedRef.current = false; // Resetear flag de IA cuando cambia de sala
@@ -575,11 +590,12 @@ const ChatPage = () => {
     startTiming('chatLoad', { roomId });
     startTiming('messagesSubscription', { roomId }); // Iniciar tracking de suscripción
 
-    // 🧹 Limpiar usuarios inactivos al entrar a la sala
-    cleanInactiveUsers(roomId);
-
-    // Registrar presencia del usuario en la sala
-    joinRoom(roomId, user);
+    // 🧹 Limpiar usuarios inactivos al entrar a la sala (solo si hay usuario)
+    if (user?.id) {
+      cleanInactiveUsers(roomId);
+      // Registrar presencia del usuario en la sala
+      joinRoom(roomId, user);
+    }
 
     // ⚡ SUSCRIPCIÓN INMEDIATA: Suscribirse a mensajes SIN esperar verificación de edad
     // 🔒 CRITICAL: Limpiar suscripción anterior si existe
@@ -1054,12 +1070,15 @@ const ChatPage = () => {
         unsubscribeRef.current = null; // Limpiar referencia
       }
 
-      leaveRoom(roomId).catch(error => {
-        // Ignorar errores al salir de la sala
-        if (error.name !== 'AbortError' && error.code !== 'cancelled') {
-          console.error('Error leaving room:', error);
-        }
-      });
+      // Solo llamar leaveRoom si había un usuario (evitar errores)
+      if (user?.id) {
+        leaveRoom(roomId).catch(error => {
+          // Ignorar errores al salir de la sala
+          if (error.name !== 'AbortError' && error.code !== 'cancelled') {
+            console.error('Error leaving room:', error);
+          }
+        });
+      }
     };
   }, [roomId, user?.id]); // ✅ F3: user?.id en vez de user (evita re-suscripciones por cambio de referencia)
 
@@ -1246,15 +1265,9 @@ const ChatPage = () => {
    * 🤖 Activa respuesta de bots si están activos
    */
   const handleSendMessage = async (content, type = 'text', replyData = null) => {
-    // ✅ NO crear usuarios automáticos - el usuario debe elegir su nombre
-    // Si no hay user, mostrar mensaje para que pase por el modal de entrada
+    // 🚀 EXPERIMENTO: Si no hay usuario, mostrar modal de nickname
     if (!user || !user.id) {
-      toast({
-        title: "Necesitas ingresar primero",
-        description: "Por favor, ingresa un nombre para chatear",
-        variant: "destructive",
-        duration: 3000,
-      });
+      setShowGuestNicknameModal(true);
       return;
     }
 
@@ -1528,6 +1541,10 @@ const ChatPage = () => {
     // El mensaje optimista ya está visible, Firestore se sincroniza en background
     // ✅ CRÍTICO: Usar auth.currentUser.uid directamente (ya validado arriba)
     // Firestore rules requieren que data.userId == request.auth.uid exactamente
+
+    // 📊 PERFORMANCE MONITOR: Capturar tiempo de inicio ANTES del Promise chain
+    const messageSendStartTime = performance.now();
+
     Promise.all([validationPromise])
       .then(([isValid]) => {
         if (!isValid) return; // Validación falló, no enviar
@@ -1546,7 +1563,6 @@ const ChatPage = () => {
         });
 
         // 📊 PERFORMANCE MONITOR: Iniciar tracking de envío de mensaje
-        const messageSendStartTime = performance.now();
         startTiming('messageSent', { 
           clientId,
           roomId: currentRoom,
@@ -1667,15 +1683,17 @@ const ChatPage = () => {
             : msg
         ));
 
-        // ⚡ Toast de error solo en desarrollo (en producción solo indicador visual)
-        if (import.meta.env.DEV) {
-          toast({
-            title: "No pudimos entregar este mensaje",
-            description: "Toca el mensaje para reintentar",
-            variant: "destructive",
-            duration: 5000,
-          });
-        }
+        // ⚡ Toast de error DESHABILITADO - Causaba confusión
+        // El mensaje sí se entrega pero el toast aparecía por errores de tracking
+        // Solo log en consola para debug
+        // if (import.meta.env.DEV) {
+        //   toast({
+        //     title: "No pudimos entregar este mensaje",
+        //     description: "Toca el mensaje para reintentar",
+        //     variant: "destructive",
+        //     duration: 5000,
+        //   });
+        // }
       });
   };
 
@@ -2008,7 +2026,7 @@ const ChatPage = () => {
     };
   }, [user, messages.length, scrollManager]);
 
-  // Mostrar loading mientras auth carga
+  // Mostrar loading mientras auth carga (máximo 3 segundos)
   if (authLoading) {
     return (
       <div className="h-screen flex items-center justify-center bg-background">
@@ -2020,10 +2038,12 @@ const ChatPage = () => {
     );
   }
 
-  // Solo mostrar landing si definitivamente no hay usuario (después de carga)
-  if (!user) {
-    return <ChatLandingPage roomSlug={roomId} />;
-  }
+  // 🚀 EXPERIMENTO: NO mostrar landing - Directo al chat
+  // Si no hay usuario, mostramos el chat igual pero con funcionalidad limitada
+  // El modal de nickname aparece cuando intenten escribir
+  // if (!user) {
+  //   return <ChatLandingPage roomSlug={roomId} />;
+  // }
 
   // 🔒 FASE 1: RESTRICCIÓN - Invitados solo pueden acceder a /chat/principal
   if (user && (user.isGuest || user.isAnonymous)) {
@@ -2086,7 +2106,7 @@ const ChatPage = () => {
             ) : (
               <ChatMessages
               messages={messages}
-              currentUserId={user.id}
+              currentUserId={user?.id || null}
               onUserClick={setUserActionsTarget}
               onReport={setReportTarget}
               onPrivateChat={handlePrivateChatRequest}
@@ -2363,6 +2383,18 @@ const ChatPage = () => {
         open={showRegistrationModal}
         onClose={() => setShowRegistrationModal(false)}
         featureName={registrationModalFeature}
+      />
+
+      {/* 🚀 Modal de nickname para usuarios sin sesión - EXPERIMENTO DIRECTO AL CHAT */}
+      <GuestUsernameModal
+        open={showGuestNicknameModal}
+        onClose={() => setShowGuestNicknameModal(false)}
+        chatRoomId={roomId}
+        openSource="user"
+        onGuestReady={() => {
+          setShowGuestNicknameModal(false);
+          // El usuario ya fue seteado, el chat se actualizará automáticamente
+        }}
       />
     </>
   );

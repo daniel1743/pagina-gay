@@ -167,17 +167,20 @@ const ChatInput = ({ onSendMessage, onFocus, onBlur, externalMessage = null, roo
       clearTimeout(typingTimeoutRef.current);
     }
 
-    if (message.trim()) {
-      // Usuario está escribiendo
-      updateTypingStatus(roomId, user.id, true);
+    // 🚀 Solo actualizar typing status si hay usuario
+    if (user?.id) {
+      if (message.trim()) {
+        // Usuario está escribiendo
+        updateTypingStatus(roomId, user.id, true);
 
-      // Auto-remover después de 3 segundos sin escribir
-      typingTimeoutRef.current = setTimeout(() => {
+        // Auto-remover después de 3 segundos sin escribir
+        typingTimeoutRef.current = setTimeout(() => {
+          updateTypingStatus(roomId, user.id, false);
+        }, 3000);
+      } else {
+        // Mensaje vacío = dejar de escribir
         updateTypingStatus(roomId, user.id, false);
-      }, 3000);
-    } else {
-      // Mensaje vacío = dejar de escribir
-      updateTypingStatus(roomId, user.id, false);
+      }
     }
 
     return () => {
@@ -266,7 +269,7 @@ const ChatInput = ({ onSendMessage, onFocus, onBlur, externalMessage = null, roo
   }
 
   const handlePremiumFeature = (featureName, implementationMessage) => {
-     if (!user.isPremium) {
+     if (!user?.isPremium) {
       toast({
         title: "Función Premium 👑",
         description: `El envío de ${featureName} es exclusivo para usuarios Premium.`,
@@ -357,7 +360,7 @@ const ChatInput = ({ onSendMessage, onFocus, onBlur, externalMessage = null, roo
               exit={{ opacity: 0, y: 20 }}
               className="absolute bottom-full left-0 sm:left-4 mb-2 z-10 w-[calc(100vw-2rem)] sm:w-64 max-w-[16rem] bg-secondary p-2 rounded-lg shadow-lg border border-input"
             >
-                {(user.quickPhrases && user.quickPhrases.length > 0) ? user.quickPhrases.map((phrase, i) => (
+                {(user?.quickPhrases && user.quickPhrases.length > 0) ? user.quickPhrases.map((phrase, i) => (
                     <div key={i} onClick={() => handleQuickPhraseClick(phrase)} className="p-2 hover:bg-background rounded cursor-pointer text-sm">{phrase}</div>
                 )) : <div className="p-2 text-muted-foreground text-sm text-center">No tienes frases rápidas. Añádelas desde Ajustes.</div>}
             </motion.div>
