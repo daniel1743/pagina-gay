@@ -89,16 +89,14 @@
    5. BURBUJAS - Max-width 75%, ajuste al contenido
    ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */
 
+/* BURBUJA BASE - Ahora es span, inline por defecto */
 .message-bubble {
-  display: inline-block !important; /* Ajusta al contenido sin forzar saltos */
-  max-width: 75% !important;
-  min-width: 40px !important; /* Mínimo para mensajes muy cortos */
+  display: inline !important; /* ⚡ INLINE puro - se ajusta EXACTAMENTE al texto */
   padding: 8px 12px !important;
   font-size: 14px !important;
-  line-height: 1.4 !important;
-  word-wrap: break-word !important;
-  overflow-wrap: break-word !important;
+  line-height: 1.8 !important;
   cursor: pointer !important;
+  border-radius: 18px !important;
 }
 
 /* Burbujas de OTROS - Izquierda, fondo claro */
@@ -113,10 +111,6 @@
   background-color: #d9fdd3 !important;
   border: none !important;
   color: #1a1a1a !important;
-  /* ⚡ FIX: Evitar que se estreche - usar max-content para ajustar al texto */
-  width: max-content !important;
-  max-width: 75% !important;
-  white-space: pre-wrap !important; /* Preservar espacios, solo dividir cuando sea necesario */
 }
 
 /* Dark mode */
@@ -130,9 +124,6 @@
   .message-bubble.own {
     background-color: #005c4b !important;
     color: #e5e5e5 !important;
-    width: max-content !important;
-    max-width: 75% !important;
-    white-space: pre-wrap !important;
   }
 }
 
@@ -146,9 +137,6 @@
 .dark .message-bubble.own {
   background-color: #005c4b !important;
   color: #e5e5e5 !important;
-  width: max-content !important;
-  max-width: 75% !important;
-  white-space: pre-wrap !important;
 }
 
 /* ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━

@@ -16,6 +16,15 @@ import { useVersionChecker } from '@/hooks/useVersionChecker';
 import PerformanceSummaryButton from '@/components/PerformanceSummaryButton'; // 📊 Performance Monitor Button
 import GlobalLandingPage from '@/pages/GlobalLandingPage'; // Landing principal - crítica para SEO
 
+// 🚀 SEO LANDING MINIMALISTA - 1 segundo y redirige al chat
+import SEOLanding, {
+  SEOLandingChile,
+  SEOLandingArgentina,
+  SEOLandingMexico,
+  SEOLandingEspana,
+  SEOLandingBrasil
+} from '@/components/seo/SEOLanding';
+
 // ⚡ CODE SPLITTING - Lazy loading de páginas (reducción de 80% del bundle inicial)
 // Estas páginas se cargan solo cuando el usuario navega a ellas
 const LobbyPage = lazy(() => import('@/pages/LobbyPage'));
@@ -148,37 +157,39 @@ function AppRoutes() {
         {/* 🧪 MODAL DE PRUEBA - Solo modal de nickname */}
         <Route path="/test-modal" element={<TestModalPage />} />
         
-        {/* 🚀 EXPERIMENTO: DIRECTO AL CHAT - Sin landing para reducir rebote del 90% */}
-        {/* Landing comentado temporalmente - 200,000 visitas, solo 2,130 entraron */}
+        {/* 🚀 SEO LANDING MINIMALISTA - Google indexa, usuario ve 1 segundo y entra al chat */}
 
-        {/* ✅ RUTA PRINCIPAL: Directo al chat */}
-        <Route path="/" element={<Navigate to="/chat/principal" replace />} />
-        <Route path="/landing" element={<Navigate to="/chat/principal" replace />} />
+        {/* ✅ RUTA PRINCIPAL: SEO Landing Chile (1 seg) → /chat/principal */}
+        <Route path="/" element={<SEOLandingChile />} />
+        <Route path="/landing" element={<SEOLandingChile />} />
 
-        {/* 🌍 RUTAS REGIONALES: Directo a sus chats respectivos */}
-        <Route path="/modal-arg" element={<Navigate to="/chat/argentina" replace />} />
-        <Route path="/modal-br" element={<Navigate to="/chat/brasil" replace />} />
-        <Route path="/modal-mx" element={<Navigate to="/chat/mexico" replace />} />
-        <Route path="/modal-es" element={<Navigate to="/chat/espana" replace />} />
-        <Route path="/argentina" element={<Navigate to="/chat/argentina" replace />} />
-        <Route path="/ar" element={<Navigate to="/chat/argentina" replace />} />
-        <Route path="/brasil" element={<Navigate to="/chat/brasil" replace />} />
-        <Route path="/br" element={<Navigate to="/chat/brasil" replace />} />
-        <Route path="/mexico" element={<Navigate to="/chat/mexico" replace />} />
-        <Route path="/mx" element={<Navigate to="/chat/mexico" replace />} />
-        <Route path="/españa" element={<Navigate to="/chat/espana" replace />} />
-        <Route path="/es" element={<Navigate to="/chat/espana" replace />} />
-        <Route path="/es-test" element={<Navigate to="/chat/espana" replace />} />
+        {/* 🌍 RUTAS REGIONALES: SEO Landing específica → chat regional */}
+        <Route path="/argentina" element={<SEOLandingArgentina />} />
+        <Route path="/ar" element={<SEOLandingArgentina />} />
+        <Route path="/modal-arg" element={<SEOLandingArgentina />} />
 
-        {/* Trailing slashes */}
-        <Route path="/es/" element={<Navigate to="/chat/espana" replace />} />
-        <Route path="/mx/" element={<Navigate to="/chat/mexico" replace />} />
-        <Route path="/ar/" element={<Navigate to="/chat/argentina" replace />} />
-        <Route path="/br/" element={<Navigate to="/chat/brasil" replace />} />
-        <Route path="/argentina/" element={<Navigate to="/chat/argentina" replace />} />
-        <Route path="/brasil/" element={<Navigate to="/chat/brasil" replace />} />
-        <Route path="/mexico/" element={<Navigate to="/chat/mexico" replace />} />
-        <Route path="/españa/" element={<Navigate to="/chat/espana" replace />} />
+        <Route path="/brasil" element={<SEOLandingBrasil />} />
+        <Route path="/br" element={<SEOLandingBrasil />} />
+        <Route path="/modal-br" element={<SEOLandingBrasil />} />
+
+        <Route path="/mexico" element={<SEOLandingMexico />} />
+        <Route path="/mx" element={<SEOLandingMexico />} />
+        <Route path="/modal-mx" element={<SEOLandingMexico />} />
+
+        <Route path="/españa" element={<SEOLandingEspana />} />
+        <Route path="/es" element={<SEOLandingEspana />} />
+        <Route path="/modal-es" element={<SEOLandingEspana />} />
+        <Route path="/es-test" element={<SEOLandingEspana />} />
+
+        {/* Trailing slashes - redirigen a la landing correspondiente */}
+        <Route path="/es/" element={<SEOLandingEspana />} />
+        <Route path="/mx/" element={<SEOLandingMexico />} />
+        <Route path="/ar/" element={<SEOLandingArgentina />} />
+        <Route path="/br/" element={<SEOLandingBrasil />} />
+        <Route path="/argentina/" element={<SEOLandingArgentina />} />
+        <Route path="/brasil/" element={<SEOLandingBrasil />} />
+        <Route path="/mexico/" element={<SEOLandingMexico />} />
+        <Route path="/españa/" element={<SEOLandingEspana />} />
         
         {/* ✅ ARQUITECTURA: Home solo para usuarios logueados */}
         <Route path="/home" element={<HomeRoute><MainLayout><LobbyPage /></MainLayout></HomeRoute>} />
@@ -192,18 +203,11 @@ function AppRoutes() {
         <Route path="/faq" element={<MainLayout><FAQPage /></MainLayout>} />
         <Route path="/preguntas-frecuentes" element={<MainLayout><FAQPage /></MainLayout>} />
 
-        {/* 🚫 LANDING PAGES COMENTADAS - Experimento sin landing para reducir rebote */}
-        {/*
-        <Route path="/global" element={<LandingRoute redirectTo="/home"><MainLayout><GlobalLandingPage /></MainLayout></LandingRoute>} />
-        <Route path="/gaming" element={<LandingRoute redirectTo="/home"><MainLayout><GamingLandingPage /></MainLayout></LandingRoute>} />
-        <Route path="/mas-30" element={<LandingRoute redirectTo="/home"><MainLayout><Mas30LandingPage /></MainLayout></LandingRoute>} />
-        <Route path="/santiago" element={<LandingRoute redirectTo="/home"><MainLayout><SantiagoLandingPage /></MainLayout></LandingRoute>} />
-        */}
-        {/* Redirigir estas rutas al chat principal */}
-        <Route path="/global" element={<Navigate to="/chat/principal" replace />} />
-        <Route path="/gaming" element={<Navigate to="/chat/principal" replace />} />
-        <Route path="/mas-30" element={<Navigate to="/chat/principal" replace />} />
-        <Route path="/santiago" element={<Navigate to="/chat/principal" replace />} />
+        {/* 🚀 OTRAS LANDINGS - Usan SEO Landing Chile (principal) */}
+        <Route path="/global" element={<SEOLandingChile />} />
+        <Route path="/gaming" element={<SEOLandingChile />} />
+        <Route path="/mas-30" element={<SEOLandingChile />} />
+        <Route path="/santiago" element={<SEOLandingChile />} />
 
         {/* ✅ REDIRECCIÓN: conversas-libres → principal (sala limpia sin spam) */}
         <Route

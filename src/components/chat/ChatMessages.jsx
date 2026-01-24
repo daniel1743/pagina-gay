@@ -284,7 +284,7 @@ const ChatMessages = ({
                   <div
                     key={message.id}
                     data-message-id={message.id}
-                    className={`message-row ${isOwn ? 'own' : 'other'}`}
+                    className={`message-row group ${isOwn ? 'own' : 'other'}`}
                   >
                     {/* ✅ Avatar: Solo en primer mensaje, solo para otros */}
                     {!isOwn && isFirst && (
@@ -321,112 +321,58 @@ const ChatMessages = ({
                       <div className="message-avatar-placeholder" />
                     )}
 
-                    {/* ⚡ CONTENEDOR DE BURBUJA + ACCIONES FLOTANTES */}
-                    <div className={`flex flex-col ${isOwn ? 'items-end' : 'items-start'}`}>
-                      {/* Quote si existe */}
-                      {message.replyTo && (
-                        <div className="mb-1">
-                          <MessageQuote
-                            replyTo={message.replyTo}
-                            onJumpToMessage={handleJumpToMessage}
-                          />
-                        </div>
+                    {/* Quote si existe */}
+                    {message.replyTo && (
+                      <MessageQuote
+                        replyTo={message.replyTo}
+                        onJumpToMessage={handleJumpToMessage}
+                      />
+                    )}
+
+                    {/* ⚡ BURBUJA - DIRECTA, sin contenedor flex */}
+                    <span
+                      className={`message-bubble ${isOwn ? 'own' : 'other'} ${positionClass}`}
+                      onClick={() => onPrivateChat({
+                        username: message.username,
+                        avatar: message.avatar,
+                        userId: message.userId,
+                        isPremium: isUserPremium
+                      })}
+                    >
+                      {message.type === 'text' && message.content}
+                      {message.type === 'gif' && (
+                        <img src={message.content} alt="GIF" className="rounded max-w-full" />
                       )}
+                    </span>
 
-                      {/* ⚡ BURBUJA + ACCIONES AL LADO (no debajo) */}
-                      <div className={`bubble-wrapper ${isOwn ? 'flex-row-reverse' : 'flex-row'}`}>
-                        {/* BURBUJA */}
-                        <div
-                          className={`message-bubble ${isOwn ? 'own' : 'other'} ${positionClass}`}
-                          onClick={() => onPrivateChat({
-                            username: message.username,
-                            avatar: message.avatar,
-                            userId: message.userId,
-                            isPremium: isUserPremium
-                          })}
-                        >
-                          {message.type === 'text' && (
-                            <span>{message.content}</span>
-                          )}
-                          {message.type === 'gif' && (
-                            <img src={message.content} alt="GIF" className="rounded max-w-full" />
-                          )}
-
-                          {/* Reacciones DENTRO de la burbuja */}
-                          {(message.reactions?.like > 0 || message.reactions?.dislike > 0) && (
-                            <div className="flex gap-1.5 mt-1 text-[10px] text-gray-500">
-                              {message.reactions?.like > 0 && (
-                                <span className="flex items-center gap-0.5">
-                                  <ThumbsUp className="w-2.5 h-2.5 text-green-500" />
-                                  {message.reactions.like}
-                                </span>
-                              )}
-                              {message.reactions?.dislike > 0 && (
-                                <span className="flex items-center gap-0.5">
-                                  <ThumbsDown className="w-2.5 h-2.5 text-red-500" />
-                                  {message.reactions.dislike}
-                                </span>
-                              )}
-                            </div>
-                          )}
-                        </div>
-
-                        {/* ACCIONES FLOTANTES - Solo para otros, aparecen en hover */}
-                        {!isOwn && (
-                          <div className="message-actions-float">
-                            <Button
-                              size="icon"
-                              variant="ghost"
-                              className="h-6 w-6 text-gray-400 hover:text-cyan-500"
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                onReply?.({
-                                  messageId: message.id,
-                                  username: message.username,
-                                  content: message.content
-                                });
-                              }}
-                              title="Responder"
-                            >
-                              <Reply className="h-3.5 w-3.5" />
+                    {/* ACCIONES - Solo para otros */}
+                    {!isOwn && (
+                      <span className="inline-flex items-center gap-1 ml-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                        <Button size="icon" variant="ghost" className="h-5 w-5 text-gray-400 hover:text-cyan-500"
+                          onClick={(e) => { e.stopPropagation(); onReply?.({ messageId: message.id, username: message.username, content: message.content }); }}>
+                          <Reply className="h-3 w-3" />
+                        </Button>
+                        {currentUserId && (
+                          <>
+                            <Button size="icon" variant="ghost" className="h-5 w-5 text-gray-400 hover:text-green-500"
+                              onClick={(e) => { e.stopPropagation(); onReaction(message.id, 'like'); }}>
+                              <ThumbsUp className="h-3 w-3" />
                             </Button>
-                            {currentUserId && (
-                              <>
-                                <Button
-                                  size="icon"
-                                  variant="ghost"
-                                  className="h-6 w-6 text-gray-400 hover:text-green-500"
-                                  onClick={(e) => {
-                                    e.stopPropagation();
-                                    onReaction(message.id, 'like');
-                                  }}
-                                >
-                                  <ThumbsUp className="h-3.5 w-3.5" />
-                                </Button>
-                                <Button
-                                  size="icon"
-                                  variant="ghost"
-                                  className="h-6 w-6 text-gray-400 hover:text-red-500"
-                                  onClick={(e) => {
-                                    e.stopPropagation();
-                                    onReaction(message.id, 'dislike');
-                                  }}
-                                >
-                                  <ThumbsDown className="h-3.5 w-3.5" />
-                                </Button>
-                              </>
-                            )}
-                          </div>
+                            <Button size="icon" variant="ghost" className="h-5 w-5 text-gray-400 hover:text-red-500"
+                              onClick={(e) => { e.stopPropagation(); onReaction(message.id, 'dislike'); }}>
+                              <ThumbsDown className="h-3 w-3" />
+                            </Button>
+                          </>
                         )}
-                      </div>
+                      </span>
+                    )}
 
-                      {/* Timestamp - Solo en último mensaje, INLINE pequeño */}
-                      {showTime && (
-                        <span className={`message-time ${isOwn ? 'own' : ''}`}>
-                          {formatTime(message.timestamp)}
-                        </span>
-                      )}
-                    </div>
+                    {/* Timestamp */}
+                    {showTime && (
+                      <span className={`message-time ${isOwn ? 'own' : ''}`}>
+                        {formatTime(message.timestamp)}
+                      </span>
+                    )}
                   </div>
                 );
               })}
