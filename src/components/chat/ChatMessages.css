@@ -1,78 +1,316 @@
 /**
- * CHAT MESSAGES - WhatsApp/Telegram-style UI Optimization
- * ⚡ GLUE EFFECT: Mensajes consecutivos visualmente "pegados"
+ * CHAT MESSAGES - TELEGRAM DESKTOP STYLE
+ * ⚡ ALTA DENSIDAD: Máximo aprovechamiento del espacio
+ *
+ * REGLAS:
+ * 1. messages-container: flex column, width 100%
+ * 2. message-group: width 100% para que align-self funcione
+ * 3. Burbujas: max-width 75%, se ajustan al contenido
+ * 4. Gaps: 0 en container, 2px entre mismas burbujas, 12px entre usuarios
  */
 
 /* ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-   1. CONTENEDOR PRINCIPAL - Alta densidad, scroll optimizado
+   1. CONTENEDOR PRINCIPAL - Full width, sin gaps
    ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */
 
 .messages-container {
-  padding: 8px 12px !important;
-  /* Eliminar cualquier margen/padding que afecte la densidad */
+  display: flex !important;
+  flex-direction: column !important;
+  width: 100% !important;
+  padding: 8px 8px !important; /* Padding lateral mínimo */
+  gap: 0 !important; /* CERO gap - los márgenes los controlan los grupos */
+  overflow-y: auto;
+  overflow-x: hidden;
 }
 
 /* ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-   2. GRUPOS DE MENSAJES - Espaciado SOLO entre usuarios diferentes
+   2. GRUPOS DE MENSAJES - Full width para align-self
    ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */
 
 .message-group {
-  margin-bottom: 16px; /* Espacio entre grupos de DIFERENTES usuarios */
-  padding: 0 !important; /* ⚡ SIN padding interno - no debe separar burbujas */
+  display: flex !important;
+  flex-direction: column !important;
+  width: 100% !important; /* CRÍTICO: 100% para que align-self funcione */
+  margin-bottom: 12px !important; /* Espacio entre DIFERENTES usuarios */
+  padding: 0 !important;
 }
 
 .message-group:last-child {
-  margin-bottom: 0;
+  margin-bottom: 0 !important;
 }
 
 /* ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-   3. BURBUJAS DE MENSAJE - SIN márgenes, el gap lo controla el padre
+   3. FILA DE MENSAJE (Avatar + Burbuja)
+   ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */
+
+.message-row {
+  display: flex !important;
+  width: 100% !important;
+  margin-bottom: 2px !important; /* 2px entre burbujas del MISMO usuario */
+  align-items: flex-end !important;
+}
+
+.message-row:last-child {
+  margin-bottom: 0 !important;
+}
+
+/* Alineación: Otros a la izquierda */
+.message-row.other {
+  justify-content: flex-start !important;
+}
+
+/* Alineación: Propios a la derecha */
+.message-row.own {
+  justify-content: flex-end !important;
+}
+
+/* ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+   4. AVATAR - Solo visible en primer mensaje del grupo
+   ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */
+
+.message-avatar {
+  width: 32px !important;
+  height: 32px !important;
+  min-width: 32px !important;
+  border-radius: 50% !important;
+  margin-right: 6px !important;
+  flex-shrink: 0 !important;
+}
+
+/* Placeholder invisible para mantener alineación */
+.message-avatar-placeholder {
+  width: 32px !important;
+  min-width: 32px !important;
+  margin-right: 6px !important;
+  flex-shrink: 0 !important;
+}
+
+/* ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+   5. BURBUJAS - Max-width 75%, ajuste al contenido
    ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */
 
 .message-bubble {
-  /* ⚡ CRÍTICO: SIN margin-top ni margin-bottom */
-  margin: 0 !important;
-  /* ⚡ El espaciado lo controla el contenedor padre con gap-[2px] */
-
-  /* Optimizaciones de rendering */
-  will-change: transform;
-  backface-visibility: hidden;
-  -webkit-font-smoothing: antialiased;
+  display: inline-block !important; /* Ajusta al contenido sin forzar saltos */
+  max-width: 75% !important;
+  min-width: 40px !important; /* Mínimo para mensajes muy cortos */
+  padding: 8px 12px !important;
+  font-size: 14px !important;
+  line-height: 1.4 !important;
+  word-wrap: break-word !important;
+  overflow-wrap: break-word !important;
+  cursor: pointer !important;
 }
 
-/* ⚠️ NOTA: Los border-radius se aplican dinámicamente vía Tailwind en el JSX
-   No necesitamos clases CSS separadas para .single, .first-in-group, etc.
-*/
+/* Burbujas de OTROS - Izquierda, fondo claro */
+.message-bubble.other {
+  background-color: #ffffff !important;
+  border: 1px solid #e5e5e5 !important;
+  color: #1a1a1a !important;
+}
+
+/* Burbujas PROPIAS - Derecha, verde WhatsApp */
+.message-bubble.own {
+  background-color: #d9fdd3 !important;
+  border: none !important;
+  color: #1a1a1a !important;
+}
+
+/* Dark mode */
+@media (prefers-color-scheme: dark) {
+  .message-bubble.other {
+    background-color: #2a2a2a !important;
+    border: 1px solid #3a3a3a !important;
+    color: #e5e5e5 !important;
+  }
+
+  .message-bubble.own {
+    background-color: #005c4b !important;
+    color: #e5e5e5 !important;
+  }
+}
+
+/* Dark mode con clase */
+.dark .message-bubble.other {
+  background-color: #2a2a2a !important;
+  border: 1px solid #3a3a3a !important;
+  color: #e5e5e5 !important;
+}
+
+.dark .message-bubble.own {
+  background-color: #005c4b !important;
+  color: #e5e5e5 !important;
+}
 
 /* ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-   4. OPTIMIZACIONES DE PERFORMANCE
+   6. BORDER RADIUS DINÁMICO - Glue Effect
    ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */
 
-/* Transitions suaves para cambios de color */
-.message-bubble {
-  transition: background-color 0.15s ease, border-color 0.15s ease;
+/* Mensaje único o primero del grupo - OTROS */
+.message-bubble.other.single,
+.message-bubble.other.first {
+  border-radius: 4px 18px 18px 18px !important;
+}
+
+/* Mensajes intermedios - OTROS */
+.message-bubble.other.middle {
+  border-radius: 4px 18px 18px 4px !important;
+}
+
+/* Último mensaje del grupo - OTROS */
+.message-bubble.other.last {
+  border-radius: 4px 18px 18px 18px !important;
+}
+
+/* Mensaje único o primero del grupo - PROPIOS */
+.message-bubble.own.single,
+.message-bubble.own.first {
+  border-radius: 18px 4px 18px 18px !important;
+}
+
+/* Mensajes intermedios - PROPIOS */
+.message-bubble.own.middle {
+  border-radius: 18px 4px 4px 18px !important;
+}
+
+/* Último mensaje del grupo - PROPIOS */
+.message-bubble.own.last {
+  border-radius: 18px 4px 18px 18px !important;
 }
 
 /* ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-   5. RESPONSIVE - Ajustes para móvil
+   7. NOMBRE DE USUARIO - Solo en primer mensaje
+   ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */
+
+.message-username {
+  font-size: 12px !important;
+  font-weight: 600 !important;
+  color: #667eea !important;
+  margin-bottom: 2px !important;
+  margin-left: 38px !important; /* Alineado con burbuja (32px avatar + 6px margin) */
+}
+
+/* ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+   8. TIMESTAMP - Compacto
+   ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */
+
+.message-time {
+  font-size: 10px !important;
+  color: #888 !important;
+  margin-top: 2px !important;
+  margin-left: 38px !important;
+}
+
+.message-time.own {
+  margin-left: 0 !important;
+  margin-right: 0 !important;
+  text-align: right !important;
+}
+
+/* ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+   9. ACCIONES HOVER - FLOTANTES AL LADO (no debajo)
+   ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */
+
+/* Contenedor de burbuja + acciones */
+.bubble-wrapper {
+  display: flex !important;
+  align-items: center !important;
+  gap: 4px !important;
+  position: relative !important;
+}
+
+/* Acciones flotantes al lado de la burbuja */
+.message-actions-float {
+  display: flex !important;
+  align-items: center !important;
+  gap: 2px !important;
+  opacity: 0 !important;
+  transition: opacity 0.15s ease !important;
+  background: rgba(255, 255, 255, 0.95) !important;
+  border-radius: 8px !important;
+  padding: 2px 4px !important;
+  box-shadow: 0 1px 4px rgba(0,0,0,0.1) !important;
+}
+
+.dark .message-actions-float {
+  background: rgba(40, 40, 40, 0.95) !important;
+}
+
+.bubble-wrapper:hover .message-actions-float {
+  opacity: 1 !important;
+}
+
+/* Botones de acción más compactos */
+.message-actions-float button {
+  padding: 2px !important;
+  min-width: 24px !important;
+  min-height: 24px !important;
+}
+
+/* ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+   10. RESPONSIVE - Móvil
    ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */
 
 @media (max-width: 640px) {
   .messages-container {
-    padding: 6px 8px !important;
+    padding: 4px 4px !important;
   }
 
   .message-group {
-    margin-bottom: 12px; /* Menos espacio en móvil */
+    margin-bottom: 10px !important;
+  }
+
+  .message-bubble {
+    max-width: 85% !important;
+    font-size: 14px !important;
+    padding: 5px 8px !important;
+  }
+
+  .message-avatar {
+    width: 28px !important;
+    height: 28px !important;
+    min-width: 28px !important;
+  }
+
+  .message-avatar-placeholder {
+    width: 28px !important;
+    min-width: 28px !important;
+  }
+
+  .message-username {
+    margin-left: 34px !important;
+  }
+
+  .message-time {
+    margin-left: 34px !important;
   }
 }
 
 /* ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-   6. ACCESSIBILITY - Mejoras de accesibilidad
+   11. ANIMACIÓN AVATAR
    ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */
 
-/* Focus visible para navegación por teclado */
-.message-bubble:focus-visible {
-  outline: 2px solid hsl(var(--primary));
-  outline-offset: 2px;
+@keyframes avatar-border-spin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+
+/* ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+   12. SCROLLBAR OCULTO
+   ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */
+
+.messages-container::-webkit-scrollbar {
+  width: 6px;
+}
+
+.messages-container::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.messages-container::-webkit-scrollbar-thumb {
+  background: rgba(0, 0, 0, 0.2);
+  border-radius: 3px;
+}
+
+.messages-container::-webkit-scrollbar-thumb:hover {
+  background: rgba(0, 0, 0, 0.3);
 }
