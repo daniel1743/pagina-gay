@@ -42,7 +42,7 @@ export const OPIN_COLORS = {
 
 /**
  * ✅ Verificar si el usuario puede crear un post
- * Regla: Solo 1 post activo por usuario
+ * Regla: Máximo 3 posts por semana (sin importar si expiraron o están activos)
  */
 export const canCreatePost = async () => {
   if (!auth.currentUser) {
@@ -54,22 +54,70 @@ export const canCreatePost = async () => {
     return { canCreate: false, reason: 'guest_user' };
   }
 
-  // Verificar si ya tiene un post activo
+  // Calcular fecha hace 7 días
+  const now = new Date();
+  const oneWeekAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
+
+  // Buscar posts del usuario en la última semana
   const postsRef = collection(db, 'opin_posts');
-  const q = query(
-    postsRef,
-    where('userId', '==', auth.currentUser.uid),
-    where('isActive', '==', true),
-    limit(1)
-  );
 
-  const snapshot = await getDocs(q);
+  try {
+    const q = query(
+      postsRef,
+      where('userId', '==', auth.currentUser.uid),
+      where('createdAt', '>=', Timestamp.fromDate(oneWeekAgo)),
+      orderBy('createdAt', 'desc'),
+      limit(10)
+    );
 
-  if (!snapshot.empty) {
-    return { canCreate: false, reason: 'active_post_exists', existingPost: snapshot.docs[0].data() };
+    const snapshot = await getDocs(q);
+    const postsThisWeek = snapshot.docs.length;
+
+    console.log(`[OPIN] Posts esta semana: ${postsThisWeek}/3`);
+
+    if (postsThisWeek >= 3) {
+      return {
+        canCreate: false,
+        reason: 'weekly_limit_reached',
+        postsThisWeek,
+        message: 'Ya creaste 3 OPINs esta semana. Espera a la próxima semana.'
+      };
+    }
+
+    return { canCreate: true, postsThisWeek, remaining: 3 - postsThisWeek };
+  } catch (indexError) {
+    // Si hay error de índice, intentar query más simple
+    console.warn('[OPIN] Index no disponible para canCreatePost, usando query simple:', indexError.message);
+
+    const qSimple = query(
+      postsRef,
+      where('userId', '==', auth.currentUser.uid),
+      limit(10)
+    );
+
+    const snapshot = await getDocs(qSimple);
+
+    // Filtrar manualmente por fecha
+    const postsThisWeek = snapshot.docs.filter(doc => {
+      const data = doc.data();
+      if (!data.createdAt) return false;
+      const createdAt = data.createdAt.toDate ? data.createdAt.toDate() : new Date(data.createdAt);
+      return createdAt >= oneWeekAgo;
+    }).length;
+
+    console.log(`[OPIN] Posts esta semana (fallback): ${postsThisWeek}/3`);
+
+    if (postsThisWeek >= 3) {
+      return {
+        canCreate: false,
+        reason: 'weekly_limit_reached',
+        postsThisWeek,
+        message: 'Ya creaste 3 OPINs esta semana. Espera a la próxima semana.'
+      };
+    }
+
+    return { canCreate: true, postsThisWeek, remaining: 3 - postsThisWeek };
   }
-
-  return { canCreate: true };
 };
 
 /**
@@ -103,10 +151,10 @@ export const createOpinPost = async ({ title = '', text, color = 'purple', userP
     color = 'purple'; // Default
   }
 
-  // Verificar que no tenga otro post activo
+  // Verificar límite semanal (máximo 3 por semana)
   const canCreate = await canCreatePost();
   if (!canCreate.canCreate) {
-    throw new Error('Ya tienes un post activo');
+    throw new Error(canCreate.message || 'No puedes crear más OPINs esta semana');
   }
 
   const now = Timestamp.now();
@@ -123,6 +171,7 @@ export const createOpinPost = async ({ title = '', text, color = 'purple', userP
     createdAt: serverTimestamp(),
     expiresAt: expiresAt,
     isActive: true,
+    isStable: false, // Posts de usuarios: 24h. Los estables (admin) tienen isStable: true y no expiran.
     viewCount: 0,
     profileClickCount: 0,
     likeCount: 0,
@@ -138,43 +187,71 @@ export const createOpinPost = async ({ title = '', text, color = 'purple', userP
   return { postId: docRef.id, ...postData };
 };
 
+/** Mínimo de OPINs estables que siempre debe haber en el feed (panel admin) */
+export const OPIN_MIN_STABLE = 20;
+
 /**
  * ✅ Obtener feed de posts activos
- * Query ULTRA simplificado: NO requiere índice
+ * - Mínimo 20 OPINs estables (isStable, sin 24h). Si hay menos, se muestran los que haya.
+ * - Luego OPINs de usuarios (24h). Si hay muchos, aplica la regla de 24h.
+ * - IMPORTANTE: Si hay menos de 20 OPINs en total, NO se aplica la expiración de 24h
+ *   para evitar mostrar un panel vacío.
+ * Query sin índice extra: orderBy createdAt, filtrado en cliente.
  */
 export const getOpinFeed = async (limitCount = 50) => {
   const postsRef = collection(db, 'opin_posts');
   const now = Timestamp.now();
 
-  // Query MÁS SIMPLE POSIBLE: solo orderBy (NO where)
-  // Esto NO requiere ningún índice compuesto
   const q = query(
     postsRef,
     orderBy('createdAt', 'desc'),
-    limit(100) // Pedimos más para filtrar en cliente
+    limit(200)
   );
 
   const snapshot = await getDocs(q);
 
-  // Filtrar TODO en el cliente
-  const posts = snapshot.docs
-    .map(doc => ({
-      id: doc.id,
-      ...doc.data(),
-    }))
-    .filter(post => {
-      // Solo posts activos
-      if (!post.isActive) return false;
+  const all = snapshot.docs.map(d => ({ id: d.id, ...d.data() }));
 
-      // Solo posts NO expirados
-      if (post.expiresAt && post.expiresAt.toMillis) {
-        return post.expiresAt.toMillis() > now.toMillis();
+  // Estables: isStable === true, isActive, no expiran
+  const stables = all.filter((p) => {
+    if (!p.isActive) return false;
+    if (p.isStable !== true) return false;
+    return true;
+  });
+
+  // Todos los posts normales activos (sin aplicar 24h todavía)
+  const normalsAll = all.filter((p) => {
+    if (!p.isActive) return false;
+    if (p.isStable === true) return false;
+    return true;
+  });
+
+  // Calcular total de OPINs activos
+  const totalActive = stables.length + normalsAll.length;
+
+  // Si hay menos de 20 OPINs en total, NO aplicar la regla de 24h
+  // Esto evita mostrar un panel vacío
+  let normals;
+  if (totalActive < OPIN_MIN_STABLE) {
+    console.log(`📥 [OPIN] Menos de ${OPIN_MIN_STABLE} OPINs (${totalActive}), NO se aplica expiración 24h`);
+    normals = normalsAll; // Mostrar todos sin filtrar por 24h
+  } else {
+    // Hay suficientes OPINs, aplicar regla de 24h
+    normals = normalsAll.filter((p) => {
+      if (p.expiresAt && p.expiresAt.toMillis) {
+        return p.expiresAt.toMillis() > now.toMillis();
       }
       return true;
-    })
-    .slice(0, limitCount); // Limitar resultado final
+    });
+  }
 
-  console.log(`📥 [OPIN] Feed cargado: ${posts.length} posts activos`);
+  // Feed: hasta OPIN_MIN_STABLE estables primero, luego normales. Máximo limitCount total.
+  const stableSlice = stables.slice(0, OPIN_MIN_STABLE);
+  const rest = limitCount - stableSlice.length;
+  const normalSlice = normals.slice(0, Math.max(0, rest));
+  const posts = [...stableSlice, ...normalSlice];
+
+  console.log(`📥 [OPIN] Feed: ${stableSlice.length} estables, ${normalSlice.length} normales, ${posts.length} total (expiración ${totalActive >= OPIN_MIN_STABLE ? 'ON' : 'OFF'})`);
 
   return posts;
 };
@@ -554,6 +631,224 @@ export const getPostComments = async (postId, limitCount = 100) => {
   console.log(`💬 [OPIN] Comentarios cargados: ${comments.length} para post ${postId}`);
 
   return comments;
+};
+
+// ============================================================
+// 🛡️ ADMIN – OPIN ESTABLES (mínimo 20, sin 24h)
+// Solo desde panel admin. Firestore rules restringen isStable a admin.
+// ============================================================
+
+/**
+ * ✅ Listar OPINs estables (para panel admin)
+ */
+export const getStableOpinPosts = async () => {
+  const postsRef = collection(db, 'opin_posts');
+  const q = query(
+    postsRef,
+    orderBy('createdAt', 'desc'),
+    limit(200)
+  );
+  const snapshot = await getDocs(q);
+  const all = snapshot.docs.map((d) => ({ id: d.id, ...d.data() }));
+  const stables = all.filter((p) => p.isStable === true && p.isActive !== false);
+  return stables;
+};
+
+/**
+ * ✅ Crear OPIN estable (solo admin)
+ * No expira. Se muestra siempre en feed hasta OPIN_MIN_STABLE.
+ *
+ * @param {object} params
+ * @param {string} params.title - Título opcional
+ * @param {string} params.text - Texto del OPIN (requerido)
+ * @param {string} params.color - Color del OPIN
+ * @param {string} params.customUsername - Username personalizado para seeding (opcional)
+ * @param {string} params.customAvatar - Avatar personalizado para seeding (opcional)
+ */
+export const createStableOpinPost = async ({ title = '', text, color = 'purple', customUsername = '', customAvatar = '' }) => {
+  if (!auth.currentUser) {
+    throw new Error('Usuario no autenticado');
+  }
+
+  if (!text || text.trim().length < 10) {
+    throw new Error('El texto debe tener al menos 10 caracteres');
+  }
+  if (text.length > 500) {
+    throw new Error('El texto no puede superar 500 caracteres');
+  }
+  if (title && title.length > 50) {
+    throw new Error('El título no puede superar 50 caracteres');
+  }
+  const c = OPIN_COLORS[color] ? color : 'purple';
+
+  // Si se proporciona customUsername, usar ese (para seeding desde admin)
+  // Si no, usar el username del usuario actual
+  let username = customUsername?.trim() || '';
+  let avatar = customAvatar?.trim() || '';
+
+  if (!username) {
+    try {
+      const userDoc = await getDoc(doc(db, 'users', auth.currentUser.uid));
+      if (userDoc.exists()) {
+        const d = userDoc.data();
+        username = d.username || 'Chactivo';
+        avatar = avatar || d.avatar || '';
+      } else {
+        username = 'Chactivo';
+      }
+    } catch (_) {
+      username = 'Chactivo';
+    }
+  }
+
+  const postsRef = collection(db, 'opin_posts');
+  const data = {
+    userId: auth.currentUser.uid,
+    username,
+    avatar,
+    profileId: auth.currentUser.uid,
+    title: title.trim(),
+    text: text.trim(),
+    color: c,
+    createdAt: serverTimestamp(),
+    isActive: true,
+    isStable: true,
+    isSeeded: !!customUsername, // Marcar si fue creado con username personalizado
+    viewCount: 0,
+    profileClickCount: 0,
+    likeCount: 0,
+    likedBy: [],
+    commentCount: 0,
+  };
+
+  const docRef = await addDoc(postsRef, data);
+  console.log('✅ [OPIN] Estable creado:', docRef.id, customUsername ? `(seeded: ${username})` : '');
+  return { postId: docRef.id, ...data };
+};
+
+/**
+ * ✅ Actualizar OPIN estable (solo admin)
+ */
+export const updateStableOpinPost = async (postId, { title, text, color }) => {
+  if (!auth.currentUser) {
+    throw new Error('Usuario no autenticado');
+  }
+
+  const postRef = doc(db, 'opin_posts', postId);
+  const postDoc = await getDoc(postRef);
+  if (!postDoc.exists()) {
+    throw new Error('Post no encontrado');
+  }
+  const data = postDoc.data();
+  if (data.isStable !== true) {
+    throw new Error('Solo se pueden editar OPINs estables desde el panel');
+  }
+
+  if (text != null && (text.trim().length < 10 || text.length > 500)) {
+    throw new Error('El texto debe tener entre 10 y 500 caracteres');
+  }
+  if (title != null && title.length > 50) {
+    throw new Error('El título no puede superar 50 caracteres');
+  }
+
+  const updates = {
+    editedAt: serverTimestamp(),
+    ...(title !== undefined && { title: title.trim() }),
+    ...(text !== undefined && { text: text.trim() }),
+    ...(color !== undefined && OPIN_COLORS[color] && { color }),
+  };
+
+  await updateDoc(postRef, updates);
+  console.log('✏️ [OPIN] Estable actualizado:', postId);
+  return { success: true };
+};
+
+/**
+ * ✅ Eliminar OPIN estable (solo admin)
+ */
+export const deleteStableOpinPost = async (postId) => {
+  if (!auth.currentUser) {
+    throw new Error('Usuario no autenticado');
+  }
+
+  const postRef = doc(db, 'opin_posts', postId);
+  const postDoc = await getDoc(postRef);
+  if (!postDoc.exists()) {
+    throw new Error('Post no encontrado');
+  }
+  const data = postDoc.data();
+  if (data.isStable !== true) {
+    throw new Error('Solo se pueden eliminar OPINs estables desde el panel');
+  }
+
+  await deleteDoc(postRef);
+  console.log('🗑️ [OPIN] Estable eliminado:', postId);
+  return { success: true };
+};
+
+// Nombres genéricos para seeding automático
+const OPIN_SEED_USERNAMES = [
+  'Carlos_28', 'JuanMadrid', 'Alex_BCN', 'DavidGym', 'MiguelVLC',
+  'Pablo_Fit', 'Sergio23', 'Andres_M', 'Dani_SEV', 'Ruben_BIO',
+  'JorgeNight', 'Mario_Tech', 'Adrian_Art', 'Hugo_Run', 'Iker_MAD',
+  'Leo_Gaming', 'Nacho_Cook', 'Raul_Photo', 'Alvaro_29', 'Oscar_BCN'
+];
+
+const OPIN_SEED_EXAMPLES = [
+  { title: 'Amigos', text: 'Busco amistad para charlar, salir y pasarlo bien. Sin dramas, buena onda.', color: 'purple' },
+  { title: 'Citas', text: 'Busco conocer a alguien con quien conectar. Citas tranquilas, café o algo más.', color: 'pink' },
+  { title: 'Gaming', text: 'Busco gente para jugar en PC o consola. Coop, competitivo o solo pasar el rato.', color: 'cyan' },
+  { title: 'Salir', text: 'Busco plan para salir: bares, fiestas, conciertos. Siempre abierto a sugerencias.', color: 'orange' },
+  { title: 'Deportes', text: 'Busco alguien para gym, running o deporte en general. Motivación mutua.', color: 'green' },
+  { title: 'Cine y series', text: 'Busco con quien hablar de pelis y series. Recomendaciones y maratones.', color: 'blue' },
+  { title: 'Música', text: 'Busco gente con gustos parecidos para hablar de música, ir a conciertos o tocar.', color: 'purple' },
+  { title: 'Viajes', text: 'Busco compañía para viajes o planes de escapada. Rutas, playa o ciudad.', color: 'pink' },
+  { title: 'Café y charla', text: 'Busco charlar tranquilo, café o té. Conversación sin presión.', color: 'orange' },
+  { title: 'Netflix & chill', text: 'Busco plan relajado en casa. Series, películas y buena compañía.', color: 'cyan' },
+  { title: 'Fitness', text: 'Busco motivación para entrenar. Gym, yoga o lo que sea, juntos mejor.', color: 'green' },
+  { title: 'Noche out', text: 'Busco salir de fiesta. Bares, discos o lo que se arme. Buena vibra.', color: 'blue' },
+  { title: 'Cocina', text: 'Busco alguien para cocinar juntos o probar restaurantes. Amante de la comida.', color: 'purple' },
+  { title: 'Fotografía', text: 'Busco salir a hacer fotos o hablar de fotografía. Urban, retratos, paisaje.', color: 'pink' },
+  { title: 'Libros', text: 'Busco intercambiar recomendaciones de libros y hablar de lo que leemos.', color: 'cyan' },
+  { title: 'Mascotas', text: 'Busco gente que ame los animales. Paseos con perros, fotos de gatos, etc.', color: 'orange' },
+  { title: 'Tecnología', text: 'Busco hablar de tech, apps, juegos o proyectos. Geek friendly.', color: 'green' },
+  { title: 'Arte y cultura', text: 'Busco ir a expos, museos o eventos culturales. Compartir gustos.', color: 'blue' },
+  { title: 'Senderismo', text: 'Busco compañía para rutas y naturaleza. Caminatas, miradores, aire libre.', color: 'purple' },
+  { title: 'Vida tranquila', text: 'Busco conexión real, sin prisa. Charlas, risas y buenos momentos.', color: 'pink' },
+];
+
+/**
+ * ✅ Crear OPINs estables de ejemplo hasta completar OPIN_MIN_STABLE (solo admin)
+ * Cada OPIN se crea con un username genérico diferente para simular actividad real.
+ * @returns {Promise<number>} Número de posts creados
+ */
+export const seedStableOpinExamples = async () => {
+  if (!auth.currentUser) {
+    throw new Error('Usuario no autenticado');
+  }
+
+  const current = await getStableOpinPosts();
+  const need = Math.max(0, OPIN_MIN_STABLE - current.length);
+  if (need === 0) {
+    return 0;
+  }
+
+  let created = 0;
+  for (let i = 0; i < need && i < OPIN_SEED_EXAMPLES.length; i++) {
+    const ex = OPIN_SEED_EXAMPLES[i];
+    // Usar un username genérico diferente para cada OPIN
+    const customUsername = OPIN_SEED_USERNAMES[i % OPIN_SEED_USERNAMES.length];
+
+    await createStableOpinPost({
+      title: ex.title,
+      text: ex.text,
+      color: ex.color,
+      customUsername, // Usar nombre genérico para seeding
+    });
+    created++;
+  }
+  console.log(`🌱 [OPIN] Seed: ${created} estables creados con usernames genéricos`);
+  return created;
 };
 
 /**

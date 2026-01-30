@@ -10,6 +10,7 @@ import SaludMentalModal from '@/components/lobby/SaludMentalModal';
 import AjustesModal from '@/components/lobby/AjustesModal';
 import NearbyUsersModal from '@/components/lobby/NearbyUsersModal';
 import GlobalStats from '@/components/lobby/GlobalStats';
+import { BaulSection } from '@/components/baul';
 // TEMPORALMENTE COMENTADO - Anuncios y Promociones
 // import AdCarousel from '@/components/lobby/AdCarousel';
 // import AdModal from '@/components/lobby/AdModal';
@@ -2032,18 +2033,18 @@ const LobbyPage = () => {
                 accentColor="purple"
               />
 
-              {/* 4. Usuarios Cercanos */}
+              {/* 4. Baúl de Perfiles (Tarjetas Sociales) */}
               <FeatureCard
-                key="usuarios-cercanos"
-                icon={<MapPin className="w-8 h-8" />}
-                title="Usuarios Cercanos"
-                description="Descubre quién está cerca de ti. Conecta con personas de tu zona de forma segura y anónima."
-                onClick={() => handleCardClick('NearbyUsersModal', { title: 'Usuarios Cercanos', badge: 'Próximamente' })}
+                key="baul-perfiles"
+                icon={<Users className="w-8 h-8" />}
+                title="Baúl de Perfiles"
+                description="Crea tu tarjeta con tu info. Da likes, deja mensajes. Cuando vuelvas verás quién se interesó en ti."
+                onClick={() => handleCardClick('BaulSection', { title: 'Baúl de Perfiles', badge: 'Nuevo' })}
                 index={3}
                 variant="default"
-                badge="Próximamente"
-                stats={{ label: "📍 Por ubicación", icon: MapPin }}
-                accentColor="blue"
+                badge="🆕 Nuevo"
+                stats={{ label: "❤️ Conecta diferente", icon: Users }}
+                accentColor="pink"
               />
 
               {/* 5. Eventos LGBT+ */}
@@ -2107,6 +2108,7 @@ const LobbyPage = () => {
       {activeModal === 'EventosModal' && <EventosModal isOpen={true} onClose={closeModal} />}
       {activeModal === 'SaludMentalModal' && <SaludMentalModal isOpen={true} onClose={closeModal} />}
       {activeModal === 'AjustesModal' && <AjustesModal isOpen={true} onClose={closeModal} />}
+      {activeModal === 'BaulSection' && <BaulSection isOpen={true} onClose={closeModal} />}
 
       {/* TEMPORALMENTE COMENTADO - Modal de anuncio */}
       {/* <AdModal ad={selectedAd} isOpen={showAdModal} onClose={closeAdModal} /> */}

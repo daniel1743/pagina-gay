@@ -33,6 +33,7 @@ import {
   clearGuestIdentity,
   hasGuestIdentity,
 } from '@/utils/guestIdentity';
+import { crearTarjetaAutomatica } from '@/services/tarjetaService';
 
 // ⚡ Helper para agregar timeout a promesas de Firestore (evita delays de 41+ segundos)
 const withTimeout = (promise, timeoutMs = 3000) => {
@@ -374,6 +375,32 @@ export const AuthProvider = ({ children }) => {
       }
     };
   }, []);
+
+  // ✅ BAÚL: Crear tarjeta automática cuando el usuario se conecta
+  useEffect(() => {
+    if (!user || !user.id) return;
+
+    const crearTarjetaSiNoExiste = async () => {
+      try {
+        console.log('[AUTH/BAUL] 📋 Verificando/creando tarjeta para:', user.username, user.id);
+
+        await crearTarjetaAutomatica({
+          odIdUsuari: user.id,
+          username: user.username || 'Usuario',
+          esInvitado: user.isGuest || user.isAnonymous || false,
+          edad: user.edad || null,
+          avatar: user.avatar || null
+        });
+
+        console.log('[AUTH/BAUL] ✅ Tarjeta verificada/creada para:', user.username);
+      } catch (error) {
+        console.error('[AUTH/BAUL] Error creando tarjeta:', error);
+      }
+    };
+
+    // Ejecutar en background, no bloquear la UI
+    crearTarjetaSiNoExiste();
+  }, [user?.id]); // Solo ejecutar cuando cambia el user.id
 
   /**
    * Inicio de sesión con email y contraseña

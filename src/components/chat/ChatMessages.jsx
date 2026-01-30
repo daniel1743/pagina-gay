@@ -329,8 +329,8 @@ const ChatMessages = ({
                       />
                     )}
 
-                    {/* ⚡ BURBUJA - DIRECTA, sin contenedor flex */}
-                    <span
+                    {/* ⚡ BURBUJA */}
+                    <div
                       className={`message-bubble ${isOwn ? 'own' : 'other'} ${positionClass}`}
                       onClick={() => onPrivateChat({
                         username: message.username,
@@ -343,7 +343,7 @@ const ChatMessages = ({
                       {message.type === 'gif' && (
                         <img src={message.content} alt="GIF" className="rounded max-w-full" />
                       )}
-                    </span>
+                    </div>
 
                     {/* ACCIONES - Solo para otros */}
                     {!isOwn && (

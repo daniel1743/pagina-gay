@@ -648,22 +648,33 @@ service cloud.firestore {
       // ✅ Lectura pública - cualquiera puede ver posts (incluso sin autenticación)
       allow read: if true;
 
-      // Crear: solo usuarios registrados (no anónimos)
-      allow create: if isRegistered() &&
-                      'userId' in request.resource.data &&
-                      request.resource.data.userId == request.auth.uid &&
-                      'text' in request.resource.data &&
-                      request.resource.data.text is string &&
-                      request.resource.data.text.size() >= 10 &&
-                      request.resource.data.text.size() <= 500;
+      // Crear: usuarios registrados sin isStable, o admin con isStable (OPIN estables)
+      allow create: if (
+        (isRegistered() &&
+         'userId' in request.resource.data &&
+         request.resource.data.userId == request.auth.uid &&
+         'text' in request.resource.data &&
+         request.resource.data.text is string &&
+         request.resource.data.text.size() >= 10 &&
+         request.resource.data.text.size() <= 500 &&
+         (!('isStable' in request.resource.data) || request.resource.data.isStable == false))
+        ||
+        (isAdmin() &&
+         'userId' in request.resource.data &&
+         request.resource.data.userId == request.auth.uid &&
+         'text' in request.resource.data &&
+         request.resource.data.text is string &&
+         request.resource.data.text.size() >= 10 &&
+         request.resource.data.text.size() <= 500)
+      );
 
-      // Actualizar: propietario o admin (para likes, views, etc.)
+      // Actualizar: propietario o admin (para likes, views, OPIN estables, etc.)
       allow update: if isAuthenticated() &&
                       (resource.data.userId == request.auth.uid || isAdmin());
 
-      // Eliminar: solo el propietario
+      // Eliminar: propietario o admin (admin gestiona OPIN estables)
       allow delete: if isAuthenticated() &&
-                      resource.data.userId == request.auth.uid;
+                      (resource.data.userId == request.auth.uid || isAdmin());
     }
 
     match /opin_comments/{commentId} {
@@ -771,6 +782,59 @@ service cloud.firestore {
       allow update: if isAdmin();
 
       // Eliminar: solo admins
+      allow delete: if isAdmin();
+    }
+
+    // ===========================
+    // BAÚL DE TARJETAS (Sistema de Perfiles Sociales)
+    // ===========================
+
+    match /tarjetas/{odIdUsuari} {
+      // Leer: Cualquier usuario autenticado puede ver tarjetas
+      allow read: if isAuthenticated();
+
+      // Crear: Solo el dueño puede crear su propia tarjeta
+      allow create: if isAuthenticated() && request.auth.uid == odIdUsuari;
+
+      // Actualizar: El dueño puede actualizar su info,
+      // OTROS usuarios pueden actualizar solo campos de interacción (likes, visitas)
+      allow update: if isAuthenticated() && (
+        // El dueño puede actualizar todo
+        request.auth.uid == odIdUsuari ||
+        // Otros usuarios solo pueden modificar campos de interacción
+        (
+          request.resource.data.diff(resource.data).affectedKeys()
+            .hasOnly(['likesRecibidos', 'likesDe', 'visitasRecibidas', 'visitasDe', 'mensajesRecibidos', 'actividadNoLeida', 'actualizadaEn'])
+        )
+      );
+
+      // Eliminar: Solo el dueño o admin
+      allow delete: if isOwner(odIdUsuari) || isAdmin();
+
+      // Subcolección de actividad (likes, mensajes, visitas recibidas)
+      match /actividad/{actividadId} {
+        // Leer: Solo el dueño de la tarjeta puede ver su actividad
+        allow read: if isAuthenticated() && request.auth.uid == odIdUsuari;
+
+        // Crear: Cualquier usuario autenticado puede dejar actividad (like, mensaje, visita)
+        allow create: if isAuthenticated() && request.auth.uid != odIdUsuari;
+
+        // Actualizar: Solo el dueño puede marcar como leída
+        allow update: if isAuthenticated() && request.auth.uid == odIdUsuari;
+
+        // Eliminar: Solo el dueño o admin
+        allow delete: if isOwner(odIdUsuari) || isAdmin();
+      }
+    }
+
+    // ===========================
+    // SPAM WARNINGS (Para tracking de números sanitizados)
+    // ===========================
+
+    match /spam_warnings/{odIdUsuari} {
+      // Solo el sistema puede escribir (via el usuario autenticado)
+      allow read: if isAdmin();
+      allow create, update: if isAuthenticated() && request.auth.uid == odIdUsuari;
       allow delete: if isAdmin();
     }
 

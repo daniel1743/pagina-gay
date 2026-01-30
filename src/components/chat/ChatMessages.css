@@ -89,24 +89,28 @@
    5. BURBUJAS - Max-width 75%, ajuste al contenido
    ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */
 
-/* BURBUJA BASE - Ahora es span, inline por defecto */
+/* BURBUJA BASE */
 .message-bubble {
-  display: inline !important; /* ⚡ INLINE puro - se ajusta EXACTAMENTE al texto */
+  display: inline-block !important;
   padding: 8px 12px !important;
   font-size: 14px !important;
-  line-height: 1.8 !important;
+  line-height: 1.4 !important;
   cursor: pointer !important;
   border-radius: 18px !important;
+  max-width: 75% !important;
+  word-break: break-word !important;
+  flex-shrink: 0 !important; /* ⚡ NO comprimir - evita que flex comprima la burbuja */
+  white-space: pre-wrap !important; /* ⚡ Preservar espacios, solo saltar en límite */
 }
 
-/* Burbujas de OTROS - Izquierda, fondo claro */
+/* Burbujas de OTROS - Izquierda */
 .message-bubble.other {
   background-color: #ffffff !important;
   border: 1px solid #e5e5e5 !important;
   color: #1a1a1a !important;
 }
 
-/* Burbujas PROPIAS - Derecha, verde WhatsApp */
+/* Burbujas PROPIAS - Derecha */
 .message-bubble.own {
   background-color: #d9fdd3 !important;
   border: none !important;

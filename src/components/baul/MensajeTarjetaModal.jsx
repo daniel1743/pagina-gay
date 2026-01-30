@@ -1,0 +1,271 @@
+/**
+ * 💬 MODAL PARA VER PERFIL Y ENVIAR MENSAJE
+ * Muestra información completa del usuario + opción de mensaje
+ */
+
+import React, { useState } from 'react';
+import { motion, AnimatePresence } from 'framer-motion';
+import {
+  X,
+  Send,
+  User,
+  Loader2,
+  MapPin,
+  Clock,
+  Heart,
+  Eye,
+  Ruler,
+  Calendar
+} from 'lucide-react';
+import { enviarMensajeTarjeta, formatearHorarios, getColorRol } from '@/services/tarjetaService';
+import { toast } from '@/components/ui/use-toast';
+
+const MensajeTarjetaModal = ({
+  isOpen,
+  onClose,
+  tarjeta,
+  miUserId,
+  miUsername
+}) => {
+  const [mensaje, setMensaje] = useState('');
+  const [isEnviando, setIsEnviando] = useState(false);
+  const [mostrarMensaje, setMostrarMensaje] = useState(false);
+
+  const maxChars = 200;
+
+  const handleEnviar = async () => {
+    if (!mensaje.trim() || isEnviando) return;
+
+    setIsEnviando(true);
+
+    try {
+      const exito = await enviarMensajeTarjeta(
+        tarjeta.odIdUsuari,
+        miUserId,
+        miUsername,
+        mensaje.trim()
+      );
+
+      if (exito) {
+        toast({
+          title: 'Mensaje enviado',
+          description: `${tarjeta.nombre} verá tu mensaje cuando entre`,
+        });
+        onClose();
+      } else {
+        throw new Error('No se pudo enviar');
+      }
+    } catch (error) {
+      toast({
+        title: 'Error',
+        description: 'No se pudo enviar el mensaje',
+        variant: 'destructive'
+      });
+    } finally {
+      setIsEnviando(false);
+    }
+  };
+
+  if (!isOpen) return null;
+
+  // Info física formateada
+  const infoFisica = [];
+  if (tarjeta.alturaCm) infoFisica.push(`${(tarjeta.alturaCm / 100).toFixed(2)}m`);
+  if (tarjeta.pesaje) infoFisica.push(`${tarjeta.pesaje}cm`);
+
+  return (
+    <AnimatePresence>
+      <motion.div
+        initial={{ opacity: 0 }}
+        animate={{ opacity: 1 }}
+        exit={{ opacity: 0 }}
+        className="fixed inset-0 z-[60] bg-black/70 backdrop-blur-sm flex items-center justify-center p-4"
+        onClick={onClose}
+      >
+        <motion.div
+          initial={{ scale: 0.95, opacity: 0, y: 20 }}
+          animate={{ scale: 1, opacity: 1, y: 0 }}
+          exit={{ scale: 0.95, opacity: 0, y: 20 }}
+          onClick={(e) => e.stopPropagation()}
+          className="bg-gray-800 rounded-2xl w-full max-w-md overflow-hidden shadow-2xl border border-gray-700 max-h-[90vh] overflow-y-auto"
+        >
+          {/* Header con foto grande */}
+          <div className="relative">
+            {/* Foto */}
+            <div className="aspect-[4/3] bg-gradient-to-br from-gray-700 to-gray-900 relative">
+              {tarjeta.fotoUrl ? (
+                <img
+                  src={tarjeta.fotoUrlFull || tarjeta.fotoUrl}
+                  alt={tarjeta.nombre}
+                  className="w-full h-full object-cover"
+                />
+              ) : (
+                <div className="absolute inset-0 flex items-center justify-center">
+                  <User className="w-24 h-24 text-gray-600" />
+                </div>
+              )}
+              {/* Gradiente inferior */}
+              <div className="absolute inset-0 bg-gradient-to-t from-gray-800 via-transparent to-transparent" />
+            </div>
+
+            {/* Botón cerrar */}
+            <button
+              onClick={onClose}
+              className="absolute top-3 right-3 p-2 rounded-full bg-black/50 backdrop-blur-sm text-white hover:bg-black/70 transition-colors"
+            >
+              <X className="w-5 h-5" />
+            </button>
+
+            {/* Info básica sobre la foto */}
+            <div className="absolute bottom-0 left-0 right-0 p-4">
+              <h2 className="text-2xl font-bold text-white">
+                {tarjeta.nombre || 'Usuario'}
+                {tarjeta.edad && <span className="font-normal text-gray-300">, {tarjeta.edad}</span>}
+              </h2>
+              {tarjeta.rol && (
+                <span className={`inline-block mt-2 ${getColorRol(tarjeta.rol)} text-white text-sm font-semibold px-3 py-1 rounded-full`}>
+                  {tarjeta.rol}
+                </span>
+              )}
+            </div>
+          </div>
+
+          {/* Información del perfil */}
+          <div className="p-4 space-y-4">
+            {/* Stats */}
+            <div className="flex items-center gap-4 text-sm text-gray-400">
+              <div className="flex items-center gap-1">
+                <Heart className="w-4 h-4 text-pink-500" />
+                <span>{tarjeta.likesRecibidos || 0} likes</span>
+              </div>
+              <div className="flex items-center gap-1">
+                <Eye className="w-4 h-4" />
+                <span>{tarjeta.visitasRecibidas || 0} visitas</span>
+              </div>
+              {tarjeta.distanciaTexto && (
+                <div className="flex items-center gap-1">
+                  <MapPin className="w-4 h-4 text-cyan-400" />
+                  <span>{tarjeta.distanciaTexto}</span>
+                </div>
+              )}
+            </div>
+
+            {/* Detalles */}
+            <div className="grid grid-cols-2 gap-3">
+              {/* Ubicación */}
+              {tarjeta.ubicacionTexto && (
+                <div className="bg-gray-700/30 rounded-xl p-3">
+                  <div className="flex items-center gap-2 text-gray-400 text-xs mb-1">
+                    <MapPin className="w-3.5 h-3.5" />
+                    <span>Ubicación</span>
+                  </div>
+                  <p className="text-white font-medium">{tarjeta.ubicacionTexto}</p>
+                </div>
+              )}
+
+              {/* Etnia */}
+              {tarjeta.etnia && (
+                <div className="bg-gray-700/30 rounded-xl p-3">
+                  <div className="flex items-center gap-2 text-gray-400 text-xs mb-1">
+                    <User className="w-3.5 h-3.5" />
+                    <span>Etnia</span>
+                  </div>
+                  <p className="text-white font-medium">{tarjeta.etnia}</p>
+                </div>
+              )}
+
+              {/* Medidas */}
+              {infoFisica.length > 0 && (
+                <div className="bg-gray-700/30 rounded-xl p-3">
+                  <div className="flex items-center gap-2 text-gray-400 text-xs mb-1">
+                    <Ruler className="w-3.5 h-3.5" />
+                    <span>Medidas</span>
+                  </div>
+                  <p className="text-white font-medium">{infoFisica.join(' · ')}</p>
+                </div>
+              )}
+
+              {/* Horarios */}
+              {tarjeta.horariosConexion && (
+                <div className="bg-gray-700/30 rounded-xl p-3">
+                  <div className="flex items-center gap-2 text-gray-400 text-xs mb-1">
+                    <Clock className="w-3.5 h-3.5" />
+                    <span>Horarios</span>
+                  </div>
+                  <p className="text-white font-medium text-sm">{formatearHorarios(tarjeta.horariosConexion)}</p>
+                </div>
+              )}
+            </div>
+
+            {/* Bio */}
+            {tarjeta.bio && (
+              <div className="bg-gray-700/30 rounded-xl p-4">
+                <p className="text-gray-300 italic">"{tarjeta.bio}"</p>
+              </div>
+            )}
+
+            {/* Buscando */}
+            {tarjeta.buscando && (
+              <div className="bg-cyan-500/10 border border-cyan-500/30 rounded-xl p-4">
+                <p className="text-xs text-cyan-400 mb-1 font-medium">Busca:</p>
+                <p className="text-white">{tarjeta.buscando}</p>
+              </div>
+            )}
+
+            {/* Sección de mensaje */}
+            {!mostrarMensaje ? (
+              <motion.button
+                whileTap={{ scale: 0.98 }}
+                onClick={() => setMostrarMensaje(true)}
+                className="w-full py-3 rounded-xl bg-cyan-500 text-white hover:bg-cyan-600 transition-colors font-medium flex items-center justify-center gap-2"
+              >
+                <Send className="w-4 h-4" />
+                Enviar mensaje
+              </motion.button>
+            ) : (
+              <div className="space-y-3">
+                <textarea
+                  value={mensaje}
+                  onChange={(e) => setMensaje(e.target.value.slice(0, maxChars))}
+                  placeholder="Escribe un mensaje corto..."
+                  className="w-full h-24 bg-gray-700/50 border border-gray-600 rounded-xl p-3 text-white placeholder-gray-500 resize-none focus:outline-none focus:border-cyan-500 transition-colors"
+                  autoFocus
+                />
+                <div className="flex justify-between items-center">
+                  <span className={`text-xs ${mensaje.length >= maxChars ? 'text-red-400' : 'text-gray-500'}`}>
+                    {mensaje.length}/{maxChars}
+                  </span>
+                </div>
+                <div className="flex gap-3">
+                  <button
+                    onClick={() => setMostrarMensaje(false)}
+                    className="flex-1 py-2.5 rounded-xl bg-gray-700 text-gray-300 hover:bg-gray-600 transition-colors font-medium"
+                  >
+                    Cancelar
+                  </button>
+                  <motion.button
+                    whileTap={{ scale: 0.95 }}
+                    onClick={handleEnviar}
+                    disabled={!mensaje.trim() || isEnviando}
+                    className="flex-1 py-2.5 rounded-xl bg-cyan-500 text-white hover:bg-cyan-600 transition-colors font-medium disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+                  >
+                    {isEnviando ? (
+                      <Loader2 className="w-4 h-4 animate-spin" />
+                    ) : (
+                      <>
+                        <Send className="w-4 h-4" />
+                        Enviar
+                      </>
+                    )}
+                  </motion.button>
+                </div>
+              </div>
+            )}
+          </div>
+        </motion.div>
+      </motion.div>
+    </AnimatePresence>
+  );
+};
+
+export default MensajeTarjetaModal;

@@ -4,6 +4,7 @@ import { Button } from '@/components/ui/button';
 import { Menu, Home, Volume2, VolumeX, X, Eye } from 'lucide-react';
 import NotificationBell from '@/components/notifications/NotificationBell';
 import { notificationSounds } from '@/services/notificationSounds';
+import { useAuth } from '@/contexts/AuthContext';
 
 const roomNames = {
   // 'global': 'Chat Global', // ⚠️ DESACTIVADA
@@ -22,6 +23,7 @@ const roomNames = {
 
 const ChatHeader = ({ currentRoom, onMenuClick, onOpenPrivateChat, onSimulate }) => {
   const navigate = useNavigate();
+  const { user } = useAuth();
   const [isMuted, setIsMuted] = useState(notificationSounds.getMuteState());
 
   const handleToggleMute = () => {
@@ -100,7 +102,14 @@ const ChatHeader = ({ currentRoom, onMenuClick, onOpenPrivateChat, onSimulate })
         <Button
           variant="ghost"
           size="icon"
-          onClick={() => navigate('/landing')}
+          onClick={() => {
+            // ✅ Usuarios registrados → /home (OPIN, Baúl, etc), invitados → /landing
+            if (user && !user.isGuest && !user.isAnonymous) {
+              navigate('/home');
+            } else {
+              navigate('/landing');
+            }
+          }}
           className="text-muted-foreground hover:text-cyan-400 min-w-[44px] min-h-[44px] sm:min-w-0 sm:min-h-0"
           aria-label="Ir al inicio"
         >

@@ -60,18 +60,22 @@ const OpinCard = forwardRef(({ post, index, onCommentsClick, onPostDeleted, onPo
   // Verificar si el usuario es el dueño del post
   const isOwner = user && user.id === post.userId;
 
-  // Actualizar countdown cada minuto
+  // Actualizar countdown cada minuto (solo posts no estables)
   React.useEffect(() => {
+    if (post.isStable) {
+      setTimeRemaining('Estable');
+      return;
+    }
     const updateTime = () => {
       const remaining = getTimeRemaining(post.expiresAt);
       setTimeRemaining(remaining);
     };
 
     updateTime();
-    const interval = setInterval(updateTime, 60000); // Cada minuto
+    const interval = setInterval(updateTime, 60000);
 
     return () => clearInterval(interval);
-  }, [post.expiresAt]);
+  }, [post.expiresAt, post.isStable]);
 
   const handleLikeClick = async () => {
     // Si está en modo solo lectura, mostrar toast y redirigir a registro
@@ -282,12 +286,12 @@ const OpinCard = forwardRef(({ post, index, onCommentsClick, onPostDeleted, onPo
           </div>
           <div className="flex items-center gap-2 text-xs text-muted-foreground">
             <Clock className="w-3 h-3" />
-            <span>{timeRemaining}</span>
+            <span>{post.isStable ? 'Estable' : (timeRemaining || '—')}</span>
           </div>
         </div>
 
-        {/* Menú de opciones (solo dueño) */}
-        {isOwner && !isEditing && (
+        {/* Menú de opciones (solo dueño; estables se gestionan en panel admin) */}
+        {isOwner && !post.isStable && !isEditing && (
           <div className="relative">
             <button
               onClick={() => setShowMenu(!showMenu)}

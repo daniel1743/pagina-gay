@@ -19,6 +19,7 @@ import { db, auth } from '@/config/firebase';
 import { trackMessageSent, trackFirstMessage } from '@/services/ga4Service';
 import { checkRateLimit, recordMessage, unmuteUser } from '@/services/rateLimitService';
 import { moderateMessage } from '@/services/moderationService';
+import { validateMessage as sanitizeMessage } from '@/services/antiSpamService';
 import { getPerformanceMonitor } from '@/services/performanceMonitor';
 import { getDeliveryService } from '@/services/messageDeliveryService';
 import { traceEvent, TRACE_EVENTS } from '@/utils/messageTrace';
@@ -171,6 +172,29 @@ const doSendMessage = async (roomId, messageData, isAnonymous = false) => {
     if (linkPattern.test(messageData.content)) {
       throw new Error('Los usuarios no registrados no pueden enviar links. Regístrate para compartir enlaces.');
     }
+  }
+
+  // 📱 SANITIZAR NÚMEROS DE WHATSAPP/TELÉFONO
+  // Los números se reemplazan automáticamente con CTA de chat privado
+  try {
+    const sanitizeResult = await sanitizeMessage(
+      messageData.content,
+      messageData.userId,
+      messageData.username || 'Usuario',
+      roomId
+    );
+
+    if (sanitizeResult.wasModified) {
+      console.log(`[SEND] 📱 Números de WhatsApp sanitizados para ${messageData.username}:`, {
+        numbersFound: sanitizeResult.numbersFound,
+        hasContactIntent: sanitizeResult.hasContactIntent
+      });
+      // Reemplazar el contenido con la versión sanitizada
+      messageData.content = sanitizeResult.content;
+    }
+  } catch (sanitizeError) {
+    // FAIL-SAFE: Si falla la sanitización, continuar con el mensaje original
+    console.warn('[SEND] ⚠️ Error en sanitización (continuando):', sanitizeError.message);
   }
 
   // ✅ GARANTIZAR AVATAR: Nunca enviar null, siempre tener un avatar válido
@@ -765,6 +789,23 @@ const doSendSecondaryMessage = async (roomId, messageData, isAnonymous = false) 
     if (linkPattern.test(messageData.content)) {
       throw new Error('Los usuarios no registrados no pueden enviar links. Regístrate para compartir enlaces.');
     }
+  }
+
+  // 📱 SANITIZAR NÚMEROS DE WHATSAPP/TELÉFONO (Salas secundarias)
+  try {
+    const sanitizeResult = await sanitizeMessage(
+      messageData.content,
+      messageData.userId,
+      messageData.username || 'Usuario',
+      roomId
+    );
+
+    if (sanitizeResult.wasModified) {
+      console.log(`[SEND SECONDARY] 📱 Números sanitizados para ${messageData.username}`);
+      messageData.content = sanitizeResult.content;
+    }
+  } catch (sanitizeError) {
+    console.warn('[SEND SECONDARY] ⚠️ Error en sanitización:', sanitizeError.message);
   }
 
   const ensureAvatar = (avatar, username) => {

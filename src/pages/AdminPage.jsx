@@ -76,6 +76,7 @@ import {
   deleteReplyAsAdmin,
   getReplies
 } from '@/services/forumService';
+import OpinStablesPanel from '@/components/admin/OpinStablesPanel';
 
 const AdminPage = () => {
   const navigate = useNavigate();
@@ -920,13 +921,14 @@ const AdminPage = () => {
 
         {/* Tabs */}
         <Tabs value={activeTab} onValueChange={setActiveTab} className="mb-8">
-          <TabsList className="grid w-full grid-cols-10">
+          <TabsList className="flex flex-wrap gap-1 p-1 h-auto">
             <TabsTrigger value="dashboard">Dashboard</TabsTrigger>
             <TabsTrigger value="reports">Reportes</TabsTrigger>
             <TabsTrigger value="tickets">Tickets</TabsTrigger>
             <TabsTrigger value="sanctions">Sanciones</TabsTrigger>
             <TabsTrigger value="rewards">Recompensas</TabsTrigger>
             <TabsTrigger value="forum">Foro</TabsTrigger>
+            <TabsTrigger value="opin">OPIN estables</TabsTrigger>
             <TabsTrigger value="notifications">Notificaciones</TabsTrigger>
             <TabsTrigger value="analytics">Analytics</TabsTrigger>
             <TabsTrigger value="moderation">Moderación</TabsTrigger>
@@ -2353,6 +2355,11 @@ const AdminPage = () => {
                 </TabsContent>
               </Tabs>
             </motion.div>
+          </TabsContent>
+
+          {/* OPIN estables Tab */}
+          <TabsContent value="opin" className="space-y-6">
+            <OpinStablesPanel />
           </TabsContent>
 
           {/* Notificaciones Tab */}

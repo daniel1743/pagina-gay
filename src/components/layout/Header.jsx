@@ -115,7 +115,14 @@ const Header = () => {
   return (
     <header className="sticky top-0 left-0 right-0 z-50 bg-card/80 backdrop-blur-xl border-b m-0 p-0 shadow-sm" style={{ backdropFilter: 'blur(12px)' }}>
       <div className="container mx-auto px-4 sm:px-6 lg:px-8 flex items-center justify-between h-16 sm:h-20">
-        <div className="flex items-center gap-3 cursor-pointer" onClick={() => navigate('/landing')}>
+        <div className="flex items-center gap-3 cursor-pointer" onClick={() => {
+          // ✅ Usuarios registrados → /home, invitados/guests → /chat/principal
+          if (user && !user.isGuest && !user.isAnonymous) {
+            navigate('/home');
+          } else {
+            navigate('/chat/principal');
+          }
+        }}>
           <div className="w-10 h-10 flex items-center justify-center">
             {logoSrc ? (
               <img 

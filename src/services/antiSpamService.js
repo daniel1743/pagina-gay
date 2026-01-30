@@ -2,8 +2,11 @@ import { auth, db } from '@/config/firebase';
 import { doc, setDoc, getDoc, deleteDoc, serverTimestamp, updateDoc, increment } from 'firebase/firestore';
 
 /**
- * 🛡️ ANTI-SPAM SERVICE (VERSIÓN MÍNIMA - 2026)
- * Configurado para máxima tolerancia y cero bloqueos accidentales.
+ * 🛡️ ANTI-SPAM SERVICE v2.0 (2026)
+ * NUEVA ESTRATEGIA: Sanitizar en vez de bloquear
+ * - Los números de WhatsApp se REEMPLAZAN, no se bloquean
+ * - El mensaje SIEMPRE se envía (mejor UX)
+ * - Se agrega CTA para usar chat privado interno
  */
 
 const CONFIG = {
@@ -18,32 +21,64 @@ const CONFIG = {
     'que', 'k', 'q', 'y', 'o' // Conectores
   ],
 
-  // 📱 Detección de números (Solo formatos muy obvios para Chile)
+  // 📱 Detección de números de teléfono (Chile y otros países)
   PHONE_PATTERNS: [
-    /\+56\s?9\s?\d{8}/g,       // +56 9 12345678
-    /\+569\d{8}/g,             // +56912345678
-    // Solo detectamos 9 dígitos si tienen espacios alrededor (evita códigos de pedido)
-    /(?:^|\s)9\d{8}(?:\s|$)/g, 
+    // Chile
+    /\+56\s?9\s?\d{4}\s?\d{4}/g,     // +56 9 1234 5678
+    /\+56\s?9\s?\d{8}/g,              // +56 9 12345678
+    /\+569\d{8}/g,                    // +56912345678
+    /(?:^|\s)9\s?\d{4}\s?\d{4}(?:\s|$)/g,  // 9 1234 5678
+    /(?:^|\s)9\d{8}(?:\s|$)/g,        // 912345678
+    // Formato con guiones o puntos
+    /\+56[\s.-]?9[\s.-]?\d{4}[\s.-]?\d{4}/g,
+    // Números escritos con espacios creativos (9 20 43 25 00)
+    /(?:^|\s)9\s+\d{2}\s+\d{2}\s+\d{2}\s+\d{2}(?:\s|$)/g,
+    // Números parciales obvios (últimos 8 dígitos con prefijo contextual)
+    /(?:agregame|escribeme|hablame|whatsapp|wsp|ws|mi\s*(?:numero|número|cel|fono))[\s:]*\d{8,}/gi,
   ],
 
-  // 🚫 Palabras/frases prohibidas (Lista segura sin palabras cortas)
+  // 🔗 Patrones de WhatsApp/contacto
+  WHATSAPP_PATTERNS: [
+    /wa\.me\/\d+/gi,
+    /whatsapp\.com/gi,
+    /api\.whatsapp\.com/gi,
+    /chat\.whatsapp\.com/gi,
+  ],
+
+  // 🚫 Palabras/frases que indican intención de compartir contacto
+  CONTACT_INTENT_PHRASES: [
+    'mi numero es', 'mi número es',
+    'agregame al', 'agregame a mi',
+    'escribeme al', 'escribeme a mi',
+    'hablame al', 'hablame a mi',
+    'mandame al', 'mandame a mi',
+    'mi wsp es', 'mi whatsapp es', 'mi ws es',
+    'dame tu numero', 'dame tu número',
+    'pasame tu numero', 'pasame tu número',
+    'pasa tu numero', 'pasa tu número',
+  ],
+
+  // 🚫 Palabras/frases prohibidas (se bloquean completamente)
   FORBIDDEN_WORDS: [
-    // Redes sociales (Solo dominios o intenciones claras)
+    // Redes sociales externas
     'instagram.com', 'sigueme en insta', '@ig',
-    'whatsapp.com', 'wa.me', '+569',
     't.me/', 'telegram.org',
     'facebook.com', 'grupo de face',
     'tiktok.com', '@tiktok',
     'onlyfans', 'only fans', 'of.com',
 
-    // Spam comercial / Contacto directo
-    'mi numero es', 'mi número es', 
-    'hablame al', 'agregame al', 'escribeme al',
+    // Spam comercial
     'vendo contenido', 'vendo pack', 'paso pack',
 
-    // Ilegal (Frases completas para evitar errores)
+    // Ilegal
     'vendo droga', 'vendo coca', 'vendo mari', 'compro droga'
   ],
+
+  // 📝 Mensaje de reemplazo para números
+  REPLACEMENT_MESSAGE: '📱 [número oculto - usa el chat privado de Chactivo]',
+
+  // 📝 Mensaje corto para reemplazo inline
+  REPLACEMENT_SHORT: '📱••••••••',
 };
 
 /**
@@ -80,9 +115,135 @@ function isException(message) {
  */
 function containsPhoneNumber(message) {
   for (const pattern of CONFIG.PHONE_PATTERNS) {
+    // Reset regex lastIndex para evitar problemas con flags globales
+    pattern.lastIndex = 0;
     if (pattern.test(message)) return true;
   }
   return false;
+}
+
+/**
+ * 📱 SANITIZAR NÚMEROS DE TELÉFONO
+ * Reemplaza números detectados con mensaje de chat privado
+ * RETORNA: { sanitized: string, wasModified: boolean, numbersFound: number }
+ */
+export function sanitizePhoneNumbers(message) {
+  if (!message || typeof message !== 'string') {
+    return { sanitized: message || '', wasModified: false, numbersFound: 0 };
+  }
+
+  let sanitized = message;
+  let numbersFound = 0;
+
+  // 1. Reemplazar patrones de WhatsApp URLs
+  for (const pattern of CONFIG.WHATSAPP_PATTERNS) {
+    pattern.lastIndex = 0;
+    if (pattern.test(sanitized)) {
+      numbersFound++;
+      sanitized = sanitized.replace(pattern, CONFIG.REPLACEMENT_SHORT);
+    }
+  }
+
+  // 2. Reemplazar números de teléfono
+  for (const pattern of CONFIG.PHONE_PATTERNS) {
+    pattern.lastIndex = 0;
+    const matches = sanitized.match(pattern);
+    if (matches) {
+      numbersFound += matches.length;
+      sanitized = sanitized.replace(pattern, CONFIG.REPLACEMENT_SHORT);
+    }
+  }
+
+  // 3. Detectar frases de intención de contacto y agregar advertencia
+  const lowerMessage = sanitized.toLowerCase();
+  let hasContactIntent = false;
+  for (const phrase of CONFIG.CONTACT_INTENT_PHRASES) {
+    if (lowerMessage.includes(phrase)) {
+      hasContactIntent = true;
+      break;
+    }
+  }
+
+  // Si detectamos intención de compartir contacto pero no encontramos número,
+  // puede que el número venga en un mensaje siguiente. Agregar recordatorio suave.
+  if (hasContactIntent && numbersFound === 0) {
+    // No modificamos el mensaje, pero lo marcamos
+    return {
+      sanitized,
+      wasModified: false,
+      numbersFound: 0,
+      hasContactIntent: true
+    };
+  }
+
+  const wasModified = numbersFound > 0;
+
+  // Si se modificó, agregar CTA al final
+  if (wasModified) {
+    sanitized = sanitized.trim();
+    // Evitar duplicar el CTA si ya está
+    if (!sanitized.includes('chat privado')) {
+      sanitized += '\n\n💬 _Usa el chat privado de Chactivo para contactar_';
+    }
+  }
+
+  return { sanitized, wasModified, numbersFound };
+}
+
+/**
+ * 🛡️ PROCESAR MENSAJE COMPLETO
+ * Sanitiza el contenido y retorna información útil
+ * SIEMPRE permite el mensaje (nunca bloquea)
+ */
+export function processMessageContent(message, userId, username) {
+  if (!message || typeof message !== 'string') {
+    return {
+      content: message || '',
+      allowed: true,
+      wasModified: false,
+      reason: null
+    };
+  }
+
+  const trimmed = message.trim();
+
+  // 1. Verificar excepciones (saludos simples pasan sin procesar)
+  if (isException(trimmed)) {
+    return {
+      content: trimmed,
+      allowed: true,
+      wasModified: false,
+      reason: null
+    };
+  }
+
+  // 2. Sanitizar números de teléfono/WhatsApp
+  const { sanitized, wasModified, numbersFound, hasContactIntent } = sanitizePhoneNumbers(trimmed);
+
+  // 3. Log para analytics (sin bloquear)
+  if (wasModified) {
+    console.log(`[ANTI-SPAM] 📱 Números sanitizados para ${username}:`, {
+      original: trimmed.substring(0, 50) + '...',
+      numbersFound,
+      userId
+    });
+
+    // Registrar advertencia en background (no bloqueante)
+    recordSpamWarning(userId, username, `Número sanitizado (${numbersFound})`, 'global').catch(() => {});
+  }
+
+  if (hasContactIntent) {
+    console.log(`[ANTI-SPAM] 👀 Intención de contacto detectada para ${username}`);
+  }
+
+  return {
+    content: sanitized,
+    allowed: true,
+    wasModified,
+    numbersFound,
+    hasContactIntent,
+    reason: wasModified ? 'phone_sanitized' : null
+  };
 }
 
 /**
@@ -173,73 +334,48 @@ export async function checkTempBan(userId) {
 }
 
 /**
- * 🛡️ VALIDAR MENSAJE (FUNCIÓN PRINCIPAL)
- * ⚠️ TEMPORALMENTE DESHABILITADO - Siempre permite mensajes
+ * 🛡️ VALIDAR Y SANITIZAR MENSAJE (FUNCIÓN PRINCIPAL v2.0)
+ *
+ * NUEVA ESTRATEGIA:
+ * - SIEMPRE permite el mensaje (nunca bloquea por números)
+ * - Los números de WhatsApp se REEMPLAZAN automáticamente
+ * - Retorna el contenido sanitizado para enviarlo
+ *
+ * @returns {Object} { allowed: true, content: string, wasModified: boolean }
  */
 export async function validateMessage(message, userId, username, roomId) {
-  // ⚠️ ANTI-SPAM DESHABILITADO TEMPORALMENTE
-  return { allowed: true };
-
-  /* COMENTADO TEMPORALMENTE
   try {
-    // FAIL-SAFE: Mensajes vacíos no se procesan, pero no se bloquean
-    if (!message || !message.trim()) return { allowed: true };
-
-    const trimmed = message.trim();
-
-    // 1. Revisar Excepciones PRIMERO (Para desbloquear el "Hola" inmediatamente)
-    // Si dice "Hola", lo dejamos pasar aunque tenga flags menores
-    if (isException(trimmed)) {
-      return { allowed: true };
+    // FAIL-SAFE: Mensajes vacíos pasan sin procesar
+    if (!message || !message.trim()) {
+      return { allowed: true, content: message || '', wasModified: false };
     }
 
-    // 2. Verificar Ban activo
-    const banCheck = await checkTempBan(userId);
-    if (banCheck.isBanned) {
-      console.warn(`[SPAM] Usuario baneado intentando hablar: ${username}`);
-      return {
-        allowed: false,
-        reason: `Espera ${banCheck.remainingMinutes} min para escribir.`,
-        type: 'temp_ban',
-        action: 'block',
-      };
+    // 1. Procesar y sanitizar el mensaje
+    const result = processMessageContent(message, userId, username);
+
+    // 2. Log detallado si hubo modificación
+    if (result.wasModified) {
+      console.log(`[ANTI-SPAM] ✅ Mensaje sanitizado para ${username} en ${roomId}:`, {
+        numbersFound: result.numbersFound,
+        originalLength: message.length,
+        newLength: result.content.length
+      });
     }
 
-    // 3. Detectar Teléfonos
-    if (containsPhoneNumber(trimmed)) {
-      console.warn(`[SPAM] Teléfono detectado: ${trimmed}`);
-      await recordSpamWarning(userId, username, 'Teléfono', roomId);
-      return {
-        allowed: false,
-        reason: 'Por seguridad, no compartas números de teléfono aquí.',
-        type: 'phone_number',
-        action: 'block',
-      };
-    }
-
-    // 4. Palabras Prohibidas
-    const forbidden = containsForbiddenWords(trimmed);
-    if (forbidden.found) {
-      console.warn(`[SPAM] Palabra prohibida: ${forbidden.word}`);
-      await recordSpamWarning(userId, username, 'Palabra prohibida', roomId);
-      return {
-        allowed: false,
-        reason: 'Esa palabra/enlace no está permitida.',
-        type: 'forbidden_word',
-        action: 'block',
-      };
-    }
-
-    // ✅ Todo limpio
-    return { allowed: true };
+    // 3. SIEMPRE permitir, devolviendo el contenido (sanitizado o no)
+    return {
+      allowed: true,
+      content: result.content,
+      wasModified: result.wasModified,
+      numbersFound: result.numbersFound || 0,
+      hasContactIntent: result.hasContactIntent || false
+    };
 
   } catch (error) {
     console.error('[ANTI-SPAM CRITICAL ERROR]:', error);
-    // 🚨 FAIL-SAFE: Si el antispam falla, DEJAR PASAR el mensaje
-    // Es mejor permitir un spam que bloquear a todos los usuarios.
-    return { allowed: true };
+    // 🚨 FAIL-SAFE: Si algo falla, devolver el mensaje original
+    return { allowed: true, content: message, wasModified: false };
   }
-  */
 }
 
 /**
