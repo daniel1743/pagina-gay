@@ -567,20 +567,23 @@ export const addComment = async (postId, commentText) => {
     throw new Error('El comentario no puede superar 500 caracteres');
   }
 
-  // Verificar límite de 100 comentarios
   const commentsRef = collection(db, 'opin_comments');
-  const q = query(
-    commentsRef,
-    where('postId', '==', postId),
-    orderBy('createdAt', 'desc'),
-    limit(1)
-  );
 
-  const snapshot = await getDocs(q);
-  const commentCount = snapshot.size;
+  // Verificar límite de 100 comentarios (sin requerir índice)
+  try {
+    const qCount = query(
+      commentsRef,
+      where('postId', '==', postId),
+      limit(101)
+    );
+    const countSnapshot = await getDocs(qCount);
 
-  if (commentCount >= 100) {
-    throw new Error('Este post ya alcanzó el límite de 100 comentarios');
+    if (countSnapshot.size >= 100) {
+      throw new Error('Este post ya alcanzó el límite de 100 comentarios');
+    }
+  } catch (countError) {
+    // Si falla el conteo, continuar de todos modos (mejor UX)
+    console.warn('[OPIN] No se pudo verificar límite de comentarios:', countError.message);
   }
 
   // Obtener datos del usuario
@@ -606,7 +609,7 @@ export const addComment = async (postId, commentText) => {
 
   console.log('💬 [OPIN] Comentario agregado:', docRef.id);
 
-  return { commentId: docRef.id, ...commentData };
+  return { id: docRef.id, commentId: docRef.id, ...commentData };
 };
 
 /**
@@ -614,14 +617,27 @@ export const addComment = async (postId, commentText) => {
  */
 export const getPostComments = async (postId, limitCount = 100) => {
   const commentsRef = collection(db, 'opin_comments');
-  const q = query(
-    commentsRef,
-    where('postId', '==', postId),
-    orderBy('createdAt', 'asc'),
-    limit(limitCount)
-  );
 
-  const snapshot = await getDocs(q);
+  let snapshot;
+  try {
+    // Intentar con orderBy (requiere índice)
+    const q = query(
+      commentsRef,
+      where('postId', '==', postId),
+      orderBy('createdAt', 'asc'),
+      limit(limitCount)
+    );
+    snapshot = await getDocs(q);
+  } catch (indexError) {
+    console.warn('[OPIN] Index no disponible para comentarios, usando query simple:', indexError.message);
+    // Fallback sin orderBy (no requiere índice)
+    const qSimple = query(
+      commentsRef,
+      where('postId', '==', postId),
+      limit(limitCount)
+    );
+    snapshot = await getDocs(qSimple);
+  }
 
   const comments = snapshot.docs.map(doc => ({
     id: doc.id,

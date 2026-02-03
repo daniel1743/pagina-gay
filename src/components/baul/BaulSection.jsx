@@ -18,23 +18,30 @@ import {
   Loader2,
   AlertCircle,
   Bell,
-  ChevronRight
+  ChevronRight,
+  Heart,
+  Sparkles
 } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
 import TarjetaUsuario from './TarjetaUsuario';
 import TarjetaEditor from './TarjetaEditor';
 import MensajeTarjetaModal from './MensajeTarjetaModal';
 import ActividadFeed from './ActividadFeed';
+import MatchModal from './MatchModal';
+import MatchesList from './MatchesList';
 import {
   obtenerTarjetasCercanas,
   obtenerTarjetasRecientes,
   obtenerTarjeta,
   crearTarjetaAutomatica,
-  toggleLike,
+  darLike,
+  quitarLike,
   yaLeDiLike,
   registrarVisita,
   suscribirseAMiTarjeta,
-  actualizarTarjeta
+  actualizarTarjeta,
+  obtenerMisMatches,
+  contarMatchesNoLeidos
 } from '@/services/tarjetaService';
 import { getCurrentLocation } from '@/services/geolocationService';
 import { toast } from '@/components/ui/use-toast';
@@ -42,7 +49,7 @@ import { toast } from '@/components/ui/use-toast';
 /**
  * Header del Baúl
  */
-const BaulHeader = ({ onClose, onRefresh, isRefreshing, cantidadTarjetas, actividadNoLeida, onVerActividad }) => (
+const BaulHeader = ({ onClose, onRefresh, isRefreshing, cantidadTarjetas, actividadNoLeida, matchesNoLeidos, onVerActividad, onVerMatches }) => (
   <div className="sticky top-0 z-10 bg-gray-900/95 backdrop-blur-sm border-b border-gray-700/50 px-4 py-3">
     <div className="flex items-center justify-between">
       <div className="flex items-center gap-3">
@@ -53,6 +60,20 @@ const BaulHeader = ({ onClose, onRefresh, isRefreshing, cantidadTarjetas, activi
       </div>
 
       <div className="flex items-center gap-2">
+        {/* Botón Matches */}
+        <motion.button
+          whileTap={{ scale: 0.95 }}
+          onClick={onVerMatches}
+          className="relative p-2 rounded-full bg-gradient-to-r from-pink-500/20 to-purple-500/20 text-pink-400 hover:from-pink-500/30 hover:to-purple-500/30 transition-colors"
+        >
+          <Heart className="w-5 h-5" />
+          {matchesNoLeidos > 0 && (
+            <span className="absolute -top-1 -right-1 bg-pink-500 text-white text-xs font-bold min-w-[18px] h-[18px] flex items-center justify-center rounded-full animate-pulse">
+              {matchesNoLeidos > 9 ? '9+' : matchesNoLeidos}
+            </span>
+          )}
+        </motion.button>
+
         {/* Botón actividad */}
         <motion.button
           whileTap={{ scale: 0.95 }}
@@ -128,6 +149,10 @@ const BaulSection = ({ isOpen, onClose }) => {
   const [mostrarEditor, setMostrarEditor] = useState(false);
   const [mostrarMensajeModal, setMostrarMensajeModal] = useState(false);
   const [mostrarActividad, setMostrarActividad] = useState(false);
+  const [matchData, setMatchData] = useState(null); // Para mostrar modal de match
+  const [mostrarMatchModal, setMostrarMatchModal] = useState(false);
+  const [mostrarMatchesList, setMostrarMatchesList] = useState(false);
+  const [matchesNoLeidos, setMatchesNoLeidos] = useState(0);
 
   // Cargar tarjetas
   const cargarTarjetas = useCallback(async (mostrarLoading = true) => {
@@ -290,8 +315,25 @@ const BaulSection = ({ isOpen, onClose }) => {
     return () => unsubscribe();
   }, [user, isOpen]);
 
+  // Cargar conteo de matches no leídos
+  useEffect(() => {
+    const cargarMatchesNoLeidos = async () => {
+      const odIdUsuari = user?.id;
+      if (!odIdUsuari || !isOpen) return;
+
+      try {
+        const count = await contarMatchesNoLeidos(odIdUsuari);
+        setMatchesNoLeidos(count);
+      } catch (error) {
+        console.error('[BAUL] Error cargando matches no leídos:', error);
+      }
+    };
+
+    cargarMatchesNoLeidos();
+  }, [user, isOpen]);
+
   // Handlers
-  const handleLike = async (tarjetaId, darLike) => {
+  const handleLike = async (tarjetaId, quieroDarLike) => {
     const odIdUsuari = user?.id;
     if (!odIdUsuari) {
       toast({
@@ -302,13 +344,38 @@ const BaulSection = ({ isOpen, onClose }) => {
       return false;
     }
 
-    const resultado = await toggleLike(tarjetaId, odIdUsuari, user?.username || 'Usuario');
+    if (quieroDarLike) {
+      // Dar like
+      const resultado = await darLike(
+        tarjetaId,
+        odIdUsuari,
+        user?.username || 'Usuario',
+        user?.avatar || miTarjeta?.fotoUrl || ''
+      );
 
-    if (resultado) {
-      setLikesData(prev => ({ ...prev, [tarjetaId]: darLike }));
+      if (resultado.success) {
+        setLikesData(prev => ({ ...prev, [tarjetaId]: true }));
+
+        // ¡MATCH!
+        if (resultado.isMatch && resultado.matchData) {
+          console.log('[BAUL] 🎉 ¡MATCH!', resultado.matchData);
+          setMatchData(resultado.matchData);
+          setMostrarMatchModal(true);
+          // Actualizar conteo de matches
+          setMatchesNoLeidos(prev => prev + 1);
+        }
+
+        return true;
+      }
+      return false;
+    } else {
+      // Quitar like
+      const resultado = await quitarLike(tarjetaId, odIdUsuari);
+      if (resultado) {
+        setLikesData(prev => ({ ...prev, [tarjetaId]: false }));
+      }
+      return resultado;
     }
-
-    return resultado;
   };
 
   const handleMensaje = (tarjeta) => {
@@ -372,7 +439,9 @@ const BaulSection = ({ isOpen, onClose }) => {
             isRefreshing={isRefreshing}
             cantidadTarjetas={tarjetas.filter(t => t.odIdUsuari !== odIdUsuari).length}
             actividadNoLeida={miTarjeta?.actividadNoLeida || 0}
+            matchesNoLeidos={matchesNoLeidos}
             onVerActividad={() => setMostrarActividad(true)}
+            onVerMatches={() => setMostrarMatchesList(true)}
           />
 
           {/* Contenido */}
@@ -453,6 +522,67 @@ const BaulSection = ({ isOpen, onClose }) => {
               miUserId={odIdUsuari}
             />
           )}
+
+          {/* Modal de Match */}
+          <MatchModal
+            isOpen={mostrarMatchModal}
+            onClose={() => {
+              setMostrarMatchModal(false);
+              setMatchData(null);
+            }}
+            matchData={matchData}
+            onEnviarMensaje={(otroUsuario) => {
+              // Buscar la tarjeta del otro usuario para abrir el modal de mensaje
+              const tarjetaOtro = tarjetas.find(t => t.odIdUsuari === otroUsuario.odIdUsuari);
+              if (tarjetaOtro) {
+                setTarjetaSeleccionada(tarjetaOtro);
+                setMostrarMensajeModal(true);
+              }
+            }}
+          />
+
+          {/* Lista de Matches */}
+          <MatchesList
+            isOpen={mostrarMatchesList}
+            onClose={() => {
+              setMostrarMatchesList(false);
+              // Refrescar conteo después de cerrar
+              contarMatchesNoLeidos(odIdUsuari).then(setMatchesNoLeidos).catch(() => {});
+            }}
+            miUserId={odIdUsuari}
+            onEnviarMensaje={(otroUsuario) => {
+              setMostrarMatchesList(false);
+              const tarjetaOtro = tarjetas.find(t => t.odIdUsuari === otroUsuario.odIdUsuari);
+              if (tarjetaOtro) {
+                setTarjetaSeleccionada(tarjetaOtro);
+                setMostrarMensajeModal(true);
+              } else {
+                // Si no está en las tarjetas cargadas, crear una tarjeta temporal
+                setTarjetaSeleccionada({
+                  odIdUsuari: otroUsuario.odIdUsuari,
+                  nombre: otroUsuario.nombre || otroUsuario.username,
+                  fotoUrl: otroUsuario.avatar,
+                  ...otroUsuario
+                });
+                setMostrarMensajeModal(true);
+              }
+            }}
+            onVerPerfil={(otroUsuario) => {
+              setMostrarMatchesList(false);
+              const tarjetaOtro = tarjetas.find(t => t.odIdUsuari === otroUsuario.odIdUsuari);
+              if (tarjetaOtro) {
+                handleVerPerfil(tarjetaOtro);
+              } else {
+                setTarjetaSeleccionada({
+                  odIdUsuari: otroUsuario.odIdUsuari,
+                  nombre: otroUsuario.nombre || otroUsuario.username,
+                  fotoUrl: otroUsuario.avatar,
+                  ...otroUsuario
+                });
+                setMostrarMensajeModal(true);
+              }
+            }}
+          />
         </motion.div>
       </motion.div>
     </AnimatePresence>

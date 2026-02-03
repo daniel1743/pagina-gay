@@ -188,11 +188,17 @@ const OpinCommentsModal = ({ post, open, onClose }) => {
           {/* Post original (resumen) */}
           <div className="p-4 border-b border-border bg-white/5">
             <div className="flex items-start gap-3">
-              <img
-                src={post.avatar}
-                alt={post.username}
-                className="w-10 h-10 rounded-full ring-2 ring-primary/20 flex-shrink-0"
-              />
+              {post.avatar ? (
+                <img
+                  src={post.avatar}
+                  alt={post.username}
+                  className="w-10 h-10 rounded-full ring-2 ring-primary/20 flex-shrink-0 object-cover"
+                />
+              ) : (
+                <div className="w-10 h-10 rounded-full ring-2 ring-primary/20 flex-shrink-0 bg-gradient-to-br from-purple-500 to-pink-500 flex items-center justify-center text-white font-bold">
+                  {post.username?.charAt(0)?.toUpperCase() || '?'}
+                </div>
+              )}
               <div className="flex-1 min-w-0">
                 <p className="font-semibold text-foreground">{post.username}</p>
                 {post.title && (
@@ -219,12 +225,18 @@ const OpinCommentsModal = ({ post, open, onClose }) => {
             ) : (
               <>
                 {comments.map((comment) => (
-                  <div key={comment.id} className="flex items-start gap-3 group">
-                    <img
-                      src={comment.avatar}
-                      alt={comment.username}
-                      className="w-8 h-8 rounded-full flex-shrink-0"
-                    />
+                  <div key={comment.id || comment.commentId} className="flex items-start gap-3 group">
+                    {comment.avatar ? (
+                      <img
+                        src={comment.avatar}
+                        alt={comment.username}
+                        className="w-8 h-8 rounded-full flex-shrink-0 object-cover"
+                      />
+                    ) : (
+                      <div className="w-8 h-8 rounded-full flex-shrink-0 bg-gradient-to-br from-purple-500 to-pink-500 flex items-center justify-center text-white text-sm font-bold">
+                        {comment.username?.charAt(0)?.toUpperCase() || '?'}
+                      </div>
+                    )}
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center gap-2">
                         <span className="font-semibold text-sm text-foreground">

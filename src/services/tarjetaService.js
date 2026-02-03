@@ -488,13 +488,15 @@ export async function obtenerTarjetasRecientes(miUserId, limite = 30) {
 }
 
 // ============================================
-// ❤️ SISTEMA DE LIKES
+// ❤️ SISTEMA DE LIKES Y MATCHES
 // ============================================
 
 /**
  * Dar like a una tarjeta
+ * Si es mutuo (el otro ya me dio like), se crea un MATCH
+ * @returns {Object} { success: boolean, isMatch: boolean, matchData?: object }
  */
-export async function darLike(tarjetaId, miUserId, miUsername) {
+export async function darLike(tarjetaId, miUserId, miUsername, miAvatar = '') {
   try {
     if (!tarjetaId || !miUserId) {
       throw new Error('Se requiere tarjetaId y miUserId');
@@ -502,12 +504,23 @@ export async function darLike(tarjetaId, miUserId, miUsername) {
 
     if (tarjetaId === miUserId) {
       console.warn('[TARJETA] No puedes darte like a ti mismo');
-      return false;
+      return { success: false, isMatch: false };
+    }
+
+    // 1. Verificar si el otro usuario ya me dio like (para detectar match)
+    const miTarjeta = await obtenerTarjeta(miUserId);
+    const elOtroYaMeDioLike = miTarjeta?.likesDe?.includes(tarjetaId) || false;
+
+    // 2. Obtener datos del destinatario para el match
+    const tarjetaDestino = await obtenerTarjeta(tarjetaId);
+    if (!tarjetaDestino) {
+      console.error('[TARJETA] Tarjeta destino no encontrada:', tarjetaId);
+      return { success: false, isMatch: false };
     }
 
     const tarjetaRef = doc(db, 'tarjetas', tarjetaId);
 
-    // Actualizar tarjeta del destinatario
+    // 3. Actualizar tarjeta del destinatario
     await updateDoc(tarjetaRef, {
       likesRecibidos: increment(1),
       likesDe: arrayUnion(miUserId),
@@ -515,7 +528,7 @@ export async function darLike(tarjetaId, miUserId, miUsername) {
       actualizadaEn: serverTimestamp()
     });
 
-    // Guardar registro de actividad
+    // 4. Guardar registro de actividad
     await agregarActividad(tarjetaId, {
       tipo: 'like',
       deUserId: miUserId,
@@ -524,10 +537,214 @@ export async function darLike(tarjetaId, miUserId, miUsername) {
     });
 
     console.log('[TARJETA] ✅ Like enviado a', tarjetaId);
-    return true;
+
+    // 5. ¡VERIFICAR MATCH!
+    if (elOtroYaMeDioLike) {
+      console.log('[MATCH] 🎉 ¡MATCH DETECTADO! Entre', miUserId, 'y', tarjetaId);
+
+      // Crear el match
+      const matchData = await crearMatch({
+        userA: {
+          odIdUsuari: miUserId,
+          username: miUsername,
+          avatar: miAvatar,
+          nombre: miTarjeta?.nombre || miUsername
+        },
+        userB: {
+          odIdUsuari: tarjetaId,
+          username: tarjetaDestino.nombre || tarjetaDestino.odIdUsuariNombre,
+          avatar: tarjetaDestino.fotoUrl || '',
+          nombre: tarjetaDestino.nombre || tarjetaDestino.odIdUsuariNombre
+        }
+      });
+
+      return { success: true, isMatch: true, matchData };
+    }
+
+    return { success: true, isMatch: false };
   } catch (error) {
     console.error('[TARJETA] Error dando like:', error);
-    return false;
+    return { success: false, isMatch: false };
+  }
+}
+
+/**
+ * Crear un match entre dos usuarios
+ */
+async function crearMatch({ userA, userB }) {
+  try {
+    // Generar ID único ordenando los IDs para evitar duplicados
+    const sortedIds = [userA.odIdUsuari, userB.odIdUsuari].sort();
+    const matchId = `${sortedIds[0]}_${sortedIds[1]}`;
+
+    const matchRef = doc(db, 'matches', matchId);
+
+    // Verificar si ya existe el match
+    const existingMatch = await getDoc(matchRef);
+    if (existingMatch.exists()) {
+      console.log('[MATCH] Match ya existía:', matchId);
+      return { id: matchId, ...existingMatch.data(), alreadyExisted: true };
+    }
+
+    const matchData = {
+      id: matchId,
+      users: sortedIds,
+      userA: {
+        odIdUsuari: userA.odIdUsuari,
+        username: userA.username,
+        avatar: userA.avatar || '',
+        nombre: userA.nombre
+      },
+      userB: {
+        odIdUsuari: userB.odIdUsuari,
+        username: userB.username,
+        avatar: userB.avatar || '',
+        nombre: userB.nombre
+      },
+      createdAt: serverTimestamp(),
+      lastInteraction: serverTimestamp(),
+      status: 'active',
+      chatStarted: false,
+      unreadByA: true,
+      unreadByB: true
+    };
+
+    await setDoc(matchRef, matchData);
+    console.log('[MATCH] ✅ Match creado:', matchId);
+
+    // Notificar a ambos usuarios
+    await agregarActividad(userA.odIdUsuari, {
+      tipo: 'match',
+      deUserId: userB.odIdUsuari,
+      deUsername: userB.nombre,
+      mensaje: `¡Hiciste match con ${userB.nombre}!`,
+      matchId,
+      timestamp: serverTimestamp()
+    });
+
+    await agregarActividad(userB.odIdUsuari, {
+      tipo: 'match',
+      deUserId: userA.odIdUsuari,
+      deUsername: userA.nombre,
+      mensaje: `¡Hiciste match con ${userA.nombre}!`,
+      matchId,
+      timestamp: serverTimestamp()
+    });
+
+    // Incrementar contador de actividad no leída
+    await updateDoc(doc(db, 'tarjetas', userA.odIdUsuari), {
+      actividadNoLeida: increment(1)
+    });
+    await updateDoc(doc(db, 'tarjetas', userB.odIdUsuari), {
+      actividadNoLeida: increment(1)
+    });
+
+    return { id: matchId, ...matchData, alreadyExisted: false };
+  } catch (error) {
+    console.error('[MATCH] Error creando match:', error);
+    return null;
+  }
+}
+
+/**
+ * Obtener mis matches
+ */
+export async function obtenerMisMatches(miUserId) {
+  try {
+    if (!miUserId) return [];
+
+    const matchesRef = collection(db, 'matches');
+    const q = query(
+      matchesRef,
+      where('users', 'array-contains', miUserId),
+      orderBy('createdAt', 'desc'),
+      limit(50)
+    );
+
+    let snapshot;
+    try {
+      snapshot = await getDocs(q);
+    } catch (indexError) {
+      console.warn('[MATCH] Index no disponible, usando query simple');
+      const qSimple = query(
+        matchesRef,
+        where('users', 'array-contains', miUserId),
+        limit(50)
+      );
+      snapshot = await getDocs(qSimple);
+    }
+
+    const matches = snapshot.docs.map(doc => {
+      const data = doc.data();
+      // Determinar quién es "el otro" usuario
+      const otroUsuario = data.userA.odIdUsuari === miUserId ? data.userB : data.userA;
+      const yoSoy = data.userA.odIdUsuari === miUserId ? 'A' : 'B';
+      const tengoNoLeido = yoSoy === 'A' ? data.unreadByA : data.unreadByB;
+
+      return {
+        id: doc.id,
+        ...data,
+        otroUsuario,
+        yoSoy,
+        tengoNoLeido
+      };
+    });
+
+    console.log('[MATCH] Matches encontrados:', matches.length);
+    return matches;
+  } catch (error) {
+    console.error('[MATCH] Error obteniendo matches:', error);
+    return [];
+  }
+}
+
+/**
+ * Marcar match como leído
+ */
+export async function marcarMatchLeido(matchId, miUserId) {
+  try {
+    const matchRef = doc(db, 'matches', matchId);
+    const matchDoc = await getDoc(matchRef);
+
+    if (!matchDoc.exists()) return;
+
+    const data = matchDoc.data();
+    const yoSoy = data.userA.odIdUsuari === miUserId ? 'A' : 'B';
+
+    await updateDoc(matchRef, {
+      [yoSoy === 'A' ? 'unreadByA' : 'unreadByB']: false
+    });
+  } catch (error) {
+    console.error('[MATCH] Error marcando como leído:', error);
+  }
+}
+
+/**
+ * Verificar si hay match entre dos usuarios
+ */
+export async function verificarMatch(userId1, userId2) {
+  try {
+    const sortedIds = [userId1, userId2].sort();
+    const matchId = `${sortedIds[0]}_${sortedIds[1]}`;
+    const matchRef = doc(db, 'matches', matchId);
+    const matchDoc = await getDoc(matchRef);
+
+    return matchDoc.exists() ? { exists: true, data: matchDoc.data() } : { exists: false };
+  } catch (error) {
+    console.error('[MATCH] Error verificando match:', error);
+    return { exists: false };
+  }
+}
+
+/**
+ * Obtener cantidad de matches no leídos
+ */
+export async function contarMatchesNoLeidos(miUserId) {
+  try {
+    const matches = await obtenerMisMatches(miUserId);
+    return matches.filter(m => m.tengoNoLeido).length;
+  } catch (error) {
+    return 0;
   }
 }
 
@@ -839,7 +1056,6 @@ export default {
   obtenerTarjetasRecientes,
   darLike,
   quitarLike,
-  toggleLike,
   yaLeDiLike,
   enviarMensajeTarjeta,
   registrarVisita,
@@ -849,6 +1065,12 @@ export default {
   formatearHorarios,
   getColorRol,
   getEmojiEstado,
+  // Match system
+  obtenerMisMatches,
+  marcarMatchLeido,
+  verificarMatch,
+  contarMatchesNoLeidos,
+  // Constants
   OPCIONES_SEXO,
   OPCIONES_ROL,
   OPCIONES_ETNIA,
