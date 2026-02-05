@@ -8,7 +8,8 @@ import RoomPreviewCard from '@/components/lobby/RoomPreviewCard';
 import RoomCard from '@/components/lobby/RoomCard';
 import FeatureCard from '@/components/lobby/FeatureCard';
 import GlobalStats from '@/components/lobby/GlobalStats';
-import { GuestUsernameModal } from '@/components/auth/GuestUsernameModal';
+// ⚠️ MODAL INVITADO ELIMINADO - Solo registro normal
+// import { GuestUsernameModal } from '@/components/auth/GuestUsernameModal';
 import QuickSignupModal from '@/components/auth/QuickSignupModal';
 import { toast } from '@/components/ui/use-toast';
 import { useAuth } from '@/contexts/AuthContext';
@@ -34,7 +35,8 @@ const LobbyPage = () => {
 
   // Estados
   const [roomCounts, setRoomCounts] = useState({});
-  const [showGuestModal, setShowGuestModal] = useState(false);
+  // ⚠️ MODAL INVITADO ELIMINADO - Solo registro normal
+  // const [showGuestModal, setShowGuestModal] = useState(false);
   const [showQuickSignup, setShowQuickSignup] = useState(false);
   const [targetRoom, setTargetRoom] = useState(null);
   const [activeTab, setActiveTab] = useState('chile');
@@ -141,23 +143,12 @@ const LobbyPage = () => {
       return;
     }
 
-    // Usuarios nuevos/guests: pedir username primero
-    setTargetRoom(roomId);
-    setShowGuestModal(true);
+    // Usuarios nuevos: redirigir a registro normal
+    navigate('/auth', { state: { redirectTo: `/chat/${roomId}` } });
   };
 
-  // Callback después de elegir username
-  const handleGuestUsernameSet = () => {
-    setShowGuestModal(false);
-    if (targetRoom) {
-      toast({
-        title: "¡Bienvenido!",
-        description: `Entrando a ${roomsData.find(r => r.id === targetRoom)?.name}...`,
-      });
-      navigate(`/chat/${targetRoom}`);
-      setTargetRoom(null);
-    }
-  };
+  // ⚠️ ELIMINADO - Ya no se usa modal de invitado
+  // const handleGuestUsernameSet = () => {...};
 
   return (
     <>
@@ -551,14 +542,7 @@ const LobbyPage = () => {
       )}
 
       {/* ✅ MODALES */}
-      <GuestUsernameModal
-        isOpen={showGuestModal}
-        onClose={() => {
-          setShowGuestModal(false);
-          setTargetRoom(null);
-        }}
-        onSuccess={handleGuestUsernameSet}
-      />
+      {/* ⚠️ MODAL INVITADO ELIMINADO - Solo registro normal en /auth */}
 
       <QuickSignupModal
         isOpen={showQuickSignup}

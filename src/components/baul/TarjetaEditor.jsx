@@ -207,21 +207,38 @@ const TarjetaEditor = ({ isOpen, onClose, tarjeta }) => {
       // Preparar datos a guardar (la foto ya se auto-guarda, no incluirla aquí)
       const datosAGuardar = { ...datos };
 
-      const exito = await actualizarTarjeta(tarjeta.odIdUsuari, datosAGuardar);
+      // ✅ USAR tarjeta.id como fallback si odIdUsuari no existe (tarjetas antiguas)
+      const userId = tarjeta?.odIdUsuari || tarjeta?.id;
+
+      console.log('[EDITOR] 📝 Guardando tarjeta...');
+      console.log('[EDITOR] 📝 userId (odIdUsuari o id):', userId);
+      console.log('[EDITOR] 📝 tarjeta.odIdUsuari:', tarjeta?.odIdUsuari);
+      console.log('[EDITOR] 📝 tarjeta.id:', tarjeta?.id);
+      console.log('[EDITOR] 📝 Datos a guardar:', JSON.stringify(datosAGuardar, null, 2));
+
+      if (!userId) {
+        console.error('[EDITOR] ❌ No hay ID de usuario en la tarjeta');
+        throw new Error('No se encontró el ID de usuario');
+      }
+
+      const exito = await actualizarTarjeta(userId, datosAGuardar);
+      console.log('[EDITOR] Resultado de actualizarTarjeta:', exito);
 
       if (exito) {
         toast({
-          title: 'Tarjeta actualizada',
+          title: '✅ Tarjeta actualizada',
           description: 'Tus cambios se guardaron correctamente',
         });
         onClose();
       } else {
+        console.error('[EDITOR] ❌ actualizarTarjeta retornó false');
         throw new Error('No se pudo guardar');
       }
     } catch (error) {
+      console.error('[EDITOR] ❌ Error guardando:', error);
       toast({
         title: 'Error',
-        description: 'No se pudieron guardar los cambios',
+        description: error.message || 'No se pudieron guardar los cambios',
         variant: 'destructive'
       });
     } finally {
@@ -282,8 +299,11 @@ const TarjetaEditor = ({ isOpen, onClose, tarjeta }) => {
       console.log('[FOTO] ✅ Comprimida:', compressed.sizeKB, 'KB');
 
       // ✅ Subir a Cloudinary (gratis, sin Firebase Storage)
-      const userId = tarjeta.odIdUsuari;
+      // ✅ USAR tarjeta.id como fallback si odIdUsuari no existe (tarjetas antiguas)
+      const userId = tarjeta?.odIdUsuari || tarjeta?.id;
       console.log('[FOTO] Usuario de tarjeta:', userId);
+      console.log('[FOTO] tarjeta.odIdUsuari:', tarjeta?.odIdUsuari);
+      console.log('[FOTO] tarjeta.id:', tarjeta?.id);
       console.log('[FOTO] Subiendo a Cloudinary...');
 
       const formData = new FormData();
@@ -315,7 +335,7 @@ const TarjetaEditor = ({ isOpen, onClose, tarjeta }) => {
 
       // ✅ AUTO-GUARDAR: Guardar la foto inmediatamente en Firestore
       console.log('[FOTO] Auto-guardando foto en Firestore...');
-      const autoSaveResult = await actualizarTarjeta(tarjeta.odIdUsuari, {
+      const autoSaveResult = await actualizarTarjeta(userId, {
         fotoUrl: downloadUrl,
         fotoUrlThumb: downloadUrl,
         fotoUrlFull: downloadUrl

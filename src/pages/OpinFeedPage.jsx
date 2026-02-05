@@ -17,6 +17,12 @@ import { getOpinFeed, canCreatePost } from '@/services/opinService';
 import OpinCard from '@/components/opin/OpinCard';
 import OpinCommentsModal from '@/components/opin/OpinCommentsModal';
 import { toast } from '@/components/ui/use-toast';
+import {
+  procesarBoostOpinion,
+  generarMensajeEngagement,
+  deberíaMostrarToast,
+  marcarToastMostrado
+} from '@/services/engagementBoostService';
 
 const OpinFeedPage = () => {
   const navigate = useNavigate();
@@ -41,6 +47,40 @@ const OpinFeedPage = () => {
     try {
       const feedPosts = await getOpinFeed(50);
       setPosts(feedPosts);
+
+      // 🚀 BOOST: Aplicar vistas y likes graduales a MIS opiniones
+      if (user && !user.isAnonymous && feedPosts.length > 0) {
+        const misOpiniones = feedPosts.filter(p => p.userId === user.id || p.userId === user.uid);
+
+        for (const opinion of misOpiniones) {
+          try {
+            const boostResult = await procesarBoostOpinion(opinion);
+
+            if (boostResult?.huboBoost && deberíaMostrarToast('opinEngagementToast')) {
+              const mensaje = generarMensajeEngagement('OPIN', {
+                vistas: boostResult.vistas,
+                likes: boostResult.likes,
+                vistasNuevas: boostResult.vistas - (opinion.viewCount || 0),
+                likesNuevos: boostResult.likes - (opinion.likeCount || 0)
+              });
+
+              if (mensaje) {
+                // Delay natural
+                setTimeout(() => {
+                  toast({
+                    title: mensaje.title,
+                    description: mensaje.description,
+                    duration: 4000
+                  });
+                  marcarToastMostrado('opinEngagementToast');
+                }, 1500 + Math.random() * 2500);
+              }
+            }
+          } catch (boostError) {
+            console.warn('[OPIN] Error en boost:', boostError.message);
+          }
+        }
+      }
     } catch (error) {
       console.error('Error cargando feed:', error);
       toast({

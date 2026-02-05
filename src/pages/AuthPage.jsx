@@ -1,4 +1,3 @@
-
 import React, { useState } from 'react';
 import { motion } from 'framer-motion';
 import { useNavigate } from 'react-router-dom';
@@ -7,17 +6,8 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { ArrowLeft, Mail, Eye, EyeOff, Check } from 'lucide-react';
+import { ArrowLeft, Mail, Eye, EyeOff } from 'lucide-react';
 import { useCanonical } from '@/hooks/useCanonical';
-import { toast } from '@/components/ui/use-toast';
-
-// 4 avatares predefinidos
-const AVATAR_OPTIONS = [
-  { id: 'avataaars', url: 'https://api.dicebear.com/7.x/avataaars/svg?seed=avatar1', name: 'Clásico' },
-  { id: 'bottts', url: 'https://api.dicebear.com/7.x/bottts/svg?seed=avatar2', name: 'Robot' },
-  { id: 'pixel-art', url: 'https://api.dicebear.com/7.x/pixel-art/svg?seed=avatar3', name: 'Retro' },
-  { id: 'identicon', url: 'https://api.dicebear.com/7.x/identicon/svg?seed=avatar4', name: 'Geométrico' }
-];
 
 const AuthPage = () => {
   // SEO: Canonical tag para página de autenticación
@@ -26,7 +16,7 @@ const AuthPage = () => {
   React.useEffect(() => {
     const previousTitle = document.title;
     // Título optimizado para atraer clics desde Google
-    document.title = "Entra al Chat Gay (Sin Registro) o Inicia Sesión | Chactivo";
+    document.title = "Iniciar Sesión o Registrarse | Chactivo";
 
     // 🚨 HE BORRADO EL CÓDIGO DE NOINDEX 🚨
     // Ahora Google podrá indexar esta página y mandar tráfico al botón de Invitado.
@@ -37,7 +27,7 @@ const AuthPage = () => {
   }, []);
 
   const navigate = useNavigate();
-  const { login, register, signInAsGuest } = useAuth();
+  const { login, register } = useAuth();
   const [loginData, setLoginData] = useState({ email: '', password: '' });
   const [registerData, setRegisterData] = useState({
     username: '',
@@ -49,67 +39,6 @@ const AuthPage = () => {
   const [ageError, setAgeError] = useState('');
   const [showLoginPassword, setShowLoginPassword] = useState(false);
   const [showRegisterPassword, setShowRegisterPassword] = useState(false);
-
-  // Estados para formulario de invitado
-  const [guestNickname, setGuestNickname] = useState('');
-  const [guestAge, setGuestAge] = useState('');
-  const [selectedAvatar, setSelectedAvatar] = useState(AVATAR_OPTIONS[0]);
-  const [acceptRules, setAcceptRules] = useState(false);
-  const [isGuestLoading, setIsGuestLoading] = useState(false);
-  const [guestError, setGuestError] = useState('');
-
-  const handleGuestSubmit = async (e) => {
-    e.preventDefault();
-    setGuestError('');
-
-    // Validaciones
-    if (!guestNickname.trim()) {
-      setGuestError('Ingresa tu nickname');
-      return;
-    }
-    if (guestNickname.trim().length < 3) {
-      setGuestError('El nickname debe tener al menos 3 caracteres');
-      return;
-    }
-
-    const parsedAge = parseInt(guestAge, 10);
-    if (Number.isNaN(parsedAge)) {
-      setGuestError('Ingresa tu edad en números');
-      return;
-    }
-    if (parsedAge < 18) {
-      setGuestError('Debes ser mayor de 18 años');
-      return;
-    }
-
-    if (!acceptRules) {
-      setGuestError('Debes aceptar las reglas del chat');
-      return;
-    }
-
-    setIsGuestLoading(true);
-
-    try {
-      // Guardar flags en sessionStorage
-      sessionStorage.setItem(`age_verified_${guestNickname.trim()}`, 'true');
-      sessionStorage.setItem(`rules_accepted_${guestNickname.trim()}`, 'true');
-
-      // Crear usuario guest en Firebase
-      await signInAsGuest(guestNickname.trim(), selectedAvatar.url);
-
-      toast({
-        title: "¡Bienvenido! 🎉",
-        description: `Hola ${guestNickname.trim()}, ya puedes chatear`,
-      });
-
-      // Redirigir al chat
-      navigate('/chat/principal', { replace: true });
-    } catch (error) {
-      console.error('Error creating guest user:', error);
-      setGuestError('Error al entrar. Intenta de nuevo.');
-      setIsGuestLoading(false);
-    }
-  };
 
   const handleLogin = (e) => {
     e.preventDefault();
@@ -156,243 +85,18 @@ const AuthPage = () => {
             Volver
           </Button>
 
-          {/* 🚀 FORMULARIO DIRECTO: ACCESO INVITADO - Prioridad #1 */}
-          <style>{`
-            .modal-scroll::-webkit-scrollbar {
-              display: none;
-            }
-            .modal-scroll {
-              -ms-overflow-style: none;
-              scrollbar-width: none;
-            }
-          `}</style>
+          {/* Iniciar Sesión / Registrarse */}
           <motion.div
-            initial={{ opacity: 0, y: -20 }}
+            initial={{ opacity: 0, y: 10 }}
             animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.5 }}
-            className="mb-6"
+            transition={{ duration: 0.4 }}
+            className="glass-effect rounded-2xl p-6 sm:p-8 border border-purple-500/20"
           >
-            <div
-              className="modal-scroll"
-              style={{
-                width: '100%',
-                maxHeight: '90vh',
-                overflowY: 'auto',
-                background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
-                borderRadius: '20px',
-                padding: '40px',
-                boxShadow: '0 20px 60px rgba(0,0,0,0.3)'
-              }}
-            >
-              <div style={{ textAlign: 'center' }}>
-                <h1 style={{ fontSize: '32px', fontWeight: 'bold', color: 'white', marginBottom: '10px' }}>
-                  Entra SIN Registro
-                </h1>
-                <p style={{ fontSize: '14px', color: 'rgba(255,255,255,0.8)', marginBottom: '30px' }}>
-                  Completa estos datos para empezar a chatear
-                </p>
-
-                <form onSubmit={handleGuestSubmit} style={{ textAlign: 'left' }}>
-                  {/* Nickname */}
-                  <div style={{ marginBottom: '20px' }}>
-                    <label style={{ display: 'block', fontSize: '14px', fontWeight: '600', color: 'white', marginBottom: '8px' }}>
-                      Tu Nickname *
-                    </label>
-                    <input
-                      type="text"
-                      value={guestNickname}
-                      onChange={(e) => setGuestNickname(e.target.value)}
-                      placeholder="Ej: Carlos23"
-                      maxLength={20}
-                      required
-                      autoFocus
-                      style={{
-                        width: '100%',
-                        padding: '12px',
-                        fontSize: '16px',
-                        border: '2px solid #667eea',
-                        borderRadius: '10px',
-                        outline: 'none',
-                        boxSizing: 'border-box',
-                        backgroundColor: 'white',
-                        color: '#333'
-                      }}
-                    />
-                  </div>
-
-                  {/* Edad */}
-                  <div style={{ marginBottom: '20px' }}>
-                    <label style={{ display: 'block', fontSize: '14px', fontWeight: '600', color: 'white', marginBottom: '8px' }}>
-                      Tu Edad *
-                    </label>
-                    <input
-                      type="number"
-                      value={guestAge}
-                      onChange={(e) => setGuestAge(e.target.value)}
-                      placeholder="Ej: 24"
-                      min="18"
-                      required
-                      style={{
-                        width: '100%',
-                        padding: '12px',
-                        fontSize: '16px',
-                        border: '2px solid #667eea',
-                        borderRadius: '10px',
-                        outline: 'none',
-                        boxSizing: 'border-box',
-                        backgroundColor: 'white',
-                        color: '#333'
-                      }}
-                    />
-                  </div>
-
-                  {/* Avatar */}
-                  <div style={{ marginBottom: '20px' }}>
-                    <label style={{ display: 'block', fontSize: '14px', fontWeight: '600', color: 'white', marginBottom: '12px' }}>
-                      Elige tu Avatar *
-                    </label>
-                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '10px' }}>
-                      {AVATAR_OPTIONS.map((avatar) => (
-                        <button
-                          key={avatar.id}
-                          type="button"
-                          onClick={() => setSelectedAvatar(avatar)}
-                          style={{
-                            position: 'relative',
-                            padding: '10px',
-                            borderRadius: '10px',
-                            border: selectedAvatar.id === avatar.id ? '3px solid white' : '2px solid rgba(255,255,255,0.3)',
-                            backgroundColor: selectedAvatar.id === avatar.id ? 'rgba(255,255,255,0.2)' : 'rgba(255,255,255,0.1)',
-                            cursor: 'pointer',
-                            transition: 'all 0.2s',
-                            display: 'flex',
-                            flexDirection: 'column',
-                            alignItems: 'center',
-                            gap: '5px'
-                          }}
-                        >
-                          {selectedAvatar.id === avatar.id && (
-                            <div style={{
-                              position: 'absolute',
-                              top: '5px',
-                              right: '5px',
-                              backgroundColor: 'white',
-                              borderRadius: '50%',
-                              width: '20px',
-                              height: '20px',
-                              display: 'flex',
-                              alignItems: 'center',
-                              justifyContent: 'center'
-                            }}>
-                              <Check style={{ width: '14px', height: '14px', color: '#667eea' }} />
-                            </div>
-                          )}
-                          <img
-                            src={avatar.url}
-                            alt={avatar.name}
-                            style={{ width: '50px', height: '50px', borderRadius: '50%', backgroundColor: '#f5f5f5' }}
-                          />
-                          <span style={{ fontSize: '11px', color: 'white', fontWeight: '500' }}>
-                            {avatar.name}
-                          </span>
-                        </button>
-                      ))}
-                    </div>
-                  </div>
-
-                  {/* Checkbox Reglas */}
-                  <div style={{ marginBottom: '20px' }}>
-                    <label style={{
-                      display: 'flex',
-                      alignItems: 'flex-start',
-                      gap: '10px',
-                      cursor: 'pointer',
-                      fontSize: '13px',
-                      color: 'white'
-                    }}>
-                      <input
-                        type="checkbox"
-                        checked={acceptRules}
-                        onChange={(e) => setAcceptRules(e.target.checked)}
-                        required
-                        style={{
-                          width: '18px',
-                          height: '18px',
-                          marginTop: '2px',
-                          cursor: 'pointer',
-                          accentColor: 'white'
-                        }}
-                      />
-                      <span>
-                        Acepto las reglas del chat. Tengo +18 años y entiendo que debo respetar a los demás usuarios.
-                      </span>
-                    </label>
-                  </div>
-
-                  {/* Error */}
-                  {guestError && (
-                    <div style={{
-                      padding: '12px',
-                      marginBottom: '20px',
-                      backgroundColor: 'rgba(255,255,255,0.2)',
-                      border: '1px solid rgba(255,255,255,0.3)',
-                      borderRadius: '8px',
-                      color: 'white',
-                      fontSize: '14px',
-                      fontWeight: '600'
-                    }}>
-                      ⚠️ {guestError}
-                    </div>
-                  )}
-
-                  {/* Botón Submit */}
-                  <button
-                    type="submit"
-                    disabled={isGuestLoading}
-                    style={{
-                      width: '100%',
-                      padding: '15px',
-                      fontSize: '18px',
-                      fontWeight: 'bold',
-                      color: '#667eea',
-                      background: 'white',
-                      border: 'none',
-                      borderRadius: '10px',
-                      cursor: isGuestLoading ? 'not-allowed' : 'pointer',
-                      opacity: isGuestLoading ? '0.7' : '1',
-                      boxShadow: '0 4px 15px rgba(0,0,0,0.2)'
-                    }}
-                  >
-                    {isGuestLoading ? 'Entrando...' : 'Entrar a Chatear 🚀'}
-                  </button>
-                </form>
-
-                <p style={{ fontSize: '11px', color: 'rgba(255,255,255,0.7)', marginTop: '20px', lineHeight: '1.5' }}>
-                  ✨ Sin registro • 100% Gratis • Anónimo
-                </p>
-              </div>
-            </div>
-          </motion.div>
-
-          {/* ─── SEPARADOR ─── */}
-          <div className="flex items-center gap-4 mb-6">
-            <div className="flex-1 h-px bg-gradient-to-r from-transparent via-purple-500/50 to-transparent"></div>
-            <span className="text-sm text-purple-400 font-semibold">O si tienes cuenta</span>
-            <div className="flex-1 h-px bg-gradient-to-r from-transparent via-purple-500/50 to-transparent"></div>
-          </div>
-
-          {/* 📋 FORMULARIO DE LOGIN/REGISTRO - Secundario */}
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.6, delay: 0.2 }}
-            className="glass-effect rounded-2xl p-6 sm:p-8 opacity-80 hover:opacity-100 transition-opacity"
-          >
-            <h2 className="text-2xl sm:text-3xl font-bold text-center mb-2 text-gray-400">
+            <h1 className="text-2xl sm:text-3xl font-bold text-center mb-2 text-foreground">
               Iniciar Sesión o Registrarse
-            </h2>
-            <p className="text-center text-gray-500 text-sm mb-6">
-              ¿Ya tienes cuenta? Inicia sesión aquí
+            </h1>
+            <p className="text-center text-muted-foreground text-sm mb-6">
+              Accede con tu cuenta o crea una nueva
             </p>
 
             <Tabs defaultValue="login" className="w-full">

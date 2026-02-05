@@ -1,15 +1,15 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import ChatDemo from '../components/landing/ChatDemo';
 import { useAuth } from '@/contexts/AuthContext';
-import { GuestUsernameModal } from '@/components/auth/GuestUsernameModal';
+// ⚠️ MODAL INVITADO ELIMINADO - Solo registro normal
+// import { GuestUsernameModal } from '@/components/auth/GuestUsernameModal';
 import TelegramBanner from '@/components/ui/TelegramBanner';
 
 export default function LandingPage() {
   const navigate = useNavigate();
   const { user } = useAuth();
-  const [showGuestModal, setShowGuestModal] = useState(false);
 
   // ✅ Redirigir usuarios autenticados (no guests) directamente al home
   useEffect(() => {
@@ -21,19 +21,19 @@ export default function LandingPage() {
     }
   }, [user, navigate]);
 
-  // ✅ FASE 1: Abrir modal único para invitados
+  // ✅ Redirigir a registro normal
   const handleQuickJoin = () => {
     if (user && (user.isGuest || user.isAnonymous)) {
       navigate('/chat/principal', { replace: true });
     } else {
-      setShowGuestModal(true);
+      navigate('/auth', { state: { redirectTo: '/chat/principal' } });
     }
   };
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-gray-950 via-purple-950 to-gray-950">
       {/* 📢 Banner Telegram - Fijo en la parte superior */}
-      <TelegramBanner className="sticky top-0 z-50" />
+      {/* ⚠️ TELEGRAM BANNER ELIMINADO */}
 
       {/* Hero Section - CTA GRANDE */}
       <div className="container mx-auto px-4 pt-12 pb-12">
@@ -160,12 +160,7 @@ export default function LandingPage() {
         </div>
       </div>
 
-      {/* ✅ FASE 1: GuestUsernameModal - ÚNICO punto de entrada para invitados */}
-      <GuestUsernameModal
-        open={showGuestModal}
-        onClose={() => setShowGuestModal(false)}
-        chatRoomId="principal"
-      />
+      {/* ⚠️ MODAL INVITADO ELIMINADO - Solo registro normal en /auth */}
     </div>
   );
 }

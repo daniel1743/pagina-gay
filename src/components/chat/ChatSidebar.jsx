@@ -6,7 +6,7 @@ import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Hash, Gamepad2, Users, Heart, User, LogIn, X, UserCheck, GitFork, UserMinus, Cake, CheckCircle, Lock } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { subscribeToMultipleRoomCounts } from '@/services/presenceService';
-import { roomsData, colorClasses } from '@/config/rooms';
+import { roomsData, colorClasses, getVisibleRooms, canAccessRoom } from '@/config/rooms';
 import { RegistrationRequiredModal } from '@/components/auth/RegistrationRequiredModal';
 import { AuthModal } from '@/components/auth/AuthModal';
 
@@ -45,14 +45,15 @@ const ChatSidebar = ({ currentRoom, setCurrentRoom, isOpen, onClose }) => {
   // ✅ Detectar si estamos en una sala secundaria
   const isSecondaryRoom = location.pathname.startsWith('/chat-secondary/');
 
-  // Suscribirse a contadores en tiempo real (todos los usuarios pueden ver)
+  // Suscribirse a contadores en tiempo real (solo sala principal visible)
   useEffect(() => {
     if (!user) {
       setRoomCounts({});
       return;
     }
 
-    const roomIds = roomsData.map(room => room.id);
+    // Solo suscribirse a la sala principal visible
+    const roomIds = getVisibleRooms().map(room => room.id);
     const unsubscribe = subscribeToMultipleRoomCounts(roomIds, (counts) => {
       setRoomCounts(counts);
     });
@@ -78,12 +79,9 @@ const ChatSidebar = ({ currentRoom, setCurrentRoom, isOpen, onClose }) => {
     navigate('/');
   }
 
-  // Ocultar salas internacionales a invitados/anon si están en la sala principal
-  const countryRoomsToHide = ['es-main', 'br-main', 'mx-main', 'ar-main'];
-  const shouldHideCountryRooms = (!user || user.isGuest || user.isAnonymous) && currentRoom === 'principal';
-  const visibleRooms = shouldHideCountryRooms
-    ? roomsData.filter((room) => !countryRoomsToHide.includes(room.id))
-    : roomsData;
+  // 🔒 SOLO MOSTRAR SALA PRINCIPAL - Las demás salas están bloqueadas
+  // Se desbloquearán cuando haya suficiente tráfico
+  const visibleRooms = getVisibleRooms();
 
   return (
     <>

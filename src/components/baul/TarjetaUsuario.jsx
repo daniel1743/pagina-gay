@@ -154,8 +154,8 @@ const TarjetaUsuario = ({
           <EstadoIndicador estado={tarjeta.estado || 'offline'} />
         </div>
 
-        {/* Distancia - esquina superior izquierda */}
-        {tarjeta.distanciaTexto && !esMiTarjeta && (
+        {/* Distancia - esquina superior izquierda (solo si <= 5km para evitar fricción) */}
+        {tarjeta.distanciaTexto && !esMiTarjeta && tarjeta.distanciaKm && tarjeta.distanciaKm <= 5 && (
           <div className="absolute top-3 left-3 bg-black/60 backdrop-blur-sm px-2 py-1 rounded-full flex items-center gap-1 text-xs text-white">
             <MapPin className="w-3 h-3" />
             <span>{tarjeta.distanciaTexto}</span>

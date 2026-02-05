@@ -6,9 +6,9 @@ import { Button } from '@/components/ui/button';
 import { useAuth } from '@/contexts/AuthContext';
 import { useCanonical } from '@/hooks/useCanonical';
 import ChatDemo from '@/components/landing/ChatDemo';
-import { GuestUsernameModal } from '@/components/auth/GuestUsernameModal';
+// ⚠️ MODAL INVITADO ELIMINADO (2026) - Solo registro normal
+// import { GuestUsernameModal } from '@/components/auth/GuestUsernameModal';
 import { trackLandingLoad } from '@/utils/performanceMonitor';
-import { hasGuestIdentity } from '@/utils/guestIdentity'; // ✅ FASE 2: Auto-login para invitados con identidad persistente
 import TelegramBanner from '@/components/ui/TelegramBanner';
 // ⚠️ TOAST ELIMINADO (06/01/2026) - A petición del usuario
 // import LandingCaptureToast from '@/components/landing/LandingCaptureToast';
@@ -190,7 +190,8 @@ const GlobalLandingPage = () => {
   const navigate = useNavigate();
   const location = useLocation();
   const { user } = useAuth();
-  const [showGuestModal, setShowGuestModal] = React.useState(false);
+  // ⚠️ MODAL INVITADO ELIMINADO - Ya no se usa
+  // const [showGuestModal, setShowGuestModal] = React.useState(false);
   const [loadTime, setLoadTime] = React.useState(null); // ⚡ Medir tiempo de carga
   const [shouldAutoOpen, setShouldAutoOpen] = React.useState(false); // ⚡ Auto-abrir si carga es rápida
 
@@ -323,8 +324,8 @@ const GlobalLandingPage = () => {
       // Usuario ya anónimo/guest - ir directo al chat
       navigate('/chat/principal');
     } else {
-      // No hay usuario - abrir modal de invitado directamente (sin opciones)
-      setShowGuestModal(true);
+      // No hay usuario - redirigir a registro normal
+      navigate('/auth', { state: { redirectTo: '/chat/principal' } });
     }
   };
 
@@ -352,40 +353,23 @@ const GlobalLandingPage = () => {
     } else if (user && (user.isGuest || user.isAnonymous)) {
       // Usuario ya anónimo/guest - ir directo al chat
       navigate('/chat/principal');
-    } else if (hasGuestIdentity()) {
-      // ✅ FASE 2: Identidad persistente detectada - AUTO-LOGIN sin modal
-      console.log('[Landing] ✅ Identidad persistente detectada - navegando directo sin modal');
-      navigate('/chat/principal');
-      // AuthContext cargará automáticamente el usuario desde la identidad persistente
     } else {
-      // No hay usuario ni identidad - abrir modal de invitado
-      console.log('[Landing] ⚠️ Sin identidad - abriendo modal de registro');
-      setShowGuestModal(true);
+      // No hay usuario - redirigir a registro normal
+      console.log('[Landing] ⚠️ Sin usuario - redirigiendo a registro');
+      navigate('/auth', { state: { redirectTo: '/chat/principal' } });
     }
   };
 
-  // ✅ FASE 1.1: Handler para cuando el invitado está listo (FIX CRÍTICO + OPTIMISTIC)
-  // El modal YA NO controla navegación - este handler es responsable de navegar
-  const handleGuestReady = (payload) => {
-    console.log('[Landing] 🎯 Invitado listo - navegando a /chat/principal', payload);
-
-    // Navegar INMEDIATAMENTE en todos los casos
-    // Firebase completará en background, el usuario ve el chat al instante
-    if (payload.hasExistingIdentity) {
-      console.log('[Landing] ✅ Identidad existente - navegando inmediatamente');
-    } else if (payload.optimistic) {
-      console.log('[Landing] ⚡ Navegación OPTIMISTIC - Firebase en background');
-    } else {
-      console.log('[Landing] ✅ Invitado autenticado - navegando');
-    }
-
-    navigate('/chat/principal', { replace: true });
-  };
+  // ⚠️ HANDLER DE INVITADO ELIMINADO - Ya no se usa modal de invitado
+  // const handleGuestReady = (payload) => {
+  //   console.log('[Landing] 🎯 Invitado listo - navegando a /chat/principal', payload);
+  //   navigate('/chat/principal', { replace: true });
+  // };
 
   return (
     <div className="min-h-screen">
       {/* 📢 Banner Telegram - Fijo en la parte superior */}
-      <TelegramBanner className="sticky top-0 z-50" />
+      {/* ⚠️ TELEGRAM BANNER ELIMINADO */}
 
       {/* 🎯 HERO MOBILE-FIRST - Un solo hero, copy directo, CTA único */}
       <motion.div
@@ -1041,14 +1025,7 @@ const GlobalLandingPage = () => {
         onEnterClick={handleChatearAhora}
       /> */}
 
-      {/* ✅ FASE 1.1: GuestUsernameModal - ÚNICO punto de entrada para invitados (FIX CRÍTICO) */}
-      <GuestUsernameModal
-        open={showGuestModal}
-        onClose={() => setShowGuestModal(false)}
-        chatRoomId="principal" // Ignorado, siempre usa principal
-        openSource="user" // Apertura manual por click del usuario
-        onGuestReady={handleGuestReady} // Parent maneja navegación
-      />
+      {/* ⚠️ MODAL INVITADO ELIMINADO - Solo registro normal en /auth */}
     </div>
   );
 };

@@ -17,7 +17,8 @@ import {
 } from 'lucide-react';
 import { motion } from 'framer-motion';
 import EventsCalendar from '@/components/events/EventsCalendar';
-import { GuestUsernameModal } from '@/components/auth/GuestUsernameModal';
+// ⚠️ MODAL INVITADO ELIMINADO - Solo registro normal
+// import { GuestUsernameModal } from '@/components/auth/GuestUsernameModal';
 
 /**
  * LANDING PAGE PARA SALAS DE CHAT
@@ -129,7 +130,8 @@ const ROOM_CONTENT = {
 const ChatLandingPage = ({ roomSlug }) => {
   const navigate = useNavigate();
   const content = ROOM_CONTENT[roomSlug] || ROOM_CONTENT['global'];
-  const [showGuestModal, setShowGuestModal] = useState(false);
+  // ⚠️ MODAL INVITADO ELIMINADO - Solo registro normal
+  // const [showGuestModal, setShowGuestModal] = useState(false);
 
   // SEO: Meta tags dinámicos
   useEffect(() => {
@@ -171,9 +173,9 @@ const ChatLandingPage = ({ roomSlug }) => {
     };
   }, [content, roomSlug]);
 
-  // ✅ FASE 1: Abrir modal único para invitados (ya no redirige a /auth)
+  // ✅ Redirigir a registro normal
   const handleJoinChat = () => {
-    setShowGuestModal(true);
+    navigate('/auth', { state: { redirectTo: `/chat/${roomSlug}` } });
   };
 
   const handleSignup = () => {
@@ -425,13 +427,7 @@ const ChatLandingPage = ({ roomSlug }) => {
         </div>
       </div>
 
-      {/* ✅ FASE 1: GuestUsernameModal - ÚNICO punto de entrada para invitados */}
-      {/* Nota: Invitados siempre van a /chat/principal (ignora roomSlug) */}
-      <GuestUsernameModal
-        open={showGuestModal}
-        onClose={() => setShowGuestModal(false)}
-        chatRoomId="principal"
-      />
+      {/* ⚠️ MODAL INVITADO ELIMINADO - Solo registro normal en /auth */}
     </div>
   );
 };

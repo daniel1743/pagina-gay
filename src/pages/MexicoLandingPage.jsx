@@ -124,8 +124,7 @@ const MexicoLandingPage = () => {
 
   return (
     <>
-      {/* 📢 Banner Telegram - Fijo en la parte superior */}
-      <TelegramBanner className="fixed top-0 left-0 right-0 z-50" />
+      {/* ⚠️ TELEGRAM BANNER ELIMINADO */}
       <div style={{ width: '100vw', minHeight: '100vh', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', background: 'linear-gradient(135deg, #f093fb 0%, #f5576c 100%)', fontFamily: 'Arial, sans-serif', padding: '20px', paddingTop: '50px', boxSizing: 'border-box' }}>
       <div 
         style={{ 

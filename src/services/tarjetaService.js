@@ -28,6 +28,10 @@ import {
   onSnapshot,
   Timestamp
 } from 'firebase/firestore';
+import {
+  calcularVistasEsperadas,
+  calcularLikesEsperados
+} from '@/services/engagementBoostService';
 
 // ============================================
 // 📊 MODELO DE DATOS
@@ -251,8 +255,12 @@ export async function obtenerTarjeta(odIdUsuari) {
 export async function actualizarTarjeta(odIdUsuari, datos) {
   try {
     if (!odIdUsuari) {
+      console.error('[TARJETA] ❌ Error: Se requiere odIdUsuari');
       throw new Error('Se requiere odIdUsuari');
     }
+
+    console.log('[TARJETA] 📝 Actualizando tarjeta para:', odIdUsuari);
+    console.log('[TARJETA] 📝 Datos recibidos:', JSON.stringify(datos, null, 2));
 
     // Campos permitidos para actualizar
     const camposPermitidos = [
@@ -262,22 +270,41 @@ export async function actualizarTarjeta(odIdUsuari, datos) {
       'fotoUrl', 'fotoUrlThumb', 'fotoUrlFull'
     ];
 
-    // Filtrar solo campos permitidos
+    // Filtrar solo campos permitidos y que no sean undefined
     const datosLimpios = {};
     for (const campo of camposPermitidos) {
       if (datos[campo] !== undefined) {
-        datosLimpios[campo] = datos[campo];
+        // Convertir null a valor vacío para campos de texto
+        if (datos[campo] === null && ['nombre', 'sexo', 'rol', 'etnia', 'ubicacionTexto', 'bio', 'buscando'].includes(campo)) {
+          datosLimpios[campo] = '';
+        } else {
+          datosLimpios[campo] = datos[campo];
+        }
       }
     }
 
     datosLimpios.actualizadaEn = serverTimestamp();
 
-    await updateDoc(doc(db, 'tarjetas', odIdUsuari), datosLimpios);
-    console.log('[TARJETA] ✅ Tarjeta actualizada');
+    console.log('[TARJETA] 📝 Datos limpios a guardar:', JSON.stringify(datosLimpios, (key, value) => {
+      if (key === 'actualizadaEn') return '[serverTimestamp]';
+      return value;
+    }, 2));
+
+    // Verificar que hay datos para guardar
+    if (Object.keys(datosLimpios).length <= 1) { // Solo actualizadaEn
+      console.warn('[TARJETA] ⚠️ No hay datos para actualizar');
+      return false;
+    }
+
+    const tarjetaRef = doc(db, 'tarjetas', odIdUsuari);
+    await updateDoc(tarjetaRef, datosLimpios);
+    console.log('[TARJETA] ✅ Tarjeta actualizada exitosamente');
 
     return true;
   } catch (error) {
-    console.error('[TARJETA] Error actualizando tarjeta:', error);
+    console.error('[TARJETA] ❌ Error actualizando tarjeta:', error);
+    console.error('[TARJETA] ❌ Error code:', error.code);
+    console.error('[TARJETA] ❌ Error message:', error.message);
     return false;
   }
 }
@@ -303,32 +330,131 @@ export async function actualizarEstadoOnline(odIdUsuari, estaOnline) {
 // ============================================
 
 /**
+ * 🚀 Aplicar boost VISUAL de likes y vistas a TODAS las tarjetas
+ * - Calcula en memoria los números esperados según antigüedad
+ * - NO escribe a Firestore (solo visualización)
+ * - Cada tarjeta muestra max(real, esperado)
+ * - Evita que una tarjeta nueva tenga 0 likes y 0 vistas
+ */
+function aplicarBoostVisualATodas(tarjetas) {
+  return tarjetas.map(tarjeta => {
+    const vistasReales = tarjeta.visitasRecibidas || 0;
+    const likesReales = tarjeta.likesRecibidos || 0;
+
+    // Calcular valores esperados según tiempo de vida de la tarjeta
+    const vistasEsperadas = calcularVistasEsperadas(tarjeta, 'tarjeta');
+    const likesEsperados = calcularLikesEsperados(tarjeta, 'tarjeta');
+
+    // Mostrar el mayor entre real y esperado
+    return {
+      ...tarjeta,
+      visitasRecibidas: Math.max(vistasReales, vistasEsperadas),
+      likesRecibidos: Math.max(likesReales, likesEsperados),
+    };
+  });
+}
+
+// ⚙️ CONFIGURACIÓN DEL BAÚL
+const BAUL_CONFIG = {
+  TARJETAS_MINIMAS: 100,        // Siempre mostrar 100 tarjetas
+  ONLINE_MINIMO: 10,            // Mínimo de usuarios que aparecen como "online"
+  ONLINE_MAXIMO: 15,            // Máximo de usuarios fake "online" cuando hay pocos reales
+  MOSTRAR_OFFLINE: false,       // Si es false, todos los offline aparecen como "reciente"
+};
+
+/**
+ * 🔄 Aplicar boost de estado de conexión
+ * - Si hay menos de 10 online reales, mostrar 10-15 como online
+ * - Los demás aparecen como "reciente" (naranja), nunca offline
+ */
+function aplicarBoostEstadoConexion(tarjetas, miUserId) {
+  // Separar mi tarjeta
+  const miTarjeta = tarjetas.find(t => t.odIdUsuari === miUserId || t.id === miUserId);
+  const otrasTarjetas = tarjetas.filter(t => t.odIdUsuari !== miUserId && t.id !== miUserId);
+
+  // Contar online reales
+  const onlineReales = otrasTarjetas.filter(t => t.estadoReal === 'online').length;
+
+  console.log(`[BAUL] 📊 Online reales: ${onlineReales}`);
+
+  // Si hay suficientes online reales, no hacer nada
+  if (onlineReales >= BAUL_CONFIG.ONLINE_MINIMO) {
+    console.log(`[BAUL] ✅ Hay suficientes online reales (${onlineReales}), no se aplica boost`);
+    // Solo asegurar que nadie aparezca como offline
+    return tarjetas.map(t => ({
+      ...t,
+      estado: t.estado === 'offline' ? 'reciente' : t.estado
+    }));
+  }
+
+  // Calcular cuántos fake online necesitamos (entre 10-15)
+  const fakeOnlineNecesarios = BAUL_CONFIG.ONLINE_MINIMO +
+    Math.floor(Math.random() * (BAUL_CONFIG.ONLINE_MAXIMO - BAUL_CONFIG.ONLINE_MINIMO + 1)) -
+    onlineReales;
+
+  console.log(`[BAUL] 🚀 Aplicando boost: ${fakeOnlineNecesarios} tarjetas pasarán a "online"`);
+
+  // Ordenar otras tarjetas por última conexión (más recientes primero)
+  const ordenadas = [...otrasTarjetas].sort((a, b) => {
+    const aTime = a.ultimaConexion?.toMillis?.() || a.ultimaConexion || 0;
+    const bTime = b.ultimaConexion?.toMillis?.() || b.ultimaConexion || 0;
+    return bTime - aTime;
+  });
+
+  // Aplicar boost
+  let contadorFakeOnline = 0;
+  const tarjetasBoosteadas = ordenadas.map((tarjeta, index) => {
+    // Si ya es online real, mantener
+    if (tarjeta.estadoReal === 'online') {
+      return { ...tarjeta, estado: 'online' };
+    }
+
+    // Si necesitamos más fake online y esta tarjeta califica
+    if (contadorFakeOnline < fakeOnlineNecesarios) {
+      contadorFakeOnline++;
+      return { ...tarjeta, estado: 'online' };
+    }
+
+    // El resto aparece como "reciente" (naranja), nunca offline
+    return { ...tarjeta, estado: 'reciente' };
+  });
+
+  // Reconstruir array con mi tarjeta al inicio
+  const resultado = miTarjeta
+    ? [miTarjeta, ...tarjetasBoosteadas]
+    : tarjetasBoosteadas;
+
+  console.log(`[BAUL] 📊 Resultado: ${resultado.filter(t => t.estado === 'online').length} online, ${resultado.filter(t => t.estado === 'reciente').length} recientes`);
+
+  return resultado;
+}
+
+/**
  * Obtener tarjetas cercanas ordenadas por proximidad y estado
  * @param {Object} miUbicacion - { latitude, longitude }
  * @param {string} miUserId - UID del usuario actual (para excluirlo o ponerlo primero)
  * @param {number} limite - Número máximo de tarjetas
  */
-export async function obtenerTarjetasCercanas(miUbicacion, miUserId, limite = 50) {
+export async function obtenerTarjetasCercanas(miUbicacion, miUserId, limite = 100) {
   try {
     console.log('[TARJETA] Buscando tarjetas cercanas para:', miUserId);
 
-    // ✅ CORREGIDO: Obtener TODAS las tarjetas (no filtrar por ubicacionActiva)
-    // Las tarjetas sin ubicación se mostrarán al final, ordenadas por estado
+    // ✅ Siempre obtener al menos 100 tarjetas (las más recientes)
+    const cantidadAObtener = Math.max(limite, BAUL_CONFIG.TARJETAS_MINIMAS);
     const tarjetasRef = collection(db, 'tarjetas');
 
-    // ✅ Intentar con orderBy, fallback sin orden si no hay índice
+    // ✅ Ordenar por última conexión para mantener las 100 más recientes
     let snapshot;
     try {
       const q = query(
         tarjetasRef,
         orderBy('ultimaConexion', 'desc'),
-        limit(limite + 10)
+        limit(cantidadAObtener + 10)
       );
       snapshot = await getDocs(q);
     } catch (indexError) {
       console.warn('[TARJETA] Index no disponible para cercanas, usando query simple:', indexError.message);
-      // Fallback: obtener sin orderBy (no requiere índice)
-      const qSimple = query(tarjetasRef, limit(limite + 10));
+      const qSimple = query(tarjetasRef, limit(cantidadAObtener + 10));
       snapshot = await getDocs(qSimple);
     }
 
@@ -339,13 +465,15 @@ export async function obtenerTarjetasCercanas(miUbicacion, miUserId, limite = 50
 
     snapshot.forEach((docSnap, index) => {
       const data = docSnap.data();
-      console.log(`[TARJETA] ${index + 1}. ID: ${docSnap.id} | Nombre: ${data.nombre || data.odIdUsuariNombre || 'N/A'} | Online: ${data.estaOnline}`);
+      if (index < 5) {
+        console.log(`[TARJETA] ${index + 1}. ${data.nombre || 'N/A'} | Online: ${data.estaOnline}`);
+      }
       tarjetas.push({ id: docSnap.id, ...data });
     });
 
     console.log('[TARJETA] ==========================================');
 
-    // Calcular distancia y ordenar
+    // Calcular distancia y determinar estado REAL
     const ahora = Date.now();
     const dosHoras = 2 * 60 * 60 * 1000;
 
@@ -363,22 +491,20 @@ export async function obtenerTarjetasCercanas(miUbicacion, miUserId, limite = 50
         );
         distanciaTexto = formatearDistancia(distanciaKm);
       } else if (tarjeta.ubicacionTexto) {
-        // Si no tiene coordenadas pero tiene texto de ubicación, mostrarlo
         distanciaTexto = tarjeta.ubicacionTexto;
       } else {
-        // Sin ubicación
         distanciaTexto = '';
-        distanciaKm = 9999; // Para ordenar al final
+        distanciaKm = 9999;
       }
 
-      // Determinar estado (🟢🟠⚫)
-      let estado = 'offline'; // ⚫
+      // Determinar estado REAL (antes del boost)
+      let estadoReal = 'offline';
       if (tarjeta.estaOnline) {
-        estado = 'online'; // 🟢
+        estadoReal = 'online';
       } else if (tarjeta.ultimaConexion) {
         const ultimaConexionMs = tarjeta.ultimaConexion.toMillis?.() || tarjeta.ultimaConexion;
         if (ahora - ultimaConexionMs < dosHoras) {
-          estado = 'reciente'; // 🟠
+          estadoReal = 'reciente';
         }
       }
 
@@ -386,29 +512,34 @@ export async function obtenerTarjetasCercanas(miUbicacion, miUserId, limite = 50
         ...tarjeta,
         distanciaKm: distanciaKm || 9999,
         distanciaTexto,
-        estado,
+        estadoReal,
+        estado: estadoReal, // Se modificará después con el boost
         esMiTarjeta: tarjeta.odIdUsuari === miUserId
       };
     });
 
-    // Ordenar: Mi tarjeta primero, luego online por distancia, luego recientes, luego offline
+    // 🚀 APLICAR BOOST DE ESTADOS (10-15 online mínimo, resto naranja)
+    tarjetas = aplicarBoostEstadoConexion(tarjetas, miUserId);
+
+    // 🚀 APLICAR BOOST VISUAL DE LIKES/VISTAS A TODAS (en memoria, sin escribir a Firestore)
+    tarjetas = aplicarBoostVisualATodas(tarjetas);
+
+    // Ordenar: Mi tarjeta primero, luego online por distancia, luego recientes
     tarjetas.sort((a, b) => {
-      // Mi tarjeta siempre primero
       if (a.esMiTarjeta) return -1;
       if (b.esMiTarjeta) return 1;
 
-      // Prioridad por estado
       const prioridadEstado = { online: 0, reciente: 1, offline: 2 };
       const prioA = prioridadEstado[a.estado];
       const prioB = prioridadEstado[b.estado];
 
       if (prioA !== prioB) return prioA - prioB;
 
-      // Mismo estado: ordenar por distancia
       return a.distanciaKm - b.distanciaKm;
     });
 
-    return tarjetas.slice(0, limite);
+    // Retornar las últimas 100 (o el límite especificado)
+    return tarjetas.slice(0, cantidadAObtener);
   } catch (error) {
     console.error('[TARJETA] Error obteniendo tarjetas cercanas:', error);
     return [];
@@ -417,61 +548,71 @@ export async function obtenerTarjetasCercanas(miUbicacion, miUserId, limite = 50
 
 /**
  * Obtener tarjetas recientes (sin ubicación requerida)
- * Muestra usuarios conectados recientemente
+ * Muestra las últimas 100 tarjetas por última conexión
+ * Los usuarios nuevos van apareciendo y los antiguos salen del historial
  */
-export async function obtenerTarjetasRecientes(miUserId, limite = 30) {
+export async function obtenerTarjetasRecientes(miUserId, limite = 100) {
   try {
     console.log('[TARJETA] Buscando tarjetas recientes para usuario:', miUserId);
 
+    // ✅ Siempre obtener al menos 100 tarjetas
+    const cantidadAObtener = Math.max(limite, BAUL_CONFIG.TARJETAS_MINIMAS);
     const tarjetasRef = collection(db, 'tarjetas');
 
-    // ✅ Intentar primero con orderBy, si falla (índice), usar sin orden
+    // ✅ Ordenar por última conexión - las más recientes primero
+    // Las nuevas entran, las antiguas (>100) salen del historial
     let snapshot;
     try {
       const q = query(
         tarjetasRef,
         orderBy('ultimaConexion', 'desc'),
-        limit(limite + 1)
+        limit(cantidadAObtener + 10)
       );
       snapshot = await getDocs(q);
     } catch (indexError) {
       console.warn('[TARJETA] Index no disponible, obteniendo sin orden:', indexError.message);
-      // Fallback: obtener sin orderBy (no requiere índice)
-      const qSimple = query(tarjetasRef, limit(limite + 1));
+      const qSimple = query(tarjetasRef, limit(cantidadAObtener + 10));
       snapshot = await getDocs(qSimple);
     }
 
     console.log('[TARJETA] Tarjetas recientes encontradas:', snapshot.size);
 
     let tarjetas = [];
-
     const ahora = Date.now();
     const dosHoras = 2 * 60 * 60 * 1000;
 
-    snapshot.forEach(doc => {
-      const data = doc.data();
+    snapshot.forEach(docSnap => {
+      const data = docSnap.data();
 
-      // Determinar estado
-      let estado = 'offline';
+      // Determinar estado REAL
+      let estadoReal = 'offline';
       if (data.estaOnline) {
-        estado = 'online';
+        estadoReal = 'online';
       } else if (data.ultimaConexion) {
         const ultimaConexionMs = data.ultimaConexion.toMillis?.() || data.ultimaConexion;
         if (ahora - ultimaConexionMs < dosHoras) {
-          estado = 'reciente';
+          estadoReal = 'reciente';
         }
       }
 
       tarjetas.push({
-        id: doc.id,
+        id: docSnap.id,
         ...data,
-        estado,
-        esMiTarjeta: doc.id === miUserId,
-        distanciaTexto: data.ubicacionTexto || 'Sin ubicación'
+        estadoReal,
+        estado: estadoReal,
+        esMiTarjeta: docSnap.id === miUserId,
+        distanciaTexto: data.ubicacionTexto || '',
+        distanciaKm: 9999 // Sin ubicación calculada
       });
     });
 
-    // Ordenar: Mi tarjeta primero, luego por estado y conexión reciente
+    // 🚀 APLICAR BOOST DE ESTADOS (10-15 online mínimo, resto naranja)
+    tarjetas = aplicarBoostEstadoConexion(tarjetas, miUserId);
+
+    // 🚀 APLICAR BOOST VISUAL DE LIKES/VISTAS A TODAS (en memoria, sin escribir a Firestore)
+    tarjetas = aplicarBoostVisualATodas(tarjetas);
+
+    // Ordenar: Mi tarjeta primero, luego online, luego recientes
     tarjetas.sort((a, b) => {
       if (a.esMiTarjeta) return -1;
       if (b.esMiTarjeta) return 1;
@@ -480,7 +621,8 @@ export async function obtenerTarjetasRecientes(miUserId, limite = 30) {
       return prioridadEstado[a.estado] - prioridadEstado[b.estado];
     });
 
-    return tarjetas.slice(0, limite);
+    // Retornar las últimas 100 tarjetas
+    return tarjetas.slice(0, cantidadAObtener);
   } catch (error) {
     console.error('[TARJETA] Error obteniendo tarjetas recientes:', error);
     return [];

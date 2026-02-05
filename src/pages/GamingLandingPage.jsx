@@ -6,7 +6,8 @@ import { Button } from '@/components/ui/button';
 import { useAuth } from '@/contexts/AuthContext';
 import { useCanonical } from '@/hooks/useCanonical';
 import ChatDemo from '@/components/landing/ChatDemo';
-import { GuestUsernameModal } from '@/components/auth/GuestUsernameModal';
+// ⚠️ MODAL INVITADO ELIMINADO - Solo registro normal
+// import { GuestUsernameModal } from '@/components/auth/GuestUsernameModal';
 import TelegramBanner from '@/components/ui/TelegramBanner';
 
 const GamingLandingPage = () => {
@@ -15,7 +16,8 @@ const GamingLandingPage = () => {
 
   const navigate = useNavigate();
   const { user } = useAuth();
-  const [showGuestModal, setShowGuestModal] = React.useState(false);
+  // ⚠️ MODAL INVITADO ELIMINADO
+  // const [showGuestModal, setShowGuestModal] = React.useState(false);
 
   // Redirigir usuarios autenticados (no guests) directamente al chat
   React.useEffect(() => {
@@ -44,10 +46,11 @@ const GamingLandingPage = () => {
   }, []);
 
   const handleChatearAhora = () => {
+    // 🔒 Sala gaming bloqueada - redirigir a sala principal
     if (user && !user.isGuest) {
-      navigate('/chat/gaming');
+      navigate('/chat/principal');
     } else {
-      setShowGuestModal(true);
+      navigate('/auth', { state: { redirectTo: '/chat/principal' } });
     }
   };
 
@@ -62,7 +65,7 @@ const GamingLandingPage = () => {
   return (
     <div className="min-h-screen">
       {/* 📢 Banner Telegram - Fijo en la parte superior */}
-      <TelegramBanner className="sticky top-0 z-50" />
+      {/* ⚠️ TELEGRAM BANNER ELIMINADO */}
 
       <div className="px-4 py-8 sm:py-12">
       {/* Hero Section */}
@@ -1267,12 +1270,7 @@ const GamingLandingPage = () => {
         </Button>
       </motion.div>
 
-      {/* ✅ FASE 1: GuestUsernameModal - ÚNICO punto de entrada para invitados */}
-      <GuestUsernameModal
-        open={showGuestModal}
-        onClose={() => setShowGuestModal(false)}
-        chatRoomId="principal" // Ignorado, siempre navega a /chat/principal
-      />
+      {/* ⚠️ MODAL INVITADO ELIMINADO - Solo registro normal en /auth */}
       </div>
     </div>
   );

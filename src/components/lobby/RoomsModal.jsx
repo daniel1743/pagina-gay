@@ -8,7 +8,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import { Users, Hash, Gamepad2, Heart, Search, Crown, Plus, X, GitFork, UserMinus, UserCheck, Cake, MessageSquare, Lock } from 'lucide-react';
 import { toast } from '@/components/ui/use-toast';
 import { subscribeToMultipleRoomCounts } from '@/services/presenceService';
-import { roomsData, colorClasses } from '@/config/rooms';
+import { roomsData, colorClasses, getVisibleRooms } from '@/config/rooms';
 import { RegistrationRequiredModal } from '@/components/auth/RegistrationRequiredModal';
 
 /**
@@ -59,7 +59,9 @@ const RoomsModal = ({ isOpen, onClose }) => {
     return () => {}; // Cleanup vacío
   }, [user]);
 
-  const filteredRooms = roomsData.filter(room =>
+  // 🔒 Solo mostrar salas visibles (actualmente solo sala principal)
+  const visibleRooms = getVisibleRooms();
+  const filteredRooms = visibleRooms.filter(room =>
     room.name.toLowerCase().includes(searchTerm.toLowerCase())
   );
   

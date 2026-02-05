@@ -25,7 +25,8 @@ import WelcomeTour from '@/components/onboarding/WelcomeTour';
 import AgeVerificationModal from '@/components/chat/AgeVerificationModal';
 // ⚠️ ChatLandingPage COMENTADO - Experimento directo al chat sin landing
 // import ChatLandingPage from '@/components/chat/ChatLandingPage';
-import { GuestUsernameModal } from '@/components/auth/GuestUsernameModal';
+// ⚠️ MODAL INVITADO ELIMINADO - Solo registro normal
+// import { GuestUsernameModal } from '@/components/auth/GuestUsernameModal';
 // ⚠️ MODALES DE INSTRUCCIONES ELIMINADOS (17/01/2026) - A petición del usuario
 // import EmptyRoomNotificationPrompt from '@/components/chat/EmptyRoomNotificationPrompt';
 // import LoadingMessagesPrompt from '@/components/chat/LoadingMessagesPrompt';
@@ -34,6 +35,10 @@ import ReplyIndicator from '@/components/chat/ReplyIndicator';
 import OpinDiscoveryBanner from '@/components/opin/OpinDiscoveryBanner';
 // 📢 Telegram Banner - Promoción del grupo
 import TelegramBanner from '@/components/ui/TelegramBanner';
+// 🚀 ENGAGEMENT: Banner promocional Baúl + OPIN
+import TarjetaPromoBanner from '@/components/chat/TarjetaPromoBanner';
+import { BaulSection } from '@/components/baul';
+import { useEngagementNudge } from '@/hooks/useEngagementNudge';
 // ⚠️ MODERADOR ELIMINADO (06/01/2026) - A petición del usuario
 // import RulesBanner from '@/components/chat/RulesBanner';
 import { toast } from '@/components/ui/use-toast';
@@ -52,7 +57,7 @@ import { sendPrivateChatRequest, respondToPrivateChatRequest, subscribeToNotific
 import { trackPageView, trackPageExit, trackRoomJoined, trackMessageSent } from '@/services/analyticsService';
 import { useCanonical } from '@/hooks/useCanonical';
 import { checkUserSanctions, SANCTION_TYPES } from '@/services/sanctionsService';
-import { roomsData } from '@/config/rooms';
+import { roomsData, canAccessRoom } from '@/config/rooms';
 import { traceEvent, TRACE_EVENTS } from '@/utils/messageTrace';
 import { startEngagementTracking, hasReachedOneHourLimit, getTotalEngagementTime, hasSeenEngagementModal, markEngagementModalAsShown } from '@/services/engagementService';
 import { notificationSounds } from '@/services/notificationSounds';
@@ -106,6 +111,22 @@ const ChatPage = () => {
     return false; // Valor por defecto para SSR
   });
 
+  // 🔒 VERIFICAR ACCESO A LA SALA - Redirigir si no tiene permiso
+  useEffect(() => {
+    const referrer = document.referrer || '';
+    const accessCheck = canAccessRoom(roomId, referrer);
+
+    if (!accessCheck.allowed) {
+      console.log(`[ROOM ACCESS] 🔒 Acceso denegado a sala "${roomId}": ${accessCheck.message}`);
+      toast({
+        title: '🔒 Sala no disponible',
+        description: accessCheck.message,
+        duration: 4000,
+      });
+      navigate(accessCheck.redirect, { replace: true });
+    }
+  }, [roomId, navigate]);
+
   // ✅ Cerrar sidebar automáticamente en móvil cuando cambia el tamaño de ventana
   useEffect(() => {
     const handleResize = () => {
@@ -140,7 +161,8 @@ const ChatPage = () => {
   const [showAgeVerification, setShowAgeVerification] = useState(false); // ✅ Modal de edad
   const [showRegistrationModal, setShowRegistrationModal] = useState(false);
   const [registrationModalFeature, setRegistrationModalFeature] = useState(null);
-  const [showGuestNicknameModal, setShowGuestNicknameModal] = useState(false); // 🚀 Modal para usuarios sin sesión
+  // ⚠️ MODAL INVITADO ELIMINADO - Solo registro normal
+  // const [showGuestNicknameModal, setShowGuestNicknameModal] = useState(false);
   const loadingTimeoutRef = useRef(null); // 🚀 Ref para timeout de loading
   const [isAgeVerified, setIsAgeVerified] = useState(false); // ✅ Flag mayor de edad
   // ⚠️ MODAL COMENTADO - El bot moderador ya informa las reglas al ingresar
@@ -148,6 +170,7 @@ const ChatPage = () => {
   const [roomCounts, setRoomCounts] = useState({}); // Contadores de usuarios por sala
   const [engagementTime, setEngagementTime] = useState(''); // ⏱️ Tiempo total de engagement
   const [showScreenSaver, setShowScreenSaver] = useState(false); // 🔒 Protector de pantalla
+  const [mostrarBaul, setMostrarBaul] = useState(false); // 📋 Baúl de tarjetas
   const [isInputFocused, setIsInputFocused] = useState(false); // 📝 Input focus state for scroll manager
   const [suggestedMessage, setSuggestedMessage] = useState(null); // 🤖 Mensaje sugerido por Companion AI
   const [replyTo, setReplyTo] = useState(null); // 💬 Mensaje al que se está respondiendo { messageId, username, content }
@@ -194,6 +217,9 @@ const ChatPage = () => {
     userMessageCount,
     enabled: true // Siempre habilitado para usuarios que lo necesiten
   });
+
+  // 🚀 ENGAGEMENT: Toasts periódicos sobre actividad en tarjeta y OPIN
+  const { detenerNudges } = useEngagementNudge();
 
   // ✅ VALIDACIÓN: Salas restringidas requieren autenticación
   // ⚠️ CRITICAL: Este hook DEBE ejecutarse siempre (antes del return) para respetar reglas de hooks
@@ -1265,9 +1291,9 @@ const ChatPage = () => {
    * 🤖 Activa respuesta de bots si están activos
    */
   const handleSendMessage = async (content, type = 'text', replyData = null) => {
-    // 🚀 EXPERIMENTO: Si no hay usuario, mostrar modal de nickname
+    // ⚠️ Si no hay usuario, redirigir a registro normal
     if (!user || !user.id) {
-      setShowGuestNicknameModal(true);
+      navigate('/auth', { state: { redirectTo: `/chat/${roomId}` } });
       return;
     }
 
@@ -2084,7 +2110,7 @@ const ChatPage = () => {
           />
 
           {/* 📢 Banner Telegram - Fijo en todas las salas */}
-          <TelegramBanner />
+          {/* ⚠️ TELEGRAM BANNER ELIMINADO */}
 
           <div className="flex-1 overflow-hidden flex flex-col min-h-0">
             {/* 🎯 OPIN Discovery Banner - Solo para invitados */}
@@ -2092,6 +2118,16 @@ const ChatPage = () => {
               <div className="px-4 pt-4">
                 <OpinDiscoveryBanner />
               </div>
+            )}
+
+            {/* 🚀 BANNER PROMOCIONAL Baúl + OPIN - Solo para usuarios registrados */}
+            {user && !user.isGuest && !user.isAnonymous && (
+              <TarjetaPromoBanner
+                onOpenBaul={() => {
+                  setMostrarBaul(true);
+                  detenerNudges();
+                }}
+              />
             )}
 
             {/* ⚠️ MODALES DE INSTRUCCIONES ELIMINADOS (17/01/2026) - A petición del usuario */}
@@ -2385,17 +2421,15 @@ const ChatPage = () => {
         featureName={registrationModalFeature}
       />
 
-      {/* 🚀 Modal de nickname para usuarios sin sesión - EXPERIMENTO DIRECTO AL CHAT */}
-      <GuestUsernameModal
-        open={showGuestNicknameModal}
-        onClose={() => setShowGuestNicknameModal(false)}
-        chatRoomId={roomId}
-        openSource="user"
-        onGuestReady={() => {
-          setShowGuestNicknameModal(false);
-          // El usuario ya fue seteado, el chat se actualizará automáticamente
-        }}
-      />
+      {/* ⚠️ MODAL INVITADO ELIMINADO - Solo registro normal en /auth */}
+
+      {/* 📋 BAÚL DE TARJETAS - Accesible desde banner promocional */}
+      {mostrarBaul && (
+        <BaulSection
+          isOpen={mostrarBaul}
+          onClose={() => setMostrarBaul(false)}
+        />
+      )}
     </>
   );
 };

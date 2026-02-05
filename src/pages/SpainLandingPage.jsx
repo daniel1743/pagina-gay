@@ -178,8 +178,7 @@ const SpainLandingPage = () => {
           scrollbar-width: none;
         }
       `}</style>
-      {/* 📢 Banner Telegram - Fijo en la parte superior */}
-      <TelegramBanner className="fixed top-0 left-0 right-0 z-50" />
+      {/* ⚠️ TELEGRAM BANNER ELIMINADO */}
       <div style={{
         width: '100vw',
         minHeight: '100vh',

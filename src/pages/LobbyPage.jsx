@@ -17,7 +17,8 @@ import { BaulSection } from '@/components/baul';
 import PWAInstallBanner from '@/components/ui/PWAInstallBanner';
 import ComingSoonModal from '@/components/ui/ComingSoonModal';
 import QuickSignupModal from '@/components/auth/QuickSignupModal';
-import { GuestUsernameModal } from '@/components/auth/GuestUsernameModal';
+// ⚠️ MODAL INVITADO ELIMINADO - Solo registro normal
+// import { GuestUsernameModal } from '@/components/auth/GuestUsernameModal';
 import { toast } from '@/components/ui/use-toast';
 import { useAuth } from '@/contexts/AuthContext';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog';
@@ -25,7 +26,7 @@ import { Button } from '@/components/ui/button';
 import { trackPageView, trackPageExit } from '@/services/analyticsService';
 import { useCanonical } from '@/hooks/useCanonical';
 import { subscribeToLastActivity, subscribeToMultipleRoomCounts } from '@/services/presenceService';
-import { roomsData } from '@/config/rooms';
+import { roomsData, getVisibleRooms, canAccessRoom } from '@/config/rooms';
 import ChatDemo from '@/components/landing/ChatDemo';
 import { SkeletonCard, SkeletonRoomsGrid } from '@/components/ui/SkeletonLoader';
 import { collection, query, orderBy, limit, onSnapshot } from 'firebase/firestore';
@@ -188,7 +189,8 @@ const LobbyPage = () => {
   const [lastActivity, setLastActivity] = useState(null);
   const [, forceUpdate] = useState(0);
   const [showQuickSignup, setShowQuickSignup] = useState(false);
-  const [showGuestModal, setShowGuestModal] = useState(false);
+  // ⚠️ MODAL INVITADO ELIMINADO - Solo registro normal
+  // const [showGuestModal, setShowGuestModal] = useState(false);
   const [roomCounts, setRoomCounts] = useState({});
   const [recentMessages, setRecentMessages] = useState([]);
 
@@ -617,13 +619,15 @@ const LobbyPage = () => {
               transition={{ delay: 0.5 }}
               className="flex flex-col sm:flex-row items-center justify-center gap-4 mb-8 sm:mb-10 px-4"
             >
-              {/* Botón 1: Chatear Ahora (sin registro) - MÁS GRANDE Y PROMINENTE */}
+              {/* Botón 1: Chatear Ahora - DIRECTO AL CHAT PRINCIPAL */}
               <Button
                 onClick={() => {
                   if (user && !user.isAnonymous && !user.isGuest) {
-                    handleCardClick('RoomsModal');
+                    // Usuario registrado: ir directo al chat principal
+                    navigate('/chat/principal');
                   } else {
-                    setShowGuestModal(true);
+                    // Usuario no registrado: ir a registro con redirección
+                    navigate('/auth', { state: { redirectTo: '/chat/principal' } });
                   }
                 }}
                 className="magenta-gradient text-white font-extrabold text-lg sm:text-xl md:text-2xl px-8 sm:px-12 md:px-16 py-6 sm:py-7 md:py-8 rounded-2xl shadow-2xl hover:shadow-[#E4007C]/70 hover:scale-105 transition-all w-full sm:w-auto min-h-[56px] sm:min-h-[64px] animate-pulse-subtle"
@@ -635,7 +639,8 @@ const LobbyPage = () => {
               <Button
                 onClick={() => {
                   if (user && !user.isAnonymous && !user.isGuest) {
-                    handleCardClick('RoomsModal');
+                    // Usuario registrado: ir directo al chat principal
+                    navigate('/chat/principal');
                   } else {
                     setShowQuickSignup(true);
                   }
@@ -799,7 +804,7 @@ const LobbyPage = () => {
                 Únete a cientos de usuarios que ya confían en Chactivo
               </p>
               <Button
-                onClick={() => setShowGuestModal(true)}
+                onClick={() => navigate('/auth', { state: { redirectTo: '/chat/principal' } })}
                 className="magenta-gradient text-white font-bold text-lg sm:text-xl px-10 sm:px-14 py-6 sm:py-7 rounded-xl shadow-xl hover:shadow-[#E4007C]/50 hover:scale-105 transition-all"
               >
                 ⚡ Empezar a Chatear Gratis
@@ -975,7 +980,7 @@ const LobbyPage = () => {
                     Únete a miles de usuarios satisfechos
                   </p>
                   <Button
-                    onClick={() => setShowGuestModal(true)}
+                    onClick={() => navigate('/auth', { state: { redirectTo: '/chat/principal' } })}
                     className="magenta-gradient text-white font-bold text-lg sm:text-xl px-8 sm:px-12 py-6 sm:py-7 rounded-xl shadow-xl hover:shadow-[#E4007C]/50 hover:scale-105 transition-all"
                   >
                     🚀 Probar Gratis Ahora
@@ -1248,7 +1253,8 @@ const LobbyPage = () => {
             <ChatDemo
               onJoinClick={() => {
                 if (user && !user.isAnonymous && !user.isGuest) {
-                  handleCardClick('RoomsModal');
+                  // Usuario registrado: ir directo al chat principal
+                  navigate('/chat/principal');
                 } else {
                   setShowQuickSignup(true);
                 }
@@ -1458,7 +1464,7 @@ const LobbyPage = () => {
                 Prueba una plataforma que respeta tu privacidad de verdad. Sin trucos, sin letra pequeña.
               </p>
               <Button
-                onClick={() => setShowGuestModal(true)}
+                onClick={() => navigate('/auth', { state: { redirectTo: '/chat/principal' } })}
                 className="magenta-gradient text-white font-bold text-lg sm:text-xl px-10 sm:px-14 py-6 sm:py-7 rounded-xl shadow-xl hover:shadow-[#E4007C]/50 hover:scale-105 transition-all"
               >
                 🔒 Chatear con Privacidad Total
@@ -1671,7 +1677,7 @@ const LobbyPage = () => {
               ¿Listo para probarlo? Es gratis y toma 10 segundos
             </p>
             <Button
-              onClick={() => setShowGuestModal(true)}
+              onClick={() => navigate('/auth', { state: { redirectTo: '/chat/principal' } })}
               className="magenta-gradient text-white font-bold text-lg sm:text-xl px-8 sm:px-12 py-6 sm:py-7 rounded-xl shadow-xl hover:shadow-[#E4007C]/50 hover:scale-105 transition-all"
             >
               ⚡ Chatear Ahora - Gratis
@@ -2094,7 +2100,7 @@ const LobbyPage = () => {
           className="fixed bottom-0 left-0 right-0 z-40 p-4 bg-gradient-to-t from-background via-background to-transparent md:hidden"
         >
           <Button
-            onClick={() => setShowGuestModal(true)}
+            onClick={() => navigate('/auth', { state: { redirectTo: '/chat/principal' } })}
             className="w-full magenta-gradient text-white font-extrabold text-base sm:text-lg px-6 py-5 rounded-xl shadow-2xl hover:shadow-[#E4007C]/70 hover:scale-[1.02] transition-all animate-pulse-subtle"
           >
             ⚡ Chatear Gratis Ahora
@@ -2172,11 +2178,7 @@ const LobbyPage = () => {
         redirectTo="/lobby"
       />
 
-      {/* Guest Username Modal (Sin Registro) */}
-      <GuestUsernameModal
-        open={showGuestModal}
-        onClose={() => setShowGuestModal(false)}
-      />
+      {/* ⚠️ MODAL INVITADO ELIMINADO - Solo registro normal en /auth */}
 
     </>
   );

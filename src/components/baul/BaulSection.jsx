@@ -45,6 +45,12 @@ import {
 } from '@/services/tarjetaService';
 import { getCurrentLocation } from '@/services/geolocationService';
 import { toast } from '@/components/ui/use-toast';
+import {
+  procesarBoostTarjeta,
+  generarMensajeEngagement,
+  deberíaMostrarToast,
+  marcarToastMostrado
+} from '@/services/engagementBoostService';
 
 /**
  * Header del Baúl
@@ -207,17 +213,17 @@ const BaulSection = ({ isOpen, onClose }) => {
       try {
         if (ubicacion) {
           console.log('[BAUL] 🔍 Buscando tarjetas cercanas...');
-          tarjetasCargadas = await obtenerTarjetasCercanas(ubicacion, odIdUsuari, 50);
+          tarjetasCargadas = await obtenerTarjetasCercanas(ubicacion, odIdUsuari, 100);
         } else {
           console.log('[BAUL] 🔍 Buscando tarjetas recientes (sin ubicación)...');
-          tarjetasCargadas = await obtenerTarjetasRecientes(odIdUsuari, 30);
+          tarjetasCargadas = await obtenerTarjetasRecientes(odIdUsuari, 100);
         }
       } catch (queryError) {
         console.error('[BAUL] ❌ Error en query de tarjetas:', queryError);
         // Fallback: intentar obtener sin filtros
         try {
           console.log('[BAUL] 🔄 Intentando fallback...');
-          tarjetasCargadas = await obtenerTarjetasRecientes(odIdUsuari, 30);
+          tarjetasCargadas = await obtenerTarjetasRecientes(odIdUsuari, 100);
         } catch (fallbackError) {
           console.error('[BAUL] ❌ Fallback también falló:', fallbackError);
           tarjetasCargadas = [];
@@ -290,6 +296,30 @@ const BaulSection = ({ isOpen, onClose }) => {
       }
 
       setMiTarjeta(tarjeta);
+
+      // 🚀 BOOST: Aplicar vistas y likes graduales a mi tarjeta
+      if (tarjeta) {
+        try {
+          const boostResult = await procesarBoostTarjeta(tarjeta);
+
+          if (boostResult?.huboBoost && deberíaMostrarToast('baulEngagementToast')) {
+            const mensaje = generarMensajeEngagement('tarjeta', boostResult);
+            if (mensaje) {
+              // Delay para que se sienta más natural
+              setTimeout(() => {
+                toast({
+                  title: mensaje.title,
+                  description: mensaje.description,
+                  duration: 4000
+                });
+                marcarToastMostrado('baulEngagementToast');
+              }, 2000 + Math.random() * 3000); // 2-5 segundos de delay
+            }
+          }
+        } catch (boostError) {
+          console.warn('[BAUL] Error en boost:', boostError.message);
+        }
+      }
     } catch (error) {
       console.error('[BAUL] ❌ Error cargando/creando mi tarjeta:', error);
     }
@@ -349,7 +379,7 @@ const BaulSection = ({ isOpen, onClose }) => {
       const resultado = await darLike(
         tarjetaId,
         odIdUsuari,
-        user?.username || 'Usuario',
+        miTarjeta?.nombre || user?.username || 'Usuario',
         user?.avatar || miTarjeta?.fotoUrl || ''
       );
 
@@ -394,7 +424,7 @@ const BaulSection = ({ isOpen, onClose }) => {
 
     // Registrar visita
     if (odIdUsuari) {
-      registrarVisita(tarjeta.odIdUsuari, odIdUsuari, user?.username || 'Usuario');
+      registrarVisita(tarjeta.odIdUsuari, odIdUsuari, miTarjeta?.nombre || user?.username || 'Usuario');
     }
 
     // Abrir modal de mensaje que también muestra el perfil
@@ -501,7 +531,7 @@ const BaulSection = ({ isOpen, onClose }) => {
               }}
               tarjeta={tarjetaSeleccionada}
               miUserId={odIdUsuari}
-              miUsername={user?.username || 'Usuario'}
+              miUsername={miTarjeta?.nombre || user?.username || 'Usuario'}
             />
           )}
 

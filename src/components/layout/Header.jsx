@@ -12,7 +12,8 @@ import ActivityDashboardModal from '@/components/dashboard/ActivityDashboardModa
 import { AvatarMenu } from '@/components/layout/AvatarMenu'; // ⚡ NUEVO: Menu unificado para todos los usuarios
 // ⚠️ MODAL COMENTADO - Usamos entrada directa como invitado (sin opciones)
 // import { EntryOptionsModal } from '@/components/auth/EntryOptionsModal';
-import { GuestUsernameModal } from '@/components/auth/GuestUsernameModal';
+// ⚠️ MODAL INVITADO ELIMINADO - Solo registro normal
+// import { GuestUsernameModal } from '@/components/auth/GuestUsernameModal';
 import { doc, getDoc } from 'firebase/firestore';
 import { db } from '@/config/firebase';
 import { subscribeToSystemNotifications } from '@/services/systemNotificationsService';
@@ -32,7 +33,8 @@ const Header = () => {
   const [logoSrc, setLogoSrc] = useState("/LOGO-TRASPARENTE.png");
   // ⚠️ MODAL COMENTADO - Ya no usamos EntryOptionsModal
   // const [showEntryModal, setShowEntryModal] = useState(false);
-  const [showGuestModal, setShowGuestModal] = useState(false);
+  // ⚠️ MODAL INVITADO ELIMINADO - Solo registro normal
+  // const [showGuestModal, setShowGuestModal] = useState(false);
   const [showActivityDashboard, setShowActivityDashboard] = useState(false);
 
   // Desactivar animación del badge Beta después de 5 segundos
@@ -211,8 +213,8 @@ const Header = () => {
                     // Usuario ya anónimo/guest - ir directo al chat
                     navigate('/chat/principal');
                   } else {
-                    // No hay usuario - abrir modal de invitado directamente (sin opciones)
-                    setShowGuestModal(true);
+                    // No hay usuario - redirigir a registro normal
+                    navigate('/auth', { state: { redirectTo: '/chat/principal' } });
                   }
                 }}
                 className="magenta-gradient text-white font-bold px-4 sm:px-6 py-2 sm:py-2.5 rounded-lg shadow-lg hover:shadow-[#E4007C]/50 transition-all hover:scale-105"
@@ -255,11 +257,7 @@ const Header = () => {
         onContinueWithoutRegister={handleContinueWithoutRegister}
       /> */}
 
-      <GuestUsernameModal
-        open={showGuestModal}
-        onClose={() => setShowGuestModal(false)}
-        chatRoomId="principal"
-      />
+      {/* ⚠️ MODAL INVITADO ELIMINADO - Solo registro normal en /auth */}
     </header>
   );
 };

@@ -142,7 +142,8 @@ const MensajeTarjetaModal = ({
                 <Eye className="w-4 h-4" />
                 <span>{tarjeta.visitasRecibidas || 0} visitas</span>
               </div>
-              {tarjeta.distanciaTexto && (
+              {/* Solo mostrar distancia si <= 5km para evitar fricción */}
+              {tarjeta.distanciaTexto && tarjeta.distanciaKm && tarjeta.distanciaKm <= 5 && (
                 <div className="flex items-center gap-1">
                   <MapPin className="w-4 h-4 text-cyan-400" />
                   <span>{tarjeta.distanciaTexto}</span>

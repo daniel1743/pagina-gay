@@ -1,79 +1,74 @@
 import { Users, Hash, Gamepad2, Heart, UserCheck, GitFork, UserMinus, Cake } from 'lucide-react';
 
-// ✅ CONSOLIDACIÓN DE SALAS 2025-12-16
-// Estrategia: Concentrar usuarios en 4 salas principales para crear masa crítica
-// Las demás salas se reactivarán cuando haya >200 usuarios diarios
+// ✅ CONSOLIDACIÓN DE SALAS 2026-02-04
+// Estrategia: SOLO SALA PRINCIPAL activa para concentrar usuarios
+// Las demás salas se desbloquearán cuando haya suficiente tráfico
+// Salas internacionales solo accesibles desde sus landing pages
+
+// 🔒 CONFIGURACIÓN DE ACCESO A SALAS
+export const ROOM_ACCESS_CONFIG = {
+  // Sala única activa para todos
+  MAIN_ROOM: 'principal',
+
+  // Salas internacionales (solo accesibles desde sus landing pages)
+  INTERNATIONAL_ROOMS: ['es-main', 'br-main', 'mx-main', 'ar-main'],
+
+  // Salas bloqueadas temporalmente (se desbloquean con más usuarios)
+  LOCKED_ROOMS: ['mas-30', 'santiago', 'gaming'],
+
+  // Umbral de usuarios para desbloquear salas adicionales
+  UNLOCK_THRESHOLD: 100, // Cuando haya 100+ usuarios activos
+};
 
 export const roomsData = [
-  // ⚠️ SALA GLOBAL ANTIGUA - COMENTADA (tenía spam masivo)
-  // Se mantiene comentada como "general" para referencia histórica
-  // {
-  //   id: 'general',
-  //   name: 'Chat General 🌍 (SPAM)',
-  //   description: 'Sala antigua con spam - DESACTIVADA',
-  //   icon: Hash,
-  //   color: 'teal'
-  // },
-
-  // ⚠️ SALA GLOBAL - COMENTADA (reemplazada por Chat Principal)
-  // {
-  //   id: 'global',
-  //   name: 'Chat Global 🌍',
-  //   description: 'Sala principal - Todos los temas bienvenidos',
-  //   icon: Hash,
-  //   color: 'teal'
-  // },
-
-  // 🔥 SALA CHAT PRINCIPAL - Sala principal activa
+  // 🔥 SALA PRINCIPAL - ÚNICA SALA ACTIVA
   {
     id: 'principal',
     name: 'Chat Principal 🌍',
     description: 'Sala principal - Todos los temas bienvenidos',
     icon: Hash,
-    color: 'teal'
+    color: 'teal',
+    isMainRoom: true // ✅ Sala principal activa
   },
 
-  // ⚠️ SALA DESACTIVADA - Tenía spam masivo, redirige a 'global'
-  // {
-  //   id: 'conversas-libres',
-  //   name: 'Conversas Libres 💬',
-  //   description: 'Chat general - Todos los temas bienvenidos',
-  //   icon: Hash,
-  //   color: 'teal'
-  // },
-  // 🎯 SALAS ESTRATÉGICAS - Nichos con alto engagement
+  // 🔒 SALAS BLOQUEADAS - Se desbloquean con más tráfico
   {
     id: 'mas-30',
     name: 'Más de 30 💪',
     description: 'Para mayores de 30 años',
     icon: Users,
-    color: 'teal'
+    color: 'teal',
+    locked: true,
+    lockedMessage: '🔒 Esta sala se desbloqueará pronto. Por ahora, únete al Chat Principal.'
   },
   {
     id: 'santiago',
     name: 'Santiago 🏙️',
     description: 'Gays de Santiago - Capital de Chile',
     icon: Users,
-    color: 'cyan'
+    color: 'cyan',
+    locked: true,
+    lockedMessage: '🔒 Esta sala se desbloqueará pronto. Por ahora, únete al Chat Principal.'
   },
   {
     id: 'gaming',
     name: 'Gaming 🎮',
     description: 'Gamers LGBT+ conectando',
     icon: Gamepad2,
-    color: 'violet'
+    color: 'violet',
+    locked: true,
+    lockedMessage: '🔒 Esta sala se desbloqueará pronto. Por ahora, únete al Chat Principal.'
   },
 
-  // 🌍 SALAS POR PAÍS - Nuevas rutas internacionales
-  // ⚠️ DESHABILITADAS temporalmente - Requieren registro para acceder
+  // 🌍 SALAS INTERNACIONALES - Solo accesibles desde sus landing pages
   {
     id: 'es-main',
     name: 'España 🇪🇸',
     description: 'Chat principal de España',
     icon: Hash,
     color: 'red',
-    disabled: true, // ⚠️ Requiere registro
-    disabledMessage: 'Regístrate para acceder a esta sala'
+    isInternational: true,
+    allowedFromLanding: '/espana' // Solo desde landing de España
   },
   {
     id: 'br-main',
@@ -81,8 +76,8 @@ export const roomsData = [
     description: 'Chat principal do Brasil',
     icon: Hash,
     color: 'green',
-    disabled: true, // ⚠️ Requiere registro
-    disabledMessage: 'Regístrate para acceder a esta sala'
+    isInternational: true,
+    allowedFromLanding: '/brasil'
   },
   {
     id: 'mx-main',
@@ -90,8 +85,8 @@ export const roomsData = [
     description: 'Chat principal de México',
     icon: Hash,
     color: 'green',
-    disabled: true, // ⚠️ Requiere registro
-    disabledMessage: 'Regístrate para acceder a esta sala'
+    isInternational: true,
+    allowedFromLanding: '/mexico'
   },
   {
     id: 'ar-main',
@@ -99,85 +94,9 @@ export const roomsData = [
     description: 'Chat principal de Argentina',
     icon: Hash,
     color: 'blue',
-    disabled: true, // ⚠️ Requiere registro
-    disabledMessage: 'Regístrate para acceder a esta sala'
+    isInternational: true,
+    allowedFromLanding: '/argentina'
   },
-
-  // ⚠️ SALA SECUNDARIA - COMENTADA (a petición del usuario)
-  // 🆕 SALA SECUNDARIA - Chat secundario con conversación bidireccional
-  // {
-  //   id: 'secundaria',
-  //   name: 'Sala Secundaria 💬',
-  //   description: 'Chat secundario - Conversación bidireccional',
-  //   icon: Hash,
-  //   color: 'purple',
-  //   isSecondary: true // ✅ Flag para identificar que es sala secundaria
-  // },
-
-  // 💤 SALAS DESACTIVADAS TEMPORALMENTE (Reactivar cuando haya más tráfico)
-  // {
-  //   id: 'valparaiso',
-  //   name: 'Valparaíso 🌊',
-  //   description: 'Gays de Valparaíso - Puerto y cerros',
-  //   icon: Users,
-  //   color: 'blue'
-  // },
-  // {
-  //   id: 'amistad',
-  //   name: 'Amistad',
-  //   description: 'Conoce nuevos amigos LGBT+',
-  //   icon: Heart,
-  //   color: 'pink'
-  // },
-  // {
-  //   id: 'osos',
-  //   name: 'Osos',
-  //   description: 'Espacio para la comunidad Bear',
-  //   icon: UserCheck,
-  //   color: 'amber'
-  // },
-  // {
-  //   id: 'activos-buscando',
-  //   name: 'Activos Buscando',
-  //   description: 'Activos en búsqueda',
-  //   icon: UserCheck,
-  //   color: 'blue'
-  // },
-  // {
-  //   id: 'pasivos-buscando',
-  //   name: 'Pasivos Buscando',
-  //   description: 'Pasivos en búsqueda',
-  //   icon: UserCheck,
-  //   color: 'purple'
-  // },
-  // {
-  //   id: 'lesbianas',
-  //   name: 'Lesbianas',
-  //   description: 'Sala exclusiva para lesbianas',
-  //   icon: GitFork,
-  //   color: 'fuchsia'
-  // },
-  // {
-  //   id: 'menos-30',
-  //   name: 'Menos de 30',
-  //   description: 'Para menores de 30 años',
-  //   icon: UserMinus,
-  //   color: 'green'
-  // },
-  // {
-  //   id: 'mas-40',
-  //   name: 'Más de 40',
-  //   description: 'Para mayores de 40 años',
-  //   icon: Cake,
-  //   color: 'orange'
-  // },
-  // {
-  //   id: 'mas-50',
-  //   name: 'Más de 50',
-  //   description: 'Para mayores de 50 años',
-  //   icon: Cake,
-  //   color: 'red'
-  // },
 ];
 
 export const colorClasses = {
@@ -194,3 +113,67 @@ export const colorClasses = {
   violet: 'text-violet-400',
 };
 
+/**
+ * Verifica si un usuario puede acceder a una sala
+ * @param {string} roomId - ID de la sala
+ * @param {string} referrer - URL de donde viene el usuario (opcional)
+ * @returns {{ allowed: boolean, redirect?: string, message?: string }}
+ */
+export const canAccessRoom = (roomId, referrer = '') => {
+  const room = roomsData.find(r => r.id === roomId);
+
+  // Sala no existe
+  if (!room) {
+    return {
+      allowed: false,
+      redirect: '/chat/principal',
+      message: 'Sala no encontrada. Redirigiendo al Chat Principal.'
+    };
+  }
+
+  // Sala principal siempre accesible
+  if (room.isMainRoom) {
+    return { allowed: true };
+  }
+
+  // Salas internacionales - verificar si viene de landing correcta
+  if (room.isInternational) {
+    // Permitir si viene de la landing internacional correspondiente
+    // o si ya está en sesión desde esa sala
+    const fromCorrectLanding = referrer && referrer.includes(room.allowedFromLanding);
+    if (fromCorrectLanding) {
+      return { allowed: true };
+    }
+    return {
+      allowed: false,
+      redirect: '/chat/principal',
+      message: `Para acceder a ${room.name}, visita nuestra página de ${room.name.split(' ')[0]}.`
+    };
+  }
+
+  // Salas bloqueadas
+  if (room.locked) {
+    return {
+      allowed: false,
+      redirect: '/chat/principal',
+      message: room.lockedMessage
+    };
+  }
+
+  return { allowed: true };
+};
+
+/**
+ * Obtiene solo las salas visibles en el lobby
+ * @returns {Array} Salas que se muestran en el lobby
+ */
+export const getVisibleRooms = () => {
+  // Solo mostrar sala principal en el lobby
+  return roomsData.filter(room => room.isMainRoom);
+};
+
+/**
+ * Obtiene todas las salas (para admin)
+ * @returns {Array} Todas las salas
+ */
+export const getAllRooms = () => roomsData;
