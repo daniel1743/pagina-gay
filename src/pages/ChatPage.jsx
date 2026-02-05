@@ -1291,41 +1291,29 @@ const ChatPage = () => {
    * 🤖 Activa respuesta de bots si están activos
    */
   const handleSendMessage = async (content, type = 'text', replyData = null) => {
-    // ⚠️ Si no hay usuario, redirigir a registro normal
+    // ⚠️ Si no hay usuario, crear sesión guest automáticamente (no redirigir a registro)
     if (!user || !user.id) {
-      navigate('/auth', { state: { redirectTo: `/chat/${roomId}` } });
+      toast({
+        title: 'Preparando tu sesión...',
+        description: 'Intenta enviar el mensaje de nuevo en un momento',
+        duration: 3000,
+      });
+      // Intentar crear sesión guest en background
+      try {
+        await signInAsGuest();
+      } catch (e) {
+        console.warn('[CHAT] Error creando sesión guest:', e.message);
+      }
       return;
     }
 
-    // ✅ PERMITIR USUARIOS NO AUTENTICADOS (período de captación - 5 días)
-    // Fecha de lanzamiento: 2026-01-06 (ajustar según tu fecha real)
-    const LAUNCH_DATE = new Date('2026-01-06').getTime();
-    const CAPTURE_PERIOD_DAYS = 5;
-    const CAPTURE_PERIOD_MS = CAPTURE_PERIOD_DAYS * 24 * 60 * 60 * 1000;
-    const isWithinCapturePeriod = Date.now() < (LAUNCH_DATE + CAPTURE_PERIOD_MS);
-    
-    // Si estamos dentro del período de captación, permitir usuarios sin auth
-    if (!auth.currentUser && !isWithinCapturePeriod) {
-      toast({
-        title: "¿Disfrutas nuestra app?",
-        description: "Regístrate ahora para seguir chateando y desbloquear todas las funciones.",
-        variant: "default",
-        duration: 6000,
-        action: {
-          label: "Registrarse",
-          onClick: () => navigate('/auth')
-        }
-      });
-      return;
-    }
-    
-    // Si estamos dentro del período de captación pero no hay auth, continuar (permitir usuario no autenticado)
-    // Si hay auth, validar que esté disponible
+    // ✅ Chat principal: SIEMPRE permitir enviar mensajes (registrados e invitados)
+    // Solo Baúl (cambio foto) y OPIN (publicar) requieren registro
     if (auth.currentUser) {
-      // Esperar hasta 3 segundos a que auth.currentUser esté disponible (solo si existe)
+      // Si hay auth, esperar a que esté disponible
       let attempts = 0;
       const maxAttempts = 30;
-      
+
       while (!auth.currentUser && attempts < maxAttempts) {
         await new Promise(resolve => setTimeout(resolve, 100));
         attempts++;
@@ -1987,13 +1975,20 @@ const ChatPage = () => {
   
   // ⚡ AUTO-LOGIN GUEST: Si accede directamente a /chat/principal sin sesión, crear sesión guest automáticamente
   useEffect(() => {
-    // ✅ FIX: Prevenir múltiples intentos de auto-login
+    // Prevenir múltiples intentos de auto-login
     if (autoLoginAttemptedRef.current) return;
-    
-    // ✅ NO crear usuarios automáticos - el usuario debe elegir su nombre
-    // Si accede directamente sin sesión, se mostrará el ChatLandingPage
-    // que tiene el formulario de entrada donde puede elegir su nombre
-    // (No generamos nombres automáticos tipo "GuestXXXX")
+    // Esperar a que auth termine de cargar
+    if (authLoading) return;
+    // Si ya hay usuario, no hacer nada
+    if (user) return;
+
+    // Crear sesión guest automáticamente para que pueda chatear sin fricción
+    autoLoginAttemptedRef.current = true;
+    console.log('[CHAT] ⚡ Auto-creando sesión guest para visitante sin sesión');
+    signInAsGuest().catch(err => {
+      console.warn('[CHAT] Error en auto-login guest:', err.message);
+      autoLoginAttemptedRef.current = false; // Permitir reintento
+    });
   }, [authLoading, user, roomId, signInAsGuest]);
 
   // 📜 DETECCIÓN DE SCROLL: Toast para usuarios no logueados
