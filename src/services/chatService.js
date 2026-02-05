@@ -430,8 +430,31 @@ if (typeof window !== 'undefined') {
 }
 
 /**
+ * Procesa un snapshot de Firestore y devuelve mensajes ordenados (viejo->nuevo)
+ */
+const processSnapshotToMessages = (snapshot, roomId) => {
+  const receiveTimestamp = Date.now();
+  const messages = [];
+  for (let i = 0; i < snapshot.docs.length; i++) {
+    const d = snapshot.docs[i];
+    const data = d.data();
+    const timestampMs = data.timestamp?.toMillis?.() ?? null;
+    messages.push({
+      id: d.id,
+      ...data,
+      timestampMs,
+      timestamp: data.timestamp ?? null,
+      _receiveLatency: timestampMs ? receiveTimestamp - timestampMs : null,
+    });
+  }
+  const orderedMessages = [];
+  for (let i = messages.length - 1; i >= 0; i--) orderedMessages.push(messages[i]);
+  return orderedMessages;
+};
+
+/**
  * Suscripción a mensajes en tiempo real - orden estable (nuevo->viejo en query, se invierte en cliente)
- * ⚡ OPTIMIZADO: Límite reducido a 50 para mejorar velocidad (antes 200 causaba 11+ segundos de latencia)
+ * ⚡ Carga inicial con getDocs para mostrar mensajes de inmediato; onSnapshot para tiempo real
  */
 export const subscribeToRoomMessages = (roomId, callback, messageLimit = 60) => {
   console.log(`[CHAT SERVICE] 🔍 Iniciando suscripción a sala ${roomId} con límite ${messageLimit}`);
@@ -439,6 +462,19 @@ export const subscribeToRoomMessages = (roomId, callback, messageLimit = 60) => 
   const q = query(messagesRef, orderBy('timestamp', 'desc'), limit(messageLimit));
   
   console.log(`[CHAT SERVICE] 📡 Query configurada: rooms/${roomId}/messages, ordenado por timestamp desc, límite ${messageLimit}`);
+
+  // ⚡ CARGA INMEDIATA: getDocs para mostrar mensajes lo antes posible (evita esperar minutos al onSnapshot)
+  getDocs(q)
+    .then((snapshot) => {
+      const ordered = processSnapshotToMessages(snapshot, roomId);
+      if (ordered.length > 0) {
+        console.log(`[CHAT SERVICE] ⚡ getDocs inicial: ${ordered.length} mensajes para sala ${roomId}`);
+        callback(ordered);
+      }
+    })
+    .catch((err) => {
+      console.warn('[CHAT SERVICE] getDocs inicial falló, esperando onSnapshot:', err?.message);
+    });
 
   // ⚡ OPTIMIZACIÓN CRÍTICA: Medir tiempo de entrega para diagnosticar retrasos
   let lastSnapshotTime = Date.now();
@@ -497,56 +533,8 @@ export const subscribeToRoomMessages = (roomId, callback, messageLimit = 60) => 
       //   });
       // }
 
-      // ⚡ OPTIMIZACIÓN: Procesar mensajes de forma más eficiente
       const startProcessTime = performance.now();
-      
-      // ⚡ OPTIMIZACIÓN: Usar for loop en vez de map para mejor rendimiento con muchos docs
-      // ⏱️ TIMING: Registrar cuando se reciben los mensajes
-      const receiveTimestamp = Date.now();
-      const messages = [];
-      let messagesWithoutTimestamp = 0;
-      
-      for (let i = 0; i < snapshot.docs.length; i++) {
-        const doc = snapshot.docs[i];
-        const data = doc.data();
-        const timestampMs = data.timestamp?.toMillis?.() ?? null;
-        
-        // ⚠️ DIAGNÓSTICO: Contar mensajes sin timestamp
-        if (!timestampMs && !data.timestamp) {
-          messagesWithoutTimestamp++;
-          console.warn(`[CHAT SERVICE] ⚠️ Mensaje sin timestamp encontrado:`, {
-            id: doc.id,
-            username: data.username,
-            content: data.content?.substring(0, 30),
-            hasTimestampField: !!data.timestamp,
-            hasToMillis: !!data.timestamp?.toMillis
-          });
-        }
-        
-        // ⏱️ TIMING: Calcular latencia si el mensaje tiene timestamp del servidor
-        let latency = null;
-        if (timestampMs) {
-          latency = receiveTimestamp - timestampMs;
-        }
-        
-        messages.push({
-          id: doc.id,
-          ...data,
-          timestampMs,
-          timestamp: data.timestamp ?? null,
-          _receiveLatency: latency, // Latencia en ms desde que se creó hasta que llegó
-        });
-      }
-      
-      if (messagesWithoutTimestamp > 0) {
-        console.warn(`[CHAT SERVICE] ⚠️ ${messagesWithoutTimestamp} mensajes sin timestamp en sala ${roomId} - esto podría causar problemas de ordenamiento`);
-      }
-
-      // ⚡ OPTIMIZACIÓN: Invertir array en lugar de usar reverse() (más eficiente)
-      const orderedMessages = [];
-      for (let i = messages.length - 1; i >= 0; i--) {
-        orderedMessages.push(messages[i]);
-      }
+      const orderedMessages = processSnapshotToMessages(snapshot, roomId);
       
       console.log(`[CHAT SERVICE] ✅ Mensajes procesados: ${orderedMessages.length} mensajes ordenados para sala ${roomId}`);
       if (orderedMessages.length > 0) {

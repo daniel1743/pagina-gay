@@ -20,7 +20,8 @@ import {
   Bell,
   ChevronRight,
   Heart,
-  Sparkles
+  Sparkles,
+  ArrowLeft
 } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
 import TarjetaUsuario from './TarjetaUsuario';
@@ -59,6 +60,16 @@ const BaulHeader = ({ onClose, onRefresh, isRefreshing, cantidadTarjetas, activi
   <div className="sticky top-0 z-10 bg-gray-900/95 backdrop-blur-sm border-b border-gray-700/50 px-4 py-3">
     <div className="flex items-center justify-between">
       <div className="flex items-center gap-3">
+        <motion.button
+          whileTap={{ scale: 0.95 }}
+          onClick={onClose}
+          className="flex items-center gap-2 p-2 -ml-2 rounded-lg text-gray-300 hover:text-white hover:bg-gray-700/50 transition-colors"
+          title="Volver"
+          aria-label="Volver"
+        >
+          <ArrowLeft className="w-5 h-5" />
+          <span className="text-sm font-medium hidden sm:inline">Volver</span>
+        </motion.button>
         <h2 className="text-xl font-bold text-white">Baúl de Perfiles</h2>
         <span className="text-sm text-gray-400 bg-gray-700/50 px-2 py-0.5 rounded-full">
           {cantidadTarjetas} cerca

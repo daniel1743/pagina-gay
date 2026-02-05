@@ -37,6 +37,7 @@ import OpinDiscoveryBanner from '@/components/opin/OpinDiscoveryBanner';
 import TelegramBanner from '@/components/ui/TelegramBanner';
 // 🚀 ENGAGEMENT: Banner promocional Baúl + OPIN
 import TarjetaPromoBanner from '@/components/chat/TarjetaPromoBanner';
+import ChatBottomNav from '@/components/chat/ChatBottomNav';
 import { BaulSection } from '@/components/baul';
 import { useEngagementNudge } from '@/hooks/useEngagementNudge';
 // ⚠️ MODERADOR ELIMINADO (06/01/2026) - A petición del usuario
@@ -2092,11 +2093,15 @@ const ChatPage = () => {
           setCurrentRoom={setCurrentRoom}
           isOpen={sidebarOpen}
           onClose={() => setSidebarOpen(false)}
+          onOpenBaul={() => {
+            setMostrarBaul(true);
+            detenerNudges();
+          }}
         />
 
         {/* ✅ FIX: Contenedor del chat - Asegurar que esté visible en móvil cuando sidebar está cerrado */}
-        {/* En móvil: ancho completo (100vw), en desktop: flex-1 para ajustarse al sidebar */}
-        <div className="w-full lg:flex-1 flex flex-col overflow-hidden min-w-0 h-full">
+        {/* En móvil: ancho completo (100vw), pb-16 para barra inferior; en desktop: flex-1 */}
+        <div className="w-full lg:flex-1 flex flex-col overflow-hidden min-w-0 h-full pb-16 lg:pb-0">
           <ChatHeader
             currentRoom={currentRoom}
             onMenuClick={() => setSidebarOpen(true)}
@@ -2419,6 +2424,14 @@ const ChatPage = () => {
       {/* ⚠️ MODAL INVITADO ELIMINADO - Solo registro normal en /auth */}
 
       {/* 📋 BAÚL DE TARJETAS - Accesible desde banner promocional */}
+      {/* 📱 Barra inferior móvil: Baúl, Chat Principal, OPIN */}
+      <ChatBottomNav
+        onOpenBaul={() => {
+          setMostrarBaul(true);
+          detenerNudges();
+        }}
+      />
+
       {mostrarBaul && (
         <BaulSection
           isOpen={mostrarBaul}

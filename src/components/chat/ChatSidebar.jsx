@@ -3,7 +3,7 @@ import { useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
 import { Button } from '@/components/ui/button';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
-import { Hash, Gamepad2, Users, Heart, User, LogIn, X, UserCheck, GitFork, UserMinus, Cake, CheckCircle, Lock } from 'lucide-react';
+import { Hash, Gamepad2, Users, Heart, User, LogIn, X, UserCheck, GitFork, UserMinus, Cake, CheckCircle, Lock, Sparkles, Archive } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { subscribeToMultipleRoomCounts } from '@/services/presenceService';
 import { roomsData, colorClasses, getVisibleRooms, canAccessRoom } from '@/config/rooms';
@@ -32,7 +32,7 @@ const getRoomActivityStatus = (realUserCount) => {
   }
 };
 
-const ChatSidebar = ({ currentRoom, setCurrentRoom, isOpen, onClose }) => {
+const ChatSidebar = ({ currentRoom, setCurrentRoom, isOpen, onClose, onOpenBaul }) => {
   const navigate = useNavigate();
   const location = useLocation();
   const { user, logout } = useAuth();
@@ -296,6 +296,35 @@ const ChatSidebar = ({ currentRoom, setCurrentRoom, isOpen, onClose }) => {
               })}
             </div>
           </div>
+
+          {/* 🎯 OPIN y Baúl - Descubre */}
+          <div className="mt-4 mb-2">
+            <h3 className="text-xs font-semibold text-muted-foreground uppercase mb-2 px-2">Descubre</h3>
+            <div className="space-y-1">
+              <Button
+                variant="ghost"
+                className="w-full justify-start text-left h-auto py-2.5 px-3 hover:bg-accent/50 hover:border-l-2 hover:border-purple-500 group"
+                onClick={() => {
+                  navigate('/opin');
+                  if (typeof window !== 'undefined' && window.innerWidth < 1024) onClose();
+                }}
+              >
+                <Sparkles className="w-5 h-5 text-purple-400 flex-shrink-0 mr-3" />
+                <span className="text-sm font-medium text-foreground">Tu Opinión</span>
+              </Button>
+              <Button
+                variant="ghost"
+                className="w-full justify-start text-left h-auto py-2.5 px-3 hover:bg-accent/50 hover:border-l-2 hover:border-cyan-500 group"
+                onClick={() => {
+                  onOpenBaul?.();
+                  if (typeof window !== 'undefined' && window.innerWidth < 1024) onClose();
+                }}
+              >
+                <Archive className="w-5 h-5 text-cyan-400 flex-shrink-0 mr-3" />
+                <span className="text-sm font-medium text-foreground">Baúl</span>
+              </Button>
+            </div>
+          </div>
         </div>
 
         <div className="p-4 border-t border-border">
@@ -551,6 +580,35 @@ const ChatSidebar = ({ currentRoom, setCurrentRoom, isOpen, onClose }) => {
                   </motion.div>
                 );
               })}
+            </div>
+          </div>
+
+          {/* 🎯 OPIN y Baúl - Descubre (mobile) */}
+          <div className="mt-4 mb-2">
+            <h3 className="text-xs font-semibold text-muted-foreground uppercase mb-2 px-2">Descubre</h3>
+            <div className="space-y-1">
+              <Button
+                variant="ghost"
+                className="w-full justify-start text-left h-auto py-2.5 px-3 hover:bg-accent/50 hover:border-l-2 hover:border-purple-500 group"
+                onClick={() => {
+                  navigate('/opin');
+                  onClose();
+                }}
+              >
+                <Sparkles className="w-5 h-5 text-purple-400 flex-shrink-0 mr-3" />
+                <span className="text-sm font-medium text-foreground">Tu Opinión</span>
+              </Button>
+              <Button
+                variant="ghost"
+                className="w-full justify-start text-left h-auto py-2.5 px-3 hover:bg-accent/50 hover:border-l-2 hover:border-cyan-500 group"
+                onClick={() => {
+                  onOpenBaul?.();
+                  onClose();
+                }}
+              >
+                <Archive className="w-5 h-5 text-cyan-400 flex-shrink-0 mr-3" />
+                <span className="text-sm font-medium text-foreground">Baúl</span>
+              </Button>
             </div>
           </div>
         </div>

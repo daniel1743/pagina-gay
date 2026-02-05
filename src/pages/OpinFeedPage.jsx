@@ -11,7 +11,7 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Plus, Sparkles, RefreshCw, Eye, Lock, UserPlus } from 'lucide-react';
+import { Plus, Sparkles, RefreshCw, Eye, Lock, UserPlus, ArrowLeft } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
 import { getOpinFeed, canCreatePost } from '@/services/opinService';
 import OpinCard from '@/components/opin/OpinCard';
@@ -45,7 +45,12 @@ const OpinFeedPage = () => {
   const loadFeed = async () => {
     setLoading(true);
     try {
-      const feedPosts = await getOpinFeed(50);
+      const timeoutMs = 15000;
+      const feedPromise = getOpinFeed(50);
+      const timeoutPromise = new Promise((_, reject) =>
+        setTimeout(() => reject(new Error('Tiempo de espera agotado. Revisa tu conexión.')), timeoutMs)
+      );
+      const feedPosts = await Promise.race([feedPromise, timeoutPromise]);
       setPosts(feedPosts);
 
       // 🚀 BOOST: Aplicar vistas y likes graduales a MIS opiniones
@@ -83,9 +88,10 @@ const OpinFeedPage = () => {
       }
     } catch (error) {
       console.error('Error cargando feed:', error);
+      setPosts([]);
       toast({
         title: 'Error',
-        description: 'No se pudo cargar el feed',
+        description: error?.message || 'No se pudo cargar el feed. Revisa tu conexión.',
         variant: 'destructive',
       });
     } finally {
@@ -186,6 +192,14 @@ const OpinFeedPage = () => {
         <div className="max-w-6xl mx-auto px-4 py-4">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-3">
+              <button
+                onClick={() => navigate(-1)}
+                className="p-2 -ml-2 hover:bg-accent/50 rounded-lg transition-colors"
+                title="Volver"
+                aria-label="Volver"
+              >
+                <ArrowLeft className="w-5 h-5 text-foreground" />
+              </button>
               <Sparkles className="w-6 h-6 text-purple-400" />
               <h1 className="text-2xl font-bold text-foreground">OPIN</h1>
               {isReadOnlyMode && (
