@@ -1,11 +1,5 @@
 /**
- * 🎯 OpinFeedPage - Feed de descubrimiento
- *
- * MVP: Feed simple sin algoritmos complejos
- * - Carga posts activos
- * - Grid de OpinCard
- * - Botón "Publicar" (si no tiene post activo)
- * - Modal de perfil al hacer click
+ * OpinFeedPage - Feed de descubrimiento con microcopy emocional
  */
 
 import React, { useState, useEffect } from 'react';
@@ -33,10 +27,8 @@ const OpinFeedPage = () => {
   const [selectedPost, setSelectedPost] = useState(null);
   const [showCommentsModal, setShowCommentsModal] = useState(false);
 
-  // 👁️ Verificar si el usuario está en modo "solo lectura"
   const isReadOnlyMode = !user || user.isAnonymous || user.isGuest;
 
-  // Cargar feed al montar
   useEffect(() => {
     loadFeed();
     checkCanCreate();
@@ -53,7 +45,7 @@ const OpinFeedPage = () => {
       const feedPosts = await Promise.race([feedPromise, timeoutPromise]);
       setPosts(feedPosts);
 
-      // 🚀 BOOST: Aplicar vistas y likes graduales a MIS opiniones
+      // Boost: Aplicar vistas y likes graduales a MIS opiniones
       if (user && !user.isAnonymous && feedPosts.length > 0) {
         const misOpiniones = feedPosts.filter(p => p.userId === user.id || p.userId === user.uid);
 
@@ -70,7 +62,6 @@ const OpinFeedPage = () => {
               });
 
               if (mensaje) {
-                // Delay natural
                 setTimeout(() => {
                   toast({
                     title: mensaje.title,
@@ -114,14 +105,11 @@ const OpinFeedPage = () => {
     setShowCommentsModal(true);
   };
 
-  // Manejar cuando un post es eliminado
   const handlePostDeleted = (postId) => {
     setPosts(prevPosts => prevPosts.filter(p => p.id !== postId));
-    // Ahora el usuario puede crear uno nuevo
     setCanCreate(true);
   };
 
-  // Manejar cuando un post es editado
   const handlePostEdited = (postId, updatedData) => {
     setPosts(prevPosts => prevPosts.map(p =>
       p.id === postId
@@ -134,7 +122,7 @@ const OpinFeedPage = () => {
     if (!user) {
       toast({
         title: 'Inicia sesión',
-        description: 'Debes iniciar sesión para publicar',
+        description: 'Debes iniciar sesión para dejar una nota',
       });
       navigate('/auth');
       return;
@@ -143,7 +131,7 @@ const OpinFeedPage = () => {
     if (user.isAnonymous) {
       toast({
         title: 'Regístrate',
-        description: 'Los invitados no pueden publicar en OPIN',
+        description: 'Los invitados no pueden dejar notas',
       });
       return;
     }
@@ -161,7 +149,7 @@ const OpinFeedPage = () => {
 
   return (
     <div className="min-h-screen bg-background pb-20">
-      {/* Banner de modo solo lectura para usuarios no logueados */}
+      {/* Banner read-only para invitados */}
       {isReadOnlyMode && (
         <motion.div
           initial={{ opacity: 0 }}
@@ -172,7 +160,7 @@ const OpinFeedPage = () => {
             <div className="flex items-center gap-2">
               <Eye className="w-5 h-5" />
               <span className="text-sm font-medium">
-                Modo solo lectura - Puedes ver pero no interactuar
+                Estás mirando el tablón
               </span>
             </div>
             <button
@@ -181,7 +169,7 @@ const OpinFeedPage = () => {
                        font-semibold text-sm hover:bg-white/90 transition-all"
             >
               <UserPlus className="w-4 h-4" />
-              Regístrate para participar
+              Crea tu cuenta para dejar una nota
             </button>
           </div>
         </motion.div>
@@ -201,7 +189,7 @@ const OpinFeedPage = () => {
                 <ArrowLeft className="w-5 h-5 text-foreground" />
               </button>
               <Sparkles className="w-6 h-6 text-purple-400" />
-              <h1 className="text-2xl font-bold text-foreground">OPIN</h1>
+              <h1 className="text-2xl font-bold text-foreground">Tablón</h1>
               {isReadOnlyMode && (
                 <span className="flex items-center gap-1 px-2 py-0.5 rounded-full bg-yellow-500/20 text-yellow-400 text-xs font-medium">
                   <Lock className="w-3 h-3" />
@@ -218,7 +206,7 @@ const OpinFeedPage = () => {
             </button>
           </div>
           <p className="text-sm text-muted-foreground mt-1">
-            Descubre lo que otros buscan
+            Notas de la comunidad
           </p>
         </div>
       </div>
@@ -230,116 +218,44 @@ const OpinFeedPage = () => {
             <div className="animate-spin rounded-full h-12 w-12 border-4 border-primary border-t-transparent" />
           </div>
         ) : posts.length === 0 ? (
-          <div className="max-w-2xl mx-auto py-12">
-            {/* Hero vacío */}
-            <div className="text-center mb-12">
-              <Sparkles className="w-20 h-20 mx-auto text-purple-400 mb-4" />
-              <h2 className="text-3xl font-bold text-foreground mb-3">
-                Bienvenido a OPIN
-              </h2>
-              <p className="text-lg text-muted-foreground">
-                El muro de descubrimiento de Chactivo
-              </p>
-            </div>
+          /* Empty state breve y cálido */
+          <div className="max-w-md mx-auto py-20 text-center">
+            <Sparkles className="w-16 h-16 mx-auto text-purple-400 mb-6" />
+            <h2 className="text-2xl font-bold text-foreground mb-3">
+              El tablón está vacío... por ahora
+            </h2>
+            <p className="text-muted-foreground mb-8">
+              Sé el primero en dejar una nota. Cuéntale al mundo qué buscas.
+            </p>
 
-            {/* ¿Qué es OPIN? */}
-            <div className="glass-effect p-6 rounded-xl border border-purple-500/30 mb-6">
-              <h3 className="text-xl font-bold text-foreground mb-4 flex items-center gap-2">
-                <Sparkles className="w-5 h-5 text-purple-400" />
-                ¿Qué es OPIN?
-              </h3>
-              <p className="text-foreground/90 leading-relaxed mb-4">
-                OPIN es un <strong>muro de descubrimiento</strong> donde publicas lo que buscas
-                (amigos, citas, gaming, salir, etc.) y otros usuarios descubren tu perfil.
-              </p>
-              <p className="text-foreground/80 text-sm">
-                💜 Es más que un chat efímero: tus posts duran <strong>24 horas</strong> y
-                las personas pueden ver tu perfil completo y enviarte mensaje.
-              </p>
-            </div>
-
-            {/* ¿Cómo funciona? */}
-            <div className="glass-effect p-6 rounded-xl border border-white/10 mb-6">
-              <h3 className="text-lg font-bold text-foreground mb-4">
-                ¿Cómo funciona?
-              </h3>
-              <div className="space-y-3 text-sm">
-                <div className="flex items-start gap-3">
-                  <span className="text-2xl">1️⃣</span>
-                  <div>
-                    <p className="font-semibold text-foreground">Publica lo que buscas</p>
-                    <p className="text-muted-foreground">Escribe en 10-500 caracteres qué buscas: amigos, citas, gaming, etc.</p>
-                  </div>
-                </div>
-                <div className="flex items-start gap-3">
-                  <span className="text-2xl">2️⃣</span>
-                  <div>
-                    <p className="font-semibold text-foreground">Otros ven tu post</p>
-                    <p className="text-muted-foreground">Tu post aparece en el feed durante 24 horas</p>
-                  </div>
-                </div>
-                <div className="flex items-start gap-3">
-                  <span className="text-2xl">3️⃣</span>
-                  <div>
-                    <p className="font-semibold text-foreground">Click en "Ver perfil"</p>
-                    <p className="text-muted-foreground">Si alguien te encuentra interesante, hace click y ve tu perfil completo</p>
-                  </div>
-                </div>
-                <div className="flex items-start gap-3">
-                  <span className="text-2xl">4️⃣</span>
-                  <div>
-                    <p className="font-semibold text-foreground">Envían mensaje</p>
-                    <p className="text-muted-foreground">Si hay química, te envían mensaje directo desde tu perfil</p>
-                  </div>
-                </div>
-              </div>
-            </div>
-
-            {/* Reglas */}
-            <div className="glass-effect p-6 rounded-xl border border-orange-500/30 mb-8">
-              <h3 className="text-lg font-bold text-foreground mb-3">
-                📋 Reglas simples
-              </h3>
-              <ul className="space-y-2 text-sm text-foreground/80">
-                <li>✅ Solo <strong>1 post activo</strong> por usuario</li>
-                <li>✅ Posts duran <strong>24 horas</strong></li>
-                <li>✅ Solo usuarios <strong>registrados</strong> pueden publicar</li>
-                <li>✅ Invitados pueden <strong>ver</strong> pero no publicar</li>
-                <li>✅ Mínimo 10 caracteres, máximo 500</li>
-              </ul>
-            </div>
-
-            {/* CTA */}
-            <div className="text-center">
-              {canCreate ? (
+            {canCreate ? (
+              <button
+                onClick={handleCreatePost}
+                className="px-8 py-4 rounded-xl bg-gradient-to-r from-purple-500 to-pink-500
+                         hover:from-purple-600 hover:to-pink-600 text-white font-bold text-lg
+                         transition-all shadow-2xl hover:shadow-purple-500/50 hover:scale-105"
+              >
+                Dejar mi nota
+              </button>
+            ) : user && user.isAnonymous ? (
+              <div>
+                <p className="text-muted-foreground mb-4">
+                  Crea tu cuenta para dejar una nota
+                </p>
                 <button
-                  onClick={handleCreatePost}
+                  onClick={() => navigate('/auth')}
                   className="px-8 py-4 rounded-xl bg-gradient-to-r from-purple-500 to-pink-500
                            hover:from-purple-600 hover:to-pink-600 text-white font-bold text-lg
-                           transition-all shadow-2xl hover:shadow-purple-500/50 hover:scale-105"
+                           transition-all shadow-2xl"
                 >
-                  ✨ Crear mi primer post
+                  Registrarse
                 </button>
-              ) : user && user.isAnonymous ? (
-                <div>
-                  <p className="text-muted-foreground mb-4">
-                    Regístrate para publicar en OPIN
-                  </p>
-                  <button
-                    onClick={() => navigate('/auth')}
-                    className="px-8 py-4 rounded-xl bg-gradient-to-r from-purple-500 to-pink-500
-                             hover:from-purple-600 hover:to-pink-600 text-white font-bold text-lg
-                             transition-all shadow-2xl"
-                  >
-                    Registrarse
-                  </button>
-                </div>
-              ) : (
-                <p className="text-muted-foreground">
-                  Inicia sesión para publicar
-                </p>
-              )}
-            </div>
+              </div>
+            ) : (
+              <p className="text-muted-foreground">
+                Inicia sesión para dejar una nota
+              </p>
+            )}
           </div>
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
@@ -360,9 +276,8 @@ const OpinFeedPage = () => {
         )}
       </div>
 
-      {/* Botón flotante - Publicar o CTA de registro */}
+      {/* Botón flotante / Banner registro */}
       {isReadOnlyMode ? (
-        // Banner flotante para usuarios no logueados
         <motion.div
           initial={{ y: 100, opacity: 0 }}
           animate={{ y: 0, opacity: 1 }}
@@ -374,7 +289,7 @@ const OpinFeedPage = () => {
               <Lock className="w-5 h-5 flex-shrink-0" />
               <div>
                 <p className="font-semibold text-sm sm:text-base">¿Te gusta lo que ves?</p>
-                <p className="text-xs sm:text-sm text-white/80">Regístrate para participar</p>
+                <p className="text-xs sm:text-sm text-white/80">Crea tu cuenta para dejar una nota</p>
               </div>
             </div>
             <button
@@ -389,7 +304,6 @@ const OpinFeedPage = () => {
           </div>
         </motion.div>
       ) : (
-        // Botón flotante de publicar para usuarios logueados - SIEMPRE VISIBLE
         <motion.button
           initial={{ scale: 0 }}
           animate={{ scale: 1 }}
@@ -402,11 +316,11 @@ const OpinFeedPage = () => {
                    transition-all"
         >
           <Plus className="w-6 h-6" />
-          <span className="text-sm sm:text-base">Publicar OPIN</span>
+          <span className="text-sm sm:text-base">Dejar nota</span>
         </motion.button>
       )}
 
-      {/* Modal de comentarios */}
+      {/* Modal de respuestas */}
       {showCommentsModal && selectedPost && (
         <OpinCommentsModal
           post={selectedPost}

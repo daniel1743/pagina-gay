@@ -14,6 +14,7 @@ import UserActionsModal from '@/components/chat/UserActionsModal';
 import ReportModal from '@/components/chat/ReportModal';
 import AgeVerificationModal from '@/components/chat/AgeVerificationModal';
 import ChatLandingPage from '@/components/chat/ChatLandingPage';
+import { GuestUsernameModal } from '@/components/auth/GuestUsernameModal';
 import { toast } from '@/components/ui/use-toast';
 import { RegistrationRequiredModal } from '@/components/auth/RegistrationRequiredModal';
 import { 
@@ -280,18 +281,7 @@ const ChatSecondaryPage = () => {
     }
   }, [messages, user, scrollManager.scrollState]);
 
-  // Auto-login guest
-  useEffect(() => {
-    if (autoLoginAttemptedRef.current) return;
-    if (!authLoading && !user && roomId) {
-      autoLoginAttemptedRef.current = true;
-      const tempUsername = `Guest${Math.floor(Math.random() * 10000)}`;
-      signInAsGuest(tempUsername).catch(err => {
-        console.error('[CHAT SECONDARY] Error creando sesión guest:', err);
-        autoLoginAttemptedRef.current = false;
-      });
-    }
-  }, [authLoading, user, roomId, signInAsGuest]);
+  // ✅ NO auto-login con GuestXXXX - el usuario DEBE elegir nickname en el modal
 
   // Handlers
   const handleSendMessage = async (content, type = 'text') => {
@@ -389,11 +379,17 @@ const ChatSecondaryPage = () => {
       .then(validation => {
         if (!validation.allowed) {
           setMessages(prev => prev.filter(m => m.id !== optimisticId));
+          const isContactBlock = ['phone_number', 'email', 'forbidden_word'].includes(validation.type);
           toast({
-            title: "❌ Mensaje Bloqueado",
-            description: validation.reason,
-            variant: "destructive",
-            duration: 5000,
+            title: isContactBlock ? "No permitido aquí" : "❌ Mensaje Bloqueado",
+            description: isContactBlock
+              ? "OPIN es donde puedes publicar tu contacto y lo que buscas. Otros te encontrarán ahí."
+              : (validation.details || validation.reason),
+            variant: isContactBlock ? "default" : "destructive",
+            duration: 8000,
+            ...(isContactBlock && {
+              action: { label: "Ir a OPIN", onClick: () => navigate('/opin') },
+            }),
           });
           return false;
         }
@@ -544,9 +540,20 @@ const ChatSecondaryPage = () => {
     );
   }
 
-  // Sin usuario
+  // Sin usuario: mostrar modal de nickname (NO ChatLandingPage, NO GuestXXXX)
   if (!user) {
-    return <ChatLandingPage roomSlug={roomId} />;
+    return (
+      <div className="h-screen flex flex-col items-center justify-center bg-background">
+        <GuestUsernameModal
+          open={true}
+          onClose={() => {}}
+          chatRoomId={roomId}
+          openSource="auto"
+          onGuestReady={() => {}}
+        />
+        <p className="text-sm text-muted-foreground mt-4">Elige tu nombre para entrar a la sala</p>
+      </div>
+    );
   }
 
   return (

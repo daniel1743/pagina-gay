@@ -524,18 +524,15 @@ export async function obtenerTarjetasCercanas(miUbicacion, miUserId, limite = 10
     // 🚀 APLICAR BOOST VISUAL DE LIKES/VISTAS A TODAS (en memoria, sin escribir a Firestore)
     tarjetas = aplicarBoostVisualATodas(tarjetas);
 
-    // Ordenar: Mi tarjeta primero, luego online por distancia, luego recientes
+    // Ordenar: Mi tarjeta siempre primera, luego por conexión más reciente
+    // Al conectar alguien nuevo → aparece de primero; el anterior pasa a segundo, etc.
     tarjetas.sort((a, b) => {
       if (a.esMiTarjeta) return -1;
       if (b.esMiTarjeta) return 1;
 
-      const prioridadEstado = { online: 0, reciente: 1, offline: 2 };
-      const prioA = prioridadEstado[a.estado];
-      const prioB = prioridadEstado[b.estado];
-
-      if (prioA !== prioB) return prioA - prioB;
-
-      return a.distanciaKm - b.distanciaKm;
+      const aTime = a.ultimaConexion?.toMillis?.() || a.ultimaConexion || 0;
+      const bTime = b.ultimaConexion?.toMillis?.() || b.ultimaConexion || 0;
+      return bTime - aTime;
     });
 
     // Retornar las últimas 100 (o el límite especificado)
@@ -612,13 +609,14 @@ export async function obtenerTarjetasRecientes(miUserId, limite = 100) {
     // 🚀 APLICAR BOOST VISUAL DE LIKES/VISTAS A TODAS (en memoria, sin escribir a Firestore)
     tarjetas = aplicarBoostVisualATodas(tarjetas);
 
-    // Ordenar: Mi tarjeta primero, luego online, luego recientes
+    // Ordenar: Mi tarjeta siempre primera, luego por conexión más reciente
     tarjetas.sort((a, b) => {
       if (a.esMiTarjeta) return -1;
       if (b.esMiTarjeta) return 1;
 
-      const prioridadEstado = { online: 0, reciente: 1, offline: 2 };
-      return prioridadEstado[a.estado] - prioridadEstado[b.estado];
+      const aTime = a.ultimaConexion?.toMillis?.() || a.ultimaConexion || 0;
+      const bTime = b.ultimaConexion?.toMillis?.() || b.ultimaConexion || 0;
+      return bTime - aTime;
     });
 
     // Retornar las últimas 100 tarjetas

@@ -6,8 +6,7 @@ import { Button } from '@/components/ui/button';
 import { useAuth } from '@/contexts/AuthContext';
 import { useCanonical } from '@/hooks/useCanonical';
 import ChatDemo from '@/components/landing/ChatDemo';
-// ⚠️ MODAL INVITADO ELIMINADO (2026) - Solo registro normal
-// import { GuestUsernameModal } from '@/components/auth/GuestUsernameModal';
+import { GuestUsernameModal } from '@/components/auth/GuestUsernameModal';
 import { trackLandingLoad } from '@/utils/performanceMonitor';
 import TelegramBanner from '@/components/ui/TelegramBanner';
 // ⚠️ TOAST ELIMINADO (06/01/2026) - A petición del usuario
@@ -191,7 +190,7 @@ const GlobalLandingPage = () => {
   const location = useLocation();
   const { user } = useAuth();
   // ⚠️ MODAL INVITADO ELIMINADO - Ya no se usa
-  // const [showGuestModal, setShowGuestModal] = React.useState(false);
+  const [showGuestNicknameModal, setShowGuestNicknameModal] = useState(false);
   const [loadTime, setLoadTime] = React.useState(null); // ⚡ Medir tiempo de carga
   const [shouldAutoOpen, setShouldAutoOpen] = React.useState(false); // ⚡ Auto-abrir si carga es rápida
 
@@ -324,8 +323,8 @@ const GlobalLandingPage = () => {
       // Usuario ya anónimo/guest - ir directo al chat
       navigate('/chat/principal');
     } else {
-      // No hay usuario - redirigir a registro normal
-      navigate('/auth', { state: { redirectTo: '/chat/principal' } });
+      // No hay usuario - abrir modal de nickname para entrar como invitado
+      setShowGuestNicknameModal(true);
     }
   };
 
@@ -348,23 +347,18 @@ const GlobalLandingPage = () => {
 
   const handleEnterChat = () => {
     if (user && !user.isGuest && !user.isAnonymous) {
-      // Usuario registrado - navegar directo
       navigate('/chat/principal');
     } else if (user && (user.isGuest || user.isAnonymous)) {
-      // Usuario ya anónimo/guest - ir directo al chat
       navigate('/chat/principal');
     } else {
-      // No hay usuario - redirigir a registro normal
-      console.log('[Landing] ⚠️ Sin usuario - redirigiendo a registro');
-      navigate('/auth', { state: { redirectTo: '/chat/principal' } });
+      setShowGuestNicknameModal(true);
     }
   };
 
-  // ⚠️ HANDLER DE INVITADO ELIMINADO - Ya no se usa modal de invitado
-  // const handleGuestReady = (payload) => {
-  //   console.log('[Landing] 🎯 Invitado listo - navegando a /chat/principal', payload);
-  //   navigate('/chat/principal', { replace: true });
-  // };
+  const handleGuestReady = () => {
+    setShowGuestNicknameModal(false);
+    navigate('/chat/principal', { replace: true });
+  };
 
   return (
     <div className="min-h-screen">
@@ -1025,7 +1019,14 @@ const GlobalLandingPage = () => {
         onEnterClick={handleChatearAhora}
       /> */}
 
-      {/* ⚠️ MODAL INVITADO ELIMINADO - Solo registro normal en /auth */}
+      {/* Modal de nickname para invitados */}
+      <GuestUsernameModal
+        open={showGuestNicknameModal}
+        onClose={() => setShowGuestNicknameModal(false)}
+        chatRoomId="principal"
+        openSource="user"
+        onGuestReady={handleGuestReady}
+      />
     </div>
   );
 };

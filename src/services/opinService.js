@@ -132,11 +132,6 @@ export const createOpinPost = async ({ title = '', text, color = 'purple', userP
     throw new Error('Los invitados no pueden publicar en OPIN');
   }
 
-  // Validar título (opcional)
-  if (title && title.length > 50) {
-    throw new Error('El título no puede superar 50 caracteres');
-  }
-
   // Validar texto
   if (!text || text.trim().length < 10) {
     throw new Error('El texto debe tener al menos 10 caracteres');
@@ -165,7 +160,7 @@ export const createOpinPost = async ({ title = '', text, color = 'purple', userP
     username: userProfile.username || 'Anónimo',
     avatar: userProfile.avatar || '',
     profileId: auth.currentUser.uid,
-    title: title.trim(),
+    title: '',
     text: text.trim(),
     color: color,
     createdAt: serverTimestamp(),
@@ -201,6 +196,7 @@ export const OPIN_MIN_STABLE = 20;
 export const getOpinFeed = async (limitCount = 50) => {
   const postsRef = collection(db, 'opin_posts');
   const now = Timestamp.now();
+  const nowMs = now.toMillis();
 
   const q = query(
     postsRef,
@@ -230,28 +226,70 @@ export const getOpinFeed = async (limitCount = 50) => {
   const totalActive = stables.length + normalsAll.length;
 
   // Si hay menos de 20 OPINs en total, NO aplicar la regla de 24h
-  // Esto evita mostrar un panel vacío
   let normals;
   if (totalActive < OPIN_MIN_STABLE) {
-    console.log(`📥 [OPIN] Menos de ${OPIN_MIN_STABLE} OPINs (${totalActive}), NO se aplica expiración 24h`);
-    normals = normalsAll; // Mostrar todos sin filtrar por 24h
+    normals = normalsAll;
   } else {
-    // Hay suficientes OPINs, aplicar regla de 24h
     normals = normalsAll.filter((p) => {
       if (p.expiresAt && p.expiresAt.toMillis) {
-        return p.expiresAt.toMillis() > now.toMillis();
+        return p.expiresAt.toMillis() > nowMs;
       }
       return true;
     });
   }
 
-  // Feed: hasta OPIN_MIN_STABLE estables primero, luego normales. Máximo limitCount total.
-  const stableSlice = stables.slice(0, OPIN_MIN_STABLE);
-  const rest = limitCount - stableSlice.length;
-  const normalSlice = normals.slice(0, Math.max(0, rest));
-  const posts = [...stableSlice, ...normalSlice];
+  // Asignar peso a cada post para rotación ponderada
+  const getPostWeight = (post) => {
+    if (!post.isStable) {
+      // Post real: peso basado en antigüedad
+      const createdMs = post.createdAt?.toMillis ? post.createdAt.toMillis() : nowMs;
+      const ageHours = (nowMs - createdMs) / (1000 * 60 * 60);
+      if (ageHours < 6) return 100;
+      if (ageHours < 18) return 70;
+      return 40;
+    }
+    // Post estable: peso basado en likes
+    const likes = post.likeCount || 0;
+    if (likes > 5) return 50;
+    if (likes >= 1) return 30;
+    return 15;
+  };
 
-  console.log(`📥 [OPIN] Feed: ${stableSlice.length} estables, ${normalSlice.length} normales, ${posts.length} total (expiración ${totalActive >= OPIN_MIN_STABLE ? 'ON' : 'OFF'})`);
+  // Combinar todos los posts activos
+  const allActive = [...normals, ...stables];
+
+  // Shuffle ponderado: ordenar por (peso + random * 20)
+  const weighted = allActive.map(post => ({
+    post,
+    score: getPostWeight(post) + Math.random() * 20,
+  }));
+  weighted.sort((a, b) => b.score - a.score);
+
+  let posts = weighted.map(w => w.post);
+
+  // Garantizar: al menos 3 posts reales en top 10 (si existen)
+  const realesEnTop10 = posts.slice(0, 10).filter(p => !p.isStable).length;
+  const realesDisponibles = posts.filter(p => !p.isStable);
+  if (realesEnTop10 < 3 && realesDisponibles.length >= 3) {
+    const top10 = posts.slice(0, 10);
+    const resto = posts.slice(10);
+    const realesFuera = resto.filter(p => !p.isStable);
+    const necesarios = 3 - realesEnTop10;
+    const realesASubir = realesFuera.slice(0, necesarios);
+    // Insertar posts reales en posiciones aleatorias del top 10
+    for (const real of realesASubir) {
+      const idx = Math.floor(Math.random() * 10);
+      top10.splice(idx, 0, real);
+    }
+    // Quitar los movidos del resto
+    const idsMovidos = new Set(realesASubir.map(r => r.id));
+    const restoFiltrado = resto.filter(p => !idsMovidos.has(p.id));
+    posts = [...top10, ...restoFiltrado];
+  }
+
+  posts = posts.slice(0, limitCount);
+
+  console.log(`📥 [OPIN] Feed ponderado: ${normals.length} reales, ${stables.length} estables, ${posts.length} total`);
 
   return posts;
 };
@@ -563,8 +601,8 @@ export const addComment = async (postId, commentText) => {
     throw new Error('El comentario no puede estar vacío');
   }
 
-  if (commentText.length > 500) {
-    throw new Error('El comentario no puede superar 500 caracteres');
+  if (commentText.length > 150) {
+    throw new Error('El comentario no puede superar 150 caracteres');
   }
 
   const commentsRef = collection(db, 'opin_comments');

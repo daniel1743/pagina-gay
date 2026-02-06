@@ -2,12 +2,15 @@ import { auth, db } from '@/config/firebase';
 import { doc, setDoc, getDoc, deleteDoc, serverTimestamp, updateDoc, increment } from 'firebase/firestore';
 
 /**
- * 🛡️ ANTI-SPAM SERVICE v2.0 (2026)
- * NUEVA ESTRATEGIA: Sanitizar en vez de bloquear
- * - Los números de WhatsApp se REEMPLAZAN, no se bloquean
- * - El mensaje SIEMPRE se envía (mejor UX)
- * - Se agrega CTA para usar chat privado interno
+ * 🛡️ ANTI-SPAM SERVICE v3.0 (2026)
+ * ESTRATEGIA: Bloquear datos personales en chat principal
+ * - Teléfono, email, datos personales: BLOQUEADOS (no sanitizar)
+ * - CTA: Usar OPIN o Baúl para compartir contacto de forma segura
+ * - FORBIDDEN_WORDS (Instagram, Telegram, etc.): BLOQUEADOS
  */
+
+// 📱 CTA para datos personales bloqueados
+const CTA_OPIN_BAUL = 'Usa OPIN o el Baúl de Perfiles para compartir tu contacto de forma segura.';
 
 const CONFIG = {
   // ⏳ Expulsión temporal (5 minutos es suficiente para calmar)
@@ -21,20 +24,30 @@ const CONFIG = {
     'que', 'k', 'q', 'y', 'o' // Conectores
   ],
 
-  // 📱 Detección de números de teléfono (Chile y otros países)
+  // 📱 Detección de números de teléfono (Chile, Argentina, internacional)
   PHONE_PATTERNS: [
     // Chile
     /\+56\s?9\s?\d{4}\s?\d{4}/g,     // +56 9 1234 5678
     /\+56\s?9\s?\d{8}/g,              // +56 9 12345678
     /\+569\d{8}/g,                    // +56912345678
-    /(?:^|\s)9\s?\d{4}\s?\d{4}(?:\s|$)/g,  // 9 1234 5678
-    /(?:^|\s)9\d{8}(?:\s|$)/g,        // 912345678
-    // Formato con guiones o puntos
+    /(?:^|\s)9\s?\d{4}\s?\d{4}(?:\s|$|[.,])/g,  // 9 1234 5678
+    /(?:^|\s)9\d{8}(?:\s|$|[.,])/g,        // 912345678
     /\+56[\s.-]?9[\s.-]?\d{4}[\s.-]?\d{4}/g,
-    // Números escritos con espacios creativos (9 20 43 25 00)
     /(?:^|\s)9\s+\d{2}\s+\d{2}\s+\d{2}\s+\d{2}(?:\s|$)/g,
-    // Números parciales obvios (últimos 8 dígitos con prefijo contextual)
-    /(?:agregame|escribeme|hablame|whatsapp|wsp|ws|mi\s*(?:numero|número|cel|fono))[\s:]*\d{8,}/gi,
+    // Argentina
+    /\+54\s?9?\s?\d{2,4}\s?-?\d{4}\s?-?\d{4}/g,
+    /\+54\s?9\s?\d{2}\s?\d{4}\s?\d{4}/g,
+    // Internacional genérico (secuencias con prefijo +)
+    /\+\d{1,4}[\s.-]?\d{6,}/g,
+    // Frases + número (ej: "mi numero 912345678")
+    /(?:agregame|escribeme|hablame|whatsapp|wsp|ws|mi\s*(?:numero|número|cel|fono)|contacto)[\s:]*\d{6,}/gi,
+  ],
+
+  // 📧 Detección de email
+  EMAIL_PATTERNS: [
+    /[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}/g,
+    /[a-zA-Z0-9._%+-]+\s*@\s*[a-zA-Z0-9.-]+\s*\.\s*[a-zA-Z]{2,}/g,
+    /(?:mi\s+)?(?:email|mail|correo|e-mail)\s*[:=]\s*[^\s,]+@[^\s,]+/gi,
   ],
 
   // 🔗 Patrones de WhatsApp/contacto
@@ -115,7 +128,18 @@ function isException(message) {
  */
 function containsPhoneNumber(message) {
   for (const pattern of CONFIG.PHONE_PATTERNS) {
-    // Reset regex lastIndex para evitar problemas con flags globales
+    pattern.lastIndex = 0;
+    if (pattern.test(message)) return true;
+  }
+  return false;
+}
+
+/**
+ * 📧 DETECTAR EMAIL
+ */
+function containsEmail(message) {
+  if (!message || typeof message !== 'string') return false;
+  for (const pattern of CONFIG.EMAIL_PATTERNS) {
     pattern.lastIndex = 0;
     if (pattern.test(message)) return true;
   }
@@ -334,46 +358,86 @@ export async function checkTempBan(userId) {
 }
 
 /**
- * 🛡️ VALIDAR Y SANITIZAR MENSAJE (FUNCIÓN PRINCIPAL v2.0)
+ * 🛡️ VALIDAR MENSAJE (FUNCIÓN PRINCIPAL v3.0)
  *
- * NUEVA ESTRATEGIA:
- * - SIEMPRE permite el mensaje (nunca bloquea por números)
- * - Los números de WhatsApp se REEMPLAZAN automáticamente
- * - Retorna el contenido sanitizado para enviarlo
+ * ESTRATEGIA: BLOQUEAR datos personales en chat principal
+ * - Teléfono/WhatsApp: BLOQUEADO + CTA OPIN/Baúl
+ * - Email: BLOQUEADO + CTA OPIN/Baúl
+ * - FORBIDDEN_WORDS: BLOQUEADO
  *
- * @returns {Object} { allowed: true, content: string, wasModified: boolean }
+ * @returns {Object} { allowed, content, type?, details?, reason? }
  */
 export async function validateMessage(message, userId, username, roomId) {
   try {
-    // FAIL-SAFE: Mensajes vacíos pasan sin procesar
     if (!message || !message.trim()) {
       return { allowed: true, content: message || '', wasModified: false };
     }
 
-    // 1. Procesar y sanitizar el mensaje
-    const result = processMessageContent(message, userId, username);
+    const trimmed = message.trim();
 
-    // 2. Log detallado si hubo modificación
-    if (result.wasModified) {
-      console.log(`[ANTI-SPAM] ✅ Mensaje sanitizado para ${username} en ${roomId}:`, {
-        numbersFound: result.numbersFound,
-        originalLength: message.length,
-        newLength: result.content.length
-      });
+    // 1. 🚫 PALABRAS PROHIBIDAS (Instagram, Telegram, etc.)
+    const forbidden = containsForbiddenWords(trimmed);
+    if (forbidden.found) {
+      console.log(`[ANTI-SPAM] 🚫 Palabra prohibida bloqueada para ${username}:`, forbidden.word);
+      return {
+        allowed: false,
+        content: trimmed,
+        type: 'forbidden_word',
+        reason: `"${forbidden.word}" no permitido en el chat.`,
+        details: CTA_OPIN_BAUL,
+      };
     }
 
-    // 3. SIEMPRE permitir, devolviendo el contenido (sanitizado o no)
+    // 2. 📱 NÚMEROS DE TELÉFONO / WHATSAPP
+    if (containsPhoneNumber(trimmed)) {
+      console.log(`[ANTI-SPAM] 🚫 Número de teléfono bloqueado para ${username}`);
+      recordSpamWarning(userId, username, 'Número bloqueado', roomId).catch(() => {});
+      return {
+        allowed: false,
+        content: trimmed,
+        type: 'phone_number',
+        reason: 'Números de teléfono no están permitidos en el chat principal.',
+        details: CTA_OPIN_BAUL,
+      };
+    }
+
+    // 3. 🔗 URLs de WhatsApp
+    for (const pattern of CONFIG.WHATSAPP_PATTERNS) {
+      pattern.lastIndex = 0;
+      if (pattern.test(trimmed)) {
+        console.log(`[ANTI-SPAM] 🚫 Enlace WhatsApp bloqueado para ${username}`);
+        return {
+          allowed: false,
+          content: trimmed,
+          type: 'phone_number',
+          reason: 'Enlaces de WhatsApp no están permitidos en el chat principal.',
+          details: CTA_OPIN_BAUL,
+        };
+      }
+    }
+
+    // 4. 📧 EMAIL
+    if (containsEmail(trimmed)) {
+      console.log(`[ANTI-SPAM] 🚫 Email bloqueado para ${username}`);
+      recordSpamWarning(userId, username, 'Email bloqueado', roomId).catch(() => {});
+      return {
+        allowed: false,
+        content: trimmed,
+        type: 'email',
+        reason: 'Correos electrónicos no están permitidos en el chat principal.',
+        details: CTA_OPIN_BAUL,
+      };
+    }
+
+    // 5. ✅ Mensaje permitido - retornar sin modificar (chatService ya no sanitiza, bloqueamos aquí)
     return {
       allowed: true,
-      content: result.content,
-      wasModified: result.wasModified,
-      numbersFound: result.numbersFound || 0,
-      hasContactIntent: result.hasContactIntent || false
+      content: trimmed,
+      wasModified: false,
     };
 
   } catch (error) {
     console.error('[ANTI-SPAM CRITICAL ERROR]:', error);
-    // 🚨 FAIL-SAFE: Si algo falla, devolver el mensaje original
     return { allowed: true, content: message, wasModified: false };
   }
 }

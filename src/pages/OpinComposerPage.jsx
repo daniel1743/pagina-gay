@@ -1,17 +1,14 @@
 /**
- * ✍️ OpinComposerPage - Crear nuevo post COMPLETO
+ * OpinComposerPage - Compositor simplificado
  *
- * Features:
- * - Título opcional (máx 50 chars)
- * - Textarea (10-500 chars)
- * - Selector de colores (6 opciones)
- * - Preview en tiempo real
- * - Validaciones completas
+ * Solo textarea + preview mínimo
+ * Color automático random al montar
+ * Sin título, sin selector de color
  */
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { ArrowLeft, Sparkles, Palette } from 'lucide-react';
+import { ArrowLeft, Sparkles } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
 import { createOpinPost, canCreatePost, OPIN_COLORS } from '@/services/opinService';
 import { toast } from '@/components/ui/use-toast';
@@ -19,18 +16,20 @@ import { toast } from '@/components/ui/use-toast';
 const OpinComposerPage = () => {
   const navigate = useNavigate();
   const { user, userProfile } = useAuth();
-  const [title, setTitle] = useState('');
   const [text, setText] = useState('');
-  const [selectedColor, setSelectedColor] = useState('purple');
   const [loading, setLoading] = useState(false);
   const [canCreate, setCanCreate] = useState(true);
 
-  const titleCount = title.length;
-  const maxTitleChars = 50;
+  // Color automático random al montar
+  const selectedColor = useMemo(() => {
+    const colorKeys = Object.keys(OPIN_COLORS);
+    return colorKeys[Math.floor(Math.random() * colorKeys.length)];
+  }, []);
+
   const charCount = text.length;
   const minChars = 10;
   const maxChars = 500;
-  const isValid = charCount >= minChars && charCount <= maxChars && titleCount <= maxTitleChars;
+  const isValid = charCount >= minChars && charCount <= maxChars;
 
   useEffect(() => {
     checkCanCreate();
@@ -50,7 +49,7 @@ const OpinComposerPage = () => {
       } else if (result.reason === 'guest_user') {
         toast({
           title: 'Regístrate para publicar',
-          description: 'Los invitados no pueden publicar en OPIN',
+          description: 'Los invitados no pueden dejar notas',
           variant: 'destructive',
         });
         navigate('/auth');
@@ -75,7 +74,6 @@ const OpinComposerPage = () => {
 
     try {
       await createOpinPost({
-        title: title.trim(),
         text: text.trim(),
         color: selectedColor,
         userProfile: {
@@ -85,8 +83,8 @@ const OpinComposerPage = () => {
       });
 
       toast({
-        title: '✨ Post publicado',
-        description: 'Tu post estará activo durante 24 horas',
+        title: 'Nota publicada',
+        description: 'Tu nota estará activa durante 24 horas',
       });
 
       navigate('/opin');
@@ -94,7 +92,7 @@ const OpinComposerPage = () => {
       console.error('Error creando post:', error);
       toast({
         title: 'Error',
-        description: error.message || 'No se pudo publicar el post',
+        description: error.message || 'No se pudo publicar la nota',
         variant: 'destructive',
       });
     } finally {
@@ -117,7 +115,7 @@ const OpinComposerPage = () => {
               <ArrowLeft className="w-5 h-5" />
             </button>
             <Sparkles className="w-6 h-6 text-purple-400" />
-            <h1 className="text-2xl font-bold text-foreground">Crear post</h1>
+            <h1 className="text-2xl font-bold text-foreground">Deja tu nota en el tablón</h1>
           </div>
         </div>
       </div>
@@ -128,74 +126,17 @@ const OpinComposerPage = () => {
           {/* Info */}
           <div className="glass-effect p-4 rounded-lg border border-white/10">
             <p className="text-sm text-muted-foreground leading-relaxed">
-              💜 Comparte lo que buscas y deja que otros te descubran.
-              Tu post estará activo durante <strong>24 horas</strong>.
+              Comparte lo que buscas y deja que otros te descubran.
+              Tu nota estará activa durante <strong>24 horas</strong>.
             </p>
-          </div>
-
-          {/* Título opcional */}
-          <div>
-            <label className="block text-sm font-medium text-foreground mb-2">
-              Título (opcional)
-            </label>
-            <input
-              type="text"
-              value={title}
-              onChange={(e) => setTitle(e.target.value)}
-              placeholder="Ejemplo: Buscando amigos en CDMX"
-              maxLength={maxTitleChars}
-              className="w-full px-4 py-3 bg-card border-2 border-border rounded-xl
-                       text-foreground placeholder:text-muted-foreground
-                       focus:border-primary focus:outline-none transition-all"
-            />
-            <div className="mt-1">
-              <span className={`text-xs ${titleCount > maxTitleChars ? 'text-red-400' : 'text-muted-foreground'}`}>
-                {titleCount}/{maxTitleChars} caracteres
-              </span>
-            </div>
-          </div>
-
-          {/* Selector de Color */}
-          <div>
-            <label className="block text-sm font-medium text-foreground mb-2 flex items-center gap-2">
-              <Palette className="w-4 h-4" />
-              Color del post
-            </label>
-            <div className="grid grid-cols-3 sm:grid-cols-6 gap-3">
-              {Object.entries(OPIN_COLORS).map(([key, config]) => (
-                <button
-                  key={key}
-                  type="button"
-                  onClick={() => setSelectedColor(key)}
-                  className={`relative p-4 rounded-xl transition-all ${
-                    selectedColor === key
-                      ? `ring-2 ring-offset-2 ring-offset-background ${config.border} scale-105`
-                      : 'hover:scale-105'
-                  }`}
-                >
-                  <div className={`w-full h-12 rounded-lg bg-gradient-to-br ${config.gradient}`} />
-                  <span className="block text-xs text-center mt-2 font-medium text-foreground">
-                    {config.name}
-                  </span>
-                  {selectedColor === key && (
-                    <div className="absolute top-2 right-2 w-5 h-5 bg-white rounded-full flex items-center justify-center">
-                      <span className="text-xs">✓</span>
-                    </div>
-                  )}
-                </button>
-              ))}
-            </div>
           </div>
 
           {/* Textarea */}
           <div>
-            <label className="block text-sm font-medium text-foreground mb-2">
-              ¿Qué estás buscando? *
-            </label>
             <textarea
               value={text}
               onChange={(e) => setText(e.target.value)}
-              placeholder="Ejemplo: Busco amigos para salir, me gusta el cine, los videojuegos y la buena comida..."
+              placeholder="¿Qué buscas esta noche? Cuéntalo aquí..."
               rows={8}
               maxLength={maxChars}
               className="w-full px-4 py-3 bg-card border-2 border-border rounded-xl
@@ -225,7 +166,7 @@ const OpinComposerPage = () => {
             </div>
           </div>
 
-          {/* Preview */}
+          {/* Preview mínimo */}
           {text.trim() && (
             <div>
               <label className="block text-sm font-medium text-foreground mb-2">
@@ -243,21 +184,9 @@ const OpinComposerPage = () => {
                   </span>
                 </div>
 
-                {title.trim() && (
-                  <h3 className={`text-lg font-bold mb-2 bg-gradient-to-r ${colorConfig.gradient} bg-clip-text text-transparent`}>
-                    {title}
-                  </h3>
-                )}
-
                 <p className="text-sm text-foreground/90 whitespace-pre-wrap leading-relaxed">
                   {text}
                 </p>
-
-                <div className="flex items-center gap-4 mt-4 pt-4 border-t border-white/5 text-xs text-muted-foreground">
-                  <span>❤️ 0 likes</span>
-                  <span>💬 0 comentarios</span>
-                  <span>👁️ 0 vistas</span>
-                </div>
               </div>
             </div>
           )}
@@ -277,7 +206,7 @@ const OpinComposerPage = () => {
                 Publicando...
               </span>
             ) : (
-              '✨ Publicar'
+              'Dejar mi nota'
             )}
           </button>
         </form>

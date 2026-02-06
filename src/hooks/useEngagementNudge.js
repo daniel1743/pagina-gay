@@ -1,10 +1,9 @@
 /**
  * 🔔 HOOK DE ENGAGEMENT NUDGE
- * Muestra toasts periódicos sobre actividad en tarjeta y OPIN
- * para empujar al usuario a completar su perfil y participar
+ * Prioriza BAÚL sobre OPIN - mayor enganche
  *
- * - Cada 10-15 min si tarjeta incompleta
- * - Cada 20-30 min si tarjeta completa (promueve OPIN)
+ * - Popup 10 seg: explica qué es Baúl, por qué completar tarjeta, enlace a Baúl
+ * - Toast cada 5-15 min: informa sobre Baúl (vistas, likes, completar tarjeta)
  * - Se detiene si el usuario ya interactuó con baúl/OPIN en esta sesión
  */
 
@@ -17,47 +16,31 @@ import {
 } from '@/services/engagementBoostService';
 import { toast } from '@/components/ui/use-toast';
 
-// Mensajes para tarjeta incompleta (más urgentes, más frecuentes)
-const NUDGES_TARJETA = [
+// Mensajes periódicos sobre Baúl (5-15 min)
+const NUDGES_BAUL = [
   (v, l) => ({
     title: `👀 ${v} personas vieron tu tarjeta`,
-    description: 'Agrega una foto para recibir likes',
+    description: 'Complétala en el Baúl para recibir más likes',
   }),
   (v, l) => ({
     title: `📈 Tu tarjeta tiene ${v} visitas`,
     description: 'Las tarjetas con foto reciben 8x más likes',
   }),
   (v, l) => ({
-    title: l > 0 ? `❤️ ${l} likes en tu tarjeta` : `👀 ${v} visitas y 0 likes`,
-    description: l > 0 ? '¡Completa tu perfil para más!' : 'Sin foto ni bio nadie te da like',
+    title: l > 0 ? `❤️ ${l} likes en tu tarjeta` : `👀 ${v} visitas`,
+    description: l > 0 ? 'Mira quién te dio like en el Baúl' : 'Completa tu perfil para recibir likes',
   }),
   (v, l) => ({
-    title: '💡 Tu tarjeta está incompleta',
-    description: `${v} personas la vieron pero no tiene info. Complétala.`,
+    title: '💡 Baúl: tu tarjeta de presentación',
+    description: 'Completa foto, rol y bio para conectar mejor',
   }),
   (v, l) => ({
     title: `🔥 ${v} personas te vieron`,
-    description: 'Indica tu rol y lo que buscas para conectar mejor',
+    description: 'Revisa el Baúl y completa lo que falta',
   }),
 ];
 
-// Mensajes para promover OPIN (menos urgentes)
-const NUDGES_OPIN = [
-  () => ({
-    title: '✨ ¿Ya publicaste en OPIN?',
-    description: 'Publica lo que buscas y deja que te encuentren',
-  }),
-  () => ({
-    title: '💜 OPIN: Muro de descubrimiento',
-    description: 'Los usuarios descubren tu perfil y te escriben',
-  }),
-  () => ({
-    title: '🎯 Publica en OPIN',
-    description: 'Tu post dura 24h y recibe vistas y likes',
-  }),
-];
-
-export function useEngagementNudge() {
+export function useEngagementNudge({ onOpenBaul } = {}) {
   const { user } = useAuth();
   const intervalRef = useRef(null);
   const nudgeIndexRef = useRef(0);
@@ -72,41 +55,36 @@ export function useEngagementNudge() {
 
     let mounted = true;
 
-    // 🔔 MENSAJE INICIAL (tipo sistema) - a los 10 segundos de entrar
+    // 🔔 POPUP INICIAL 10 SEG: explica qué es Baúl, por qué completar tarjeta, enlace
     const mensajeInicial = setTimeout(async () => {
       if (!mounted) return;
       try {
         const tarjeta = await obtenerTarjeta(user.id);
         if (!tarjeta || !mounted) return;
 
-        const vistas = calcularVistasEsperadas(tarjeta, 'tarjeta');
-
         // Verificar si ya se mostró hoy
         const hoy = new Date().toDateString();
-        const ultimoMensaje = localStorage.getItem('engagementWelcomeDate');
-        if (ultimoMensaje === hoy) return;
+        const ultimoPopup = localStorage.getItem('baulIntroPopupDate');
+        if (ultimoPopup === hoy) return;
 
-        localStorage.setItem('engagementWelcomeDate', hoy);
+        localStorage.setItem('baulIntroPopupDate', hoy);
 
-        const tarjetaIncompleta = !tarjeta.fotoUrl || !tarjeta.rol || !tarjeta.bio;
-
-        if (tarjetaIncompleta) {
-          toast({
-            title: `👀 Tu tarjeta tiene ${vistas} visitas`,
-            description: 'Completa tu perfil en el Baúl para que te den like',
-            duration: 6000,
-          });
-        } else {
-          toast({
-            title: `Tu tarjeta tiene ${vistas} visitas`,
-            description: 'Publica en OPIN lo que buscas y recibe más atención',
-            duration: 6000,
-          });
-        }
+        toast({
+          title: '📋 ¿Qué es el Baúl?',
+          description: 'Tu tarjeta de presentación. Complétala (foto, rol, bio) y verás quién te visita y te da like. Conecta con personas que buscan lo mismo.',
+          duration: 10000,
+          variant: 'default',
+          action: onOpenBaul ? {
+            label: 'Ver Baúl',
+            onClick: () => {
+              onOpenBaul();
+            },
+          } : undefined,
+        });
       } catch (err) {
         // Silenciar
       }
-    }, 10000); // 10 segundos
+    }, 10000);
 
     const ejecutarNudge = async () => {
       if (!mounted) return;
@@ -118,19 +96,8 @@ export function useEngagementNudge() {
         const vistas = calcularVistasEsperadas(tarjeta, 'tarjeta');
         const likes = calcularLikesEsperados(tarjeta, 'tarjeta');
 
-        const tarjetaIncompleta = !tarjeta.fotoUrl || !tarjeta.rol || !tarjeta.bio;
-
-        let mensaje;
-        if (tarjetaIncompleta) {
-          // Nudge para completar tarjeta
-          const idx = nudgeIndexRef.current % NUDGES_TARJETA.length;
-          mensaje = NUDGES_TARJETA[idx](vistas, likes);
-        } else {
-          // Nudge para OPIN
-          const idx = nudgeIndexRef.current % NUDGES_OPIN.length;
-          mensaje = NUDGES_OPIN[idx](vistas, likes);
-        }
-
+        const idx = nudgeIndexRef.current % NUDGES_BAUL.length;
+        const mensaje = NUDGES_BAUL[idx](vistas, likes);
         nudgeIndexRef.current++;
 
         if (mensaje) {
@@ -138,6 +105,10 @@ export function useEngagementNudge() {
             title: mensaje.title,
             description: mensaje.description,
             duration: 5000,
+            action: onOpenBaul ? {
+              label: 'Ver Baúl',
+              onClick: () => onOpenBaul(),
+            } : undefined,
           });
         }
       } catch (err) {
@@ -145,14 +116,12 @@ export function useEngagementNudge() {
       }
     };
 
-    // Primer nudge periódico después de 3 minutos
+    // Primer nudge después de 5 min, luego cada 5-15 min (aleatorio)
     const primerDelay = setTimeout(() => {
       ejecutarNudge();
-
-      // Después cada 12-18 minutos (aleatorio para no ser predecible)
-      const intervaloMs = (12 + Math.random() * 6) * 60 * 1000;
+      const intervaloMs = (5 + Math.random() * 10) * 60 * 1000; // 5-15 min
       intervalRef.current = setInterval(ejecutarNudge, intervaloMs);
-    }, 3 * 60 * 1000);
+    }, 5 * 60 * 1000);
 
     return () => {
       mounted = false;
@@ -160,7 +129,7 @@ export function useEngagementNudge() {
       clearTimeout(primerDelay);
       if (intervalRef.current) clearInterval(intervalRef.current);
     };
-  }, [user]);
+  }, [user, onOpenBaul]);
 
   // Función para detener los nudges (llamar cuando el usuario interactúe con baúl/opin)
   const detenerNudges = () => {

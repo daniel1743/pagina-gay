@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { useParams, useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
 import { useChatScrollManager } from '@/hooks/useChatScrollManager';
@@ -25,8 +25,7 @@ import WelcomeTour from '@/components/onboarding/WelcomeTour';
 import AgeVerificationModal from '@/components/chat/AgeVerificationModal';
 // ⚠️ ChatLandingPage COMENTADO - Experimento directo al chat sin landing
 // import ChatLandingPage from '@/components/chat/ChatLandingPage';
-// ⚠️ MODAL INVITADO ELIMINADO - Solo registro normal
-// import { GuestUsernameModal } from '@/components/auth/GuestUsernameModal';
+import { GuestUsernameModal } from '@/components/auth/GuestUsernameModal';
 // ⚠️ MODALES DE INSTRUCCIONES ELIMINADOS (17/01/2026) - A petición del usuario
 // import EmptyRoomNotificationPrompt from '@/components/chat/EmptyRoomNotificationPrompt';
 // import LoadingMessagesPrompt from '@/components/chat/LoadingMessagesPrompt';
@@ -219,8 +218,9 @@ const ChatPage = () => {
     enabled: true // Siempre habilitado para usuarios que lo necesiten
   });
 
-  // 🚀 ENGAGEMENT: Toasts periódicos sobre actividad en tarjeta y OPIN
-  const { detenerNudges } = useEngagementNudge();
+  // 🚀 ENGAGEMENT: Nudges sobre Baúl (popup 10s + toast cada 5-15 min)
+  const abrirBaul = useCallback(() => setMostrarBaul(true), []);
+  const { detenerNudges } = useEngagementNudge({ onOpenBaul: abrirBaul });
 
   // ✅ VALIDACIÓN: Salas restringidas requieren autenticación
   // ⚠️ CRITICAL: Este hook DEBE ejecutarse siempre (antes del return) para respetar reglas de hooks
@@ -1292,19 +1292,14 @@ const ChatPage = () => {
    * 🤖 Activa respuesta de bots si están activos
    */
   const handleSendMessage = async (content, type = 'text', replyData = null) => {
-    // ⚠️ Si no hay usuario, crear sesión guest automáticamente (no redirigir a registro)
+    // ✅ Si no hay usuario, NO crear GuestXXXX - el modal de nickname debe mostrarse
     if (!user || !user.id) {
       toast({
-        title: 'Preparando tu sesión...',
-        description: 'Intenta enviar el mensaje de nuevo en un momento',
-        duration: 3000,
+        title: 'Elige tu nickname',
+        description: 'Ingresa tu nombre en el cuadro de arriba para empezar a chatear.',
+        duration: 4000,
+        variant: 'default',
       });
-      // Intentar crear sesión guest en background
-      try {
-        await signInAsGuest();
-      } catch (e) {
-        console.warn('[CHAT] Error creando sesión guest:', e.message);
-      }
       return;
     }
 
@@ -1493,20 +1488,35 @@ const ChatPage = () => {
           // ❌ VALIDACIÓN FALLÓ: Eliminar mensaje optimista y mostrar error
           setMessages(prev => prev.filter(m => m.id !== optimisticId));
           
-      // Mostrar mensaje específico según el tipo de violación
+      // Mostrar mensaje amigable con explicación y botón a OPIN (no rojo, no punitivo)
+      const opinToastCommon = {
+        variant: "default",
+        duration: 8000,
+        action: {
+          label: "Ir a OPIN",
+          onClick: () => {
+            navigate('/opin');
+          },
+        },
+      };
+
       if (validation.type === 'phone_number') {
         toast({
-          title: "❌ Números de Teléfono Prohibidos",
-          description: validation.details || validation.reason,
-          variant: "destructive",
-          duration: 5000,
+          ...opinToastCommon,
+          title: "Teléfono no permitido aquí",
+          description: "OPIN es donde puedes publicar lo que buscas y dejar tu contacto para que otros te encuentren.",
+        });
+      } else if (validation.type === 'email') {
+        toast({
+          ...opinToastCommon,
+          title: "Email no permitido aquí",
+          description: "OPIN es donde puedes hacer publicaciones con tu contacto (email, teléfono) para que otros te contacten.",
         });
       } else if (validation.type === 'forbidden_word') {
         toast({
-          title: `❌ ${validation.reason}`,
-          description: validation.details || "Tu mensaje no será enviado por violar las reglas del chat.",
-          variant: "destructive",
-          duration: 5000,
+          ...opinToastCommon,
+          title: "Enlaces externos no permitidos aquí",
+          description: "OPIN es donde puedes compartir redes sociales y enlaces. Publica ahí lo que buscas.",
         });
       } else if (validation.type === 'spam_duplicate_warning') {
         toast({
@@ -1977,20 +1987,9 @@ const ChatPage = () => {
   // ⚡ AUTO-LOGIN GUEST: Si accede directamente a /chat/principal sin sesión, crear sesión guest automáticamente
   useEffect(() => {
     // Prevenir múltiples intentos de auto-login
-    if (autoLoginAttemptedRef.current) return;
-    // Esperar a que auth termine de cargar
-    if (authLoading) return;
-    // Si ya hay usuario, no hacer nada
-    if (user) return;
-
-    // Crear sesión guest automáticamente para que pueda chatear sin fricción
-    autoLoginAttemptedRef.current = true;
-    console.log('[CHAT] ⚡ Auto-creando sesión guest para visitante sin sesión');
-    signInAsGuest().catch(err => {
-      console.warn('[CHAT] Error en auto-login guest:', err.message);
-      autoLoginAttemptedRef.current = false; // Permitir reintento
-    });
-  }, [authLoading, user, roomId, signInAsGuest]);
+    // ✅ NO auto-crear guest con nombre aleatorio - el usuario DEBE elegir su nickname en el modal
+    // Si !user, se muestra GuestUsernameModal para que ingresen su nombre
+  }, [authLoading, user, roomId]);
 
   // 📜 DETECCIÓN DE SCROLL: Toast para usuarios no logueados
   // Si un usuario no logueado llega al tope (50 mensajes), mostrar toast
@@ -2421,7 +2420,14 @@ const ChatPage = () => {
         featureName={registrationModalFeature}
       />
 
-      {/* ⚠️ MODAL INVITADO ELIMINADO - Solo registro normal en /auth */}
+      {/* ✅ Modal de nickname para invitados: sin usuario → elegir apodo y entrar */}
+      <GuestUsernameModal
+        open={!user && !authLoading}
+        onClose={() => {}}
+        chatRoomId="principal"
+        openSource="auto"
+        onGuestReady={() => {}}
+      />
 
       {/* 📋 BAÚL DE TARJETAS - Accesible desde banner promocional */}
       {/* 📱 Barra inferior móvil: Baúl, Chat Principal, OPIN */}

@@ -24,9 +24,11 @@ import {
   serverTimestamp,
 } from 'firebase/firestore';
 import { db, auth } from '@/config/firebase';
+import { actualizarEstadoOnline } from '@/services/tarjetaService';
 
 /**
  * ✅ HABILITADO: Registrar usuario en sala (presencia básica)
+ * ✅ Sincroniza tarjeta Baúl: usuarios registrados actualizan ultimaConexion/estaOnline
  */
 export const joinRoom = async (roomId, userData) => {
   if (!auth.currentUser) return;
@@ -56,6 +58,12 @@ export const joinRoom = async (roomId, userData) => {
       lastSeen: serverTimestamp(),
     });
 
+    // ✅ Sincronizar Baúl: usuarios registrados (no guest) actualizan su tarjeta al conectar
+    const esRegistrado = !userData.isGuest && !userData.isAnonymous;
+    if (esRegistrado && auth.currentUser.uid) {
+      actualizarEstadoOnline(auth.currentUser.uid, true).catch(() => {});
+    }
+
     console.log(`✅ [PRESENCE] Usuario ${userData.username} registrado en ${roomId}`);
   } catch (error) {
     console.error('Error joining room:', error);
@@ -64,6 +72,7 @@ export const joinRoom = async (roomId, userData) => {
 
 /**
  * ✅ HABILITADO: Remover usuario de la sala
+ * ✅ Sincroniza tarjeta Baúl: marca estaOnline=false al desconectar
  */
 export const leaveRoom = async (roomId) => {
   if (!auth.currentUser) return;
@@ -72,6 +81,8 @@ export const leaveRoom = async (roomId) => {
 
   try {
     await deleteDoc(presenceRef);
+    // ✅ Sincronizar Baúl: actualizar estado offline en tarjeta
+    actualizarEstadoOnline(auth.currentUser.uid, false).catch(() => {});
     console.log(`✅ [PRESENCE] Usuario removido de ${roomId}`);
   } catch (error) {
     console.error('Error leaving room:', error);
