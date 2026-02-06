@@ -1,14 +1,10 @@
 /**
- * OpinComposerPage - Compositor simplificado
- *
- * Solo textarea + preview mínimo
- * Color automático random al montar
- * Sin título, sin selector de color
+ * OpinComposerPage - Compositor simple para el tablón
  */
 
 import React, { useState, useEffect, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { ArrowLeft, Sparkles } from 'lucide-react';
+import { ArrowLeft, Send } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
 import { createOpinPost, canCreatePost, OPIN_COLORS } from '@/services/opinService';
 import { toast } from '@/components/ui/use-toast';
@@ -20,7 +16,7 @@ const OpinComposerPage = () => {
   const [loading, setLoading] = useState(false);
   const [canCreate, setCanCreate] = useState(true);
 
-  // Color automático random al montar
+  // Color automático random
   const selectedColor = useMemo(() => {
     const colorKeys = Object.keys(OPIN_COLORS);
     return colorKeys[Math.floor(Math.random() * colorKeys.length)];
@@ -28,7 +24,7 @@ const OpinComposerPage = () => {
 
   const charCount = text.length;
   const minChars = 10;
-  const maxChars = 500;
+  const maxChars = 280; // Reducido para formato más corto
   const isValid = charCount >= minChars && charCount <= maxChars;
 
   useEffect(() => {
@@ -37,41 +33,18 @@ const OpinComposerPage = () => {
 
   const checkCanCreate = async () => {
     const result = await canCreatePost();
-
     if (!result.canCreate) {
-      if (result.reason === 'active_post_exists') {
-        toast({
-          title: 'Ya tienes un post activo',
-          description: 'Solo puedes tener 1 post activo a la vez',
-          variant: 'destructive',
-        });
-        navigate('/opin');
-      } else if (result.reason === 'guest_user') {
-        toast({
-          title: 'Regístrate para publicar',
-          description: 'Los invitados no pueden dejar notas',
-          variant: 'destructive',
-        });
-        navigate('/auth');
-      }
+      toast({ description: result.message || 'No puedes crear más notas', variant: 'destructive' });
+      navigate('/opin');
       setCanCreate(false);
     }
   };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-
-    if (!isValid) {
-      toast({
-        title: 'Texto inválido',
-        description: `Escribe entre ${minChars} y ${maxChars} caracteres`,
-        variant: 'destructive',
-      });
-      return;
-    }
+    if (!isValid || loading) return;
 
     setLoading(true);
-
     try {
       await createOpinPost({
         text: text.trim(),
@@ -82,19 +55,10 @@ const OpinComposerPage = () => {
         },
       });
 
-      toast({
-        title: 'Nota publicada',
-        description: 'Tu nota estará activa durante 24 horas',
-      });
-
+      toast({ description: 'Nota publicada' });
       navigate('/opin');
     } catch (error) {
-      console.error('Error creando post:', error);
-      toast({
-        title: 'Error',
-        description: error.message || 'No se pudo publicar la nota',
-        variant: 'destructive',
-      });
+      toast({ description: error.message || 'Error al publicar', variant: 'destructive' });
     } finally {
       setLoading(false);
     }
@@ -103,113 +67,89 @@ const OpinComposerPage = () => {
   const colorConfig = OPIN_COLORS[selectedColor];
 
   return (
-    <div className="min-h-screen bg-background pb-20">
+    <div className="min-h-screen bg-background flex flex-col">
       {/* Header */}
-      <div className="sticky top-0 z-10 bg-card/80 backdrop-blur-xl border-b border-border">
-        <div className="max-w-2xl mx-auto px-4 py-4">
-          <div className="flex items-center gap-3">
+      <div className="sticky top-0 z-10 bg-card/95 backdrop-blur-sm border-b border-border">
+        <div className="max-w-2xl mx-auto px-4 py-3">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              <button
+                onClick={() => navigate('/opin')}
+                className="p-1.5 -ml-1 hover:bg-white/10 rounded-lg transition-colors"
+              >
+                <ArrowLeft className="w-5 h-5" />
+              </button>
+              <h1 className="text-lg font-bold">Nueva nota</h1>
+            </div>
+
             <button
-              onClick={() => navigate('/opin')}
-              className="p-2 hover:bg-white/5 rounded-lg transition-colors"
+              onClick={handleSubmit}
+              disabled={!isValid || loading || !canCreate}
+              className={`flex items-center gap-2 px-4 py-2 rounded-full text-sm font-medium transition-all
+                ${isValid && !loading
+                  ? `bg-gradient-to-r ${colorConfig.gradient} text-white`
+                  : 'bg-white/10 text-muted-foreground cursor-not-allowed'
+                }`}
             >
-              <ArrowLeft className="w-5 h-5" />
+              {loading ? (
+                <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+              ) : (
+                <Send className="w-4 h-4" />
+              )}
+              <span>Publicar</span>
             </button>
-            <Sparkles className="w-6 h-6 text-purple-400" />
-            <h1 className="text-2xl font-bold text-foreground">Deja tu nota en el tablón</h1>
           </div>
         </div>
       </div>
 
       {/* Formulario */}
-      <div className="max-w-2xl mx-auto px-4 py-6">
-        <form onSubmit={handleSubmit} className="space-y-6">
-          {/* Info */}
-          <div className="glass-effect p-4 rounded-lg border border-white/10">
-            <p className="text-sm text-muted-foreground leading-relaxed">
-              Comparte lo que buscas y deja que otros te descubran.
-              Tu nota estará activa durante <strong>24 horas</strong>.
-            </p>
-          </div>
-
+      <div className="flex-1 max-w-2xl mx-auto w-full px-4 py-6">
+        <form onSubmit={handleSubmit} className="space-y-4">
           {/* Textarea */}
-          <div>
+          <div className="relative">
             <textarea
               value={text}
               onChange={(e) => setText(e.target.value)}
-              placeholder="¿Qué buscas esta noche? Cuéntalo aquí..."
-              rows={8}
+              placeholder="¿Qué buscas? Cuéntalo brevemente..."
+              rows={4}
               maxLength={maxChars}
-              className="w-full px-4 py-3 bg-card border-2 border-border rounded-xl
-                       text-foreground placeholder:text-muted-foreground
-                       focus:border-primary focus:outline-none
-                       resize-none transition-all"
               autoFocus
+              className="w-full px-4 py-3 bg-transparent text-lg placeholder:text-muted-foreground focus:outline-none resize-none border-none"
             />
 
-            {/* Contador */}
-            <div className="flex items-center justify-between mt-2">
-              <span
-                className={`text-sm ${
-                  charCount < minChars
-                    ? 'text-red-400'
-                    : charCount > maxChars
-                    ? 'text-red-400'
-                    : 'text-green-400'
-                }`}
-              >
-                {charCount < minChars
-                  ? `Mínimo ${minChars} caracteres (faltan ${minChars - charCount})`
-                  : charCount > maxChars
-                  ? `Máximo ${maxChars} caracteres (sobran ${charCount - maxChars})`
-                  : `${charCount}/${maxChars} caracteres`}
-              </span>
-            </div>
+            {/* Indicador de color */}
+            <div className={`absolute left-0 top-0 bottom-0 w-1 rounded-full bg-gradient-to-b ${colorConfig.gradient}`} />
           </div>
 
-          {/* Preview mínimo */}
-          {text.trim() && (
-            <div>
-              <label className="block text-sm font-medium text-foreground mb-2">
-                Vista previa
-              </label>
-              <div className={`glass-effect p-6 rounded-xl border-2 ${colorConfig.border} ${colorConfig.bg}`}>
-                <div className="flex items-center gap-3 mb-4">
-                  <img
-                    src={userProfile?.avatar || user?.photoURL || ''}
-                    alt="Avatar"
-                    className="w-10 h-10 rounded-full ring-2 ring-primary/20"
-                  />
-                  <span className="font-semibold text-foreground">
-                    {userProfile?.username || user?.displayName || 'Tú'}
-                  </span>
-                </div>
+          {/* Contador */}
+          <div className="flex items-center justify-between px-4">
+            <span className="text-xs text-muted-foreground">
+              {charCount < minChars && `Mínimo ${minChars} caracteres`}
+            </span>
+            <span className={`text-sm ${charCount > maxChars ? 'text-red-400' : 'text-muted-foreground'}`}>
+              {charCount}/{maxChars}
+            </span>
+          </div>
 
-                <p className="text-sm text-foreground/90 whitespace-pre-wrap leading-relaxed">
-                  {text}
+          {/* Preview en tiempo real */}
+          {text.trim() && (
+            <div className="mt-6 px-4">
+              <p className="text-xs text-muted-foreground mb-2">Vista previa:</p>
+              <div className="border-l-2 border-purple-500 pl-3 py-2 bg-white/5 rounded-r">
+                <p className="text-sm text-foreground">{text}</p>
+                <p className="text-xs text-muted-foreground mt-1">
+                  {userProfile?.username || user?.displayName || 'Tú'} · ahora
                 </p>
               </div>
             </div>
           )}
-
-          {/* Botón Publicar */}
-          <button
-            type="submit"
-            disabled={!isValid || loading || !canCreate}
-            className={`w-full py-4 rounded-xl bg-gradient-to-r ${colorConfig.gradient}
-                     hover:opacity-90 text-white font-bold text-lg
-                     disabled:opacity-50 disabled:cursor-not-allowed
-                     transition-all shadow-lg hover:shadow-xl disabled:hover:shadow-lg`}
-          >
-            {loading ? (
-              <span className="flex items-center justify-center gap-2">
-                <div className="animate-spin rounded-full h-5 w-5 border-2 border-white border-t-transparent" />
-                Publicando...
-              </span>
-            ) : (
-              'Dejar mi nota'
-            )}
-          </button>
         </form>
+
+        {/* Tips */}
+        <div className="mt-8 px-4 space-y-2 text-xs text-muted-foreground">
+          <p>Tu nota estará visible por 24 horas</p>
+          <p>Otros pueden responder y ver tu perfil</p>
+        </div>
       </div>
     </div>
   );

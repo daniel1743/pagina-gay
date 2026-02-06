@@ -43,7 +43,7 @@ const PREMIUM_EMOJIS = [
 ];
 
 
-const ChatInput = ({ onSendMessage, onFocus, onBlur, externalMessage = null, roomId = null, replyTo = null, onCancelReply }) => {
+const ChatInput = ({ onSendMessage, onFocus, onBlur, externalMessage = null, roomId = null, replyTo = null, onCancelReply, onRequestNickname, isGuest = false }) => {
   const { user, guestMessageCount } = useAuth();
   const [message, setMessage] = useState('');
   const [showEmojiPicker, setShowEmojiPicker] = useState(false);
@@ -79,6 +79,13 @@ const ChatInput = ({ onSendMessage, onFocus, onBlur, externalMessage = null, roo
       // ✅ FIX: Cuando el textarea recibe focus, solo notificar al padre
       // NO hacer scroll automático - el ScrollManager decidirá si debe hacer scroll
       const handleFocus = () => {
+        // ✅ Si es invitado sin nickname, mostrar modal al hacer focus
+        if (isGuest && onRequestNickname) {
+          onRequestNickname();
+          textareaRef.current?.blur(); // Quitar focus para evitar teclado
+          return;
+        }
+
         // Notificar al padre que el input está enfocado
         onFocus?.(true);
 
@@ -102,7 +109,7 @@ const ChatInput = ({ onSendMessage, onFocus, onBlur, externalMessage = null, roo
         }
       };
     }
-  }, [onFocus, onBlur]);
+  }, [onFocus, onBlur, isGuest, onRequestNickname]);
 
   useEffect(() => {
     function handleClickOutside(event) {
@@ -206,6 +213,13 @@ const ChatInput = ({ onSendMessage, onFocus, onBlur, externalMessage = null, roo
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+
+    // ✅ Si es invitado sin nickname, mostrar modal para identificarse
+    if (isGuest && onRequestNickname) {
+      onRequestNickname();
+      return;
+    }
+
     if (message.trim() && !isSending) {
       setIsSending(true);
       checkForSensitiveWords(message);
@@ -462,13 +476,19 @@ const ChatInput = ({ onSendMessage, onFocus, onBlur, externalMessage = null, roo
           value={message}
           onChange={(e) => setMessage(e.target.value)}
           onKeyDown={(e) => {
+            // ✅ Si es invitado sin nickname, mostrar modal al intentar escribir
+            if (isGuest && onRequestNickname) {
+              onRequestNickname();
+              e.preventDefault();
+              return;
+            }
             // En móvil, Enter envía el mensaje (no hace salto de línea)
             if (e.key === 'Enter' && !e.shiftKey) {
               e.preventDefault();
               handleSubmit(e);
             }
           }}
-          placeholder="Escribe un mensaje..."
+          placeholder={isGuest ? "Toca aquí para elegir tu nickname y chatear..." : "Escribe un mensaje..."}
           className="flex-1 bg-secondary border-2 border-input rounded-lg px-3 sm:px-4 py-2.5 sm:py-2 text-sm sm:text-base text-foreground placeholder:text-muted-foreground focus:border-accent transition-all min-h-[48px] max-h-[150px] resize-none overflow-y-auto scrollbar-hide"
           aria-label="Campo de texto para escribir mensaje"
           maxLength={500}

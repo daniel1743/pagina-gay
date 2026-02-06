@@ -126,7 +126,7 @@ const ChatSidebar = ({ currentRoom, setCurrentRoom, isOpen, onClose, onOpenBaul 
       {/* Desktop: sidebar siempre visible - Solo en pantallas grandes */}
       {/* ✅ FIX: Usar hidden lg:block para que no interfiera en el layout de móvil */}
       <aside className="hidden lg:block w-72 h-full bg-card border-r border-border flex flex-col flex-shrink-0">
-        <div className="p-4 border-b border-border flex items-center justify-between">
+        <div className="flex-shrink-0 p-4 border-b border-border flex items-center justify-between">
           <motion.div
             className="flex items-center gap-3 cursor-pointer"
             onClick={() => navigate('/landing')}
@@ -161,7 +161,7 @@ const ChatSidebar = ({ currentRoom, setCurrentRoom, isOpen, onClose, onOpenBaul 
           </motion.div>
         </div>
 
-        <div className="flex-1 overflow-y-auto scrollbar-hide p-3">
+        <div className="flex-1 min-h-0 overflow-y-auto scrollbar-hide p-3">
           <div className="mb-2">
             <h3 className="text-xs font-semibold text-muted-foreground uppercase mb-2 px-2">Salas de Chat</h3>
             <div className="space-y-1">
@@ -310,7 +310,7 @@ const ChatSidebar = ({ currentRoom, setCurrentRoom, isOpen, onClose, onOpenBaul 
                 }}
               >
                 <Sparkles className="w-5 h-5 text-purple-400 flex-shrink-0 mr-3" />
-                <span className="text-sm font-medium text-foreground">Tu Opinión</span>
+                <span className="text-sm font-medium text-foreground">Tablón</span>
               </Button>
               <Button
                 variant="ghost"
@@ -327,7 +327,7 @@ const ChatSidebar = ({ currentRoom, setCurrentRoom, isOpen, onClose, onOpenBaul 
           </div>
         </div>
 
-        <div className="p-4 border-t border-border">
+        <div className="mt-auto flex-shrink-0 p-4 border-t border-border">
           {user && !user.isGuest ? (
             <motion.div
               className="flex items-center gap-3 p-3 rounded-lg hover:bg-accent/50 cursor-pointer transition-colors group"
@@ -448,7 +448,7 @@ const ChatSidebar = ({ currentRoom, setCurrentRoom, isOpen, onClose, onOpenBaul 
           </Button>
         </div>
 
-        <div className="flex-1 overflow-y-auto scrollbar-hide p-3">
+        <div className="flex-1 min-h-0 overflow-y-auto scrollbar-hide p-3">
           <div className="mb-2">
             <h3 className="text-xs font-semibold text-muted-foreground uppercase mb-2 px-2">Salas de Chat</h3>
             <div className="space-y-1">
@@ -596,7 +596,7 @@ const ChatSidebar = ({ currentRoom, setCurrentRoom, isOpen, onClose, onOpenBaul 
                 }}
               >
                 <Sparkles className="w-5 h-5 text-purple-400 flex-shrink-0 mr-3" />
-                <span className="text-sm font-medium text-foreground">Tu Opinión</span>
+                <span className="text-sm font-medium text-foreground">Tablón</span>
               </Button>
               <Button
                 variant="ghost"
@@ -613,7 +613,7 @@ const ChatSidebar = ({ currentRoom, setCurrentRoom, isOpen, onClose, onOpenBaul 
           </div>
         </div>
 
-        <div className="p-4 border-t border-border">
+        <div className="mt-auto flex-shrink-0 p-4 border-t border-border">
           {user && !user.isGuest ? (
             <motion.div
               className="flex items-center gap-3 p-3 rounded-lg hover:bg-accent/50 cursor-pointer transition-colors group"

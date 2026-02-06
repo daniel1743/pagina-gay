@@ -40,6 +40,16 @@ export const OPIN_COLORS = {
   blue: { name: 'Blue', gradient: 'from-blue-500 to-blue-700', bg: 'bg-blue-500/10', border: 'border-blue-500/50' },
 };
 
+// 🔥 Reacciones eróticas/sugestivas para OPIN
+export const OPIN_REACTIONS = [
+  { emoji: '🔥', label: 'Fuego' },
+  { emoji: '🍑', label: 'Peach' },
+  { emoji: '🍆', label: 'Berenjena' },
+  { emoji: '😈', label: 'Diablito' },
+  { emoji: '💦', label: 'Gotas' },
+  { emoji: '👅', label: 'Lengua' },
+];
+
 /**
  * ✅ Verificar si el usuario puede crear un post
  * Regla: Máximo 3 posts por semana (sin importar si expiraron o están activos)
@@ -238,30 +248,35 @@ export const getOpinFeed = async (limitCount = 50) => {
     });
   }
 
-  // Asignar peso a cada post para rotación ponderada
+  // Asignar peso BASE a cada post (más compacto para permitir variación)
   const getPostWeight = (post) => {
     if (!post.isStable) {
-      // Post real: peso basado en antigüedad
+      // Post real: peso basado en antigüedad (escala reducida)
       const createdMs = post.createdAt?.toMillis ? post.createdAt.toMillis() : nowMs;
       const ageHours = (nowMs - createdMs) / (1000 * 60 * 60);
-      if (ageHours < 6) return 100;
-      if (ageHours < 18) return 70;
-      return 40;
+      if (ageHours < 3) return 60;   // Muy reciente
+      if (ageHours < 8) return 50;   // Reciente
+      if (ageHours < 16) return 40;  // Medio
+      return 30;                      // Viejo
     }
-    // Post estable: peso basado en likes
+    // Post estable: peso basado en likes + reacciones
     const likes = post.likeCount || 0;
-    if (likes > 5) return 50;
-    if (likes >= 1) return 30;
+    const totalReactions = Object.values(post.reactionCounts || {}).reduce((sum, c) => sum + (c || 0), 0);
+    const engagement = likes + totalReactions;
+    if (engagement > 10) return 45;
+    if (engagement > 5) return 35;
+    if (engagement >= 1) return 25;
     return 15;
   };
 
   // Combinar todos los posts activos
   const allActive = [...normals, ...stables];
 
-  // Shuffle ponderado: ordenar por (peso + random * 20)
+  // Shuffle ponderado: peso + factor aleatorio GRANDE para variación visible
+  // Factor aleatorio de 0-50 permite que posts se intercambien posiciones
   const weighted = allActive.map(post => ({
     post,
-    score: getPostWeight(post) + Math.random() * 20,
+    score: getPostWeight(post) + Math.random() * 50,
   }));
   weighted.sort((a, b) => b.score - a.score);
 
@@ -579,6 +594,101 @@ export const hasUserLiked = (post) => {
   if (!auth.currentUser) return false;
   const likedBy = post.likedBy || [];
   return likedBy.includes(auth.currentUser.uid);
+};
+
+// ============================================================
+// 🔥 SISTEMA DE REACCIONES (Emojis sugestivos)
+// ============================================================
+
+/**
+ * ✅ Toggle reacción en un post
+ * Si ya tiene esa reacción, la quita. Si no, la agrega.
+ * Un usuario puede tener múltiples reacciones diferentes en el mismo post.
+ */
+export const toggleReaction = async (postId, emoji) => {
+  if (!auth.currentUser) {
+    throw new Error('Usuario no autenticado');
+  }
+
+  if (auth.currentUser.isAnonymous) {
+    throw new Error('Los invitados no pueden reaccionar');
+  }
+
+  // Validar que el emoji sea válido
+  const validEmojis = OPIN_REACTIONS.map(r => r.emoji);
+  if (!validEmojis.includes(emoji)) {
+    throw new Error('Reacción no válida');
+  }
+
+  const postRef = doc(db, 'opin_posts', postId);
+  const postDoc = await getDoc(postRef);
+
+  if (!postDoc.exists()) {
+    throw new Error('Post no encontrado');
+  }
+
+  const postData = postDoc.data();
+  const reactions = postData.reactions || {};
+  const reactionCounts = postData.reactionCounts || {};
+  const userId = auth.currentUser.uid;
+
+  // Verificar si el usuario ya tiene esta reacción
+  const usersWithReaction = reactions[emoji] || [];
+  const hasReaction = usersWithReaction.includes(userId);
+
+  if (hasReaction) {
+    // Quitar reacción
+    await updateDoc(postRef, {
+      [`reactions.${emoji}`]: arrayRemove(userId),
+      [`reactionCounts.${emoji}`]: increment(-1),
+    });
+    console.log(`😐 [OPIN] Reacción ${emoji} removida:`, postId);
+    return { reacted: false, emoji };
+  } else {
+    // Agregar reacción
+    await updateDoc(postRef, {
+      [`reactions.${emoji}`]: arrayUnion(userId),
+      [`reactionCounts.${emoji}`]: increment(1),
+    });
+    console.log(`${emoji} [OPIN] Reacción agregada:`, postId);
+    return { reacted: true, emoji };
+  }
+};
+
+/**
+ * ✅ Obtener reacciones del usuario actual en un post
+ * Retorna array de emojis que el usuario ha usado
+ */
+export const getUserReactions = (post) => {
+  if (!auth.currentUser) return [];
+  const reactions = post.reactions || {};
+  const userId = auth.currentUser.uid;
+
+  const userReactions = [];
+  for (const emoji of Object.keys(reactions)) {
+    if (reactions[emoji]?.includes(userId)) {
+      userReactions.push(emoji);
+    }
+  }
+  return userReactions;
+};
+
+/**
+ * ✅ Verificar si el usuario tiene una reacción específica
+ */
+export const hasUserReacted = (post, emoji) => {
+  if (!auth.currentUser) return false;
+  const reactions = post.reactions || {};
+  const usersWithReaction = reactions[emoji] || [];
+  return usersWithReaction.includes(auth.currentUser.uid);
+};
+
+/**
+ * ✅ Obtener conteo total de reacciones de un post
+ */
+export const getTotalReactionCount = (post) => {
+  const reactionCounts = post.reactionCounts || {};
+  return Object.values(reactionCounts).reduce((sum, count) => sum + (count || 0), 0);
 };
 
 // ============================================================

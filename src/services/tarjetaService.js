@@ -524,12 +524,20 @@ export async function obtenerTarjetasCercanas(miUbicacion, miUserId, limite = 10
     // 🚀 APLICAR BOOST VISUAL DE LIKES/VISTAS A TODAS (en memoria, sin escribir a Firestore)
     tarjetas = aplicarBoostVisualATodas(tarjetas);
 
-    // Ordenar: Mi tarjeta siempre primera, luego por conexión más reciente
-    // Al conectar alguien nuevo → aparece de primero; el anterior pasa a segundo, etc.
+    // Ordenar: Mi tarjeta primero, luego CON FOTO, luego sin foto
+    // Dentro de cada grupo, por conexión más reciente
     tarjetas.sort((a, b) => {
+      // 1. Mi tarjeta siempre primera
       if (a.esMiTarjeta) return -1;
       if (b.esMiTarjeta) return 1;
 
+      // 2. Priorizar tarjetas CON foto
+      const aHasFoto = !!(a.fotoUrl && a.fotoUrl.trim() && !a.fotoUrl.includes('dicebear'));
+      const bHasFoto = !!(b.fotoUrl && b.fotoUrl.trim() && !b.fotoUrl.includes('dicebear'));
+      if (aHasFoto && !bHasFoto) return -1;
+      if (!aHasFoto && bHasFoto) return 1;
+
+      // 3. Dentro del mismo grupo (ambos con foto o ambos sin), ordenar por última conexión
       const aTime = a.ultimaConexion?.toMillis?.() || a.ultimaConexion || 0;
       const bTime = b.ultimaConexion?.toMillis?.() || b.ultimaConexion || 0;
       return bTime - aTime;
@@ -609,11 +617,20 @@ export async function obtenerTarjetasRecientes(miUserId, limite = 100) {
     // 🚀 APLICAR BOOST VISUAL DE LIKES/VISTAS A TODAS (en memoria, sin escribir a Firestore)
     tarjetas = aplicarBoostVisualATodas(tarjetas);
 
-    // Ordenar: Mi tarjeta siempre primera, luego por conexión más reciente
+    // Ordenar: Mi tarjeta primero, luego CON FOTO, luego sin foto
+    // Dentro de cada grupo, por conexión más reciente
     tarjetas.sort((a, b) => {
+      // 1. Mi tarjeta siempre primera
       if (a.esMiTarjeta) return -1;
       if (b.esMiTarjeta) return 1;
 
+      // 2. Priorizar tarjetas CON foto (excluyendo avatares genéricos de dicebear)
+      const aHasFoto = !!(a.fotoUrl && a.fotoUrl.trim() && !a.fotoUrl.includes('dicebear'));
+      const bHasFoto = !!(b.fotoUrl && b.fotoUrl.trim() && !b.fotoUrl.includes('dicebear'));
+      if (aHasFoto && !bHasFoto) return -1;
+      if (!aHasFoto && bHasFoto) return 1;
+
+      // 3. Dentro del mismo grupo, ordenar por última conexión
       const aTime = a.ultimaConexion?.toMillis?.() || a.ultimaConexion || 0;
       const bTime = b.ultimaConexion?.toMillis?.() || b.ultimaConexion || 0;
       return bTime - aTime;

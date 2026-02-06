@@ -171,6 +171,7 @@ const ChatPage = () => {
   const [engagementTime, setEngagementTime] = useState(''); // ⏱️ Tiempo total de engagement
   const [showScreenSaver, setShowScreenSaver] = useState(false); // 🔒 Protector de pantalla
   const [mostrarBaul, setMostrarBaul] = useState(false); // 📋 Baúl de tarjetas
+  const [showNicknameModal, setShowNicknameModal] = useState(false); // ✅ Modal nickname - solo al intentar escribir
   const [isInputFocused, setIsInputFocused] = useState(false); // 📝 Input focus state for scroll manager
   const [suggestedMessage, setSuggestedMessage] = useState(null); // 🤖 Mensaje sugerido por Companion AI
   const [replyTo, setReplyTo] = useState(null); // 💬 Mensaje al que se está respondiendo { messageId, username, content }
@@ -2183,6 +2184,8 @@ const ChatPage = () => {
             roomId={roomId}
             replyTo={replyTo}
             onCancelReply={handleCancelReply}
+            onRequestNickname={() => setShowNicknameModal(true)}
+            isGuest={!user}
           />
         </div>
 
@@ -2420,13 +2423,15 @@ const ChatPage = () => {
         featureName={registrationModalFeature}
       />
 
-      {/* ✅ Modal de nickname para invitados: sin usuario → elegir apodo y entrar */}
+      {/* ✅ Modal de nickname para invitados: aparece SOLO al intentar escribir */}
       <GuestUsernameModal
-        open={!user && !authLoading}
-        onClose={() => {}}
+        open={showNicknameModal}
+        onClose={() => setShowNicknameModal(false)}
         chatRoomId="principal"
-        openSource="auto"
-        onGuestReady={() => {}}
+        openSource="user"
+        onGuestReady={() => {
+          setShowNicknameModal(false);
+        }}
       />
 
       {/* 📋 BAÚL DE TARJETAS - Accesible desde banner promocional */}

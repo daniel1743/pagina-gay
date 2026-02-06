@@ -66,6 +66,7 @@ const ChatSecondaryPage = () => {
   const [replyTo, setReplyTo] = useState(null);
   const [hasUnreadReplies, setHasUnreadReplies] = useState(false);
   const [lastReplyUsername, setLastReplyUsername] = useState('');
+  const [showNicknameModal, setShowNicknameModal] = useState(false); // ✅ Modal nickname - solo al intentar escribir
 
   // Refs
   const unsubscribeRef = useRef(null);
@@ -540,21 +541,7 @@ const ChatSecondaryPage = () => {
     );
   }
 
-  // Sin usuario: mostrar modal de nickname (NO ChatLandingPage, NO GuestXXXX)
-  if (!user) {
-    return (
-      <div className="h-screen flex flex-col items-center justify-center bg-background">
-        <GuestUsernameModal
-          open={true}
-          onClose={() => {}}
-          chatRoomId={roomId}
-          openSource="auto"
-          onGuestReady={() => {}}
-        />
-        <p className="text-sm text-muted-foreground mt-4">Elige tu nombre para entrar a la sala</p>
-      </div>
-    );
-  }
+  // ✅ Invitados pueden ver el chat - el modal aparece solo al intentar escribir
 
   return (
     <>
@@ -583,7 +570,7 @@ const ChatSecondaryPage = () => {
             ) : (
               <ChatMessages
                 messages={messages}
-                currentUserId={user.id}
+                currentUserId={user?.id || null}
                 onUserClick={setUserActionsTarget}
                 onReport={setReportTarget}
                 onPrivateChat={handlePrivateChatRequest}
@@ -623,6 +610,8 @@ const ChatSecondaryPage = () => {
             roomId={roomId}
             replyTo={replyTo}
             onCancelReply={handleCancelReply}
+            onRequestNickname={() => setShowNicknameModal(true)}
+            isGuest={!user}
           />
         </div>
 
@@ -653,11 +642,11 @@ const ChatSecondaryPage = () => {
           />
         )}
 
-        {reportTarget && (
+        {reportTarget && user && (
           <ReportModal
             target={reportTarget}
             onClose={() => setReportTarget(null)}
-            isGuest={user.isGuest}
+            isGuest={user?.isGuest}
           />
         )}
 
@@ -710,6 +699,17 @@ const ChatSecondaryPage = () => {
           open={showRegistrationModal}
           onClose={() => setShowRegistrationModal(false)}
           featureName={registrationModalFeature}
+        />
+
+        {/* ✅ Modal de nickname para invitados: aparece SOLO al intentar escribir */}
+        <GuestUsernameModal
+          open={showNicknameModal}
+          onClose={() => setShowNicknameModal(false)}
+          chatRoomId={roomId}
+          openSource="user"
+          onGuestReady={() => {
+            setShowNicknameModal(false);
+          }}
         />
       </div>
     </>
