@@ -73,12 +73,20 @@ const CONFIG = {
 
   // 🚫 Palabras/frases prohibidas (se bloquean completamente)
   FORBIDDEN_WORDS: [
-    // Redes sociales externas
-    'instagram.com', 'sigueme en insta', '@ig',
-    't.me/', 'telegram.org',
-    'facebook.com', 'grupo de face',
-    'tiktok.com', '@tiktok',
+    // Redes sociales / mensajería externa
+    'instagram.com', 'sigueme en insta', '@ig', 'insta:', 'mi insta',
+    't.me/', 't.me', 'telegram.org', 'telegram', 'tg:', 'mi tg', 'al tg',
+    'facebook.com', 'grupo de face', 'mi face',
+    'tiktok.com', '@tiktok', 'mi tiktok',
     'onlyfans', 'only fans', 'of.com',
+    'snapchat', 'snap:', 'mi snap',
+    'discord', 'mi discord',
+    'signal', 'mi signal',
+
+    // WhatsApp variaciones
+    'whatsapp', 'wsp', 'wspp', 'mi wsp', 'al wsp', 'x wsp', 'por wsp',
+    'wa.me', 'wasap', 'wasapp', 'guasap', 'guasapp',
+    'wasa', 'wass', 'whats',
 
     // Spam comercial
     'vendo contenido', 'vendo pack', 'paso pack',
@@ -124,13 +132,66 @@ function isException(message) {
 }
 
 /**
+ * 🔢 NORMALIZAR NÚMERO (quitar separadores de evasión)
+ * Convierte "569 9 .5.14.3 4.71.3" → "56995143471"
+ */
+function normalizePhoneEvasion(text) {
+  // Reemplazar separadores comunes usados para evadir: . - · * _ | /
+  // También quitar espacios entre dígitos
+  return text
+    .replace(/(\d)[\s.\-·*_|\/]+(\d)/g, '$1$2') // Quitar separadores entre dígitos
+    .replace(/(\d)\s+(\d)/g, '$1$2'); // Quitar espacios entre dígitos (repetir por si quedan)
+}
+
+/**
  * 🔢 DETECTAR NÚMEROS DE TELÉFONO
+ * Detecta números normales y también números con evasión (puntos, espacios)
  */
 function containsPhoneNumber(message) {
+  // 1. Verificar patrones normales
   for (const pattern of CONFIG.PHONE_PATTERNS) {
     pattern.lastIndex = 0;
     if (pattern.test(message)) return true;
   }
+
+  // 2. Normalizar texto para detectar evasión con separadores
+  const normalized = normalizePhoneEvasion(message);
+
+  // Si después de normalizar hay una secuencia de 8+ dígitos, es sospechoso
+  // Especialmente si empieza con 9 (Chile) o tiene prefijo internacional
+  const suspiciousPatterns = [
+    /(?:^|\s)9\d{8}(?:\s|$|[.,])/,           // Chile: 9 + 8 dígitos
+    /\+?\d{2,4}9\d{8}/,                        // Prefijo + Chile
+    /(?:^|\s)\d{10,}(?:\s|$)/,                 // 10+ dígitos seguidos
+    /56\s*9\s*\d{8}/,                          // Chile con espacios
+  ];
+
+  for (const pattern of suspiciousPatterns) {
+    if (pattern.test(normalized)) return true;
+  }
+
+  // 3. Detectar patrón de dígitos separados por puntos (evasión común)
+  // Ej: "9.5.14.3.4.71.3" o "5 6 9 9 5 1 4"
+  const digitGroups = message.match(/\d[\s.\-·]+\d[\s.\-·]+\d[\s.\-·]+\d/g);
+  if (digitGroups) {
+    for (const group of digitGroups) {
+      // Extraer solo dígitos del grupo
+      const digits = group.replace(/[^\d]/g, '');
+      // Si tiene 6+ dígitos en un patrón separado, es sospechoso
+      if (digits.length >= 6) return true;
+    }
+  }
+
+  // 4. Detectar secuencias de dígitos individuales separados
+  // Ej: "5 6 9 9 5 1 4 3 4 7 1 3"
+  const spacedDigits = message.match(/(?:\d\s+){5,}\d/g);
+  if (spacedDigits) {
+    for (const seq of spacedDigits) {
+      const digits = seq.replace(/\s/g, '');
+      if (digits.length >= 7) return true;
+    }
+  }
+
   return false;
 }
 
@@ -272,15 +333,45 @@ export function processMessageContent(message, userId, username) {
 
 /**
  * 🚫 DETECTAR PALABRAS PROHIBIDAS
+ * Normaliza el texto para detectar evasiones con espacios, puntos, etc.
  */
 function containsForbiddenWords(message) {
-  const normalized = message.toLowerCase();
-  
+  // Normalizar: minúsculas, quitar tildes
+  let normalized = message.toLowerCase()
+    .normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+
+  // También crear versión sin separadores para detectar "t e l e g r a m"
+  const noSeparators = normalized.replace(/[\s.\-_*·]/g, '');
+
   for (const word of CONFIG.FORBIDDEN_WORDS) {
-    if (normalized.includes(word)) {
+    const wordLower = word.toLowerCase();
+
+    // 1. Búsqueda normal
+    if (normalized.includes(wordLower)) {
+      return { found: true, word };
+    }
+
+    // 2. Búsqueda sin separadores (detecta "t e l e g r a m", "w.s.p", etc.)
+    const wordNoSep = wordLower.replace(/[\s.\-_*·]/g, '');
+    if (wordNoSep.length >= 3 && noSeparators.includes(wordNoSep)) {
       return { found: true, word };
     }
   }
+
+  // 3. Detectar variaciones específicas de evasión
+  const evasionPatterns = [
+    { pattern: /t\s*e\s*l\s*e\s*g\s*r\s*a\s*m/i, word: 'telegram' },
+    { pattern: /w\s*h\s*a\s*t\s*s\s*a\s*p\s*p?/i, word: 'whatsapp' },
+    { pattern: /w\s*[s$]\s*p/i, word: 'wsp' },
+    { pattern: /i\s*n\s*s\s*t\s*a\s*g?\s*r?\s*a?\s*m?/i, word: 'instagram' },
+  ];
+
+  for (const { pattern, word } of evasionPatterns) {
+    if (pattern.test(message)) {
+      return { found: true, word };
+    }
+  }
+
   return { found: false, word: null };
 }
 

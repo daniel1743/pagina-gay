@@ -7,10 +7,10 @@
  * - Click en autor → abre tarjeta Baúl
  */
 
-import React, { useState, forwardRef } from 'react';
+import React, { useState, useEffect, forwardRef } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Heart, MessageCircle, MoreHorizontal, Trash2, ChevronDown, ChevronUp } from 'lucide-react';
-import { getTimeRemaining, toggleLike, hasUserLiked, deleteOpinPost, OPIN_COLORS, OPIN_REACTIONS, toggleReaction, getUserReactions } from '@/services/opinService';
+import { Heart, MessageCircle, MoreHorizontal, Trash2, ChevronDown, ChevronUp, Lock } from 'lucide-react';
+import { getTimeRemaining, toggleLike, hasUserLiked, deleteOpinPost, OPIN_COLORS, OPIN_REACTIONS, toggleReaction, getUserReactions, getReplyPreview } from '@/services/opinService';
 import { obtenerTarjeta } from '@/services/tarjetaService';
 import MensajeTarjetaModal from '@/components/baul/MensajeTarjetaModal';
 import { useAuth } from '@/contexts/AuthContext';
@@ -36,29 +36,56 @@ const OpinCard = forwardRef(({ post, onCommentsClick, onPostDeleted, isReadOnlyM
   const [myReactions, setMyReactions] = useState(getUserReactions(post));
   const [reactingEmoji, setReactingEmoji] = useState(null);
 
+  // Estados para preview de respuestas
+  const [previewReplies, setPreviewReplies] = useState([]);
+  const [loadingReplies, setLoadingReplies] = useState(false);
+
   const isOwner = user && (user.id === post.userId || user.uid === post.userId);
+  const isLoggedIn = user && !user.isAnonymous && !user.isGuest;
+  const totalReplies = post.commentCount || 0;
+  const hasMoreReplies = totalReplies > 3;
+
+  // Cargar preview de respuestas (primeras 3)
+  useEffect(() => {
+    const loadPreviewReplies = async () => {
+      if (totalReplies > 0) {
+        setLoadingReplies(true);
+        try {
+          const replies = await getReplyPreview(post.id, 3);
+          setPreviewReplies(replies);
+        } catch (error) {
+          console.warn('[OPIN] Error cargando preview:', error);
+        } finally {
+          setLoadingReplies(false);
+        }
+      }
+    };
+    loadPreviewReplies();
+  }, [post.id, totalReplies]);
   const colorConfig = OPIN_COLORS[post.color || 'purple'];
 
-  // Formatear tiempo
+  // Formatear tiempo - siempre mostrar tiempo transcurrido, nunca "Expirado"
   const formatTime = () => {
     if (post.isStable) return 'Fijado';
-    const remaining = getTimeRemaining(post.expiresAt);
-    if (remaining === 'Expirado') return 'Expirado';
 
-    // Convertir "Xh Ym" a "hace Xh"
+    // Siempre mostrar tiempo desde que se creó
     if (post.createdAt) {
       const created = post.createdAt.toDate ? post.createdAt.toDate() : new Date(post.createdAt);
       const now = new Date();
       const diffMs = now - created;
       const diffMins = Math.floor(diffMs / 60000);
       const diffHours = Math.floor(diffMs / 3600000);
+      const diffDays = Math.floor(diffHours / 24);
 
       if (diffMins < 1) return 'ahora';
       if (diffMins < 60) return `hace ${diffMins}m`;
       if (diffHours < 24) return `hace ${diffHours}h`;
-      return `hace ${Math.floor(diffHours / 24)}d`;
+      if (diffDays < 7) return `hace ${diffDays}d`;
+      if (diffDays < 30) return `hace ${Math.floor(diffDays / 7)}sem`;
+      return `hace ${Math.floor(diffDays / 30)}mes`;
     }
-    return remaining;
+
+    return 'reciente';
   };
 
   // Texto truncado
@@ -305,6 +332,63 @@ const OpinCard = forwardRef(({ post, onCommentsClick, onPostDeleted, isReadOnlyM
                 );
               })}
             </div>
+
+            {/* Preview de respuestas (primeras 3 - visibles para todos) */}
+            {(previewReplies.length > 0 || loadingReplies) && (
+              <div className="mt-3 pt-2 border-t border-white/5 space-y-2">
+                {loadingReplies ? (
+                  <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                    <div className="w-3 h-3 border border-purple-500 border-t-transparent rounded-full animate-spin" />
+                    <span>Cargando respuestas...</span>
+                  </div>
+                ) : (
+                  <>
+                    {previewReplies.map((reply) => (
+                      <div key={reply.id} className="flex items-start gap-2">
+                        {/* Avatar mini */}
+                        {reply.avatar ? (
+                          <img
+                            src={reply.avatar}
+                            alt={reply.username}
+                            className="w-5 h-5 rounded-full flex-shrink-0 object-cover"
+                          />
+                        ) : (
+                          <div className="w-5 h-5 rounded-full flex-shrink-0 bg-gradient-to-br from-purple-500 to-pink-500 flex items-center justify-center text-white text-[10px] font-bold">
+                            {reply.username?.charAt(0)?.toUpperCase() || '?'}
+                          </div>
+                        )}
+                        <p className="text-xs text-foreground/80 flex-1">
+                          <span className="font-semibold text-foreground">{reply.username}</span>
+                          {' '}
+                          {reply.comment}
+                        </p>
+                      </div>
+                    ))}
+
+                    {/* Botón "Ver más respuestas" con auth-gating */}
+                    {hasMoreReplies && (
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          if (!isLoggedIn) {
+                            toast({
+                              title: 'Regístrate para ver más',
+                              description: 'Hay más respuestas, pero necesitas una cuenta para verlas',
+                            });
+                            return;
+                          }
+                          if (onCommentsClick) onCommentsClick(post);
+                        }}
+                        className="flex items-center gap-1.5 text-xs text-purple-400 hover:text-purple-300 mt-1"
+                      >
+                        {!isLoggedIn && <Lock className="w-3 h-3" />}
+                        <span>Ver más respuestas ({totalReplies - previewReplies.length})</span>
+                      </button>
+                    )}
+                  </>
+                )}
+              </div>
+            )}
 
             {/* Stats para el dueño */}
             {isOwner && (post.viewCount || 0) > 0 && (

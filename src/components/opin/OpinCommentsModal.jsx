@@ -1,28 +1,40 @@
 /**
- * OpinCommentsModal - Modal de respuestas rápidas
+ * OpinCommentsModal - Modal de respuestas con modo espectador
  *
- * - Chips predefinidos (se envían como comentario al clickear)
- * - Textarea reducido (150 chars, 1 fila)
- * - Header "Respuestas"
- * - Comentarios compactos sin timestamp
+ * Visitantes (no logueados):
+ * - Pueden ver las primeras 3 respuestas
+ * - No pueden ver más respuestas
+ * - No pueden responder ni dar like
+ *
+ * Usuarios logueados:
+ * - Pueden ver todas las respuestas
+ * - Pueden responder (chips rápidos o texto)
+ * - Pueden dar like a respuestas
  */
 
 import React, { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { X, Send, Trash2, MessageCircle } from 'lucide-react';
+import { X, Send, Trash2, MessageCircle, Lock, UserPlus } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
 import { getPostComments, addComment, deleteComment } from '@/services/opinService';
 import { toast } from '@/components/ui/use-toast';
 
 const QUICK_REPLIES = ['Me interesa', 'Yo también busco', 'Escríbeme', 'Suena bien'];
+const PREVIEW_LIMIT = 3; // Respuestas visibles para visitantes
 
 const OpinCommentsModal = ({ post, open, onClose }) => {
+  const navigate = useNavigate();
   const { user } = useAuth();
   const [comments, setComments] = useState([]);
   const [loading, setLoading] = useState(true);
   const [commentText, setCommentText] = useState('');
   const [submitting, setSubmitting] = useState(false);
   const commentsEndRef = useRef(null);
+
+  // Detectar si es visitante (no logueado o guest)
+  const isGuest = !user || user.isAnonymous || user.isGuest;
+  const canInteract = !isGuest;
 
   useEffect(() => {
     if (open && post) {
@@ -209,7 +221,8 @@ const OpinCommentsModal = ({ post, open, onClose }) => {
               </div>
             ) : (
               <>
-                {comments.map((comment) => (
+                {/* Mostrar respuestas según permisos */}
+                {(isGuest ? comments.slice(0, PREVIEW_LIMIT) : comments).map((comment) => (
                   <div key={comment.id || comment.commentId} className="flex items-start gap-2 group">
                     {/* Avatar mini */}
                     {comment.avatar ? (
@@ -232,7 +245,7 @@ const OpinCommentsModal = ({ post, open, onClose }) => {
                     </div>
 
                     {/* Botón eliminar (solo autor) */}
-                    {user && comment.userId === user.id && (
+                    {user && (comment.userId === user.id || comment.userId === user.uid) && (
                       <button
                         onClick={() => handleDeleteComment(comment.id)}
                         className="opacity-0 group-hover:opacity-100 p-1 hover:bg-red-500/20 rounded transition-all"
@@ -243,14 +256,35 @@ const OpinCommentsModal = ({ post, open, onClose }) => {
                     )}
                   </div>
                 ))}
-                <div ref={commentsEndRef} />
+
+                {/* Bloqueo para visitantes si hay más respuestas */}
+                {isGuest && comments.length > PREVIEW_LIMIT && (
+                  <div className="mt-4 p-4 rounded-xl bg-white/5 border border-white/10 text-center">
+                    <Lock className="w-8 h-8 mx-auto mb-2 text-muted-foreground/50" />
+                    <p className="text-sm text-muted-foreground mb-1">
+                      Hay {comments.length - PREVIEW_LIMIT} respuestas más
+                    </p>
+                    <p className="text-xs text-muted-foreground/70 mb-3">
+                      Necesitas una cuenta para verlas
+                    </p>
+                    <button
+                      onClick={() => navigate('/auth')}
+                      className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-gradient-to-r from-purple-500 to-pink-500 text-white text-sm font-medium hover:opacity-90 transition-opacity"
+                    >
+                      <UserPlus className="w-4 h-4" />
+                      Crear cuenta gratis
+                    </button>
+                  </div>
+                )}
+
+                {!isGuest && <div ref={commentsEndRef} />}
               </>
             )}
           </div>
 
-          {/* Input: Chips rápidos + Textarea */}
+          {/* Input: Chips rápidos + Textarea (solo usuarios logueados) */}
           <div className="p-4 border-t border-border space-y-3">
-            {user && !user.isAnonymous && !user.isGuest ? (
+            {canInteract ? (
               <>
                 {/* Chips de respuesta rápida */}
                 <div className="flex flex-wrap gap-2">
@@ -304,28 +338,18 @@ const OpinCommentsModal = ({ post, open, onClose }) => {
                 )}
               </>
             ) : (
-              <div className="text-center py-2 text-sm text-muted-foreground">
-                {user ? (
-                  <p>
-                    <button
-                      onClick={() => window.location.href = '/auth'}
-                      className="text-primary hover:underline"
-                    >
-                      Regístrate
-                    </button>
-                    {' '}para responder
-                  </p>
-                ) : (
-                  <p>
-                    <button
-                      onClick={() => window.location.href = '/auth'}
-                      className="text-primary hover:underline"
-                    >
-                      Inicia sesión
-                    </button>
-                    {' '}para responder
-                  </p>
-                )}
+              /* Estado bloqueado para visitantes */
+              <div className="text-center py-3">
+                <p className="text-sm text-muted-foreground mb-2">
+                  Regístrate para interactuar
+                </p>
+                <button
+                  onClick={() => navigate('/auth')}
+                  className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-white/10 hover:bg-white/15 text-foreground text-sm font-medium transition-colors"
+                >
+                  <UserPlus className="w-4 h-4" />
+                  Crear cuenta
+                </button>
               </div>
             )}
           </div>

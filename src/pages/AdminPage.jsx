@@ -77,6 +77,7 @@ import {
   getReplies
 } from '@/services/forumService';
 import OpinStablesPanel from '@/components/admin/OpinStablesPanel';
+import AdminOpinRepliesPanel from '@/components/admin/AdminOpinRepliesPanel';
 
 const AdminPage = () => {
   const navigate = useNavigate();
@@ -929,6 +930,7 @@ const AdminPage = () => {
             <TabsTrigger value="rewards">Recompensas</TabsTrigger>
             <TabsTrigger value="forum">Foro</TabsTrigger>
             <TabsTrigger value="opin">OPIN estables</TabsTrigger>
+            <TabsTrigger value="opin-replies">Responder OPINs</TabsTrigger>
             <TabsTrigger value="notifications">Notificaciones</TabsTrigger>
             <TabsTrigger value="analytics">Analytics</TabsTrigger>
             <TabsTrigger value="moderation">Moderación</TabsTrigger>
@@ -2360,6 +2362,11 @@ const AdminPage = () => {
           {/* OPIN estables Tab */}
           <TabsContent value="opin" className="space-y-6">
             <OpinStablesPanel />
+          </TabsContent>
+
+          {/* Responder OPINs Tab */}
+          <TabsContent value="opin-replies" className="space-y-6">
+            <AdminOpinRepliesPanel />
           </TabsContent>
 
           {/* Notificaciones Tab */}

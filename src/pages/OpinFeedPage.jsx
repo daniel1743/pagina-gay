@@ -104,7 +104,7 @@ const OpinFeedPage = () => {
       return;
     }
     if (!canCreate) {
-      toast({ description: 'Ya tienes una nota activa' });
+      toast({ description: 'Espera 2 horas entre cada nota' });
       return;
     }
     navigate('/opin/new');

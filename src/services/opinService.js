@@ -52,7 +52,8 @@ export const OPIN_REACTIONS = [
 
 /**
  * ✅ Verificar si el usuario puede crear un post
- * Regla: Máximo 3 posts por semana (sin importar si expiraron o están activos)
+ * Regla: Cooldown de 2 horas entre publicaciones (anti-spam)
+ * Sin límite de cantidad - puedes publicar cuantos quieras respetando el cooldown
  */
 export const canCreatePost = async () => {
   if (!auth.currentUser) {
@@ -64,37 +65,53 @@ export const canCreatePost = async () => {
     return { canCreate: false, reason: 'guest_user' };
   }
 
-  // Calcular fecha hace 7 días
+  const COOLDOWN_HOURS = 2;
   const now = new Date();
-  const oneWeekAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
+  const cooldownAgo = new Date(now.getTime() - COOLDOWN_HOURS * 60 * 60 * 1000);
 
-  // Buscar posts del usuario en la última semana
+  // Buscar el último post del usuario
   const postsRef = collection(db, 'opin_posts');
 
   try {
     const q = query(
       postsRef,
       where('userId', '==', auth.currentUser.uid),
-      where('createdAt', '>=', Timestamp.fromDate(oneWeekAgo)),
       orderBy('createdAt', 'desc'),
-      limit(10)
+      limit(1)
     );
 
     const snapshot = await getDocs(q);
-    const postsThisWeek = snapshot.docs.length;
 
-    console.log(`[OPIN] Posts esta semana: ${postsThisWeek}/3`);
+    if (snapshot.empty) {
+      // Nunca ha publicado, puede crear
+      return { canCreate: true, message: 'Primera nota' };
+    }
 
-    if (postsThisWeek >= 3) {
+    const lastPost = snapshot.docs[0].data();
+    const lastCreatedAt = lastPost.createdAt?.toDate ? lastPost.createdAt.toDate() : new Date(lastPost.createdAt);
+
+    // Verificar si pasó el cooldown
+    if (lastCreatedAt > cooldownAgo) {
+      const remainingMs = lastCreatedAt.getTime() + (COOLDOWN_HOURS * 60 * 60 * 1000) - now.getTime();
+      const remainingMins = Math.ceil(remainingMs / 60000);
+      const remainingHours = Math.floor(remainingMins / 60);
+      const mins = remainingMins % 60;
+
+      const timeStr = remainingHours > 0 ? `${remainingHours}h ${mins}m` : `${remainingMins}m`;
+
+      console.log(`[OPIN] Cooldown activo: esperar ${timeStr}`);
+
       return {
         canCreate: false,
-        reason: 'weekly_limit_reached',
-        postsThisWeek,
-        message: 'Ya creaste 3 OPINs esta semana. Espera a la próxima semana.'
+        reason: 'cooldown',
+        remainingMinutes: remainingMins,
+        message: `Espera ${timeStr} para publicar otra nota`
       };
     }
 
-    return { canCreate: true, postsThisWeek, remaining: 3 - postsThisWeek };
+    // Cooldown pasado, puede crear
+    return { canCreate: true };
+
   } catch (indexError) {
     // Si hay error de índice, intentar query más simple
     console.warn('[OPIN] Index no disponible para canCreatePost, usando query simple:', indexError.message);
@@ -102,31 +119,44 @@ export const canCreatePost = async () => {
     const qSimple = query(
       postsRef,
       where('userId', '==', auth.currentUser.uid),
-      limit(10)
+      limit(5)
     );
 
     const snapshot = await getDocs(qSimple);
 
-    // Filtrar manualmente por fecha
-    const postsThisWeek = snapshot.docs.filter(doc => {
+    if (snapshot.empty) {
+      return { canCreate: true, message: 'Primera nota' };
+    }
+
+    // Encontrar el más reciente manualmente
+    let lastCreatedAt = null;
+    snapshot.docs.forEach(doc => {
       const data = doc.data();
-      if (!data.createdAt) return false;
-      const createdAt = data.createdAt.toDate ? data.createdAt.toDate() : new Date(data.createdAt);
-      return createdAt >= oneWeekAgo;
-    }).length;
+      if (data.createdAt) {
+        const created = data.createdAt.toDate ? data.createdAt.toDate() : new Date(data.createdAt);
+        if (!lastCreatedAt || created > lastCreatedAt) {
+          lastCreatedAt = created;
+        }
+      }
+    });
 
-    console.log(`[OPIN] Posts esta semana (fallback): ${postsThisWeek}/3`);
+    if (lastCreatedAt && lastCreatedAt > cooldownAgo) {
+      const remainingMs = lastCreatedAt.getTime() + (COOLDOWN_HOURS * 60 * 60 * 1000) - now.getTime();
+      const remainingMins = Math.ceil(remainingMs / 60000);
+      const remainingHours = Math.floor(remainingMins / 60);
+      const mins = remainingMins % 60;
 
-    if (postsThisWeek >= 3) {
+      const timeStr = remainingHours > 0 ? `${remainingHours}h ${mins}m` : `${remainingMins}m`;
+
       return {
         canCreate: false,
-        reason: 'weekly_limit_reached',
-        postsThisWeek,
-        message: 'Ya creaste 3 OPINs esta semana. Espera a la próxima semana.'
+        reason: 'cooldown',
+        remainingMinutes: remainingMins,
+        message: `Espera ${timeStr} para publicar otra nota`
       };
     }
 
-    return { canCreate: true, postsThisWeek, remaining: 3 - postsThisWeek };
+    return { canCreate: true };
   }
 };
 
@@ -156,10 +186,10 @@ export const createOpinPost = async ({ title = '', text, color = 'purple', userP
     color = 'purple'; // Default
   }
 
-  // Verificar límite semanal (máximo 3 por semana)
+  // Verificar cooldown (2 horas entre publicaciones)
   const canCreate = await canCreatePost();
   if (!canCreate.canCreate) {
-    throw new Error(canCreate.message || 'No puedes crear más OPINs esta semana');
+    throw new Error(canCreate.message || 'Espera un poco antes de publicar otra nota');
   }
 
   const now = Timestamp.now();
@@ -520,7 +550,8 @@ export const getMyOpinPosts = async () => {
 };
 
 /**
- * ✅ Obtener tiempo restante hasta expiración
+ * ✅ Obtener tiempo restante hasta expiración (uso interno)
+ * Nota: En la UI ya no mostramos "Expirado", solo tiempo transcurrido
  */
 export const getTimeRemaining = (expiresAt) => {
   if (!expiresAt) return '24h';
@@ -529,7 +560,8 @@ export const getTimeRemaining = (expiresAt) => {
   const expiryTime = expiresAt.toMillis ? expiresAt.toMillis() : expiresAt;
   const diffMs = expiryTime - now;
 
-  if (diffMs <= 0) return 'Expirado';
+  // Si expiró, retornar null para que la UI decida qué mostrar
+  if (diffMs <= 0) return null;
 
   const hours = Math.floor(diffMs / (1000 * 60 * 60));
   const minutes = Math.floor((diffMs % (1000 * 60 * 60)) / (1000 * 60));
@@ -539,6 +571,27 @@ export const getTimeRemaining = (expiresAt) => {
   }
 
   return `${minutes}m`;
+};
+
+/**
+ * ✅ Formatear tiempo transcurrido desde creación (para UI)
+ */
+export const getTimeSinceCreated = (createdAt) => {
+  if (!createdAt) return 'reciente';
+
+  const created = createdAt.toDate ? createdAt.toDate() : new Date(createdAt);
+  const now = new Date();
+  const diffMs = now - created;
+  const diffMins = Math.floor(diffMs / 60000);
+  const diffHours = Math.floor(diffMs / 3600000);
+  const diffDays = Math.floor(diffHours / 24);
+
+  if (diffMins < 1) return 'ahora';
+  if (diffMins < 60) return `hace ${diffMins}m`;
+  if (diffHours < 24) return `hace ${diffHours}h`;
+  if (diffDays < 7) return `hace ${diffDays}d`;
+  if (diffDays < 30) return `hace ${Math.floor(diffDays / 7)}sem`;
+  return `hace ${Math.floor(diffDays / 30)}mes`;
 };
 
 // ============================================================
@@ -1032,8 +1085,8 @@ export const deleteComment = async (commentId) => {
 
   const commentData = commentDoc.data();
 
-  // Solo el autor puede eliminar
-  if (commentData.userId !== auth.currentUser.uid) {
+  // Solo el autor puede eliminar (excepto admin replies)
+  if (commentData.userId !== auth.currentUser.uid && !commentData.isAdminReply) {
     throw new Error('No tienes permiso para eliminar este comentario');
   }
 
@@ -1046,4 +1099,154 @@ export const deleteComment = async (commentId) => {
   });
 
   console.log('🗑️ [OPIN] Comentario eliminado:', commentId);
+};
+
+// ============================================================
+// 👁️ SISTEMA DE PREVIEW DE RESPUESTAS (Modo Espectador)
+// ============================================================
+
+/**
+ * ✅ Obtener preview de respuestas (primeras 3) - Visible para todos
+ * Usado para mostrar respuestas inline en OpinCard sin necesidad de auth
+ */
+export const getReplyPreview = async (postId, previewLimit = 3) => {
+  const commentsRef = collection(db, 'opin_comments');
+
+  let snapshot;
+  try {
+    const q = query(
+      commentsRef,
+      where('postId', '==', postId),
+      orderBy('createdAt', 'asc'),
+      limit(previewLimit)
+    );
+    snapshot = await getDocs(q);
+  } catch (indexError) {
+    // Fallback sin orderBy
+    const qSimple = query(
+      commentsRef,
+      where('postId', '==', postId),
+      limit(previewLimit)
+    );
+    snapshot = await getDocs(qSimple);
+  }
+
+  const replies = snapshot.docs.map(doc => ({
+    id: doc.id,
+    ...doc.data(),
+  }));
+
+  return replies;
+};
+
+/**
+ * ✅ Verificar si el usuario puede ver todas las respuestas
+ * Solo usuarios logueados (no guests) pueden ver más de 3
+ */
+export const canViewAllReplies = () => {
+  if (!auth.currentUser) return false;
+  if (auth.currentUser.isAnonymous) return false;
+  return true;
+};
+
+// ============================================================
+// 🛡️ ADMIN — Respuestas Editoriales
+// ============================================================
+
+/** Nombres predefinidos para respuestas de admin */
+export const ADMIN_REPLY_NAMES = [
+  // Usuarios anónimos (para simular actividad real)
+  'Anónimo',
+  'Usuario',
+  'Alguien',
+  // Nombres genéricos de usuarios
+  'Carlos_23',
+  'Diego_fit',
+  'JuanM',
+  'AndresVLC',
+  'Pablo_28',
+  // Equipo oficial
+  'Equipo Chactivo',
+  'Moderador',
+  'Soporte',
+  'Comunidad',
+];
+
+/**
+ * ✅ Agregar respuesta editorial (Admin)
+ * Crea una respuesta como contenido semilla, con nombre personalizado
+ * Visible públicamente, indistinguible de respuestas normales en UI
+ * Internamente marcado como isAdminReply: true
+ *
+ * @param {string} postId - ID del OPIN
+ * @param {string} text - Texto de la respuesta
+ * @param {string} authorName - Nombre a mostrar (ej: "Equipo Chactivo")
+ */
+export const addAdminReply = async (postId, text, authorName) => {
+  if (!auth.currentUser) {
+    throw new Error('Usuario no autenticado');
+  }
+
+  if (!text || text.trim().length < 1) {
+    throw new Error('La respuesta no puede estar vacía');
+  }
+
+  if (text.length > 150) {
+    throw new Error('La respuesta no puede superar 150 caracteres');
+  }
+
+  if (!authorName || authorName.trim().length < 1) {
+    throw new Error('Debes especificar un nombre de autor');
+  }
+
+  const commentsRef = collection(db, 'opin_comments');
+
+  const replyData = {
+    postId: postId,
+    userId: auth.currentUser.uid, // Admin que lo creó (para auditoría)
+    username: authorName.trim(),
+    avatar: '', // Sin avatar para respuestas editoriales (usa inicial)
+    comment: text.trim(),
+    createdAt: serverTimestamp(),
+    isAdminReply: true, // Marca interna - NO mostrar en UI
+  };
+
+  const docRef = await addDoc(commentsRef, replyData);
+
+  // Incrementar contador de comentarios en el post
+  const postRef = doc(db, 'opin_posts', postId);
+  await updateDoc(postRef, {
+    commentCount: increment(1),
+  });
+
+  console.log('🛡️ [OPIN] Respuesta editorial agregada:', docRef.id, 'como', authorName);
+
+  return { id: docRef.id, ...replyData };
+};
+
+/**
+ * ✅ Obtener todos los OPINs para panel admin (incluye conteo de respuestas)
+ */
+export const getOpinPostsForAdmin = async (limitCount = 100) => {
+  const postsRef = collection(db, 'opin_posts');
+
+  const q = query(
+    postsRef,
+    orderBy('createdAt', 'desc'),
+    limit(limitCount)
+  );
+
+  const snapshot = await getDocs(q);
+
+  const posts = snapshot.docs.map(doc => ({
+    id: doc.id,
+    ...doc.data(),
+  }));
+
+  // Filtrar solo posts activos
+  const activePosts = posts.filter(p => p.isActive !== false);
+
+  console.log(`🛡️ [OPIN Admin] ${activePosts.length} posts cargados`);
+
+  return activePosts;
 };
