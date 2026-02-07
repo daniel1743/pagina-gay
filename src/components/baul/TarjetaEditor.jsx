@@ -388,27 +388,25 @@ const TarjetaEditor = ({ isOpen, onClose, tarjeta }) => {
     }
   };
 
-  // ✅ Limpiar preview al cerrar y al desmontar (evitar ERR_FILE_NOT_FOUND)
+  // ✅ Limpiar preview al cerrar (evitar ERR_FILE_NOT_FOUND)
+  const fotoPreviewRef = useRef(null);
+  fotoPreviewRef.current = fotoPreview;
+
   useEffect(() => {
     if (!isOpen) {
-      setFotoPreview(prev => {
-        if (prev && prev.startsWith('blob:')) {
-          URL.revokeObjectURL(prev);
-        }
-        return null;
-      });
+      if (fotoPreviewRef.current && fotoPreviewRef.current.startsWith('blob:')) {
+        URL.revokeObjectURL(fotoPreviewRef.current);
+      }
+      setFotoPreview(null);
       setNuevaFotoUrl(null);
     }
   }, [isOpen]);
 
   useEffect(() => {
     return () => {
-      setFotoPreview(prev => {
-        if (prev && prev.startsWith('blob:')) {
-          URL.revokeObjectURL(prev);
-        }
-        return null;
-      });
+      if (fotoPreviewRef.current && fotoPreviewRef.current.startsWith('blob:')) {
+        URL.revokeObjectURL(fotoPreviewRef.current);
+      }
     };
   }, []);
 
