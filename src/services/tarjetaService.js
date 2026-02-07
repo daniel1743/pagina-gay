@@ -1081,6 +1081,61 @@ export async function obtenerMiActividad(miUserId, limite = 20) {
 }
 
 /**
+ * Verificar si hay interés mutuo entre dos usuarios
+ * Retorna true si:
+ * - Hay match formal (ambos dieron like)
+ * - O ambos se enviaron mensaje/like (actividad mutua)
+ */
+export async function verificarInteresMutuo(userId1, userId2) {
+  try {
+    // 1. Verificar match formal
+    const matchResult = await verificarMatch(userId1, userId2);
+    if (matchResult.exists) {
+      return { hayInteres: true, tipo: 'match' };
+    }
+
+    // 2. Verificar si ambos tienen actividad del otro
+    // User1 tiene actividad de User2?
+    const actividad1Ref = collection(db, 'tarjetas', userId1, 'actividad');
+    const q1 = query(actividad1Ref, where('odIdUsuari', '==', userId2), limit(1));
+    const snap1 = await getDocs(q1);
+    const user2InteractuoConUser1 = !snap1.empty;
+
+    // User2 tiene actividad de User1?
+    const actividad2Ref = collection(db, 'tarjetas', userId2, 'actividad');
+    const q2 = query(actividad2Ref, where('odIdUsuari', '==', userId1), limit(1));
+    const snap2 = await getDocs(q2);
+    const user1InteractuoConUser2 = !snap2.empty;
+
+    // Si ambos interactuaron, hay interés mutuo
+    if (user1InteractuoConUser1 && user2InteractuoConUser1) {
+      return { hayInteres: true, tipo: 'mensajes_mutuos' };
+    }
+
+    // 3. También verificar likesDe en las tarjetas
+    const tarjeta1 = await getDoc(doc(db, 'tarjetas', userId1));
+    const tarjeta2 = await getDoc(doc(db, 'tarjetas', userId2));
+
+    const user2LikedUser1 = tarjeta1.data()?.likesDe?.includes(userId2) || false;
+    const user1LikedUser2 = tarjeta2.data()?.likesDe?.includes(userId1) || false;
+
+    if (user1LikedUser2 && user2LikedUser1) {
+      return { hayInteres: true, tipo: 'likes_mutuos' };
+    }
+
+    // Si solo uno interactuó, hay interés parcial
+    if (user1InteractuoConUser2 || user2InteractuoConUser1 || user1LikedUser2 || user2LikedUser1) {
+      return { hayInteres: false, tipo: 'parcial', quienInteractuo: user1InteractuoConUser2 || user1LikedUser2 ? userId1 : userId2 };
+    }
+
+    return { hayInteres: false, tipo: 'ninguno' };
+  } catch (error) {
+    console.error('[TARJETA] Error verificando interés mutuo:', error);
+    return { hayInteres: false, tipo: 'error' };
+  }
+}
+
+/**
  * Marcar actividad como leída
  */
 export async function marcarActividadLeida(miUserId) {

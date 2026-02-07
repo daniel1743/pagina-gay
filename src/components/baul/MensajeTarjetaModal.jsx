@@ -1,6 +1,6 @@
 /**
  * 💬 MODAL PARA VER PERFIL Y ENVIAR MENSAJE
- * Muestra información completa del usuario + opción de mensaje
+ * Muestra información completa del usuario + opción de mensaje + chat privado
  */
 
 import React, { useState } from 'react';
@@ -15,10 +15,13 @@ import {
   Heart,
   Eye,
   Ruler,
-  Calendar
+  Calendar,
+  MessageCircle
 } from 'lucide-react';
-import { enviarMensajeTarjeta, formatearHorarios, getColorRol } from '@/services/tarjetaService';
+import { enviarMensajeTarjeta, formatearHorarios, getColorRol, verificarInteresMutuo } from '@/services/tarjetaService';
+import { sendPrivateChatRequest } from '@/services/socialService';
 import { toast } from '@/components/ui/use-toast';
+import { useEffect } from 'react';
 
 const MensajeTarjetaModal = ({
   isOpen,
@@ -30,8 +33,60 @@ const MensajeTarjetaModal = ({
   const [mensaje, setMensaje] = useState('');
   const [isEnviando, setIsEnviando] = useState(false);
   const [mostrarMensaje, setMostrarMensaje] = useState(false);
+  const [solicitandoChat, setSolicitandoChat] = useState(false);
+  const [chatSolicitado, setChatSolicitado] = useState(false);
+  const [hayMatch, setHayMatch] = useState(false);
+  const [verificandoMatch, setVerificandoMatch] = useState(true);
 
   const maxChars = 200;
+
+  // Verificar si hay interés mutuo (match, likes o mensajes mutuos)
+  useEffect(() => {
+    const checkInteresMutuo = async () => {
+      if (!miUserId || !tarjeta?.odIdUsuari) {
+        setVerificandoMatch(false);
+        return;
+      }
+
+      try {
+        const resultado = await verificarInteresMutuo(miUserId, tarjeta.odIdUsuari);
+        setHayMatch(resultado.hayInteres);
+        console.log('[BAUL] Interés mutuo:', resultado);
+      } catch (error) {
+        console.error('Error verificando interés mutuo:', error);
+      } finally {
+        setVerificandoMatch(false);
+      }
+    };
+
+    if (isOpen) {
+      checkInteresMutuo();
+    }
+  }, [isOpen, miUserId, tarjeta?.odIdUsuari]);
+
+  // Solicitar chat privado (solo si hay match)
+  const handleSolicitarChat = async () => {
+    if (solicitandoChat || chatSolicitado || !miUserId || !hayMatch) return;
+
+    setSolicitandoChat(true);
+    try {
+      await sendPrivateChatRequest(miUserId, tarjeta.odIdUsuari);
+      setChatSolicitado(true);
+      toast({
+        title: '¡Solicitud enviada!',
+        description: `${tarjeta.nombre} recibirá tu solicitud de chat privado`,
+      });
+    } catch (error) {
+      console.error('Error solicitando chat:', error);
+      toast({
+        title: 'Error',
+        description: 'No se pudo enviar la solicitud',
+        variant: 'destructive'
+      });
+    } finally {
+      setSolicitandoChat(false);
+    }
+  };
 
   const handleEnviar = async () => {
     if (!mensaje.trim() || isEnviando) return;
@@ -210,6 +265,44 @@ const MensajeTarjetaModal = ({
               <div className="bg-cyan-500/10 border border-cyan-500/30 rounded-xl p-4">
                 <p className="text-xs text-cyan-400 mb-1 font-medium">Busca:</p>
                 <p className="text-white">{tarjeta.buscando}</p>
+              </div>
+            )}
+
+            {/* Botón Chat Privado (solo si hay match) */}
+            {!verificandoMatch && hayMatch && (
+              <motion.button
+                whileTap={{ scale: 0.98 }}
+                onClick={handleSolicitarChat}
+                disabled={solicitandoChat || chatSolicitado}
+                className={`w-full py-3 rounded-xl font-medium flex items-center justify-center gap-2 mb-3 transition-colors
+                  ${chatSolicitado
+                    ? 'bg-green-500/20 text-green-400 cursor-default'
+                    : 'bg-gradient-to-r from-purple-500 to-pink-500 text-white hover:from-purple-600 hover:to-pink-600'
+                  }
+                  ${solicitandoChat ? 'opacity-70' : ''}
+                `}
+              >
+                {solicitandoChat ? (
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                ) : chatSolicitado ? (
+                  <>
+                    <Heart className="w-4 h-4" />
+                    Solicitud enviada
+                  </>
+                ) : (
+                  <>
+                    <MessageCircle className="w-4 h-4" />
+                    Abrir chat privado
+                  </>
+                )}
+              </motion.button>
+            )}
+
+            {/* Indicador de interés mutuo */}
+            {!verificandoMatch && hayMatch && (
+              <div className="flex items-center justify-center gap-2 text-xs text-pink-400 mb-3">
+                <Heart className="w-3 h-3 fill-current" />
+                <span>¡Interés mutuo! Pueden chatear en privado</span>
               </div>
             )}
 
