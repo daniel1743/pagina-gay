@@ -275,6 +275,13 @@ const TarjetaEditor = ({ isOpen, onClose, tarjeta }) => {
       return;
     }
 
+    // ✅ Revocar blob anterior si existe (evitar fuga y ERR_FILE_NOT_FOUND)
+    setFotoPreview(prev => {
+      if (prev && prev.startsWith('blob:')) {
+        URL.revokeObjectURL(prev);
+      }
+      return null;
+    });
     // ✅ Mostrar preview INMEDIATO (antes de comprimir/subir)
     const previewUrl = URL.createObjectURL(file);
     setFotoPreview(previewUrl);
@@ -343,6 +350,10 @@ const TarjetaEditor = ({ isOpen, onClose, tarjeta }) => {
 
       if (autoSaveResult) {
         console.log('[FOTO] ✅ Foto auto-guardada exitosamente');
+        if (previewUrl) {
+          URL.revokeObjectURL(previewUrl);
+        }
+        setFotoPreview(null);
         setNuevaFotoUrl(downloadUrl);
         setIsSubiendoFoto(false);
 
@@ -356,6 +367,10 @@ const TarjetaEditor = ({ isOpen, onClose, tarjeta }) => {
 
     } catch (error) {
       console.error('[FOTO] Error:', error.message);
+      if (previewUrl) {
+        URL.revokeObjectURL(previewUrl);
+      }
+      setFotoPreview(null);
       setIsSubiendoFoto(false);
 
       let errorMsg = 'No se pudo subir la foto';
@@ -373,16 +388,29 @@ const TarjetaEditor = ({ isOpen, onClose, tarjeta }) => {
     }
   };
 
-  // ✅ Limpiar preview al cerrar
+  // ✅ Limpiar preview al cerrar y al desmontar (evitar ERR_FILE_NOT_FOUND)
   useEffect(() => {
     if (!isOpen) {
-      if (fotoPreview) {
-        URL.revokeObjectURL(fotoPreview);
-      }
-      setFotoPreview(null);
+      setFotoPreview(prev => {
+        if (prev && prev.startsWith('blob:')) {
+          URL.revokeObjectURL(prev);
+        }
+        return null;
+      });
       setNuevaFotoUrl(null);
     }
   }, [isOpen]);
+
+  useEffect(() => {
+    return () => {
+      setFotoPreview(prev => {
+        if (prev && prev.startsWith('blob:')) {
+          URL.revokeObjectURL(prev);
+        }
+        return null;
+      });
+    };
+  }, []);
 
   if (!isOpen) return null;
 
@@ -485,8 +513,8 @@ const TarjetaEditor = ({ isOpen, onClose, tarjeta }) => {
               <div className="relative">
                 <div className={`w-24 h-24 rounded-full bg-gray-700 flex items-center justify-center overflow-hidden border-2 ${isSubiendoFoto ? 'border-cyan-500 animate-pulse' : 'border-gray-600'}`}>
                   {/* ✅ Siempre mostrar la foto (preview o existente) */}
-                  {fotoPreview ? (
-                    <img src={fotoPreview} alt="" className="w-full h-full object-cover" />
+                  {(fotoPreview || nuevaFotoUrl) ? (
+                    <img src={fotoPreview || nuevaFotoUrl} alt="" className="w-full h-full object-cover" />
                   ) : tarjeta.fotoUrl ? (
                     <img src={tarjeta.fotoUrl} alt="" className="w-full h-full object-cover" />
                   ) : (

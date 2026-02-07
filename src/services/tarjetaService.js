@@ -439,36 +439,61 @@ export async function obtenerTarjetasCercanas(miUbicacion, miUserId, limite = 10
   try {
     console.log('[TARJETA] Buscando tarjetas cercanas para:', miUserId);
 
-    // ✅ Siempre obtener al menos 100 tarjetas (las más recientes)
     const cantidadAObtener = Math.max(limite, BAUL_CONFIG.TARJETAS_MINIMAS);
     const tarjetasRef = collection(db, 'tarjetas');
 
-    // ✅ Ordenar por última conexión para mantener las 100 más recientes
+    // 🔧 FIX: Obtener TODAS las tarjetas sin depender de orderBy
+    // Firestore orderBy EXCLUYE documentos que no tienen el campo ordenado
+    // Esto causaba que perfiles sin ultimaConexion no aparecieran
     let snapshot;
+    let tarjetasMap = new Map(); // Para evitar duplicados al combinar queries
+
+    // Query 1: Intentar con orderBy (para obtener las más recientes que SÍ tienen el campo)
     try {
-      const q = query(
+      const qOrdered = query(
         tarjetasRef,
         orderBy('ultimaConexion', 'desc'),
-        limit(cantidadAObtener + 10)
+        limit(cantidadAObtener)
       );
-      snapshot = await getDocs(q);
+      const snapshotOrdered = await getDocs(qOrdered);
+      snapshotOrdered.forEach(docSnap => {
+        tarjetasMap.set(docSnap.id, { id: docSnap.id, ...docSnap.data() });
+      });
+      console.log('[TARJETA] Query ordenada retornó:', snapshotOrdered.size, 'tarjetas');
     } catch (indexError) {
-      console.warn('[TARJETA] Index no disponible para cercanas, usando query simple:', indexError.message);
-      const qSimple = query(tarjetasRef, limit(cantidadAObtener + 10));
-      snapshot = await getDocs(qSimple);
+      console.warn('[TARJETA] Index no disponible para query ordenada:', indexError.message);
     }
 
-    let tarjetas = [];
+    // Query 2: SIEMPRE ejecutar query sin orderBy para capturar TODOS los perfiles
+    // limit(500) asegura que no se excluyan perfiles con fotos reales por cap de 150
+    // Firestore sin orderBy retorna docs en orden arbitrario; un limit bajo puede omitir perfiles válidos
+    try {
+      const LIMITE_COMPLETO = 500; // Suficiente para capturar toda la colección típica
+      const qAll = query(tarjetasRef, limit(LIMITE_COMPLETO));
+      const snapshotAll = await getDocs(qAll);
+      snapshotAll.forEach(docSnap => {
+        tarjetasMap.set(docSnap.id, { id: docSnap.id, ...docSnap.data() });
+      });
+      console.log('[TARJETA] Query completa retornó:', snapshotAll.size, 'tarjetas (total únicos:', tarjetasMap.size, ')');
+    } catch (error) {
+      console.error('[TARJETA] Error en query completa:', error.message);
+    }
+
+    let tarjetas = Array.from(tarjetasMap.values());
 
     console.log('[TARJETA] ========== TARJETAS EN FIRESTORE ==========');
-    console.log('[TARJETA] Total documentos encontrados:', snapshot.size);
+    console.log('[TARJETA] Total tarjetas combinadas:', tarjetas.length);
 
-    snapshot.forEach((docSnap, index) => {
-      const data = docSnap.data();
-      if (index < 5) {
-        console.log(`[TARJETA] ${index + 1}. ${data.nombre || 'N/A'} | Online: ${data.estaOnline}`);
+    // 🔍 DEBUG: Log detallado de cada tarjeta para diagnóstico
+    tarjetas.forEach((tarjeta, index) => {
+      const tieneUltimaConexion = !!tarjeta.ultimaConexion;
+      const fotoPrincipal = obtenerFotoPrincipal(tarjeta);
+      const tieneFoto = !!fotoPrincipal;
+      const fotoEsReal = tieneFoto && !esAvatarGenerico(fotoPrincipal);
+
+      if (index < 10) {
+        console.log(`[TARJETA] ${index + 1}. ${tarjeta.nombre || 'N/A'} | ID: ${tarjeta.odIdUsuari || tarjeta.id} | ultimaConexion: ${tieneUltimaConexion ? 'SÍ' : 'NO'} | foto: ${tieneFoto ? (fotoEsReal ? 'REAL' : 'AVATAR') : 'NO'}`);
       }
-      tarjetas.push({ id: docSnap.id, ...data });
     });
 
     console.log('[TARJETA] ==========================================');
@@ -524,24 +549,33 @@ export async function obtenerTarjetasCercanas(miUbicacion, miUserId, limite = 10
     // 🚀 APLICAR BOOST VISUAL DE LIKES/VISTAS A TODAS (en memoria, sin escribir a Firestore)
     tarjetas = aplicarBoostVisualATodas(tarjetas);
 
-    // Ordenar: Mi tarjeta primero, luego CON FOTO, luego sin foto
-    // Dentro de cada grupo, por conexión más reciente
+    // 📊 Calcular puntaje de perfil para cada tarjeta
+    tarjetas = tarjetas.map(t => ({
+      ...t,
+      puntajePerfil: calcularPuntajePerfil(t)
+    }));
+
+    // Ordenar: Mi tarjeta primero, luego por PUNTAJE DE PERFIL (foto + datos)
+    // Los que se esforzaron en configurar su perfil aparecen primero
     tarjetas.sort((a, b) => {
       // 1. Mi tarjeta siempre primera
       if (a.esMiTarjeta) return -1;
       if (b.esMiTarjeta) return 1;
 
-      // 2. Priorizar tarjetas CON foto
-      const aHasFoto = !!(a.fotoUrl && a.fotoUrl.trim() && !a.fotoUrl.includes('dicebear'));
-      const bHasFoto = !!(b.fotoUrl && b.fotoUrl.trim() && !b.fotoUrl.includes('dicebear'));
-      if (aHasFoto && !bHasFoto) return -1;
-      if (!aHasFoto && bHasFoto) return 1;
+      // 2. Ordenar por puntaje de perfil (mayor = primero)
+      // Esto prioriza: foto real > datos completos > perfiles vacíos
+      if (a.puntajePerfil !== b.puntajePerfil) {
+        return b.puntajePerfil - a.puntajePerfil;
+      }
 
-      // 3. Dentro del mismo grupo (ambos con foto o ambos sin), ordenar por última conexión
+      // 3. Si tienen el mismo puntaje, ordenar por última conexión
       const aTime = a.ultimaConexion?.toMillis?.() || a.ultimaConexion || 0;
       const bTime = b.ultimaConexion?.toMillis?.() || b.ultimaConexion || 0;
       return bTime - aTime;
     });
+
+    console.log('[BAUL] 📊 Ordenamiento por puntaje de perfil aplicado');
+    console.log('[BAUL] Top 5:', tarjetas.slice(0, 5).map(t => `${t.nombre}: ${t.puntajePerfil}pts`));
 
     // Retornar las últimas 100 (o el límite especificado)
     return tarjetas.slice(0, cantidadAObtener);
@@ -560,56 +594,85 @@ export async function obtenerTarjetasRecientes(miUserId, limite = 100) {
   try {
     console.log('[TARJETA] Buscando tarjetas recientes para usuario:', miUserId);
 
-    // ✅ Siempre obtener al menos 100 tarjetas
     const cantidadAObtener = Math.max(limite, BAUL_CONFIG.TARJETAS_MINIMAS);
     const tarjetasRef = collection(db, 'tarjetas');
 
-    // ✅ Ordenar por última conexión - las más recientes primero
-    // Las nuevas entran, las antiguas (>100) salen del historial
-    let snapshot;
+    // 🔧 FIX: Obtener TODAS las tarjetas sin depender de orderBy
+    // Firestore orderBy EXCLUYE documentos que no tienen el campo ordenado
+    let tarjetasMap = new Map();
+
+    // Query 1: Intentar con orderBy
     try {
-      const q = query(
+      const qOrdered = query(
         tarjetasRef,
         orderBy('ultimaConexion', 'desc'),
-        limit(cantidadAObtener + 10)
+        limit(cantidadAObtener)
       );
-      snapshot = await getDocs(q);
+      const snapshotOrdered = await getDocs(qOrdered);
+      snapshotOrdered.forEach(docSnap => {
+        tarjetasMap.set(docSnap.id, { id: docSnap.id, ...docSnap.data() });
+      });
+      console.log('[TARJETA] Query ordenada retornó:', snapshotOrdered.size, 'tarjetas');
     } catch (indexError) {
-      console.warn('[TARJETA] Index no disponible, obteniendo sin orden:', indexError.message);
-      const qSimple = query(tarjetasRef, limit(cantidadAObtener + 10));
-      snapshot = await getDocs(qSimple);
+      console.warn('[TARJETA] Index no disponible:', indexError.message);
     }
 
-    console.log('[TARJETA] Tarjetas recientes encontradas:', snapshot.size);
+    // Query 2: SIEMPRE ejecutar query sin orderBy para capturar TODOS los perfiles
+    // limit(500) evita excluir perfiles con fotos reales (bug: limit 150 omitía perfiles válidos)
+    try {
+      const LIMITE_COMPLETO = 500;
+      const qAll = query(tarjetasRef, limit(LIMITE_COMPLETO));
+      const snapshotAll = await getDocs(qAll);
+      snapshotAll.forEach(docSnap => {
+        tarjetasMap.set(docSnap.id, { id: docSnap.id, ...docSnap.data() });
+      });
+      console.log('[TARJETA] Query completa capturó:', snapshotAll.size, 'tarjetas');
+    } catch (error) {
+      console.error('[TARJETA] Error en query completa:', error.message);
+    }
+
+    console.log('[TARJETA] Total tarjetas combinadas:', tarjetasMap.size);
 
     let tarjetas = [];
     const ahora = Date.now();
     const dosHoras = 2 * 60 * 60 * 1000;
 
-    snapshot.forEach(docSnap => {
-      const data = docSnap.data();
+    // 🔍 DEBUG: Log detallado para diagnóstico
+    let contadorConFoto = 0;
+    let contadorSinUltimaConexion = 0;
 
+    tarjetasMap.forEach((data, docId) => {
       // Determinar estado REAL
       let estadoReal = 'offline';
       if (data.estaOnline) {
         estadoReal = 'online';
       } else if (data.ultimaConexion) {
-        const ultimaConexionMs = data.ultimaConexion.toMillis?.() || data.ultimaConexion;
+        const ultimaConexionMs = data.ultimaConexion?.toMillis?.() || data.ultimaConexion;
         if (ahora - ultimaConexionMs < dosHoras) {
           estadoReal = 'reciente';
         }
+      } else {
+        contadorSinUltimaConexion++;
+      }
+
+      // Detectar foto real (revisar todos los campos de foto)
+      const fotoPrincipal = data.fotoUrl || data.fotoUrlFull || data.fotoUrlThumb || '';
+      if (!esAvatarGenerico(fotoPrincipal)) {
+        contadorConFoto++;
       }
 
       tarjetas.push({
-        id: docSnap.id,
+        id: docId,
         ...data,
         estadoReal,
         estado: estadoReal,
-        esMiTarjeta: docSnap.id === miUserId,
+        esMiTarjeta: docId === miUserId || data.odIdUsuari === miUserId,
         distanciaTexto: data.ubicacionTexto || '',
-        distanciaKm: 9999 // Sin ubicación calculada
+        distanciaKm: 9999
       });
     });
+
+    console.log(`[TARJETA] 📊 Stats: ${contadorConFoto} con foto real, ${contadorSinUltimaConexion} sin ultimaConexion`);
 
     // 🚀 APLICAR BOOST DE ESTADOS (10-15 online mínimo, resto naranja)
     tarjetas = aplicarBoostEstadoConexion(tarjetas, miUserId);
@@ -617,24 +680,33 @@ export async function obtenerTarjetasRecientes(miUserId, limite = 100) {
     // 🚀 APLICAR BOOST VISUAL DE LIKES/VISTAS A TODAS (en memoria, sin escribir a Firestore)
     tarjetas = aplicarBoostVisualATodas(tarjetas);
 
-    // Ordenar: Mi tarjeta primero, luego CON FOTO, luego sin foto
-    // Dentro de cada grupo, por conexión más reciente
+    // 📊 Calcular puntaje de perfil para cada tarjeta
+    tarjetas = tarjetas.map(t => ({
+      ...t,
+      puntajePerfil: calcularPuntajePerfil(t)
+    }));
+
+    // Ordenar: Mi tarjeta primero, luego por PUNTAJE DE PERFIL (foto + datos)
+    // Los que se esforzaron en configurar su perfil aparecen primero
     tarjetas.sort((a, b) => {
       // 1. Mi tarjeta siempre primera
       if (a.esMiTarjeta) return -1;
       if (b.esMiTarjeta) return 1;
 
-      // 2. Priorizar tarjetas CON foto (excluyendo avatares genéricos de dicebear)
-      const aHasFoto = !!(a.fotoUrl && a.fotoUrl.trim() && !a.fotoUrl.includes('dicebear'));
-      const bHasFoto = !!(b.fotoUrl && b.fotoUrl.trim() && !b.fotoUrl.includes('dicebear'));
-      if (aHasFoto && !bHasFoto) return -1;
-      if (!aHasFoto && bHasFoto) return 1;
+      // 2. Ordenar por puntaje de perfil (mayor = primero)
+      // Esto prioriza: foto real > datos completos > perfiles vacíos
+      if (a.puntajePerfil !== b.puntajePerfil) {
+        return b.puntajePerfil - a.puntajePerfil;
+      }
 
-      // 3. Dentro del mismo grupo, ordenar por última conexión
+      // 3. Si tienen el mismo puntaje, ordenar por última conexión
       const aTime = a.ultimaConexion?.toMillis?.() || a.ultimaConexion || 0;
       const bTime = b.ultimaConexion?.toMillis?.() || b.ultimaConexion || 0;
       return bTime - aTime;
     });
+
+    console.log('[BAUL] 📊 Ordenamiento por puntaje de perfil aplicado');
+    console.log('[BAUL] Top 5:', tarjetas.slice(0, 5).map(t => `${t.nombre}: ${t.puntajePerfil}pts`));
 
     // Retornar las últimas 100 tarjetas
     return tarjetas.slice(0, cantidadAObtener);
@@ -1175,6 +1247,112 @@ export function suscribirseAMiTarjeta(miUserId, callback) {
 // ============================================
 // 🔧 UTILIDADES
 // ============================================
+
+/**
+ * 🔍 Detectar si una URL es un avatar genérico (NO foto real)
+ * Retorna TRUE si es avatar genérico, FALSE si es foto real
+ */
+function esAvatarGenerico(fotoUrl) {
+  if (!fotoUrl || typeof fotoUrl !== 'string' || !fotoUrl.trim()) {
+    return true; // Sin foto = se trata como avatar genérico
+  }
+
+  const url = fotoUrl.toLowerCase();
+
+  // Patrones de servicios de avatares genéricos
+  const patronesGenericos = [
+    'dicebear',
+    'ui-avatars.com',
+    'robohash',
+    'gravatar.com/avatar',
+    'placeholder',
+    'default-avatar',
+    'default_avatar',
+    'no-avatar',
+    'no_avatar',
+    'anonymous',
+    'blank-profile',
+    'blank_profile'
+  ];
+
+  // Si contiene algún patrón de avatar genérico, es genérico
+  for (const patron of patronesGenericos) {
+    if (url.includes(patron)) {
+      return true;
+    }
+  }
+
+  // Si es una URL de Firebase Storage o CDN conocido, probablemente es foto real
+  const cdnsReales = [
+    'firebasestorage.googleapis.com',
+    'storage.googleapis.com',
+    'cloudinary.com',
+    'imgur.com',
+    'imgbb.com',
+    'ibb.co'
+  ];
+
+  for (const cdn of cdnsReales) {
+    if (url.includes(cdn)) {
+      return false; // Es foto real
+    }
+  }
+
+  // Si empieza con http/https y no es un patrón genérico, asumir que es real
+  if (url.startsWith('http://') || url.startsWith('https://')) {
+    return false;
+  }
+
+  // Data URLs base64 de imágenes pequeñas suelen ser avatares generados
+  if (url.startsWith('data:image') && url.length < 5000) {
+    return true;
+  }
+
+  // Por defecto, asumir que es genérico si no podemos determinar
+  return true;
+}
+
+/**
+ * Obtener la URL de foto principal de una tarjeta
+ * Algunos perfiles tienen foto en fotoUrlFull o fotoUrlThumb pero no en fotoUrl
+ */
+function obtenerFotoPrincipal(tarjeta) {
+  return tarjeta.fotoUrl || tarjeta.fotoUrlFull || tarjeta.fotoUrlThumb || '';
+}
+
+/**
+ * Calcular puntaje de completitud del perfil
+ * Los perfiles más completos aparecen primero
+ * Esto recompensa a usuarios que se tomaron el tiempo de configurar
+ */
+function calcularPuntajePerfil(tarjeta) {
+  let puntaje = 0;
+
+  // 🖼️ FOTO REAL (máxima prioridad: +1000)
+  // Revisar fotoUrl, fotoUrlFull y fotoUrlThumb (admin/perfiles pueden usar distintos campos)
+  const fotoPrincipal = obtenerFotoPrincipal(tarjeta);
+  const tieneFotoReal = !esAvatarGenerico(fotoPrincipal);
+
+  if (tieneFotoReal) {
+    puntaje += 1000; // Foto real = prioridad máxima
+  }
+
+  // 📋 DATOS DEL PERFIL (secundarios)
+  if (tarjeta.rol && tarjeta.rol.trim()) puntaje += 50;        // Rol definido
+  if (tarjeta.bio && tarjeta.bio.trim()) puntaje += 40;        // Bio escrita
+  if (tarjeta.edad && tarjeta.edad > 0) puntaje += 30;         // Edad
+  if (tarjeta.buscando && tarjeta.buscando.trim()) puntaje += 25; // Qué busca
+  if (tarjeta.ubicacionTexto && tarjeta.ubicacionTexto.trim()) puntaje += 20; // Ubicación
+  if (tarjeta.etnia && tarjeta.etnia.trim()) puntaje += 15;    // Etnia
+  if (tarjeta.alturaCm && tarjeta.alturaCm > 0) puntaje += 10; // Altura
+  if (tarjeta.pesaje && tarjeta.pesaje > 0) puntaje += 10;     // Medida
+
+  // 🔥 ACTIVIDAD (bonus menor)
+  if ((tarjeta.likesRecibidos || 0) > 5) puntaje += 5;
+  if ((tarjeta.visitasRecibidas || 0) > 10) puntaje += 5;
+
+  return puntaje;
+}
 
 /**
  * Calcular distancia entre dos coordenadas (fórmula Haversine)

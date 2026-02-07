@@ -45,14 +45,36 @@ const withTimeout = (promise, timeoutMs = 3000) => {
   ]);
 };
 
-export const AuthContext = createContext();
+// Valor por defecto para evitar crash durante ErrorBoundary recovery o StrictMode remount
+// Cuando el Provider está desmontado brevemente, los componentes reciben este fallback
+const DEFAULT_AUTH_CONTEXT = {
+  user: null,
+  loading: true,
+  guestMessageCount: 0,
+  setGuestMessageCount: () => {},
+  showWelcomeTour: false,
+  setShowWelcomeTour: () => {},
+  guestAuthInProgress: false,
+  setGuestAuthInProgress: () => {},
+  login: async () => {},
+  register: async () => {},
+  signInAsGuest: async () => false,
+  logout: async () => {},
+  updateProfile: async () => {},
+  upgradeToPremium: async () => {},
+  updateThemeSetting: async () => {},
+  addQuickPhrase: async () => {},
+  removeQuickPhrase: async () => {},
+  updateAnonymousUserProfile: async () => {},
+  switchToGenericIdentity: async () => false,
+  restoreAdminIdentity: async () => false,
+};
+
+export const AuthContext = createContext(DEFAULT_AUTH_CONTEXT);
 
 export const useAuth = () => {
   const context = useContext(AuthContext);
-  if (!context) {
-    throw new Error('useAuth must be used within AuthProvider');
-  }
-  return context;
+  return context || DEFAULT_AUTH_CONTEXT;
 };
 
 export const AuthProvider = ({ children }) => {

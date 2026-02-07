@@ -171,112 +171,68 @@ const BaulSection = ({ isOpen, onClose }) => {
   const [mostrarMatchesList, setMostrarMatchesList] = useState(false);
   const [matchesNoLeidos, setMatchesNoLeidos] = useState(0);
 
-  // Cargar tarjetas
-  const cargarTarjetas = useCallback(async (mostrarLoading = true) => {
-    console.log('[BAUL] ========== CARGANDO TARJETAS ==========');
-    console.log('[BAUL] User:', user);
-    console.log('[BAUL] User ID:', user?.id);
+  // Cargar tarjetas (sin dependencia de miUbicacion para evitar loop)
+  const cargarTarjetas = useCallback(async (mostrarLoading = true, ubicacionParam = null) => {
+    const odIdUsuari = user?.id;
+    if (!odIdUsuari) return;
 
     if (mostrarLoading) setIsLoading(true);
     else setIsRefreshing(true);
 
     try {
-      const odIdUsuari = user?.id;
-      console.log('[BAUL] odIdUsuari a usar:', odIdUsuari);
+      // Usar ubicación pasada como parámetro o intentar obtener nueva
+      let ubicacion = ubicacionParam;
 
-      // Intentar obtener ubicación (con timeout de 5 segundos)
-      let ubicacion = miUbicacion;
       if (!ubicacion) {
         try {
-          console.log('[BAUL] Solicitando ubicación...');
-          // Timeout de 5 segundos para no bloquear
+          // Timeout rápido de 3 segundos
           const locationPromise = getCurrentLocation();
           const timeoutPromise = new Promise((_, reject) =>
-            setTimeout(() => reject(new Error('Timeout ubicación')), 5000)
+            setTimeout(() => reject(new Error('Timeout')), 3000)
           );
-
           ubicacion = await Promise.race([locationPromise, timeoutPromise]);
           setMiUbicacion(ubicacion);
-          console.log('[BAUL] ✅ Ubicación obtenida:', ubicacion.latitude, ubicacion.longitude);
 
-          // Guardar ubicación en MI tarjeta (en background, no bloquear)
-          if (odIdUsuari && ubicacion) {
-            actualizarTarjeta(odIdUsuari, {
-              ubicacion: {
-                latitude: ubicacion.latitude,
-                longitude: ubicacion.longitude
-              },
-              ubicacionActiva: true
-            }).then(() => {
-              console.log('[BAUL] ✅ Ubicación guardada en mi tarjeta');
-            }).catch(err => {
-              console.warn('[BAUL] No se pudo guardar ubicación:', err.message);
-            });
-          }
-        } catch (e) {
-          console.log('[BAUL] ⚠️ Sin ubicación disponible:', e.message);
+          // Guardar ubicación en background (no bloquear)
+          actualizarTarjeta(odIdUsuari, {
+            ubicacion: { latitude: ubicacion.latitude, longitude: ubicacion.longitude },
+            ubicacionActiva: true
+          }).catch(() => {});
+        } catch {
           ubicacion = null;
         }
       }
 
-      // Obtener tarjetas (SIEMPRE intentar, con o sin ubicación)
+      // Obtener tarjetas
       let tarjetasCargadas = [];
       try {
-        if (ubicacion) {
-          console.log('[BAUL] 🔍 Buscando tarjetas cercanas...');
-          tarjetasCargadas = await obtenerTarjetasCercanas(ubicacion, odIdUsuari, 100);
-        } else {
-          console.log('[BAUL] 🔍 Buscando tarjetas recientes (sin ubicación)...');
-          tarjetasCargadas = await obtenerTarjetasRecientes(odIdUsuari, 100);
-        }
-      } catch (queryError) {
-        console.error('[BAUL] ❌ Error en query de tarjetas:', queryError);
-        // Fallback: intentar obtener sin filtros
-        try {
-          console.log('[BAUL] 🔄 Intentando fallback...');
-          tarjetasCargadas = await obtenerTarjetasRecientes(odIdUsuari, 100);
-        } catch (fallbackError) {
-          console.error('[BAUL] ❌ Fallback también falló:', fallbackError);
-          tarjetasCargadas = [];
-        }
+        tarjetasCargadas = ubicacion
+          ? await obtenerTarjetasCercanas(ubicacion, odIdUsuari, 50)
+          : await obtenerTarjetasRecientes(odIdUsuari, 50);
+      } catch {
+        tarjetasCargadas = await obtenerTarjetasRecientes(odIdUsuari, 50).catch(() => []);
       }
 
-      console.log('[BAUL] ========== TARJETAS ENCONTRADAS ==========');
-      console.log('[BAUL] Total:', tarjetasCargadas?.length || 0);
-      if (tarjetasCargadas && tarjetasCargadas.length > 0) {
-        tarjetasCargadas.forEach((t, i) => {
-          console.log(`[BAUL] ${i + 1}. ${t.nombre || t.odIdUsuariNombre || 'Sin nombre'} (${t.odIdUsuari}) - Estado: ${t.estado || 'N/A'}`);
-        });
-      } else {
-        console.log('[BAUL] ⚠️ No se encontraron tarjetas en la base de datos');
-      }
       setTarjetas(tarjetasCargadas || []);
 
-      // Verificar likes que ya di
-      if (odIdUsuari && tarjetasCargadas.length > 0) {
-        const likesPromises = tarjetasCargadas.map(async (t) => {
-          if (t.odIdUsuari === odIdUsuari) return [t.odIdUsuari, false];
-          const tienelike = await yaLeDiLike(t.odIdUsuari, odIdUsuari);
-          return [t.odIdUsuari, tienelike];
-        });
-
-        const likesResults = await Promise.all(likesPromises);
-        const likesMap = Object.fromEntries(likesResults);
-        setLikesData(likesMap);
+      // Verificar likes en paralelo (batch pequeño)
+      if (tarjetasCargadas.length > 0) {
+        const primeras20 = tarjetasCargadas.slice(0, 20);
+        const likesResults = await Promise.all(
+          primeras20.map(async (t) => {
+            if (t.odIdUsuari === odIdUsuari) return [t.odIdUsuari, false];
+            return [t.odIdUsuari, await yaLeDiLike(t.odIdUsuari, odIdUsuari)];
+          })
+        );
+        setLikesData(Object.fromEntries(likesResults));
       }
-
     } catch (error) {
-      console.error('[BAUL] Error cargando tarjetas:', error);
-      toast({
-        title: 'Error',
-        description: 'No se pudieron cargar las tarjetas',
-        variant: 'destructive'
-      });
+      console.error('[BAUL] Error:', error);
     } finally {
       setIsLoading(false);
       setIsRefreshing(false);
     }
-  }, [user, miUbicacion]);
+  }, [user]);
 
   // Cargar mi tarjeta
   const cargarMiTarjeta = useCallback(async () => {
