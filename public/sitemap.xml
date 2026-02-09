@@ -4,39 +4,39 @@
   <!-- ✅ PÁGINA PRINCIPAL (Landing Global) -->
   <url>
     <loc>https://chactivo.com/</loc>
-    <lastmod>2026-01-02</lastmod>
+    <lastmod>2026-02-09</lastmod>
     <changefreq>daily</changefreq>
     <priority>1.0</priority>
     <mobile:mobile/>
   </url>
 
-  <!-- ✅ LANDING PAGES PRINCIPALES (Chile) -->
+  <!-- ✅ LANDING PAGES TEMÁTICAS (Contenido único) -->
   <url>
     <loc>https://chactivo.com/global</loc>
-    <lastmod>2026-01-02</lastmod>
+    <lastmod>2026-02-09</lastmod>
     <changefreq>daily</changefreq>
-    <priority>0.95</priority>
+    <priority>0.9</priority>
     <mobile:mobile/>
   </url>
   <url>
     <loc>https://chactivo.com/santiago</loc>
-    <lastmod>2026-01-02</lastmod>
+    <lastmod>2026-02-09</lastmod>
     <changefreq>daily</changefreq>
     <priority>0.9</priority>
     <mobile:mobile/>
   </url>
   <url>
     <loc>https://chactivo.com/mas-30</loc>
-    <lastmod>2026-01-02</lastmod>
+    <lastmod>2026-02-09</lastmod>
     <changefreq>daily</changefreq>
-    <priority>0.85</priority>
+    <priority>0.9</priority>
     <mobile:mobile/>
   </url>
   <url>
     <loc>https://chactivo.com/gaming</loc>
-    <lastmod>2026-01-02</lastmod>
+    <lastmod>2026-02-09</lastmod>
     <changefreq>daily</changefreq>
-    <priority>0.85</priority>
+    <priority>0.9</priority>
     <mobile:mobile/>
   </url>
 
@@ -88,19 +88,28 @@
     <mobile:mobile/>
   </url>
 
-  <!-- ✅ FORO ANÓNIMO (Alto engagement - 17 clics GSC) -->
+  <!-- ✅ FORO ANÓNIMO (Alto engagement - 59 clics GSC) -->
   <url>
     <loc>https://chactivo.com/anonymous-forum</loc>
-    <lastmod>2026-01-02</lastmod>
+    <lastmod>2026-02-09</lastmod>
+    <changefreq>hourly</changefreq>
+    <priority>0.9</priority>
+    <mobile:mobile/>
+  </url>
+
+  <!-- ✅ OPIN - Tablón de Notas (Discovery Wall) -->
+  <url>
+    <loc>https://chactivo.com/opin</loc>
+    <lastmod>2026-02-09</lastmod>
     <changefreq>hourly</changefreq>
     <priority>0.85</priority>
     <mobile:mobile/>
   </url>
 
-  <!-- ✅ CHAT ANÓNIMO (5 clics GSC) -->
+  <!-- ✅ CHAT ANÓNIMO -->
   <url>
     <loc>https://chactivo.com/anonymous-chat</loc>
-    <lastmod>2026-01-02</lastmod>
+    <lastmod>2026-02-09</lastmod>
     <changefreq>daily</changefreq>
     <priority>0.8</priority>
     <mobile:mobile/>

@@ -10,7 +10,6 @@ import SaludMentalModal from '@/components/lobby/SaludMentalModal';
 import AjustesModal from '@/components/lobby/AjustesModal';
 import NearbyUsersModal from '@/components/lobby/NearbyUsersModal';
 import GlobalStats from '@/components/lobby/GlobalStats';
-import { BaulSection } from '@/components/baul';
 // TEMPORALMENTE COMENTADO - Anuncios y Promociones
 // import AdCarousel from '@/components/lobby/AdCarousel';
 // import AdModal from '@/components/lobby/AdModal';
@@ -2045,7 +2044,7 @@ const LobbyPage = () => {
                 icon={<Users className="w-8 h-8" />}
                 title="Baúl de Perfiles"
                 description="Crea tu tarjeta con tu info. Da likes, deja mensajes. Cuando vuelvas verás quién se interesó en ti."
-                onClick={() => handleCardClick('BaulSection', { title: 'Baúl de Perfiles', badge: 'Nuevo' })}
+                onClick={() => navigate('/baul')}
                 index={3}
                 variant="default"
                 badge="🆕 Nuevo"
@@ -2114,7 +2113,6 @@ const LobbyPage = () => {
       {activeModal === 'EventosModal' && <EventosModal isOpen={true} onClose={closeModal} />}
       {activeModal === 'SaludMentalModal' && <SaludMentalModal isOpen={true} onClose={closeModal} />}
       {activeModal === 'AjustesModal' && <AjustesModal isOpen={true} onClose={closeModal} />}
-      {activeModal === 'BaulSection' && <BaulSection isOpen={true} onClose={closeModal} />}
 
       {/* TEMPORALMENTE COMENTADO - Modal de anuncio */}
       {/* <AdModal ad={selectedAd} isOpen={showAdModal} onClose={closeAdModal} /> */}

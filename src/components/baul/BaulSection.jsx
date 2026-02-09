@@ -150,8 +150,10 @@ const EstadoVacio = ({ mensaje, submensaje, onRefresh }) => (
 /**
  * Componente principal
  */
-const BaulSection = ({ isOpen, onClose }) => {
+const BaulSection = ({ isOpen = true, onClose, variant = 'modal' }) => {
   const { user } = useAuth();
+  const isModal = variant === 'modal';
+  const isActive = isModal ? isOpen : true;
 
   // Estados
   const [tarjetas, setTarjetas] = useState([]);
@@ -294,29 +296,29 @@ const BaulSection = ({ isOpen, onClose }) => {
 
   // Efecto inicial
   useEffect(() => {
-    if (isOpen && user) {
+    if (isActive && user) {
       cargarMiTarjeta();
       cargarTarjetas();
     }
-  }, [isOpen, user, cargarMiTarjeta, cargarTarjetas]);
+  }, [isActive, user, cargarMiTarjeta, cargarTarjetas]);
 
   // Suscripción en tiempo real a mi tarjeta
   useEffect(() => {
     const odIdUsuari = user?.id;
-    if (!odIdUsuari || !isOpen) return;
+    if (!odIdUsuari || !isActive) return;
 
     const unsubscribe = suscribirseAMiTarjeta(odIdUsuari, (tarjeta) => {
       setMiTarjeta(tarjeta);
     });
 
     return () => unsubscribe();
-  }, [user, isOpen]);
+  }, [user, isActive]);
 
   // Cargar conteo de matches no leídos
   useEffect(() => {
     const cargarMatchesNoLeidos = async () => {
       const odIdUsuari = user?.id;
-      if (!odIdUsuari || !isOpen) return;
+      if (!odIdUsuari || !isActive) return;
 
       try {
         const count = await contarMatchesNoLeidos(odIdUsuari);
@@ -327,7 +329,7 @@ const BaulSection = ({ isOpen, onClose }) => {
     };
 
     cargarMatchesNoLeidos();
-  }, [user, isOpen]);
+  }, [user, isActive]);
 
   // Handlers
   const handleLike = async (tarjetaId, quieroDarLike) => {
@@ -408,181 +410,195 @@ const BaulSection = ({ isOpen, onClose }) => {
     cargarTarjetas(false); // Refrescar por si cambió algo
   };
 
-  if (!isOpen) return null;
+  if (!isActive) return null;
 
   const odIdUsuari = user?.id;
 
-  return (
-    <AnimatePresence>
-      <motion.div
-        initial={{ opacity: 0 }}
-        animate={{ opacity: 1 }}
-        exit={{ opacity: 0 }}
-        className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm"
-        onClick={onClose}
-      >
-        <motion.div
-          initial={{ x: '100%' }}
-          animate={{ x: 0 }}
-          exit={{ x: '100%' }}
-          transition={{ type: 'spring', damping: 25, stiffness: 200 }}
-          onClick={(e) => e.stopPropagation()}
-          className="absolute right-0 top-0 bottom-0 w-full max-w-2xl bg-gray-900 shadow-2xl overflow-hidden flex flex-col"
-        >
-          {/* Header */}
-          <BaulHeader
-            onClose={onClose}
+  const content = (
+    <>
+      {/* Header */}
+      <BaulHeader
+        onClose={onClose}
+        onRefresh={handleRefresh}
+        isRefreshing={isRefreshing}
+        cantidadTarjetas={tarjetas.filter(t => t.odIdUsuari !== odIdUsuari).length}
+        actividadNoLeida={miTarjeta?.actividadNoLeida || 0}
+        matchesNoLeidos={matchesNoLeidos}
+        onVerActividad={() => setMostrarActividad(true)}
+        onVerMatches={() => setMostrarMatchesList(true)}
+      />
+
+      {/* Contenido */}
+      <div className="flex-1 overflow-y-auto">
+        {isLoading ? (
+          <div className="flex items-center justify-center py-20">
+            <Loader2 className="w-8 h-8 text-cyan-500 animate-spin" />
+          </div>
+        ) : tarjetas.length === 0 ? (
+          <EstadoVacio
+            mensaje="No hay tarjetas disponibles"
+            submensaje="Sé el primero en crear tu tarjeta y aparecerás aquí"
             onRefresh={handleRefresh}
-            isRefreshing={isRefreshing}
-            cantidadTarjetas={tarjetas.filter(t => t.odIdUsuari !== odIdUsuari).length}
-            actividadNoLeida={miTarjeta?.actividadNoLeida || 0}
-            matchesNoLeidos={matchesNoLeidos}
-            onVerActividad={() => setMostrarActividad(true)}
-            onVerMatches={() => setMostrarMatchesList(true)}
           />
+        ) : (
+          <div className="p-4">
+            {/* Grid de tarjetas */}
+            <div className="grid grid-cols-2 sm:grid-cols-2 gap-4">
+              {tarjetas.map((tarjeta) => (
+                <TarjetaUsuario
+                  key={tarjeta.odIdUsuari}
+                  tarjeta={tarjeta}
+                  esMiTarjeta={tarjeta.odIdUsuari === odIdUsuari}
+                  yaLeDiLike={likesData[tarjeta.odIdUsuari] || false}
+                  onLike={handleLike}
+                  onMensaje={handleMensaje}
+                  onVerPerfil={handleVerPerfil}
+                />
+              ))}
+            </div>
 
-          {/* Contenido */}
-          <div className="flex-1 overflow-y-auto">
-            {isLoading ? (
-              <div className="flex items-center justify-center py-20">
-                <Loader2 className="w-8 h-8 text-cyan-500 animate-spin" />
-              </div>
-            ) : tarjetas.length === 0 ? (
-              <EstadoVacio
-                mensaje="No hay tarjetas disponibles"
-                submensaje="Sé el primero en crear tu tarjeta y aparecerás aquí"
-                onRefresh={handleRefresh}
-              />
-            ) : (
-              <div className="p-4">
-                {/* Grid de tarjetas */}
-                <div className="grid grid-cols-2 sm:grid-cols-2 gap-4">
-                  {tarjetas.map((tarjeta) => (
-                    <TarjetaUsuario
-                      key={tarjeta.odIdUsuari}
-                      tarjeta={tarjeta}
-                      esMiTarjeta={tarjeta.odIdUsuari === odIdUsuari}
-                      yaLeDiLike={likesData[tarjeta.odIdUsuari] || false}
-                      onLike={handleLike}
-                      onMensaje={handleMensaje}
-                      onVerPerfil={handleVerPerfil}
-                    />
-                  ))}
-                </div>
-
-                {/* Info de ubicación */}
-                {!miUbicacion && (
-                  <div className="mt-6 p-4 bg-gray-800/50 rounded-xl border border-gray-700/50">
-                    <div className="flex items-start gap-3">
-                      <MapPin className="w-5 h-5 text-orange-400 flex-shrink-0 mt-0.5" />
-                      <div>
-                        <h4 className="text-sm font-medium text-white">Activa tu ubicación</h4>
-                        <p className="text-xs text-gray-400 mt-1">
-                          Comparte tu ubicación para ver personas cerca de ti y aparecer en su baúl.
-                        </p>
-                      </div>
-                    </div>
+            {/* Info de ubicación */}
+            {!miUbicacion && (
+              <div className="mt-6 p-4 bg-gray-800/50 rounded-xl border border-gray-700/50">
+                <div className="flex items-start gap-3">
+                  <MapPin className="w-5 h-5 text-orange-400 flex-shrink-0 mt-0.5" />
+                  <div>
+                    <h4 className="text-sm font-medium text-white">Activa tu ubicación</h4>
+                    <p className="text-xs text-gray-400 mt-1">
+                      Comparte tu ubicación para ver personas cerca de ti y aparecer en su baúl.
+                    </p>
                   </div>
-                )}
+                </div>
               </div>
             )}
           </div>
+        )}
+      </div>
 
-          {/* Modal de mensaje */}
-          {mostrarMensajeModal && tarjetaSeleccionada && (
-            <MensajeTarjetaModal
-              isOpen={mostrarMensajeModal}
-              onClose={() => {
-                setMostrarMensajeModal(false);
-                setTarjetaSeleccionada(null);
-              }}
-              tarjeta={tarjetaSeleccionada}
-              miUserId={odIdUsuari}
-              miUsername={miTarjeta?.nombre || user?.username || 'Usuario'}
-            />
-          )}
+      {/* Modal de mensaje */}
+      {mostrarMensajeModal && tarjetaSeleccionada && (
+        <MensajeTarjetaModal
+          isOpen={mostrarMensajeModal}
+          onClose={() => {
+            setMostrarMensajeModal(false);
+            setTarjetaSeleccionada(null);
+          }}
+          tarjeta={tarjetaSeleccionada}
+          miUserId={odIdUsuari}
+          miUsername={miTarjeta?.nombre || user?.username || 'Usuario'}
+        />
+      )}
 
-          {/* Modal de editor */}
-          {mostrarEditor && miTarjeta && (
-            <TarjetaEditor
-              isOpen={mostrarEditor}
-              onClose={handleEditorClose}
-              tarjeta={miTarjeta}
-            />
-          )}
+      {/* Modal de editor */}
+      {mostrarEditor && miTarjeta && (
+        <TarjetaEditor
+          isOpen={mostrarEditor}
+          onClose={handleEditorClose}
+          tarjeta={miTarjeta}
+        />
+      )}
 
-          {/* Modal de actividad */}
-          {mostrarActividad && (
-            <ActividadFeed
-              isOpen={mostrarActividad}
-              onClose={() => setMostrarActividad(false)}
-              miUserId={odIdUsuari}
-            />
-          )}
+      {/* Modal de actividad */}
+      {mostrarActividad && (
+        <ActividadFeed
+          isOpen={mostrarActividad}
+          onClose={() => setMostrarActividad(false)}
+          miUserId={odIdUsuari}
+        />
+      )}
 
-          {/* Modal de Match */}
-          <MatchModal
-            isOpen={mostrarMatchModal}
-            onClose={() => {
-              setMostrarMatchModal(false);
-              setMatchData(null);
-            }}
-            matchData={matchData}
-            onEnviarMensaje={(otroUsuario) => {
-              // Buscar la tarjeta del otro usuario para abrir el modal de mensaje
-              const tarjetaOtro = tarjetas.find(t => t.odIdUsuari === otroUsuario.odIdUsuari);
-              if (tarjetaOtro) {
-                setTarjetaSeleccionada(tarjetaOtro);
-                setMostrarMensajeModal(true);
-              }
-            }}
-          />
+      {/* Modal de Match */}
+      <MatchModal
+        isOpen={mostrarMatchModal}
+        onClose={() => {
+          setMostrarMatchModal(false);
+          setMatchData(null);
+        }}
+        matchData={matchData}
+        onEnviarMensaje={(otroUsuario) => {
+          // Buscar la tarjeta del otro usuario para abrir el modal de mensaje
+          const tarjetaOtro = tarjetas.find(t => t.odIdUsuari === otroUsuario.odIdUsuari);
+          if (tarjetaOtro) {
+            setTarjetaSeleccionada(tarjetaOtro);
+            setMostrarMensajeModal(true);
+          }
+        }}
+      />
 
-          {/* Lista de Matches */}
-          <MatchesList
-            isOpen={mostrarMatchesList}
-            onClose={() => {
-              setMostrarMatchesList(false);
-              // Refrescar conteo después de cerrar
-              contarMatchesNoLeidos(odIdUsuari).then(setMatchesNoLeidos).catch(() => {});
-            }}
-            miUserId={odIdUsuari}
-            onEnviarMensaje={(otroUsuario) => {
-              setMostrarMatchesList(false);
-              const tarjetaOtro = tarjetas.find(t => t.odIdUsuari === otroUsuario.odIdUsuari);
-              if (tarjetaOtro) {
-                setTarjetaSeleccionada(tarjetaOtro);
-                setMostrarMensajeModal(true);
-              } else {
-                // Si no está en las tarjetas cargadas, crear una tarjeta temporal
-                setTarjetaSeleccionada({
-                  odIdUsuari: otroUsuario.odIdUsuari,
-                  nombre: otroUsuario.nombre || otroUsuario.username,
-                  fotoUrl: otroUsuario.avatar,
-                  ...otroUsuario
-                });
-                setMostrarMensajeModal(true);
-              }
-            }}
-            onVerPerfil={(otroUsuario) => {
-              setMostrarMatchesList(false);
-              const tarjetaOtro = tarjetas.find(t => t.odIdUsuari === otroUsuario.odIdUsuari);
-              if (tarjetaOtro) {
-                handleVerPerfil(tarjetaOtro);
-              } else {
-                setTarjetaSeleccionada({
-                  odIdUsuari: otroUsuario.odIdUsuari,
-                  nombre: otroUsuario.nombre || otroUsuario.username,
-                  fotoUrl: otroUsuario.avatar,
-                  ...otroUsuario
-                });
-                setMostrarMensajeModal(true);
-              }
-            }}
-          />
+      {/* Lista de Matches */}
+      <MatchesList
+        isOpen={mostrarMatchesList}
+        onClose={() => {
+          setMostrarMatchesList(false);
+          // Refrescar conteo después de cerrar
+          contarMatchesNoLeidos(odIdUsuari).then(setMatchesNoLeidos).catch(() => {});
+        }}
+        miUserId={odIdUsuari}
+        onEnviarMensaje={(otroUsuario) => {
+          setMostrarMatchesList(false);
+          const tarjetaOtro = tarjetas.find(t => t.odIdUsuari === otroUsuario.odIdUsuari);
+          if (tarjetaOtro) {
+            setTarjetaSeleccionada(tarjetaOtro);
+            setMostrarMensajeModal(true);
+          } else {
+            // Si no está en las tarjetas cargadas, crear una tarjeta temporal
+            setTarjetaSeleccionada({
+              odIdUsuari: otroUsuario.odIdUsuari,
+              nombre: otroUsuario.nombre || otroUsuario.username,
+              fotoUrl: otroUsuario.avatar,
+              ...otroUsuario
+            });
+            setMostrarMensajeModal(true);
+          }
+        }}
+        onVerPerfil={(otroUsuario) => {
+          setMostrarMatchesList(false);
+          const tarjetaOtro = tarjetas.find(t => t.odIdUsuari === otroUsuario.odIdUsuari);
+          if (tarjetaOtro) {
+            handleVerPerfil(tarjetaOtro);
+          } else {
+            setTarjetaSeleccionada({
+              odIdUsuari: otroUsuario.odIdUsuari,
+              nombre: otroUsuario.nombre || otroUsuario.username,
+              fotoUrl: otroUsuario.avatar,
+              ...otroUsuario
+            });
+            setMostrarMensajeModal(true);
+          }
+        }}
+      />
+    </>
+  );
+
+  if (isModal) {
+    return (
+      <AnimatePresence>
+        <motion.div
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          exit={{ opacity: 0 }}
+          className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm"
+          onClick={onClose}
+        >
+          <motion.div
+            initial={{ x: '100%' }}
+            animate={{ x: 0 }}
+            exit={{ x: '100%' }}
+            transition={{ type: 'spring', damping: 25, stiffness: 200 }}
+            onClick={(e) => e.stopPropagation()}
+            className="absolute right-0 top-0 bottom-0 w-full max-w-2xl bg-gray-900 shadow-2xl overflow-hidden flex flex-col"
+          >
+            {content}
+          </motion.div>
         </motion.div>
-      </motion.div>
-    </AnimatePresence>
+      </AnimatePresence>
+    );
+  }
+
+  return (
+    <div className="w-full min-h-[calc(100dvh-4rem)] bg-gray-900 shadow-2xl overflow-hidden flex flex-col">
+      {content}
+    </div>
   );
 };
 

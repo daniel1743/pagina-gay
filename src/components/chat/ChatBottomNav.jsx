@@ -8,15 +8,29 @@ import React from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { Archive, Sparkles, MessageCircle } from 'lucide-react';
 
-const ChatBottomNav = ({ onOpenBaul }) => {
+const ChatBottomNav = ({ onOpenBaul, onOpenOpin }) => {
   const navigate = useNavigate();
   const location = useLocation();
   const isChat = location.pathname.startsWith('/chat');
   const isPrincipal = location.pathname === '/chat/principal' || location.pathname === '/chat';
+  const isBaul = location.pathname.startsWith('/baul');
+  const isOpin = location.pathname.startsWith('/opin');
 
   const items = [
-    { id: 'baul', icon: Archive, label: 'Baúl', onClick: () => onOpenBaul?.() },
-    { id: 'opin', icon: Sparkles, label: 'OPIN', onClick: () => navigate('/opin') },
+    {
+      id: 'baul',
+      icon: Archive,
+      label: 'Baúl',
+      onClick: () => (onOpenBaul ? onOpenBaul() : navigate('/baul')),
+      active: isBaul,
+    },
+    {
+      id: 'opin',
+      icon: Sparkles,
+      label: 'OPIN',
+      onClick: () => (onOpenOpin ? onOpenOpin() : navigate('/opin')),
+      active: isOpin,
+    },
     {
       id: 'chat',
       icon: MessageCircle,

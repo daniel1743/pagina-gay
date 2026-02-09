@@ -659,14 +659,39 @@ export const subscribeToRoomMessages = (roomId, callback, messageLimit = 60) => 
 };
 
 export const addReactionToMessage = async (roomId, messageId, reactionType) => {
+  console.log('[REACTION SERVICE] 📥 Recibido:', { roomId, messageId, reactionType });
+
+  if (!roomId || !messageId || !reactionType) {
+    const error = new Error('Parámetros inválidos para reacción');
+    console.error('[REACTION SERVICE] ❌', error.message, { roomId, messageId, reactionType });
+    throw error;
+  }
+
   try {
     const messageRef = doc(db, 'rooms', roomId, 'messages', messageId);
 
-    await updateDoc(messageRef, {
-      [`reactions.${reactionType}`]: increment(1)
-    });
+    // Verificar que el documento existe
+    const messageSnap = await getDoc(messageRef);
+    if (!messageSnap.exists()) {
+      throw new Error(`Mensaje ${messageId} no encontrado en sala ${roomId}`);
+    }
+
+    // Obtener reacciones actuales o inicializar
+    const currentData = messageSnap.data();
+    const currentReactions = currentData.reactions || { like: 0, dislike: 0 };
+
+    // Actualizar con el nuevo valor
+    const newReactions = {
+      ...currentReactions,
+      [reactionType]: (currentReactions[reactionType] || 0) + 1
+    };
+
+    await updateDoc(messageRef, { reactions: newReactions });
+    console.log('[REACTION SERVICE] ✅ Reacción guardada:', newReactions);
+
+    return newReactions;
   } catch (error) {
-    console.error('Error adding reaction:', error);
+    console.error('[REACTION SERVICE] ❌ Error:', error.message, error.code);
     throw error;
   }
 };

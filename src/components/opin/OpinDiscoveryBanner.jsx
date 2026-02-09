@@ -8,7 +8,7 @@ import { useNavigate } from 'react-router-dom';
 import { Sparkles, X } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 
-const OpinDiscoveryBanner = ({ onClose }) => {
+const OpinDiscoveryBanner = ({ onClose, onOpenOpin }) => {
   const navigate = useNavigate();
   const [visible, setVisible] = useState(true);
 
@@ -34,6 +34,14 @@ const OpinDiscoveryBanner = ({ onClose }) => {
 
   if (!visible) return null;
 
+  const handleOpenOpin = () => {
+    if (onOpenOpin) {
+      const handled = onOpenOpin();
+      if (handled === true) return;
+    }
+    navigate('/opin');
+  };
+
   return (
     <AnimatePresence>
       <motion.div
@@ -49,7 +57,7 @@ const OpinDiscoveryBanner = ({ onClose }) => {
 
         <div className="flex-1 min-w-0">
           <p className="text-xs text-foreground/90 leading-tight">
-            <span className="font-semibold">OPIN:</span> Mira lo que otros buscan. <button onClick={() => navigate('/opin')} className="text-purple-400 hover:underline font-medium">Ver</button>
+            <span className="font-semibold">OPIN:</span> Mira lo que otros buscan. <button onClick={handleOpenOpin} className="text-purple-400 hover:underline font-medium">Ver</button>
           </p>
         </div>
 

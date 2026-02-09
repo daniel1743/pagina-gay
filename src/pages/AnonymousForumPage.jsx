@@ -17,32 +17,72 @@ const AnonymousForumPage = () => {
 
   React.useEffect(() => {
     const previousTitle = document.title;
-    document.title = "Foro Anónimo Gay: Identidad Oculta 🕵️‍♂️ | Chactivo";
+    // ✅ SEO: Título optimizado para CTR con keywords
+    document.title = "Foro Anónimo Gay Chile 🕵️ Confesiones y Experiencias | Chactivo";
 
-    // ✅ SEO MEJORADO: Guardar la descripción original para restaurarla exactamente igual
+    // ✅ SEO: Meta description con CTA
     let metaDescription = document.querySelector('meta[name="description"]');
     let previousDescription = "";
-    
+
     if (metaDescription) {
       previousDescription = metaDescription.getAttribute('content');
-      metaDescription.content = "Aquí eres 'Usuario 1'. Opina sin miedo, confiesa sin que nadie sepa quién eres. El verdadero anonimato empieza aquí.";
+      metaDescription.content = "Foro gay 100% anónimo. Comparte experiencias, haz preguntas y lee confesiones sin que nadie sepa quién eres. Categorías: Apoyo, Experiencias, Preguntas. Entra ahora.";
     } else {
       metaDescription = document.createElement('meta');
       metaDescription.name = 'description';
-      metaDescription.content = "Aquí eres 'Usuario 1'. Opina sin miedo, confiesa sin que nadie sepa quién eres. El verdadero anonimato empieza aquí.";
+      metaDescription.content = "Foro gay 100% anónimo. Comparte experiencias, haz preguntas y lee confesiones sin que nadie sepa quién eres. Categorías: Apoyo, Experiencias, Preguntas. Entra ahora.";
       document.head.appendChild(metaDescription);
+    }
+
+    // ✅ SEO: Canonical
+    let canonical = document.querySelector('link[rel="canonical"]');
+    if (!canonical) {
+      canonical = document.createElement('link');
+      canonical.rel = 'canonical';
+      document.head.appendChild(canonical);
+    }
+    canonical.href = 'https://chactivo.com/anonymous-forum';
+
+    // ✅ SEO: Schema.org para DiscussionForumPosting
+    let schemaScript = document.getElementById('forum-schema');
+    if (!schemaScript) {
+      schemaScript = document.createElement('script');
+      schemaScript.id = 'forum-schema';
+      schemaScript.type = 'application/ld+json';
+      schemaScript.textContent = JSON.stringify({
+        "@context": "https://schema.org",
+        "@type": "DiscussionForumPosting",
+        "headline": "Foro Anónimo Gay Chile - Confesiones y Experiencias",
+        "description": "Espacio seguro y anónimo para la comunidad LGBT+ en Chile. Comparte experiencias, pide consejos y conecta sin revelar tu identidad.",
+        "url": "https://chactivo.com/anonymous-forum",
+        "author": {
+          "@type": "Organization",
+          "name": "Chactivo"
+        },
+        "publisher": {
+          "@type": "Organization",
+          "name": "Chactivo",
+          "logo": {
+            "@type": "ImageObject",
+            "url": "https://chactivo.com/icon-512.png"
+          }
+        },
+        "mainEntityOfPage": {
+          "@type": "WebPage",
+          "@id": "https://chactivo.com/anonymous-forum"
+        }
+      });
+      document.head.appendChild(schemaScript);
     }
 
     return () => {
       document.title = previousTitle;
-      // Restaurar la descripción original dinámicamente
-      if (metaDescription) {
-        if (previousDescription) {
-          metaDescription.content = previousDescription;
-        } else {
-          metaDescription.remove(); // Si no existía, la borramos
-        }
+      if (metaDescription && previousDescription) {
+        metaDescription.content = previousDescription;
       }
+      // Limpiar schema al salir
+      const schema = document.getElementById('forum-schema');
+      if (schema) schema.remove();
     };
   }, []);
 

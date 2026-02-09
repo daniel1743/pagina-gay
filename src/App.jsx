@@ -51,6 +51,7 @@ const ArgentinaLandingPage = lazy(() => import('@/pages/ArgentinaLandingPage'));
 const TestLandingPage = lazy(() => import('@/pages/TestLandingPage'));
 const TestModalPage = lazy(() => import('@/pages/TestModalPage'));
 const FAQPage = lazy(() => import('@/pages/FAQPage'));
+const BaulPage = lazy(() => import('@/pages/BaulPage'));
 
 // 🎯 OPIN - Discovery Wall
 const OpinFeedPage = lazy(() => import('@/pages/OpinFeedPage'));
@@ -203,11 +204,11 @@ function AppRoutes() {
         <Route path="/faq" element={<MainLayout><FAQPage /></MainLayout>} />
         <Route path="/preguntas-frecuentes" element={<MainLayout><FAQPage /></MainLayout>} />
 
-        {/* 🚀 OTRAS LANDINGS - Usan SEO Landing Chile (principal) */}
-        <Route path="/global" element={<SEOLandingChile />} />
-        <Route path="/gaming" element={<SEOLandingChile />} />
-        <Route path="/mas-30" element={<SEOLandingChile />} />
-        <Route path="/santiago" element={<SEOLandingChile />} />
+        {/* 🚀 LANDINGS ESPECÍFICAS - Contenido único para mejor SEO */}
+        <Route path="/global" element={<LandingRoute><LandingLayout><GlobalLandingPage /></LandingLayout></LandingRoute>} />
+        <Route path="/gaming" element={<LandingRoute redirectTo="/chat/gaming"><LandingLayout><GamingLandingPage /></LandingLayout></LandingRoute>} />
+        <Route path="/mas-30" element={<LandingRoute redirectTo="/chat/mas-30"><LandingLayout><Mas30LandingPage /></LandingLayout></LandingRoute>} />
+        <Route path="/santiago" element={<LandingRoute redirectTo="/chat/santiago"><LandingLayout><SantiagoLandingPage /></LandingLayout></LandingRoute>} />
 
         {/* ✅ REDIRECCIÓN: conversas-libres → principal (sala limpia sin spam) */}
         <Route
@@ -226,6 +227,9 @@ function AppRoutes() {
         <Route path="/anonymous-chat" element={<AnonymousChatPage />} />
         <Route path="/anonymous-forum" element={<AnonymousForumPage />} />
         <Route path="/thread/:threadId" element={<MainLayout><ThreadDetailPage /></MainLayout>} />
+
+        {/* 🎯 BAÚL - Página independiente */}
+        <Route path="/baul" element={<MainLayout><BaulPage /></MainLayout>} />
 
         {/* 🎯 OPIN - Discovery Wall */}
         <Route path="/opin" element={<OpinLayout><OpinFeedPage /></OpinLayout>} />

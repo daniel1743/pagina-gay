@@ -55,7 +55,7 @@ function obtenerMensajeFaltante(tarjeta) {
   return null;
 }
 
-const TarjetaPromoBanner = ({ onOpenBaul }) => {
+const TarjetaPromoBanner = ({ onOpenBaul, onOpenOpin }) => {
   const { user } = useAuth();
   const navigate = useNavigate();
   const [visible, setVisible] = useState(false);
@@ -106,10 +106,13 @@ const TarjetaPromoBanner = ({ onOpenBaul }) => {
   };
 
   const handleAccion = () => {
+    let handled = false;
     if (modo === 'baul') {
-      onOpenBaul?.();
+      handled = onOpenBaul ? onOpenBaul() === true : false;
+      if (!handled) navigate('/baul');
     } else {
-      navigate('/opin');
+      handled = onOpenOpin ? onOpenOpin() === true : false;
+      if (!handled) navigate('/opin');
     }
     handleCerrar();
   };

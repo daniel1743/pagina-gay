@@ -4,7 +4,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import { useTheme } from '@/contexts/ThemeContext';
 import { Button } from '@/components/ui/button';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
-import { Bell, LogIn, ChevronDown, Circle, Sun, Moon, CheckCircle, Shield, Heart, MessageSquare, BarChart3 } from 'lucide-react';
+import { Bell, LogIn, ChevronDown, Circle, Sun, Moon, CheckCircle, Shield, Heart, MessageSquare, BarChart3, Archive, Sparkles } from 'lucide-react';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import ComingSoonModal from '@/components/ui/ComingSoonModal';
 import SystemNotificationsPanel from '@/components/notifications/SystemNotificationsPanel';
@@ -114,45 +114,73 @@ const Header = () => {
     return () => unsubscribe();
   }, [user]);
 
+  const navItems = [
+    { id: 'chat', label: 'Chat', icon: MessageSquare, to: '/chat/principal', active: location.pathname.startsWith('/chat') },
+    { id: 'baul', label: 'Baúl', icon: Archive, to: '/baul', active: location.pathname.startsWith('/baul') },
+    { id: 'opin', label: 'OPIN', icon: Sparkles, to: '/opin', active: location.pathname.startsWith('/opin') },
+  ];
+
   return (
     <header className="sticky top-0 left-0 right-0 z-50 bg-card/80 backdrop-blur-xl border-b m-0 p-0 shadow-sm" style={{ backdropFilter: 'blur(12px)' }}>
       <div className="container mx-auto px-4 sm:px-6 lg:px-8 flex items-center justify-between h-16 sm:h-20">
-        <div className="flex items-center gap-3 cursor-pointer" onClick={() => {
-          // ✅ Usuarios registrados → /home, invitados/guests → /chat/principal
-          if (user && !user.isGuest && !user.isAnonymous) {
-            navigate('/home');
-          } else {
-            navigate('/chat/principal');
-          }
-        }}>
-          <div className="w-10 h-10 flex items-center justify-center">
-            {logoSrc ? (
-              <img 
-                src={logoSrc} 
-                alt="Chactivo Logo" 
-                className="w-10 h-10 object-contain" 
-                onError={() => {
-                  // Intentar logo alternativo si el principal falla
-                  if (logoSrc === "/LOGO-TRASPARENTE.png") {
-                    setLogoSrc("/LOGO_CHACTIVO.png");
-                  } else {
-                    // Si también falla, mostrar fallback
-                    setLogoSrc("");
-                  }
-                }}
-              />
-            ) : (
-              <div className="w-10 h-10 flex items-center justify-center bg-gradient-to-br from-purple-500 to-pink-500 rounded-lg">
-                <span className="text-white font-bold text-lg">C</span>
-              </div>
-            )}
+        <div className="flex items-center gap-6">
+          <div className="flex items-center gap-3 cursor-pointer" onClick={() => {
+            // ✅ Usuarios registrados → /home, invitados/guests → /chat/principal
+            if (user && !user.isGuest && !user.isAnonymous) {
+              navigate('/home');
+            } else {
+              navigate('/chat/principal');
+            }
+          }}>
+            <div className="w-10 h-10 flex items-center justify-center">
+              {logoSrc ? (
+                <img 
+                  src={logoSrc} 
+                  alt="Chactivo Logo" 
+                  className="w-10 h-10 object-contain" 
+                  onError={() => {
+                    // Intentar logo alternativo si el principal falla
+                    if (logoSrc === "/LOGO-TRASPARENTE.png") {
+                      setLogoSrc("/LOGO_CHACTIVO.png");
+                    } else {
+                      // Si también falla, mostrar fallback
+                      setLogoSrc("");
+                    }
+                  }}
+                />
+              ) : (
+                <div className="w-10 h-10 flex items-center justify-center bg-gradient-to-br from-purple-500 to-pink-500 rounded-lg">
+                  <span className="text-white font-bold text-lg">C</span>
+                </div>
+              )}
+            </div>
+            <div className="hidden sm:flex items-center gap-2">
+              <h1 className="text-2xl font-bold text-foreground">Chactivo</h1>
+              <span className={`px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider bg-gradient-to-r from-amber-400 to-orange-500 text-gray-900 rounded-md shadow-sm ${showBetaPulse ? 'animate-pulse' : ''}`}>
+                Beta
+              </span>
+            </div>
           </div>
-          <div className="hidden sm:flex items-center gap-2">
-            <h1 className="text-2xl font-bold text-foreground">Chactivo</h1>
-            <span className={`px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider bg-gradient-to-r from-amber-400 to-orange-500 text-gray-900 rounded-md shadow-sm ${showBetaPulse ? 'animate-pulse' : ''}`}>
-              Beta
-            </span>
-          </div>
+
+          {user && (
+            <nav className="hidden md:flex items-center gap-1">
+              {navItems.map((item) => {
+                const Icon = item.icon;
+                const isActive = item.active;
+                return (
+                  <Button
+                    key={item.id}
+                    variant="ghost"
+                    className={`h-9 px-3 gap-2 ${isActive ? 'text-foreground' : 'text-muted-foreground hover:text-foreground'}`}
+                    onClick={() => navigate(item.to)}
+                  >
+                    <Icon className="w-4 h-4" />
+                    <span className="text-sm font-medium">{item.label}</span>
+                  </Button>
+                );
+              })}
+            </nav>
+          )}
         </div>
 
         <div className="flex items-center gap-2 sm:gap-4">

@@ -29,10 +29,47 @@ const OpinFeedPage = () => {
 
   const isReadOnlyMode = !user || user.isAnonymous || user.isGuest;
 
+  // ✅ SEO: Meta tags para OPIN
+  useEffect(() => {
+    const previousTitle = document.title;
+    document.title = "Tablón Gay Chile 📝 Qué Buscan Hoy | Chactivo";
+
+    let metaDescription = document.querySelector('meta[name="description"]');
+    const previousDescription = metaDescription?.content || '';
+
+    if (!metaDescription) {
+      metaDescription = document.createElement('meta');
+      metaDescription.name = 'description';
+      document.head.appendChild(metaDescription);
+    }
+    metaDescription.content = "Tablón de notas de la comunidad gay en Chile. Mira qué buscan otros usuarios hoy. Deja tu nota anónima y conecta. Actualizado cada hora.";
+
+    // Canonical
+    let canonical = document.querySelector('link[rel="canonical"]');
+    if (!canonical) {
+      canonical = document.createElement('link');
+      canonical.rel = 'canonical';
+      document.head.appendChild(canonical);
+    }
+    canonical.href = 'https://chactivo.com/opin';
+
+    return () => {
+      document.title = previousTitle;
+      if (metaDescription && previousDescription) {
+        metaDescription.content = previousDescription;
+      }
+    };
+  }, []);
+
   useEffect(() => {
     loadFeed();
     checkCanCreate();
   }, []);
+
+  useEffect(() => {
+    const key = user?.id || user?.guestId || 'anon';
+    localStorage.setItem(`opin_visited:${key}`, '1');
+  }, [user]);
 
   const loadFeed = async () => {
     setLoading(true);

@@ -352,14 +352,24 @@ const ChatMessages = ({
                           onClick={(e) => { e.stopPropagation(); onReply?.({ messageId: message.id, username: message.username, content: message.content }); }}>
                           <Reply className="h-3 w-3" />
                         </Button>
-                        {currentUserId && (
+                        {currentUserId && !message._optimistic && (
                           <>
                             <Button size="icon" variant="ghost" className="h-5 w-5 text-gray-400 hover:text-green-500"
-                              onClick={(e) => { e.stopPropagation(); onReaction(message.id, 'like'); }}>
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                // Usar _realId (ID de Firestore) si existe, sino id
+                                const firestoreId = message._realId || message.id;
+                                console.log('[UI] Like click, ID:', firestoreId);
+                                onReaction(firestoreId, 'like');
+                              }}>
                               <ThumbsUp className="h-3 w-3" />
                             </Button>
                             <Button size="icon" variant="ghost" className="h-5 w-5 text-gray-400 hover:text-red-500"
-                              onClick={(e) => { e.stopPropagation(); onReaction(message.id, 'dislike'); }}>
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                const firestoreId = message._realId || message.id;
+                                onReaction(firestoreId, 'dislike');
+                              }}>
                               <ThumbsDown className="h-3 w-3" />
                             </Button>
                           </>

@@ -32,7 +32,7 @@ const getRoomActivityStatus = (realUserCount) => {
   }
 };
 
-const ChatSidebar = ({ currentRoom, setCurrentRoom, isOpen, onClose, onOpenBaul }) => {
+const ChatSidebar = ({ currentRoom, setCurrentRoom, isOpen, onClose, onOpenBaul, onOpenOpin }) => {
   const navigate = useNavigate();
   const location = useLocation();
   const { user, logout } = useAuth();
@@ -305,7 +305,8 @@ const ChatSidebar = ({ currentRoom, setCurrentRoom, isOpen, onClose, onOpenBaul 
                 variant="ghost"
                 className="w-full justify-start text-left h-auto py-2.5 px-3 hover:bg-accent/50 hover:border-l-2 hover:border-purple-500 group"
                 onClick={() => {
-                  navigate('/opin');
+                  const handled = onOpenOpin ? onOpenOpin() === true : false;
+                  if (!handled) navigate('/opin');
                   if (typeof window !== 'undefined' && window.innerWidth < 1024) onClose();
                 }}
               >
@@ -316,7 +317,8 @@ const ChatSidebar = ({ currentRoom, setCurrentRoom, isOpen, onClose, onOpenBaul 
                 variant="ghost"
                 className="w-full justify-start text-left h-auto py-2.5 px-3 hover:bg-accent/50 hover:border-l-2 hover:border-cyan-500 group"
                 onClick={() => {
-                  onOpenBaul?.();
+                  const handled = onOpenBaul ? onOpenBaul() === true : false;
+                  if (!handled) navigate('/baul');
                   if (typeof window !== 'undefined' && window.innerWidth < 1024) onClose();
                 }}
               >
@@ -591,7 +593,8 @@ const ChatSidebar = ({ currentRoom, setCurrentRoom, isOpen, onClose, onOpenBaul 
                 variant="ghost"
                 className="w-full justify-start text-left h-auto py-2.5 px-3 hover:bg-accent/50 hover:border-l-2 hover:border-purple-500 group"
                 onClick={() => {
-                  navigate('/opin');
+                  const handled = onOpenOpin ? onOpenOpin() === true : false;
+                  if (!handled) navigate('/opin');
                   onClose();
                 }}
               >
@@ -602,7 +605,8 @@ const ChatSidebar = ({ currentRoom, setCurrentRoom, isOpen, onClose, onOpenBaul 
                 variant="ghost"
                 className="w-full justify-start text-left h-auto py-2.5 px-3 hover:bg-accent/50 hover:border-l-2 hover:border-cyan-500 group"
                 onClick={() => {
-                  onOpenBaul?.();
+                  const handled = onOpenBaul ? onOpenBaul() === true : false;
+                  if (!handled) navigate('/baul');
                   onClose();
                 }}
               >

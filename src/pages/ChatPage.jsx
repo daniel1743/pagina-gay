@@ -37,7 +37,6 @@ import TelegramBanner from '@/components/ui/TelegramBanner';
 // 🚀 ENGAGEMENT: Banner promocional Baúl + OPIN
 import TarjetaPromoBanner from '@/components/chat/TarjetaPromoBanner';
 import ChatBottomNav from '@/components/chat/ChatBottomNav';
-import { BaulSection } from '@/components/baul';
 import { useEngagementNudge } from '@/hooks/useEngagementNudge';
 // ⚠️ MODERADOR ELIMINADO (06/01/2026) - A petición del usuario
 // import RulesBanner from '@/components/chat/RulesBanner';
@@ -170,7 +169,6 @@ const ChatPage = () => {
   const [roomCounts, setRoomCounts] = useState({}); // Contadores de usuarios por sala
   const [engagementTime, setEngagementTime] = useState(''); // ⏱️ Tiempo total de engagement
   const [showScreenSaver, setShowScreenSaver] = useState(false); // 🔒 Protector de pantalla
-  const [mostrarBaul, setMostrarBaul] = useState(false); // 📋 Baúl de tarjetas
   const [showNicknameModal, setShowNicknameModal] = useState(false); // ✅ Modal nickname - solo al intentar escribir
   const [isInputFocused, setIsInputFocused] = useState(false); // 📝 Input focus state for scroll manager
   const [suggestedMessage, setSuggestedMessage] = useState(null); // 🤖 Mensaje sugerido por Companion AI
@@ -219,9 +217,25 @@ const ChatPage = () => {
     enabled: true // Siempre habilitado para usuarios que lo necesiten
   });
 
-  // 🚀 ENGAGEMENT: Nudges sobre Baúl (popup 10s + toast cada 5-15 min)
-  const abrirBaul = useCallback(() => setMostrarBaul(true), []);
-  const { detenerNudges } = useEngagementNudge({ onOpenBaul: abrirBaul });
+  // 🚀 ENGAGEMENT: Nudges contextuales OPIN + BAÚL
+  const { handleChatInteraction, handleChatScroll, detenerNudges } = useEngagementNudge();
+
+  const handleOpenBaul = useCallback(() => {
+    detenerNudges();
+    navigate('/baul');
+    return true;
+  }, [detenerNudges, navigate]);
+
+  const handleOpenOpin = useCallback(() => {
+    detenerNudges();
+    navigate('/opin');
+    return true;
+  }, [detenerNudges, navigate]);
+
+  const handleMessagesScroll = useCallback((event) => {
+    companionAI.handleScroll?.(event);
+    handleChatScroll();
+  }, [companionAI, handleChatScroll]);
 
   // ✅ VALIDACIÓN: Salas restringidas requieren autenticación
   // ⚠️ CRITICAL: Este hook DEBE ejecutarse siempre (antes del return) para respetar reglas de hooks
@@ -1235,9 +1249,11 @@ const ChatPage = () => {
    * ✅ Actualiza Firestore directamente
    */
   const handleMessageReaction = async (messageId, reaction) => {
-    // ⚠️ RESTRICCIÓN: Usuarios no autenticados NO pueden dar reacciones
+    console.log('[REACTION] 🎯 Intentando reacción:', { messageId, reaction, currentRoom, userId: user?.id });
+
     // ⚠️ RESTRICCIÓN: Usuarios no autenticados NO pueden dar reacciones
     if (!auth.currentUser || user?.isGuest || user?.isAnonymous) {
+      console.log('[REACTION] ❌ Usuario no autenticado o invitado');
       toast({
         title: "Regístrate para reaccionar",
         description: "Los usuarios no registrados no pueden dar likes. Regístrate para interactuar más.",
@@ -1251,14 +1267,31 @@ const ChatPage = () => {
       return;
     }
 
+    if (!currentRoom) {
+      console.error('[REACTION] ❌ No hay sala activa');
+      return;
+    }
+
+    if (!messageId) {
+      console.error('[REACTION] ❌ No hay messageId');
+      return;
+    }
+
     try {
+      console.log('[REACTION] 📤 Enviando a Firestore...');
       await addReactionToMessage(currentRoom, messageId, reaction);
-      // El listener de onSnapshot actualizará automáticamente los mensajes
+      console.log('[REACTION] ✅ Reacción guardada');
+
+      // Feedback visual
+      toast({
+        description: reaction === 'like' ? '👍 Like agregado' : '👎 Dislike agregado',
+        duration: 1500,
+      });
     } catch (error) {
-      console.error('Error adding reaction:', error);
+      console.error('[REACTION] ❌ Error:', error);
       toast({
         title: "No pudimos agregar la reacción",
-        description: "Toca para reintentar",
+        description: error.message || "Intenta de nuevo",
         variant: "destructive",
       });
     }
@@ -1434,6 +1467,9 @@ const ChatPage = () => {
 
     // ⚡ INSTANTÁNEO: Agregar mensaje inmediatamente a la UI (usuario lo ve al instante)
     setMessages(prev => [...prev, optimisticMessage]);
+
+    // 🔔 NUDGE: interacción en chat (no bloqueante)
+    handleChatInteraction?.();
     
     // 🔍 TRACE: Mensaje optimista renderizado localmente
     traceEvent(TRACE_EVENTS.UI_LOCAL_RENDER, {
@@ -2093,10 +2129,8 @@ const ChatPage = () => {
           setCurrentRoom={setCurrentRoom}
           isOpen={sidebarOpen}
           onClose={() => setSidebarOpen(false)}
-          onOpenBaul={() => {
-            setMostrarBaul(true);
-            detenerNudges();
-          }}
+          onOpenBaul={handleOpenBaul}
+          onOpenOpin={handleOpenOpin}
         />
 
         {/* ✅ FIX: Contenedor del chat - Asegurar que esté visible en móvil cuando sidebar está cerrado */}
@@ -2116,17 +2150,15 @@ const ChatPage = () => {
             {/* 🎯 OPIN Discovery Banner - Solo para invitados */}
             {user && (user.isGuest || user.isAnonymous) && (
               <div className="px-4 pt-4">
-                <OpinDiscoveryBanner />
+                <OpinDiscoveryBanner onOpenOpin={handleOpenOpin} />
               </div>
             )}
 
             {/* 🚀 BANNER PROMOCIONAL Baúl + OPIN - Solo para usuarios registrados */}
             {user && !user.isGuest && !user.isAnonymous && (
               <TarjetaPromoBanner
-                onOpenBaul={() => {
-                  setMostrarBaul(true);
-                  detenerNudges();
-                }}
+                onOpenBaul={handleOpenBaul}
+                onOpenOpin={handleOpenOpin}
               />
             )}
 
@@ -2151,7 +2183,7 @@ const ChatPage = () => {
               lastReadMessageIndex={-1}
               messagesEndRef={scrollManager.endMarkerRef}
               messagesContainerRef={scrollManager.containerRef}
-              onScroll={companionAI.handleScroll}
+              onScroll={handleMessagesScroll}
               roomUsers={roomUsers}
               newMessagesIndicator={
                 <NewMessagesIndicator
@@ -2437,18 +2469,9 @@ const ChatPage = () => {
       {/* 📋 BAÚL DE TARJETAS - Accesible desde banner promocional */}
       {/* 📱 Barra inferior móvil: Baúl, Chat Principal, OPIN */}
       <ChatBottomNav
-        onOpenBaul={() => {
-          setMostrarBaul(true);
-          detenerNudges();
-        }}
+        onOpenBaul={handleOpenBaul}
+        onOpenOpin={handleOpenOpin}
       />
-
-      {mostrarBaul && (
-        <BaulSection
-          isOpen={mostrarBaul}
-          onClose={() => setMostrarBaul(false)}
-        />
-      )}
     </>
   );
 };
