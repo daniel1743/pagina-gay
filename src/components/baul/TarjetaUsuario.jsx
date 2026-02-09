@@ -73,6 +73,26 @@ const TarjetaUsuario = ({
 }) => {
   const [liked, setLiked] = useState(yaLeDiLike);
   const [likesCount, setLikesCount] = useState(tarjeta.likesRecibidos || 0);
+  const estadoActual = tarjeta.estadoReal || tarjeta.estado;
+  const nowMs = Date.now();
+  const getTimestampMs = (value) => {
+    if (!value) return null;
+    if (value.toMillis) return value.toMillis();
+    if (value.seconds) return value.seconds * 1000;
+    if (value instanceof Date) return value.getTime();
+    if (typeof value === 'number') return value;
+    return null;
+  };
+  const createdMs = getTimestampMs(tarjeta.creadaEn || tarjeta.createdAt);
+  const isNew = createdMs ? (nowMs - createdMs) < 24 * 60 * 60 * 1000 : false;
+  const isActive = estadoActual === 'online';
+  const priorityClass = !esMiTarjeta
+    ? (isActive
+        ? 'ring-1 ring-emerald-400/40 shadow-[0_0_12px_rgba(16,185,129,0.12)]'
+        : isNew
+          ? 'ring-1 ring-violet-400/35 shadow-[0_0_10px_rgba(139,92,246,0.12)]'
+          : '')
+    : '';
 
   const handleLike = async (e) => {
     e.stopPropagation();
@@ -120,12 +140,22 @@ const TarjetaUsuario = ({
         border border-gray-700/50 hover:border-gray-600/50
         shadow-md hover:shadow-lg transition-all
         ${esMiTarjeta ? 'ring-2 ring-cyan-500/50' : ''}
+        ${priorityClass}
       `}
     >
       {/* Badge "Tu" */}
       {esMiTarjeta && (
         <div className="absolute top-1.5 left-1.5 z-20 bg-cyan-500 text-white text-[9px] font-bold px-1.5 py-0.5 rounded-full">
           Tú
+        </div>
+      )}
+      {!esMiTarjeta && (isActive || isNew) && (
+        <div
+          className={`absolute top-1.5 left-1.5 z-20 text-white text-[9px] font-semibold px-1.5 py-0.5 rounded-full ${
+            isActive ? 'bg-emerald-500/80' : 'bg-violet-500/80'
+          }`}
+        >
+          {isActive ? 'Activo' : 'Nuevo'}
         </div>
       )}
 
@@ -150,8 +180,8 @@ const TarjetaUsuario = ({
         {/* Estado - punto pequeño */}
         <div className="absolute top-1.5 right-1.5">
           <div className={`w-2 h-2 rounded-full ${
-            tarjeta.estado === 'online' ? 'bg-green-500 animate-pulse' :
-            tarjeta.estado === 'reciente' ? 'bg-orange-500' : 'bg-gray-500'
+            estadoActual === 'online' ? 'bg-green-500 animate-pulse' :
+            estadoActual === 'reciente' ? 'bg-orange-500' : 'bg-gray-500'
           }`} />
         </div>
 
@@ -186,6 +216,24 @@ const TarjetaUsuario = ({
             <span className="text-gray-500">{infoFisica[0]}</span>
           )}
         </div>
+
+        {/* Micro preview */}
+        {(() => {
+          const intention = (tarjeta.buscando || tarjeta.bio || '').trim();
+          const intentionText = intention ? intention.slice(0, 42) : '';
+          const locationText = (tarjeta.ubicacionTexto || '').trim();
+          const parts = [];
+          if (intentionText) parts.push(`💬 ${intentionText}`);
+          if (locationText) parts.push(`📍 ${locationText}`);
+          if (!intentionText && !locationText && isActive) parts.push('🔥 Activo');
+          const preview = parts.slice(0, 2).join(' · ');
+          if (!preview) return null;
+          return (
+            <div className="text-[9px] text-gray-400 truncate">
+              {preview}
+            </div>
+          );
+        })()}
 
         {/* Botones compactos */}
         {!esMiTarjeta && (

@@ -429,19 +429,55 @@ const BaulSection = ({ isOpen = true, onClose, variant = 'modal' }) => {
       />
 
       {/* Contenido */}
-      <div className="flex-1 overflow-y-auto">
-        {isLoading ? (
-          <div className="flex items-center justify-center py-20">
-            <Loader2 className="w-8 h-8 text-cyan-500 animate-spin" />
-          </div>
-        ) : tarjetas.length === 0 ? (
-          <EstadoVacio
-            mensaje="No hay tarjetas disponibles"
-            submensaje="Sé el primero en crear tu tarjeta y aparecerás aquí"
-            onRefresh={handleRefresh}
-          />
-        ) : (
+          <div className="flex-1 overflow-y-auto">
+            {isLoading ? (
+              <div className="flex items-center justify-center py-20">
+                <Loader2 className="w-8 h-8 text-cyan-500 animate-spin" />
+              </div>
+            ) : tarjetas.length === 0 ? (
+              <EstadoVacio
+                mensaje="No hay tarjetas disponibles"
+                submensaje="Sé el primero en crear tu tarjeta y aparecerás aquí"
+                onRefresh={handleRefresh}
+              />
+            ) : (
               <div className="p-3 sm:p-4">
+                {/* Top context banner */}
+                {(() => {
+                  const getTimestampMs = (value) => {
+                    if (!value) return null;
+                    if (value.toMillis) return value.toMillis();
+                    if (value.seconds) return value.seconds * 1000;
+                    if (value instanceof Date) return value.getTime();
+                    if (typeof value === 'number') return value;
+                    return null;
+                  };
+                  const tarjetasVisibles = tarjetas.filter(t => t.odIdUsuari !== odIdUsuari);
+                  const activosAhora = tarjetasVisibles.filter(t => (t.estadoReal || t.estado) === 'online').length;
+                  const nuevosHoy = tarjetasVisibles.filter(t => {
+                    const ts = getTimestampMs(t.creadaEn || t.createdAt);
+                    return ts ? (Date.now() - ts) < 24 * 60 * 60 * 1000 : false;
+                  }).length;
+                  return (
+                    <div className="mb-3 sm:mb-4">
+                      <div className="flex flex-wrap items-center gap-2 rounded-lg border border-gray-700/50 bg-gray-800/40 px-3 py-2 text-[11px] text-gray-300">
+                        <div className="flex items-center gap-2">
+                          <span className="text-cyan-400 font-semibold">Activos ahora</span>
+                          <span className="text-white font-bold">{activosAhora}</span>
+                        </div>
+                        <span className="text-gray-600">•</span>
+                        <div className="flex items-center gap-2">
+                          <span className="text-purple-300 font-semibold">Nuevos hoy</span>
+                          <span className="text-white font-bold">{nuevosHoy}</span>
+                        </div>
+                        <span className="ml-auto text-[10px] text-gray-400 hidden sm:inline">
+                          Explora y conecta con un toque
+                        </span>
+                      </div>
+                    </div>
+                  );
+                })()}
+
                 {/* Grid de tarjetas */}
                 <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-2.5 sm:gap-3">
                   {tarjetas.map((tarjeta) => (
