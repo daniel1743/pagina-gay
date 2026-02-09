@@ -115,7 +115,7 @@ const TarjetaUsuario = ({
       animate={{ opacity: 1, scale: 1 }}
       onClick={handleClick}
       className={`
-        relative rounded-xl overflow-hidden cursor-pointer
+        relative rounded-lg overflow-hidden cursor-pointer
         bg-gradient-to-br from-gray-800/90 to-gray-900/90
         border border-gray-700/50 hover:border-gray-600/50
         shadow-md hover:shadow-lg transition-all
@@ -124,13 +124,13 @@ const TarjetaUsuario = ({
     >
       {/* Badge "Tu" */}
       {esMiTarjeta && (
-        <div className="absolute top-1.5 left-1.5 z-20 bg-cyan-500 text-white text-[10px] font-bold px-1.5 py-0.5 rounded-full">
+        <div className="absolute top-1.5 left-1.5 z-20 bg-cyan-500 text-white text-[9px] font-bold px-1.5 py-0.5 rounded-full">
           Tú
         </div>
       )}
 
       {/* Foto / Avatar - MÁS COMPACTO (fallback: fotoUrlFull, fotoUrlThumb) */}
-      <div className="relative aspect-[3/4] bg-gradient-to-br from-gray-700 to-gray-800">
+      <div className="relative aspect-[4/5] bg-gradient-to-br from-gray-700 to-gray-800">
         {(tarjeta.fotoUrl || tarjeta.fotoUrlFull || tarjeta.fotoUrlThumb) ? (
           <img
             src={tarjeta.fotoUrl || tarjeta.fotoUrlFull || tarjeta.fotoUrlThumb}
@@ -140,7 +140,7 @@ const TarjetaUsuario = ({
           />
         ) : (
           <div className="absolute inset-0 flex items-center justify-center">
-            <User className="w-12 h-12 text-gray-600" />
+            <User className="w-10 h-10 text-gray-600" />
           </div>
         )}
 
@@ -149,37 +149,37 @@ const TarjetaUsuario = ({
 
         {/* Estado - punto pequeño */}
         <div className="absolute top-1.5 right-1.5">
-          <div className={`w-2.5 h-2.5 rounded-full ${
+          <div className={`w-2 h-2 rounded-full ${
             tarjeta.estado === 'online' ? 'bg-green-500 animate-pulse' :
             tarjeta.estado === 'reciente' ? 'bg-orange-500' : 'bg-gray-500'
           }`} />
         </div>
 
         {/* Info principal - sobre la foto */}
-        <div className="absolute bottom-0 left-0 right-0 p-2">
-          <h3 className="text-sm font-bold text-white truncate">
+        <div className="absolute bottom-0 left-0 right-0 p-1.5">
+          <h3 className="text-xs sm:text-sm font-bold text-white truncate">
             {tarjeta.nombre || 'Usuario'}
             {tarjeta.edad && <span className="font-normal text-gray-300">, {tarjeta.edad}</span>}
           </h3>
           <div className="flex items-center gap-1 mt-0.5">
             <RolBadge rol={tarjeta.rol} />
             {tarjeta.ubicacionTexto && (
-              <span className="text-[10px] text-gray-400 truncate">{tarjeta.ubicacionTexto}</span>
+              <span className="text-[9px] text-gray-400 truncate">{tarjeta.ubicacionTexto}</span>
             )}
           </div>
         </div>
       </div>
 
       {/* Info compacta */}
-      <div className="p-2 space-y-1.5">
+      <div className="p-1.5 space-y-1">
         {/* Stats inline */}
-        <div className="flex items-center justify-between text-[10px] text-gray-400">
+        <div className="flex items-center justify-between text-[9px] text-gray-400">
           <div className="flex items-center gap-0.5">
-            <Heart className={`w-3 h-3 ${likesCount > 0 ? 'text-pink-500' : ''}`} />
+            <Heart className={`w-2.5 h-2.5 ${likesCount > 0 ? 'text-pink-500' : ''}`} />
             <span>{likesCount}</span>
           </div>
           <div className="flex items-center gap-0.5">
-            <Eye className="w-3 h-3" />
+            <Eye className="w-2.5 h-2.5" />
             <span>{tarjeta.visitasRecibidas || 0}</span>
           </div>
           {infoFisica.length > 0 && (
@@ -194,20 +194,20 @@ const TarjetaUsuario = ({
               whileTap={{ scale: 0.95 }}
               onClick={handleLike}
               disabled={isLoading}
-              className={`flex-1 flex items-center justify-center gap-1 py-1.5 rounded-lg text-xs font-medium transition-all
+              className={`flex-1 flex items-center justify-center gap-1 py-1 rounded-md text-[10px] font-medium transition-all
                 ${liked
                   ? 'bg-pink-500 text-white'
                   : 'bg-gray-700/50 text-gray-300'
                 }`}
             >
-              <Heart className={`w-3 h-3 ${liked ? 'fill-current' : ''}`} />
+              <Heart className={`w-2.5 h-2.5 ${liked ? 'fill-current' : ''}`} />
             </motion.button>
             <motion.button
               whileTap={{ scale: 0.95 }}
               onClick={handleMensaje}
-              className="flex-1 flex items-center justify-center gap-1 py-1.5 rounded-lg text-xs font-medium bg-gray-700/50 text-gray-300"
+              className="flex-1 flex items-center justify-center gap-1 py-1 rounded-md text-[10px] font-medium bg-gray-700/50 text-gray-300"
             >
-              <MessageSquare className="w-3 h-3" />
+              <MessageSquare className="w-2.5 h-2.5" />
             </motion.button>
           </div>
         )}
@@ -215,7 +215,7 @@ const TarjetaUsuario = ({
         {esMiTarjeta && (
           <button
             onClick={handleClick}
-            className="w-full py-1.5 rounded-lg text-[10px] font-medium bg-cyan-500/20 text-cyan-400"
+            className="w-full py-1 rounded-md text-[10px] font-medium bg-cyan-500/20 text-cyan-400"
           >
             Editar
           </button>
@@ -224,7 +224,7 @@ const TarjetaUsuario = ({
 
       {/* Notificación */}
       {esMiTarjeta && tarjeta.actividadNoLeida > 0 && (
-        <div className="absolute top-1 right-1 bg-red-500 text-white text-[10px] font-bold min-w-[16px] h-4 flex items-center justify-center rounded-full px-1">
+        <div className="absolute top-1 right-1 bg-red-500 text-white text-[9px] font-bold min-w-[14px] h-3.5 flex items-center justify-center rounded-full px-1">
           {tarjeta.actividadNoLeida > 9 ? '9+' : tarjeta.actividadNoLeida}
         </div>
       )}

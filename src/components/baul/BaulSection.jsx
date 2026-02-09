@@ -441,11 +441,11 @@ const BaulSection = ({ isOpen = true, onClose, variant = 'modal' }) => {
             onRefresh={handleRefresh}
           />
         ) : (
-          <div className="p-4">
-            {/* Grid de tarjetas */}
-            <div className="grid grid-cols-2 sm:grid-cols-2 gap-4">
-              {tarjetas.map((tarjeta) => (
-                <TarjetaUsuario
+              <div className="p-3 sm:p-4">
+                {/* Grid de tarjetas */}
+                <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-2.5 sm:gap-3">
+                  {tarjetas.map((tarjeta) => (
+                    <TarjetaUsuario
                   key={tarjeta.odIdUsuari}
                   tarjeta={tarjeta}
                   esMiTarjeta={tarjeta.odIdUsuari === odIdUsuari}
