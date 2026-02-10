@@ -209,7 +209,7 @@ const LobbyPage = () => {
                   variant="outline"
                   className="border-2 border-cyan-500/40 text-cyan-400 font-semibold text-base sm:text-lg px-6 sm:px-10 py-5 sm:py-6 rounded-xl hover:bg-cyan-500/10 hover:border-cyan-500 transition-all w-full sm:w-auto"
                 >
-                  Ver todas las salas →
+                  Ver el chat principal →
                 </Button>
               </motion.div>
 
@@ -262,7 +262,7 @@ const LobbyPage = () => {
                   variant="outline"
                   className="border-cyan-500/40 text-cyan-400 px-8 py-5 rounded-xl"
                 >
-                  Explorar otras salas
+                  Entrar al chat principal
                 </Button>
               </div>
             </div>

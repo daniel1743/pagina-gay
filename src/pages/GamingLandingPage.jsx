@@ -22,7 +22,7 @@ const GamingLandingPage = () => {
   // Redirigir usuarios autenticados (no guests) directamente al chat
   React.useEffect(() => {
     if (user && !user.isGuest && !user.isAnonymous) {
-      navigate('/chat/gaming', { replace: true });
+      navigate('/chat/principal', { replace: true });
     }
   }, [user, navigate]);
 
@@ -40,7 +40,7 @@ const GamingLandingPage = () => {
 
     return () => {
       if (metaDescription && document.head.contains(metaDescription)) {
-        metaDescription.content = 'La comunidad más libre. Solo 4 salas activas con gente real: Santiago, Gaming y más. Sin perfiles, sin emails, solo entra y chatea.';
+        metaDescription.content = 'La comunidad más libre. Conversación real en una sola sala principal. Sin perfiles, sin emails, solo entra y chatea.';
       }
     };
   }, []);
@@ -56,9 +56,9 @@ const GamingLandingPage = () => {
 
   const handleRegistrar = () => {
     if (user && !user.isGuest) {
-      navigate('/chat/gaming');
+      navigate('/chat/principal');
     } else {
-      navigate('/auth', { state: { redirectTo: '/chat/gaming' } });
+      navigate('/auth', { state: { redirectTo: '/chat/principal' } });
     }
   };
 

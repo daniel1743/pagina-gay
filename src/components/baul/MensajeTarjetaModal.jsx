@@ -3,7 +3,7 @@
  * Muestra información completa del usuario + opción de mensaje + chat privado
  */
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
@@ -16,13 +16,13 @@ import {
   Heart,
   Eye,
   Ruler,
-  Calendar,
-  MessageCircle
+  MessageCircle,
+  Shield
 } from 'lucide-react';
 import { enviarMensajeTarjeta, formatearHorarios, getColorRol, verificarInteresMutuo } from '@/services/tarjetaService';
 import { sendPrivateChatRequest } from '@/services/socialService';
+import { blockUser } from '@/services/blockService';
 import { toast } from '@/components/ui/use-toast';
-import { useEffect } from 'react';
 
 const MensajeTarjetaModal = ({
   isOpen,
@@ -40,6 +40,7 @@ const MensajeTarjetaModal = ({
   const [chatSolicitado, setChatSolicitado] = useState(false);
   const [hayMatch, setHayMatch] = useState(false);
   const [verificandoMatch, setVerificandoMatch] = useState(true);
+  const [isBlocking, setIsBlocking] = useState(false);
   const isReadOnly = readOnly || !miUserId;
 
   const maxChars = 200;
@@ -83,11 +84,19 @@ const MensajeTarjetaModal = ({
       });
     } catch (error) {
       console.error('Error solicitando chat:', error);
+      if (error?.message === 'BLOCKED') {
+        toast({
+          title: 'No disponible',
+          description: 'No puedes abrir chat con este usuario.',
+          variant: 'destructive'
+        });
+      } else {
       toast({
         title: 'Error',
         description: 'No se pudo enviar la solicitud',
         variant: 'destructive'
       });
+      }
     } finally {
       setSolicitandoChat(false);
     }
@@ -117,13 +126,49 @@ const MensajeTarjetaModal = ({
         throw new Error('No se pudo enviar');
       }
     } catch (error) {
+      if (error?.message === 'BLOCKED') {
+        toast({
+          title: 'No disponible',
+          description: 'No puedes enviar mensajes a este usuario.',
+          variant: 'destructive'
+        });
+      } else {
       toast({
         title: 'Error',
         description: 'No se pudo enviar el mensaje',
         variant: 'destructive'
       });
+      }
     } finally {
       setIsEnviando(false);
+    }
+  };
+
+  const handleBlockUser = async () => {
+    if (isReadOnly || !miUserId || !tarjeta?.odIdUsuari) return;
+    if (tarjeta.odIdUsuari === miUserId) return;
+
+    const confirmed = window.confirm(`¿Bloquear a ${tarjeta.nombre || 'este usuario'}? No podrán interactuar entre ustedes.`);
+    if (!confirmed) return;
+
+    setIsBlocking(true);
+    try {
+      await blockUser(miUserId, tarjeta.odIdUsuari, { source: 'baul_profile' });
+      toast({
+        title: 'Usuario bloqueado',
+        description: 'No podrás ver ni recibir interacciones de este usuario.',
+        variant: 'destructive'
+      });
+      onClose();
+    } catch (error) {
+      console.error('Error bloqueando usuario:', error);
+      toast({
+        title: 'No pudimos bloquear',
+        description: 'Intenta de nuevo en un momento',
+        variant: 'destructive'
+      });
+    } finally {
+      setIsBlocking(false);
     }
   };
 
@@ -375,6 +420,18 @@ const MensajeTarjetaModal = ({
                 </div>
               </div>
             ) : null}
+
+            {/* Bloquear usuario */}
+            {!isReadOnly && (
+              <button
+                onClick={handleBlockUser}
+                disabled={isBlocking}
+                className="w-full mt-4 py-2.5 rounded-xl border border-red-500/40 text-red-400 hover:bg-red-500/10 transition-colors font-medium flex items-center justify-center gap-2 disabled:opacity-60"
+              >
+                <Shield className="w-4 h-4" />
+                {isBlocking ? 'Bloqueando...' : 'Bloquear usuario'}
+              </button>
+            )}
           </div>
         </motion.div>
       </motion.div>

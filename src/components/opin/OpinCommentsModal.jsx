@@ -113,7 +113,9 @@ const OpinCommentsModal = ({ post, open, onClose }) => {
       console.error('Error enviando respuesta:', error);
       toast({
         title: 'Error',
-        description: error.message || 'No se pudo enviar la respuesta',
+        description: error?.message === 'BLOCKED'
+          ? 'No puedes interactuar con este usuario'
+          : (error.message || 'No se pudo enviar la respuesta'),
         variant: 'destructive',
       });
     } finally {

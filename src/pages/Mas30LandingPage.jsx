@@ -22,7 +22,7 @@ const Mas30LandingPage = () => {
   // Redirigir usuarios autenticados (no guests) directamente al chat
   React.useEffect(() => {
     if (user && !user.isGuest && !user.isAnonymous) {
-      navigate('/chat/mas-30', { replace: true });
+      navigate('/chat/principal', { replace: true });
     }
   }, [user, navigate]);
 
@@ -40,7 +40,7 @@ const Mas30LandingPage = () => {
 
     return () => {
       if (metaDescription && document.head.contains(metaDescription)) {
-        metaDescription.content = '🏳️‍🌈 Chat gay chileno 100% gratis. Salas por interés: Gaming 🎮, +30 💪, Osos 🐻, Amistad 💬. Conversación real, sin presión de hookups.';
+        metaDescription.content = '🏳️‍🌈 Chat gay chileno 100% gratis. Conversación real en una sola sala principal. Sin presión de hookups.';
       }
     };
   }, []);
@@ -56,9 +56,9 @@ const Mas30LandingPage = () => {
 
   const handleRegistrar = () => {
     if (user && !user.isGuest) {
-      navigate('/chat/mas-30');
+      navigate('/chat/principal');
     } else {
-      navigate('/auth', { state: { redirectTo: '/chat/mas-30' } });
+      navigate('/auth', { state: { redirectTo: '/chat/principal' } });
     }
   };
 

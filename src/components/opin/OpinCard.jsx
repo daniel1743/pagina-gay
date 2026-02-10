@@ -138,7 +138,11 @@ const OpinCard = forwardRef(({ post, onCommentsClick, onPostDeleted, isReadOnlyM
         setLikeCount(prev => prev - 1);
       }
     } catch (error) {
-      toast({ description: 'Error al dar like', variant: 'destructive' });
+      if (error?.message === 'BLOCKED') {
+        toast({ description: 'No puedes interactuar con este usuario', variant: 'destructive' });
+      } else {
+        toast({ description: 'Error al dar like', variant: 'destructive' });
+      }
     } finally {
       setLikingInProgress(false);
     }
@@ -194,7 +198,11 @@ const OpinCard = forwardRef(({ post, onCommentsClick, onPostDeleted, isReadOnlyM
         }));
       }
     } catch (error) {
-      toast({ description: 'Error al reaccionar', variant: 'destructive' });
+      if (error?.message === 'BLOCKED') {
+        toast({ description: 'No puedes interactuar con este usuario', variant: 'destructive' });
+      } else {
+        toast({ description: 'Error al reaccionar', variant: 'destructive' });
+      }
     } finally {
       setReactingEmoji(null);
     }

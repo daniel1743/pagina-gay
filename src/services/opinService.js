@@ -29,6 +29,15 @@ import {
   arrayRemove,
 } from 'firebase/firestore';
 import { db, auth } from '@/config/firebase';
+import { isBlockedBetween } from '@/services/blockService';
+
+const assertCanInteractWithUser = async (targetUserId) => {
+  if (!auth.currentUser || !targetUserId) return;
+  const blocked = await isBlockedBetween(auth.currentUser.uid, targetUserId);
+  if (blocked) {
+    throw new Error('BLOCKED');
+  }
+};
 
 // 🎨 Colores disponibles para posts OPIN
 export const OPIN_COLORS = {
@@ -618,6 +627,7 @@ export const toggleLike = async (postId) => {
   }
 
   const postData = postDoc.data();
+  await assertCanInteractWithUser(postData.userId);
   const likedBy = postData.likedBy || [];
   const userLiked = likedBy.includes(auth.currentUser.uid);
 
@@ -681,6 +691,7 @@ export const toggleReaction = async (postId, emoji) => {
   }
 
   const postData = postDoc.data();
+  await assertCanInteractWithUser(postData.userId);
   const reactions = postData.reactions || {};
   const reactionCounts = postData.reactionCounts || {};
   const userId = auth.currentUser.uid;
@@ -769,6 +780,11 @@ export const addComment = async (postId, commentText) => {
   }
 
   const commentsRef = collection(db, 'opin_comments');
+
+  const postDoc = await getDoc(doc(db, 'opin_posts', postId));
+  if (postDoc.exists()) {
+    await assertCanInteractWithUser(postDoc.data().userId);
+  }
 
   // Verificar límite de 100 comentarios (sin requerir índice)
   try {

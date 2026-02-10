@@ -25,38 +25,11 @@ import { Button } from '@/components/ui/button';
 import { trackPageView, trackPageExit } from '@/services/analyticsService';
 import { useCanonical } from '@/hooks/useCanonical';
 import { subscribeToLastActivity, subscribeToMultipleRoomCounts } from '@/services/presenceService';
-import { roomsData, getVisibleRooms, canAccessRoom } from '@/config/rooms';
+import { getVisibleRooms } from '@/config/rooms';
 import ChatDemo from '@/components/landing/ChatDemo';
 import { SkeletonCard, SkeletonRoomsGrid } from '@/components/ui/SkeletonLoader';
 import { collection, query, orderBy, limit, onSnapshot } from 'firebase/firestore';
 import { db } from '@/config/firebase';
-
-/**
- * ✅ SISTEMA INTELIGENTE DE CONTADOR DE USUARIOS
- * Calcula el número de usuarios a mostrar con boost estratégico
- */
-const calculateDisplayUserCount = (realUserCount, roomId) => {
-  if (realUserCount >= 11) {
-    return realUserCount;
-  }
-
-  const hashCode = roomId.split('').reduce((acc, char) => {
-    return char.charCodeAt(0) + ((acc << 5) - acc);
-  }, 0);
-
-  let fictitiousUsers;
-  if (realUserCount === 0) {
-    fictitiousUsers = 30 + Math.abs(hashCode % 31);
-  } else if (realUserCount <= 2) {
-    fictitiousUsers = 25 + Math.abs(hashCode % 21);
-  } else if (realUserCount <= 5) {
-    fictitiousUsers = 15 + Math.abs(hashCode % 16);
-  } else {
-    fictitiousUsers = 10 + Math.abs(hashCode % 11);
-  }
-
-  return realUserCount + fictitiousUsers;
-};
 
 // ✅ cardData ahora se genera dinámicamente en el componente para usar contadores reales
 
@@ -192,6 +165,7 @@ const LobbyPage = () => {
   // const [showGuestModal, setShowGuestModal] = useState(false);
   const [roomCounts, setRoomCounts] = useState({});
   const [recentMessages, setRecentMessages] = useState([]);
+  const visibleRooms = getVisibleRooms();
 
   // ✅ Determinar si mostrar Hero Section (SOLO para usuarios NO logueados)
   const showHeroSection = !user;
@@ -210,7 +184,7 @@ const LobbyPage = () => {
   // TODO: Re-habilitar con throttling y deduplicación
   useEffect(() => {
     // ✅ HOTFIX: Valores estáticos temporales (0 usuarios en todas las salas)
-    const roomIds = roomsData.map(room => room.id);
+    const roomIds = visibleRooms.map(room => room.id);
     const staticCounts = roomIds.reduce((acc, id) => ({ ...acc, [id]: 0 }), {});
     setRoomCounts(staticCounts);
 
@@ -241,19 +215,19 @@ const LobbyPage = () => {
     return () => unsubscribe();
   }, [showWelcomeBack]);
 
-  // ✅ Calcular total de usuarios con boost para "Salas de Chat" (usado en hero)
+  // ✅ Calcular total de usuarios reales (usado en hero)
   const calculateTotalUsers = () => {
     let total = 0;
-    roomsData.forEach(room => {
+    visibleRooms.forEach(room => {
       const realCount = roomCounts[room.id] || 0;
-      total += calculateDisplayUserCount(realCount, room.id);
+      total += realCount;
     });
     return total;
   };
 
   // ✅ Calcular si hay salas activas (sin mostrar números específicos en tarjeta)
   const hasActiveRooms = () => {
-    return roomsData.some(room => {
+    return visibleRooms.some(room => {
       const realCount = roomCounts[room.id] || 0;
       return realCount > 0;
     });
@@ -265,12 +239,12 @@ const LobbyPage = () => {
     {
       id: 'salas',
       icon: <MessageSquare className="w-8 h-8" />,
-      title: "Salas de Chat",
-      description: "Conversaciones en vivo 24/7. Únete a salas temáticas y conoce gente como tú ahora.",
+      title: "Chat Principal",
+      description: "Conversaciones en vivo 24/7. Únete al chat principal y conoce gente como tú ahora.",
       modal: 'RoomsModal',
       variant: "primary",
       badge: "Activo",
-      stats: { label: hasActiveRooms() ? '🔥 Salas activas ahora' : '🔥 Únete y chatea', icon: Users },
+      stats: { label: hasActiveRooms() ? '🔥 Chat activo ahora' : '🔥 Únete y chatea', icon: Users },
       accentColor: "cyan"
     },
     {
@@ -1518,12 +1492,12 @@ const LobbyPage = () => {
                 <div className="w-16 h-16 mx-auto mb-5 rounded-full bg-gradient-to-br from-cyan-500 to-blue-500 flex items-center justify-center text-3xl font-black text-white shadow-lg">
                   2
                 </div>
-                <h3 className="text-xl sm:text-2xl font-bold mb-3">Elige Tu Sala</h3>
+                <h3 className="text-xl sm:text-2xl font-bold mb-3">Entra al Chat Principal</h3>
                 <p className="text-sm sm:text-base text-muted-foreground leading-relaxed mb-4">
-                  13 salas temáticas: Osos, +30, Gaming, Libres, BDSM, Deportes y más.
+                  Una sola sala para concentrar usuarios reales y evitar la sensación de vacío.
                 </p>
                 <div className="inline-block px-4 py-2 bg-purple-500/20 border border-purple-500/30 rounded-full">
-                  <p className="text-xs sm:text-sm font-semibold text-purple-400">🎯 Para todos los gustos</p>
+                  <p className="text-xs sm:text-sm font-semibold text-purple-400">🎯 Todo en un solo lugar</p>
                 </div>
               </motion.div>
 

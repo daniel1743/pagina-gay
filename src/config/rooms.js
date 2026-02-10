@@ -1,9 +1,8 @@
 import { Users, Hash, Gamepad2, Heart, UserCheck, GitFork, UserMinus, Cake } from 'lucide-react';
 
-// ✅ CONSOLIDACIÓN DE SALAS 2026-02-04
-// Estrategia: SOLO SALA PRINCIPAL activa para concentrar usuarios
-// Las demás salas se desbloquearán cuando haya suficiente tráfico
-// Salas internacionales solo accesibles desde sus landing pages
+// ✅ CONSOLIDACIÓN DE SALAS 2026-02-10
+// Estrategia: SOLO SALA PRINCIPAL activa para concentrar usuarios reales
+// Las demás salas permanecen cerradas hasta nueva decisión manual
 
 // 🔒 CONFIGURACIÓN DE ACCESO A SALAS
 export const ROOM_ACCESS_CONFIG = {
@@ -16,7 +15,7 @@ export const ROOM_ACCESS_CONFIG = {
   // Salas bloqueadas temporalmente (se desbloquean con más usuarios)
   LOCKED_ROOMS: ['mas-30', 'santiago', 'gaming'],
 
-  // Umbral de usuarios para desbloquear salas adicionales
+  // Umbral de usuarios para desbloquear salas adicionales (no usado en modo actual)
   UNLOCK_THRESHOLD: 100, // Cuando haya 100+ usuarios activos
 };
 
@@ -28,6 +27,7 @@ export const roomsData = [
     description: 'Sala principal - Todos los temas bienvenidos',
     icon: Hash,
     color: 'teal',
+    enabled: true,
     isMainRoom: true // ✅ Sala principal activa
   },
 
@@ -38,6 +38,7 @@ export const roomsData = [
     description: 'Para mayores de 30 años',
     icon: Users,
     color: 'teal',
+    enabled: false,
     locked: true,
     lockedMessage: '🔒 Esta sala se desbloqueará pronto. Por ahora, únete al Chat Principal.'
   },
@@ -47,6 +48,7 @@ export const roomsData = [
     description: 'Gays de Santiago - Capital de Chile',
     icon: Users,
     color: 'cyan',
+    enabled: false,
     locked: true,
     lockedMessage: '🔒 Esta sala se desbloqueará pronto. Por ahora, únete al Chat Principal.'
   },
@@ -56,6 +58,7 @@ export const roomsData = [
     description: 'Gamers LGBT+ conectando',
     icon: Gamepad2,
     color: 'violet',
+    enabled: false,
     locked: true,
     lockedMessage: '🔒 Esta sala se desbloqueará pronto. Por ahora, únete al Chat Principal.'
   },
@@ -67,6 +70,7 @@ export const roomsData = [
     description: 'Chat principal de España',
     icon: Hash,
     color: 'red',
+    enabled: false,
     isInternational: true,
     allowedFromLanding: '/espana' // Solo desde landing de España
   },
@@ -76,6 +80,7 @@ export const roomsData = [
     description: 'Chat principal do Brasil',
     icon: Hash,
     color: 'green',
+    enabled: false,
     isInternational: true,
     allowedFromLanding: '/brasil'
   },
@@ -85,6 +90,7 @@ export const roomsData = [
     description: 'Chat principal de México',
     icon: Hash,
     color: 'green',
+    enabled: false,
     isInternational: true,
     allowedFromLanding: '/mexico'
   },
@@ -94,6 +100,7 @@ export const roomsData = [
     description: 'Chat principal de Argentina',
     icon: Hash,
     color: 'blue',
+    enabled: false,
     isInternational: true,
     allowedFromLanding: '/argentina'
   },
@@ -136,6 +143,14 @@ export const canAccessRoom = (roomId, referrer = '') => {
     return { allowed: true };
   }
 
+  if (room.enabled === false) {
+    return {
+      allowed: false,
+      redirect: '/chat/principal',
+      message: 'La conversación está centralizada en la sala principal para concentrar usuarios reales.'
+    };
+  }
+
   // Salas internacionales - verificar si viene de landing correcta
   if (room.isInternational) {
     // Permitir si viene de la landing internacional correspondiente
@@ -169,7 +184,7 @@ export const canAccessRoom = (roomId, referrer = '') => {
  */
 export const getVisibleRooms = () => {
   // Solo mostrar sala principal en el lobby
-  return roomsData.filter(room => room.isMainRoom);
+  return roomsData.filter(room => room.isMainRoom && room.enabled !== false);
 };
 
 /**

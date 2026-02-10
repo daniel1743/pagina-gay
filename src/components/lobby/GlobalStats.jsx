@@ -2,11 +2,12 @@ import React, { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { Users, TrendingUp, Activity } from 'lucide-react';
 import { subscribeToMultipleRoomCounts } from '@/services/presenceService';
-import { roomsData } from '@/config/rooms';
+import { getVisibleRooms } from '@/config/rooms';
 import AnimatedNumber from '@/components/ui/AnimatedNumber';
 
 const GlobalStats = () => {
   const [roomCounts, setRoomCounts] = useState({});
+  const visibleRooms = getVisibleRooms();
 
   // ❌ DESHABILITADO TEMPORALMENTE - Loop infinito de Firebase (07/01/2026)
   // subscribeToMultipleRoomCounts creaba 75+ listeners activos simultáneos
@@ -14,7 +15,7 @@ const GlobalStats = () => {
   // TODO: Re-habilitar con throttling y deduplicación
   useEffect(() => {
     // ✅ HOTFIX: Valores estáticos temporales (0 usuarios en todas las salas)
-    const roomIds = roomsData.map((room) => room.id);
+    const roomIds = visibleRooms.map((room) => room.id);
     const staticCounts = roomIds.reduce((acc, id) => ({ ...acc, [id]: 0 }), {});
     setRoomCounts(staticCounts);
 
@@ -28,7 +29,7 @@ const GlobalStats = () => {
   }, []);
 
   const getRoomStats = () => {
-    const stats = roomsData.map((room) => {
+    const stats = visibleRooms.map((room) => {
       const count = roomCounts[room.id] || 0;
 
       return {
@@ -97,7 +98,7 @@ const GlobalStats = () => {
               </p>
               <div className="flex items-center gap-2 mt-1 sm:mt-2">
                 <span className="text-xs sm:text-sm font-semibold text-pink-400">
-                  {mostActiveRoom?.name ? `Sala activa: ${mostActiveRoom.name}` : 'Elige una sala y comienza'}
+                  {mostActiveRoom?.name ? `Sala activa: ${mostActiveRoom.name}` : 'Entra al chat principal'}
                 </span>
               </div>
             </div>
@@ -107,7 +108,7 @@ const GlobalStats = () => {
         {/* ✅ Cambiado: De Top 3 a llamados a la acción */}
         <div className="mt-6 sm:mt-8 pt-6 sm:pt-8 border-t border-border">
           <p className="text-xs sm:text-sm text-muted-foreground mb-4 sm:mb-5 text-center font-semibold">
-            🚀 Salas Disponibles
+            🚀 Sala Disponible
           </p>
 
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 sm:gap-4">

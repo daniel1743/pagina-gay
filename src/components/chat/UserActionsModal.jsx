@@ -4,11 +4,12 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/u
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
-import { User, MessageSquare, Video, Heart, Send, X, CheckCircle, Crown } from 'lucide-react';
+import { User, MessageSquare, Video, Heart, Send, X, CheckCircle, Crown, Shield } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { toast } from '@/components/ui/use-toast';
 import { useAuth } from '@/contexts/AuthContext';
 import { sendDirectMessage, sendPrivateChatRequest, addToFavorites, removeFromFavorites } from '@/services/socialService';
+import { blockUser } from '@/services/blockService';
 import {
   canSendChatInvite,
   canSendDirectMessage,
@@ -105,8 +106,10 @@ const UserActionsModal = ({ user: targetUser, onClose, onViewProfile, onShowRegi
       onClose();
     } catch (error) {
       toast({
-        title: "No pudimos enviar el mensaje",
-        description: "Intenta de nuevo en un momento",
+        title: error?.message === 'BLOCKED' ? "No disponible" : "No pudimos enviar el mensaje",
+        description: error?.message === 'BLOCKED'
+          ? "No puedes enviar mensajes a este usuario."
+          : "Intenta de nuevo en un momento",
         variant: "destructive",
       });
     } finally {
@@ -197,8 +200,10 @@ const UserActionsModal = ({ user: targetUser, onClose, onViewProfile, onShowRegi
       console.error('❌ [DEBUG] Error code:', error.code);
 
       toast({
-        title: "No pudimos enviar la solicitud",
-        description: "Intenta de nuevo en un momento",
+        title: error?.message === 'BLOCKED' ? "No disponible" : "No pudimos enviar la solicitud",
+        description: error?.message === 'BLOCKED'
+          ? "No puedes iniciar un chat privado con este usuario."
+          : "Intenta de nuevo en un momento",
         variant: "destructive",
       });
     }
@@ -258,6 +263,31 @@ const UserActionsModal = ({ user: targetUser, onClose, onViewProfile, onShowRegi
     } catch (error) {
       toast({
         title: "No pudimos actualizar favoritos",
+        description: "Intenta de nuevo en un momento",
+        variant: "destructive",
+      });
+    }
+  };
+
+  const handleBlockUser = async () => {
+    if (!currentUser?.id || !targetUser?.userId) return;
+    if (targetUser.userId === currentUser.id) return;
+
+    const confirmed = window.confirm(`¿Bloquear a ${targetUser.username}? No podrán interactuar entre ustedes.`);
+    if (!confirmed) return;
+
+    try {
+      await blockUser(currentUser.id, targetUser.userId, { source: 'chat_actions' });
+      toast({
+        title: "Usuario bloqueado",
+        description: `Has bloqueado a ${targetUser.username}.`,
+        variant: "destructive",
+      });
+      onClose();
+    } catch (error) {
+      console.error('Error bloqueando usuario:', error);
+      toast({
+        title: "No pudimos bloquear",
         description: "Intenta de nuevo en un momento",
         variant: "destructive",
       });
@@ -457,6 +487,23 @@ const UserActionsModal = ({ user: targetUser, onClose, onViewProfile, onShowRegi
                         {isFavorite
                           ? 'Este usuario es tu favorito'
                           : `Máximo 15 favoritos (${currentUser?.favorites?.length || 0}/15)`}
+                      </p>
+                    </div>
+                  </Button>
+                </motion.div>
+
+                {/* Bloquear Usuario */}
+                <motion.div whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }}>
+                  <Button
+                    onClick={handleBlockUser}
+                    variant="outline"
+                    className="w-full justify-start h-auto py-3 text-left border-red-500/40 text-red-400 hover:bg-red-500/10"
+                  >
+                    <Shield className="w-5 h-5 mr-3 text-red-400" />
+                    <div>
+                      <p className="font-semibold">Bloquear Usuario</p>
+                      <p className="text-xs text-red-300/80">
+                        No podrán interactuar entre ustedes
                       </p>
                     </div>
                   </Button>

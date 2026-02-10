@@ -11,9 +11,12 @@ import {
 import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
 import { toast } from '@/components/ui/use-toast';
+import { createReport } from '@/services/reportService';
+import { useAuth } from '@/contexts/AuthContext';
 
 const ReportModal = ({ target, onClose, isGuest }) => {
   const navigate = useNavigate();
+  const { user } = useAuth();
   const [reason, setReason] = useState('');
 
   const reasons = [
@@ -25,7 +28,16 @@ const ReportModal = ({ target, onClose, isGuest }) => {
     'Otro',
   ];
 
-  const handleSubmit = (e) => {
+  const reasonKeyMap = {
+    'Acoso o intimidación': 'harassment',
+    'Contenido inapropiado': 'inappropriate_content',
+    'Spam o publicidad': 'spam',
+    'Perfil falso': 'fake_account',
+    'Lenguaje ofensivo': 'profanity',
+    'Otro': 'other',
+  };
+
+  const handleSubmit = async (e) => {
     e.preventDefault();
     if (isGuest) {
       toast({
@@ -46,20 +58,40 @@ const ReportModal = ({ target, onClose, isGuest }) => {
       return;
     }
 
-    const reports = JSON.parse(localStorage.getItem('chactivo_reports') || '[]');
-    reports.push({
-      id: Date.now().toString(),
-      target,
-      reason,
-      timestamp: new Date().toISOString(),
-    });
-    localStorage.setItem('chactivo_reports', JSON.stringify(reports));
+    const reasonKey = reasonKeyMap[reason] || 'other';
+    const context = target?.context || 'chat';
+    const reportedUserId = target?.userId || target?.targetId || null;
+    const targetUsername = target?.username || target?.targetUsername || 'Desconocido';
+    const messageId = target?.messageId || target?.id || target?._realId || null;
 
-    toast({
-      title: "Reporte enviado ✅",
-      description: "Nuestro equipo lo revisará. Gracias por ayudarnos a mantener Chactivo seguro.",
-    });
-    onClose();
+    try {
+      await createReport({
+        reporterUsername: user?.username || 'Anónimo',
+        reportedUserId,
+        reportedUsername: targetUsername,
+        context,
+        messageId: target?.type === 'message' ? messageId : null,
+        reason: reasonKey,
+        type: reasonKey,
+        description: `Reporte (${context}): ${reason}`,
+        targetUsername,
+        targetId: reportedUserId || null,
+        roomId: target?.roomId || null,
+      });
+
+      toast({
+        title: "Reporte enviado ✅",
+        description: "Nuestro equipo lo revisará. Gracias por ayudarnos a mantener Chactivo seguro.",
+      });
+      onClose();
+    } catch (error) {
+      console.error('Error creando reporte:', error);
+      toast({
+        title: "No pudimos enviar tu reporte",
+        description: "Intenta de nuevo en un momento.",
+        variant: "destructive",
+      });
+    }
   };
 
   return (

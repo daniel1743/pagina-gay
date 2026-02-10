@@ -16,10 +16,6 @@ import { useNavigate } from 'react-router-dom';
 import { X, Eye, Heart, Sparkles, ArrowRight, Camera, User } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
 import { obtenerTarjeta } from '@/services/tarjetaService';
-import {
-  calcularVistasEsperadas,
-  calcularLikesEsperados
-} from '@/services/engagementBoostService';
 
 // Campos que indican una tarjeta "completa"
 const CAMPOS_REQUERIDOS = ['nombre', 'rol', 'bio'];
@@ -119,9 +115,9 @@ const TarjetaPromoBanner = ({ onOpenBaul, onOpenOpin }) => {
 
   if (!visible || !cargado || !esRegistrado) return null;
 
-  // Calcular vistas y likes esperados para el gancho
-  const vistas = tarjeta ? calcularVistasEsperadas(tarjeta, 'tarjeta') : 3;
-  const likes = tarjeta ? calcularLikesEsperados(tarjeta, 'tarjeta') : 0;
+  // Usar métricas reales
+  const vistas = tarjeta?.visitasRecibidas || 0;
+  const likes = tarjeta?.likesRecibidos || 0;
   const porcentaje = calcularPorcentaje(tarjeta);
   const faltante = tarjeta ? obtenerMensajeFaltante(tarjeta) : null;
 
@@ -165,7 +161,7 @@ const TarjetaPromoBanner = ({ onOpenBaul, onOpenOpin }) => {
                 <p className="text-sm text-white font-medium leading-tight">
                   {vistas > 0
                     ? `${vistas} personas vieron tu tarjeta`
-                    : 'Tu tarjeta ya está activa'
+                    : 'Aún no hay vistas en tu tarjeta'
                   }
                 </p>
                 <p className="text-xs text-gray-400 mt-0.5">

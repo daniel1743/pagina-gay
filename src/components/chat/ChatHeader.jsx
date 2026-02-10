@@ -45,7 +45,7 @@ const ChatHeader = ({ currentRoom, onMenuClick, onOpenPrivateChat, onSimulate, a
           size="icon"
           onClick={onMenuClick}
           className="lg:hidden text-muted-foreground hover:text-foreground hover:bg-accent/50 min-w-[44px] min-h-[44px] sm:min-w-0 sm:min-h-0 flex-shrink-0"
-          aria-label="Abrir menú de salas"
+          aria-label="Abrir menú"
         >
           <Menu className="w-6 h-6" />
         </Button>

@@ -24,18 +24,27 @@ export const createReport = async (reportData) => {
 
   const reportsRef = collection(db, 'reports');
 
+  const reason = reportData.reason || reportData.type || reportData.reasonKey || 'other';
+  const description = reportData.description || (reason ? `Reporte: ${reason}` : 'Reporte enviado');
+  const safeDescription = description.length >= 10 ? description : `Reporte: ${description}`;
+
   const report = {
     reporterId: auth.currentUser.uid,
     reporterUsername: reportData.reporterUsername || 'Anónimo',
-    type: reportData.type, // 'acoso', 'violencia', 'drogas', 'ventas', 'otras'
-    otherType: reportData.otherType || null,
-    description: reportData.description,
-    targetUsername: reportData.targetUsername,
-    targetId: reportData.targetId || null,
-    roomId: reportData.roomId || null,
+    // ✅ NUEVO ESQUEMA (mínimo requerido)
+    reportedUserId: reportData.reportedUserId || reportData.targetId || null,
+    context: reportData.context || 'chat',
     messageId: reportData.messageId || null,
+    reason,
+    // ✅ Campos legacy para compatibilidad con admin UI/reglas actuales
+    type: reportData.type || reportData.reasonKey || reason, // 'acoso', 'violencia', 'drogas', 'ventas', 'otras'
+    otherType: reportData.otherType || null,
+    description: safeDescription,
+    targetUsername: reportData.targetUsername || reportData.reportedUsername || null,
+    targetId: reportData.targetId || reportData.reportedUserId || null,
+    roomId: reportData.roomId || null,
     evidence: reportData.evidence || [], // URLs de capturas
-    status: 'pending', // 'pending', 'reviewing', 'resolved', 'dismissed'
+    status: reportData.statusOverride || 'open', // 'open', 'reviewed', 'resolved', 'rejected'
     createdAt: serverTimestamp(),
     updatedAt: serverTimestamp(),
     reviewedBy: null,
@@ -142,6 +151,7 @@ export const updateReportStatus = async (reportId, newStatus, reviewNotes = null
       
       switch (newStatus) {
         case 'reviewing':
+        case 'reviewed':
           notificationTitle = '🔍 Caso en Proceso';
           notificationMessage = 'Tu reporte está siendo analizado por nuestro equipo. Estaremos en comunicación contigo pronto.';
           break;
@@ -198,8 +208,11 @@ export const getReportStats = async () => {
 
   snapshot.docs.forEach(doc => {
     const data = doc.data();
-    stats[data.status]++;
-    stats.byType[data.type]++;
+    const status = data.status === 'open' ? 'pending' : data.status;
+    stats[status]++;
+    if (data.type && stats.byType[data.type] !== undefined) {
+      stats.byType[data.type]++;
+    }
   });
 
   return stats;

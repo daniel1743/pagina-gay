@@ -49,6 +49,7 @@ import { validateMessage } from '@/services/antiSpamService';
 import { auth, db } from '@/config/firebase'; // ✅ CRÍTICO: Necesario para obtener UID real de Firebase Auth
 import { doc, getDoc } from 'firebase/firestore';
 import { sendPrivateChatRequest, respondToPrivateChatRequest, subscribeToNotifications, markNotificationAsRead } from '@/services/socialService';
+import { subscribeToBlockedUsers, isBlocked, isBlockedBetween } from '@/services/blockService';
 // ⚠️ MODERADOR ELIMINADO (06/01/2026) - A petición del usuario
 // import { sendModeratorWelcome } from '@/services/moderatorWelcome';
 // ⚠️ BOTS ELIMINADOS (06/01/2026) - A petición del usuario
@@ -96,6 +97,12 @@ const ChatPage = () => {
   // ✅ Estados y refs - DEBEN estar ANTES del early return
   const [currentRoom, setCurrentRoom] = useState(roomId);
   const [messages, setMessages] = useState([]);
+  const [blockedUserIds, setBlockedUserIds] = useState(new Set());
+  const [blockedByUserIds, setBlockedByUserIds] = useState(new Set());
+  const blockedUserIdsRef = useRef(new Set());
+  const blockedByUserIdsRef = useRef(new Set());
+  const blockedByCacheRef = useRef(new Set());
+  const blockedByPendingRef = useRef(new Set());
   // ⚠️ MODERADOR ELIMINADO (06/01/2026) - A petición del usuario
   // const [moderatorMessage, setModeratorMessage] = useState(null); // 👮 Mensaje del moderador (para RulesBanner)
   const [roomUsers, setRoomUsers] = useState([]); // 🤖 Usuarios en la sala (para sistema de bots)
@@ -109,6 +116,82 @@ const ChatPage = () => {
     }
     return false; // Valor por defecto para SSR
   });
+
+  const isSystemUserId = useCallback((userId) => {
+    if (!userId) return false;
+    return userId === 'system' || userId.startsWith('system_');
+  }, []);
+
+  const refreshBlockedByUsers = useCallback(async (userIds) => {
+    if (!user?.id || !Array.isArray(userIds)) return;
+    const candidates = userIds.filter(id =>
+      id &&
+      id !== user.id &&
+      !isSystemUserId(id) &&
+      !blockedByCacheRef.current.has(id) &&
+      !blockedByPendingRef.current.has(id)
+    );
+    if (candidates.length === 0) return;
+
+    await Promise.all(candidates.map(async (id) => {
+      blockedByPendingRef.current.add(id);
+      try {
+        const blocked = await isBlocked(id, user.id);
+        if (blocked) {
+          setBlockedByUserIds(prev => {
+            const next = new Set(prev);
+            next.add(id);
+            return next;
+          });
+        }
+      } catch (error) {
+        console.warn('[BLOCK] Error verificando bloqueo:', error);
+      } finally {
+        blockedByPendingRef.current.delete(id);
+        blockedByCacheRef.current.add(id);
+      }
+    }));
+  }, [user?.id, isSystemUserId]);
+
+  const filterBlockedMessages = useCallback((incomingMessages) => {
+    if (!incomingMessages || incomingMessages.length === 0) return [];
+    const blockedIds = new Set([
+      ...blockedUserIdsRef.current,
+      ...blockedByUserIdsRef.current
+    ]);
+    return incomingMessages.filter(msg => {
+      const uid = msg.userId;
+      if (!uid || isSystemUserId(uid)) return true;
+      return !blockedIds.has(uid);
+    });
+  }, [isSystemUserId]);
+
+  useEffect(() => {
+    if (!user?.id) {
+      setBlockedUserIds(new Set());
+      setBlockedByUserIds(new Set());
+      blockedByCacheRef.current = new Set();
+      blockedByPendingRef.current = new Set();
+      return;
+    }
+    const unsubscribe = subscribeToBlockedUsers(user.id, (ids) => {
+      setBlockedUserIds(new Set(ids));
+    });
+    return () => unsubscribe?.();
+  }, [user?.id]);
+
+  useEffect(() => {
+    blockedUserIdsRef.current = blockedUserIds;
+  }, [blockedUserIds]);
+
+  useEffect(() => {
+    blockedByUserIdsRef.current = blockedByUserIds;
+  }, [blockedByUserIds]);
+
+  useEffect(() => {
+    if (blockedUserIds.size === 0 && blockedByUserIds.size === 0) return;
+    setMessages(prev => filterBlockedMessages(prev));
+  }, [blockedUserIds, blockedByUserIds, filterBlockedMessages]);
 
   // 🔒 VERIFICAR ACCESO A LA SALA - Redirigir si no tiene permiso
   useEffect(() => {
@@ -306,7 +389,7 @@ const ChatPage = () => {
     // Guard interno: solo ejecutar si hay user
     if (!user) return;
     // ✅ SEO: Validar que la sala existe en roomsData (prevenir 404 en salas comentadas)
-    const activeSalas = roomsData.map(room => room.id);
+    const activeSalas = roomsData.filter(room => room.enabled !== false).map(room => room.id);
     if (!activeSalas.includes(roomId)) {
       toast({
         title: "Sala Temporalmente Cerrada",
@@ -763,7 +846,10 @@ const ChatPage = () => {
       // 👮 SEPARAR mensajes del moderador (para RulesBanner) del resto
       // const moderatorMsg = newMessages.find(m => m.userId === 'system_moderator');
       // const regularMessages = newMessages.filter(m => m.userId !== 'system_moderator');
-      const regularMessages = newMessages; // ✅ Todos los mensajes son regulares ahora
+      // ✅ Verificar bloqueos en background y filtrar mensajes bloqueados
+      const senderIds = Array.from(new Set(newMessages.map(m => m.userId).filter(Boolean)));
+      refreshBlockedByUsers(senderIds);
+      const regularMessages = filterBlockedMessages(newMessages); // ✅ Solo mensajes visibles
 
       // 🔍 TRACE: Estado actualizado con mensajes recibidos
       traceEvent(TRACE_EVENTS.STATE_UPDATED, {
@@ -1336,6 +1422,19 @@ const ChatPage = () => {
     }
 
     try {
+      const targetMessage = messages.find(m => (m._realId || m.id) === messageId);
+      const targetUserId = targetMessage?.userId;
+      if (targetUserId) {
+        const blocked = await isBlockedBetween(user.id, targetUserId);
+        if (blocked) {
+          toast({
+            title: "No disponible",
+            description: "No puedes interactuar con este usuario.",
+            variant: "destructive",
+          });
+          return;
+        }
+      }
       console.log('[REACTION] 📤 Enviando a Firestore...');
       await addReactionToMessage(currentRoom, messageId, reaction);
       console.log('[REACTION] ✅ Reacción guardada');
@@ -1933,6 +2032,15 @@ const ChatPage = () => {
     }
 
     try {
+      const blocked = await isBlockedBetween(user.id, targetUser.userId);
+      if (blocked) {
+        toast({
+          title: "No disponible",
+          description: "No puedes iniciar un chat privado con este usuario.",
+          variant: "destructive",
+        });
+        return;
+      }
       // ✅ Usar el servicio para enviar la solicitud a Firestore
       await sendPrivateChatRequest(user.id, targetUser.userId);
       
@@ -1946,8 +2054,10 @@ const ChatPage = () => {
     } catch (error) {
       console.error('Error sending private chat request:', error);
       toast({
-        title: "No pudimos enviar la invitación",
-        description: "Intenta de nuevo en un momento",
+        title: error?.message === 'BLOCKED' ? "No disponible" : "No pudimos enviar la invitación",
+        description: error?.message === 'BLOCKED'
+          ? "No puedes iniciar un chat privado con este usuario."
+          : "Intenta de nuevo en un momento",
         variant: "destructive",
       });
     }
@@ -1988,8 +2098,10 @@ const ChatPage = () => {
       } catch (error) {
         console.error('Error responding to private chat request:', error);
         toast({
-          title: "No pudimos procesar tu respuesta",
-          description: "Intenta de nuevo en un momento",
+          title: error?.message === 'BLOCKED' ? "No disponible" : "No pudimos procesar tu respuesta",
+          description: error?.message === 'BLOCKED'
+            ? "No puedes abrir un chat privado con este usuario."
+            : "Intenta de nuevo en un momento",
           variant: "destructive",
         });
       }

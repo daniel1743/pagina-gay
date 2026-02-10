@@ -49,12 +49,6 @@ import {
 import { getOrCreatePrivateChat } from '@/services/socialService';
 import { getCurrentLocation } from '@/services/geolocationService';
 import { toast } from '@/components/ui/use-toast';
-import {
-  procesarBoostTarjeta,
-  generarMensajeEngagement,
-  deberíaMostrarToast,
-  marcarToastMostrado
-} from '@/services/engagementBoostService';
 
 /**
  * Header del Baúl
@@ -270,29 +264,6 @@ const BaulSection = ({ isOpen = true, onClose, variant = 'modal' }) => {
 
       setMiTarjeta(tarjeta);
 
-      // 🚀 BOOST: Aplicar vistas y likes graduales a mi tarjeta
-      if (tarjeta) {
-        try {
-          const boostResult = await procesarBoostTarjeta(tarjeta);
-
-          if (boostResult?.huboBoost && deberíaMostrarToast('baulEngagementToast')) {
-            const mensaje = generarMensajeEngagement('tarjeta', boostResult);
-            if (mensaje) {
-              // Delay para que se sienta más natural
-              setTimeout(() => {
-                toast({
-                  title: mensaje.title,
-                  description: mensaje.description,
-                  duration: 4000
-                });
-                marcarToastMostrado('baulEngagementToast');
-              }, 2000 + Math.random() * 3000); // 2-5 segundos de delay
-            }
-          }
-        } catch (boostError) {
-          console.warn('[BAUL] Error en boost:', boostError.message);
-        }
-      }
     } catch (error) {
       console.error('[BAUL] ❌ Error cargando/creando mi tarjeta:', error);
     }
@@ -376,6 +347,15 @@ const BaulSection = ({ isOpen = true, onClose, variant = 'modal' }) => {
         miTarjeta?.nombre || user?.username || 'Usuario',
         user?.avatar || miTarjeta?.fotoUrl || ''
       );
+
+      if (resultado?.reason === 'blocked') {
+        toast({
+          title: 'No puedes interactuar',
+          description: 'Este usuario ha bloqueado la interacción o tú lo has bloqueado.',
+          variant: 'destructive'
+        });
+        return false;
+      }
 
       if (resultado.success) {
         setLikesData(prev => ({ ...prev, [tarjetaId]: true }));
@@ -487,8 +467,10 @@ const BaulSection = ({ isOpen = true, onClose, variant = 'modal' }) => {
     } catch (error) {
       console.error('[BAUL] Error creando chat privado:', error);
       toast({
-        title: 'No pudimos abrir el chat',
-        description: 'Intenta de nuevo en un momento',
+        title: error?.message === 'BLOCKED' ? 'No disponible' : 'No pudimos abrir el chat',
+        description: error?.message === 'BLOCKED'
+          ? 'No puedes chatear con este usuario.'
+          : 'Intenta de nuevo en un momento',
         variant: 'destructive',
       });
     }

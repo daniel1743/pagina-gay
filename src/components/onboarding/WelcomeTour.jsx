@@ -11,8 +11,8 @@ const tourSteps = [
     gradient: 'magenta-gradient',
   },
   {
-    title: 'Salas de Chat Temáticas 💬',
-    description: 'Tenemos 10 salas diferentes: Conversas Libres, Gaming, +30, Amistad, y salas específicas por preferencias. ¡Explóralas todas!',
+    title: 'Chat Principal 💬',
+    description: 'Todo sucede en una sola sala principal para concentrar usuarios reales y mantener la conversación viva.',
     icon: Users,
     gradient: 'cyan-gradient',
   },

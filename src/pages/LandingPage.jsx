@@ -94,11 +94,11 @@ export default function LandingPage() {
           >
             <div className="flex items-center gap-2">
               <span className="w-3 h-3 bg-green-500 rounded-full animate-pulse"></span>
-              <span className="text-sm">+{Math.floor(Math.random() * 50) + 30} usuarios online</span>
+              <span className="text-sm">Actividad en tiempo real</span>
             </div>
             <div className="flex items-center gap-2">
               <span className="text-xl">💬</span>
-              <span className="text-sm">Conversaciones activas ahora</span>
+              <span className="text-sm">Conversaciones en vivo</span>
             </div>
           </motion.div>
         </motion.div>

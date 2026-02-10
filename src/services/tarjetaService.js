@@ -9,7 +9,8 @@
  * - Genera razones para volver
  */
 
-import { db, auth } from '@/config/firebase';
+import { db } from '@/config/firebase';
+import { isBlockedBetween } from '@/services/blockService';
 import {
   doc,
   setDoc,
@@ -28,10 +29,6 @@ import {
   onSnapshot,
   Timestamp
 } from 'firebase/firestore';
-import {
-  calcularVistasEsperadas,
-  calcularLikesEsperados
-} from '@/services/engagementBoostService';
 
 // ============================================
 // 📊 MODELO DE DATOS
@@ -330,105 +327,10 @@ export async function actualizarEstadoOnline(odIdUsuari, estaOnline) {
 // 📋 OBTENER TARJETAS (BAÚL)
 // ============================================
 
-/**
- * 🚀 Aplicar boost VISUAL de likes y vistas a TODAS las tarjetas
- * - Calcula en memoria los números esperados según antigüedad
- * - NO escribe a Firestore (solo visualización)
- * - Cada tarjeta muestra max(real, esperado)
- * - Evita que una tarjeta nueva tenga 0 likes y 0 vistas
- */
-function aplicarBoostVisualATodas(tarjetas) {
-  return tarjetas.map(tarjeta => {
-    const vistasReales = tarjeta.visitasRecibidas || 0;
-    const likesReales = tarjeta.likesRecibidos || 0;
-
-    // Calcular valores esperados según tiempo de vida de la tarjeta
-    const vistasEsperadas = calcularVistasEsperadas(tarjeta, 'tarjeta');
-    const likesEsperados = calcularLikesEsperados(tarjeta, 'tarjeta');
-
-    // Mostrar el mayor entre real y esperado
-    return {
-      ...tarjeta,
-      visitasRecibidas: Math.max(vistasReales, vistasEsperadas),
-      likesRecibidos: Math.max(likesReales, likesEsperados),
-    };
-  });
-}
-
 // ⚙️ CONFIGURACIÓN DEL BAÚL
 const BAUL_CONFIG = {
   TARJETAS_MINIMAS: 100,        // Siempre mostrar 100 tarjetas
-  ONLINE_MINIMO: 10,            // Mínimo de usuarios que aparecen como "online"
-  ONLINE_MAXIMO: 15,            // Máximo de usuarios fake "online" cuando hay pocos reales
-  MOSTRAR_OFFLINE: false,       // Si es false, todos los offline aparecen como "reciente"
 };
-
-/**
- * 🔄 Aplicar boost de estado de conexión
- * - Si hay menos de 10 online reales, mostrar 10-15 como online
- * - Los demás aparecen como "reciente" (naranja), nunca offline
- */
-function aplicarBoostEstadoConexion(tarjetas, miUserId) {
-  // Separar mi tarjeta
-  const miTarjeta = tarjetas.find(t => t.odIdUsuari === miUserId || t.id === miUserId);
-  const otrasTarjetas = tarjetas.filter(t => t.odIdUsuari !== miUserId && t.id !== miUserId);
-
-  // Contar online reales
-  const onlineReales = otrasTarjetas.filter(t => t.estadoReal === 'online').length;
-
-  console.log(`[BAUL] 📊 Online reales: ${onlineReales}`);
-
-  // Si hay suficientes online reales, no hacer nada
-  if (onlineReales >= BAUL_CONFIG.ONLINE_MINIMO) {
-    console.log(`[BAUL] ✅ Hay suficientes online reales (${onlineReales}), no se aplica boost`);
-    // Solo asegurar que nadie aparezca como offline
-    return tarjetas.map(t => ({
-      ...t,
-      estado: t.estado === 'offline' ? 'reciente' : t.estado
-    }));
-  }
-
-  // Calcular cuántos fake online necesitamos (entre 10-15)
-  const fakeOnlineNecesarios = BAUL_CONFIG.ONLINE_MINIMO +
-    Math.floor(Math.random() * (BAUL_CONFIG.ONLINE_MAXIMO - BAUL_CONFIG.ONLINE_MINIMO + 1)) -
-    onlineReales;
-
-  console.log(`[BAUL] 🚀 Aplicando boost: ${fakeOnlineNecesarios} tarjetas pasarán a "online"`);
-
-  // Ordenar otras tarjetas por última conexión (más recientes primero)
-  const ordenadas = [...otrasTarjetas].sort((a, b) => {
-    const aTime = a.ultimaConexion?.toMillis?.() || a.ultimaConexion || 0;
-    const bTime = b.ultimaConexion?.toMillis?.() || b.ultimaConexion || 0;
-    return bTime - aTime;
-  });
-
-  // Aplicar boost
-  let contadorFakeOnline = 0;
-  const tarjetasBoosteadas = ordenadas.map((tarjeta, index) => {
-    // Si ya es online real, mantener
-    if (tarjeta.estadoReal === 'online') {
-      return { ...tarjeta, estado: 'online' };
-    }
-
-    // Si necesitamos más fake online y esta tarjeta califica
-    if (contadorFakeOnline < fakeOnlineNecesarios) {
-      contadorFakeOnline++;
-      return { ...tarjeta, estado: 'online' };
-    }
-
-    // El resto aparece como "reciente" (naranja), nunca offline
-    return { ...tarjeta, estado: 'reciente' };
-  });
-
-  // Reconstruir array con mi tarjeta al inicio
-  const resultado = miTarjeta
-    ? [miTarjeta, ...tarjetasBoosteadas]
-    : tarjetasBoosteadas;
-
-  console.log(`[BAUL] 📊 Resultado: ${resultado.filter(t => t.estado === 'online').length} online, ${resultado.filter(t => t.estado === 'reciente').length} recientes`);
-
-  return resultado;
-}
 
 /**
  * Obtener tarjetas cercanas ordenadas por proximidad y estado
@@ -523,7 +425,7 @@ export async function obtenerTarjetasCercanas(miUbicacion, miUserId, limite = 10
         distanciaKm = 9999;
       }
 
-      // Determinar estado REAL (antes del boost)
+      // Determinar estado real
       let estadoReal = 'offline';
       if (tarjeta.estaOnline) {
         estadoReal = 'online';
@@ -539,16 +441,10 @@ export async function obtenerTarjetasCercanas(miUbicacion, miUserId, limite = 10
         distanciaKm: distanciaKm || 9999,
         distanciaTexto,
         estadoReal,
-        estado: estadoReal, // Se modificará después con el boost
+        estado: estadoReal,
         esMiTarjeta: tarjeta.odIdUsuari === miUserId
       };
     });
-
-    // 🚀 APLICAR BOOST DE ESTADOS (10-15 online mínimo, resto naranja)
-    tarjetas = aplicarBoostEstadoConexion(tarjetas, miUserId);
-
-    // 🚀 APLICAR BOOST VISUAL DE LIKES/VISTAS A TODAS (en memoria, sin escribir a Firestore)
-    tarjetas = aplicarBoostVisualATodas(tarjetas);
 
     // 📊 Calcular puntaje de perfil para cada tarjeta
     tarjetas = tarjetas.map(t => ({
@@ -675,11 +571,6 @@ export async function obtenerTarjetasRecientes(miUserId, limite = 100) {
 
     console.log(`[TARJETA] 📊 Stats: ${contadorConFoto} con foto real, ${contadorSinUltimaConexion} sin ultimaConexion`);
 
-    // 🚀 APLICAR BOOST DE ESTADOS (10-15 online mínimo, resto naranja)
-    tarjetas = aplicarBoostEstadoConexion(tarjetas, miUserId);
-
-    // 🚀 APLICAR BOOST VISUAL DE LIKES/VISTAS A TODAS (en memoria, sin escribir a Firestore)
-    tarjetas = aplicarBoostVisualATodas(tarjetas);
 
     // 📊 Calcular puntaje de perfil para cada tarjeta
     tarjetas = tarjetas.map(t => ({
@@ -735,6 +626,10 @@ export async function darLike(tarjetaId, miUserId, miUsername, miAvatar = '') {
     if (tarjetaId === miUserId) {
       console.warn('[TARJETA] No puedes darte like a ti mismo');
       return { success: false, isMatch: false };
+    }
+    const blocked = await isBlockedBetween(miUserId, tarjetaId);
+    if (blocked) {
+      return { success: false, isMatch: false, reason: 'blocked' };
     }
 
     // 1. Verificar si el otro usuario ya me dio like (para detectar match)
@@ -1044,6 +939,10 @@ export async function enviarMensajeTarjeta(tarjetaId, miUserId, miUsername, mens
       console.warn('[TARJETA] No puedes enviarte mensaje a ti mismo');
       return false;
     }
+    const blocked = await isBlockedBetween(miUserId, tarjetaId);
+    if (blocked) {
+      throw new Error('BLOCKED');
+    }
 
     // Limitar longitud del mensaje
     const mensajeLimpio = mensaje.trim().substring(0, 200);
@@ -1083,6 +982,8 @@ export async function registrarVisita(tarjetaId, miUserId, miUsername) {
   try {
     if (!tarjetaId || !miUserId) return;
     if (tarjetaId === miUserId) return; // No registrar visita propia
+    const blocked = await isBlockedBetween(miUserId, tarjetaId);
+    if (blocked) return;
 
     const tarjetaRef = doc(db, 'tarjetas', tarjetaId);
 
@@ -1161,6 +1062,10 @@ export async function obtenerMiActividad(miUserId, limite = 20) {
  */
 export async function verificarInteresMutuo(userId1, userId2) {
   try {
+    const blocked = await isBlockedBetween(userId1, userId2);
+    if (blocked) {
+      return { hayInteres: false, tipo: 'bloqueado' };
+    }
     // 1. Verificar match formal
     const matchResult = await verificarMatch(userId1, userId2);
     if (matchResult.exists) {

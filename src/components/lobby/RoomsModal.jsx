@@ -89,10 +89,10 @@ const RoomsModal = ({ isOpen, onClose }) => {
         <DialogHeader className="p-6">
           <DialogTitle className="text-3xl font-extrabold flex items-center gap-3">
             <MessageSquare className="w-8 h-8 text-cyan-400" />
-            Salas de Chat
+            Chat Principal
           </DialogTitle>
           <DialogDescription className="text-muted-foreground">
-            Elige una sala y únete a la conversación en tiempo real.
+            Todo ocurre en una sola sala para concentrar usuarios reales.
           </DialogDescription>
         </DialogHeader>
 
@@ -103,7 +103,7 @@ const RoomsModal = ({ isOpen, onClose }) => {
               <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-muted-foreground" />
               <Input
                 type="text"
-                placeholder="Buscar una sala..."
+                placeholder="Buscar en el chat principal..."
                 className="w-full bg-background border-2 border-border rounded-full pl-12 pr-4 py-3 text-lg placeholder:text-muted-foreground focus:border-primary transition-all"
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}

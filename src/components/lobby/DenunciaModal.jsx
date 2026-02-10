@@ -38,6 +38,9 @@ const DenunciaModal = ({ isOpen, onClose }) => {
         otherType: denunciaType === 'otras' ? otraDenuncia : null,
         description: descripcion,
         targetUsername: denunciado,
+        reportedUserId: null,
+        context: 'general',
+        reason: denunciaType,
       });
 
       toast({

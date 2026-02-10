@@ -10,10 +10,12 @@ import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigge
 import { toast } from '@/components/ui/use-toast';
 import { collection, addDoc, onSnapshot, query, orderBy, serverTimestamp } from 'firebase/firestore';
 import { db } from '@/config/firebase';
+import { blockUser, isBlocked } from '@/services/blockService';
 
 const PrivateChatWindow = ({ user, partner, onClose, chatId, initialMessage = '', autoFocus = true }) => {
   const [messages, setMessages] = useState([]);
   const [newMessage, setNewMessage] = useState(initialMessage || '');
+  const [blockState, setBlockState] = useState({ blockedByMe: false, blockedByOther: false });
   const messagesEndRef = useRef(null);
   const inputRef = useRef(null);
 
@@ -39,6 +41,29 @@ const PrivateChatWindow = ({ user, partner, onClose, chatId, initialMessage = ''
   }, [chatId]);
 
   useEffect(() => {
+    const partnerId = partner?.id || partner?.userId;
+    if (!user?.id || !partnerId) return;
+    let active = true;
+    const checkBlockStatus = async () => {
+      try {
+        const [blockedByMe, blockedByOther] = await Promise.all([
+          isBlocked(user.id, partnerId),
+          isBlocked(partnerId, user.id)
+        ]);
+        if (active) {
+          setBlockState({ blockedByMe, blockedByOther });
+        }
+      } catch (error) {
+        console.warn('[PRIVATE CHAT] Error verificando bloqueo:', error);
+      }
+    };
+    checkBlockStatus();
+    return () => {
+      active = false;
+    };
+  }, [user?.id, partner?.id, partner?.userId]);
+
+  useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages]);
 
@@ -53,6 +78,14 @@ const PrivateChatWindow = ({ user, partner, onClose, chatId, initialMessage = ''
   const handleSendMessage = async (e) => {
     e.preventDefault();
     if (newMessage.trim() === '' || !chatId) return;
+    if (blockState.blockedByMe || blockState.blockedByOther) {
+      toast({
+        title: "Chat no disponible",
+        description: "No puedes enviar mensajes en este chat.",
+        variant: "destructive",
+      });
+      return;
+    }
 
     try {
       const messagesRef = collection(db, 'private_chats', chatId, 'messages');
@@ -99,13 +132,29 @@ const PrivateChatWindow = ({ user, partner, onClose, chatId, initialMessage = ''
   };
 
   const handleBlockUser = () => {
-    sendLeaveNotification(); // Notificar antes de bloquear (fire and forget)
-    toast({
-        title: `Has bloqueado a ${partner.username}`,
-        description: 'No recibirás más mensajes de este usuario.',
-        variant: 'destructive',
-    });
-    onClose();
+    const partnerId = partner?.id || partner?.userId;
+    if (!partnerId) return;
+    const doBlock = async () => {
+      try {
+        await blockUser(user.id, partnerId, { source: 'private_chat' });
+        setBlockState({ blockedByMe: true, blockedByOther: blockState.blockedByOther });
+        sendLeaveNotification(); // Notificar antes de bloquear (fire and forget)
+        toast({
+          title: `Has bloqueado a ${partner.username}`,
+          description: 'No recibirás más mensajes de este usuario.',
+          variant: 'destructive',
+        });
+        onClose();
+      } catch (error) {
+        console.error('Error bloqueando usuario:', error);
+        toast({
+          title: "No pudimos bloquear",
+          description: "Intenta de nuevo en un momento",
+          variant: "destructive",
+        });
+      }
+    };
+    doBlock();
   };
 
   const handleVisitProfile = () => {
@@ -171,7 +220,16 @@ const PrivateChatWindow = ({ user, partner, onClose, chatId, initialMessage = ''
       </header>
 
       <div className="flex-1 overflow-y-auto p-3 space-y-3 scrollbar-hide">
-        {messages.length === 0 ? (
+        {(blockState.blockedByMe || blockState.blockedByOther) ? (
+          <div className="flex flex-col items-center justify-center h-full text-center px-4">
+            <p className="text-muted-foreground text-sm mb-2">
+              Este chat no está disponible por un bloqueo
+            </p>
+            <p className="text-muted-foreground/70 text-xs">
+              No podrás enviar ni recibir mensajes en esta conversación
+            </p>
+          </div>
+        ) : messages.length === 0 ? (
           <div className="flex flex-col items-center justify-center h-full text-center px-4">
             <p className="text-muted-foreground text-sm mb-2">
               No hay mensajes aún
@@ -240,8 +298,14 @@ const PrivateChatWindow = ({ user, partner, onClose, chatId, initialMessage = ''
             placeholder="Escribe un mensaje privado..."
             className="flex-1 bg-secondary border-input rounded-full px-4 focus:border-accent"
             autoFocus={autoFocus}
+            disabled={blockState.blockedByMe || blockState.blockedByOther}
           />
-          <Button type="submit" size="icon" className="rounded-full magenta-gradient text-white">
+          <Button
+            type="submit"
+            size="icon"
+            className="rounded-full magenta-gradient text-white"
+            disabled={blockState.blockedByMe || blockState.blockedByOther}
+          >
             <Send className="w-5 h-5" />
           </Button>
         </div>

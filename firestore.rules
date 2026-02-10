@@ -374,7 +374,7 @@ service cloud.firestore {
                       request.resource.data.description.size() > 10 &&
                       'targetUsername' in request.resource.data &&
                       'status' in request.resource.data &&
-                      request.resource.data.status == 'pending';
+                      request.resource.data.status in ['pending', 'open'];
 
       allow update: if isAdmin();
 
@@ -412,6 +412,25 @@ service cloud.firestore {
                       resource.data.userId == userId;
 
       allow delete: if false;
+    }
+
+    // ===========================
+    // BLOQUEOS ENTRE USUARIOS
+    // ===========================
+
+    match /blocks/{userId} {
+      // Leer lista propia
+      allow read: if isAuthenticated() && request.auth.uid == userId;
+
+      match /blockedUsers/{blockedUserId} {
+        // Leer: dueño o el usuario bloqueado (para validar interacción)
+        allow read: if isAuthenticated() &&
+                      (request.auth.uid == userId || request.auth.uid == blockedUserId);
+
+        // Crear/Actualizar/Borrar: solo dueño del bloque
+        allow create, update, delete: if isAuthenticated() &&
+                                        request.auth.uid == userId;
+      }
     }
 
     // ===========================

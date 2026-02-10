@@ -30,7 +30,6 @@ import SEOLanding, {
 const LobbyPage = lazy(() => import('@/pages/LobbyPage'));
 const AuthPage = lazy(() => import('@/pages/AuthPage'));
 const ChatPage = lazy(() => import('@/pages/ChatPage'));
-const ChatSecondaryPage = lazy(() => import('@/pages/ChatSecondaryPage'));
 const ProfilePage = lazy(() => import('@/pages/ProfilePage'));
 const PremiumPage = lazy(() => import('@/pages/PremiumPage'));
 const AdminPage = lazy(() => import('@/pages/AdminPage'));
@@ -206,9 +205,9 @@ function AppRoutes() {
 
         {/* 🚀 LANDINGS ESPECÍFICAS - Contenido único para mejor SEO */}
         <Route path="/global" element={<LandingRoute><LandingLayout><GlobalLandingPage /></LandingLayout></LandingRoute>} />
-        <Route path="/gaming" element={<LandingRoute redirectTo="/chat/gaming"><LandingLayout><GamingLandingPage /></LandingLayout></LandingRoute>} />
-        <Route path="/mas-30" element={<LandingRoute redirectTo="/chat/mas-30"><LandingLayout><Mas30LandingPage /></LandingLayout></LandingRoute>} />
-        <Route path="/santiago" element={<LandingRoute redirectTo="/chat/santiago"><LandingLayout><SantiagoLandingPage /></LandingLayout></LandingRoute>} />
+        <Route path="/gaming" element={<LandingRoute redirectTo="/chat/principal"><LandingLayout><GamingLandingPage /></LandingLayout></LandingRoute>} />
+        <Route path="/mas-30" element={<LandingRoute redirectTo="/chat/principal"><LandingLayout><Mas30LandingPage /></LandingLayout></LandingRoute>} />
+        <Route path="/santiago" element={<LandingRoute redirectTo="/chat/principal"><LandingLayout><SantiagoLandingPage /></LandingLayout></LandingRoute>} />
 
         {/* ✅ REDIRECCIÓN: conversas-libres → principal (sala limpia sin spam) */}
         <Route
@@ -223,7 +222,7 @@ function AppRoutes() {
         />
 
         <Route path="/chat/:roomId" element={<ChatPage />} />
-        <Route path="/chat-secondary/:roomId" element={<ChatSecondaryPage />} />
+        <Route path="/chat-secondary/:roomId" element={<Navigate to="/chat/principal" replace />} />
         <Route path="/anonymous-chat" element={<AnonymousChatPage />} />
         <Route path="/anonymous-forum" element={<AnonymousForumPage />} />
         <Route path="/thread/:threadId" element={<MainLayout><ThreadDetailPage /></MainLayout>} />

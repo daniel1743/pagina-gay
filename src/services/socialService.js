@@ -16,6 +16,7 @@ import {
   limit,
 } from 'firebase/firestore';
 import { db } from '@/config/firebase';
+import { isBlockedBetween } from '@/services/blockService';
 
 /**
  * Envía un mensaje directo a otro usuario
@@ -23,6 +24,11 @@ import { db } from '@/config/firebase';
  */
 export const sendDirectMessage = async (fromUserId, toUserId, content) => {
   try {
+    const blocked = await isBlockedBetween(fromUserId, toUserId);
+    if (blocked) {
+      throw new Error('BLOCKED');
+    }
+
     // Obtener datos del remitente
     const fromUserDoc = await getDoc(doc(db, 'users', fromUserId));
     const fromUserData = fromUserDoc.data();
@@ -61,6 +67,11 @@ export const sendDirectMessage = async (fromUserId, toUserId, content) => {
  */
 export const sendPrivateChatRequest = async (fromUserId, toUserId) => {
   try {
+    const blocked = await isBlockedBetween(fromUserId, toUserId);
+    if (blocked) {
+      throw new Error('BLOCKED');
+    }
+
     // Obtener datos del remitente
     const fromUserDoc = await getDoc(doc(db, 'users', fromUserId));
     const fromUserData = fromUserDoc.data();
@@ -101,6 +112,10 @@ export const getOrCreatePrivateChat = async (userAId, userBId) => {
   }
   if (userAId === userBId) {
     throw new Error('Cannot create chat with self');
+  }
+  const blocked = await isBlockedBetween(userAId, userBId);
+  if (blocked) {
+    throw new Error('BLOCKED');
   }
 
   const chatsRef = collection(db, 'private_chats');
@@ -155,6 +170,10 @@ export const respondToPrivateChatRequest = async (
     if (accepted) {
       const notificationDoc = await getDoc(notificationRef);
       const notificationData = notificationDoc.data();
+      const blocked = await isBlockedBetween(notificationData.from, userId);
+      if (blocked) {
+        throw new Error('BLOCKED');
+      }
 
       // Crear sala de chat privado con ambos usuarios
       const privateChatRef = doc(collection(db, 'private_chats'));

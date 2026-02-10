@@ -73,10 +73,10 @@ const ReportStatusDropdown = ({ report, onStatusUpdate, onOpenChat }) => {
           onStatusUpdate('resolved');
         }
       } else if (option.id === 'in_process') {
-        // Actualizar estado a "reviewing" si está en proceso
-        await updateReportStatus(report.id, 'reviewing', null, report.reporterId);
+        // Actualizar estado a "reviewed" si está en proceso
+        await updateReportStatus(report.id, 'reviewed', null, report.reporterId);
         if (onStatusUpdate) {
-          onStatusUpdate('reviewing');
+          onStatusUpdate('reviewed');
         }
       }
 
@@ -184,4 +184,3 @@ const ReportStatusDropdown = ({ report, onStatusUpdate, onOpenChat }) => {
 };
 
 export default ReportStatusDropdown;
-

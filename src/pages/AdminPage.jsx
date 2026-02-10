@@ -343,7 +343,7 @@ const AdminPage = () => {
       // Calcular estadísticas
       const stats = {
         totalReports: reportsData.length,
-        pendingReports: reportsData.filter(r => r.status === 'pending').length,
+        pendingReports: reportsData.filter(r => r.status === 'pending' || r.status === 'open').length,
         resolvedReports: reportsData.filter(r => r.status === 'resolved').length,
         rejectedReports: reportsData.filter(r => r.status === 'rejected').length
       };
@@ -799,6 +799,7 @@ const AdminPage = () => {
         return 'bg-green-500/20 text-green-400 border-green-500/30';
       case 'rejected':
         return 'bg-red-500/20 text-red-400 border-red-500/30';
+      case 'reviewed':
       case 'in_progress':
         return 'bg-blue-500/20 text-blue-400 border-blue-500/30';
       default:
@@ -816,6 +817,7 @@ const AdminPage = () => {
         return <CheckCircle className="w-4 h-4" />;
       case 'rejected':
         return <XCircle className="w-4 h-4" />;
+      case 'reviewed':
       case 'in_progress':
         return <Activity className="w-4 h-4" />;
       default:
@@ -1206,7 +1208,7 @@ const AdminPage = () => {
                             <span className="text-xs font-medium capitalize">{report.status}</span>
                           </div>
 
-                          {report.status === 'pending' && (
+                          {(report.status === 'pending' || report.status === 'open') && (
                             <div className="flex flex-col gap-2">
                               <ReportStatusDropdown
                                 report={report}
