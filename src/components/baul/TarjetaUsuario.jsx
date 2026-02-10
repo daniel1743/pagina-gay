@@ -6,19 +6,16 @@
  * Acciones: like, mensaje, ver perfil completo
  */
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import {
   Heart,
   MessageSquare,
-  MapPin,
-  Clock,
   User,
-  Eye,
-  Ruler,
-  ChevronRight
+  Eye
 } from 'lucide-react';
 import { getColorRol, getEmojiEstado, formatearHorarios } from '@/services/tarjetaService';
+import { useAuth } from '@/contexts/AuthContext';
 
 /**
  * Indicador de estado (🟢🟠⚫)
@@ -69,8 +66,11 @@ const TarjetaUsuario = ({
   onVerPerfil,
   esMiTarjeta = false,
   yaLeDiLike = false,
-  isLoading = false
+  isLoading = false,
+  interactionLocked = false,
+  onLockedAction
 }) => {
+  const { user } = useAuth();
   const [liked, setLiked] = useState(yaLeDiLike);
   const [likesCount, setLikesCount] = useState(tarjeta.likesRecibidos || 0);
   const estadoActual = tarjeta.estadoReal || tarjeta.estado;
@@ -86,6 +86,21 @@ const TarjetaUsuario = ({
   const createdMs = getTimestampMs(tarjeta.creadaEn || tarjeta.createdAt);
   const isNew = createdMs ? (nowMs - createdMs) < 24 * 60 * 60 * 1000 : false;
   const isActive = estadoActual === 'online';
+  const isSensitive = Boolean(
+    tarjeta.fotoSensible ||
+    tarjeta.contenidoSensible ||
+    tarjeta.isExplicit ||
+    tarjeta.explicit ||
+    tarjeta.nsfw ||
+    tarjeta.isSensitive
+  );
+  const viewerKey = user?.id || user?.guestId || 'anon';
+  const revealKey = `baul_blur_reveal:${viewerKey}:${tarjeta.odIdUsuari || tarjeta.id || 'unknown'}`;
+  const [revealed, setRevealed] = useState(() => sessionStorage.getItem(revealKey) === '1');
+
+  useEffect(() => {
+    setRevealed(sessionStorage.getItem(revealKey) === '1');
+  }, [revealKey]);
   const priorityClass = !esMiTarjeta
     ? (isActive
         ? 'ring-1 ring-emerald-400/40 shadow-[0_0_12px_rgba(16,185,129,0.12)]'
@@ -97,6 +112,10 @@ const TarjetaUsuario = ({
   const handleLike = async (e) => {
     e.stopPropagation();
     if (esMiTarjeta || isLoading) return;
+    if (interactionLocked) {
+      onLockedAction?.('like');
+      return;
+    }
 
     // Optimistic update
     const nuevoEstado = !liked;
@@ -105,7 +124,7 @@ const TarjetaUsuario = ({
 
     // Llamar al handler
     if (onLike) {
-      const exito = await onLike(tarjeta.odIdUsuari, nuevoEstado);
+      const exito = await onLike(tarjeta, nuevoEstado);
       if (!exito) {
         // Revertir si falla
         setLiked(!nuevoEstado);
@@ -117,6 +136,10 @@ const TarjetaUsuario = ({
   const handleMensaje = (e) => {
     e.stopPropagation();
     if (esMiTarjeta) return;
+    if (interactionLocked) {
+      onLockedAction?.('chat');
+      return;
+    }
     onMensaje?.(tarjeta);
   };
 
@@ -124,10 +147,14 @@ const TarjetaUsuario = ({
     onVerPerfil?.(tarjeta);
   };
 
-  // Formatear info física
-  const infoFisica = [];
-  if (tarjeta.pesaje) infoFisica.push(`${tarjeta.pesaje}cm`);
-  if (tarjeta.alturaCm) infoFisica.push(`${tarjeta.alturaCm / 100}m`);
+  const handleReveal = (e) => {
+    e.stopPropagation();
+    sessionStorage.setItem(revealKey, '1');
+    setRevealed(true);
+  };
+
+  const hasPhoto = Boolean(tarjeta.fotoUrl || tarjeta.fotoUrlFull || tarjeta.fotoUrlThumb);
+  const shouldBlur = isSensitive && !esMiTarjeta && !revealed && hasPhoto;
 
   return (
     <motion.div
@@ -161,17 +188,27 @@ const TarjetaUsuario = ({
 
       {/* Foto / Avatar - MÁS COMPACTO (fallback: fotoUrlFull, fotoUrlThumb) */}
       <div className="relative aspect-[4/5] bg-gradient-to-br from-gray-700 to-gray-800">
-        {(tarjeta.fotoUrl || tarjeta.fotoUrlFull || tarjeta.fotoUrlThumb) ? (
+        {hasPhoto ? (
           <img
             src={tarjeta.fotoUrl || tarjeta.fotoUrlFull || tarjeta.fotoUrlThumb}
             alt={tarjeta.nombre}
-            className="w-full h-full object-cover"
+            className={`w-full h-full object-cover transition ${shouldBlur ? 'blur-[10px] scale-[1.02]' : ''}`}
             loading="lazy"
           />
         ) : (
           <div className="absolute inset-0 flex items-center justify-center">
             <User className="w-10 h-10 text-gray-600" />
           </div>
+        )}
+
+        {shouldBlur && (
+          <button
+            type="button"
+            onClick={handleReveal}
+            className="absolute inset-0 z-10 flex items-center justify-center bg-black/40 text-white text-[11px] font-semibold backdrop-blur-[1px]"
+          >
+            Tocar para ver
+          </button>
         )}
 
         {/* Gradiente inferior */}
@@ -185,23 +222,20 @@ const TarjetaUsuario = ({
           }`} />
         </div>
 
-        {/* Info principal - sobre la foto */}
-        <div className="absolute bottom-0 left-0 right-0 p-1.5">
-          <h3 className="text-xs sm:text-sm font-bold text-white truncate">
-            {tarjeta.nombre || 'Usuario'}
-            {tarjeta.edad && <span className="font-normal text-gray-300">, {tarjeta.edad}</span>}
-          </h3>
-          <div className="flex items-center gap-1 mt-0.5">
-            <RolBadge rol={tarjeta.rol} />
-            {tarjeta.ubicacionTexto && (
-              <span className="text-[9px] text-gray-400 truncate">{tarjeta.ubicacionTexto}</span>
-            )}
-          </div>
+      {/* Info principal - sobre la foto */}
+      <div className="absolute bottom-0 left-0 right-0 p-1.5">
+        <h3 className="text-xs sm:text-sm font-bold text-white truncate">
+          {tarjeta.nombre || 'Usuario'}
+          {tarjeta.edad && <span className="font-normal text-gray-300">, {tarjeta.edad}</span>}
+        </h3>
+        <div className="flex items-center gap-1 mt-0.5">
+          <RolBadge rol={tarjeta.rol} />
         </div>
+      </div>
       </div>
 
       {/* Info compacta */}
-      <div className="p-1.5 space-y-1">
+      <div className="p-1.5 space-y-1.5">
         {/* Stats inline */}
         <div className="flex items-center justify-between text-[9px] text-gray-400">
           <div className="flex items-center gap-0.5">
@@ -212,57 +246,45 @@ const TarjetaUsuario = ({
             <Eye className="w-2.5 h-2.5" />
             <span>{tarjeta.visitasRecibidas || 0}</span>
           </div>
-          {infoFisica.length > 0 && (
-            <span className="text-gray-500">{infoFisica[0]}</span>
-          )}
-        </div>
-
-        {/* Micro preview */}
-        {(() => {
-          const intention = (tarjeta.buscando || tarjeta.bio || '').trim();
-          const intentionText = intention ? intention.slice(0, 42) : '';
-          const locationText = (tarjeta.ubicacionTexto || '').trim();
-          const parts = [];
-          if (intentionText) parts.push(`💬 ${intentionText}`);
-          if (locationText) parts.push(`📍 ${locationText}`);
-          if (!intentionText && !locationText && isActive) parts.push('🔥 Activo');
-          const preview = parts.slice(0, 2).join(' · ');
-          if (!preview) return null;
-          return (
-            <div className="text-[9px] text-gray-400 truncate">
-              {preview}
-            </div>
-          );
-        })()}
-
-        {/* Botones compactos */}
-        {!esMiTarjeta && (
-          <div className="flex gap-1.5">
-            <motion.button
-              whileTap={{ scale: 0.95 }}
-              onClick={handleLike}
-              disabled={isLoading}
-              className={`flex-1 flex items-center justify-center gap-1 py-1 rounded-md text-[10px] font-medium transition-all
-                ${liked
-                  ? 'bg-pink-500 text-white'
-                  : 'bg-gray-700/50 text-gray-300'
-                }`}
-            >
-              <Heart className={`w-2.5 h-2.5 ${liked ? 'fill-current' : ''}`} />
-            </motion.button>
+          {!esMiTarjeta && (
             <motion.button
               whileTap={{ scale: 0.95 }}
               onClick={handleMensaje}
-              className="flex-1 flex items-center justify-center gap-1 py-1 rounded-md text-[10px] font-medium bg-gray-700/50 text-gray-300"
+              className="p-1 rounded-full bg-gray-700/50 text-gray-300"
+              aria-label="Chat"
+              title="Chat"
             >
               <MessageSquare className="w-2.5 h-2.5" />
             </motion.button>
-          </div>
+          )}
+        </div>
+
+        {/* Acción primaria */}
+        {!esMiTarjeta && (
+          <motion.button
+            whileTap={{ scale: 0.98 }}
+            onClick={handleLike}
+            disabled={isLoading}
+            className={`w-full flex items-center justify-center gap-1.5 py-1.5 rounded-md text-[10px] font-semibold transition-all
+              ${liked
+                ? 'bg-pink-500 text-white'
+                : 'bg-gray-700/60 text-gray-200'
+              }`}
+          >
+            <Heart className={`w-3 h-3 ${liked ? 'fill-current' : ''}`} />
+            {liked ? 'Te interesa' : 'Me interesa'}
+          </motion.button>
         )}
 
         {esMiTarjeta && (
           <button
-            onClick={handleClick}
+            onClick={() => {
+              if (interactionLocked) {
+                onLockedAction?.('editar');
+                return;
+              }
+              handleClick();
+            }}
             className="w-full py-1 rounded-md text-[10px] font-medium bg-cyan-500/20 text-cyan-400"
           >
             Editar

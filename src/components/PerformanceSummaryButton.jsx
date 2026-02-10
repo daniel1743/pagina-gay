@@ -25,6 +25,10 @@ const PerformanceSummaryButton = () => {
   };
 
   if (!show) return null;
+  if (typeof window !== 'undefined') {
+    const params = new URLSearchParams(window.location.search);
+    if (!params.has('perf')) return null;
+  }
 
   return (
     <button

@@ -7,6 +7,7 @@
  */
 
 import React, { useState, useEffect, useCallback } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   X,
@@ -30,6 +31,7 @@ import MensajeTarjetaModal from './MensajeTarjetaModal';
 import ActividadFeed from './ActividadFeed';
 import MatchModal from './MatchModal';
 import MatchesList from './MatchesList';
+import PrivateChatWindow from '@/components/chat/PrivateChatWindow';
 import {
   obtenerTarjetasCercanas,
   obtenerTarjetasRecientes,
@@ -44,6 +46,7 @@ import {
   obtenerMisMatches,
   contarMatchesNoLeidos
 } from '@/services/tarjetaService';
+import { getOrCreatePrivateChat } from '@/services/socialService';
 import { getCurrentLocation } from '@/services/geolocationService';
 import { toast } from '@/components/ui/use-toast';
 import {
@@ -56,7 +59,14 @@ import {
 /**
  * Header del Baúl
  */
-const BaulHeader = ({ onClose, onRefresh, isRefreshing, cantidadTarjetas, actividadNoLeida, matchesNoLeidos, onVerActividad, onVerMatches }) => (
+const BaulHeader = ({
+  onClose,
+  onRefresh,
+  isRefreshing,
+  cantidadTarjetas,
+  isGuestView = false,
+  onCreateProfile
+}) => (
   <div className="sticky top-0 z-10 bg-gray-900/95 backdrop-blur-sm border-b border-gray-700/50 px-4 py-3">
     <div className="flex items-center justify-between">
       <div className="flex items-center gap-3">
@@ -71,39 +81,26 @@ const BaulHeader = ({ onClose, onRefresh, isRefreshing, cantidadTarjetas, activi
           <span className="text-sm font-medium hidden sm:inline">Volver</span>
         </motion.button>
         <h2 className="text-xl font-bold text-white">Baúl de Perfiles</h2>
+        {isGuestView && (
+          <span className="text-[10px] text-yellow-200 bg-yellow-500/20 px-2 py-0.5 rounded-full border border-yellow-500/30">
+            Vista previa
+          </span>
+        )}
         <span className="text-sm text-gray-400 bg-gray-700/50 px-2 py-0.5 rounded-full">
           {cantidadTarjetas} cerca
         </span>
       </div>
 
       <div className="flex items-center gap-2">
-        {/* Botón Matches */}
-        <motion.button
-          whileTap={{ scale: 0.95 }}
-          onClick={onVerMatches}
-          className="relative p-2 rounded-full bg-gradient-to-r from-pink-500/20 to-purple-500/20 text-pink-400 hover:from-pink-500/30 hover:to-purple-500/30 transition-colors"
-        >
-          <Heart className="w-5 h-5" />
-          {matchesNoLeidos > 0 && (
-            <span className="absolute -top-1 -right-1 bg-pink-500 text-white text-xs font-bold min-w-[18px] h-[18px] flex items-center justify-center rounded-full animate-pulse">
-              {matchesNoLeidos > 9 ? '9+' : matchesNoLeidos}
-            </span>
-          )}
-        </motion.button>
-
-        {/* Botón actividad */}
-        <motion.button
-          whileTap={{ scale: 0.95 }}
-          onClick={onVerActividad}
-          className="relative p-2 rounded-full bg-gray-700/50 text-gray-300 hover:bg-gray-600/50 transition-colors"
-        >
-          <Bell className="w-5 h-5" />
-          {actividadNoLeida > 0 && (
-            <span className="absolute -top-1 -right-1 bg-red-500 text-white text-xs font-bold min-w-[18px] h-[18px] flex items-center justify-center rounded-full">
-              {actividadNoLeida > 9 ? '9+' : actividadNoLeida}
-            </span>
-          )}
-        </motion.button>
+        {isGuestView && (
+          <motion.button
+            whileTap={{ scale: 0.95 }}
+            onClick={onCreateProfile}
+            className="px-3 py-1.5 rounded-full text-xs font-semibold bg-cyan-500/20 text-cyan-300 border border-cyan-500/30 hover:bg-cyan-500/30 transition-colors"
+          >
+            Crear perfil
+          </motion.button>
+        )}
 
         {/* Botón refrescar */}
         <motion.button
@@ -152,8 +149,11 @@ const EstadoVacio = ({ mensaje, submensaje, onRefresh }) => (
  */
 const BaulSection = ({ isOpen = true, onClose, variant = 'modal' }) => {
   const { user } = useAuth();
+  const navigate = useNavigate();
   const isModal = variant === 'modal';
   const isActive = isModal ? isOpen : true;
+  const isGuestView = !user || user.isGuest || user.isAnonymous;
+  const canInteract = Boolean(user && !user.isGuest && !user.isAnonymous);
 
   // Estados
   const [tarjetas, setTarjetas] = useState([]);
@@ -172,11 +172,11 @@ const BaulSection = ({ isOpen = true, onClose, variant = 'modal' }) => {
   const [mostrarMatchModal, setMostrarMatchModal] = useState(false);
   const [mostrarMatchesList, setMostrarMatchesList] = useState(false);
   const [matchesNoLeidos, setMatchesNoLeidos] = useState(0);
+  const [activePrivateChat, setActivePrivateChat] = useState(null);
 
   // Cargar tarjetas (sin dependencia de miUbicacion para evitar loop)
   const cargarTarjetas = useCallback(async (mostrarLoading = true, ubicacionParam = null) => {
-    const odIdUsuari = user?.id;
-    if (!odIdUsuari) return;
+    const odIdUsuari = user?.id || null;
 
     if (mostrarLoading) setIsLoading(true);
     else setIsRefreshing(true);
@@ -185,7 +185,7 @@ const BaulSection = ({ isOpen = true, onClose, variant = 'modal' }) => {
       // Usar ubicación pasada como parámetro o intentar obtener nueva
       let ubicacion = ubicacionParam;
 
-      if (!ubicacion) {
+      if (!ubicacion && canInteract) {
         try {
           // Timeout rápido de 3 segundos
           const locationPromise = getCurrentLocation();
@@ -196,10 +196,12 @@ const BaulSection = ({ isOpen = true, onClose, variant = 'modal' }) => {
           setMiUbicacion(ubicacion);
 
           // Guardar ubicación en background (no bloquear)
-          actualizarTarjeta(odIdUsuari, {
-            ubicacion: { latitude: ubicacion.latitude, longitude: ubicacion.longitude },
-            ubicacionActiva: true
-          }).catch(() => {});
+          if (odIdUsuari) {
+            actualizarTarjeta(odIdUsuari, {
+              ubicacion: { latitude: ubicacion.latitude, longitude: ubicacion.longitude },
+              ubicacionActiva: true
+            }).catch(() => {});
+          }
         } catch {
           ubicacion = null;
         }
@@ -218,7 +220,7 @@ const BaulSection = ({ isOpen = true, onClose, variant = 'modal' }) => {
       setTarjetas(tarjetasCargadas || []);
 
       // Verificar likes en paralelo (batch pequeño)
-      if (tarjetasCargadas.length > 0) {
+      if (canInteract && tarjetasCargadas.length > 0) {
         const primeras20 = tarjetasCargadas.slice(0, 20);
         const likesResults = await Promise.all(
           primeras20.map(async (t) => {
@@ -227,6 +229,8 @@ const BaulSection = ({ isOpen = true, onClose, variant = 'modal' }) => {
           })
         );
         setLikesData(Object.fromEntries(likesResults));
+      } else {
+        setLikesData({});
       }
     } catch (error) {
       console.error('[BAUL] Error:', error);
@@ -234,7 +238,7 @@ const BaulSection = ({ isOpen = true, onClose, variant = 'modal' }) => {
       setIsLoading(false);
       setIsRefreshing(false);
     }
-  }, [user]);
+  }, [user, canInteract]);
 
   // Cargar mi tarjeta
   const cargarMiTarjeta = useCallback(async () => {
@@ -242,7 +246,7 @@ const BaulSection = ({ isOpen = true, onClose, variant = 'modal' }) => {
     const odIdUsuari = user?.id;
     console.log('[BAUL] Mi user ID:', odIdUsuari);
 
-    if (!odIdUsuari) {
+    if (!odIdUsuari || isGuestView) {
       console.log('[BAUL] ❌ No hay user ID, no se puede cargar tarjeta');
       return;
     }
@@ -292,20 +296,22 @@ const BaulSection = ({ isOpen = true, onClose, variant = 'modal' }) => {
     } catch (error) {
       console.error('[BAUL] ❌ Error cargando/creando mi tarjeta:', error);
     }
-  }, [user]);
+  }, [user, isGuestView]);
 
   // Efecto inicial
   useEffect(() => {
-    if (isActive && user) {
-      cargarMiTarjeta();
+    if (isActive) {
+      if (canInteract) {
+        cargarMiTarjeta();
+      }
       cargarTarjetas();
     }
-  }, [isActive, user, cargarMiTarjeta, cargarTarjetas]);
+  }, [isActive, canInteract, cargarMiTarjeta, cargarTarjetas]);
 
   // Suscripción en tiempo real a mi tarjeta
   useEffect(() => {
     const odIdUsuari = user?.id;
-    if (!odIdUsuari || !isActive) return;
+    if (!odIdUsuari || !isActive || !canInteract) return;
 
     const unsubscribe = suscribirseAMiTarjeta(odIdUsuari, (tarjeta) => {
       setMiTarjeta(tarjeta);
@@ -318,7 +324,7 @@ const BaulSection = ({ isOpen = true, onClose, variant = 'modal' }) => {
   useEffect(() => {
     const cargarMatchesNoLeidos = async () => {
       const odIdUsuari = user?.id;
-      if (!odIdUsuari || !isActive) return;
+      if (!odIdUsuari || !isActive || !canInteract) return;
 
       try {
         const count = await contarMatchesNoLeidos(odIdUsuari);
@@ -332,7 +338,23 @@ const BaulSection = ({ isOpen = true, onClose, variant = 'modal' }) => {
   }, [user, isActive]);
 
   // Handlers
-  const handleLike = async (tarjetaId, quieroDarLike) => {
+  const showGuestPrompt = useCallback((accion = 'interactuar') => {
+    toast({
+      title: 'Crea tu perfil para interactuar',
+      description: 'Regístrate para dar like, chatear y aparecer en Baúl.',
+      duration: 5000,
+      action: {
+        label: 'Crear cuenta',
+        onClick: () => navigate('/auth')
+      }
+    });
+  }, [navigate]);
+
+  const handleLike = async (tarjeta, quieroDarLike) => {
+    if (!canInteract) {
+      showGuestPrompt('like');
+      return false;
+    }
     const odIdUsuari = user?.id;
     if (!odIdUsuari) {
       toast({
@@ -342,6 +364,9 @@ const BaulSection = ({ isOpen = true, onClose, variant = 'modal' }) => {
       });
       return false;
     }
+
+    const tarjetaId = tarjeta?.odIdUsuari;
+    if (!tarjetaId) return false;
 
     if (quieroDarLike) {
       // Dar like
@@ -364,6 +389,10 @@ const BaulSection = ({ isOpen = true, onClose, variant = 'modal' }) => {
           setMatchesNoLeidos(prev => prev + 1);
         }
 
+        // Abrir chat privado directo después del interés
+        if (tarjeta && tarjeta.odIdUsuari) {
+          abrirChatPrivado(tarjeta);
+        }
         return true;
       }
       return false;
@@ -378,8 +407,11 @@ const BaulSection = ({ isOpen = true, onClose, variant = 'modal' }) => {
   };
 
   const handleMensaje = (tarjeta) => {
-    setTarjetaSeleccionada(tarjeta);
-    setMostrarMensajeModal(true);
+    if (!canInteract) {
+      showGuestPrompt('chat');
+      return;
+    }
+    abrirChatPrivado(tarjeta);
   };
 
   const handleVerPerfil = (tarjeta) => {
@@ -387,18 +419,79 @@ const BaulSection = ({ isOpen = true, onClose, variant = 'modal' }) => {
 
     // Si es mi tarjeta, abrir editor
     if (tarjeta.odIdUsuari === odIdUsuari) {
+      if (!canInteract) {
+        showGuestPrompt('editar');
+        return;
+      }
       setMostrarEditor(true);
       return;
     }
 
     // Registrar visita
-    if (odIdUsuari) {
+    if (odIdUsuari && canInteract) {
       registrarVisita(tarjeta.odIdUsuari, odIdUsuari, miTarjeta?.nombre || user?.username || 'Usuario');
     }
 
     // Abrir modal de mensaje que también muestra el perfil
     setTarjetaSeleccionada(tarjeta);
     setMostrarMensajeModal(true);
+  };
+
+  const obtenerMensajeSugerido = () => {
+    const ejemplos = [
+      'Hola, te vi en Baúl 👋',
+      'Hey, coincidimos en Baúl',
+    ];
+    return ejemplos[Math.floor(Math.random() * ejemplos.length)];
+  };
+
+  const abrirChatPrivado = async (tarjetaDestino) => {
+    if (!tarjetaDestino?.odIdUsuari) return;
+
+    // ✅ Solo usuarios registrados
+    if (!user || user.isGuest || user.isAnonymous) {
+      toast({
+        title: 'Regístrate para chatear en privado',
+        description: 'Los chats privados están disponibles solo para usuarios registrados.',
+        duration: 5000,
+        action: {
+          label: 'Registrarme',
+          onClick: () => navigate('/auth'),
+        },
+      });
+      return;
+    }
+
+    if (tarjetaDestino.esInvitado) {
+      toast({
+        title: 'Usuario invitado',
+        description: 'Este usuario aún es invitado y no puede recibir chats privados.',
+        duration: 5000,
+      });
+      return;
+    }
+
+    if (tarjetaDestino.odIdUsuari === user.id) return;
+
+    try {
+      const { chatId } = await getOrCreatePrivateChat(user.id, tarjetaDestino.odIdUsuari);
+      setActivePrivateChat({
+        chatId,
+        partner: {
+          id: tarjetaDestino.odIdUsuari,
+          username: tarjetaDestino.nombre || tarjetaDestino.odIdUsuariNombre || 'Usuario',
+          avatar: tarjetaDestino.fotoUrl || tarjetaDestino.fotoUrlThumb || ''
+        },
+        initialMessage: obtenerMensajeSugerido()
+      });
+    } catch (error) {
+      console.error('[BAUL] Error creando chat privado:', error);
+      toast({
+        title: 'No pudimos abrir el chat',
+        description: 'Intenta de nuevo en un momento',
+        variant: 'destructive',
+      });
+    }
   };
 
   const handleRefresh = () => {
@@ -413,6 +506,9 @@ const BaulSection = ({ isOpen = true, onClose, variant = 'modal' }) => {
   if (!isActive) return null;
 
   const odIdUsuari = user?.id;
+  const tarjetasVisibles = isGuestView
+    ? tarjetas.filter(t => t.odIdUsuari !== odIdUsuari)
+    : tarjetas;
 
   const content = (
     <>
@@ -421,11 +517,9 @@ const BaulSection = ({ isOpen = true, onClose, variant = 'modal' }) => {
         onClose={onClose}
         onRefresh={handleRefresh}
         isRefreshing={isRefreshing}
-        cantidadTarjetas={tarjetas.filter(t => t.odIdUsuari !== odIdUsuari).length}
-        actividadNoLeida={miTarjeta?.actividadNoLeida || 0}
-        matchesNoLeidos={matchesNoLeidos}
-        onVerActividad={() => setMostrarActividad(true)}
-        onVerMatches={() => setMostrarMatchesList(true)}
+        cantidadTarjetas={tarjetasVisibles.filter(t => t.odIdUsuari !== odIdUsuari).length}
+        isGuestView={isGuestView}
+        onCreateProfile={() => navigate('/auth')}
       />
 
       {/* Contenido */}
@@ -434,7 +528,7 @@ const BaulSection = ({ isOpen = true, onClose, variant = 'modal' }) => {
               <div className="flex items-center justify-center py-20">
                 <Loader2 className="w-8 h-8 text-cyan-500 animate-spin" />
               </div>
-            ) : tarjetas.length === 0 ? (
+            ) : tarjetasVisibles.length === 0 ? (
               <EstadoVacio
                 mensaje="No hay tarjetas disponibles"
                 submensaje="Sé el primero en crear tu tarjeta y aparecerás aquí"
@@ -442,6 +536,37 @@ const BaulSection = ({ isOpen = true, onClose, variant = 'modal' }) => {
               />
             ) : (
               <div className="p-3 sm:p-4">
+                {!isGuestView && (
+                  <div className="mb-3 sm:mb-4 flex flex-wrap items-center gap-2">
+                    <motion.button
+                      whileTap={{ scale: 0.98 }}
+                      onClick={() => setMostrarActividad(true)}
+                      className="relative inline-flex items-center gap-2 rounded-full border border-gray-700/60 bg-gray-800/40 px-3 py-1.5 text-[11px] text-gray-200 hover:bg-gray-800/60 transition-colors"
+                    >
+                      <Bell className="w-3.5 h-3.5 text-gray-300" />
+                      Actividad
+                      {miTarjeta?.actividadNoLeida > 0 && (
+                        <span className="ml-1 min-w-[16px] h-[16px] rounded-full bg-red-500 text-white text-[10px] font-bold flex items-center justify-center">
+                          {miTarjeta?.actividadNoLeida > 9 ? '9+' : miTarjeta?.actividadNoLeida}
+                        </span>
+                      )}
+                    </motion.button>
+                    <motion.button
+                      whileTap={{ scale: 0.98 }}
+                      onClick={() => setMostrarMatchesList(true)}
+                      className="relative inline-flex items-center gap-2 rounded-full border border-pink-500/30 bg-pink-500/10 px-3 py-1.5 text-[11px] text-pink-200 hover:bg-pink-500/20 transition-colors"
+                    >
+                      <Heart className="w-3.5 h-3.5 text-pink-300" />
+                      Matches
+                      {matchesNoLeidos > 0 && (
+                        <span className="ml-1 min-w-[16px] h-[16px] rounded-full bg-pink-500 text-white text-[10px] font-bold flex items-center justify-center">
+                          {matchesNoLeidos > 9 ? '9+' : matchesNoLeidos}
+                        </span>
+                      )}
+                    </motion.button>
+                  </div>
+                )}
+
                 {/* Top context banner */}
                 {(() => {
                   const getTimestampMs = (value) => {
@@ -452,15 +577,20 @@ const BaulSection = ({ isOpen = true, onClose, variant = 'modal' }) => {
                     if (typeof value === 'number') return value;
                     return null;
                   };
-                  const tarjetasVisibles = tarjetas.filter(t => t.odIdUsuari !== odIdUsuari);
-                  const activosAhora = tarjetasVisibles.filter(t => (t.estadoReal || t.estado) === 'online').length;
-                  const nuevosHoy = tarjetasVisibles.filter(t => {
+                  const tarjetasParaConteo = tarjetasVisibles.filter(t => t.odIdUsuari !== odIdUsuari);
+                  const activosAhora = tarjetasParaConteo.filter(t => (t.estadoReal || t.estado) === 'online').length;
+                  const nuevosHoy = tarjetasParaConteo.filter(t => {
                     const ts = getTimestampMs(t.creadaEn || t.createdAt);
                     return ts ? (Date.now() - ts) < 24 * 60 * 60 * 1000 : false;
                   }).length;
                   return (
                     <div className="mb-3 sm:mb-4">
                       <div className="flex flex-wrap items-center gap-2 rounded-lg border border-gray-700/50 bg-gray-800/40 px-3 py-2 text-[11px] text-gray-300">
+                        {isGuestView && (
+                          <span className="text-[10px] text-yellow-200 bg-yellow-500/10 px-2 py-0.5 rounded-full border border-yellow-500/30">
+                            Vista previa
+                          </span>
+                        )}
                         <div className="flex items-center gap-2">
                           <span className="text-cyan-400 font-semibold">Activos ahora</span>
                           <span className="text-white font-bold">{activosAhora}</span>
@@ -471,7 +601,7 @@ const BaulSection = ({ isOpen = true, onClose, variant = 'modal' }) => {
                           <span className="text-white font-bold">{nuevosHoy}</span>
                         </div>
                         <span className="ml-auto text-[10px] text-gray-400 hidden sm:inline">
-                          Explora y conecta con un toque
+                          {isGuestView ? 'Explora antes de crear tu perfil' : 'Explora y conecta con un toque'}
                         </span>
                       </div>
                     </div>
@@ -480,21 +610,23 @@ const BaulSection = ({ isOpen = true, onClose, variant = 'modal' }) => {
 
                 {/* Grid de tarjetas */}
                 <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-2.5 sm:gap-3">
-                  {tarjetas.map((tarjeta) => (
+                  {tarjetasVisibles.map((tarjeta) => (
                     <TarjetaUsuario
-                  key={tarjeta.odIdUsuari}
-                  tarjeta={tarjeta}
-                  esMiTarjeta={tarjeta.odIdUsuari === odIdUsuari}
-                  yaLeDiLike={likesData[tarjeta.odIdUsuari] || false}
-                  onLike={handleLike}
-                  onMensaje={handleMensaje}
-                  onVerPerfil={handleVerPerfil}
-                />
-              ))}
-            </div>
+                      key={tarjeta.odIdUsuari}
+                      tarjeta={tarjeta}
+                      esMiTarjeta={!isGuestView && tarjeta.odIdUsuari === odIdUsuari}
+                      yaLeDiLike={likesData[tarjeta.odIdUsuari] || false}
+                      onLike={handleLike}
+                      onMensaje={handleMensaje}
+                      onVerPerfil={handleVerPerfil}
+                      interactionLocked={isGuestView}
+                      onLockedAction={showGuestPrompt}
+                    />
+                  ))}
+                </div>
 
             {/* Info de ubicación */}
-            {!miUbicacion && (
+            {!miUbicacion && canInteract && (
               <div className="mt-6 p-4 bg-gray-800/50 rounded-xl border border-gray-700/50">
                 <div className="flex items-start gap-3">
                   <MapPin className="w-5 h-5 text-orange-400 flex-shrink-0 mt-0.5" />
@@ -522,6 +654,7 @@ const BaulSection = ({ isOpen = true, onClose, variant = 'modal' }) => {
           tarjeta={tarjetaSeleccionada}
           miUserId={odIdUsuari}
           miUsername={miTarjeta?.nombre || user?.username || 'Usuario'}
+          readOnly={isGuestView}
         />
       )}
 
@@ -544,65 +677,80 @@ const BaulSection = ({ isOpen = true, onClose, variant = 'modal' }) => {
       )}
 
       {/* Modal de Match */}
-      <MatchModal
-        isOpen={mostrarMatchModal}
-        onClose={() => {
-          setMostrarMatchModal(false);
-          setMatchData(null);
-        }}
-        matchData={matchData}
-        onEnviarMensaje={(otroUsuario) => {
-          // Buscar la tarjeta del otro usuario para abrir el modal de mensaje
-          const tarjetaOtro = tarjetas.find(t => t.odIdUsuari === otroUsuario.odIdUsuari);
-          if (tarjetaOtro) {
-            setTarjetaSeleccionada(tarjetaOtro);
-            setMostrarMensajeModal(true);
-          }
-        }}
-      />
+      {!isGuestView && (
+        <MatchModal
+          isOpen={mostrarMatchModal}
+          onClose={() => {
+            setMostrarMatchModal(false);
+            setMatchData(null);
+          }}
+          matchData={matchData}
+          onEnviarMensaje={(otroUsuario) => {
+            // Buscar la tarjeta del otro usuario para abrir el modal de mensaje
+            const tarjetaOtro = tarjetas.find(t => t.odIdUsuari === otroUsuario.odIdUsuari);
+            if (tarjetaOtro) {
+              setTarjetaSeleccionada(tarjetaOtro);
+              setMostrarMensajeModal(true);
+            }
+          }}
+        />
+      )}
 
       {/* Lista de Matches */}
-      <MatchesList
-        isOpen={mostrarMatchesList}
-        onClose={() => {
-          setMostrarMatchesList(false);
-          // Refrescar conteo después de cerrar
-          contarMatchesNoLeidos(odIdUsuari).then(setMatchesNoLeidos).catch(() => {});
-        }}
-        miUserId={odIdUsuari}
-        onEnviarMensaje={(otroUsuario) => {
-          setMostrarMatchesList(false);
-          const tarjetaOtro = tarjetas.find(t => t.odIdUsuari === otroUsuario.odIdUsuari);
-          if (tarjetaOtro) {
-            setTarjetaSeleccionada(tarjetaOtro);
-            setMostrarMensajeModal(true);
-          } else {
-            // Si no está en las tarjetas cargadas, crear una tarjeta temporal
-            setTarjetaSeleccionada({
-              odIdUsuari: otroUsuario.odIdUsuari,
-              nombre: otroUsuario.nombre || otroUsuario.username,
-              fotoUrl: otroUsuario.avatar,
-              ...otroUsuario
-            });
-            setMostrarMensajeModal(true);
-          }
-        }}
-        onVerPerfil={(otroUsuario) => {
-          setMostrarMatchesList(false);
-          const tarjetaOtro = tarjetas.find(t => t.odIdUsuari === otroUsuario.odIdUsuari);
-          if (tarjetaOtro) {
-            handleVerPerfil(tarjetaOtro);
-          } else {
-            setTarjetaSeleccionada({
-              odIdUsuari: otroUsuario.odIdUsuari,
-              nombre: otroUsuario.nombre || otroUsuario.username,
-              fotoUrl: otroUsuario.avatar,
-              ...otroUsuario
-            });
-            setMostrarMensajeModal(true);
-          }
-        }}
-      />
+      {!isGuestView && (
+        <MatchesList
+          isOpen={mostrarMatchesList}
+          onClose={() => {
+            setMostrarMatchesList(false);
+            // Refrescar conteo después de cerrar
+            contarMatchesNoLeidos(odIdUsuari).then(setMatchesNoLeidos).catch(() => {});
+          }}
+          miUserId={odIdUsuari}
+          onEnviarMensaje={(otroUsuario) => {
+            setMostrarMatchesList(false);
+            const tarjetaOtro = tarjetas.find(t => t.odIdUsuari === otroUsuario.odIdUsuari);
+            if (tarjetaOtro) {
+              setTarjetaSeleccionada(tarjetaOtro);
+              setMostrarMensajeModal(true);
+            } else {
+              // Si no está en las tarjetas cargadas, crear una tarjeta temporal
+              setTarjetaSeleccionada({
+                odIdUsuari: otroUsuario.odIdUsuari,
+                nombre: otroUsuario.nombre || otroUsuario.username,
+                fotoUrl: otroUsuario.avatar,
+                ...otroUsuario
+              });
+              setMostrarMensajeModal(true);
+            }
+          }}
+          onVerPerfil={(otroUsuario) => {
+            setMostrarMatchesList(false);
+            const tarjetaOtro = tarjetas.find(t => t.odIdUsuari === otroUsuario.odIdUsuari);
+            if (tarjetaOtro) {
+              handleVerPerfil(tarjetaOtro);
+            } else {
+              setTarjetaSeleccionada({
+                odIdUsuari: otroUsuario.odIdUsuari,
+                nombre: otroUsuario.nombre || otroUsuario.username,
+                fotoUrl: otroUsuario.avatar,
+                ...otroUsuario
+              });
+              setMostrarMensajeModal(true);
+            }
+          }}
+        />
+      )}
+
+      {activePrivateChat && (
+        <PrivateChatWindow
+          user={user}
+          partner={activePrivateChat.partner}
+          chatId={activePrivateChat.chatId}
+          initialMessage={activePrivateChat.initialMessage}
+          autoFocus={true}
+          onClose={() => setActivePrivateChat(null)}
+        />
+      )}
     </>
   );
 

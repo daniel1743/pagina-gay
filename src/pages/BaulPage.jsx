@@ -26,7 +26,8 @@ const BaulPage = () => {
 
   if (!user) {
     return (
-      <div className="min-h-[calc(100dvh-4rem)] flex flex-col items-center justify-center px-6 py-12 text-center">
+      <div className="-mt-16 sm:-mt-20">
+        <div className="min-h-[calc(100dvh-4rem)] flex flex-col items-center justify-center px-6 py-12 text-center">
         <div className="w-12 h-12 rounded-full bg-cyan-500/20 flex items-center justify-center mb-4">
           <Users className="w-6 h-6 text-cyan-400" />
         </div>
@@ -48,11 +49,16 @@ const BaulPage = () => {
             Registrarme
           </Button>
         </div>
+        </div>
       </div>
     );
   }
 
-  return <BaulSection variant="page" onClose={handleClose} />;
+  return (
+    <div className="-mt-16 sm:-mt-20">
+      <BaulSection variant="page" onClose={handleClose} />
+    </div>
+  );
 };
 
 export default BaulPage;

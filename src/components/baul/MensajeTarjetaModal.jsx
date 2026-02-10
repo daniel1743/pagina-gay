@@ -4,6 +4,7 @@
  */
 
 import React, { useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   X,
@@ -28,8 +29,10 @@ const MensajeTarjetaModal = ({
   onClose,
   tarjeta,
   miUserId,
-  miUsername
+  miUsername,
+  readOnly = false
 }) => {
+  const navigate = useNavigate();
   const [mensaje, setMensaje] = useState('');
   const [isEnviando, setIsEnviando] = useState(false);
   const [mostrarMensaje, setMostrarMensaje] = useState(false);
@@ -37,13 +40,14 @@ const MensajeTarjetaModal = ({
   const [chatSolicitado, setChatSolicitado] = useState(false);
   const [hayMatch, setHayMatch] = useState(false);
   const [verificandoMatch, setVerificandoMatch] = useState(true);
+  const isReadOnly = readOnly || !miUserId;
 
   const maxChars = 200;
 
   // Verificar si hay interés mutuo (match, likes o mensajes mutuos)
   useEffect(() => {
     const checkInteresMutuo = async () => {
-      if (!miUserId || !tarjeta?.odIdUsuari) {
+      if (isReadOnly || !miUserId || !tarjeta?.odIdUsuari) {
         setVerificandoMatch(false);
         return;
       }
@@ -62,10 +66,11 @@ const MensajeTarjetaModal = ({
     if (isOpen) {
       checkInteresMutuo();
     }
-  }, [isOpen, miUserId, tarjeta?.odIdUsuari]);
+  }, [isOpen, isReadOnly, miUserId, tarjeta?.odIdUsuari]);
 
   // Solicitar chat privado (solo si hay match)
   const handleSolicitarChat = async () => {
+    if (isReadOnly) return;
     if (solicitandoChat || chatSolicitado || !miUserId || !hayMatch) return;
 
     setSolicitandoChat(true);
@@ -89,6 +94,7 @@ const MensajeTarjetaModal = ({
   };
 
   const handleEnviar = async () => {
+    if (isReadOnly) return;
     if (!mensaje.trim() || isEnviando) return;
 
     setIsEnviando(true);
@@ -187,6 +193,20 @@ const MensajeTarjetaModal = ({
 
           {/* Información del perfil */}
           <div className="p-4 space-y-4">
+            {isReadOnly && (
+              <div className="flex items-center justify-between gap-3 rounded-xl border border-yellow-500/30 bg-yellow-500/10 px-3 py-2">
+                <div>
+                  <p className="text-xs font-semibold text-yellow-200">Vista previa</p>
+                  <p className="text-[11px] text-yellow-100/80">Crea tu perfil para dar like y chatear</p>
+                </div>
+                <button
+                  onClick={() => navigate('/auth')}
+                  className="text-xs font-semibold px-3 py-1.5 rounded-full bg-cyan-500/20 text-cyan-200 border border-cyan-500/30 hover:bg-cyan-500/30 transition-colors"
+                >
+                  Crear cuenta
+                </button>
+              </div>
+            )}
             {/* Stats */}
             <div className="flex items-center gap-4 text-sm text-gray-400">
               <div className="flex items-center gap-1">
@@ -269,7 +289,7 @@ const MensajeTarjetaModal = ({
             )}
 
             {/* Botón Chat Privado (solo si hay match) */}
-            {!verificandoMatch && hayMatch && (
+            {!isReadOnly && !verificandoMatch && hayMatch && (
               <motion.button
                 whileTap={{ scale: 0.98 }}
                 onClick={handleSolicitarChat}
@@ -299,7 +319,7 @@ const MensajeTarjetaModal = ({
             )}
 
             {/* Indicador de interés mutuo */}
-            {!verificandoMatch && hayMatch && (
+            {!isReadOnly && !verificandoMatch && hayMatch && (
               <div className="flex items-center justify-center gap-2 text-xs text-pink-400 mb-3">
                 <Heart className="w-3 h-3 fill-current" />
                 <span>¡Interés mutuo! Pueden chatear en privado</span>
@@ -307,7 +327,7 @@ const MensajeTarjetaModal = ({
             )}
 
             {/* Sección de mensaje */}
-            {!mostrarMensaje ? (
+            {!isReadOnly && !mostrarMensaje ? (
               <motion.button
                 whileTap={{ scale: 0.98 }}
                 onClick={() => setMostrarMensaje(true)}
@@ -316,7 +336,7 @@ const MensajeTarjetaModal = ({
                 <Send className="w-4 h-4" />
                 Enviar mensaje
               </motion.button>
-            ) : (
+            ) : !isReadOnly ? (
               <div className="space-y-3">
                 <textarea
                   value={mensaje}
@@ -354,7 +374,7 @@ const MensajeTarjetaModal = ({
                   </motion.button>
                 </div>
               </div>
-            )}
+            ) : null}
           </div>
         </motion.div>
       </motion.div>

@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef, useCallback } from 'react';
+import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { useParams, useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
 import { useChatScrollManager } from '@/hooks/useChatScrollManager';
@@ -167,6 +167,7 @@ const ChatPage = () => {
   // ⚠️ MODAL COMENTADO - El bot moderador ya informa las reglas al ingresar
   // const [hasAcceptedRules, setHasAcceptedRules] = useState(false);
   const [roomCounts, setRoomCounts] = useState({}); // Contadores de usuarios por sala
+  const [activityNow, setActivityNow] = useState(Date.now());
   const [engagementTime, setEngagementTime] = useState(''); // ⏱️ Tiempo total de engagement
   const [showScreenSaver, setShowScreenSaver] = useState(false); // 🔒 Protector de pantalla
   const [showNicknameModal, setShowNicknameModal] = useState(false); // ✅ Modal nickname - solo al intentar escribir
@@ -192,6 +193,68 @@ const ChatPage = () => {
   const usersUpdateInProgressRef = useRef(false); // 🔒 CRÍTICO: Evitar loops infinitos en setRoomUsers
   const chatLoadStartTimeRef = useRef(null); // 📊 PERFORMANCE: Timestamp cuando inicia carga del chat
   const chatLoadTrackedRef = useRef(false); // 📊 PERFORMANCE: Flag para evitar tracking duplicado
+
+  const DAILY_TOPICS = [
+    '¿De qué comuna andas hoy?',
+    '¿Alguien nuevo por aquí?',
+    '¿Qué buscas hoy?',
+    '¿Qué tal tu día?',
+    '¿De dónde te conectas?',
+    '¿Plan tranqui o plan intenso?',
+  ];
+
+  const countRealUsers = useCallback((users) => {
+    if (!users || users.length === 0) return 0;
+    return users.filter(u => {
+      const userId = u.userId || u.id;
+      return userId !== 'system' &&
+             !userId?.startsWith('bot_') &&
+             !userId?.startsWith('bot-') &&
+             !userId?.startsWith('static_bot_') &&
+             !userId?.includes('bot_join');
+    }).length;
+  }, []);
+
+  const activeUsersCount = useMemo(() => countRealUsers(roomUsers), [roomUsers, countRealUsers]);
+
+  const lastMessageMs = useMemo(() => {
+    if (!messages || messages.length === 0) return null;
+    for (let i = messages.length - 1; i >= 0; i--) {
+      const msg = messages[i];
+      const ts = msg.timestampMs ||
+        (msg.timestamp?.toMillis?.() ||
+          (typeof msg.timestamp === 'number' ? msg.timestamp :
+            (msg.timestamp ? new Date(msg.timestamp).getTime() : null)));
+      if (ts) return ts;
+    }
+    return null;
+  }, [messages]);
+
+  const formatRelativeTime = useCallback((timestampMs, nowMs) => {
+    if (!timestampMs || !nowMs) return '';
+    const diffMs = Math.max(0, nowMs - timestampMs);
+    const diffMinutes = Math.floor(diffMs / 60000);
+    if (diffMinutes < 1) return 'menos de 1 min';
+    if (diffMinutes < 60) return `${diffMinutes} min`;
+    const diffHours = Math.floor(diffMinutes / 60);
+    if (diffHours < 24) return `${diffHours} h`;
+    const diffDays = Math.floor(diffHours / 24);
+    return `${diffDays} d`;
+  }, []);
+
+  const activityText = useMemo(() => {
+    if (typeof activeUsersCount !== 'number' || !lastMessageMs) return '';
+    const relative = formatRelativeTime(lastMessageMs, activityNow);
+    if (!relative) return '';
+    return `${activeUsersCount} activos · último mensaje hace ${relative}`;
+  }, [activeUsersCount, lastMessageMs, activityNow, formatRelativeTime]);
+
+  const dailyTopic = useMemo(() => {
+    const now = new Date(activityNow);
+    const key = now.getUTCFullYear() * 10000 + (now.getUTCMonth() + 1) * 100 + now.getUTCDate();
+    const index = Math.abs(key) % DAILY_TOPICS.length;
+    return DAILY_TOPICS[index];
+  }, [activityNow, DAILY_TOPICS]);
 
   // 🎯 PRO SCROLL MANAGER: Discord/Slack-inspired scroll behavior
   // ✅ IMPORTANTE: Debe estar ANTES del early return para respetar reglas de hooks
@@ -1126,19 +1189,6 @@ const ChatPage = () => {
 
   // 💓 Heartbeat: Actualizar presencia cada 10 segundos + Limpiar inactivos cada 30s
   useEffect(() => {
-    // Función auxiliar para contar usuarios reales (excluyendo bots)
-    const countRealUsers = (users) => {
-      if (!users || users.length === 0) return 0;
-      return users.filter(u => {
-        const userId = u.userId || u.id;
-        return userId !== 'system' && 
-               !userId?.startsWith('bot_') && 
-               !userId?.startsWith('bot-') &&
-               !userId?.startsWith('static_bot_') && // ? Excluir bots estáticos
-               !userId?.includes('bot_join');
-      }).length;
-    };
-
     // ? CRÍTICO: Validar que el usuario existe antes de continuar
     if (!user || !user.id || !user.username) {
       // ⚠️ LOG COMENTADO: Causaba sobrecarga en consola (loop durante carga)
@@ -1155,7 +1205,15 @@ const ChatPage = () => {
     
     lastUserCountRef.current = realUserCount;
 
-  }, [roomUsers.length, roomId, user?.id]); // 🔒 CRÍTICO: user?.id en vez de user (evita loops por cambio de referencia de objeto)
+  }, [roomUsers.length, roomId, user?.id, countRealUsers]); // 🔒 CRÍTICO: user?.id en vez de user (evita loops por cambio de referencia de objeto)
+
+  // ⏱️ Actualizar indicador de actividad cada 60s
+  useEffect(() => {
+    const timer = setInterval(() => {
+      setActivityNow(Date.now());
+    }, 60000);
+    return () => clearInterval(timer);
+  }, []);
 
   // ⚠️ DESACTIVADO TEMPORALMENTE: Contadores de salas (causa consumo excesivo)
   // Solo necesitamos el chat básico funcionando
@@ -2141,6 +2199,7 @@ const ChatPage = () => {
             onMenuClick={() => setSidebarOpen(true)}
             onOpenPrivateChat={handleOpenPrivateChatFromNotification}
             onSimulate={() => setShowScreenSaver(true)}
+            activityText={activityText}
           />
 
           {/* 📢 Banner Telegram - Fijo en todas las salas */}
@@ -2185,6 +2244,7 @@ const ChatPage = () => {
               messagesContainerRef={scrollManager.containerRef}
               onScroll={handleMessagesScroll}
               roomUsers={roomUsers}
+              dailyTopic={dailyTopic}
               newMessagesIndicator={
                 <NewMessagesIndicator
                   count={scrollManager.unreadCount}

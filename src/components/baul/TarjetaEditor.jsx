@@ -77,23 +77,31 @@ const CampoTexto = ({ label, value, onChange, placeholder, maxLength, multiline 
 /**
  * Campo numérico
  */
-const CampoNumero = ({ label, value, onChange, placeholder, min, max, suffix }) => (
+const CampoNumero = ({
+  label,
+  value,
+  onChange,
+  onBlur,
+  placeholder,
+  suffix,
+  error
+}) => (
   <div>
     <label className="block text-sm font-medium text-gray-300 mb-1.5">{label}</label>
     <div className="relative">
       <input
-        type="number"
-        value={value || ''}
+        type="text"
+        inputMode="numeric"
+        pattern="[0-9]*"
+        value={value ?? ''}
         onChange={(e) => {
-          const val = e.target.value ? parseInt(e.target.value) : null;
-          if (val === null || (val >= min && val <= max)) {
-            onChange(val);
-          }
+          const cleaned = e.target.value.replace(/\D/g, '');
+          const val = cleaned.length ? parseInt(cleaned, 10) : null;
+          onChange(val);
         }}
+        onBlur={onBlur}
         placeholder={placeholder}
-        min={min}
-        max={max}
-        className="w-full bg-gray-700/50 border border-gray-600 rounded-xl px-3 py-2.5 text-white placeholder-gray-500 focus:outline-none focus:border-cyan-500 transition-colors pr-12"
+        className={`w-full bg-gray-700/50 border rounded-xl px-3 py-2.5 text-white placeholder-gray-500 focus:outline-none focus:border-cyan-500 transition-colors pr-12 ${error ? 'border-red-400/70' : 'border-gray-600'}`}
       />
       {suffix && (
         <span className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 text-sm">
@@ -101,6 +109,9 @@ const CampoNumero = ({ label, value, onChange, placeholder, min, max, suffix }) 
         </span>
       )}
     </div>
+    {error && (
+      <p className="text-xs text-red-400 mt-1">{error}</p>
+    )}
   </div>
 );
 
@@ -162,6 +173,7 @@ const TarjetaEditor = ({ isOpen, onClose, tarjeta }) => {
     ubicacionTexto: '',
     bio: '',
     buscando: '',
+    fotoSensible: false,
     horariosConexion: {
       manana: false,
       tarde: false,
@@ -173,6 +185,7 @@ const TarjetaEditor = ({ isOpen, onClose, tarjeta }) => {
   const [isSubiendoFoto, setIsSubiendoFoto] = useState(false);
   const [fotoPreview, setFotoPreview] = useState(null);
   const [nuevaFotoUrl, setNuevaFotoUrl] = useState(null);
+  const [errores, setErrores] = useState({});
   const fileInputRef = useRef(null);
 
   // Cargar datos de la tarjeta
@@ -189,6 +202,14 @@ const TarjetaEditor = ({ isOpen, onClose, tarjeta }) => {
         ubicacionTexto: tarjeta.ubicacionTexto || '',
         bio: tarjeta.bio || '',
         buscando: tarjeta.buscando || '',
+        fotoSensible: Boolean(
+          tarjeta.fotoSensible ||
+          tarjeta.contenidoSensible ||
+          tarjeta.isExplicit ||
+          tarjeta.explicit ||
+          tarjeta.nsfw ||
+          tarjeta.isSensitive
+        ),
         horariosConexion: tarjeta.horariosConexion || {
           manana: false,
           tarde: false,
@@ -196,14 +217,78 @@ const TarjetaEditor = ({ isOpen, onClose, tarjeta }) => {
           madrugada: false
         }
       });
+      setErrores({});
     }
   }, [tarjeta]);
+
+  const validarNumero = (value, { min, max, label, optional = false, unidad }) => {
+    if (value === null || value === undefined || value === '') {
+      return optional ? '' : '';
+    }
+    if (Number.isNaN(value)) {
+      return `${label} válida entre ${min} y ${max}${unidad ? ` ${unidad}` : ''}`;
+    }
+    if (value < min) {
+      return `${label} mínima: ${min}`;
+    }
+    if (value > max) {
+      return `${label} máxima: ${max}`;
+    }
+    return '';
+  };
+
+  const setError = (campo, mensaje) => {
+    setErrores(prev => ({ ...prev, [campo]: mensaje }));
+  };
+
+  const getNumeroError = (campo, value) => {
+    if (value === null || value === undefined || value === '') return '';
+    if (campo === 'edad') {
+      return validarNumero(value, { min: 18, max: 99, label: 'Edad' });
+    }
+    if (campo === 'alturaCm') {
+      const base = validarNumero(value, { min: 120, max: 230, label: 'Altura', unidad: 'cm' });
+      return base ? 'Altura válida entre 120 y 230 cm' : '';
+    }
+    if (campo === 'pesaje') {
+      if (value === null || value === undefined || value === '') return '';
+      const base = validarNumero(value, { min: 5, max: 40, label: 'Medida', optional: true, unidad: 'cm' });
+      return base ? 'Medida válida entre 5 y 40 cm' : '';
+    }
+    return '';
+  };
+
+  const handleNumeroChange = (campo, valor) => {
+    updateDato(campo, valor);
+    if (errores[campo]) {
+      setError(campo, '');
+    }
+  };
+
+  const handleNumeroBlur = (campo) => {
+    const mensaje = getNumeroError(campo, datos[campo]);
+    setError(campo, mensaje);
+  };
 
   const handleGuardar = async () => {
     if (isGuardando) return;
     setIsGuardando(true);
 
     try {
+      const nuevosErrores = {};
+      const edadError = getNumeroError('edad', datos.edad);
+      if (edadError) nuevosErrores.edad = edadError;
+      const alturaError = getNumeroError('alturaCm', datos.alturaCm);
+      if (alturaError) nuevosErrores.alturaCm = alturaError;
+      const medidaError = getNumeroError('pesaje', datos.pesaje);
+      if (medidaError) nuevosErrores.pesaje = medidaError;
+
+      if (Object.keys(nuevosErrores).length > 0) {
+        setErrores(nuevosErrores);
+        setIsGuardando(false);
+        return;
+      }
+
       // Preparar datos a guardar (la foto ya se auto-guarda, no incluirla aquí)
       const datosAGuardar = { ...datos };
 
@@ -551,6 +636,19 @@ const TarjetaEditor = ({ isOpen, onClose, tarjeta }) => {
                   : 'Toca el ícono de cámara para subir tu foto'}
             </p>
 
+            {/* Foto sensible (blur inicial) */}
+            <div className="flex items-center justify-center">
+              <label className="flex items-center gap-2 text-xs text-gray-400 cursor-pointer select-none">
+                <input
+                  type="checkbox"
+                  checked={!!datos.fotoSensible}
+                  onChange={(e) => updateDato('fotoSensible', e.target.checked)}
+                  className="accent-cyan-500"
+                />
+                Marcar foto como sensible (blur inicial)
+              </label>
+            </div>
+
             {/* Datos básicos */}
             <div className="grid grid-cols-2 gap-4">
               <CampoTexto
@@ -563,11 +661,11 @@ const TarjetaEditor = ({ isOpen, onClose, tarjeta }) => {
               <CampoNumero
                 label="Edad"
                 value={datos.edad}
-                onChange={(v) => updateDato('edad', v)}
+                onChange={(v) => handleNumeroChange('edad', v)}
+                onBlur={() => handleNumeroBlur('edad')}
                 placeholder="18"
-                min={18}
-                max={99}
                 suffix="años"
+                error={errores.edad}
               />
             </div>
 
@@ -593,20 +691,20 @@ const TarjetaEditor = ({ isOpen, onClose, tarjeta }) => {
               <CampoNumero
                 label="Altura"
                 value={datos.alturaCm}
-                onChange={(v) => updateDato('alturaCm', v)}
+                onChange={(v) => handleNumeroChange('alturaCm', v)}
+                onBlur={() => handleNumeroBlur('alturaCm')}
                 placeholder="175"
-                min={100}
-                max={250}
                 suffix="cm"
+                error={errores.alturaCm}
               />
               <CampoNumero
                 label="Medida (opcional)"
                 value={datos.pesaje}
-                onChange={(v) => updateDato('pesaje', v)}
+                onChange={(v) => handleNumeroChange('pesaje', v)}
+                onBlur={() => handleNumeroBlur('pesaje')}
                 placeholder="—"
-                min={1}
-                max={50}
                 suffix="cm"
+                error={errores.pesaje}
               />
             </div>
 

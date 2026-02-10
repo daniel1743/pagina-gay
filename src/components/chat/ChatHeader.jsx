@@ -21,7 +21,7 @@ const roomNames = {
   // 'conversas-libres' → redirige a 'principal'
 };
 
-const ChatHeader = ({ currentRoom, onMenuClick, onOpenPrivateChat, onSimulate }) => {
+const ChatHeader = ({ currentRoom, onMenuClick, onOpenPrivateChat, onSimulate, activityText = '' }) => {
   const navigate = useNavigate();
   const { user } = useAuth();
   const [isMuted, setIsMuted] = useState(notificationSounds.getMuteState());
@@ -38,7 +38,7 @@ const ChatHeader = ({ currentRoom, onMenuClick, onOpenPrivateChat, onSimulate })
 
   return (
     <header className="bg-card border-b p-3 sm:p-4 flex items-center justify-between shrink-0">
-      <div className="flex items-center gap-2 sm:gap-3 min-w-0 flex-1">
+      <div className="flex items-start gap-2 sm:gap-3 min-w-0 flex-1">
         {/* ✅ FLECHA ELIMINADA - A petición del usuario */}
         <Button
           variant="ghost"
@@ -53,6 +53,11 @@ const ChatHeader = ({ currentRoom, onMenuClick, onOpenPrivateChat, onSimulate })
           <h2 className="font-bold text-foreground text-base sm:text-lg truncate">
             {roomNames[currentRoom] || 'Chat'}
           </h2>
+          {activityText ? (
+            <p className="text-[11px] text-muted-foreground truncate leading-tight">
+              {activityText}
+            </p>
+          ) : null}
         </div>
       </div>
 

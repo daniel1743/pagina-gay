@@ -11,10 +11,11 @@ import { toast } from '@/components/ui/use-toast';
 import { collection, addDoc, onSnapshot, query, orderBy, serverTimestamp } from 'firebase/firestore';
 import { db } from '@/config/firebase';
 
-const PrivateChatWindow = ({ user, partner, onClose, chatId }) => {
+const PrivateChatWindow = ({ user, partner, onClose, chatId, initialMessage = '', autoFocus = true }) => {
   const [messages, setMessages] = useState([]);
-  const [newMessage, setNewMessage] = useState('');
+  const [newMessage, setNewMessage] = useState(initialMessage || '');
   const messagesEndRef = useRef(null);
+  const inputRef = useRef(null);
 
   // Suscribirse a mensajes en tiempo real
   useEffect(() => {
@@ -40,6 +41,14 @@ const PrivateChatWindow = ({ user, partner, onClose, chatId }) => {
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages]);
+
+  useEffect(() => {
+    if (!autoFocus) return;
+    const timer = setTimeout(() => {
+      inputRef.current?.focus();
+    }, 50);
+    return () => clearTimeout(timer);
+  }, [autoFocus, chatId]);
 
   const handleSendMessage = async (e) => {
     e.preventDefault();
@@ -225,10 +234,12 @@ const PrivateChatWindow = ({ user, partner, onClose, chatId }) => {
       <form onSubmit={handleSendMessage} className="p-3 border-t shrink-0">
         <div className="flex items-center gap-2">
           <Input
+            ref={inputRef}
             value={newMessage}
             onChange={(e) => setNewMessage(e.target.value)}
             placeholder="Escribe un mensaje privado..."
             className="flex-1 bg-secondary border-input rounded-full px-4 focus:border-accent"
+            autoFocus={autoFocus}
           />
           <Button type="submit" size="icon" className="rounded-full magenta-gradient text-white">
             <Send className="w-5 h-5" />

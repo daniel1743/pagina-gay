@@ -7,11 +7,13 @@ import {
   arrayRemove,
   serverTimestamp,
   getDoc,
+  getDocs,
   query,
   where,
   onSnapshot,
   orderBy,
   setDoc,
+  limit,
 } from 'firebase/firestore';
 import { db } from '@/config/firebase';
 
@@ -87,6 +89,49 @@ export const sendPrivateChatRequest = async (fromUserId, toUserId) => {
     console.error('Error sending private chat request:', error);
     throw error;
   }
+};
+
+/**
+ * Crear u obtener chat privado directo entre dos usuarios
+ * Sin solicitud previa (flujo rápido desde Baúl)
+ */
+export const getOrCreatePrivateChat = async (userAId, userBId) => {
+  if (!userAId || !userBId) {
+    throw new Error('Missing user ids');
+  }
+  if (userAId === userBId) {
+    throw new Error('Cannot create chat with self');
+  }
+
+  const chatsRef = collection(db, 'private_chats');
+  const q = query(
+    chatsRef,
+    where('participants', 'array-contains', userAId),
+    limit(50)
+  );
+
+  const snapshot = await getDocs(q);
+  const existing = snapshot.docs.find((docSnap) => {
+    const data = docSnap.data();
+    return Array.isArray(data.participants) && data.participants.includes(userBId);
+  });
+
+  if (existing) {
+    return { chatId: existing.id, created: false };
+  }
+
+  const sortedIds = [userAId, userBId].sort();
+  const chatId = `${sortedIds[0]}_${sortedIds[1]}`;
+  const chatRef = doc(chatsRef, chatId);
+
+  await setDoc(chatRef, {
+    participants: sortedIds,
+    createdAt: serverTimestamp(),
+    lastMessage: null,
+    active: true,
+  });
+
+  return { chatId, created: true };
 };
 
 /**

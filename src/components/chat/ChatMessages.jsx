@@ -32,7 +32,8 @@ const ChatMessages = ({
   onScroll,
   onReply,
   lastReadMessageIndex = -1,
-  roomUsers = []
+  roomUsers = [],
+  dailyTopic = ''
 }) => {
   const [highlightedMessageId, setHighlightedMessageId] = useState(null);
   const renderedMessageIdsRef = useRef(new Set());
@@ -204,6 +205,14 @@ const ChatMessages = ({
       onScroll={onScroll}
     >
       {newMessagesIndicator}
+
+      {dailyTopic ? (
+        <div className="flex justify-center py-2">
+          <div className="text-[11px] text-gray-500 bg-gray-100 dark:bg-gray-800/70 px-3 py-1 rounded-full">
+            Tema del día: {dailyTopic}
+          </div>
+        </div>
+      ) : null}
 
       {messageGroups.length === 0 ? (
         <div className="flex items-center justify-center py-8">
