@@ -234,9 +234,9 @@ const ChatMessages = ({
             return (
               <div key={group.groupId} className="message-group">
                 {group.messages.map((message) => (
-                  <div key={message.id} className="flex justify-center py-1">
-                    <span className="text-xs text-gray-500 bg-gray-100 dark:bg-gray-800 px-3 py-1 rounded-full">
-                      {message.content}
+                  <div key={message.id} className="flex justify-center py-2 px-4">
+                    <span className="text-xs text-gray-400 dark:text-gray-500 bg-gray-100/80 dark:bg-gray-800/60 px-4 py-1.5 rounded-full text-center max-w-[85%] leading-relaxed">
+                      {message.content || message.text}
                     </span>
                   </div>
                 ))}

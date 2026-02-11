@@ -30,20 +30,20 @@ export const RegistrationRequiredModal = ({
   // Mensajes personalizados según la función
   const featureMessages = {
     'favoritos': {
-      title: 'Agregar a Favoritos',
-      description: 'Para agregar usuarios a favoritos y tener acceso rápido a tus contactos favoritos, necesitas estar registrado.'
+      title: 'Guarda tus Contactos',
+      description: 'Agrega personas a favoritos para encontrarlas rápido cada vez que entres.'
     },
     'chat privado': {
-      title: 'Chat Privado',
-      description: 'Para enviar mensajes privados y conectarte con otros usuarios de forma privada, necesitas estar registrado.'
+      title: 'Habla en Privado',
+      description: 'Envía mensajes directos y conéctate 1 a 1 con quien quieras.'
     },
     'invitar': {
-      title: 'Invitar a Chat',
-      description: 'Para invitar usuarios a chats privados, necesitas estar registrado.'
+      title: 'Invita a un Chat',
+      description: 'Crea conversaciones grupales privadas con las personas que elijas.'
     },
     'ver perfil': {
-      title: 'Ver Perfiles',
-      description: 'Para ver los perfiles completos de otros usuarios y conocer más sobre ellos, necesitas estar registrado.'
+      title: 'Conoce a este Usuario',
+      description: 'Mira su perfil completo, fotos y más información sobre él.'
     }
   };
 
@@ -158,12 +158,9 @@ export const RegistrationRequiredModal = ({
             </DialogTitle>
 
             <DialogDescription className="text-center text-gray-300 text-base leading-relaxed">
-              <span className="font-semibold text-purple-300">Chactivo se destaca por mantener el anonimato</span> y respetar tu privacidad.
-              {' '}
-              Sin embargo, para disfrutar de <span className="font-semibold text-cyan-300">algunas funciones especiales</span>, es necesario estar registrado para llevar un mejor control y garantizar la seguridad de todos.
-              {' '}
-              <span className="text-sm text-gray-400 italic block mt-2">
-                {finalDescription}
+              {finalDescription}
+              <span className="text-sm text-gray-400 block mt-2">
+                Registro gratis · Solo email · 30 segundos
               </span>
             </DialogDescription>
           </DialogHeader>
@@ -197,7 +194,7 @@ export const RegistrationRequiredModal = ({
                 variant="outline"
                 className="w-full border-2 border-gray-600 hover:border-gray-500 text-gray-300 hover:text-white font-semibold py-5 text-base rounded-xl bg-gray-800/50 hover:bg-gray-700/50 transition-all"
               >
-                Continuar sin Registro
+                Ahora no
               </Button>
             </motion.div>
 

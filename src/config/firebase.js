@@ -2,6 +2,7 @@ import { initializeApp } from 'firebase/app';
 import { getAuth, connectAuthEmulator, setPersistence, inMemoryPersistence } from 'firebase/auth';
 import { getFirestore, connectFirestoreEmulator } from 'firebase/firestore';
 import { getStorage, connectStorageEmulator } from 'firebase/storage';
+import { getMessaging, isSupported } from 'firebase/messaging';
 
 // Validar variables de entorno críticas
 const requiredEnvVars = {
@@ -48,6 +49,19 @@ const app = initializeApp(firebaseConfig);
 export const auth = getAuth(app);
 export const db = getFirestore(app);
 export const storage = getStorage(app);
+
+// FCM Messaging (condicional - no todos los navegadores lo soportan)
+export let messaging = null;
+isSupported().then((supported) => {
+  if (supported) {
+    messaging = getMessaging(app);
+    console.log('[FIREBASE] FCM Messaging habilitado');
+  } else {
+    console.log('[FIREBASE] FCM Messaging no soportado en este navegador');
+  }
+}).catch(() => {
+  console.log('[FIREBASE] FCM Messaging no disponible');
+});
 
 // ⚡ DESHABILITADO: setPersistence estaba bloqueando onAuthStateChanged
 // Firebase Auth usa persistence por defecto (browserLocalPersistence)

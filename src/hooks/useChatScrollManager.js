@@ -275,46 +275,29 @@ export const useChatScrollManager = ({ messages, currentUserId, isInputFocused }
     // 🚫 MANDATORY CHECK: Only scroll if user is at bottom (UI/UX best practice)
     const userIsAtBottom = isAtBottom();
     
-    // ⚡ INSTANTÁNEO: If own message - scroll only if at bottom
+    // Mensaje propio: scroll al fondo solo si ya estaba abajo
     if (isOwnMessage) {
       if (userIsAtBottom) {
-        // User is at bottom - scroll immediately
         requestAnimationFrame(() => {
-          scrollToBottom('auto'); // 'auto' es más rápido que 'smooth'
+          scrollToBottom('auto');
           setScrollState('AUTO_FOLLOW');
           setUnreadCount(0);
         });
-      } else {
-        // User scrolled up - do NOT scroll, preserve position
-        captureTopAnchor();
-        requestAnimationFrame(() => {
-          restoreTopAnchor();
-        });
       }
+      // Si esta arriba: no hacer nada, el navegador preserva la posicion
       return;
     }
 
-    // For others' messages
-    // 🚫 MANDATORY: Only scroll if BOTH conditions are true:
-    // 1. scrollState === 'AUTO_FOLLOW' (user hasn't paused)
-    // 2. userIsAtBottom === true (user is actually at bottom)
+    // Mensaje de otros: scroll solo si AUTO_FOLLOW y esta abajo
     if (scrollState === 'AUTO_FOLLOW' && userIsAtBottom) {
-      // ⚡ INSTANTÁNEO: Auto-follow active AND user is at bottom - scroll immediately
       requestAnimationFrame(() => {
         scrollToBottom('auto');
       });
-    } else {
-      // Paused OR scrolled up - preserve anchor and increment unread
-      // 🚫 NEVER scroll if user has scrolled up, regardless of state
-      captureTopAnchor();
-
-      requestAnimationFrame(() => {
-        restoreTopAnchor();
-        if (!userIsAtBottom) {
-          // Only increment unread if user is actually scrolled up
-          setUnreadCount((prev) => prev + 1);
-        }
-      });
+    } else if (!userIsAtBottom) {
+      // Scrolleado arriba: solo incrementar contador de no leidos
+      // NO tocar scrollTop — el navegador preserva la posicion automaticamente
+      // cuando los mensajes se agregan al final del contenedor
+      setUnreadCount((prev) => prev + 1);
     }
   }, [messages, currentUserId, scrollState, scrollToBottom, captureTopAnchor, restoreTopAnchor, isAtBottom]);
 

@@ -8,10 +8,12 @@ import {
 } from '@/components/ui/dialog';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Button } from '@/components/ui/button';
-import { Flag, X, CheckCircle, Heart, MessageSquare, Calendar, Users, Plus } from 'lucide-react';
+import { Flag, X, CheckCircle, Heart, MessageSquare, Calendar, Users, Plus, Ban } from 'lucide-react';
 import { motion } from 'framer-motion';
 import { getFavorites } from '@/services/socialService';
+import { blockUser, isBlocked } from '@/services/blockService';
 import { useAuth } from '@/contexts/AuthContext';
+import { toast } from '@/components/ui/use-toast';
 import FavoritesModal from './FavoritesModal';
 
 const UserProfileModal = ({ user, onClose, onReport, onSelectUser }) => {
@@ -19,6 +21,39 @@ const UserProfileModal = ({ user, onClose, onReport, onSelectUser }) => {
   const [favorites, setFavorites] = useState([]);
   const [loadingFavorites, setLoadingFavorites] = useState(false);
   const [showAllFavorites, setShowAllFavorites] = useState(false);
+  const [userIsBlocked, setUserIsBlocked] = useState(false);
+
+  const isOwnProfile = currentUser && user.userId === currentUser.id;
+
+  // Verificar si el usuario esta bloqueado
+  useEffect(() => {
+    const checkBlocked = async () => {
+      if (currentUser && user.userId && !isOwnProfile) {
+        const blocked = await isBlocked(currentUser.id, user.userId);
+        setUserIsBlocked(blocked);
+      }
+    };
+    checkBlocked();
+  }, [currentUser, user.userId, isOwnProfile]);
+
+  const handleBlockUser = async () => {
+    if (!currentUser?.id || !user.userId || isOwnProfile) return;
+    try {
+      await blockUser(currentUser.id, user.userId, { source: 'user_profile' });
+      setUserIsBlocked(true);
+      toast({
+        title: "Usuario bloqueado",
+        description: "Ya no veras sus mensajes en el chat.",
+      });
+    } catch (error) {
+      console.error('Error bloqueando usuario:', error);
+      toast({
+        title: "Error",
+        description: "No se pudo bloquear al usuario.",
+        variant: "destructive",
+      });
+    }
+  };
 
   // Cargar favoritos del usuario (solo si es el perfil propio)
   useEffect(() => {
@@ -226,18 +261,28 @@ const UserProfileModal = ({ user, onClose, onReport, onSelectUser }) => {
           </div>
 
           {/* Acciones */}
-          <div className="flex gap-4 mt-6 px-6 pb-6">
-            <Button
-              onClick={() => {
-                onReport();
-                onClose();
-              }}
-              variant="outline"
-              className="flex-1 border-red-500 text-red-500 hover:bg-red-500/10 hover:text-red-400"
-            >
-              <Flag className="w-4 h-4 mr-2" /> Reportar
-            </Button>
-          </div>
+          {!isOwnProfile && (
+            <div className="flex gap-4 mt-6 px-6 pb-6">
+              <Button
+                onClick={() => {
+                  onReport();
+                  onClose();
+                }}
+                variant="outline"
+                className="flex-1 border-red-500 text-red-500 hover:bg-red-500/10 hover:text-red-400"
+              >
+                <Flag className="w-4 h-4 mr-2" /> Reportar
+              </Button>
+              <Button
+                onClick={handleBlockUser}
+                variant="outline"
+                disabled={userIsBlocked}
+                className="flex-1 border-orange-500 text-orange-500 hover:bg-orange-500/10 hover:text-orange-400 disabled:opacity-50"
+              >
+                <Ban className="w-4 h-4 mr-2" /> {userIsBlocked ? 'Bloqueado' : 'Bloquear'}
+              </Button>
+            </div>
+          )}
 
           <Button
             variant="ghost"

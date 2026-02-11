@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Button } from '@/components/ui/button';
 import { ScrollArea } from '@/components/ui/scroll-area';
@@ -30,22 +30,24 @@ const SystemNotificationsPanel = ({ isOpen, onClose, onNotificationCountChange }
     typeof Notification !== 'undefined' ? Notification.permission : 'default'
   );
 
+  // Ref para callback estable (evita re-crear listener cuando cambia la prop)
+  const onNotificationCountChangeRef = useRef(onNotificationCountChange);
+  useEffect(() => { onNotificationCountChangeRef.current = onNotificationCountChange; }, [onNotificationCountChange]);
+
   // Suscribirse a notificaciones en tiempo real
   useEffect(() => {
-    if (!user || user.isGuest || !isOpen) return;
+    if (!user?.id || user.isGuest || !isOpen) return;
 
     const unsubscribe = subscribeToSystemNotifications(user.id, (notifs) => {
       setNotifications(notifs);
 
       // Enviar contador de no leídas al Header
       const unreadCount = notifs.filter(n => !n.read).length;
-      if (onNotificationCountChange) {
-        onNotificationCountChange(unreadCount);
-      }
+      onNotificationCountChangeRef.current?.(unreadCount);
     });
 
     return () => unsubscribe();
-  }, [user, isOpen, onNotificationCountChange]);
+  }, [user?.id, user?.isGuest, isOpen]);
 
   // Solicitar permisos de notificaciones
   const handleRequestPermission = async () => {

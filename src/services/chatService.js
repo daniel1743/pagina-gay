@@ -424,10 +424,6 @@ export const sendMessage = async (roomId, messageData, isAnonymous = false, skip
   }
 };
 
-// 🔍 DIAGNÓSTICO: Contador global de listeners activos (para debugging)
-if (typeof window !== 'undefined') {
-  window.__activeFirestoreListeners = window.__activeFirestoreListeners || 0;
-}
 
 /**
  * Procesa un snapshot de Firestore y devuelve mensajes ordenados (viejo->nuevo)
@@ -457,148 +453,19 @@ const processSnapshotToMessages = (snapshot, roomId) => {
  * ⚡ Carga inicial con getDocs para mostrar mensajes de inmediato; onSnapshot para tiempo real
  */
 export const subscribeToRoomMessages = (roomId, callback, messageLimit = 60) => {
-  console.log(`[CHAT SERVICE] 🔍 Iniciando suscripción a sala ${roomId} con límite ${messageLimit}`);
   const messagesRef = collection(db, 'rooms', roomId, 'messages');
   const q = query(messagesRef, orderBy('timestamp', 'desc'), limit(messageLimit));
-  
-  console.log(`[CHAT SERVICE] 📡 Query configurada: rooms/${roomId}/messages, ordenado por timestamp desc, límite ${messageLimit}`);
 
-  // ⚡ CARGA INMEDIATA: getDocs para mostrar mensajes lo antes posible (evita esperar minutos al onSnapshot)
-  getDocs(q)
-    .then((snapshot) => {
-      const ordered = processSnapshotToMessages(snapshot, roomId);
-      if (ordered.length > 0) {
-        console.log(`[CHAT SERVICE] ⚡ getDocs inicial: ${ordered.length} mensajes para sala ${roomId}`);
-        callback(ordered);
-      }
-    })
-    .catch((err) => {
-      console.warn('[CHAT SERVICE] getDocs inicial falló, esperando onSnapshot:', err?.message);
-    });
+  // onSnapshot ya entrega datos iniciales inmediatamente — getDocs redundante eliminado
 
-  // ⚡ OPTIMIZACIÓN CRÍTICA: Medir tiempo de entrega para diagnosticar retrasos
-  let lastSnapshotTime = Date.now();
-  let isFirstSnapshot = true; // Primera snapshot puede ser más lenta (carga inicial)
-
-  // 📊 Obtener monitor de rendimiento
   const perfMonitor = getPerformanceMonitor();
 
-  console.log(`[CHAT SERVICE] 🎯 Configurando onSnapshot para sala ${roomId}...`);
   const unsubscribe = onSnapshot(
     q,
     (snapshot) => {
-      console.log(`[CHAT SERVICE] 📥 Snapshot recibido para sala ${roomId}:`, {
-        docsCount: snapshot.docs.length,
-        empty: snapshot.empty,
-        fromCache: snapshot.metadata.fromCache,
-        hasPendingWrites: snapshot.metadata.hasPendingWrites,
-        isFirstSnapshot: isFirstSnapshot
-      });
-      const snapshotReceivedTime = Date.now();
-      const timeSinceLastSnapshot = snapshotReceivedTime - lastSnapshotTime;
-      lastSnapshotTime = snapshotReceivedTime;
-
-      // ⚡ OPTIMIZACIÓN: Primera snapshot puede ser lenta (carga inicial), no alertar
-      const isFirstSnapshotNow = isFirstSnapshot;
-      if (isFirstSnapshot) {
-        isFirstSnapshot = false;
-      }
-      // Logs de actualización desactivados para reducir spam en consola
-
-      // 🔍 DIAGNÓSTICO: Alertar si hay retraso REAL (> 3 segundos) o viene de caché
-      // ⚡ UMBRAL REDUCIDO: De 5s a 3s para detectar problemas más rápido
-      const isActuallySlow = timeSinceLastSnapshot > 3000; // ⚠️ Alertar si > 3 segundos
-      const isFromCache = snapshot.metadata.fromCache;
-      const isVerySlow = timeSinceLastSnapshot > 10000; // 🔴 CRÍTICO si > 10 segundos
-
-      // ⚠️ ALERTA: Solo si hay retraso REAL (> 3 segundos) o viene de caché (datos no en tiempo real)
-      // Ignorar primera snapshot (carga inicial es normal que sea lenta)
-      // ⚠️ ALERTA: Solo si hay retraso REAL (> 3 segundos) o viene de caché (datos no en tiempo real)
-      // Ignorar primera snapshot (carga inicial es normal que sea lenta)
-      // if ((isActuallySlow || isFromCache) && !isFirstSnapshotNow) {
-      //   const logLevel = isVerySlow ? 'error' : 'warn';
-      //   const logMethod = isVerySlow ? console.error : console.warn;
-      //   const emoji = isVerySlow ? '🔴' : '⚠️';
-      //   
-      //   logMethod(`${emoji} [${isVerySlow ? 'MUY LENTO' : 'LENTO'}] Snapshot recibido:`, {
-      //     docsCount: snapshot.docs.length,
-      //     roomId,
-      //     timeSinceLastSnapshot: `${timeSinceLastSnapshot}ms`,
-      //     fromCache: isFromCache,
-      //     hasPendingWrites: snapshot.metadata.hasPendingWrites,
-      //     timestamp: new Date().toISOString(),
-      //     ...(isVerySlow ? {
-      //       suggestion: 'Posibles causas: conexión lenta, demasiados mensajes, o problemas de red. Verificar conexión a internet y reducir límite de mensajes si es necesario.'
-      //     } : {})
-      //   });
-      // }
-
-      const startProcessTime = performance.now();
       const orderedMessages = processSnapshotToMessages(snapshot, roomId);
-      
-      console.log(`[CHAT SERVICE] ✅ Mensajes procesados: ${orderedMessages.length} mensajes ordenados para sala ${roomId}`);
-      if (orderedMessages.length > 0) {
-        console.log(`[CHAT SERVICE] 📝 Primer mensaje:`, {
-          id: orderedMessages[0].id,
-          username: orderedMessages[0].username,
-          content: orderedMessages[0].content?.substring(0, 50),
-          timestamp: orderedMessages[0].timestamp?.toMillis?.() || 'N/A'
-        });
-        console.log(`[CHAT SERVICE] 📝 Último mensaje:`, {
-          id: orderedMessages[orderedMessages.length - 1].id,
-          username: orderedMessages[orderedMessages.length - 1].username,
-          content: orderedMessages[orderedMessages.length - 1].content?.substring(0, 50),
-          timestamp: orderedMessages[orderedMessages.length - 1].timestamp?.toMillis?.() || 'N/A'
-        });
-      } else {
-        console.warn(`[CHAT SERVICE] ⚠️ ARRAY VACÍO: No se procesaron mensajes para sala ${roomId} aunque snapshot tenía ${snapshot.docs.length} documentos`);
-      }
-      
-      const processTime = performance.now() - startProcessTime;
-      
-      // ⚠️ ALERTA: Solo si el procesamiento toma más de 50ms (bloqueo real)
-      if (processTime > 50) {
-        // console.warn(`⚠️ [LENTO] Procesamiento de mensajes tomó ${processTime.toFixed(2)}ms (puede estar bloqueando)`);
-      }
 
-      // 📊 Registrar latencia de snapshot en el monitor
       perfMonitor.recordSnapshotLatency(orderedMessages);
-
-      // 📬 Procesar mensajes para delivery tracking y enviar ACKs
-      const deliveryService = getDeliveryService();
-
-      // ❌ DESHABILITADO TEMPORALMENTE - Loop infinito de Firebase (07/01/2026)
-      // markAsDelivered ejecutaba escrituras por cada mensaje recibido
-      // Causaba miles de escrituras adicionales en cada snapshot
-      // TODO: Re-habilitar con batch writes y throttling agresivo
-      const shouldProcessDelivery = false; // ✅ DESHABILITADO temporalmente
-
-      // ❌ COMENTADO - Loop infinito
-      // const shouldProcessDelivery = !snapshot.metadata.hasPendingWrites && !isFirstSnapshotNow;
-
-      if (shouldProcessDelivery) {
-        orderedMessages.forEach(msg => {
-          // Procesar actualización de delivery para mensajes propios
-          deliveryService.processMessageUpdate(msg);
-
-          if (auth.currentUser && msg.userId !== auth.currentUser.uid) {
-            // ⚠️ FIX: Solo marcar como delivered si NO lo hemos hecho antes
-            // Usar un Set para trackear mensajes ya procesados
-            if (!window.__deliveredMessages) {
-              window.__deliveredMessages = new Set();
-            }
-
-            const deliveryKey = `${roomId}:${msg.id}:${auth.currentUser.uid}`;
-            if (!window.__deliveredMessages.has(deliveryKey)) {
-              window.__deliveredMessages.add(deliveryKey);
-
-              // Enviar ACK para mensajes de otros usuarios (background)
-              deliveryService.markAsDelivered(roomId, msg.id, auth.currentUser.uid)
-                .catch(() => {}); // Ignorar errores silenciosamente
-            }
-          }
-        });
-      }
 
       // 🔍 TRACE: Callback ejecutado con mensajes recibidos
       traceEvent(TRACE_EVENTS.CALLBACK_EXECUTED, {
@@ -609,8 +476,6 @@ export const subscribeToRoomMessages = (roomId, callback, messageLimit = 60) => 
         hasPendingWrites: snapshot.metadata.hasPendingWrites,
       });
 
-      // ⚡ CRÍTICO: Ejecutar callback INMEDIATAMENTE (sin delays)
-      console.log(`[CHAT SERVICE] 📨 Ejecutando callback con ${orderedMessages.length} mensajes para sala ${roomId}`);
       callback(orderedMessages);
     },
     (error) => {
@@ -664,6 +529,12 @@ export const addReactionToMessage = async (roomId, messageId, reactionType) => {
   if (!roomId || !messageId || !reactionType) {
     const error = new Error('Parámetros inválidos para reacción');
     console.error('[REACTION SERVICE] ❌', error.message, { roomId, messageId, reactionType });
+    throw error;
+  }
+
+  if (!auth.currentUser || auth.currentUser.isAnonymous) {
+    const error = new Error('REQUIRES_REGISTERED_USER');
+    console.warn('[REACTION SERVICE] ⚠️ Reacción bloqueada para invitado/anónimo');
     throw error;
   }
 
@@ -936,63 +807,22 @@ export const subscribeToSecondaryRoomMessages = (roomId, callback, messageLimit 
   const messagesRef = collection(db, 'secondary-rooms', roomId, 'messages');
   const q = query(messagesRef, orderBy('timestamp', 'desc'), limit(messageLimit));
 
-  let lastSnapshotTime = Date.now();
-  let isFirstSnapshot = true;
-
   const perfMonitor = getPerformanceMonitor();
 
   const unsubscribe = onSnapshot(
     q,
     (snapshot) => {
-      const snapshotReceivedTime = Date.now();
-      const timeSinceLastSnapshot = snapshotReceivedTime - lastSnapshotTime;
-      lastSnapshotTime = snapshotReceivedTime;
+      const orderedMessages = processSnapshotToMessages(snapshot, roomId);
 
-      const isFirstSnapshotNow = isFirstSnapshot;
-      if (isFirstSnapshot) {
-        isFirstSnapshot = false;
-      }
+      perfMonitor.recordSnapshotLatency(orderedMessages);
 
-      const startProcessTime = performance.now();
-      const receiveTimestamp = Date.now();
-      const messages = [];
-      
-      for (let i = 0; i < snapshot.docs.length; i++) {
-        const doc = snapshot.docs[i];
-        const data = doc.data();
-        const timestampMs = data.timestamp?.toMillis?.() ?? null;
-        
-        let latency = null;
-        if (timestampMs) {
-          latency = receiveTimestamp - timestampMs;
-        }
-        
-        messages.push({
-          id: doc.id,
-          ...data,
-          timestampMs,
-          timestamp: data.timestamp ?? null,
-          _receiveLatency: latency,
-        });
-      }
-
-      // Invertir para mostrar más antiguos primero
-      messages.reverse();
-      
-      const processTime = performance.now() - startProcessTime;
-      perfMonitor.recordMetric('messageProcessing', processTime);
-
-      callback(messages);
+      callback(orderedMessages);
     },
     (error) => {
       console.error('Error en suscripción a sala secundaria:', error);
       callback([]);
     }
   );
-
-  if (typeof window !== 'undefined') {
-    window.__activeFirestoreListeners = (window.__activeFirestoreListeners || 0) + 1;
-  }
 
   return unsubscribe;
 };

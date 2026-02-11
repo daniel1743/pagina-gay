@@ -14,6 +14,11 @@ const NotificationBell = ({ onOpenPrivateChat }) => {
   const [notifications, setNotifications] = useState([]);
   const [unreadCount, setUnreadCount] = useState(0);
   const previousCountRef = useRef(0);
+  const onOpenPrivateChatRef = useRef(onOpenPrivateChat);
+
+  useEffect(() => {
+    onOpenPrivateChatRef.current = onOpenPrivateChat;
+  }, [onOpenPrivateChat]);
 
   useEffect(() => {
     if (!user || user.isGuest || user.isAnonymous) return;
@@ -49,8 +54,8 @@ const NotificationBell = ({ onOpenPrivateChat }) => {
             });
           } else if (latestNotification.type === 'private_chat_accepted') {
             // Abrir automáticamente la ventana de chat privado
-            if (onOpenPrivateChat && latestNotification.chatId) {
-              onOpenPrivateChat({
+            if (onOpenPrivateChatRef.current && latestNotification.chatId) {
+              onOpenPrivateChatRef.current({
                 chatId: latestNotification.chatId,
                 partner: {
                   userId: latestNotification.from,
@@ -89,7 +94,7 @@ const NotificationBell = ({ onOpenPrivateChat }) => {
         }
       }
     };
-  }, [user, onOpenPrivateChat]);
+  }, [user?.id, user?.isGuest, user?.isAnonymous]);
 
   if (!user || user.isGuest || user.isAnonymous) {
     return null;

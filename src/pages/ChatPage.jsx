@@ -2,14 +2,14 @@ import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react'
 import { useParams, useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
 import { useChatScrollManager } from '@/hooks/useChatScrollManager';
-import { useCompanionAI } from '@/hooks/useCompanionAI';
+
 import ChatSidebar from '@/components/chat/ChatSidebar';
 import ChatHeader from '@/components/chat/ChatHeader';
 import ChatMessages from '@/components/chat/ChatMessages';
 import ChatInput from '@/components/chat/ChatInput';
 import NewMessagesIndicator from '@/components/chat/NewMessagesIndicator';
 import ScreenSaver from '@/components/chat/ScreenSaver';
-import CompanionWidget from '@/components/chat/CompanionWidget';
+
 import UserProfileModal from '@/components/chat/UserProfileModal';
 import UserActionsModal from '@/components/chat/UserActionsModal';
 import ReportModal from '@/components/chat/ReportModal';
@@ -50,6 +50,7 @@ import { auth, db } from '@/config/firebase'; // ✅ CRÍTICO: Necesario para ob
 import { doc, getDoc } from 'firebase/firestore';
 import { sendPrivateChatRequest, respondToPrivateChatRequest, subscribeToNotifications, markNotificationAsRead } from '@/services/socialService';
 import { subscribeToBlockedUsers, isBlocked, isBlockedBetween } from '@/services/blockService';
+import { requestNotificationPermission, canRequestPush } from '@/services/pushNotificationService';
 // ⚠️ MODERADOR ELIMINADO (06/01/2026) - A petición del usuario
 // import { sendModeratorWelcome } from '@/services/moderatorWelcome';
 // ⚠️ BOTS ELIMINADOS (06/01/2026) - A petición del usuario
@@ -116,6 +117,27 @@ const ChatPage = () => {
     }
     return false; // Valor por defecto para SSR
   });
+
+  const [showPushBanner, setShowPushBanner] = useState(false);
+
+  // Mostrar banner de push despues de 30s (solo una vez por sesion, solo si no ha dado permiso)
+  useEffect(() => {
+    if (!user || user.isAnonymous || user.isGuest) return;
+    if (!canRequestPush()) return;
+    if (sessionStorage.getItem('push_banner_shown')) return;
+
+    const timer = setTimeout(() => {
+      setShowPushBanner(true);
+      sessionStorage.setItem('push_banner_shown', '1');
+    }, 30000);
+
+    return () => clearTimeout(timer);
+  }, [user]);
+
+  const handleEnablePush = async () => {
+    setShowPushBanner(false);
+    await requestNotificationPermission();
+  };
 
   const isSystemUserId = useCallback((userId) => {
     if (!userId) return false;
@@ -234,7 +256,18 @@ const ChatPage = () => {
   }, [currentRoom]);
   const [privateChatRequest, setPrivateChatRequest] = useState(null);
   const [activePrivateChat, setActivePrivateChat] = useState(null);
-  const [dismissedPrivateChats, setDismissedPrivateChats] = useState(new Set()); // IDs de chats que el usuario cerró manualmente
+  const [dismissedPrivateChats, setDismissedPrivateChats] = useState(new Set());
+  // Refs para leer estado actual dentro del callback del listener sin re-crear el listener
+  const privateChatRequestRef = useRef(null);
+  const activePrivateChatRef = useRef(null);
+  const dismissedPrivateChatsRef = useRef(new Set());
+  const userRef = useRef(null);
+  // Mantener refs sincronizados con state
+  privateChatRequestRef.current = privateChatRequest;
+  activePrivateChatRef.current = activePrivateChat;
+  dismissedPrivateChatsRef.current = dismissedPrivateChats;
+  userRef.current = user;
+
   const [showVerificationModal, setShowVerificationModal] = useState(false);
   // ⚠️ MODAL COMENTADO - No está en uso hasta que se repare
   // const [showPremiumWelcome, setShowPremiumWelcome] = useState(false);
@@ -300,6 +333,12 @@ const ChatPage = () => {
 
   const activeUsersCount = useMemo(() => countRealUsers(roomUsers), [roomUsers, countRealUsers]);
 
+  // Filtrar mensajes de usuarios bloqueados
+  const filteredMessages = useMemo(() => {
+    if (blockedUserIds.size === 0) return messages;
+    return messages.filter(msg => !blockedUserIds.has(msg.userId));
+  }, [messages, blockedUserIds]);
+
   const lastMessageMs = useMemo(() => {
     if (!messages || messages.length === 0) return null;
     for (let i = messages.length - 1; i >= 0; i--) {
@@ -325,6 +364,95 @@ const ChatPage = () => {
     return `${diffDays} d`;
   }, []);
 
+  // Inyectar mensajes de sistema: hora pico + nudges de inactividad
+  const visibleMessages = useMemo(() => {
+    const now = new Date();
+    const chileHour = (now.getUTCHours() - 3 + 24) % 24;
+    const isPeakHour = chileHour >= 21 || chileHour < 1;
+    const result = [...filteredMessages];
+    let isPeakHourShown = false;
+    let idleNudgeShown = false;
+
+    // Hora pico: si hay 5+ usuarios en horario peak
+    if (isPeakHour && activeUsersCount >= 5) {
+      result.push({
+        id: '_peak_hour_system',
+        type: 'system',
+        text: `Hora pico — hay ${activeUsersCount} personas activas ahora`,
+        timestamp: now,
+        userId: 'system',
+        username: 'Sistema',
+      });
+      isPeakHourShown = true;
+    }
+
+    // Nudges de inactividad (solo si hay mensajes reales y no se mostró peak hour)
+    if (!isPeakHourShown && filteredMessages.length > 0 && lastMessageMs) {
+      const idleMs = activityNow - lastMessageMs;
+      const idleMinutes = Math.floor(idleMs / 60000);
+      const relativeTime = formatRelativeTime(lastMessageMs, activityNow);
+
+      if (idleMinutes >= 3) {
+        let nudge = null;
+
+        if (idleMinutes >= 10) {
+          // 10+ min: informar horario activo
+          nudge = {
+            id: '_nudge_idle_long',
+            text: `Sin actividad hace ${relativeTime}. Las horas con más movimiento son 21:00 - 01:00 (Chile)`,
+          };
+        } else if (activeUsersCount >= 4) {
+          // 3-10 min, 4+ usuarios: presión social suave
+          nudge = {
+            id: '_nudge_idle_crowd',
+            text: `${activeUsersCount} personas conectadas y nadie habla. ¿Quién rompe el hielo?`,
+          };
+        } else if (activeUsersCount >= 2) {
+          // 3-10 min, 2-3 usuarios: icebreaker del día
+          const topicIndex = Math.abs(new Date(activityNow).getUTCDate()) % DAILY_TOPICS.length;
+          nudge = {
+            id: '_nudge_idle_few',
+            text: `Hace ${relativeTime} que nadie escribe. ${DAILY_TOPICS[topicIndex]}`,
+          };
+        } else {
+          // 3-10 min, 1 usuario (solo)
+          nudge = {
+            id: '_nudge_idle_alone',
+            text: `Sin mensajes hace ${relativeTime}. Escribe algo — alguien se sumará`,
+          };
+        }
+
+        if (nudge) {
+          result.push({
+            ...nudge,
+            type: 'system',
+            timestamp: now,
+            userId: 'system',
+            username: 'Sistema',
+          });
+          idleNudgeShown = true;
+        }
+      }
+    }
+
+    // Nudge progresivo para invitados que ya interactuaron
+    if ((user?.isGuest || user?.isAnonymous) && !isPeakHourShown && !idleNudgeShown) {
+      const guestMsgCount = filteredMessages.filter(m => m.userId === user?.id).length;
+      if (guestMsgCount >= 3) {
+        result.push({
+          id: '_nudge_guest_register',
+          type: 'system',
+          text: 'Estás chateando como invitado · Regístrate para chat privado, más salas y favoritos',
+          timestamp: now,
+          userId: 'system',
+          username: 'Sistema',
+        });
+      }
+    }
+
+    return result;
+  }, [filteredMessages, activeUsersCount, lastMessageMs, activityNow, formatRelativeTime, DAILY_TOPICS, user]);
+
   const activityText = useMemo(() => {
     if (typeof activeUsersCount !== 'number' || !lastMessageMs) return '';
     const relative = formatRelativeTime(lastMessageMs, activityNow);
@@ -348,20 +476,6 @@ const ChatPage = () => {
     isInputFocused,
   });
 
-  // 🤖 COMPANION AI: Sistema de ayuda sutil para usuarios anónimos
-  // Calcula cuántos mensajes ha enviado el usuario actual
-  const userMessageCount = messages.filter(msg =>
-    msg.userId === user?.id && msg.type === 'text'
-  ).length;
-
-  const companionAI = useCompanionAI({
-    user,
-    roomId: currentRoom,
-    roomName: roomsData.find(r => r.id === currentRoom)?.name || currentRoom,
-    messages,
-    userMessageCount,
-    enabled: true // Siempre habilitado para usuarios que lo necesiten
-  });
 
   // 🚀 ENGAGEMENT: Nudges contextuales OPIN + BAÚL
   const { handleChatInteraction, handleChatScroll, detenerNudges } = useEngagementNudge();
@@ -379,9 +493,8 @@ const ChatPage = () => {
   }, [detenerNudges, navigate]);
 
   const handleMessagesScroll = useCallback((event) => {
-    companionAI.handleScroll?.(event);
     handleChatScroll();
-  }, [companionAI, handleChatScroll]);
+  }, [handleChatScroll]);
 
   // ✅ VALIDACIÓN: Salas restringidas requieren autenticación
   // ⚠️ CRITICAL: Este hook DEBE ejecutarse siempre (antes del return) para respetar reglas de hooks
@@ -1312,19 +1425,24 @@ const ChatPage = () => {
   //   return () => unsubscribe();
   // }, [user?.id]);
 
-  // ✅ Suscribirse a notificaciones de chat privado
+  // Suscribirse a notificaciones de chat privado (un solo listener por user.id)
   useEffect(() => {
     if (!user?.id || user.isGuest || user.isAnonymous) return;
 
     const unsubscribe = subscribeToNotifications(user.id, (notifications) => {
+      // Leer estado actual desde refs (no re-crea el listener)
+      const currentRequest = privateChatRequestRef.current;
+      const currentActiveChat = activePrivateChatRef.current;
+      const currentDismissed = dismissedPrivateChatsRef.current;
+      const currentUser = userRef.current;
+
       // Buscar solicitudes de chat privado pendientes
-      const pendingRequests = notifications.filter(n => 
+      const pendingRequests = notifications.filter(n =>
         n.type === 'private_chat_request' && n.status === 'pending'
       );
 
-      if (pendingRequests.length > 0 && !privateChatRequest) {
+      if (pendingRequests.length > 0 && !currentRequest) {
         const latestRequest = pendingRequests[0];
-        // Establecer la solicitud en el estado para mostrar el toast/modal
         setPrivateChatRequest({
           from: {
             userId: latestRequest.from,
@@ -1332,20 +1450,20 @@ const ChatPage = () => {
             avatar: latestRequest.fromAvatar,
             isPremium: latestRequest.fromIsPremium,
           },
-          to: user,
+          to: currentUser,
           notificationId: latestRequest.id
         });
       }
 
-      // Buscar notificaciones de chat aceptado (solo si no hay chat activo y no fue cerrado manualmente)
-      const acceptedChats = notifications.filter(n => 
-        n.type === 'private_chat_accepted' && !dismissedPrivateChats.has(n.chatId)
+      // Buscar notificaciones de chat aceptado
+      const acceptedChats = notifications.filter(n =>
+        n.type === 'private_chat_accepted' && !currentDismissed.has(n.chatId)
       );
 
-      if (acceptedChats.length > 0 && !activePrivateChat) {
+      if (acceptedChats.length > 0 && !currentActiveChat) {
         const latestAccepted = acceptedChats[0];
         setActivePrivateChat({
-          user: user,
+          user: currentUser,
           partner: {
             userId: latestAccepted.from,
             username: latestAccepted.fromUsername,
@@ -1354,16 +1472,13 @@ const ChatPage = () => {
           },
           chatId: latestAccepted.chatId
         });
-        
-        // Marcar la notificación como leída para evitar que se vuelva a abrir
-        markNotificationAsRead(user.id, latestAccepted.id).catch(err => {
-          console.error('Error marking notification as read:', err);
-        });
+
+        markNotificationAsRead(user.id, latestAccepted.id).catch(() => {});
       }
     });
 
     return () => unsubscribe();
-  }, [user?.id, privateChatRequest, activePrivateChat, dismissedPrivateChats]); // 🔒 CRÍTICO: user?.id en vez de user (evita loops)
+  }, [user?.id]); // Solo depende de user.id — refs manejan el estado mutable
 
   // Navegar cuando cambia la sala actual (solo si estamos en una ruta de chat)
   useEffect(() => {
@@ -1395,12 +1510,12 @@ const ChatPage = () => {
   const handleMessageReaction = async (messageId, reaction) => {
     console.log('[REACTION] 🎯 Intentando reacción:', { messageId, reaction, currentRoom, userId: user?.id });
 
-    // ⚠️ RESTRICCIÓN: Usuarios no autenticados NO pueden dar reacciones
-    if (!auth.currentUser || user?.isGuest || user?.isAnonymous) {
+    // ⚠️ RESTRICCIÓN: Usuarios no autenticados o anónimos NO pueden dar reacciones
+    if (!auth.currentUser || auth.currentUser.isAnonymous || user?.isGuest || user?.isAnonymous || !user?.id) {
       console.log('[REACTION] ❌ Usuario no autenticado o invitado');
       toast({
-        title: "Regístrate para reaccionar",
-        description: "Los usuarios no registrados no pueden dar likes. Regístrate para interactuar más.",
+        title: "¿Te gustó? Regístrate para reaccionar",
+        description: "Es gratis y toma 30 segundos",
         variant: "default",
         duration: 4000,
         action: {
@@ -1447,8 +1562,12 @@ const ChatPage = () => {
     } catch (error) {
       console.error('[REACTION] ❌ Error:', error);
       toast({
-        title: "No pudimos agregar la reacción",
-        description: error.message || "Intenta de nuevo",
+        title: error?.message === 'REQUIRES_REGISTERED_USER'
+          ? "Regístrate para reaccionar"
+          : "No pudimos agregar la reacción",
+        description: error?.message === 'REQUIRES_REGISTERED_USER'
+          ? "Solo usuarios registrados pueden reaccionar."
+          : (error.message || "Intenta de nuevo"),
         variant: "destructive",
       });
     }
@@ -1978,36 +2097,13 @@ const ChatPage = () => {
     }
   };
 
-  /**
-   * 🤖 COMPANION AI: Handler para cuando usuario selecciona sugerencia
-   */
-  const handleSelectSuggestion = (suggestion) => {
-    console.log(`✅ [COMPANION AI] Usuario seleccionó: "${suggestion}"`);
-    setSuggestedMessage(suggestion);
-    companionAI.hideWidget();
-  };
 
   /**
    * Solicitud de chat privado
    */
   const handlePrivateChatRequest = async (targetUser) => {
-    // ⚠️ RESTRICCIÓN: Usuarios NO autenticados NO pueden enviar mensajes privados
-    if (!auth.currentUser) {
-      toast({
-        title: "Regístrate para chatear en privado",
-        description: "Los usuarios no registrados no pueden enviar mensajes privados. Regístrate para desbloquear esta función.",
-        variant: "default",
-        duration: 5000,
-        action: {
-          label: "Registrarse",
-          onClick: () => navigate('/auth')
-        }
-      });
-      return;
-    }
-
-    // ✅ VALIDACIÓN: Si el usuario actual es anónimo o guest, mostrar modal de registro
-    if (user.isGuest || user.isAnonymous) {
+    // Guests/anónimos/sin auth → modal de registro (unificado, sin toast redundante)
+    if (!auth.currentUser || user?.isGuest || user?.isAnonymous) {
       setShowRegistrationModal(true);
       setRegistrationModalFeature('chat privado');
       return;
@@ -2131,13 +2227,15 @@ const ChatPage = () => {
   /**
    * Abrir chat privado desde notificaciones
    */
-  const handleOpenPrivateChatFromNotification = ({ chatId, partner }) => {
+  const handleOpenPrivateChatFromNotification = useCallback(({ chatId, partner }) => {
+    const currentUser = userRef.current;
+    if (!currentUser?.id) return;
     setActivePrivateChat({
       chatId,
-      user: user,
+      user: currentUser,
       partner: partner
     });
-  };
+  }, []);
 
   // ========================================
   // 💬 DETECTAR RESPUESTAS: Verificar si hay respuestas cuando el usuario está scrolleado arriba
@@ -2230,8 +2328,8 @@ const ChatPage = () => {
       if (isAtTop && messages.length === 50) {
         hasShownToast = true;
         toast({
-          title: "Para ver más historial, regístrate",
-          description: "Los usuarios registrados pueden ver hasta 100 mensajes",
+          title: "Estás viendo los últimos 50 mensajes",
+          description: "Regístrate para ver el doble de historial",
           duration: 4000, // 4 segundos
         });
       }
@@ -2314,8 +2412,26 @@ const ChatPage = () => {
             activityText={activityText}
           />
 
-          {/* 📢 Banner Telegram - Fijo en todas las salas */}
-          {/* ⚠️ TELEGRAM BANNER ELIMINADO */}
+          {/* Banner de Push Notifications */}
+          {showPushBanner && (
+            <div className="px-4 py-2 bg-purple-500/10 border-b border-purple-500/20 flex items-center justify-between gap-3">
+              <p className="text-sm text-purple-300">Activa notificaciones para saber cuando te escriban</p>
+              <div className="flex gap-2 flex-shrink-0">
+                <button
+                  onClick={handleEnablePush}
+                  className="px-3 py-1 text-xs font-semibold bg-purple-500 text-white rounded-full hover:bg-purple-600 transition-colors"
+                >
+                  Activar
+                </button>
+                <button
+                  onClick={() => setShowPushBanner(false)}
+                  className="px-3 py-1 text-xs text-gray-400 hover:text-white transition-colors"
+                >
+                  Ahora no
+                </button>
+              </div>
+            </div>
+          )}
 
           <div className="flex-1 overflow-hidden flex flex-col min-h-0">
             {/* 🎯 OPIN Discovery Banner - Solo para invitados */}
@@ -2344,7 +2460,7 @@ const ChatPage = () => {
               </div>
             ) : (
               <ChatMessages
-              messages={messages}
+              messages={visibleMessages}
               currentUserId={user?.id || null}
               onUserClick={setUserActionsTarget}
               onReport={setReportTarget}
@@ -2380,6 +2496,14 @@ const ChatPage = () => {
             count={unreadRepliesCount}
           />
 
+          {(user?.isGuest || user?.isAnonymous) && messages.filter(m => m.userId === user?.id).length === 0 && (
+            <div className="text-center py-1.5 px-4">
+              <span className="text-xs text-gray-500 dark:text-gray-400">
+                Puedes leer y escribir libremente · Sin registro
+              </span>
+            </div>
+          )}
+
           <ChatInput
             onSendMessage={handleSendMessage}
             onFocus={() => setIsInputFocused(true)}
@@ -2405,22 +2529,6 @@ const ChatPage = () => {
           />
         )} */}
 
-        {/* 🤖 COMPANION AI Widget - Solo para usuarios anónimos */}
-        {/* ⚠️ TEMPORALMENTE COMENTADO: Oculto hasta tener un mejor UX */}
-        {/* {companionAI.shouldShow && (
-          <CompanionWidget
-            isVisible={companionAI.isVisible}
-            companionMessage={companionAI.companionMessage}
-            suggestions={companionAI.suggestions}
-            loading={companionAI.loading}
-            onAcceptHelp={companionAI.acceptHelp}
-            onRejectHelp={companionAI.rejectHelp}
-            onSelectSuggestion={handleSelectSuggestion}
-            onShowWidget={companionAI.showWidget}
-            onHideWidget={companionAI.hideWidget}
-            shouldShow={companionAI.shouldShow}
-          />
-        )} */}
 
         {userActionsTarget && (
           <UserActionsModal

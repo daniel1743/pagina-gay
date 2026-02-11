@@ -28,6 +28,7 @@ import { subscribeToLastActivity, subscribeToMultipleRoomCounts } from '@/servic
 import { getVisibleRooms } from '@/config/rooms';
 import ChatDemo from '@/components/landing/ChatDemo';
 import { SkeletonCard, SkeletonRoomsGrid } from '@/components/ui/SkeletonLoader';
+import PeakHoursIndicator from '@/components/lobby/PeakHoursIndicator';
 import { collection, query, orderBy, limit, onSnapshot } from 'firebase/firestore';
 import { db } from '@/config/firebase';
 
@@ -165,6 +166,7 @@ const LobbyPage = () => {
   // const [showGuestModal, setShowGuestModal] = useState(false);
   const [roomCounts, setRoomCounts] = useState({});
   const [recentMessages, setRecentMessages] = useState([]);
+  const [lastMessageTimestamp, setLastMessageTimestamp] = useState(null);
   const visibleRooms = getVisibleRooms();
 
   // ✅ Determinar si mostrar Hero Section (SOLO para usuarios NO logueados)
@@ -197,9 +199,24 @@ const LobbyPage = () => {
     return () => {}; // Cleanup vacío
   }, []);
 
-  // ✅ Suscribirse a mensajes recientes de la sala principal
+  // Suscribirse al ultimo mensaje de la sala principal (para todos los usuarios)
   useEffect(() => {
-    if (!showWelcomeBack) return; // Solo para usuarios logueados
+    const messagesRef = collection(db, 'rooms', 'principal', 'messages');
+    const qLast = query(messagesRef, orderBy('timestamp', 'desc'), limit(1));
+
+    const unsubscribe = onSnapshot(qLast, (snapshot) => {
+      if (!snapshot.empty) {
+        const lastMsg = snapshot.docs[0].data();
+        setLastMessageTimestamp(lastMsg.timestamp);
+      }
+    });
+
+    return () => unsubscribe();
+  }, []);
+
+  // Suscribirse a mensajes recientes de la sala principal (para usuarios logueados)
+  useEffect(() => {
+    if (!showWelcomeBack) return;
 
     const messagesRef = collection(db, 'rooms', 'principal', 'messages');
     const q = query(messagesRef, orderBy('timestamp', 'desc'), limit(3));
@@ -209,7 +226,7 @@ const LobbyPage = () => {
         id: doc.id,
         ...doc.data()
       }));
-      setRecentMessages(messages.reverse()); // Invertir para mostrar del más antiguo al más reciente
+      setRecentMessages(messages.reverse());
     });
 
     return () => unsubscribe();
@@ -233,6 +250,20 @@ const LobbyPage = () => {
     });
   };
 
+  // Helper para calcular el tiempo relativo
+  const getTimeAgo = (timestamp) => {
+    if (!timestamp) return null;
+
+    const now = Date.now();
+    const time = timestamp.toMillis ? timestamp.toMillis() : timestamp;
+    const diffInSeconds = Math.floor((now - time) / 1000);
+
+    if (diffInSeconds < 60) return `hace ${diffInSeconds}s`;
+    if (diffInSeconds < 3600) return `hace ${Math.floor(diffInSeconds / 60)}m`;
+    if (diffInSeconds < 86400) return `hace ${Math.floor(diffInSeconds / 3600)}h`;
+    return `hace ${Math.floor(diffInSeconds / 86400)}d`;
+  };
+
   // ✅ Generar cardData dinámicamente con contadores reales
   // ✅ FASE 1: QUICK WINS - Solo features funcionales (sin "Próximamente")
   const cardData = [
@@ -244,7 +275,7 @@ const LobbyPage = () => {
       modal: 'RoomsModal',
       variant: "primary",
       badge: "Activo",
-      stats: { label: hasActiveRooms() ? '🔥 Chat activo ahora' : '🔥 Únete y chatea', icon: Users },
+      stats: { label: lastMessageTimestamp ? `Ultimo mensaje: ${getTimeAgo(lastMessageTimestamp)}` : (hasActiveRooms() ? 'Chat activo ahora' : 'Unete y chatea'), icon: Users },
       accentColor: "cyan"
     },
     {
@@ -444,20 +475,6 @@ const LobbyPage = () => {
       console.log('🔥 Carrusel activo - Imagen actual:', currentImageIndex, modelImages[currentImageIndex]);
     }
   }, [showHeroSection, currentImageIndex, modelImages]);
-
-  // Helper para calcular el tiempo relativo
-  const getTimeAgo = (timestamp) => {
-    if (!timestamp) return null;
-
-    const now = Date.now();
-    const time = timestamp.toMillis ? timestamp.toMillis() : timestamp;
-    const diffInSeconds = Math.floor((now - time) / 1000);
-
-    if (diffInSeconds < 60) return `hace ${diffInSeconds}s`;
-    if (diffInSeconds < 3600) return `hace ${Math.floor(diffInSeconds / 60)}m`;
-    if (diffInSeconds < 86400) return `hace ${Math.floor(diffInSeconds / 3600)}h`;
-    return `hace ${Math.floor(diffInSeconds / 86400)}d`;
-  };
 
   // ✅ Calcular días activo del usuario
   const calculateActiveDays = (createdAt) => {
@@ -1952,6 +1969,11 @@ const LobbyPage = () => {
               <p className="text-base sm:text-lg text-gray-400 max-w-2xl mx-auto leading-relaxed px-4">
                 {showWelcomeBack ? 'Elige dónde quieres conectar hoy' : 'Conecta, chatea y descubre la comunidad gay más activa de Chile'}
               </p>
+            </div>
+
+            {/* Indicador de horas pico */}
+            <div className="max-w-7xl mx-auto mb-4">
+              <PeakHoursIndicator totalOnline={calculateTotalUsers()} />
             </div>
 
             {/* ✅ GRID PRINCIPAL 3x2 - SIMÉTRICO Y PERFECTO */}

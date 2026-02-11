@@ -17,6 +17,7 @@ import {
   getDoc,
   getDocs,
   updateDoc,
+  addDoc,
   collection,
   query,
   where,
@@ -661,7 +662,22 @@ export async function darLike(tarjetaId, miUserId, miUsername, miAvatar = '') {
       timestamp: serverTimestamp()
     });
 
-    console.log('[TARJETA] ✅ Like enviado a', tarjetaId);
+    console.log('[TARJETA] Like enviado a', tarjetaId);
+
+    // 4b. Crear notificacion para push (alimenta Cloud Function)
+    try {
+      const notifRef = collection(db, 'users', tarjetaId, 'notifications');
+      await addDoc(notifRef, {
+        type: 'tarjeta_like',
+        fromUserId: miUserId,
+        fromUsername: miUsername,
+        message: `${miUsername} le dio like a tu tarjeta`,
+        read: false,
+        createdAt: serverTimestamp(),
+      });
+    } catch (notifError) {
+      console.error('[TARJETA] Error creando notificacion de like:', notifError);
+    }
 
     // 5. ¡VERIFICAR MATCH!
     if (elOtroYaMeDioLike) {
