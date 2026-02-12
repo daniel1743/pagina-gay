@@ -386,10 +386,10 @@ const ChatMessages = ({
                       </span>
                     )}
 
-                    {/* Timestamp */}
-                    {showTime && (
-                      <span className={`message-time ${isOwn ? 'own' : ''}`}>
-                        {formatTime(message.timestamp)}
+                    {/* Delivery status — solo en mensajes propios, último del grupo */}
+                    {isOwn && showTime && (
+                      <span className={`message-status ${message.status === 'error' ? 'error' : message.status === 'delivered' ? 'delivered' : message.status === 'sent' ? 'sent' : 'sending'}`}>
+                        {message.status === 'error' ? '!' : message.status === 'delivered' ? '✓✓' : message.status === 'sent' ? '✓✓' : '✓'}
                       </span>
                     )}
                   </div>

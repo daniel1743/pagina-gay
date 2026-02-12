@@ -365,16 +365,16 @@ const BaulSection = ({ isOpen = true, onClose, variant = 'modal' }) => {
           console.log('[BAUL] 🎉 ¡MATCH!', resultado.matchData);
           setMatchData(resultado.matchData);
           setMostrarMatchModal(true);
-          // Actualizar conteo de matches
           setMatchesNoLeidos(prev => prev + 1);
         }
 
-        // Abrir chat privado directo después del interés
-        if (tarjeta && tarjeta.odIdUsuari) {
-          abrirChatPrivado(tarjeta);
-        }
         return true;
       }
+      toast({
+        title: 'No se pudo dar like',
+        description: 'Intenta de nuevo en un momento',
+        variant: 'destructive'
+      });
       return false;
     } else {
       // Quitar like
@@ -391,7 +391,8 @@ const BaulSection = ({ isOpen = true, onClose, variant = 'modal' }) => {
       showGuestPrompt('chat');
       return;
     }
-    abrirChatPrivado(tarjeta);
+    setTarjetaSeleccionada(tarjeta);
+    setMostrarMensajeModal(true);
   };
 
   const handleVerPerfil = (tarjeta) => {

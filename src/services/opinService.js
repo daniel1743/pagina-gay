@@ -271,20 +271,31 @@ export const getOpinFeed = async (limitCount = 50) => {
     return true;
   });
 
-  // Calcular total de OPINs activos
-  const totalActive = stables.length + normalsAll.length;
+  // Siempre aplicar expiración de 24h, pero rellenar con expirados recientes
+  // si el feed quedaría con menos de OPIN_MIN_STABLE posts (evita vaciado abrupto)
+  const vigentes = normalsAll.filter((p) => {
+    if (p.expiresAt && p.expiresAt.toMillis) {
+      return p.expiresAt.toMillis() > nowMs;
+    }
+    return true;
+  });
 
-  // Si hay menos de 20 OPINs en total, NO aplicar la regla de 24h
   let normals;
-  if (totalActive < OPIN_MIN_STABLE) {
-    normals = normalsAll;
+  const totalConVigentes = stables.length + vigentes.length;
+
+  if (totalConVigentes >= OPIN_MIN_STABLE) {
+    normals = vigentes;
   } else {
-    normals = normalsAll.filter((p) => {
-      if (p.expiresAt && p.expiresAt.toMillis) {
-        return p.expiresAt.toMillis() > nowMs;
-      }
-      return true;
-    });
+    // Faltan posts: rellenar con los expirados más recientes
+    const expirados = normalsAll
+      .filter(p => !vigentes.includes(p))
+      .sort((a, b) => {
+        const tA = a.createdAt?.toMillis ? a.createdAt.toMillis() : 0;
+        const tB = b.createdAt?.toMillis ? b.createdAt.toMillis() : 0;
+        return tB - tA;
+      });
+    const faltantes = OPIN_MIN_STABLE - totalConVigentes;
+    normals = [...vigentes, ...expirados.slice(0, faltantes)];
   }
 
   // Asignar peso BASE a cada post (más compacto para permitir variación)
@@ -311,11 +322,10 @@ export const getOpinFeed = async (limitCount = 50) => {
   // Combinar todos los posts activos
   const allActive = [...normals, ...stables];
 
-  // Shuffle ponderado: peso + factor aleatorio GRANDE para variación visible
-  // Factor aleatorio de 0-50 permite que posts se intercambien posiciones
+  // Shuffle ponderado: peso + factor aleatorio moderado para variación sin ocultar posts
   const weighted = allActive.map(post => ({
     post,
-    score: getPostWeight(post) + Math.random() * 50,
+    score: getPostWeight(post) + Math.random() * 15,
   }));
   weighted.sort((a, b) => b.score - a.score);
 

@@ -192,20 +192,34 @@
 }
 
 /* ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-   8. TIMESTAMP - Compacto
+   8. DELIVERY STATUS - Checks estilo WhatsApp
    ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */
 
-.message-time {
-  font-size: 10px !important;
-  color: #888 !important;
+.message-status {
+  font-size: 11px !important;
+  opacity: 0.6 !important;
   margin-top: 2px !important;
-  margin-left: 38px !important;
+  text-align: right !important;
+  letter-spacing: -2px !important;
+  line-height: 1 !important;
 }
 
-.message-time.own {
-  margin-left: 0 !important;
-  margin-right: 0 !important;
-  text-align: right !important;
+.message-status.sending {
+  color: #aaa !important;
+}
+
+.message-status.sent {
+  color: #888 !important;
+}
+
+.message-status.delivered {
+  color: #3b82f6 !important;
+}
+
+.message-status.error {
+  color: #ef4444 !important;
+  font-weight: 700 !important;
+  letter-spacing: 0 !important;
 }
 
 /* ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
@@ -279,10 +293,6 @@
   }
 
   .message-username {
-    margin-left: 34px !important;
-  }
-
-  .message-time {
     margin-left: 34px !important;
   }
 }

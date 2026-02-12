@@ -386,39 +386,29 @@ const ChatPage = () => {
       isPeakHourShown = true;
     }
 
-    // Nudges de inactividad (solo si hay mensajes reales y no se mostró peak hour)
+    // Nudges de engagement (sin revelar tiempo de inactividad)
     if (!isPeakHourShown && filteredMessages.length > 0 && lastMessageMs) {
       const idleMs = activityNow - lastMessageMs;
       const idleMinutes = Math.floor(idleMs / 60000);
-      const relativeTime = formatRelativeTime(lastMessageMs, activityNow);
 
       if (idleMinutes >= 3) {
         let nudge = null;
+        const topicIndex = Math.abs(new Date(activityNow).getUTCDate() + (idleMinutes > 60 ? 1 : 0)) % DAILY_TOPICS.length;
 
-        if (idleMinutes >= 10) {
-          // 10+ min: informar horario activo
-          nudge = {
-            id: '_nudge_idle_long',
-            text: `Sin actividad hace ${relativeTime}. Las horas con más movimiento son 21:00 - 01:00 (Chile)`,
-          };
-        } else if (activeUsersCount >= 4) {
-          // 3-10 min, 4+ usuarios: presión social suave
+        if (activeUsersCount >= 4) {
           nudge = {
             id: '_nudge_idle_crowd',
-            text: `${activeUsersCount} personas conectadas y nadie habla. ¿Quién rompe el hielo?`,
+            text: `${activeUsersCount} personas conectadas · ¿Quién rompe el hielo?`,
           };
         } else if (activeUsersCount >= 2) {
-          // 3-10 min, 2-3 usuarios: icebreaker del día
-          const topicIndex = Math.abs(new Date(activityNow).getUTCDate()) % DAILY_TOPICS.length;
           nudge = {
             id: '_nudge_idle_few',
-            text: `Hace ${relativeTime} que nadie escribe. ${DAILY_TOPICS[topicIndex]}`,
+            text: DAILY_TOPICS[topicIndex],
           };
         } else {
-          // 3-10 min, 1 usuario (solo)
           nudge = {
             id: '_nudge_idle_alone',
-            text: `Sin mensajes hace ${relativeTime}. Escribe algo — alguien se sumará`,
+            text: `Escribe algo — alguien se sumará`,
           };
         }
 
@@ -454,11 +444,10 @@ const ChatPage = () => {
   }, [filteredMessages, activeUsersCount, lastMessageMs, activityNow, formatRelativeTime, DAILY_TOPICS, user]);
 
   const activityText = useMemo(() => {
-    if (typeof activeUsersCount !== 'number' || !lastMessageMs) return '';
-    const relative = formatRelativeTime(lastMessageMs, activityNow);
-    if (!relative) return '';
-    return `${activeUsersCount} activos · último mensaje hace ${relative}`;
-  }, [activeUsersCount, lastMessageMs, activityNow, formatRelativeTime]);
+    if (typeof activeUsersCount !== 'number') return '';
+    if (activeUsersCount <= 0) return '';
+    return `${activeUsersCount} ${activeUsersCount === 1 ? 'persona activa' : 'personas activas'}`;
+  }, [activeUsersCount]);
 
   const dailyTopic = useMemo(() => {
     const now = new Date(activityNow);

@@ -631,29 +631,43 @@ export const AuthProvider = ({ children }) => {
 
     const startTime = performance.now();
 
-    // ✅ Valores por defecto si no se proporcionan
-    const defaultUsername = username || `Guest${Math.floor(Math.random() * 10000)}`;
-    const defaultAvatar = avatarUrl || `https://api.dicebear.com/7.x/avataaars/svg?seed=Guest${Math.random()}`;
+    // ✅ FIX PERSISTENCIA: Reutilizar identidad existente si keepSession=true (auto-restore)
+    const existingIdentity = getGuestIdentity();
+    let identity;
+    let finalUsername;
+    let finalAvatar;
 
-    // ⚡ NUEVO: Crear identidad UUID INMEDIATAMENTE (sin esperar Firebase)
-    const newIdentity = createGuestIdentity({
-      nombre: defaultUsername,
-      avatar: defaultAvatar
-    });
-    console.log('⚡ [OPTIMISTIC] Identidad creada inmediatamente:', newIdentity.guestId);
+    if (keepSession && existingIdentity) {
+      // Auto-restore: reutilizar identidad existente (mismo UUID, nombre, avatar)
+      identity = existingIdentity;
+      finalUsername = identity.nombre;
+      finalAvatar = identity.avatar;
+      console.log('⚡ [OPTIMISTIC] Identidad existente REUTILIZADA:', identity.guestId);
+    } else {
+      // Nueva entrada (modal/landing): crear identidad nueva
+      const defaultUsername = username || `Guest${Math.floor(Math.random() * 10000)}`;
+      const defaultAvatar = avatarUrl || `https://api.dicebear.com/7.x/avataaars/svg?seed=Guest${Math.random()}`;
+      identity = createGuestIdentity({
+        nombre: defaultUsername,
+        avatar: defaultAvatar
+      });
+      finalUsername = defaultUsername;
+      finalAvatar = defaultAvatar;
+      console.log('⚡ [OPTIMISTIC] Identidad NUEVA creada:', identity.guestId);
+    }
 
-    // ⚡ NUEVO: Crear usuario optimista INMEDIATAMENTE (sin esperar Firebase)
+    // ⚡ Crear usuario optimista INMEDIATAMENTE (sin esperar Firebase)
     const optimisticUser = {
-      id: `temp_${newIdentity.guestId}`, // ID temporal hasta que Firebase responda
-      username: defaultUsername,
+      id: `temp_${identity.guestId}`, // ID temporal hasta que Firebase responda
+      username: finalUsername,
       isGuest: true,
       isAnonymous: true,
       isPremium: false,
       verified: false,
-      avatar: defaultAvatar,
+      avatar: finalAvatar,
       quickPhrases: [],
       theme: {},
-      guestId: newIdentity.guestId,
+      guestId: identity.guestId,
     };
 
     // ⚡ SETEAR USUARIO INMEDIATAMENTE (sin esperar Firebase)
@@ -663,18 +677,33 @@ export const AuthProvider = ({ children }) => {
 
     // ⚡ Guardar datos temporales para que onAuthStateChanged actualice el ID real
     saveTempGuestData({
-      nombre: defaultUsername,
-      avatar: defaultAvatar,
-      guestId: newIdentity.guestId // Pasar el UUID para mantenerlo
+      nombre: finalUsername,
+      avatar: finalAvatar,
+      guestId: identity.guestId // Pasar el UUID para mantenerlo
     });
 
-    // 🚀 Firebase - Esperar a que complete (evita loading infinito en ChatPage)
+    // ✅ FIX PERSISTENCIA: Si ya hay sesión anónima activa, no crear nueva
+    if (auth.currentUser && auth.currentUser.isAnonymous) {
+      console.log('⚡ [AUTH] Sesión anónima existente reutilizada:', auth.currentUser.uid);
+      setUser({ ...optimisticUser, id: auth.currentUser.uid });
+
+      // Vincular identidad con Firebase UID si no lo está
+      if (identity.firebaseUid !== auth.currentUser.uid) {
+        linkGuestToFirebase(auth.currentUser.uid);
+      }
+
+      signInAsGuest.inProgress = false;
+      setGuestAuthInProgress(false);
+      return true;
+    }
+
+    // 🚀 Firebase signInAnonymously solo si NO hay sesión activa
     const step1Start = performance.now();
-    console.log('🔐 [AUTH] Iniciando signInAnonymously con username:', defaultUsername);
-    
+    console.log('🔐 [AUTH] Iniciando signInAnonymously con username:', finalUsername);
+
       // 📊 PERFORMANCE MONITOR: Tracking de Firebase auth
     const perfMonitor = await import('@/utils/performanceMonitor');
-    perfMonitor.startTiming('authStateChange', { type: 'signInAnonymously', username: defaultUsername });
+    perfMonitor.startTiming('authStateChange', { type: 'signInAnonymously', username: finalUsername });
 
     try {
       // ⚡ NO usar timeout aquí - debe completar sin importar cuánto tarde
@@ -683,39 +712,39 @@ export const AuthProvider = ({ children }) => {
       const step1Duration = performance.now() - step1Start;
       console.log(`⚡ [AUTH] signInAnonymously Firebase completado: ${step1Duration.toFixed(2)}ms`);
       console.log('%c✅ [AUTH] Firebase completado, onAuthStateChanged actualizará ID real', 'color: #00ff00; font-weight: bold');
-      
+
       // 📊 PERFORMANCE MONITOR: Completar tracking
       perfMonitor.endTiming('authStateChange', { status: 'success', duration: step1Duration });
-      
+
       // Esperar un breve momento para que onAuthStateChanged actualice el estado
       await new Promise(resolve => setTimeout(resolve, 100));
-      
+
       const totalDuration = performance.now() - startTime;
       console.log(`⏱️ [TOTAL] Proceso completo: ${totalDuration.toFixed(2)}ms`);
       signInAsGuest.inProgress = false;
       setGuestAuthInProgress(false); // ✅ FASE 2: Desactivar loading overlay
-      
+
       // 📊 PERFORMANCE MONITOR: Tracking completo de signInAsGuest
-      perfMonitor.trackGuestAuth(startTime, { 
-        username: defaultUsername,
+      perfMonitor.trackGuestAuth(startTime, {
+        username: finalUsername,
         method: 'signInAnonymously',
         firebaseDuration: step1Duration,
-        totalDuration 
+        totalDuration
       });
 
       return true;
     } catch (error) {
       console.error('%c❌ [AUTH] Error en Firebase:', 'color: #ff0000; font-weight: bold', error);
-      
+
       // 📊 PERFORMANCE MONITOR: Registrar error
       perfMonitor.endTiming('authStateChange', { status: 'error', error: error.message });
-      perfMonitor.trackGuestAuth(startTime, { 
-        username: defaultUsername,
+      perfMonitor.trackGuestAuth(startTime, {
+        username: finalUsername,
         method: 'signInAnonymously',
         error: error.message,
-        failed: true 
+        failed: true
       });
-      
+
       signInAsGuest.inProgress = false;
       setGuestAuthInProgress(false); // ✅ FASE 2: Desactivar loading overlay incluso en error
       // El usuario optimista ya está seteado, pero Firebase falló

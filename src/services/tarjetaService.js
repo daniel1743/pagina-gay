@@ -628,9 +628,13 @@ export async function darLike(tarjetaId, miUserId, miUsername, miAvatar = '') {
       console.warn('[TARJETA] No puedes darte like a ti mismo');
       return { success: false, isMatch: false };
     }
-    const blocked = await isBlockedBetween(miUserId, tarjetaId);
-    if (blocked) {
-      return { success: false, isMatch: false, reason: 'blocked' };
+    try {
+      const blocked = await isBlockedBetween(miUserId, tarjetaId);
+      if (blocked) {
+        return { success: false, isMatch: false, reason: 'blocked' };
+      }
+    } catch (blockError) {
+      console.warn('[TARJETA] Error verificando bloqueo (continuando):', blockError.message);
     }
 
     // 1. Verificar si el otro usuario ya me dio like (para detectar match)
@@ -955,9 +959,14 @@ export async function enviarMensajeTarjeta(tarjetaId, miUserId, miUsername, mens
       console.warn('[TARJETA] No puedes enviarte mensaje a ti mismo');
       return false;
     }
-    const blocked = await isBlockedBetween(miUserId, tarjetaId);
-    if (blocked) {
-      throw new Error('BLOCKED');
+    try {
+      const blocked = await isBlockedBetween(miUserId, tarjetaId);
+      if (blocked) {
+        throw new Error('BLOCKED');
+      }
+    } catch (blockError) {
+      if (blockError.message === 'BLOCKED') throw blockError;
+      console.warn('[TARJETA] Error verificando bloqueo en mensaje (continuando):', blockError.message);
     }
 
     // Limitar longitud del mensaje
@@ -998,8 +1007,12 @@ export async function registrarVisita(tarjetaId, miUserId, miUsername) {
   try {
     if (!tarjetaId || !miUserId) return;
     if (tarjetaId === miUserId) return; // No registrar visita propia
-    const blocked = await isBlockedBetween(miUserId, tarjetaId);
-    if (blocked) return;
+    try {
+      const blocked = await isBlockedBetween(miUserId, tarjetaId);
+      if (blocked) return;
+    } catch (blockError) {
+      console.warn('[TARJETA] Error verificando bloqueo en visita (continuando):', blockError.message);
+    }
 
     const tarjetaRef = doc(db, 'tarjetas', tarjetaId);
 
@@ -1078,9 +1091,13 @@ export async function obtenerMiActividad(miUserId, limite = 20) {
  */
 export async function verificarInteresMutuo(userId1, userId2) {
   try {
-    const blocked = await isBlockedBetween(userId1, userId2);
-    if (blocked) {
-      return { hayInteres: false, tipo: 'bloqueado' };
+    try {
+      const blocked = await isBlockedBetween(userId1, userId2);
+      if (blocked) {
+        return { hayInteres: false, tipo: 'bloqueado' };
+      }
+    } catch (blockError) {
+      console.warn('[TARJETA] Error verificando bloqueo mutuo (continuando):', blockError.message);
     }
     // 1. Verificar match formal
     const matchResult = await verificarMatch(userId1, userId2);

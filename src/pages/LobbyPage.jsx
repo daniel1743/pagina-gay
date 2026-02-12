@@ -275,7 +275,7 @@ const LobbyPage = () => {
       modal: 'RoomsModal',
       variant: "primary",
       badge: "Activo",
-      stats: { label: lastMessageTimestamp ? `Ultimo mensaje: ${getTimeAgo(lastMessageTimestamp)}` : (hasActiveRooms() ? 'Chat activo ahora' : 'Unete y chatea'), icon: Users },
+      stats: { label: hasActiveRooms() ? 'Chat activo ahora' : 'Únete y chatea', icon: Users },
       accentColor: "cyan"
     },
     {
@@ -576,7 +576,7 @@ const LobbyPage = () => {
                   className="glass-effect px-4 py-2 rounded-lg border border-cyan-500/20"
                 >
                   <p className="text-xs sm:text-sm text-cyan-400">
-                    <span className="font-semibold">{lastActivity.username}</span> se conectó {getTimeAgo(lastActivity.timestamp)}
+                    <span className="font-semibold">{lastActivity.username}</span> se conectó recientemente
                   </p>
                 </motion.div>
               )}
@@ -1907,7 +1907,7 @@ const LobbyPage = () => {
                           <span className="font-semibold text-green-400">{lastActivity.username}</span>
                           {' '}se conectó
                         </p>
-                        <p className="text-xs text-gray-500">{getTimeAgo(lastActivity.timestamp)}</p>
+                        <p className="text-xs text-gray-500">En línea</p>
                       </div>
                       <div className="relative">
                         <span className="absolute inline-flex h-3 w-3 rounded-full bg-green-400 opacity-75 animate-ping"></span>

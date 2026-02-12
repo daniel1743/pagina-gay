@@ -851,9 +851,9 @@ service cloud.firestore {
     // ===========================
 
     match /matches/{matchId} {
-      // Leer: solo participantes
+      // Leer: participantes (o cualquier registrado si el doc no existe aún)
       allow read: if isRegistered() &&
-                    request.auth.uid in resource.data.users;
+                    (resource == null || request.auth.uid in resource.data.users);
 
       // Crear: solo participantes, estructura mínima
       allow create: if isRegistered() &&

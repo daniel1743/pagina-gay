@@ -157,7 +157,7 @@ export const GuestUsernameModal = ({
       console.log('%c✅ Iniciando signInAsGuest para setear usuario optimistic...', 'color: #00ff00; font-weight: bold; font-size: 14px');
 
       // Iniciar proceso (esto setea usuario en ~50ms)
-      const guestPromise = signInAsGuest(nickname.trim(), randomAvatar, true);
+      const guestPromise = signInAsGuest(nickname.trim(), randomAvatar, false);
 
       // Esperar SOLO lo necesario para que setUser() se ejecute
       await new Promise(resolve => setTimeout(resolve, 100));
