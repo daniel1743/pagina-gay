@@ -73,7 +73,7 @@ export async function crearEvento({ nombre, descripcion, fechaInicio, duracionMi
 export async function obtenerEventosVisibles() {
   try {
     const eventosRef = collection(db, 'eventos');
-    const q = query(eventosRef, where('activo', '==', true), orderBy('fechaInicio', 'asc'));
+    const q = query(eventosRef, where('activo', '==', true));
     const snapshot = await getDocs(q);
 
     const eventos = [];
@@ -85,6 +85,8 @@ export async function obtenerEventosVisibles() {
       }
     });
 
+    // Ordenar por fechaInicio en cliente
+    eventos.sort((a, b) => (a.fechaInicio?.toMillis?.() || 0) - (b.fechaInicio?.toMillis?.() || 0));
     return eventos;
   } catch (error) {
     console.error('[EVENTOS] Error obteniendo eventos:', error);
@@ -133,7 +135,8 @@ export async function obtenerEventoPorId(eventoId) {
  */
 export function suscribirseAEventos(callback) {
   const eventosRef = collection(db, 'eventos');
-  const q = query(eventosRef, where('activo', '==', true), orderBy('fechaInicio', 'asc'));
+  // Solo filtrar por activo, ordenar en cliente (evita necesidad de composite index)
+  const q = query(eventosRef, where('activo', '==', true));
 
   return onSnapshot(q, (snapshot) => {
     const eventos = [];
@@ -144,6 +147,8 @@ export function suscribirseAEventos(callback) {
         eventos.push(evento);
       }
     });
+    // Ordenar por fechaInicio en cliente
+    eventos.sort((a, b) => (a.fechaInicio?.toMillis?.() || 0) - (b.fechaInicio?.toMillis?.() || 0));
     callback(eventos);
   }, (error) => {
     console.error('[EVENTOS] Error en suscripción:', error);

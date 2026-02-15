@@ -66,6 +66,8 @@ import { notificationSounds } from '@/services/notificationSounds';
 import { monitorActivityAndSendVOC, resetVOCCooldown } from '@/services/vocService';
 import { generateNicoWelcome, sendNicoQuestion, getLastNicoMessageAge, NICO, QUESTION_INTERVAL_MS } from '@/services/nicoBot';
 import EventoBanner from '@/components/eventos/EventoBanner';
+import EventReminderPopup from '@/components/eventos/EventReminderPopup';
+import { markReminderPopupShown, wasReminderPopupShown, cleanOldReminders } from '@/utils/eventReminderUtils';
 import '@/utils/chatDiagnostics'; // 🔍 Cargar diagnóstico en consola
 import { 
   trackChatLoad, 
@@ -94,6 +96,13 @@ const roomWelcomeMessages = {
 
 // 🤖 NICO BOT: DESACTIVADO POR SPAM EN SALA PRINCIPAL
 const NICO_BOT_ENABLED = false;
+
+// 💬 Frases rápidas para primer mensaje (sin fricción)
+const QUICK_STARTER_PHRASES = [
+  'Hola, quiero coger 🔥',
+  'Hola, soy pasivo 🙋',
+  'Hola, soy activo 💪',
+];
 
 const ChatPage = () => {
   const { roomId } = useParams();
@@ -264,6 +273,8 @@ const ChatPage = () => {
   const [privateChatRequest, setPrivateChatRequest] = useState(null);
   const [activePrivateChat, setActivePrivateChat] = useState(null);
   const [dismissedPrivateChats, setDismissedPrivateChats] = useState(new Set());
+  // 🔔 Estado para popup de recordatorio de evento
+  const [reminderEvento, setReminderEvento] = useState(null);
   // Refs para leer estado actual dentro del callback del listener sin re-crear el listener
   const privateChatRequestRef = useRef(null);
   const activePrivateChatRef = useRef(null);
@@ -283,6 +294,28 @@ const ChatPage = () => {
   const [showAgeVerification, setShowAgeVerification] = useState(false); // ✅ Modal de edad
   const [showRegistrationModal, setShowRegistrationModal] = useState(false);
   const [registrationModalFeature, setRegistrationModalFeature] = useState(null);
+  const [needsNickname, setNeedsNickname] = useState(false); // ✅ Exigir nickname después de primer mensaje rápido
+
+  // 🔔 Limpiar recordatorios de eventos viejos al montar
+  useEffect(() => { cleanOldReminders(); }, []);
+
+  // 🔔 Manejar evento activo con recordatorio → mostrar popup
+  const handleEventoActivoConRecordatorio = useCallback((evento) => {
+    if (evento && !wasReminderPopupShown(evento.roomId)) {
+      setReminderEvento(evento);
+      markReminderPopupShown(evento.roomId);
+    }
+  }, []);
+
+  const handleDismissReminderPopup = useCallback(() => {
+    setReminderEvento(null);
+  }, []);
+
+  useEffect(() => {
+    if (user && !user.isGuest && needsNickname) {
+      setNeedsNickname(false);
+    }
+  }, [user, needsNickname]);
   // ⚠️ MODAL INVITADO ELIMINADO - Solo registro normal
   // const [showGuestNicknameModal, setShowGuestNicknameModal] = useState(false);
   const loadingTimeoutRef = useRef(null); // 🚀 Ref para timeout de loading
@@ -804,7 +837,7 @@ const ChatPage = () => {
         setShowAgeVerification(false);
 
       // Guardar en localStorage para futuras sesiones
-      const ageKey = `age_verified_${user.id}`;
+      const ageKey = `age_verified_${currentUser.id}`;
       if (!localStorage.getItem(ageKey)) {
         localStorage.setItem(ageKey, '18'); // Asumir +18 para usuarios registrados
       }
@@ -1737,18 +1770,70 @@ const ChatPage = () => {
    * ✅ Contador persistente en Firestore para anónimos
    * 🤖 Activa respuesta de bots si están activos
    */
-  const handleSendMessage = async (content, type = 'text', replyData = null) => {
-    // ✅ Si no hay usuario, NO crear GuestXXXX - el modal de nickname debe mostrarse
-    if (!user || !user.id) {
+  const handleSendMessage = async (content, type = 'text', replyData = null, options = {}) => {
+    const trimmedContent = typeof content === 'string' ? content.trim() : content;
+    const isQuickStarter = QUICK_STARTER_PHRASES.includes(trimmedContent);
+    const allowGuestAutoStart = options?.allowGuestAutoStart === true;
+
+    // 🔒 Si ya exigimos nickname (después del primer mensaje rápido), bloquear cualquier envío
+    if (needsNickname && !(allowGuestAutoStart && isQuickStarter)) {
+      setShowNicknameModal(true);
       toast({
         title: 'Elige tu nickname',
-        description: 'Ingresa tu nombre en el cuadro de arriba para empezar a chatear.',
+        description: 'Para seguir chateando, primero ingresa tu nickname.',
         duration: 4000,
         variant: 'default',
       });
       return;
     }
 
+    // ✅ Permitir primer mensaje rápido sin nickname
+    let currentUser = userRef.current || user;
+    if (!currentUser || !currentUser.id) {
+      if (allowGuestAutoStart && isQuickStarter) {
+        // Crear guest automático (GuestXXXX)
+        const autoGuestOk = await signInAsGuest(null, null, false);
+        if (!autoGuestOk) {
+          toast({
+            title: 'Error',
+            description: 'No pudimos iniciar tu sesión de invitado. Intenta de nuevo.',
+            variant: 'destructive',
+          });
+          return;
+        }
+
+        // Esperar a que el usuario optimista esté disponible
+        let attempts = 0;
+        const maxAttempts = 30;
+        while ((!userRef.current || !userRef.current.id) && attempts < maxAttempts) {
+          await new Promise(resolve => setTimeout(resolve, 50));
+          attempts++;
+        }
+        currentUser = userRef.current || user;
+
+        if (!currentUser || !currentUser.id) {
+          toast({
+            title: 'Error',
+            description: 'No pudimos crear tu identidad de invitado. Intenta nuevamente.',
+            variant: 'destructive',
+          });
+          return;
+        }
+
+        // Exigir nickname para el siguiente mensaje
+        setNeedsNickname(true);
+      } else {
+        toast({
+          title: 'Elige tu nickname',
+          description: 'Ingresa tu nombre en el cuadro de arriba para empezar a chatear.',
+          duration: 4000,
+          variant: 'default',
+        });
+        return;
+      }
+    }
+
+    // ✅ A partir de aquí usamos el usuario efectivo (puede ser invitado auto-creado)
     // ✅ Chat principal: SIEMPRE permitir enviar mensajes (registrados e invitados)
     // Solo Baúl (cambio foto) y OPIN (publicar) requieren registro
     if (auth.currentUser) {
@@ -1764,7 +1849,7 @@ const ChatPage = () => {
 
     // ✅ CRÍTICO: Validar mayoría de edad (verificar localStorage también)
     if (!isAgeVerified) {
-      const ageKey = `age_verified_${user.id}`;
+      const ageKey = `age_verified_${currentUser.id}`;
       const storedAge = localStorage.getItem(ageKey);
       
       // ✅ Si está en localStorage, actualizar estado y continuar
@@ -1774,7 +1859,7 @@ const ChatPage = () => {
         // Continuar sin mostrar modal
       } else {
         // ✅ Solo mostrar modal si realmente NO está verificado
-        const hasShownKey = `age_modal_shown_${user.id}`;
+        const hasShownKey = `age_modal_shown_${currentUser.id}`;
         const hasShown = sessionStorage.getItem(hasShownKey);
         if (!hasShown) {
           setShowAgeVerification(true);
@@ -1811,8 +1896,8 @@ const ChatPage = () => {
     // }
 
     // Verificar si el usuario está silenciado o baneado
-    if (!user.isAnonymous && !user.isGuest) {
-      const sanctions = await checkUserSanctions(user.id);
+    if (!currentUser.isAnonymous && !currentUser.isGuest) {
+      const sanctions = await checkUserSanctions(currentUser.id);
       
       if (sanctions.isBanned) {
         toast({
@@ -1842,7 +1927,7 @@ const ChatPage = () => {
 
     // 🤖 MODERACIÓN IA: Verificar si el usuario tiene mute activo por moderación automática
     try {
-      const aiMuteStatus = await checkAIMute(user.id);
+      const aiMuteStatus = await checkAIMute(currentUser.id);
       if (aiMuteStatus.isMuted) {
         const remaining = formatMuteRemaining(aiMuteStatus.remainingMs);
         toast({
@@ -1862,8 +1947,8 @@ const ChatPage = () => {
     traceEvent(TRACE_EVENTS.USER_INPUT_TYPED, {
       content: content.substring(0, 50),
       type,
-      userId: user.id,
-      username: user.username,
+      userId: currentUser.id,
+      username: currentUser.username,
       roomId: currentRoom,
     });
 
@@ -1874,17 +1959,17 @@ const ChatPage = () => {
     const nowMs = Date.now();
     
     // ✅ GARANTIZAR AVATAR: Nunca enviar null o undefined en optimistic message
-    const optimisticAvatar = user.avatar && user.avatar.trim() && !user.avatar.includes('undefined')
-      ? user.avatar
-      : `https://api.dicebear.com/7.x/avataaars/svg?seed=${encodeURIComponent(user.username || user.id || 'guest')}`;
+    const optimisticAvatar = currentUser.avatar && currentUser.avatar.trim() && !currentUser.avatar.includes('undefined')
+      ? currentUser.avatar
+      : `https://api.dicebear.com/7.x/avataaars/svg?seed=${encodeURIComponent(currentUser.username || currentUser.id || 'guest')}`;
     
     const optimisticMessage = {
       id: optimisticId,
       clientId, // ✅ F1: ID estable para correlación
-      userId: user.id,
-      username: user.username || 'Usuario', // ✅ FIX: Fallback si username es undefined
+      userId: currentUser.id,
+      username: currentUser.username || 'Usuario', // ✅ FIX: Fallback si username es undefined
       avatar: optimisticAvatar, // ✅ SIEMPRE tiene valor válido
-      isPremium: user.isPremium || false,
+      isPremium: currentUser.isPremium || false,
       content,
       type,
       timestamp: new Date().toISOString(),
@@ -1906,7 +1991,7 @@ const ChatPage = () => {
       traceId: clientId,
       optimisticId,
       content: content.substring(0, 50),
-      userId: user.id,
+      userId: currentUser.id,
       roomId: currentRoom,
     });
     
@@ -1915,7 +2000,7 @@ const ChatPage = () => {
       traceId: clientId,
       optimisticId,
       content: content.substring(0, 50),
-      userId: user.id,
+      userId: currentUser.id,
       roomId: currentRoom,
     });
 
@@ -1936,20 +2021,20 @@ const ChatPage = () => {
     traceEvent(TRACE_EVENTS.SEND_HANDLER_TRIGGERED, {
       traceId: clientId,
       content: content.substring(0, 50),
-      userId: user.id,
+      userId: currentUser.id,
       roomId: currentRoom,
     });
 
     // 🛡️ VALIDACIÓN EN BACKGROUND: Validar después de mostrar (no bloquea UI)
     // ⚡ CRÍTICO: Las validaciones se ejecutan en background para no retrasar la experiencia visual
-    const validationPromise = validateMessage(content, user.id, user.username, currentRoom)
+    const validationPromise = validateMessage(content, currentUser.id, currentUser.username, currentRoom)
       .then(validation => {
     if (!validation.allowed) {
           // 🔍 TRACE: Validación falló
           traceEvent(TRACE_EVENTS.PAYLOAD_VALIDATION_FAILED, {
             traceId: clientId,
             reason: validation.reason,
-            userId: user.id,
+            userId: currentUser.id,
             roomId: currentRoom,
           });
           // ❌ VALIDACIÓN FALLÓ: Eliminar mensaje optimista y mostrar error
@@ -2021,7 +2106,7 @@ const ChatPage = () => {
         // 🔍 TRACE: Validación exitosa
         traceEvent(TRACE_EVENTS.PAYLOAD_VALIDATED, {
           traceId: clientId,
-          userId: user.id,
+          userId: currentUser.id,
           roomId: currentRoom,
         });
         
@@ -2042,14 +2127,14 @@ const ChatPage = () => {
         if (!isValid) return; // Validación falló, no enviar
         
         // ✅ GARANTIZAR AVATAR: Nunca enviar null o undefined
-        const messageAvatar = user.avatar && user.avatar.trim() && !user.avatar.includes('undefined')
-          ? user.avatar
-          : `https://api.dicebear.com/7.x/avataaars/svg?seed=${encodeURIComponent(user.username || user.id || 'guest')}`;
+        const messageAvatar = currentUser.avatar && currentUser.avatar.trim() && !currentUser.avatar.includes('undefined')
+          ? currentUser.avatar
+          : `https://api.dicebear.com/7.x/avataaars/svg?seed=${encodeURIComponent(currentUser.username || currentUser.id || 'guest')}`;
 
         // 🔍 TRACE: Intentando escribir en Firebase
         traceEvent(TRACE_EVENTS.FIREBASE_WRITE_ATTEMPT, {
           traceId: clientId,
-          userId: auth.currentUser?.uid || user.id,
+          userId: auth.currentUser?.uid || currentUser.id,
           roomId: currentRoom,
           content: content.substring(0, 50),
         });
@@ -2065,16 +2150,16 @@ const ChatPage = () => {
       currentRoom,
       {
         clientId, // ✅ F1: Pasar clientId para correlación
-        userId: auth.currentUser.uid, // ✅ SIEMPRE usar auth.currentUser.uid (ya validado)
-        username: user.username || 'Usuario', // ✅ FIX: Fallback si username es undefined
+        userId: auth.currentUser?.uid || currentUser.id, // ✅ Fallback si no hay auth aún
+        username: currentUser.username || 'Usuario', // ✅ FIX: Fallback si username es undefined
         avatar: messageAvatar, // ✅ SIEMPRE tiene valor válido
-        isPremium: user.isPremium || false,
+        isPremium: currentUser.isPremium || false,
         content,
         type,
         replyTo: replyData,
         traceId: clientId, // ✅ Pasar traceId para correlación
       },
-      user.isAnonymous
+      currentUser.isAnonymous
         );
       })
       .then((sentMessage) => {
@@ -2084,14 +2169,14 @@ const ChatPage = () => {
         traceEvent(TRACE_EVENTS.FIREBASE_WRITE_SUCCESS, {
           traceId: clientId,
           messageId: sentMessage.id,
-          userId: user.id,
+          userId: currentUser.id,
           roomId: currentRoom,
           firestoreId: sentMessage.id,
         });
         
         // ✅ Mensaje enviado exitosamente - se actualizará automáticamente vía onSnapshot
         // Track GA4 (background, no bloquea)
-        trackMessageSent(currentRoom, { user });
+        trackMessageSent(currentRoom, { user: currentUser });
         
         // 📊 PERFORMANCE MONITOR: Completar tracking de envío
         endTiming('messageSent', { 
@@ -2112,7 +2197,7 @@ const ChatPage = () => {
         console.log(`⏱️ [LATENCY TEST] Mensaje sincronizado en ${latency}ms`);
 
         // 🤖 MODERACIÓN IA: Evaluar mensaje DESPUÉS de enviarlo (post-send, async, no bloquea)
-        evaluateMessage(content, user.id, user.username, currentRoom)
+        evaluateMessage(content, currentUser.id, currentUser.username, currentRoom)
           .then((modResult) => {
             if (!modResult.safe) {
               console.log(`[MOD-AI] Violación detectada post-send:`, modResult);
@@ -2200,7 +2285,7 @@ const ChatPage = () => {
           traceId: clientId,
           error: error.message,
           errorCode: error.code,
-          userId: user.id,
+          userId: currentUser.id,
           roomId: currentRoom,
         });
 
@@ -2640,7 +2725,7 @@ const ChatPage = () => {
             )}
 
             {/* 📅 Banner de evento activo/próximo */}
-            <EventoBanner currentRoomId={roomId} />
+            <EventoBanner currentRoomId={roomId} onEventoActivoConRecordatorio={handleEventoActivoConRecordatorio} />
 
             {/* ⏳ Mostrar loading simple cuando no hay mensajes y está cargando */}
             {isLoadingMessages && messages.length === 0 ? (
@@ -2689,43 +2774,18 @@ const ChatPage = () => {
           />
 
           {/* 💬 Chips de frases rápidas para romper el hielo */}
-          {user?.id && messages.filter(m => m.userId === user?.id).length === 0 && (
+          {(() => {
+            const hasUserMessage = user?.id
+              ? messages.some(m => m.userId === user.id)
+              : false;
+            const shouldShowChips = !hasUserMessage && !needsNickname;
+            if (!shouldShowChips) return null;
+            return (
             <div className="px-3 py-2 flex flex-wrap gap-1.5 justify-center">
-              {(() => {
-                const allChips = [
-                  'Hola, quiero coger 🔥',
-                  '¿Quién para culiar? 😏',
-                  'Hola, ¿quién para hablar? 💬',
-                  'Quiero portarme mal 😈',
-                  'Hola, quiero culo 🍑',
-                  'Hola, quiero pipe 😋',
-                  'Hola, quiero verga 🍆',
-                  'Soy pasivo tragón 🤤',
-                  'Hola, soy pasivo 🙋',
-                  'Hola, soy activo 💪',
-                  'Hey, ¿quién para portarse mal? 😈',
-                  'Busco fiesta 🎉',
-                  'Busco quedar ya 📍',
-                  '¿Dónde están los activos? 👀',
-                  '¿Dónde están los pasivos? 👀',
-                  'Buenas noches, quiero conversar 🌙',
-                  'Hola, quiero conversar con alguien 💬',
-                  'Soy activo, busco pasivo 🔥',
-                  'Soy versátil, quiero portarme mal 😈',
-                  'Soy pasivo, busco activo dotado 🍆',
-                ];
-                // Elegir 4 chips aleatorios (consistentes por sesión)
-                const seed = user?.id || 'default';
-                const hash = seed.split('').reduce((a, c) => a + c.charCodeAt(0), 0);
-                const shuffled = [...allChips].sort((a, b) => {
-                  const ha = (hash * (allChips.indexOf(a) + 1)) % 97;
-                  const hb = (hash * (allChips.indexOf(b) + 1)) % 97;
-                  return ha - hb;
-                });
-                return shuffled.slice(0, 5).map((chip) => (
+              {QUICK_STARTER_PHRASES.map((chip) => (
                   <button
                     key={chip}
-                    onClick={() => handleSendMessage(chip)}
+                    onClick={() => handleSendMessage(chip, 'text', null, { allowGuestAutoStart: true })}
                     className="px-3 py-1.5 rounded-full text-xs font-medium
                       bg-gray-700/60 hover:bg-gray-600/80 text-gray-200 hover:text-white
                       border border-gray-600/40 hover:border-gray-500/60
@@ -2733,10 +2793,10 @@ const ChatPage = () => {
                   >
                     {chip}
                   </button>
-                ));
-              })()}
+                ))}
             </div>
-          )}
+            );
+          })()}
 
           <ChatInput
             onSendMessage={handleSendMessage}
@@ -2747,7 +2807,7 @@ const ChatPage = () => {
             replyTo={replyTo}
             onCancelReply={handleCancelReply}
             onRequestNickname={() => setShowNicknameModal(true)}
-            isGuest={!user}
+            isGuest={!user || needsNickname}
           />
         </div>
 
@@ -2861,6 +2921,14 @@ const ChatPage = () => {
 
         {showWelcomeTour && (
           <WelcomeTour onComplete={() => setShowWelcomeTour(false)} />
+        )}
+
+        {/* 🔔 Popup de recordatorio de evento activo */}
+        {reminderEvento && (
+          <EventReminderPopup
+            evento={reminderEvento}
+            onDismiss={handleDismissReminderPopup}
+          />
         )}
 
         {/* ⚠️ MODAL COMENTADO - No está en uso hasta que se repare */}
@@ -2977,6 +3045,7 @@ const ChatPage = () => {
         openSource="user"
         onGuestReady={() => {
           setShowNicknameModal(false);
+          setNeedsNickname(false);
         }}
       />
 
