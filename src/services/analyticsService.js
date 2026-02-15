@@ -10,6 +10,7 @@ import {
   setDoc,
   increment,
   onSnapshot,
+  Timestamp,
 } from 'firebase/firestore';
 import { db, auth } from '@/config/firebase';
 
@@ -35,6 +36,8 @@ export const trackEvent = async (eventType, eventData = {}) => {
       lastUpdated: serverTimestamp(),
     };
 
+    let handled = false;
+
     // Incrementar contadores según el tipo de evento
     switch (eventType) {
       case 'page_view':
@@ -52,21 +55,27 @@ export const trackEvent = async (eventType, eventData = {}) => {
         if (eventData.source) {
           updates[`trafficSources.${eventData.source}`] = increment(1);
         }
+        handled = true;
         break;
       case 'user_register':
         updates.registrations = increment(1);
+        handled = true;
         break;
       case 'user_login':
         updates.logins = increment(1);
+        handled = true;
         break;
       case 'message_sent':
         updates.messagesSent = increment(1);
+        handled = true;
         break;
       case 'room_created':
         updates.roomsCreated = increment(1);
+        handled = true;
         break;
       case 'room_joined':
         updates.roomsJoined = increment(1);
+        handled = true;
         break;
       case 'page_exit':
         updates.pageExits = increment(1);
@@ -77,7 +86,14 @@ export const trackEvent = async (eventType, eventData = {}) => {
           const timeBucket = getTimeBucket(eventData.timeOnPage);
           updates[`exitTimeDistribution.${timeBucket}`] = increment(1);
         }
+        handled = true;
         break;
+    }
+
+    // ✅ Registrar eventos personalizados en agregación diaria
+    if (!handled) {
+      const safeType = sanitizeEventType(eventType);
+      updates[`customEvents.${safeType}`] = increment(1);
     }
 
     // Actualizar estadísticas diarias (merge para no sobrescribir)
@@ -119,6 +135,13 @@ const getTimeBucket = (seconds) => {
   if (seconds < 180) return '1-3m';
   if (seconds < 300) return '3-5m';
   return '5m+';
+};
+
+const sanitizeEventType = (eventType = '') => {
+  return String(eventType)
+    .toLowerCase()
+    .replace(/[^a-z0-9_]/g, '_')
+    .slice(0, 60);
 };
 
 /**
@@ -197,7 +220,7 @@ export const trackRoomJoined = async (roomId) => {
 export const trackPageExit = async (pagePath, timeSpent = 0) => {
   await trackEvent('page_exit', {
     pagePath,
-    timeSpent,
+    timeOnPage: timeSpent,
   });
 };
 
@@ -627,15 +650,15 @@ export const getTrafficSources = async () => {
  * 🆕 Obtiene usuarios conectados en tiempo real (últimos 5 minutos)
  * @returns {Promise<number>} Número de usuarios activos
  */
-export const getActiveUsersNow = async () => {
+export const getActiveUsersNow = async (roomId = 'principal') => {
   try {
     const fiveMinutesAgo = new Date(Date.now() - 5 * 60 * 1000);
 
     // Query en la colección de presencia de usuarios
-    const presenceRef = collection(db, 'presence');
+    const presenceRef = collection(db, 'roomPresence', roomId, 'users');
     const q = query(
       presenceRef,
-      where('lastActive', '>=', fiveMinutesAgo)
+      where('lastSeen', '>=', Timestamp.fromDate(fiveMinutesAgo))
     );
 
     const snapshot = await getDocs(q);
@@ -651,12 +674,12 @@ export const getActiveUsersNow = async () => {
  * @param {function} callback - Función callback que recibe el número de usuarios
  * @returns {function} Función para desuscribirse
  */
-export const subscribeToActiveUsers = (callback) => {
+export const subscribeToActiveUsers = (callback, roomId = 'principal') => {
   const fiveMinutesAgo = new Date(Date.now() - 5 * 60 * 1000);
-  const presenceRef = collection(db, 'presence');
+  const presenceRef = collection(db, 'roomPresence', roomId, 'users');
   const q = query(
     presenceRef,
-    where('lastActive', '>=', fiveMinutesAgo)
+    where('lastSeen', '>=', Timestamp.fromDate(fiveMinutesAgo))
   );
 
   return onSnapshot(q, (snapshot) => {
@@ -754,4 +777,3 @@ export const downloadCSV = (csvContent, filename) => {
   link.click();
   document.body.removeChild(link);
 };
-

@@ -1,19 +1,29 @@
-import React, { useEffect } from 'react';
+import React, { useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { ArrowRight, Users } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
 import BaulSection from '@/components/baul/BaulSection';
 import { Button } from '@/components/ui/button';
+import { trackPageView, trackPageExit } from '@/services/eventTrackingService';
 
 const getUserKey = (user) => user?.id || user?.guestId || 'anon';
 
 const BaulPage = () => {
   const navigate = useNavigate();
   const { user } = useAuth();
+  const pageStartRef = useRef(Date.now());
 
   useEffect(() => {
+    pageStartRef.current = Date.now();
+    trackPageView('/baul', 'Baul de Perfiles', { user });
+
     const key = getUserKey(user);
     localStorage.setItem(`baul_visited:${key}`, '1');
+
+    return () => {
+      const timeOnPage = Math.round((Date.now() - pageStartRef.current) / 1000);
+      trackPageExit('/baul', timeOnPage, { user });
+    };
   }, [user]);
 
   const handleClose = () => {

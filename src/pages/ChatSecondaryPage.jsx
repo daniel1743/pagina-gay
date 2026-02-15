@@ -35,7 +35,7 @@ import { validateMessage } from '@/services/antiSpamService';
 import { auth, db } from '@/config/firebase';
 import { checkUserSanctions, SANCTION_TYPES } from '@/services/sanctionsService';
 import { roomsData } from '@/config/rooms';
-import { trackPageView, trackPageExit, trackRoomJoined, trackMessageSent } from '@/services/analyticsService';
+import { trackPageView, trackPageExit, trackRoomJoined, trackMessageSent } from '@/services/eventTrackingService';
 import { useCanonical } from '@/hooks/useCanonical';
 import { notificationSounds } from '@/services/notificationSounds';
 
@@ -75,6 +75,7 @@ const ChatSecondaryPage = () => {
   const lastReadMessageIdRef = useRef(null);
   const autoLoginAttemptedRef = useRef(false);
   const deliveryTimeoutsRef = useRef(new Map());
+  const pageStartRef = useRef(Date.now());
 
   // Scroll manager
   const scrollManager = useChatScrollManager({
@@ -109,12 +110,14 @@ const ChatSecondaryPage = () => {
   // Track page view
   useEffect(() => {
     if (roomId) {
-      trackPageView(`/chat-secondary/${roomId}`, `Chat Secundario - ${roomId}`);
-      trackRoomJoined(roomId);
+      pageStartRef.current = Date.now();
+      trackPageView(`/chat-secondary/${roomId}`, `Chat Secundario - ${roomId}`, { user });
+      trackRoomJoined(roomId, { user });
     }
     return () => {
       if (roomId) {
-        trackPageExit(`/chat-secondary/${roomId}`, 0);
+        const timeOnPage = Math.round((Date.now() - pageStartRef.current) / 1000);
+        trackPageExit(`/chat-secondary/${roomId}`, timeOnPage, { user });
       }
     };
   }, [roomId]);
@@ -423,7 +426,7 @@ const ChatSecondaryPage = () => {
       })
       .then((sentMessage) => {
         if (!sentMessage) return;
-        trackMessageSent(currentRoom, user.id);
+        trackMessageSent(currentRoom, { user });
         if (sentMessage?.id) {
           setMessages(prev => prev.map(msg =>
             msg.id === optimisticId

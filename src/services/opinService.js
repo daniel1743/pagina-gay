@@ -29,6 +29,7 @@ import {
   arrayRemove,
 } from 'firebase/firestore';
 import { db, auth } from '@/config/firebase';
+import { track } from '@/services/eventTrackingService';
 import { isBlockedBetween } from '@/services/blockService';
 
 const assertCanInteractWithUser = async (targetUserId) => {
@@ -655,6 +656,7 @@ export const toggleLike = async (postId) => {
       likeCount: increment(1),
       likedBy: arrayUnion(auth.currentUser.uid),
     });
+    track('opin_like', { post_id: postId, author_id: postData.userId }, { user: { id: auth.currentUser.uid } }).catch(() => {});
     console.log('❤️ [OPIN] Like agregado:', postId);
     return { liked: true };
   }
@@ -724,6 +726,7 @@ export const toggleReaction = async (postId, emoji) => {
       [`reactions.${emoji}`]: arrayUnion(userId),
       [`reactionCounts.${emoji}`]: increment(1),
     });
+    track('opin_reaction', { post_id: postId, author_id: postData.userId, emoji }, { user: { id: userId } }).catch(() => {});
     console.log(`${emoji} [OPIN] Reacción agregada:`, postId);
     return { reacted: true, emoji };
   }
@@ -834,6 +837,7 @@ export const addComment = async (postId, commentText) => {
     commentCount: increment(1),
   });
 
+  track('opin_comment', { post_id: postId, author_id: postDoc.data()?.userId }, { user: { id: auth.currentUser.uid } }).catch(() => {});
   console.log('💬 [OPIN] Comentario agregado:', docRef.id);
 
   return { id: docRef.id, commentId: docRef.id, ...commentData };

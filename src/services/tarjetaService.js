@@ -10,6 +10,7 @@
  */
 
 import { db } from '@/config/firebase';
+import { track } from '@/services/eventTrackingService';
 import { isBlockedBetween } from '@/services/blockService';
 import {
   doc,
@@ -666,6 +667,8 @@ export async function darLike(tarjetaId, miUserId, miUsername, miAvatar = '') {
       timestamp: serverTimestamp()
     });
 
+    track('tarjeta_like', { card_id: tarjetaId, viewer_id: miUserId }, { user: { id: miUserId } }).catch(() => {});
+
     console.log('[TARJETA] Like enviado a', tarjetaId);
 
     // 4b. Crear notificacion para push (alimenta Cloud Function)
@@ -755,6 +758,7 @@ async function crearMatch({ userA, userB }) {
     };
 
     await setDoc(matchRef, matchData);
+    track('match_created', { match_id: matchId, user_a: userA.odIdUsuari, user_b: userB.odIdUsuari }, { user: { id: userA.odIdUsuari } }).catch(() => {});
     console.log('[MATCH] ✅ Match creado:', matchId);
 
     // Notificar a ambos usuarios
@@ -988,6 +992,8 @@ export async function enviarMensajeTarjeta(tarjetaId, miUserId, miUsername, mens
       timestamp: serverTimestamp()
     });
 
+    track('tarjeta_message', { card_id: tarjetaId, viewer_id: miUserId }, { user: { id: miUserId } }).catch(() => {});
+
     console.log('[TARJETA] ✅ Mensaje enviado a', tarjetaId);
     return true;
   } catch (error) {
@@ -1030,6 +1036,8 @@ export async function registrarVisita(tarjetaId, miUserId, miUsername) {
       deUsername: miUsername,
       timestamp: serverTimestamp()
     });
+
+    track('tarjeta_view', { card_id: tarjetaId, viewer_id: miUserId }, { user: { id: miUserId } }).catch(() => {});
 
   } catch (error) {
     console.error('[TARJETA] Error registrando visita:', error);

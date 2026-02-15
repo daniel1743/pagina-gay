@@ -13,6 +13,7 @@ import { ThemeProvider } from '@/contexts/ThemeContext';
 import PWASplashScreen from '@/components/pwa/PWASplashScreen';
 import ErrorBoundary from '@/components/ui/ErrorBoundary';
 import { useVersionChecker } from '@/hooks/useVersionChecker';
+import { useSessionTracking } from '@/hooks/useSessionTracking';
 import PerformanceSummaryButton from '@/components/PerformanceSummaryButton'; // 📊 Performance Monitor Button
 import GlobalLandingPage from '@/pages/GlobalLandingPage'; // Landing principal - crítica para SEO
 
@@ -138,6 +139,11 @@ function AppWithOverlay() {
       {/* <LoadingOverlay show={guestAuthInProgress} /> */}
     </>
   );
+}
+
+function SessionTracker() {
+  useSessionTracking();
+  return null;
 }
 
 // ✅ Componente de rutas que está dentro del AuthProvider
@@ -342,6 +348,7 @@ function App() {
     <ErrorBoundary>
       <ThemeProvider>
         <AuthProvider>
+          <SessionTracker />
           {showSplash && !splashCompleted && (
             <PWASplashScreen onComplete={handleSplashComplete} />
           )}

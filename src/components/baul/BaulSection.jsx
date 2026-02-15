@@ -49,6 +49,7 @@ import {
 import { getOrCreatePrivateChat } from '@/services/socialService';
 import { getCurrentLocation } from '@/services/geolocationService';
 import { toast } from '@/components/ui/use-toast';
+import { track, getSessionId } from '@/services/eventTrackingService';
 
 /**
  * Header del Baúl
@@ -148,6 +149,15 @@ const BaulSection = ({ isOpen = true, onClose, variant = 'modal' }) => {
   const isActive = isModal ? isOpen : true;
   const isGuestView = !user || user.isGuest || user.isAnonymous;
   const canInteract = Boolean(user && !user.isGuest && !user.isAnonymous);
+
+  useEffect(() => {
+    if (!isActive) return;
+    const sessionId = getSessionId();
+    const viewKey = `baul_viewed:${sessionId}`;
+    if (sessionStorage.getItem(viewKey) === '1') return;
+    sessionStorage.setItem(viewKey, '1');
+    track('baul_view', { page_path: '/baul' }, { user }).catch(() => {});
+  }, [isActive, user]);
 
   // Estados
   const [tarjetas, setTarjetas] = useState([]);

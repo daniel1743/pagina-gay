@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { MessageSquare, Shield, Calendar, SlidersHorizontal, Users, Lock, MapPin, Sparkles, MessageCircle, Zap, ArrowRight } from 'lucide-react';
@@ -22,7 +22,7 @@ import { toast } from '@/components/ui/use-toast';
 import { useAuth } from '@/contexts/AuthContext';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
-import { trackPageView, trackPageExit } from '@/services/analyticsService';
+import { trackPageView, trackPageExit } from '@/services/eventTrackingService';
 import { useCanonical } from '@/hooks/useCanonical';
 import { subscribeToLastActivity, subscribeToMultipleRoomCounts } from '@/services/presenceService';
 import { getVisibleRooms } from '@/config/rooms';
@@ -168,6 +168,7 @@ const LobbyPage = () => {
   const [recentMessages, setRecentMessages] = useState([]);
   const [lastMessageTimestamp, setLastMessageTimestamp] = useState(null);
   const visibleRooms = getVisibleRooms();
+  const pageStartRef = useRef(Date.now());
 
   // ✅ Determinar si mostrar Hero Section (SOLO para usuarios NO logueados)
   const showHeroSection = !user;
@@ -421,7 +422,8 @@ const LobbyPage = () => {
     // document.title = "Chat Gay Chile 🏳️‍🌈 Conoce Gente LGBT+ Ahora | Chactivo";
 
     // Track page view (sin "Lobby" para SEO)
-    trackPageView('/lobby', 'Chat Gay Chile - Chactivo');
+    pageStartRef.current = Date.now();
+    trackPageView('/lobby', 'Chat Gay Chile - Chactivo', { user });
 
     // Suscribirse a la última actividad global
     const unsubscribeActivity = subscribeToLastActivity((activity) => {
@@ -441,7 +443,8 @@ const LobbyPage = () => {
 
     // Track page exit
     return () => {
-      trackPageExit('/lobby', 0);
+      const timeOnPage = Math.round((Date.now() - pageStartRef.current) / 1000);
+      trackPageExit('/lobby', timeOnPage, { user });
       unsubscribeActivity();
       clearInterval(interval);
       window.removeEventListener('openDenunciaModal', handleOpenDenunciaModal);

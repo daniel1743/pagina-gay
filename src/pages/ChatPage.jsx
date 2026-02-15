@@ -55,7 +55,7 @@ import { requestNotificationPermission, canRequestPush } from '@/services/pushNo
 // import { sendModeratorWelcome } from '@/services/moderatorWelcome';
 // ⚠️ BOTS ELIMINADOS (06/01/2026) - A petición del usuario
 // import { checkAndSeedConversations } from '@/services/seedConversationsService';
-import { trackPageView, trackPageExit, trackRoomJoined, trackMessageSent } from '@/services/analyticsService';
+import { trackPageView, trackPageExit, trackRoomJoined, trackMessageSent } from '@/services/eventTrackingService';
 import { useCanonical } from '@/hooks/useCanonical';
 import { checkUserSanctions, SANCTION_TYPES } from '@/services/sanctionsService';
 import { roomsData, canAccessRoom } from '@/config/rooms';
@@ -63,6 +63,7 @@ import { traceEvent, TRACE_EVENTS } from '@/utils/messageTrace';
 import { startEngagementTracking, hasReachedOneHourLimit, getTotalEngagementTime, hasSeenEngagementModal, markEngagementModalAsShown } from '@/services/engagementService';
 import { notificationSounds } from '@/services/notificationSounds';
 import { monitorActivityAndSendVOC, resetVOCCooldown } from '@/services/vocService';
+import { sendNicoWelcome, sendNicoQuestion, getLastNicoMessageAge, wasUserWelcomedByNico, canSendWelcome, markWelcomeSent, NICO, QUESTION_INTERVAL_MS } from '@/services/nicoBot';
 import '@/utils/chatDiagnostics'; // 🔍 Cargar diagnóstico en consola
 import { 
   trackChatLoad, 
@@ -104,6 +105,7 @@ const ChatPage = () => {
   const blockedByUserIdsRef = useRef(new Set());
   const blockedByCacheRef = useRef(new Set());
   const blockedByPendingRef = useRef(new Set());
+  const pageStartRef = useRef(Date.now());
   // ⚠️ MODERADOR ELIMINADO (06/01/2026) - A petición del usuario
   // const [moderatorMessage, setModeratorMessage] = useState(null); // 👮 Mensaje del moderador (para RulesBanner)
   const [roomUsers, setRoomUsers] = useState([]); // 🤖 Usuarios en la sala (para sistema de bots)
@@ -309,6 +311,15 @@ const ChatPage = () => {
   const usersUpdateInProgressRef = useRef(false); // 🔒 CRÍTICO: Evitar loops infinitos en setRoomUsers
   const chatLoadStartTimeRef = useRef(null); // 📊 PERFORMANCE: Timestamp cuando inicia carga del chat
   const chatLoadTrackedRef = useRef(false); // 📊 PERFORMANCE: Flag para evitar tracking duplicado
+  const nicoWelcomedUsersRef = useRef(new Set()); // 🤖 NICO: Usuarios ya bienvenidos esta sesion
+  const nicoQuestionIntervalRef = useRef(null); // 🤖 NICO: Intervalo de preguntas cada 30min
+  const nicoPreviousRoomUsersRef = useRef(null); // 🤖 NICO: null = primer render (no enviar bienvenidas)
+  const messagesRef = useRef([]); // 🤖 NICO: Ref a mensajes actuales (para closures)
+  const roomUsersRef = useRef([]); // 🤖 NICO: Ref a usuarios actuales (para closures)
+
+  // 🤖 NICO: Sincronizar refs con estado actual
+  messagesRef.current = messages;
+  roomUsersRef.current = roomUsers;
 
   const DAILY_TOPICS = [
     '¿De qué comuna andas hoy?',
@@ -635,13 +646,15 @@ const ChatPage = () => {
   // ⚠️ CRITICAL: Este hook DEBE ejecutarse siempre (antes del return)
   useEffect(() => {
     if (roomId) {
-      trackPageView(`/chat/${roomId}`, `Chat - ${roomId}`);
-      trackRoomJoined(roomId);
+      pageStartRef.current = Date.now();
+      trackPageView(`/chat/${roomId}`, `Chat - ${roomId}`, { user });
+      trackRoomJoined(roomId, { user });
     }
 
     return () => {
       if (roomId) {
-        trackPageExit(`/chat/${roomId}`, 0);
+        const timeOnPage = Math.round((Date.now() - pageStartRef.current) / 1000);
+        trackPageExit(`/chat/${roomId}`, timeOnPage, { user });
       }
     };
   }, [roomId]);
@@ -873,6 +886,8 @@ const ChatPage = () => {
     setCurrentRoom(roomId);
     setIsLoadingMessages(true); // ⏳ Marcar como cargando al cambiar de sala
     aiActivatedRef.current = false; // Resetear flag de IA cuando cambia de sala
+    nicoWelcomedUsersRef.current = new Set(); // 🤖 NICO: Resetear bienvenidas al cambiar de sala
+    nicoPreviousRoomUsersRef.current = null; // 🤖 NICO: null = primer render (no enviar bienvenidas al entrar a sala)
 
     // 📊 PERFORMANCE MONITOR: Iniciar medición de carga del chat
     chatLoadStartTimeRef.current = performance.now();
@@ -1414,6 +1429,113 @@ const ChatPage = () => {
   //   return () => unsubscribe();
   // }, [user?.id]);
 
+  // 🤖 NICO BOT: Bienvenidas a usuarios nuevos
+  useEffect(() => {
+    if (!user?.id || !roomUsers || roomUsers.length === 0) return;
+
+    // Obtener IDs actuales (sin bots ni sistema)
+    const currentUserIds = new Set();
+    const currentUserMap = new Map();
+    for (const u of roomUsers) {
+      const uid = u.userId || u.id;
+      if (uid && uid !== 'system' && !uid.startsWith('bot_') && !uid.startsWith('static_bot_') && uid !== user.id) {
+        currentUserIds.add(uid);
+        currentUserMap.set(uid, u);
+      }
+    }
+
+    // Primer render: solo registrar usuarios existentes (no enviar bienvenidas a los que ya estaban)
+    if (nicoPreviousRoomUsersRef.current === null) {
+      nicoPreviousRoomUsersRef.current = currentUserIds;
+      return;
+    }
+
+    // Detectar usuarios NUEVOS (no estaban en el render anterior)
+    const previousIds = nicoPreviousRoomUsersRef.current;
+    const newUserIds = [];
+    for (const uid of currentUserIds) {
+      if (!previousIds.has(uid) && !nicoWelcomedUsersRef.current.has(uid)) {
+        newUserIds.push(uid);
+      }
+    }
+
+    // Actualizar referencia anterior
+    nicoPreviousRoomUsersRef.current = currentUserIds;
+
+    // Enviar bienvenida a cada usuario nuevo (con delay escalonado)
+    if (newUserIds.length > 0 && messages.length > 0) {
+      newUserIds.forEach((uid, index) => {
+        const newUser = currentUserMap.get(uid);
+        if (!newUser?.username) return;
+
+        // Verificar si ya fue bienvenido en los mensajes cargados
+        if (wasUserWelcomedByNico(messages, newUser.username)) {
+          nicoWelcomedUsersRef.current.add(uid);
+          return;
+        }
+
+        // Delay escalonado: 3-8s para el primero, +5s por cada adicional
+        const delay = (3000 + Math.random() * 5000) + (index * 5000);
+
+        setTimeout(() => {
+          // Re-verificar antes de enviar (otro cliente pudo enviar la bienvenida)
+          if (nicoWelcomedUsersRef.current.has(uid)) return;
+          if (!canSendWelcome()) return;
+
+          nicoWelcomedUsersRef.current.add(uid);
+          markWelcomeSent();
+          sendNicoWelcome(currentRoom, newUser.username, messages);
+        }, delay);
+      });
+    }
+  }, [roomUsers, currentRoom, user?.id, messages]);
+
+  // 🤖 NICO BOT: Pregunta caliente cada 30 minutos
+  useEffect(() => {
+    if (!user?.id || !currentRoom) return;
+
+    // Limpiar intervalo anterior
+    if (nicoQuestionIntervalRef.current) {
+      clearInterval(nicoQuestionIntervalRef.current);
+    }
+
+    // Funcion que verifica y envia pregunta (usa refs para valores frescos)
+    const checkAndSendQuestion = () => {
+      // Solo enviar si hay al menos 2 usuarios reales
+      const realCount = countRealUsers(roomUsersRef.current);
+      if (realCount < 2) return;
+
+      // Verificar edad del ultimo mensaje de Nico
+      const currentMessages = messagesRef.current;
+      const lastNicoAge = getLastNicoMessageAge(currentMessages);
+      if (lastNicoAge < QUESTION_INTERVAL_MS) return;
+
+      // Delay aleatorio (0-60s) para evitar colision entre clientes
+      const randomDelay = Math.random() * 60000;
+      setTimeout(() => {
+        // Re-verificar despues del delay (con refs frescos)
+        const freshMessages = messagesRef.current;
+        const freshAge = getLastNicoMessageAge(freshMessages);
+        if (freshAge < QUESTION_INTERVAL_MS) return;
+
+        sendNicoQuestion(currentRoom, freshMessages);
+      }, randomDelay);
+    };
+
+    // Primera verificacion despues de 2 minutos (dar tiempo a que cargue todo)
+    const initialTimeout = setTimeout(checkAndSendQuestion, 120000);
+
+    // Verificar cada 5 minutos (el intervalo real es de 30min, verificamos seguido por si acaso)
+    nicoQuestionIntervalRef.current = setInterval(checkAndSendQuestion, 5 * 60 * 1000);
+
+    return () => {
+      clearTimeout(initialTimeout);
+      if (nicoQuestionIntervalRef.current) {
+        clearInterval(nicoQuestionIntervalRef.current);
+      }
+    };
+  }, [currentRoom, user?.id, countRealUsers]); // No incluir messages/roomUsers para evitar re-crear el intervalo
+
   // Suscribirse a notificaciones de chat privado (un solo listener por user.id)
   useEffect(() => {
     if (!user?.id || user.isGuest || user.isAnonymous) return;
@@ -1926,7 +2048,7 @@ const ChatPage = () => {
         
         // ✅ Mensaje enviado exitosamente - se actualizará automáticamente vía onSnapshot
         // Track GA4 (background, no bloquea)
-        trackMessageSent(currentRoom, user.id);
+        trackMessageSent(currentRoom, { user });
         
         // 📊 PERFORMANCE MONITOR: Completar tracking de envío
         endTiming('messageSent', { 

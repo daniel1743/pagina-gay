@@ -19,8 +19,7 @@ import {
 import { doc, getDoc, setDoc } from 'firebase/firestore';
 import { db } from '@/config/firebase';
 import { toast } from '@/components/ui/use-toast';
-import { trackUserRegister, trackUserLogin } from '@/services/analyticsService';
-import { trackRegistration, trackLogin } from '@/services/ga4Service';
+import { trackUserRegister, trackUserLogin } from '@/services/eventTrackingService';
 import { recordUserConnection, checkVerificationMaintenance } from '@/services/verificationService';
 import { checkUserSanctions } from '@/services/sanctionsService';
 import { createWelcomeNotification } from '@/services/systemNotificationsService';
@@ -456,11 +455,7 @@ export const AuthProvider = ({ children }) => {
       setUser(userProfile);
 
       // Track login (Analytics interno + GA4)
-      trackUserLogin(userCredential.user.uid, 'email');
-      trackLogin({
-        method: 'email',
-        userId: userCredential.user.uid
-      });
+      trackUserLogin('email', { user: { id: userCredential.user.uid } });
 
       // Registrar conexión para sistema de verificación
       recordUserConnection(userCredential.user.uid);
@@ -566,11 +561,7 @@ export const AuthProvider = ({ children }) => {
       setUser(userProfile);
 
       // Track registration (Analytics interno + GA4)
-      trackUserRegister(userCredential.user.uid, 'email');
-      trackRegistration({
-        method: 'email',
-        userId: userCredential.user.uid
-      });
+      trackUserRegister('email', { user: { id: userCredential.user.uid } });
 
       // Crear notificación de bienvenida
       createWelcomeNotification(userCredential.user.uid, userData.username);

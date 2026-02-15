@@ -7,14 +7,15 @@
  * - Click en autor → abre tarjeta Baúl
  */
 
-import React, { useState, useEffect, forwardRef } from 'react';
+import React, { useState, useEffect, useRef, forwardRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Heart, MessageCircle, MoreHorizontal, Trash2, ChevronDown, ChevronUp, Lock } from 'lucide-react';
-import { getTimeRemaining, toggleLike, hasUserLiked, deleteOpinPost, OPIN_COLORS, OPIN_REACTIONS, toggleReaction, getUserReactions, getReplyPreview } from '@/services/opinService';
+import { getTimeRemaining, toggleLike, hasUserLiked, deleteOpinPost, OPIN_COLORS, OPIN_REACTIONS, toggleReaction, getUserReactions, getReplyPreview, incrementViewCount } from '@/services/opinService';
 import { obtenerTarjeta } from '@/services/tarjetaService';
 import MensajeTarjetaModal from '@/components/baul/MensajeTarjetaModal';
 import { useAuth } from '@/contexts/AuthContext';
 import { toast } from '@/components/ui/use-toast';
+import { track, getSessionId } from '@/services/eventTrackingService';
 
 const OpinCard = forwardRef(({ post, onCommentsClick, onPostDeleted, isReadOnlyMode = false }, ref) => {
   const navigate = useNavigate();
@@ -39,11 +40,48 @@ const OpinCard = forwardRef(({ post, onCommentsClick, onPostDeleted, isReadOnlyM
   // Estados para preview de respuestas
   const [previewReplies, setPreviewReplies] = useState([]);
   const [loadingReplies, setLoadingReplies] = useState(false);
+  const cardRef = useRef(null);
 
   const isOwner = user && (user.id === post.userId || user.uid === post.userId);
   const isLoggedIn = user && !user.isAnonymous && !user.isGuest;
   const totalReplies = post.commentCount || 0;
   const hasMoreReplies = totalReplies > 3;
+
+  const setRefs = (node) => {
+    cardRef.current = node;
+    if (typeof ref === 'function') {
+      ref(node);
+    } else if (ref) {
+      ref.current = node;
+    }
+  };
+
+  // ✅ Trackear vista real (una vez por sesión)
+  useEffect(() => {
+    if (!post?.id) return;
+    if (!cardRef.current) return;
+
+    const sessionId = getSessionId();
+    const viewKey = `opin_viewed:${post.id}:${sessionId}`;
+    if (sessionStorage.getItem(viewKey) === '1') return;
+
+    const observer = new IntersectionObserver(
+      (entries) => {
+        const entry = entries[0];
+        if (entry.isIntersecting && entry.intersectionRatio >= 0.5) {
+          sessionStorage.setItem(viewKey, '1');
+          incrementViewCount(post.id).catch(() => {});
+          track('opin_view', { post_id: post.id, author_id: post.userId }, { user }).catch(() => {});
+          observer.disconnect();
+        }
+      },
+      { threshold: 0.5 }
+    );
+
+    observer.observe(cardRef.current);
+
+    return () => observer.disconnect();
+  }, [post?.id, post?.userId, user]);
 
   // Cargar preview de respuestas (primeras 3)
   useEffect(() => {
@@ -211,7 +249,7 @@ const OpinCard = forwardRef(({ post, onCommentsClick, onPostDeleted, isReadOnlyM
   return (
     <>
       <div
-        ref={ref}
+        ref={setRefs}
         className={`border-b border-white/10 py-4 px-4 hover:bg-white/5 transition-colors ${post.isStable ? 'bg-purple-500/5' : ''}`}
       >
         {/* Indicador de color (punto) + Texto */}

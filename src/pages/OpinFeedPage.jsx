@@ -2,7 +2,7 @@
  * OpinFeedPage - Tablón de notas (diseño lista compacta)
  */
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { Plus, Sparkles, RefreshCw, Eye, UserPlus, ArrowLeft } from 'lucide-react';
@@ -11,6 +11,7 @@ import { getOpinFeed, canCreatePost } from '@/services/opinService';
 import OpinCard from '@/components/opin/OpinCard';
 import OpinCommentsModal from '@/components/opin/OpinCommentsModal';
 import { toast } from '@/components/ui/use-toast';
+import { trackPageView, trackPageExit, track } from '@/services/eventTrackingService';
 
 const OpinFeedPage = () => {
   const navigate = useNavigate();
@@ -20,6 +21,7 @@ const OpinFeedPage = () => {
   const [canCreate, setCanCreate] = useState(false);
   const [selectedPost, setSelectedPost] = useState(null);
   const [showCommentsModal, setShowCommentsModal] = useState(false);
+  const pageStartRef = useRef(Date.now());
 
   const isReadOnlyMode = !user || user.isAnonymous || user.isGuest;
 
@@ -54,6 +56,17 @@ const OpinFeedPage = () => {
       }
     };
   }, []);
+
+  useEffect(() => {
+    pageStartRef.current = Date.now();
+    trackPageView('/opin', 'Tablón OPIN', { user });
+    track('opin_feed_view', { page_path: '/opin' }, { user });
+
+    return () => {
+      const timeOnPage = Math.round((Date.now() - pageStartRef.current) / 1000);
+      trackPageExit('/opin', timeOnPage, { user });
+    };
+  }, [user]);
 
   useEffect(() => {
     loadFeed();
