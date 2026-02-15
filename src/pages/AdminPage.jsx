@@ -78,6 +78,7 @@ import {
 } from '@/services/forumService';
 import OpinStablesPanel from '@/components/admin/OpinStablesPanel';
 import AdminOpinRepliesPanel from '@/components/admin/AdminOpinRepliesPanel';
+import AdminEventosPanel from '@/components/admin/AdminEventosPanel';
 
 const AdminPage = () => {
   const navigate = useNavigate();
@@ -937,6 +938,7 @@ const AdminPage = () => {
             <TabsTrigger value="analytics">Analytics</TabsTrigger>
             <TabsTrigger value="moderation">Moderación</TabsTrigger>
             <TabsTrigger value="generator">Generador</TabsTrigger>
+            <TabsTrigger value="eventos">Eventos</TabsTrigger>
           </TabsList>
 
           {/* Dashboard Tab */}
@@ -2931,6 +2933,10 @@ const AdminPage = () => {
           {/* Generador de Mensajes */}
           <TabsContent value="generator" className="space-y-6">
             <MessageGenerator />
+          </TabsContent>
+
+          <TabsContent value="eventos" className="space-y-6">
+            <AdminEventosPanel />
           </TabsContent>
         </Tabs>
 

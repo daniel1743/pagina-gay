@@ -119,6 +119,20 @@
           "order": "DESCENDING"
         }
       ]
+    },
+    {
+      "collectionGroup": "eventos",
+      "queryScope": "COLLECTION",
+      "fields": [
+        {
+          "fieldPath": "activo",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "fechaInicio",
+          "order": "ASCENDING"
+        }
+      ]
     }
   ],
   "fieldOverrides": []

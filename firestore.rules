@@ -882,6 +882,60 @@ service cloud.firestore {
     }
 
     // ===========================
+    // 📅 EVENTOS PROGRAMADOS
+    // ===========================
+
+    match /eventos/{eventoId} {
+      // Lectura: cualquiera puede ver eventos
+      allow read: if true;
+      // Crear/editar: solo admin
+      allow create, update: if isAdmin();
+      // Eliminar: solo admin
+      allow delete: if isAdmin();
+
+      // Asistentes del evento
+      match /asistentes/{userId} {
+        allow read: if true;
+        allow create, update: if isAuthenticated();
+        allow delete: if isAuthenticated() && request.auth.uid == userId;
+      }
+    }
+
+    // ===========================
+    // 🤖 MODERACIÓN IA - Estado de usuarios
+    // ===========================
+
+    match /userModerationState/{userId} {
+      // Leer: el propio usuario o admin
+      allow read: if isAuthenticated() &&
+                    (request.auth.uid == userId || isAdmin());
+
+      // Crear/Actualizar: el propio usuario (sistema client-side) o admin
+      allow create, update: if isAuthenticated() &&
+                              (request.auth.uid == userId || isAdmin()) &&
+                              'strikes' in request.resource.data &&
+                              request.resource.data.strikes is int;
+
+      // No se permite borrar (historial permanente)
+      allow delete: if isAdmin();
+    }
+
+    // 🤖 MODERACIÓN IA - Logs de moderación
+    match /moderationLogs/{logId} {
+      // Leer: solo admin
+      allow read: if isAdmin();
+
+      // Crear: cualquier usuario autenticado (el sistema escribe en su nombre)
+      allow create: if isAuthenticated() &&
+                      'userId' in request.resource.data &&
+                      'message' in request.resource.data &&
+                      'result' in request.resource.data;
+
+      // No se puede editar ni borrar logs
+      allow update, delete: if false;
+    }
+
+    // ===========================
     // DEFAULT: CERRADO
     // ===========================
 

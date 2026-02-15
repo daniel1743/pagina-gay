@@ -47,7 +47,8 @@ import { sendMessage, subscribeToRoomMessages, addReactionToMessage, markMessage
 import { joinRoom, leaveRoom, subscribeToRoomUsers, subscribeToMultipleRoomCounts, updateUserActivity, cleanInactiveUsers, filterActiveUsers, subscribeToTypingUsers } from '@/services/presenceService';
 import { validateMessage } from '@/services/antiSpamService';
 import { auth, db } from '@/config/firebase'; // ✅ CRÍTICO: Necesario para obtener UID real de Firebase Auth
-import { doc, getDoc } from 'firebase/firestore';
+import { doc, getDoc, deleteDoc } from 'firebase/firestore';
+import { evaluateMessage, checkAIMute, formatMuteRemaining } from '@/services/moderationAIService';
 import { sendPrivateChatRequest, respondToPrivateChatRequest, subscribeToNotifications, markNotificationAsRead } from '@/services/socialService';
 import { subscribeToBlockedUsers, isBlocked, isBlockedBetween } from '@/services/blockService';
 import { requestNotificationPermission, canRequestPush } from '@/services/pushNotificationService';
@@ -64,6 +65,7 @@ import { startEngagementTracking, hasReachedOneHourLimit, getTotalEngagementTime
 import { notificationSounds } from '@/services/notificationSounds';
 import { monitorActivityAndSendVOC, resetVOCCooldown } from '@/services/vocService';
 import { generateNicoWelcome, sendNicoQuestion, getLastNicoMessageAge, NICO, QUESTION_INTERVAL_MS } from '@/services/nicoBot';
+import EventoBanner from '@/components/eventos/EventoBanner';
 import '@/utils/chatDiagnostics'; // 🔍 Cargar diagnóstico en consola
 import { 
   trackChatLoad, 
@@ -504,9 +506,10 @@ const ChatPage = () => {
   useEffect(() => {
     // Guard interno: solo ejecutar si hay user
     if (!user) return;
-    // ✅ SEO: Validar que la sala existe en roomsData (prevenir 404 en salas comentadas)
+    // ✅ SEO: Validar que la sala existe en roomsData o es sala de evento dinámico
     const activeSalas = roomsData.filter(room => room.enabled !== false).map(room => room.id);
-    if (!activeSalas.includes(roomId)) {
+    const esSalaDeEvento = roomId?.startsWith('evento_');
+    if (!activeSalas.includes(roomId) && !esSalaDeEvento) {
       toast({
         title: "Sala Temporalmente Cerrada",
         description: "Esta sala no está disponible por el momento. Te redirigimos a Chat Principal.",
@@ -1837,6 +1840,24 @@ const ChatPage = () => {
       }
     }
 
+    // 🤖 MODERACIÓN IA: Verificar si el usuario tiene mute activo por moderación automática
+    try {
+      const aiMuteStatus = await checkAIMute(user.id);
+      if (aiMuteStatus.isMuted) {
+        const remaining = formatMuteRemaining(aiMuteStatus.remainingMs);
+        toast({
+          title: `Silenciado por ${remaining}`,
+          description: aiMuteStatus.reason || 'Has sido silenciado temporalmente por violar las normas.',
+          variant: "destructive",
+          duration: 5000,
+        });
+        return;
+      }
+    } catch (err) {
+      // Fail-open: si falla la verificación, permitir envío
+      console.warn('[MOD-AI] Error verificando mute:', err.message);
+    }
+
     // 🔍 TRACE: Usuario escribió mensaje
     traceEvent(TRACE_EVENTS.USER_INPUT_TYPED, {
       content: content.substring(0, 50),
@@ -2089,6 +2110,42 @@ const ChatPage = () => {
         // ⚡ LATENCY CHECK: Solo log en consola (sin toast al usuario)
         const latency = Date.now() - optimisticMessage.timestampMs;
         console.log(`⏱️ [LATENCY TEST] Mensaje sincronizado en ${latency}ms`);
+
+        // 🤖 MODERACIÓN IA: Evaluar mensaje DESPUÉS de enviarlo (post-send, async, no bloquea)
+        evaluateMessage(content, user.id, user.username, currentRoom)
+          .then((modResult) => {
+            if (!modResult.safe) {
+              console.log(`[MOD-AI] Violación detectada post-send:`, modResult);
+
+              // Eliminar mensaje de Firestore
+              if (sentMessage?.id) {
+                deleteDoc(doc(db, 'rooms', currentRoom, 'messages', sentMessage.id)).catch(e =>
+                  console.warn('[MOD-AI] Error eliminando mensaje:', e.message)
+                );
+              }
+
+              // Eliminar mensaje optimista de la UI
+              setMessages(prev => prev.filter(m => m.id !== optimisticId && m._realId !== sentMessage?.id));
+
+              // Mostrar feedback según acción
+              if (modResult.action === 'warning') {
+                toast({
+                  title: "Advertencia",
+                  description: modResult.reason || 'Tu mensaje fue eliminado por violar las normas.',
+                  variant: "destructive",
+                  duration: 6000,
+                });
+              } else if (modResult.action === 'mute') {
+                toast({
+                  title: `Silenciado por ${modResult.muteMins} minutos`,
+                  description: `${modResult.reason || 'Violación de normas'} (Strike ${modResult.strikes})`,
+                  variant: "destructive",
+                  duration: 8000,
+                });
+              }
+            }
+          })
+          .catch(() => {}); // Fail silently, never block
 
         // ❌ TOAST DE LATENCIA ELIMINADO (07/01/2026) - No interesa al usuario
         // El usuario no necesita ver información técnica de latencia
@@ -2582,7 +2639,9 @@ const ChatPage = () => {
               />
             )}
 
-            {/* ⚠️ MODALES DE INSTRUCCIONES ELIMINADOS (17/01/2026) - A petición del usuario */}
+            {/* 📅 Banner de evento activo/próximo */}
+            <EventoBanner currentRoomId={roomId} />
+
             {/* ⏳ Mostrar loading simple cuando no hay mensajes y está cargando */}
             {isLoadingMessages && messages.length === 0 ? (
               <div className="flex-1 flex items-center justify-center">
@@ -2629,11 +2688,53 @@ const ChatPage = () => {
             count={unreadRepliesCount}
           />
 
-          {(user?.isGuest || user?.isAnonymous) && messages.filter(m => m.userId === user?.id).length === 0 && (
-            <div className="text-center py-1.5 px-4">
-              <span className="text-xs text-gray-500 dark:text-gray-400">
-                Puedes leer y escribir libremente · Sin registro
-              </span>
+          {/* 💬 Chips de frases rápidas para romper el hielo */}
+          {user?.id && messages.filter(m => m.userId === user?.id).length === 0 && (
+            <div className="px-3 py-2 flex flex-wrap gap-1.5 justify-center">
+              {(() => {
+                const allChips = [
+                  'Hola, quiero coger 🔥',
+                  '¿Quién para culiar? 😏',
+                  'Hola, ¿quién para hablar? 💬',
+                  'Quiero portarme mal 😈',
+                  'Hola, quiero culo 🍑',
+                  'Hola, quiero pipe 😋',
+                  'Hola, quiero verga 🍆',
+                  'Soy pasivo tragón 🤤',
+                  'Hola, soy pasivo 🙋',
+                  'Hola, soy activo 💪',
+                  'Hey, ¿quién para portarse mal? 😈',
+                  'Busco fiesta 🎉',
+                  'Busco quedar ya 📍',
+                  '¿Dónde están los activos? 👀',
+                  '¿Dónde están los pasivos? 👀',
+                  'Buenas noches, quiero conversar 🌙',
+                  'Hola, quiero conversar con alguien 💬',
+                  'Soy activo, busco pasivo 🔥',
+                  'Soy versátil, quiero portarme mal 😈',
+                  'Soy pasivo, busco activo dotado 🍆',
+                ];
+                // Elegir 4 chips aleatorios (consistentes por sesión)
+                const seed = user?.id || 'default';
+                const hash = seed.split('').reduce((a, c) => a + c.charCodeAt(0), 0);
+                const shuffled = [...allChips].sort((a, b) => {
+                  const ha = (hash * (allChips.indexOf(a) + 1)) % 97;
+                  const hb = (hash * (allChips.indexOf(b) + 1)) % 97;
+                  return ha - hb;
+                });
+                return shuffled.slice(0, 5).map((chip) => (
+                  <button
+                    key={chip}
+                    onClick={() => handleSendMessage(chip)}
+                    className="px-3 py-1.5 rounded-full text-xs font-medium
+                      bg-gray-700/60 hover:bg-gray-600/80 text-gray-200 hover:text-white
+                      border border-gray-600/40 hover:border-gray-500/60
+                      transition-all active:scale-95"
+                  >
+                    {chip}
+                  </button>
+                ));
+              })()}
             </div>
           )}
 

@@ -129,6 +129,11 @@ export const colorClasses = {
 export const canAccessRoom = (roomId, referrer = '') => {
   const room = roomsData.find(r => r.id === roomId);
 
+  // Salas de eventos dinámicos: siempre permitir acceso
+  if (roomId?.startsWith('evento_')) {
+    return { allowed: true };
+  }
+
   // Sala no existe
   if (!room) {
     return {
