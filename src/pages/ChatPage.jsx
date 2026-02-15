@@ -63,7 +63,7 @@ import { traceEvent, TRACE_EVENTS } from '@/utils/messageTrace';
 import { startEngagementTracking, hasReachedOneHourLimit, getTotalEngagementTime, hasSeenEngagementModal, markEngagementModalAsShown } from '@/services/engagementService';
 import { notificationSounds } from '@/services/notificationSounds';
 import { monitorActivityAndSendVOC, resetVOCCooldown } from '@/services/vocService';
-import { sendNicoWelcome, sendNicoQuestion, getLastNicoMessageAge, wasUserWelcomedByNico, canSendWelcome, markWelcomeSent, NICO, QUESTION_INTERVAL_MS } from '@/services/nicoBot';
+import { generateNicoWelcome, sendNicoQuestion, getLastNicoMessageAge, NICO, QUESTION_INTERVAL_MS } from '@/services/nicoBot';
 import '@/utils/chatDiagnostics'; // 🔍 Cargar diagnóstico en consola
 import { 
   trackChatLoad, 
@@ -89,6 +89,9 @@ const roomWelcomeMessages = {
   'hablar-primero': 'Para los que prefieren conocerse bien antes de todo.',
   'morbosear': 'Sala para conversar con un toque de morbo. ¡Con respeto!',
 };
+
+// 🤖 NICO BOT: DESACTIVADO POR SPAM EN SALA PRINCIPAL
+const NICO_BOT_ENABLED = false;
 
 const ChatPage = () => {
   const { roomId } = useParams();
@@ -1429,11 +1432,33 @@ const ChatPage = () => {
   //   return () => unsubscribe();
   // }, [user?.id]);
 
-  // 🤖 NICO BOT: Bienvenidas a usuarios nuevos
+  // 🤖 NICO BOT: Toast de bienvenida personal al entrar a sala
   useEffect(() => {
+    if (!NICO_BOT_ENABLED) return;
+    if (!user?.id || !currentRoom) return;
+    const username = user?.username || user?.displayName || 'Usuario';
+
+    // Delay de 2s para que el chat cargue primero
+    const timer = setTimeout(async () => {
+      const welcomeText = await generateNicoWelcome(username, messagesRef.current);
+      toast({
+        title: `👋 ${NICO.username}`,
+        description: welcomeText,
+        duration: 5000,
+      });
+    }, 2000);
+
+    return () => clearTimeout(timer);
+    // Solo al entrar a una sala (cambio de currentRoom)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [currentRoom]);
+
+  // 🤖 NICO BOT: Notificar a los demás cuando alguien se conecta (toast, NO mensaje en chat)
+  useEffect(() => {
+    if (!NICO_BOT_ENABLED) return;
     if (!user?.id || !roomUsers || roomUsers.length === 0) return;
 
-    // Obtener IDs actuales (sin bots ni sistema)
+    // Obtener IDs actuales (sin bots, sistema ni yo mismo)
     const currentUserIds = new Set();
     const currentUserMap = new Map();
     for (const u of roomUsers) {
@@ -1444,13 +1469,13 @@ const ChatPage = () => {
       }
     }
 
-    // Primer render: solo registrar usuarios existentes (no enviar bienvenidas a los que ya estaban)
+    // Primer render: solo registrar usuarios existentes
     if (nicoPreviousRoomUsersRef.current === null) {
       nicoPreviousRoomUsersRef.current = currentUserIds;
       return;
     }
 
-    // Detectar usuarios NUEVOS (no estaban en el render anterior)
+    // Detectar usuarios NUEVOS
     const previousIds = nicoPreviousRoomUsersRef.current;
     const newUserIds = [];
     for (const uid of currentUserIds) {
@@ -1462,36 +1487,33 @@ const ChatPage = () => {
     // Actualizar referencia anterior
     nicoPreviousRoomUsersRef.current = currentUserIds;
 
-    // Enviar bienvenida a cada usuario nuevo (con delay escalonado)
-    if (newUserIds.length > 0 && messages.length > 0) {
-      newUserIds.forEach((uid, index) => {
-        const newUser = currentUserMap.get(uid);
-        if (!newUser?.username) return;
+    // Si hay usuarios nuevos, elegir UNO al azar y mostrar toast
+    if (newUserIds.length > 0) {
+      // Marcar todos como notificados
+      newUserIds.forEach(uid => nicoWelcomedUsersRef.current.add(uid));
 
-        // Verificar si ya fue bienvenido en los mensajes cargados
-        if (wasUserWelcomedByNico(messages, newUser.username)) {
-          nicoWelcomedUsersRef.current.add(uid);
-          return;
-        }
+      // Elegir uno al azar para el toast
+      const randomUid = newUserIds[Math.floor(Math.random() * newUserIds.length)];
+      const randomUser = currentUserMap.get(randomUid);
 
-        // Delay escalonado: 3-8s para el primero, +5s por cada adicional
-        const delay = (3000 + Math.random() * 5000) + (index * 5000);
-
+      if (randomUser?.username) {
+        // Delay corto para no interrumpir inmediatamente
         setTimeout(() => {
-          // Re-verificar antes de enviar (otro cliente pudo enviar la bienvenida)
-          if (nicoWelcomedUsersRef.current.has(uid)) return;
-          if (!canSendWelcome()) return;
-
-          nicoWelcomedUsersRef.current.add(uid);
-          markWelcomeSent();
-          sendNicoWelcome(currentRoom, newUser.username, messages);
-        }, delay);
-      });
+          toast({
+            title: `${randomUser.username} se ha conectado 👋`,
+            description: newUserIds.length > 1
+              ? `y ${newUserIds.length - 1} más · ¡Salúdalos!`
+              : '¡Salúdalo!',
+            duration: 3000,
+          });
+        }, 1500);
+      }
     }
-  }, [roomUsers, currentRoom, user?.id, messages]);
+  }, [roomUsers, user?.id]);
 
   // 🤖 NICO BOT: Pregunta caliente cada 30 minutos
   useEffect(() => {
+    if (!NICO_BOT_ENABLED) return;
     if (!user?.id || !currentRoom) return;
 
     // Limpiar intervalo anterior

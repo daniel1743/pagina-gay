@@ -239,9 +239,10 @@ const cleanAIResponse = (text, maxLen = 150) => {
 // ═══════════════════════════════════════════════════════════════════
 
 /**
- * Genera y envia un mensaje de bienvenida de Nico
+ * Genera texto de bienvenida de Nico (NO lo envia a Firestore)
+ * Se usa para mostrar un toast local al usuario que entra
  */
-export const sendNicoWelcome = async (roomId, username, recentMessages = []) => {
+export const generateNicoWelcome = async (username, recentMessages = []) => {
   try {
     const context = recentMessages
       .slice(-5)
@@ -261,21 +262,13 @@ export const sendNicoWelcome = async (roomId, username, recentMessages = []) => 
     );
 
     const cleanContent = cleanAIResponse(content);
-
-    await sendMessage(roomId, {
-      userId: NICO.userId,
-      username: NICO.username,
-      avatar: NICO.avatar,
-      isPremium: NICO.isPremium,
-      content: cleanContent,
-      type: 'text',
-    });
-
-    console.log(`[NICO] Bienvenida enviada a ${username}: "${cleanContent}"`);
-    return true;
+    console.log(`[NICO] Bienvenida generada para ${username}: "${cleanContent}"`);
+    return cleanContent;
   } catch (error) {
-    console.error('[NICO] Error enviando bienvenida:', error);
-    return false;
+    console.error('[NICO] Error generando bienvenida:', error);
+    // Fallback directo si todo falla
+    const fn = WELCOME_FALLBACKS[Math.floor(Math.random() * WELCOME_FALLBACKS.length)];
+    return fn(username);
   }
 };
 

@@ -203,7 +203,7 @@ export const createOpinPost = async ({ title = '', text, color = 'purple', userP
   }
 
   const now = Timestamp.now();
-  const expiresAt = new Timestamp(now.seconds + (24 * 60 * 60), now.nanoseconds); // +24h
+  const expiresAt = new Timestamp(now.seconds + (60 * 24 * 60 * 60), now.nanoseconds); // +60 días (2 meses)
 
   const postData = {
     userId: auth.currentUser.uid,
@@ -216,7 +216,7 @@ export const createOpinPost = async ({ title = '', text, color = 'purple', userP
     createdAt: serverTimestamp(),
     expiresAt: expiresAt,
     isActive: true,
-    isStable: false, // Posts de usuarios: 24h. Los estables (admin) tienen isStable: true y no expiran.
+    isStable: false, // Posts de usuarios: 60 días. Los estables (admin) tienen isStable: true y no expiran.
     viewCount: 0,
     profileClickCount: 0,
     likeCount: 0,
@@ -272,32 +272,16 @@ export const getOpinFeed = async (limitCount = 50) => {
     return true;
   });
 
-  // Siempre aplicar expiración de 24h, pero rellenar con expirados recientes
-  // si el feed quedaría con menos de OPIN_MIN_STABLE posts (evita vaciado abrupto)
+  // Filtrar posts con más de 60 días de antigüedad (basado en createdAt, no expiresAt)
+  // Esto permite que posts antiguos con expiresAt de 24h (versión anterior) sigan visibles
+  const EXPIRACION_MS = 60 * 24 * 60 * 60 * 1000; // 60 días en ms
   const vigentes = normalsAll.filter((p) => {
-    if (p.expiresAt && p.expiresAt.toMillis) {
-      return p.expiresAt.toMillis() > nowMs;
-    }
-    return true;
+    const createdMs = p.createdAt?.toMillis ? p.createdAt.toMillis() : nowMs;
+    return (nowMs - createdMs) < EXPIRACION_MS;
   });
 
-  let normals;
-  const totalConVigentes = stables.length + vigentes.length;
-
-  if (totalConVigentes >= OPIN_MIN_STABLE) {
-    normals = vigentes;
-  } else {
-    // Faltan posts: rellenar con los expirados más recientes
-    const expirados = normalsAll
-      .filter(p => !vigentes.includes(p))
-      .sort((a, b) => {
-        const tA = a.createdAt?.toMillis ? a.createdAt.toMillis() : 0;
-        const tB = b.createdAt?.toMillis ? b.createdAt.toMillis() : 0;
-        return tB - tA;
-      });
-    const faltantes = OPIN_MIN_STABLE - totalConVigentes;
-    normals = [...vigentes, ...expirados.slice(0, faltantes)];
-  }
+  // Usar todos los vigentes (dentro de 60 días)
+  let normals = vigentes;
 
   // Asignar peso BASE a cada post (más compacto para permitir variación)
   const getPostWeight = (post) => {

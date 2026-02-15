@@ -473,8 +473,9 @@ export async function obtenerTarjetasCercanas(miUbicacion, miUserId, limite = 10
       return bTime - aTime;
     });
 
-    console.log('[BAUL] 📊 Ordenamiento por puntaje de perfil aplicado');
-    console.log('[BAUL] Top 5:', tarjetas.slice(0, 5).map(t => `${t.nombre}: ${t.puntajePerfil}pts`));
+    const conFotoReal = tarjetas.filter(t => t.puntajePerfil >= 1000).length;
+    console.log(`[BAUL] 📊 Ordenamiento aplicado: ${conFotoReal} con foto real, ${tarjetas.length - conFotoReal} solo avatar`);
+    console.log('[BAUL] Top 10:', tarjetas.slice(0, 10).map(t => `${t.nombre}: ${t.puntajePerfil}pts`));
 
     // Retornar las últimas 100 (o el límite especificado)
     return tarjetas.slice(0, cantidadAObtener);
@@ -599,8 +600,9 @@ export async function obtenerTarjetasRecientes(miUserId, limite = 100) {
       return bTime - aTime;
     });
 
-    console.log('[BAUL] 📊 Ordenamiento por puntaje de perfil aplicado');
-    console.log('[BAUL] Top 5:', tarjetas.slice(0, 5).map(t => `${t.nombre}: ${t.puntajePerfil}pts`));
+    const conFotoReal = tarjetas.filter(t => t.puntajePerfil >= 1000).length;
+    console.log(`[BAUL] 📊 Ordenamiento aplicado: ${conFotoReal} con foto real, ${tarjetas.length - conFotoReal} solo avatar`);
+    console.log('[BAUL] Top 10:', tarjetas.slice(0, 10).map(t => `${t.nombre}: ${t.puntajePerfil}pts`));
 
     // Retornar las últimas 100 tarjetas
     return tarjetas.slice(0, cantidadAObtener);
@@ -1243,10 +1245,16 @@ function esAvatarGenerico(fotoUrl) {
 
 /**
  * Obtener la URL de foto principal de una tarjeta
- * Algunos perfiles tienen foto en fotoUrlFull o fotoUrlThumb pero no en fotoUrl
+ * Prioriza fotos REALES sobre avatares genéricos (DiceBear, etc.)
+ * Revisa los 3 campos de foto y retorna la primera foto real encontrada
  */
-function obtenerFotoPrincipal(tarjeta) {
-  return tarjeta.fotoUrl || tarjeta.fotoUrlFull || tarjeta.fotoUrlThumb || '';
+export function obtenerFotoPrincipal(tarjeta) {
+  const fotos = [tarjeta.fotoUrl, tarjeta.fotoUrlFull, tarjeta.fotoUrlThumb].filter(Boolean);
+  // Primero buscar una foto REAL (Cloudinary, Firebase Storage, etc.)
+  const fotoReal = fotos.find(f => !esAvatarGenerico(f));
+  if (fotoReal) return fotoReal;
+  // Fallback: cualquier URL disponible (puede ser avatar genérico)
+  return fotos[0] || '';
 }
 
 /**
@@ -1258,9 +1266,10 @@ function calcularPuntajePerfil(tarjeta) {
   let puntaje = 0;
 
   // 🖼️ FOTO REAL (máxima prioridad: +1000)
-  // Revisar fotoUrl, fotoUrlFull y fotoUrlThumb (admin/perfiles pueden usar distintos campos)
-  const fotoPrincipal = obtenerFotoPrincipal(tarjeta);
-  const tieneFotoReal = !esAvatarGenerico(fotoPrincipal);
+  // Revisar TODOS los campos de foto — perfiles antiguos pueden tener foto real
+  // en fotoUrlFull pero DiceBear en fotoUrl (bug de versiones anteriores)
+  const todasLasFotos = [tarjeta.fotoUrl, tarjeta.fotoUrlFull, tarjeta.fotoUrlThumb].filter(Boolean);
+  const tieneFotoReal = todasLasFotos.some(f => !esAvatarGenerico(f));
 
   if (tieneFotoReal) {
     puntaje += 1000; // Foto real = prioridad máxima

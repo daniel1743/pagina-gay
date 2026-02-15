@@ -14,7 +14,7 @@ import {
   User,
   Eye
 } from 'lucide-react';
-import { getColorRol, getEmojiEstado, formatearHorarios } from '@/services/tarjetaService';
+import { getColorRol, getEmojiEstado, formatearHorarios, obtenerFotoPrincipal } from '@/services/tarjetaService';
 import { useAuth } from '@/contexts/AuthContext';
 
 /**
@@ -153,7 +153,8 @@ const TarjetaUsuario = ({
     setRevealed(true);
   };
 
-  const hasPhoto = Boolean(tarjeta.fotoUrl || tarjeta.fotoUrlFull || tarjeta.fotoUrlThumb);
+  const fotoMostrar = obtenerFotoPrincipal(tarjeta);
+  const hasPhoto = Boolean(fotoMostrar);
   const shouldBlur = isSensitive && !esMiTarjeta && !revealed && hasPhoto;
 
   return (
@@ -190,7 +191,7 @@ const TarjetaUsuario = ({
       <div className="relative aspect-[4/5] bg-gradient-to-br from-gray-700 to-gray-800">
         {hasPhoto ? (
           <img
-            src={tarjeta.fotoUrl || tarjeta.fotoUrlFull || tarjeta.fotoUrlThumb}
+            src={fotoMostrar}
             alt={tarjeta.nombre}
             className={`w-full h-full object-cover transition ${shouldBlur ? 'blur-[10px] scale-[1.02]' : ''}`}
             loading="lazy"
