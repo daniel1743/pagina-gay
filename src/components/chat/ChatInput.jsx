@@ -42,11 +42,18 @@ const PREMIUM_EMOJIS = [
   },
 ];
 
+const RECENT_EMOJIS_STORAGE_KEY = 'chat_recent_emojis_v1';
+const DEFAULT_RECENT_EMOJIS = ['😂', '🤣', '😍', '🔥', '😘', '😉', '😈', '😏', '🥵', '🤤', '❤️', '😎'];
+
 
 const ChatInput = ({ onSendMessage, onFocus, onBlur, externalMessage = null, roomId = null, replyTo = null, onCancelReply, onRequestNickname, isGuest = false }) => {
   const { user, guestMessageCount } = useAuth();
   const [message, setMessage] = useState('');
   const [showEmojiPicker, setShowEmojiPicker] = useState(false);
+  const [isMobileEmojiSheet, setIsMobileEmojiSheet] = useState(() => (
+    typeof window !== 'undefined' ? window.innerWidth < 768 : false
+  ));
+  const [recentEmojis, setRecentEmojis] = useState(DEFAULT_RECENT_EMOJIS);
   const [showQuickPhrases, setShowQuickPhrases] = useState(false);
   const [showComingSoon, setShowComingSoon] = useState(false);
   const typingTimeoutRef = useRef(null);
@@ -123,6 +130,44 @@ const ChatInput = ({ onSendMessage, onFocus, onBlur, externalMessage = null, roo
       document.removeEventListener("mousedown", handleClickOutside);
     };
   }, [wrapperRef]);
+
+  // Cerrar selector con Escape
+  useEffect(() => {
+    if (!showEmojiPicker) return;
+    const handleEscape = (event) => {
+      if (event.key === 'Escape') {
+        setShowEmojiPicker(false);
+      }
+    };
+    window.addEventListener('keydown', handleEscape);
+    return () => window.removeEventListener('keydown', handleEscape);
+  }, [showEmojiPicker]);
+
+  // Detectar viewport para usar sheet en móvil
+  useEffect(() => {
+    const handleResize = () => {
+      setIsMobileEmojiSheet(window.innerWidth < 768);
+    };
+    handleResize();
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  }, []);
+
+  // Restaurar emojis recientes del usuario
+  useEffect(() => {
+    try {
+      const stored = localStorage.getItem(RECENT_EMOJIS_STORAGE_KEY);
+      if (!stored) return;
+      const parsed = JSON.parse(stored);
+      if (!Array.isArray(parsed) || parsed.length === 0) return;
+      const cleaned = parsed.filter((item) => typeof item === 'string' && item.trim()).slice(0, 16);
+      if (cleaned.length > 0) {
+        setRecentEmojis(cleaned);
+      }
+    } catch (error) {
+      console.debug('[ChatInput] No se pudieron restaurar emojis recientes:', error);
+    }
+  }, []);
 
   // Guardar borrador automáticamente en localStorage
   useEffect(() => {
@@ -273,8 +318,31 @@ const ChatInput = ({ onSendMessage, onFocus, onBlur, externalMessage = null, roo
     }
   };
 
+  const registerRecentEmoji = (emoji) => {
+    if (!emoji) return;
+    setRecentEmojis((previous) => {
+      const next = [emoji, ...previous.filter((item) => item !== emoji)].slice(0, 16);
+      try {
+        localStorage.setItem(RECENT_EMOJIS_STORAGE_KEY, JSON.stringify(next));
+      } catch (error) {
+        console.debug('[ChatInput] No se pudieron guardar emojis recientes:', error);
+      }
+      return next;
+    });
+  };
+
   const handleEmojiClick = (emojiObject) => {
-    setMessage(prevMessage => prevMessage + emojiObject.emoji);
+    const emoji = emojiObject?.emoji;
+    if (!emoji) return;
+    setMessage((prevMessage) => prevMessage + emoji);
+    registerRecentEmoji(emoji);
+    textareaRef.current?.focus({ preventScroll: true });
+  };
+
+  const handleQuickEmojiClick = (emoji) => {
+    setMessage((prevMessage) => prevMessage + emoji);
+    registerRecentEmoji(emoji);
+    textareaRef.current?.focus({ preventScroll: true });
   };
   
   const handleQuickPhraseClick = (phrase) => {
@@ -338,34 +406,94 @@ const ChatInput = ({ onSendMessage, onFocus, onBlur, externalMessage = null, roo
     >
       <AnimatePresence>
         {showEmojiPicker && (
-          <motion.div
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: 20 }}
-              className="absolute bottom-full right-0 sm:right-4 mb-2 z-10 w-[calc(100vw-2rem)] sm:w-[300px] max-w-[300px]"
-          >
-            <Suspense fallback={
-              <div className="bg-secondary p-4 rounded-lg border border-input w-full h-[280px] sm:h-[350px] flex items-center justify-center">
-                <div className="flex flex-col items-center gap-2">
-                  <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-cyan-400"></div>
-                  <p className="text-sm text-muted-foreground">Cargando emojis...</p>
+          <>
+            {isMobileEmojiSheet && (
+              <motion.button
+                type="button"
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                exit={{ opacity: 0 }}
+                className="fixed inset-0 z-[70] bg-black/45 backdrop-blur-[1px]"
+                onClick={() => setShowEmojiPicker(false)}
+                aria-label="Cerrar selector de emojis"
+              />
+            )}
+
+            <motion.div
+              initial={{ opacity: 0, y: isMobileEmojiSheet ? 24 : 12, scale: isMobileEmojiSheet ? 1 : 0.98 }}
+              animate={{ opacity: 1, y: 0, scale: 1 }}
+              exit={{ opacity: 0, y: isMobileEmojiSheet ? 24 : 12, scale: isMobileEmojiSheet ? 1 : 0.98 }}
+              transition={{ type: 'spring', stiffness: 360, damping: 28 }}
+              className={
+                isMobileEmojiSheet
+                  ? 'fixed inset-x-2 bottom-2 z-[80] sm:inset-x-4'
+                  : 'absolute bottom-full left-0 sm:left-4 mb-3 z-20 w-[min(380px,calc(100vw-1.5rem))]'
+              }
+            >
+              <Suspense fallback={
+                <div className="bg-card/95 backdrop-blur-xl p-4 rounded-2xl border border-input/80 w-full h-[360px] flex items-center justify-center shadow-2xl">
+                  <div className="flex flex-col items-center gap-2">
+                    <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-cyan-400"></div>
+                    <p className="text-sm text-muted-foreground">Cargando emojis...</p>
+                  </div>
                 </div>
-              </div>
-            }>
-              <div className="w-full overflow-hidden rounded-lg border border-input bg-secondary">
-                <EmojiPicker
-                  onEmojiClick={handleEmojiClick}
-                  theme="dark"
-                  height={280}
-                  width="100%"
-                  emojiStyle={EmojiStyle.NATIVE}
-                  customEmojis={user?.isPremium ? PREMIUM_EMOJIS : []}
-                  categories={emojiPickerCategories}
-                  preload={true}
-                />
-              </div>
-            </Suspense>
-          </motion.div>
+              }>
+                <div
+                  className="w-full overflow-hidden rounded-2xl border border-input/80 bg-card/95 backdrop-blur-xl shadow-2xl"
+                  style={isMobileEmojiSheet ? { paddingBottom: 'max(0.5rem, env(safe-area-inset-bottom))' } : undefined}
+                >
+                  <div className="px-3 pt-3 pb-2 border-b border-border/70 flex items-center justify-between">
+                    <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Emojis</p>
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="icon"
+                      onClick={() => setShowEmojiPicker(false)}
+                      className="h-7 w-7 text-muted-foreground hover:text-foreground"
+                      aria-label="Cerrar selector de emojis"
+                    >
+                      <X className="w-4 h-4" />
+                    </Button>
+                  </div>
+
+                  <div className="px-3 pt-2 pb-2 border-b border-border/60">
+                    <div className="flex items-center gap-1.5 overflow-x-auto scrollbar-hide">
+                      {recentEmojis.map((emoji) => (
+                        <button
+                          key={emoji}
+                          type="button"
+                          onClick={() => handleQuickEmojiClick(emoji)}
+                          className="h-8 min-w-[2rem] px-2 inline-flex items-center justify-center rounded-full bg-secondary/70 hover:bg-secondary text-base transition-colors"
+                          aria-label={`Agregar emoji ${emoji}`}
+                        >
+                          {emoji}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+
+                  <div className={isMobileEmojiSheet ? 'h-[52vh] min-h-[300px] max-h-[460px]' : 'h-[380px]'}>
+                    <EmojiPicker
+                      onEmojiClick={handleEmojiClick}
+                      theme="dark"
+                      height="100%"
+                      width="100%"
+                      emojiStyle={EmojiStyle.NATIVE}
+                      customEmojis={user?.isPremium ? PREMIUM_EMOJIS : []}
+                      categories={emojiPickerCategories}
+                      preload={true}
+                      lazyLoadEmojis={true}
+                      autoFocusSearch={false}
+                      skinTonesDisabled={true}
+                      searchPlaceHolder="Buscar emoji"
+                      previewConfig={{ showPreview: false }}
+                      className="chactivo-emoji-picker"
+                    />
+                  </div>
+                </div>
+              </Suspense>
+            </motion.div>
+          </>
         )}
         {showQuickPhrases && (
              <motion.div 
@@ -436,7 +564,11 @@ const ChatInput = ({ onSendMessage, onFocus, onBlur, externalMessage = null, roo
           variant="ghost"
           size="icon"
           onClick={() => { setShowEmojiPicker(prev => !prev); setShowQuickPhrases(false);}}
-          className="text-muted-foreground hover:text-cyan-400 min-w-[44px] min-h-[44px] sm:min-w-0 sm:min-h-0"
+          className={`min-w-[44px] min-h-[44px] sm:min-w-0 sm:min-h-0 transition-colors ${
+            showEmojiPicker
+              ? 'text-cyan-300 bg-cyan-500/10 hover:text-cyan-200 hover:bg-cyan-500/15'
+              : 'text-muted-foreground hover:text-cyan-400'
+          }`}
           title="Selector de Emojis"
           aria-label={showEmojiPicker ? "Cerrar selector de emojis" : "Abrir selector de emojis"}
           aria-pressed={showEmojiPicker}

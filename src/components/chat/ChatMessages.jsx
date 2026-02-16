@@ -7,6 +7,7 @@ import MessageQuote from './MessageQuote';
 import NewMessagesDivider from './NewMessagesDivider';
 import { getUserConnectionStatus, getStatusColor } from '@/utils/userStatus';
 import { traceEvent, TRACE_EVENTS } from '@/utils/messageTrace';
+import { getBadgeConfig } from '@/services/badgeService';
 import './ChatMessages.css';
 
 /**
@@ -182,6 +183,7 @@ const ChatMessages = ({
           username: message.username,
           avatar: message.avatar,
           isPremium: message.isPremium || false,
+          badge: message.badge || 'Nuevo',
           messages: [message],
           isSystem: false,
         };
@@ -264,6 +266,14 @@ const ChatMessages = ({
                   {isUserVerified && !isUserPremium && userRole !== 'admin' && (
                     <CheckCircle className="inline w-3 h-3 ml-1 text-blue-500" />
                   )}
+                  {group.badge && group.badge !== 'Nuevo' && (() => {
+                    const badgeConfig = getBadgeConfig(group.badge);
+                    return (
+                      <span className={`inline-block ml-1.5 text-[9px] font-semibold px-1.5 py-0.5 rounded-full ${badgeConfig.bg} ${badgeConfig.color} ${badgeConfig.border} border`}>
+                        {group.badge}
+                      </span>
+                    );
+                  })()}
                 </div>
               )}
 

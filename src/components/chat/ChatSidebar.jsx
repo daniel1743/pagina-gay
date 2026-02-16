@@ -124,8 +124,8 @@ const ChatSidebar = ({ currentRoom, setCurrentRoom, isOpen, onClose, onOpenBaul,
       </AnimatePresence>
 
       {/* Desktop: sidebar siempre visible - Solo en pantallas grandes */}
-      {/* ✅ FIX: Usar hidden lg:block para que no interfiera en el layout de móvil */}
-      <aside className="hidden lg:block w-72 h-full bg-card border-r border-border flex flex-col flex-shrink-0">
+      {/* ✅ FIX: Usar hidden lg:flex para que no interfiera en móvil y mantenga layout flex en desktop */}
+      <aside className="hidden lg:flex w-72 h-full bg-card border-r border-border flex-col flex-shrink-0">
         <div className="flex-shrink-0 p-4 border-b border-border flex items-center justify-between">
           <motion.div
             className="flex items-center gap-3 cursor-pointer"

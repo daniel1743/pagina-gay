@@ -23,6 +23,7 @@ import {
 } from 'firebase/firestore';
 import { db, auth } from '@/config/firebase';
 import { isEventoActivo, isEventoProgramado, isEventoFinalizado } from '@/utils/eventosUtils';
+import { incrementEventosParticipados } from '@/services/badgeService';
 
 // ═══════════════════════════════════════════════════════════════════
 // CREAR EVENTO
@@ -168,16 +169,26 @@ export async function unirseAEvento(eventoId, user) {
 
   try {
     const asistRef = doc(db, 'eventos', eventoId, 'asistentes', user.id);
+
+    // Verificar si ya estaba registrado (para no incrementar badge dos veces)
+    const existingSnap = await getDoc(asistRef);
+    const yaRegistrado = existingSnap.exists();
+
     await setDoc(asistRef, {
       userId: user.id,
       username: user.username || 'Usuario',
       joinedAt: serverTimestamp(),
     });
 
-    // Incrementar contador
+    // Incrementar contador de asistentes
     await updateDoc(doc(db, 'eventos', eventoId), {
       asistentesCount: (await contarAsistentes(eventoId)),
     }).catch(() => {});
+
+    // 🏅 Incrementar badge solo la primera vez que se une a este evento
+    if (!yaRegistrado) {
+      incrementEventosParticipados(user.id).catch(() => {});
+    }
 
     console.log('[EVENTOS] Usuario unido a evento:', eventoId);
     return true;

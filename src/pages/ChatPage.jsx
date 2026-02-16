@@ -837,7 +837,7 @@ const ChatPage = () => {
         setShowAgeVerification(false);
 
       // Guardar en localStorage para futuras sesiones
-      const ageKey = `age_verified_${currentUser.id}`;
+      const ageKey = `age_verified_${user.id}`;
       if (!localStorage.getItem(ageKey)) {
         localStorage.setItem(ageKey, '18'); // Asumir +18 para usuarios registrados
       }
@@ -1970,6 +1970,7 @@ const ChatPage = () => {
       username: currentUser.username || 'Usuario', // ✅ FIX: Fallback si username es undefined
       avatar: optimisticAvatar, // ✅ SIEMPRE tiene valor válido
       isPremium: currentUser.isPremium || false,
+      badge: currentUser.badge || 'Nuevo', // 🏅 Badge de participación
       content,
       type,
       timestamp: new Date().toISOString(),
@@ -2154,6 +2155,7 @@ const ChatPage = () => {
         username: currentUser.username || 'Usuario', // ✅ FIX: Fallback si username es undefined
         avatar: messageAvatar, // ✅ SIEMPRE tiene valor válido
         isPremium: currentUser.isPremium || false,
+        badge: currentUser.badge || 'Nuevo', // 🏅 Badge de participación
         content,
         type,
         replyTo: replyData,
@@ -2348,6 +2350,7 @@ const ChatPage = () => {
           username: user.username,
           avatar: messageAvatar, // ✅ SIEMPRE tiene valor válido
           isPremium: user.isPremium,
+          badge: user.badge || 'Nuevo', // 🏅 Badge de participación
           content,
           type,
           replyTo,

@@ -377,6 +377,73 @@ body {
   -webkit-overflow-scrolling: touch;
 }
 
+/* 🎭 Emoji Picker refinado para chat (desktop + mobile) */
+.chactivo-emoji-picker.EmojiPickerReact {
+  --epr-bg-color: hsl(var(--card));
+  --epr-category-label-bg-color: hsl(var(--card));
+  --epr-hover-bg-color: hsl(var(--secondary));
+  --epr-focus-bg-color: hsl(var(--secondary));
+  --epr-text-color: hsl(var(--foreground));
+  --epr-search-border-color: hsl(var(--border));
+  --epr-search-input-bg-color: hsl(var(--background));
+  --epr-search-input-text-color: hsl(var(--foreground));
+  --epr-search-input-placeholder-color: hsl(var(--muted-foreground));
+  --epr-picker-border-color: transparent;
+  --epr-highlight-color: hsl(var(--primary));
+  border: 0 !important;
+  box-shadow: none !important;
+}
+
+.chactivo-emoji-picker .epr-search-container {
+  padding: 0.5rem 0.7rem;
+}
+
+.chactivo-emoji-picker .epr-search-container input {
+  border-radius: 0.75rem;
+  border: 1px solid hsl(var(--border));
+  background: hsl(var(--background));
+  padding-block: 0.55rem;
+}
+
+.chactivo-emoji-picker .epr-search-container input:focus {
+  border-color: hsl(var(--primary));
+  box-shadow: 0 0 0 2px hsl(var(--primary) / 0.2);
+}
+
+.chactivo-emoji-picker .epr-category-nav {
+  border-top: 1px solid hsl(var(--border) / 0.6);
+  padding: 0.2rem 0.35rem 0.45rem;
+}
+
+.chactivo-emoji-picker .epr-emoji-category-label {
+  font-size: 0.72rem;
+  letter-spacing: 0.04em;
+  color: hsl(var(--muted-foreground));
+}
+
+.chactivo-emoji-picker .epr-emoji-category-content {
+  margin: 0 0.2rem;
+}
+
+.chactivo-emoji-picker .epr-emoji-category-content .epr-emoji {
+  border-radius: 0.65rem;
+}
+
+.chactivo-emoji-picker .epr-emoji-category-content .epr-emoji:hover {
+  background: hsl(var(--secondary));
+}
+
+@media (max-width: 768px) {
+  .chactivo-emoji-picker .epr-search-container {
+    padding: 0.45rem 0.65rem;
+  }
+
+  .chactivo-emoji-picker .epr-emoji-category-content .epr-emoji {
+    width: 2.15rem;
+    height: 2.15rem;
+  }
+}
+
 /* ✅ Asegurar que los elementos sticky funcionen correctamente en móvil */
 @media (max-width: 768px) {
   .sticky,

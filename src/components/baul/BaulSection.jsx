@@ -60,7 +60,9 @@ const BaulHeader = ({
   isRefreshing,
   cantidadTarjetas,
   isGuestView = false,
-  onCreateProfile
+  onCreateProfile,
+  onEditMyCard,
+  canEditOwnCard = false
 }) => (
   <div className="sticky top-0 z-10 bg-gray-900/95 backdrop-blur-sm border-b border-gray-700/50 px-4 py-3">
     <div className="flex items-center justify-between">
@@ -87,6 +89,16 @@ const BaulHeader = ({
       </div>
 
       <div className="flex items-center gap-2">
+        {canEditOwnCard && (
+          <motion.button
+            whileTap={{ scale: 0.95 }}
+            onClick={onEditMyCard}
+            className="px-3 py-1.5 rounded-full text-xs font-semibold bg-emerald-500/15 text-emerald-300 border border-emerald-500/30 hover:bg-emerald-500/25 transition-colors flex items-center gap-1.5"
+          >
+            <Sparkles className="w-3.5 h-3.5" />
+            Mi tarjeta
+          </motion.button>
+        )}
         {isGuestView && (
           <motion.button
             whileTap={{ scale: 0.95 }}
@@ -149,6 +161,7 @@ const BaulSection = ({ isOpen = true, onClose, variant = 'modal' }) => {
   const isActive = isModal ? isOpen : true;
   const isGuestView = !user || user.isGuest || user.isAnonymous;
   const canInteract = Boolean(user && !user.isGuest && !user.isAnonymous);
+  const canEditOwnCard = Boolean(user && user.id);
 
   useEffect(() => {
     if (!isActive) return;
@@ -250,9 +263,9 @@ const BaulSection = ({ isOpen = true, onClose, variant = 'modal' }) => {
     const odIdUsuari = user?.id;
     console.log('[BAUL] Mi user ID:', odIdUsuari);
 
-    if (!odIdUsuari || isGuestView) {
+    if (!odIdUsuari) {
       console.log('[BAUL] ❌ No hay user ID, no se puede cargar tarjeta');
-      return;
+      return null;
     }
 
     try {
@@ -272,34 +285,46 @@ const BaulSection = ({ isOpen = true, onClose, variant = 'modal' }) => {
         console.log('[BAUL] Tarjeta creada:', tarjeta);
       }
 
+      const fallbackAvatar = user?.avatar || user?.photoURL || '';
+      if (tarjeta && fallbackAvatar && !tarjeta.fotoUrl && !tarjeta.fotoUrlFull && !tarjeta.fotoUrlThumb) {
+        tarjeta = {
+          ...tarjeta,
+          fotoUrl: fallbackAvatar,
+          fotoUrlThumb: fallbackAvatar,
+          fotoUrlFull: fallbackAvatar
+        };
+      }
+
       setMiTarjeta(tarjeta);
+      return tarjeta;
 
     } catch (error) {
       console.error('[BAUL] ❌ Error cargando/creando mi tarjeta:', error);
+      return null;
     }
-  }, [user, isGuestView]);
+  }, [user]);
 
   // Efecto inicial
   useEffect(() => {
     if (isActive) {
-      if (canInteract) {
+      if (canEditOwnCard) {
         cargarMiTarjeta();
       }
       cargarTarjetas();
     }
-  }, [isActive, canInteract, cargarMiTarjeta, cargarTarjetas]);
+  }, [isActive, canEditOwnCard, cargarMiTarjeta, cargarTarjetas]);
 
   // Suscripción en tiempo real a mi tarjeta
   useEffect(() => {
     const odIdUsuari = user?.id;
-    if (!odIdUsuari || !isActive || !canInteract) return;
+    if (!odIdUsuari || !isActive || !canEditOwnCard) return;
 
     const unsubscribe = suscribirseAMiTarjeta(odIdUsuari, (tarjeta) => {
       setMiTarjeta(tarjeta);
     });
 
     return () => unsubscribe();
-  }, [user, isActive]);
+  }, [user, isActive, canEditOwnCard]);
 
   // Cargar conteo de matches no leídos
   useEffect(() => {
@@ -405,14 +430,15 @@ const BaulSection = ({ isOpen = true, onClose, variant = 'modal' }) => {
     setMostrarMensajeModal(true);
   };
 
-  const handleVerPerfil = (tarjeta) => {
+  const handleVerPerfil = async (tarjeta) => {
     const odIdUsuari = user?.id;
+    const esMiTarjeta = (tarjeta?.odIdUsuari || tarjeta?.id) === odIdUsuari;
 
     // Si es mi tarjeta, abrir editor
-    if (tarjeta.odIdUsuari === odIdUsuari) {
-      if (!canInteract) {
-        showGuestPrompt('editar');
-        return;
+    if (esMiTarjeta) {
+      if (!canEditOwnCard) return;
+      if (!miTarjeta) {
+        await cargarMiTarjeta();
       }
       setMostrarEditor(true);
       return;
@@ -499,9 +525,40 @@ const BaulSection = ({ isOpen = true, onClose, variant = 'modal' }) => {
   if (!isActive) return null;
 
   const odIdUsuari = user?.id;
-  const tarjetasVisibles = isGuestView
-    ? tarjetas.filter(t => t.odIdUsuari !== odIdUsuari)
-    : tarjetas;
+  const isMiTarjeta = (tarjeta) => (tarjeta?.odIdUsuari || tarjeta?.id) === odIdUsuari;
+  const tarjetasBase = (() => {
+    const base = Array.isArray(tarjetas) ? [...tarjetas] : [];
+    if (!odIdUsuari) return base;
+    const idx = base.findIndex(t => isMiTarjeta(t));
+    if (idx >= 0) {
+      if (miTarjeta) {
+        base[idx] = {
+          ...base[idx],
+          ...miTarjeta,
+          odIdUsuari: base[idx].odIdUsuari || miTarjeta.odIdUsuari || odIdUsuari
+        };
+      }
+    } else if (miTarjeta) {
+      base.unshift({
+        ...miTarjeta,
+        odIdUsuari: miTarjeta.odIdUsuari || odIdUsuari
+      });
+    }
+    const idxFinal = base.findIndex(t => isMiTarjeta(t));
+    if (idxFinal > 0) {
+      const [mi] = base.splice(idxFinal, 1);
+      base.unshift(mi);
+    }
+    return base;
+  })();
+  const tarjetasVisibles = tarjetasBase;
+  const handleEditMyCard = async () => {
+    if (!canEditOwnCard) return;
+    if (!miTarjeta) {
+      await cargarMiTarjeta();
+    }
+    setMostrarEditor(true);
+  };
 
   const content = (
     <>
@@ -510,9 +567,11 @@ const BaulSection = ({ isOpen = true, onClose, variant = 'modal' }) => {
         onClose={onClose}
         onRefresh={handleRefresh}
         isRefreshing={isRefreshing}
-        cantidadTarjetas={tarjetasVisibles.filter(t => t.odIdUsuari !== odIdUsuari).length}
+        cantidadTarjetas={tarjetasVisibles.filter(t => !isMiTarjeta(t)).length}
         isGuestView={isGuestView}
         onCreateProfile={() => navigate('/auth')}
+        onEditMyCard={handleEditMyCard}
+        canEditOwnCard={canEditOwnCard}
       />
 
       {/* Contenido */}
@@ -556,6 +615,18 @@ const BaulSection = ({ isOpen = true, onClose, variant = 'modal' }) => {
                           {matchesNoLeidos > 9 ? '9+' : matchesNoLeidos}
                         </span>
                       )}
+                    </motion.button>
+                  </div>
+                )}
+                {isGuestView && canEditOwnCard && (
+                  <div className="mb-3 sm:mb-4 flex flex-wrap items-center gap-2">
+                    <motion.button
+                      whileTap={{ scale: 0.98 }}
+                      onClick={handleEditMyCard}
+                      className="inline-flex items-center gap-2 rounded-full border border-emerald-500/30 bg-emerald-500/10 px-3 py-1.5 text-[11px] text-emerald-200 hover:bg-emerald-500/20 transition-colors"
+                    >
+                      <Sparkles className="w-3.5 h-3.5 text-emerald-300" />
+                      Editar mi tarjeta
                     </motion.button>
                   </div>
                 )}
@@ -603,19 +674,22 @@ const BaulSection = ({ isOpen = true, onClose, variant = 'modal' }) => {
 
                 {/* Grid de tarjetas */}
                 <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-2.5 sm:gap-3">
-                  {tarjetasVisibles.map((tarjeta) => (
+                  {tarjetasVisibles.map((tarjeta) => {
+                    const tarjetaId = tarjeta.odIdUsuari || tarjeta.id;
+                    const esMiTarjetaActual = tarjetaId === odIdUsuari;
+                    return (
                     <TarjetaUsuario
-                      key={tarjeta.odIdUsuari}
+                      key={tarjetaId}
                       tarjeta={tarjeta}
-                      esMiTarjeta={!isGuestView && tarjeta.odIdUsuari === odIdUsuari}
+                      esMiTarjeta={esMiTarjetaActual}
                       yaLeDiLike={likesData[tarjeta.odIdUsuari] || false}
                       onLike={handleLike}
                       onMensaje={handleMensaje}
                       onVerPerfil={handleVerPerfil}
-                      interactionLocked={isGuestView}
+                      interactionLocked={isGuestView && !esMiTarjetaActual}
                       onLockedAction={showGuestPrompt}
                     />
-                  ))}
+                  );})}
                 </div>
 
             {/* Info de ubicación */}

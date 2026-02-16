@@ -15,6 +15,7 @@ import {
   Eye
 } from 'lucide-react';
 import { getColorRol, getEmojiEstado, formatearHorarios, obtenerFotoPrincipal } from '@/services/tarjetaService';
+import { getBadgeConfig } from '@/services/badgeService';
 import { useAuth } from '@/contexts/AuthContext';
 
 /**
@@ -231,6 +232,14 @@ const TarjetaUsuario = ({
         </h3>
         <div className="flex items-center gap-1 mt-0.5">
           <RolBadge rol={tarjeta.rol} />
+          {tarjeta.badge && tarjeta.badge !== 'Nuevo' && (() => {
+            const bc = getBadgeConfig(tarjeta.badge);
+            return (
+              <span className={`text-[8px] font-semibold px-1.5 py-0.5 rounded-full ${bc.bg} ${bc.color} ${bc.border} border`}>
+                {tarjeta.badge}
+              </span>
+            );
+          })()}
         </div>
       </div>
       </div>

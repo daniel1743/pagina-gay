@@ -220,6 +220,7 @@ const doSendMessage = async (roomId, messageData, isAnonymous = false) => {
     username, // ✅ Validado arriba
     avatar: ensureAvatar(messageData.avatar, username), // ✅ NUNCA null
     isPremium: messageData.isPremium || false,
+    badge: messageData.badge || 'Nuevo', // 🏅 Badge de participación en eventos
     content: messageData.content,
     type: messageData.type || 'text',
     // ✅ Usar serverTimestamp() para sincronización correcta entre clientes
