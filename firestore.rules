@@ -936,6 +936,41 @@ service cloud.firestore {
     }
 
     // ===========================
+    // ✨ ESENCIAS (presencia asíncrona de 5 minutos)
+    // ===========================
+
+    match /esencias/{esenciaId} {
+      // Lectura pública para reforzar sensación de actividad
+      allow read: if true;
+
+      // Crear: usuarios autenticados (incluye invitados anónimos de Firebase Auth)
+      allow create: if isAuthenticated() &&
+                      'esenciaId' in request.resource.data &&
+                      request.resource.data.esenciaId == esenciaId &&
+                      'userId' in request.resource.data &&
+                      request.resource.data.userId == request.auth.uid &&
+                      'username' in request.resource.data &&
+                      request.resource.data.username is string &&
+                      request.resource.data.username.size() >= 2 &&
+                      request.resource.data.username.size() <= 30 &&
+                      'mensaje' in request.resource.data &&
+                      request.resource.data.mensaje is string &&
+                      request.resource.data.mensaje.size() >= 3 &&
+                      request.resource.data.mensaje.size() <= 120 &&
+                      'createdAt' in request.resource.data &&
+                      request.resource.data.createdAt is timestamp &&
+                      'expiresAt' in request.resource.data &&
+                      request.resource.data.expiresAt is timestamp;
+
+      // No se permite editar esencia (inmutable)
+      allow update: if false;
+
+      // Borrado: dueño o admin
+      allow delete: if isAuthenticated() &&
+                      (resource.data.userId == request.auth.uid || isAdmin());
+    }
+
+    // ===========================
     // DEFAULT: CERRADO
     // ===========================
 

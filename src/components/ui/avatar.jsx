@@ -15,13 +15,31 @@ const Avatar = React.forwardRef(({ className, ...props }, ref) => (
 ));
 Avatar.displayName = AvatarPrimitive.Root.displayName;
 
-const AvatarImage = React.forwardRef(({ className, ...props }, ref) => (
-  <AvatarPrimitive.Image
-    ref={ref}
-    className={cn('aspect-square h-full w-full rounded-full object-cover', className)}
-    {...props}
-  />
-));
+const isInvalidAvatarSrc = (src) => {
+  if (!src || typeof src !== 'string') return true;
+  const normalized = src.trim().toLowerCase();
+
+  if (!normalized) return true;
+  if (normalized === 'undefined' || normalized === 'null') return true;
+
+  // Evita errores de blob expirado persistido en Firestore/localStorage.
+  if (normalized.startsWith('blob:')) return true;
+
+  return false;
+};
+
+const AvatarImage = React.forwardRef(({ className, src, ...props }, ref) => {
+  const safeSrc = isInvalidAvatarSrc(src) ? undefined : src;
+
+  return (
+    <AvatarPrimitive.Image
+      ref={ref}
+      src={safeSrc}
+      className={cn('aspect-square h-full w-full rounded-full object-cover', className)}
+      {...props}
+    />
+  );
+});
 AvatarImage.displayName = AvatarPrimitive.Image.displayName;
 
 const AvatarFallback = React.forwardRef(({ className, ...props }, ref) => (

@@ -37,6 +37,7 @@ import TelegramBanner from '@/components/ui/TelegramBanner';
 // 🚀 ENGAGEMENT: Banner promocional Baúl + OPIN
 import TarjetaPromoBanner from '@/components/chat/TarjetaPromoBanner';
 import ChatBottomNav from '@/components/chat/ChatBottomNav';
+import EsenciasColumn from '@/components/esencias/EsenciasColumn';
 import { useEngagementNudge } from '@/hooks/useEngagementNudge';
 // ⚠️ MODERADOR ELIMINADO (06/01/2026) - A petición del usuario
 // import RulesBanner from '@/components/chat/RulesBanner';
@@ -102,6 +103,12 @@ const QUICK_STARTER_PHRASES = [
   'Hola, quiero coger 🔥',
   'Hola, soy pasivo 🙋',
   'Hola, soy activo 💪',
+  '¿De dónde eres? 👀',
+  '¿Quién de Santiago por aquí? 🌆',
+  '¿Buscas chat o algo más? 😏',
+  '¿Activo, pasivo o versátil? 🔥',
+  '¿Alguien para conversar ahora? 💬',
+  '¿Qué plan tienen para hoy? ✨',
 ];
 
 const ChatPage = () => {
@@ -1649,14 +1656,6 @@ const ChatPage = () => {
     return () => unsubscribe();
   }, [user?.id]); // Solo depende de user.id — refs manejan el estado mutable
 
-  // Navegar cuando cambia la sala actual (solo si estamos en una ruta de chat)
-  useEffect(() => {
-    // ✅ FIX: Solo navegar si estamos en una ruta de chat, no cuando navegamos a otras páginas
-    if (currentRoom !== roomId && location.pathname.startsWith('/chat/')) {
-      navigate(`/chat/${currentRoom}`, { replace: true });
-    }
-  }, [currentRoom, roomId, navigate, location.pathname]);
-
   // ✅ OLD SCROLL LOGIC REMOVED - Now using useChatScrollManager hook
 
   // Marcar mensajes como leídos cuando la sala está activa
@@ -2651,7 +2650,8 @@ const ChatPage = () => {
 
   // 🔒 FASE 1: RESTRICCIÓN - Invitados solo pueden acceder a /chat/principal
   if (user && (user.isGuest || user.isAnonymous)) {
-    if (roomId !== 'principal') {
+    const isEventRoom = roomId?.startsWith('evento_');
+    if (roomId !== 'principal' && !isEventRoom) {
       // Invitado intenta acceder a otra sala → Redirigir a principal
       console.log(`[ChatPage] ⚠️ Invitado intentando acceder a /chat/${roomId} → Redirigiendo a /chat/principal`);
       navigate('/chat/principal', { replace: true });
@@ -2668,7 +2668,7 @@ const ChatPage = () => {
 
   return (
     <>
-      {/* ✅ FIX: Contenedor principal - En móvil no usar flex para evitar problemas con sidebar oculto */}
+      {/* ✅ Layout Chat: Sidebar + Chat + Esencias (desktop) */}
       <div className="h-screen overflow-hidden bg-background lg:flex" style={{ height: '100dvh', maxHeight: '100dvh' }}>
         <ChatSidebar
           currentRoom={currentRoom}
@@ -2784,19 +2784,28 @@ const ChatPage = () => {
             const shouldShowChips = !hasUserMessage && !needsNickname;
             if (!shouldShowChips) return null;
             return (
-            <div className="px-3 py-2 flex flex-wrap gap-1.5 justify-center">
-              {QUICK_STARTER_PHRASES.map((chip) => (
-                  <button
-                    key={chip}
-                    onClick={() => handleSendMessage(chip, 'text', null, { allowGuestAutoStart: true })}
-                    className="px-3 py-1.5 rounded-full text-xs font-medium
-                      bg-gray-700/60 hover:bg-gray-600/80 text-gray-200 hover:text-white
-                      border border-gray-600/40 hover:border-gray-500/60
-                      transition-all active:scale-95"
-                  >
-                    {chip}
-                  </button>
-                ))}
+            <div className="px-3 pt-2 pb-1">
+              <div className="relative">
+                <div className="flex gap-1.5 overflow-x-auto scrollbar-hide snap-x snap-mandatory px-1 py-1">
+                  {QUICK_STARTER_PHRASES.map((chip) => (
+                    <button
+                      key={chip}
+                      onClick={() => handleSendMessage(chip, 'text', null, { allowGuestAutoStart: true })}
+                      className="snap-start shrink-0 px-3 py-1.5 rounded-full text-xs font-medium
+                        bg-gray-700/60 hover:bg-gray-600/80 text-gray-200 hover:text-white
+                        border border-gray-600/40 hover:border-gray-500/60
+                        transition-all active:scale-95"
+                    >
+                      {chip}
+                    </button>
+                  ))}
+                </div>
+                <div className="pointer-events-none absolute left-0 top-0 bottom-0 w-5 bg-gradient-to-r from-background to-transparent" />
+                <div className="pointer-events-none absolute right-0 top-0 bottom-0 w-8 bg-gradient-to-l from-background to-transparent" />
+              </div>
+              <p className="mt-1 text-center text-[11px] text-muted-foreground md:hidden">
+                Desliza para ver más frases
+              </p>
             </div>
             );
           })()}
@@ -2813,6 +2822,8 @@ const ChatPage = () => {
             isGuest={!user || needsNickname}
           />
         </div>
+
+        <EsenciasColumn />
 
         {/* ⚠️ MODERADOR COMPLETAMENTE ELIMINADO (06/01/2026) - A petición del usuario */}
         {/* 👮 Banner de reglas del moderador (NO bloqueante) - ELIMINADO */}

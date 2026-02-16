@@ -136,14 +136,60 @@ export const subscribeToRoomUsers = (roomId, callback) => {
 };
 
 /**
- * ❌ DESHABILITADO: subscribeToMultipleRoomCounts
- * Este es el loop que causó el problema - NO re-habilitar
+ * ✅ MODO SEGURO: subscribeToMultipleRoomCounts
+ * Implementación liviana sin getDoc masivo ni loops.
+ * Cuenta usuarios reales por sala escuchando roomPresence/{roomId}/users.
  */
 export const subscribeToMultipleRoomCounts = (roomIds, callback) => {
-  console.warn('🚫 [PRESENCE] subscribeToMultipleRoomCounts DESHABILITADO permanentemente');
-  const counts = roomIds.reduce((acc, id) => ({ ...acc, [id]: 0 }), {});
-  callback(counts);
-  return () => {};
+  if (!Array.isArray(roomIds) || roomIds.length === 0) {
+    callback({});
+    return () => {};
+  }
+
+  const counts = roomIds.reduce((acc, roomId) => {
+    acc[roomId] = 0;
+    return acc;
+  }, {});
+
+  callback({ ...counts });
+
+  const unsubscribers = roomIds.map((roomId) => {
+    const usersRef = collection(db, 'roomPresence', roomId, 'users');
+
+    return onSnapshot(usersRef, (snapshot) => {
+      const realUsersCount = snapshot.docs.reduce((count, docSnap) => {
+        const data = docSnap.data() || {};
+        const userId = data.userId || docSnap.id || '';
+        const isBot = userId === 'system' ||
+          userId?.startsWith('bot_') ||
+          userId?.startsWith('static_bot_');
+
+        return isBot ? count : count + 1;
+      }, 0);
+
+      counts[roomId] = realUsersCount;
+      callback({ ...counts });
+    }, (error) => {
+      const isTransientError =
+        error.name === 'AbortError' ||
+        error.code === 'cancelled' ||
+        error.code === 'unavailable';
+
+      if (!isTransientError) {
+        console.error(`[PRESENCE] Error en contador de sala ${roomId}:`, error);
+      }
+    });
+  });
+
+  return () => {
+    unsubscribers.forEach((unsubscribe) => {
+      try {
+        unsubscribe();
+      } catch (error) {
+        // noop
+      }
+    });
+  };
 };
 
 /**
