@@ -3,7 +3,6 @@ import {
   addDoc,
   query,
   where,
-  orderBy,
   onSnapshot,
   doc,
   updateDoc,
@@ -167,16 +166,18 @@ export const getUserSystemNotifications = async (userId, limitCount = 50) => {
     const q = query(
       notificationsRef,
       where('userId', '==', userId),
-      orderBy('createdAt', 'desc'),
-      limit(limitCount)
+      limit(Math.max(100, limitCount * 2))
     );
 
     const snapshot = await getDocs(q);
-    return snapshot.docs.map((doc) => ({
+    const notifications = snapshot.docs.map((doc) => ({
       id: doc.id,
       ...doc.data(),
       createdAt: doc.data().createdAt?.toDate?.()?.toISOString() || new Date().toISOString(),
     }));
+
+    notifications.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
+    return notifications.slice(0, limitCount);
   } catch (error) {
     console.error('Error getting user notifications:', error);
     return [];
@@ -199,20 +200,13 @@ export const subscribeToSystemNotifications = (userId, callback) => {
 
   try {
     const notificationsRef = collection(db, 'systemNotifications');
-    // Intentar query con orderBy primero
     const q = query(
       notificationsRef,
       where('userId', '==', userId),
-      orderBy('createdAt', 'desc'),
       limit(50)
     );
 
-    let fallbackUnsubscribe = null;
-    let isUnsubscribed = false;
-
-    const unsubscribe = onSnapshot(q, (snapshot) => {
-      if (isUnsubscribed) return;
-
+    return onSnapshot(q, (snapshot) => {
       try {
         const notifications = snapshot.docs.map((doc) => ({
           id: doc.id,
@@ -220,147 +214,28 @@ export const subscribeToSystemNotifications = (userId, callback) => {
           createdAt: doc.data().createdAt?.toDate?.()?.toISOString() || new Date().toISOString(),
         }));
 
+        notifications.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
         callback(notifications);
-      } catch (callbackError) {
-        // Silenciar errores de callback - solo retornar array vacío
+      } catch {
         callback([]);
       }
     }, (error) => {
-      // ✅ Ignorar TODOS los errores internos de Firestore (transitorios y de estado)
-      const isFirestoreInternalError =
+      const isTransient =
         error.name === 'AbortError' ||
         error.code === 'cancelled' ||
         error.code === 'unavailable' ||
         error.message?.includes('WebChannelConnection') ||
         error.message?.includes('transport errored') ||
         error.message?.includes('RPC') ||
-        error.message?.includes('stream') ||
-        error.message?.includes('INTERNAL ASSERTION FAILED') ||
-        error.message?.includes('Unexpected state') ||
-        error.message?.includes('INTERNAL') ||
-        error.message?.includes('CONTEXT');
+        error.message?.includes('stream');
 
-      if (isFirestoreInternalError) {
-        // Silenciar completamente - Firestore se recuperará automáticamente
-        return;
-      }
-
-      // ✅ Intentar fallback solo para errores no transitorios
-      if (error?.message?.includes('INTERNAL ASSERTION FAILED') || 
-          error?.message?.includes('Unexpected state')) {
-        console.warn('Firestore internal error in notifications, using fallback...');
-        // Intentar fallback silenciosamente
-        try {
-          const fallbackQ = query(
-            notificationsRef,
-            where('userId', '==', userId),
-            limit(50)
-          );
-          
-          fallbackUnsubscribe = onSnapshot(fallbackQ, (snapshot) => {
-            if (isUnsubscribed) return;
-            
-            try {
-              const notifications = snapshot.docs.map((doc) => ({
-                id: doc.id,
-                ...doc.data(),
-                createdAt: doc.data().createdAt?.toDate?.()?.toISOString() || new Date().toISOString(),
-              }));
-              
-              notifications.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
-              callback(notifications);
-            } catch (callbackError) {
-              console.error('Error processing fallback notifications:', callbackError);
-              callback([]);
-            }
-          }, (fallbackError) => {
-            // ✅ Ignorar errores transitorios también en fallback
-            const isTransientError = 
-              fallbackError.name === 'AbortError' ||
-              fallbackError.code === 'cancelled' ||
-              fallbackError.code === 'unavailable' ||
-              fallbackError.message?.includes('WebChannelConnection') ||
-              fallbackError.message?.includes('transport errored') ||
-              fallbackError.message?.includes('RPC') ||
-              fallbackError.message?.includes('stream') ||
-              fallbackError.message?.includes('INTERNAL ASSERTION FAILED') ||
-              fallbackError.message?.includes('Unexpected state');
-
-            if (!isTransientError) {
-              console.error('Error in notifications subscription (fallback):', fallbackError);
-              callback([]);
-            }
-            // Los errores transitorios se ignoran silenciosamente
-          });
-        } catch (fallbackSetupError) {
-          console.error('Error setting up fallback query:', fallbackSetupError);
-          callback([]);
-        }
-        return;
-      }
-      
-      // Si falla por falta de índice, usar query simplificada
-      if (error?.code === 'failed-precondition' || error?.message?.includes('index')) {
-        console.warn('Index missing for notifications, using fallback query');
-        try {
-          const fallbackQ = query(
-            notificationsRef,
-            where('userId', '==', userId),
-            limit(50)
-          );
-          
-          fallbackUnsubscribe = onSnapshot(fallbackQ, (snapshot) => {
-            if (isUnsubscribed) return;
-            
-            try {
-              const notifications = snapshot.docs.map((doc) => ({
-                id: doc.id,
-                ...doc.data(),
-                createdAt: doc.data().createdAt?.toDate?.()?.toISOString() || new Date().toISOString(),
-              }));
-              
-              notifications.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
-              callback(notifications);
-            } catch (callbackError) {
-              console.error('Error processing fallback notifications:', callbackError);
-              callback([]);
-            }
-          }, (fallbackError) => {
-            if (fallbackError?.message?.includes('INTERNAL ASSERTION FAILED')) {
-              console.warn('Firestore internal error in fallback, returning empty array');
-              callback([]);
-              return;
-            }
-            console.error('Error in notifications subscription (fallback):', fallbackError);
-            callback([]);
-          });
-        } catch (fallbackSetupError) {
-          console.error('Error setting up fallback query:', fallbackSetupError);
-          callback([]);
-        }
-      } else {
+      if (!isTransient) {
         console.error('Error in notifications subscription:', error);
-        callback([]);
       }
+      callback([]);
     });
-
-    // Retornar función que desuscribe tanto la query principal como el fallback
-    return () => {
-      isUnsubscribed = true;
-      try {
-        if (unsubscribe) unsubscribe();
-      } catch (error) {
-        console.warn('Error unsubscribing from notifications:', error);
-      }
-      try {
-        if (fallbackUnsubscribe) fallbackUnsubscribe();
-      } catch (error) {
-        console.warn('Error unsubscribing from fallback notifications:', error);
-      }
-    };
   } catch (error) {
     console.error('Error subscribing to notifications:', error);
-    // Retornar callback vacío para evitar errores
     callback([]);
     return () => {};
   }
@@ -392,12 +267,14 @@ export const markAllNotificationsAsRead = async (userId) => {
     const q = query(
       notificationsRef,
       where('userId', '==', userId),
-      where('read', '==', false)
+      limit(200)
     );
 
     const snapshot = await getDocs(q);
 
-    const promises = snapshot.docs.map((doc) =>
+    const unreadDocs = snapshot.docs.filter((docSnap) => docSnap.data()?.read !== true);
+
+    const promises = unreadDocs.map((doc) =>
       updateDoc(doc.ref, {
         read: true,
         readAt: serverTimestamp(),
@@ -421,11 +298,11 @@ export const getUnreadNotificationsCount = async (userId) => {
     const q = query(
       notificationsRef,
       where('userId', '==', userId),
-      where('read', '==', false)
+      limit(200)
     );
 
     const snapshot = await getDocs(q);
-    return snapshot.size;
+    return snapshot.docs.filter((docSnap) => docSnap.data()?.read !== true).length;
   } catch (error) {
     console.error('Error getting unread count:', error);
     return 0;

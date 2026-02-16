@@ -69,6 +69,7 @@ import { generateNicoWelcome, sendNicoQuestion, getLastNicoMessageAge, NICO, QUE
 import EventoBanner from '@/components/eventos/EventoBanner';
 import EventReminderPopup from '@/components/eventos/EventReminderPopup';
 import { markReminderPopupShown, wasReminderPopupShown, cleanOldReminders } from '@/utils/eventReminderUtils';
+import { registrarParticipacionEvento } from '@/services/eventosService';
 import '@/utils/chatDiagnostics'; // 🔍 Cargar diagnóstico en consola
 import { 
   trackChatLoad, 
@@ -337,6 +338,7 @@ const ChatPage = () => {
   const [isInputFocused, setIsInputFocused] = useState(false); // 📝 Input focus state for scroll manager
   const [suggestedMessage, setSuggestedMessage] = useState(null); // 🤖 Mensaje sugerido por Companion AI
   const [replyTo, setReplyTo] = useState(null); // 💬 Mensaje al que se está respondiendo { messageId, username, content }
+  const [isEsenciasMobileOpen, setIsEsenciasMobileOpen] = useState(false); // ✨ Panel de esencias en móvil
   const [isLoadingMessages, setIsLoadingMessages] = useState(true); // ⏳ Estado de carga de mensajes
   const [unreadRepliesCount, setUnreadRepliesCount] = useState(0); // 💬 Contador de respuestas no leídas
   const lastReadMessageIdRef = useRef(null); // Para rastrear último mensaje leído
@@ -946,6 +948,10 @@ const ChatPage = () => {
       cleanInactiveUsers(roomId);
       // Registrar presencia del usuario en la sala
       joinRoom(roomId, user);
+      // Registrar participación para métricas de eventos (si aplica)
+      if (roomId?.startsWith('evento_')) {
+        registrarParticipacionEvento(roomId, user).catch(() => {});
+      }
     }
 
     // ⚡ SUSCRIPCIÓN INMEDIATA: Suscribirse a mensajes SIN esperar verificación de edad
@@ -1721,6 +1727,21 @@ const ChatPage = () => {
       console.log('[REACTION] 📤 Enviando a Firestore...');
       await addReactionToMessage(currentRoom, messageId, reaction);
       console.log('[REACTION] ✅ Reacción guardada');
+
+      // Reflejar inmediatamente en UI local
+      setMessages((prev) => prev.map((msg) => {
+        const msgId = msg._realId || msg.id;
+        if (msgId !== messageId) return msg;
+
+        const currentReactions = msg.reactions || { like: 0, dislike: 0 };
+        return {
+          ...msg,
+          reactions: {
+            ...currentReactions,
+            [reaction]: (currentReactions[reaction] || 0) + 1,
+          }
+        };
+      }));
 
       // Feedback visual
       toast({
@@ -2823,7 +2844,11 @@ const ChatPage = () => {
           />
         </div>
 
-        <EsenciasColumn />
+        <EsenciasColumn
+          showMobileLauncher={false}
+          mobilePanelOpen={isEsenciasMobileOpen}
+          onMobilePanelOpenChange={setIsEsenciasMobileOpen}
+        />
 
         {/* ⚠️ MODERADOR COMPLETAMENTE ELIMINADO (06/01/2026) - A petición del usuario */}
         {/* 👮 Banner de reglas del moderador (NO bloqueante) - ELIMINADO */}
@@ -3064,10 +3089,11 @@ const ChatPage = () => {
       />
 
       {/* 📋 BAÚL DE TARJETAS - Accesible desde banner promocional */}
-      {/* 📱 Barra inferior móvil: Baúl, Chat Principal, OPIN */}
+      {/* 📱 Barra inferior móvil: Baúl, OPIN, Esencias, Chat */}
       <ChatBottomNav
         onOpenBaul={handleOpenBaul}
         onOpenOpin={handleOpenOpin}
+        onOpenEsencias={() => setIsEsenciasMobileOpen(true)}
       />
     </>
   );

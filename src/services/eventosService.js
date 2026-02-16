@@ -20,9 +20,10 @@ import {
   serverTimestamp,
   Timestamp,
   limit,
+  getCountFromServer,
 } from 'firebase/firestore';
 import { db, auth } from '@/config/firebase';
-import { isEventoActivo, isEventoProgramado, isEventoFinalizado } from '@/utils/eventosUtils';
+import { isEventoFinalizado } from '@/utils/eventosUtils';
 import { incrementEventosParticipados } from '@/services/badgeService';
 
 // ═══════════════════════════════════════════════════════════════════
@@ -208,6 +209,160 @@ export async function contarAsistentes(eventoId) {
   } catch {
     return 0;
   }
+}
+
+// ═══════════════════════════════════════════════════════════════════
+// MÉTRICAS / DASHBOARD ADMIN
+// ═══════════════════════════════════════════════════════════════════
+
+const getTimestampMs = (value) => {
+  if (!value) return 0;
+  if (typeof value === 'number') return value;
+  if (value.toMillis) return value.toMillis();
+  if (value.seconds) return value.seconds * 1000;
+  return new Date(value).getTime() || 0;
+};
+
+const clasificarTrafico = (mensajesPorHora) => {
+  if (mensajesPorHora <= 0) return 'sin-trafico';
+  if (mensajesPorHora < 15) return 'bajo';
+  if (mensajesPorHora < 40) return 'medio';
+  return 'alto';
+};
+
+const clasificarInteres = (participantes) => {
+  if (participantes <= 0) return 'sin-interes';
+  if (participantes < 5) return 'bajo';
+  if (participantes < 15) return 'medio';
+  return 'alto';
+};
+
+const safeCount = async (queryRef, fallback = null) => {
+  try {
+    const countSnap = await getCountFromServer(queryRef);
+    return countSnap?.data?.()?.count || 0;
+  } catch (error) {
+    if (fallback) {
+      try {
+        return await fallback();
+      } catch {
+        return 0;
+      }
+    }
+    return 0;
+  }
+};
+
+/**
+ * Registrar participación cuando un usuario entra a una sala de evento.
+ * Esto permite medir interés/participantes aunque no pulse "Recordarme".
+ */
+export async function registrarParticipacionEvento(roomId, user) {
+  if (!roomId?.startsWith?.('evento_') || !user?.id || !auth.currentUser) return null;
+
+  try {
+    const eventosRef = collection(db, 'eventos');
+    const q = query(eventosRef, where('roomId', '==', roomId), limit(1));
+    const snapshot = await getDocs(q);
+
+    if (snapshot.empty) return null;
+
+    const eventoDoc = snapshot.docs[0];
+    await setDoc(doc(db, 'eventos', eventoDoc.id, 'asistentes', user.id), {
+      userId: user.id,
+      username: user.username || 'Usuario',
+      joinedAt: serverTimestamp(),
+      source: 'room_entry',
+    }, { merge: true });
+
+    return eventoDoc.id;
+  } catch (error) {
+    console.error('[EVENTOS] Error registrando participación en sala de evento:', error);
+    return null;
+  }
+}
+
+/**
+ * Obtener métricas operativas de un evento para dashboard de admin.
+ */
+export async function obtenerMetricasEvento(evento) {
+  if (!evento?.id || !evento?.roomId) {
+    return {
+      participantes: 0,
+      mensajes: 0,
+      respuestas: 0,
+      conexionesActivas: 0,
+      tasaRespuesta: 0,
+      mensajesPorHora: 0,
+      traficoNivel: 'sin-trafico',
+      interesNivel: 'sin-interes',
+      huboInteres: false,
+      ultimaActividadMs: 0,
+    };
+  }
+
+  const asistentesRef = collection(db, 'eventos', evento.id, 'asistentes');
+  const mensajesRef = collection(db, 'rooms', evento.roomId, 'messages');
+  const presenciaRef = collection(db, 'roomPresence', evento.roomId, 'users');
+
+  const respuestasQuery = query(mensajesRef, where('replyTo', '!=', null));
+  const ultimoMensajeQuery = query(mensajesRef, orderBy('timestamp', 'desc'), limit(1));
+
+  const [participantes, mensajes, respuestas, conexionesActivas, ultimoMensajeSnap] = await Promise.all([
+    safeCount(asistentesRef, async () => (await getDocs(asistentesRef)).size),
+    safeCount(mensajesRef, async () => (await getDocs(mensajesRef)).size),
+    safeCount(respuestasQuery, async () => {
+      const allMsgs = await getDocs(mensajesRef);
+      let total = 0;
+      allMsgs.forEach((docSnap) => {
+        if (docSnap.data()?.replyTo) total += 1;
+      });
+      return total;
+    }),
+    safeCount(presenciaRef, async () => (await getDocs(presenciaRef)).size),
+    getDocs(ultimoMensajeQuery).catch(() => null),
+  ]);
+
+  const duracionHoras = Math.max((Number(evento.duracionMinutos) || 60) / 60, 0.25);
+  const mensajesPorHora = Number((mensajes / duracionHoras).toFixed(1));
+  const tasaRespuesta = mensajes > 0 ? Math.round((respuestas / mensajes) * 100) : 0;
+  const traficoNivel = clasificarTrafico(mensajesPorHora);
+  const interesNivel = clasificarInteres(participantes);
+  const huboInteres = participantes > 0 || mensajes > 0;
+
+  let ultimaActividadMs = 0;
+  if (ultimoMensajeSnap && !ultimoMensajeSnap.empty) {
+    ultimaActividadMs = getTimestampMs(ultimoMensajeSnap.docs[0].data()?.timestamp);
+  }
+
+  return {
+    participantes,
+    mensajes,
+    respuestas,
+    conexionesActivas,
+    tasaRespuesta,
+    mensajesPorHora,
+    traficoNivel,
+    interesNivel,
+    huboInteres,
+    ultimaActividadMs,
+  };
+}
+
+/**
+ * Obtener métricas para una lista de eventos (mapa por eventId).
+ */
+export async function obtenerMetricasEventos(eventos = []) {
+  if (!Array.isArray(eventos) || eventos.length === 0) return {};
+
+  const entries = await Promise.all(
+    eventos.map(async (evento) => {
+      const metricas = await obtenerMetricasEvento(evento);
+      return [evento.id, metricas];
+    })
+  );
+
+  return Object.fromEntries(entries);
 }
 
 // ═══════════════════════════════════════════════════════════════════

@@ -261,8 +261,8 @@ export const subscribeToNotifications = (userId, callback) => {
   const notificationsRef = collection(db, 'users', userId, 'notifications');
   const q = query(
     notificationsRef,
-    where('read', '==', false),
-    orderBy('timestamp', 'desc')
+    orderBy('timestamp', 'desc'),
+    limit(100)
   );
 
   return onSnapshot(
@@ -272,7 +272,9 @@ export const subscribeToNotifications = (userId, callback) => {
         id: doc.id,
         ...doc.data(),
         timestamp: doc.data().timestamp?.toDate?.()?.toISOString() || new Date().toISOString(),
-      }));
+      }))
+      .filter((item) => item.read !== true); // mantener comportamiento de "solo no leídas"
+
       callback(notifications);
     },
     (error) => {

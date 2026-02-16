@@ -79,95 +79,49 @@ export const canCreatePost = async () => {
   const now = new Date();
   const cooldownAgo = new Date(now.getTime() - COOLDOWN_HOURS * 60 * 60 * 1000);
 
-  // Buscar el último post del usuario
+  // Buscar últimos posts del usuario sin orderBy para evitar índice compuesto
   const postsRef = collection(db, 'opin_posts');
+  const qSimple = query(
+    postsRef,
+    where('userId', '==', auth.currentUser.uid),
+    limit(20)
+  );
 
-  try {
-    const q = query(
-      postsRef,
-      where('userId', '==', auth.currentUser.uid),
-      orderBy('createdAt', 'desc'),
-      limit(1)
-    );
+  const snapshot = await getDocs(qSimple);
 
-    const snapshot = await getDocs(q);
-
-    if (snapshot.empty) {
-      // Nunca ha publicado, puede crear
-      return { canCreate: true, message: 'Primera nota' };
-    }
-
-    const lastPost = snapshot.docs[0].data();
-    const lastCreatedAt = lastPost.createdAt?.toDate ? lastPost.createdAt.toDate() : new Date(lastPost.createdAt);
-
-    // Verificar si pasó el cooldown
-    if (lastCreatedAt > cooldownAgo) {
-      const remainingMs = lastCreatedAt.getTime() + (COOLDOWN_HOURS * 60 * 60 * 1000) - now.getTime();
-      const remainingMins = Math.ceil(remainingMs / 60000);
-      const remainingHours = Math.floor(remainingMins / 60);
-      const mins = remainingMins % 60;
-
-      const timeStr = remainingHours > 0 ? `${remainingHours}h ${mins}m` : `${remainingMins}m`;
-
-      console.log(`[OPIN] Cooldown activo: esperar ${timeStr}`);
-
-      return {
-        canCreate: false,
-        reason: 'cooldown',
-        remainingMinutes: remainingMins,
-        message: `Espera ${timeStr} para publicar otra nota`
-      };
-    }
-
-    // Cooldown pasado, puede crear
-    return { canCreate: true };
-
-  } catch (indexError) {
-    // Si hay error de índice, intentar query más simple
-    console.warn('[OPIN] Index no disponible para canCreatePost, usando query simple:', indexError.message);
-
-    const qSimple = query(
-      postsRef,
-      where('userId', '==', auth.currentUser.uid),
-      limit(5)
-    );
-
-    const snapshot = await getDocs(qSimple);
-
-    if (snapshot.empty) {
-      return { canCreate: true, message: 'Primera nota' };
-    }
-
-    // Encontrar el más reciente manualmente
-    let lastCreatedAt = null;
-    snapshot.docs.forEach(doc => {
-      const data = doc.data();
-      if (data.createdAt) {
-        const created = data.createdAt.toDate ? data.createdAt.toDate() : new Date(data.createdAt);
-        if (!lastCreatedAt || created > lastCreatedAt) {
-          lastCreatedAt = created;
-        }
-      }
-    });
-
-    if (lastCreatedAt && lastCreatedAt > cooldownAgo) {
-      const remainingMs = lastCreatedAt.getTime() + (COOLDOWN_HOURS * 60 * 60 * 1000) - now.getTime();
-      const remainingMins = Math.ceil(remainingMs / 60000);
-      const remainingHours = Math.floor(remainingMins / 60);
-      const mins = remainingMins % 60;
-
-      const timeStr = remainingHours > 0 ? `${remainingHours}h ${mins}m` : `${remainingMins}m`;
-
-      return {
-        canCreate: false,
-        reason: 'cooldown',
-        remainingMinutes: remainingMins,
-        message: `Espera ${timeStr} para publicar otra nota`
-      };
-    }
-
-    return { canCreate: true };
+  if (snapshot.empty) {
+    return { canCreate: true, message: 'Primera nota' };
   }
+
+  // Encontrar el más reciente manualmente
+  let lastCreatedAt = null;
+  snapshot.docs.forEach((docSnap) => {
+    const data = docSnap.data();
+    if (!data.createdAt) return;
+
+    const created = data.createdAt.toDate ? data.createdAt.toDate() : new Date(data.createdAt);
+    if (!lastCreatedAt || created > lastCreatedAt) {
+      lastCreatedAt = created;
+    }
+  });
+
+  if (lastCreatedAt && lastCreatedAt > cooldownAgo) {
+    const remainingMs = lastCreatedAt.getTime() + (COOLDOWN_HOURS * 60 * 60 * 1000) - now.getTime();
+    const remainingMins = Math.ceil(remainingMs / 60000);
+    const remainingHours = Math.floor(remainingMins / 60);
+    const mins = remainingMins % 60;
+
+    const timeStr = remainingHours > 0 ? `${remainingHours}h ${mins}m` : `${remainingMins}m`;
+
+    return {
+      canCreate: false,
+      reason: 'cooldown',
+      remainingMinutes: remainingMins,
+      message: `Espera ${timeStr} para publicar otra nota`
+    };
+  }
+
+  return { canCreate: true };
 };
 
 /**
@@ -354,7 +308,9 @@ export const incrementViewCount = async (postId) => {
       viewCount: increment(1),
     });
   } catch (error) {
-    console.error('Error incrementando viewCount:', error);
+    if (error?.code !== 'permission-denied') {
+      console.error('Error incrementando viewCount:', error);
+    }
   }
 };
 
@@ -370,7 +326,9 @@ export const incrementProfileClickCount = async (postId) => {
     });
     console.log('📊 [OPIN] Profile click registrado:', postId);
   } catch (error) {
-    console.error('Error incrementando profileClickCount:', error);
+    if (error?.code !== 'permission-denied') {
+      console.error('Error incrementando profileClickCount:', error);
+    }
   }
 };
 
@@ -696,20 +654,42 @@ export const toggleReaction = async (postId, emoji) => {
   const usersWithReaction = reactions[emoji] || [];
   const hasReaction = usersWithReaction.includes(userId);
 
+  const nextReactions = { ...reactions };
+  const nextReactionCounts = { ...reactionCounts };
+
   if (hasReaction) {
-    // Quitar reacción
+    // Quitar reacción (actualización completa del mapa para compatibilidad con reglas)
+    const updatedUsers = usersWithReaction.filter((id) => id !== userId);
+    if (updatedUsers.length > 0) {
+      nextReactions[emoji] = updatedUsers;
+    } else {
+      delete nextReactions[emoji];
+    }
+
+    const nextCount = Math.max(0, (nextReactionCounts[emoji] || 0) - 1);
+    if (nextCount > 0) {
+      nextReactionCounts[emoji] = nextCount;
+    } else {
+      delete nextReactionCounts[emoji];
+    }
+
     await updateDoc(postRef, {
-      [`reactions.${emoji}`]: arrayRemove(userId),
-      [`reactionCounts.${emoji}`]: increment(-1),
+      reactions: nextReactions,
+      reactionCounts: nextReactionCounts,
     });
+
     console.log(`😐 [OPIN] Reacción ${emoji} removida:`, postId);
     return { reacted: false, emoji };
   } else {
-    // Agregar reacción
+    // Agregar reacción (actualización completa del mapa para compatibilidad con reglas)
+    nextReactions[emoji] = [...usersWithReaction, userId];
+    nextReactionCounts[emoji] = (nextReactionCounts[emoji] || 0) + 1;
+
     await updateDoc(postRef, {
-      [`reactions.${emoji}`]: arrayUnion(userId),
-      [`reactionCounts.${emoji}`]: increment(1),
+      reactions: nextReactions,
+      reactionCounts: nextReactionCounts,
     });
+
     track('opin_reaction', { post_id: postId, author_id: postData.userId, emoji }, { user: { id: userId } }).catch(() => {});
     console.log(`${emoji} [OPIN] Reacción agregada:`, postId);
     return { reacted: true, emoji };

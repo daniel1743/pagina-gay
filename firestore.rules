@@ -687,9 +687,27 @@ service cloud.firestore {
          request.resource.data.text.size() <= 500)
       );
 
-      // Actualizar: propietario o admin (para likes, views, OPIN estables, etc.)
-      allow update: if isAuthenticated() &&
-                      (resource.data.userId == request.auth.uid || isAdmin());
+      // Actualizar:
+      // 1) Propietario o admin con permisos completos
+      // 2) Usuarios registrados pueden actualizar SOLO métricas/engagement
+      allow update: if isAuthenticated() && (
+                      (resource.data.userId == request.auth.uid || isAdmin()) ||
+                      (
+                        isRegistered() &&
+                        request.resource.data.diff(resource.data).affectedKeys()
+                          .hasOnly([
+                            'viewCount',
+                            'profileClickCount',
+                            'likeCount',
+                            'likedBy',
+                            'commentCount',
+                            'reactions',
+                            'reactionCounts'
+                          ]) &&
+                        request.resource.data.userId == resource.data.userId &&
+                        request.resource.data.isStable == resource.data.isStable
+                      )
+                    );
 
       // Eliminar: propietario o admin (admin gestiona OPIN estables)
       allow delete: if isAuthenticated() &&

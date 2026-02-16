@@ -8,7 +8,11 @@ import CreateEsenciaModal from '@/components/esencias/CreateEsenciaModal';
 import EsenciaCard from '@/components/esencias/EsenciaCard';
 import { auth } from '@/config/firebase';
 
-const EsenciasColumn = () => {
+const EsenciasColumn = ({
+  showMobileLauncher = true,
+  mobilePanelOpen,
+  onMobilePanelOpenChange,
+}) => {
   const { user } = useAuth();
   const [esencias, setEsencias] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -16,8 +20,10 @@ const EsenciasColumn = () => {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isCreating, setIsCreating] = useState(false);
   const [nowMs, setNowMs] = useState(Date.now());
-  const [isMobilePanelOpen, setIsMobilePanelOpen] = useState(false);
+  const [internalMobilePanelOpen, setInternalMobilePanelOpen] = useState(false);
   const [showMobileHint, setShowMobileHint] = useState(false);
+  const isMobilePanelOpen = typeof mobilePanelOpen === 'boolean' ? mobilePanelOpen : internalMobilePanelOpen;
+  const setIsMobilePanelOpen = onMobilePanelOpenChange || setInternalMobilePanelOpen;
 
   const hasNickname = useMemo(() => {
     const normalized = (user?.username || '').trim().toLowerCase();
@@ -50,6 +56,7 @@ const EsenciasColumn = () => {
   }, []);
 
   useEffect(() => {
+    if (!showMobileLauncher) return;
     if (typeof window === 'undefined') return;
     if (window.innerWidth >= 1280) return;
     if (sessionStorage.getItem('esencias_mobile_hint_seen_v1')) return;
@@ -61,7 +68,7 @@ const EsenciasColumn = () => {
     }, 7000);
 
     return () => clearTimeout(hideTimer);
-  }, []);
+  }, [showMobileLauncher]);
 
   const handleOpenModal = () => {
     const resolvedUserId = auth.currentUser?.uid || user?.id;
@@ -178,7 +185,7 @@ const EsenciasColumn = () => {
 
       {/* 📱 Móvil/Tablet: acceso rápido a Esencias */}
       <div className="xl:hidden">
-        {showMobileHint && !isMobilePanelOpen && (
+        {showMobileLauncher && showMobileHint && !isMobilePanelOpen && (
           <div className="fixed right-3 bottom-[8.2rem] z-[72] max-w-[12rem] rounded-xl border border-border/70 bg-card/95 backdrop-blur-md px-3 py-2 shadow-xl">
             <p className="text-[11px] font-medium text-foreground leading-tight">
               Nuevo: deja tu esencia para que otros sepan que estuviste aquí
@@ -186,23 +193,25 @@ const EsenciasColumn = () => {
           </div>
         )}
 
-        <button
-          type="button"
-          onClick={() => setIsMobilePanelOpen(true)}
-          className="fixed right-3 bottom-[4.8rem] z-[70] rounded-full border border-border/80 bg-card/95 backdrop-blur-md px-3 py-2 shadow-xl active:scale-95 transition-transform flex items-center gap-2"
-          aria-label="Abrir panel de esencias"
-        >
-          <span className="relative">
-            <Sparkles className="w-4 h-4 text-cyan-400" />
-            {esencias.length > 0 && (
-              <span className="absolute -top-1 -right-1 w-2 h-2 rounded-full bg-green-400 animate-pulse" />
-            )}
-          </span>
-          <span className="text-xs font-semibold text-foreground">Esencias</span>
-          <span className="text-[10px] rounded-full bg-primary/20 text-primary px-1.5 py-0.5 font-semibold">
-            {esencias.length}
-          </span>
-        </button>
+        {showMobileLauncher && (
+          <button
+            type="button"
+            onClick={() => setIsMobilePanelOpen(true)}
+            className="fixed right-3 bottom-[4.8rem] z-[70] rounded-full border border-border/80 bg-card/95 backdrop-blur-md px-3 py-2 shadow-xl active:scale-95 transition-transform flex items-center gap-2"
+            aria-label="Abrir panel de esencias"
+          >
+            <span className="relative">
+              <Sparkles className="w-4 h-4 text-cyan-400" />
+              {esencias.length > 0 && (
+                <span className="absolute -top-1 -right-1 w-2 h-2 rounded-full bg-green-400 animate-pulse" />
+              )}
+            </span>
+            <span className="text-xs font-semibold text-foreground">Esencias</span>
+            <span className="text-[10px] rounded-full bg-primary/20 text-primary px-1.5 py-0.5 font-semibold">
+              {esencias.length}
+            </span>
+          </button>
+        )}
 
         {isMobilePanelOpen && (
           <>

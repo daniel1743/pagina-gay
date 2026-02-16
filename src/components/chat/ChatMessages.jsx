@@ -362,6 +362,28 @@ const ChatMessages = ({
                       {message.type === 'gif' && (
                         <img src={message.content} alt="GIF" className="rounded max-w-full" />
                       )}
+                      {(() => {
+                        const likeCount = Number(message.reactions?.like || 0);
+                        const dislikeCount = Number(message.reactions?.dislike || 0);
+                        if (likeCount <= 0 && dislikeCount <= 0) return null;
+
+                        return (
+                          <div className="mt-1.5 flex items-center gap-1 text-[10px]">
+                            {likeCount > 0 && (
+                              <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full bg-green-500/15 text-green-300">
+                                <ThumbsUp className="w-2.5 h-2.5" />
+                                {likeCount}
+                              </span>
+                            )}
+                            {dislikeCount > 0 && (
+                              <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full bg-red-500/15 text-red-300">
+                                <ThumbsDown className="w-2.5 h-2.5" />
+                                {dislikeCount}
+                              </span>
+                            )}
+                          </div>
+                        );
+                      })()}
                     </div>
 
                     {/* ACCIONES - Solo para otros */}
