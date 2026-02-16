@@ -1,4 +1,4 @@
-import { Users, Hash, Gamepad2, Heart, UserCheck, GitFork, UserMinus, Cake } from 'lucide-react';
+import { Users, Hash, Gamepad2, Heart, UserCheck, GitFork, UserMinus, Cake, Shield } from 'lucide-react';
 
 // ✅ CONSOLIDACIÓN DE SALAS 2026-02-10
 // Estrategia: SOLO SALA PRINCIPAL activa para concentrar usuarios reales
@@ -28,7 +28,17 @@ export const roomsData = [
     icon: Hash,
     color: 'teal',
     enabled: true,
+    adminOnly: false,
     isMainRoom: true // ✅ Sala principal activa
+  },
+  {
+    id: 'admin-testing',
+    name: 'Admin Testing 🛡️',
+    description: 'Sala privada para pruebas de bots y flujo de admin',
+    icon: Shield,
+    color: 'red',
+    enabled: true,
+    adminOnly: true,
   },
 
   // 🔒 SALAS BLOQUEADAS - Se desbloquean con más tráfico
@@ -39,6 +49,7 @@ export const roomsData = [
     icon: Users,
     color: 'teal',
     enabled: false,
+    adminOnly: false,
     locked: true,
     lockedMessage: '🔒 Esta sala se desbloqueará pronto. Por ahora, únete al Chat Principal.'
   },
@@ -49,6 +60,7 @@ export const roomsData = [
     icon: Users,
     color: 'cyan',
     enabled: false,
+    adminOnly: false,
     locked: true,
     lockedMessage: '🔒 Esta sala se desbloqueará pronto. Por ahora, únete al Chat Principal.'
   },
@@ -59,6 +71,7 @@ export const roomsData = [
     icon: Gamepad2,
     color: 'violet',
     enabled: false,
+    adminOnly: false,
     locked: true,
     lockedMessage: '🔒 Esta sala se desbloqueará pronto. Por ahora, únete al Chat Principal.'
   },
@@ -71,6 +84,7 @@ export const roomsData = [
     icon: Hash,
     color: 'red',
     enabled: false,
+    adminOnly: false,
     isInternational: true,
     allowedFromLanding: '/espana' // Solo desde landing de España
   },
@@ -81,6 +95,7 @@ export const roomsData = [
     icon: Hash,
     color: 'green',
     enabled: false,
+    adminOnly: false,
     isInternational: true,
     allowedFromLanding: '/brasil'
   },
@@ -91,6 +106,7 @@ export const roomsData = [
     icon: Hash,
     color: 'green',
     enabled: false,
+    adminOnly: false,
     isInternational: true,
     allowedFromLanding: '/mexico'
   },
@@ -101,6 +117,7 @@ export const roomsData = [
     icon: Hash,
     color: 'blue',
     enabled: false,
+    adminOnly: false,
     isInternational: true,
     allowedFromLanding: '/argentina'
   },
@@ -120,13 +137,19 @@ export const colorClasses = {
   violet: 'text-violet-400',
 };
 
+const isAdminUser = (user = null) => {
+  const role = (user?.role || '').toString().toLowerCase();
+  return role === 'admin' || role === 'administrator' || role === 'superadmin';
+};
+
 /**
  * Verifica si un usuario puede acceder a una sala
  * @param {string} roomId - ID de la sala
  * @param {string} referrer - URL de donde viene el usuario (opcional)
+ * @param {object|null} user - Usuario autenticado actual
  * @returns {{ allowed: boolean, redirect?: string, message?: string }}
  */
-export const canAccessRoom = (roomId, referrer = '') => {
+export const canAccessRoom = (roomId, referrer = '', user = null) => {
   const room = roomsData.find(r => r.id === roomId);
 
   // Salas de eventos dinámicos: siempre permitir acceso
@@ -146,6 +169,16 @@ export const canAccessRoom = (roomId, referrer = '') => {
   // Sala principal siempre accesible
   if (room.isMainRoom) {
     return { allowed: true };
+  }
+
+  // Sala privada de testing (solo admins)
+  const isAdmin = isAdminUser(user);
+  if (room.adminOnly && !isAdmin) {
+    return {
+      allowed: false,
+      redirect: '/chat/principal',
+      message: 'Esta sala es privada para administradores.',
+    };
   }
 
   if (room.enabled === false) {
@@ -189,7 +222,22 @@ export const canAccessRoom = (roomId, referrer = '') => {
  */
 export const getVisibleRooms = () => {
   // Solo mostrar sala principal en el lobby
-  return roomsData.filter(room => room.isMainRoom && room.enabled !== false);
+  return roomsData.filter(room => room.isMainRoom && room.enabled !== false && room.adminOnly !== true);
+};
+
+/**
+ * Obtiene salas visibles para un usuario específico.
+ * - Usuarios normales: solo sala principal.
+ * - Admins: sala principal + salas adminOnly habilitadas (ej. admin-testing).
+ */
+export const getVisibleRoomsForUser = (user = null) => {
+  const isAdmin = isAdminUser(user);
+  return roomsData.filter((room) => {
+    if (room.enabled === false) return false;
+    if (room.isMainRoom) return true;
+    if (room.adminOnly && isAdmin) return true;
+    return false;
+  });
 };
 
 /**

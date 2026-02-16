@@ -6,7 +6,7 @@ import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Hash, Gamepad2, Users, Heart, User, LogIn, X, UserCheck, GitFork, UserMinus, Cake, CheckCircle, Lock, Sparkles, Archive } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { subscribeToMultipleRoomCounts } from '@/services/presenceService';
-import { colorClasses, getVisibleRooms } from '@/config/rooms';
+import { colorClasses, getVisibleRoomsForUser } from '@/config/rooms';
 import { RegistrationRequiredModal } from '@/components/auth/RegistrationRequiredModal';
 import { AuthModal } from '@/components/auth/AuthModal';
 
@@ -52,8 +52,8 @@ const ChatSidebar = ({ currentRoom, setCurrentRoom, isOpen, onClose, onOpenBaul,
       return;
     }
 
-    // Solo suscribirse a la sala principal visible
-    const roomIds = getVisibleRooms().map(room => room.id);
+    // Suscribirse solo a salas visibles para este usuario (admin ve admin-testing)
+    const roomIds = getVisibleRoomsForUser(user).map(room => room.id);
     const unsubscribe = subscribeToMultipleRoomCounts(roomIds, (counts) => {
       setRoomCounts(counts);
     });
@@ -79,9 +79,8 @@ const ChatSidebar = ({ currentRoom, setCurrentRoom, isOpen, onClose, onOpenBaul,
     navigate('/');
   }
 
-  // 🔒 SOLO MOSTRAR SALA PRINCIPAL - Las demás salas están bloqueadas
-  // Se desbloquearán cuando haya suficiente tráfico
-  const visibleRooms = getVisibleRooms();
+  // 🔒 Usuarios normales: solo sala principal. Admin: principal + admin-testing.
+  const visibleRooms = getVisibleRoomsForUser(user);
 
   return (
     <>
@@ -221,6 +220,11 @@ const ChatSidebar = ({ currentRoom, setCurrentRoom, isOpen, onClose, onOpenBaul,
                             <span className={`text-sm font-medium truncate ${isActive ? 'text-foreground' : 'text-foreground group-hover:text-foreground'}`}>
                               {room.name}
                             </span>
+                            {room.adminOnly && (
+                              <span className="text-[9px] px-1.5 py-0.5 rounded bg-red-500/20 text-red-400 border border-red-500/30">
+                                Admin
+                              </span>
+                            )}
                             {requiresAuth && (
                               <motion.div
                                 initial={{ scale: 0 }}
@@ -509,6 +513,11 @@ const ChatSidebar = ({ currentRoom, setCurrentRoom, isOpen, onClose, onOpenBaul,
                             <span className={`text-sm font-medium truncate ${isActive ? 'text-foreground' : 'text-foreground group-hover:text-foreground'}`}>
                               {room.name}
                             </span>
+                            {room.adminOnly && (
+                              <span className="text-[9px] px-1.5 py-0.5 rounded bg-red-500/20 text-red-400 border border-red-500/30">
+                                Admin
+                              </span>
+                            )}
                             {requiresAuth && (
                               <motion.div
                                 initial={{ scale: 0 }}

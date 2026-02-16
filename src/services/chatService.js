@@ -425,6 +425,37 @@ export const sendMessage = async (roomId, messageData, isAnonymous = false, skip
   }
 };
 
+/**
+ * Envío especializado para botEngine.
+ * Usa el flujo estándar de sendMessage, pero fuerza trazabilidad BOT.
+ */
+export const sendBotMessageFromEngine = async (roomId, messageData = {}) => {
+  const username = messageData.username || 'bot_engine';
+  const userId = messageData.userId || `bot_${username}`;
+  const avatar = messageData.avatar || `https://api.dicebear.com/7.x/avataaars/svg?seed=${encodeURIComponent(username)}`;
+
+  return sendMessage(
+    roomId,
+    {
+      ...messageData,
+      userId,
+      username,
+      avatar,
+      isPremium: false,
+      trace: {
+        origin: 'BOT',
+        source: 'BOT_ENGINE',
+        actorId: userId,
+        actorType: 'BOT_CONVERSATION',
+        system: 'botEngine',
+        traceId: generateUUID(),
+        createdAt: Date.now(),
+      },
+    },
+    false
+  );
+};
+
 
 /**
  * Procesa un snapshot de Firestore y devuelve mensajes ordenados (viejo->nuevo)

@@ -217,7 +217,11 @@ const OpinCard = forwardRef(({ post, onCommentsClick, onPostDeleted, isReadOnlyM
   // Reacción con emoji
   const handleReaction = async (e, emoji) => {
     e.stopPropagation();
-    if (isReadOnlyMode || !user || user.isAnonymous || reactingEmoji) return;
+    if (reactingEmoji) return;
+    if (isReadOnlyMode || !user || user.isAnonymous) {
+      toast({ description: 'Inicia sesión o regístrate para reaccionar', variant: 'destructive' });
+      return;
+    }
 
     setReactingEmoji(emoji);
     try {

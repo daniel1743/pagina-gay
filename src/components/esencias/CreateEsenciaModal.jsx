@@ -9,7 +9,7 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog';
 
-const MAX_ESENCIA_LENGTH = 120;
+const MAX_ESENCIA_LENGTH = 300;
 
 const CreateEsenciaModal = ({ open, onClose, onCreate, isSubmitting = false }) => {
   const [mensaje, setMensaje] = useState('');
@@ -38,7 +38,7 @@ const CreateEsenciaModal = ({ open, onClose, onCreate, isSubmitting = false }) =
         <DialogHeader>
           <DialogTitle>Dejar una esencia</DialogTitle>
           <DialogDescription>
-            Mensaje corto para mostrar que estuviste aquí. Se elimina automáticamente en 5 minutos.
+            Deja tu mensaje para que otros sepan que estuviste aquí. Dura 1 semana.
           </DialogDescription>
         </DialogHeader>
 

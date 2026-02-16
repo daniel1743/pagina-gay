@@ -26,6 +26,11 @@ import {
 import { db, auth } from '@/config/firebase';
 import { actualizarEstadoOnline } from '@/services/tarjetaService';
 
+const isBotUserId = (userId = '') =>
+  userId === 'system' ||
+  userId?.startsWith('bot_') ||
+  userId?.startsWith('static_bot_');
+
 /**
  * ✅ HABILITADO: Registrar usuario en sala (presencia básica)
  * ✅ Sincroniza tarjeta Baúl: usuarios registrados actualizan ultimaConexion/estaOnline
@@ -33,27 +38,26 @@ import { actualizarEstadoOnline } from '@/services/tarjetaService';
 export const joinRoom = async (roomId, userData) => {
   if (!auth.currentUser) return;
 
-  const presenceRef = doc(db, 'roomPresence', roomId, 'users', auth.currentUser.uid);
-
   // ⚠️ BLOQUEADOR DE BOTS: NO permitir que bots se registren en presencia
-  const isBot = userData.userId?.startsWith('bot_') ||
-                userData.userId?.startsWith('static_bot_') ||
-                userData.userId === 'system' ||
-                userData.userId === 'system_moderator';
+  const isBot = isBotUserId(userData.userId) || userData.userId === 'system_moderator';
+  const canJoinAsBotInTesting = isBot && roomId === 'admin-testing' && userData.allowBotPresence === true;
+  const presenceDocId = canJoinAsBotInTesting ? userData.userId : auth.currentUser.uid;
+  const presenceRef = doc(db, 'roomPresence', roomId, 'users', presenceDocId);
 
-  if (isBot) {
+  if (isBot && !canJoinAsBotInTesting) {
     console.warn(`🚫 [PRESENCE] Bot bloqueado: ${userData.username}`);
     return;
   }
 
   try {
     await setDoc(presenceRef, {
-      userId: auth.currentUser.uid,
+      userId: canJoinAsBotInTesting ? userData.userId : auth.currentUser.uid,
       username: userData.username,
       avatar: userData.avatar,
       isPremium: userData.isPremium || false,
       isAnonymous: auth.currentUser.isAnonymous || userData.isAnonymous || false,
       isGuest: userData.isGuest || false,
+      isBot: canJoinAsBotInTesting,
       joinedAt: serverTimestamp(),
       lastSeen: serverTimestamp(),
     });
@@ -95,6 +99,7 @@ export const leaveRoom = async (roomId) => {
  */
 export const subscribeToRoomUsers = (roomId, callback) => {
   const usersRef = collection(db, 'roomPresence', roomId, 'users');
+  const includeBots = roomId === 'admin-testing';
 
   if (import.meta.env.DEV) {
     console.log(`📊 [PRESENCE] Listener para usuarios de ${roomId} CREADO`);
@@ -109,9 +114,8 @@ export const subscribeToRoomUsers = (roomId, callback) => {
       .filter(user => {
         // ✅ Filtrar bots/sistema
         const userId = user.userId || user.id;
-        return userId !== 'system' &&
-               !userId?.startsWith('bot_') &&
-               !userId?.startsWith('static_bot_');
+        if (includeBots) return userId !== 'system';
+        return !isBotUserId(userId);
       });
 
     callback(users);
@@ -160,9 +164,7 @@ export const subscribeToMultipleRoomCounts = (roomIds, callback) => {
       const realUsersCount = snapshot.docs.reduce((count, docSnap) => {
         const data = docSnap.data() || {};
         const userId = data.userId || docSnap.id || '';
-        const isBot = userId === 'system' ||
-          userId?.startsWith('bot_') ||
-          userId?.startsWith('static_bot_');
+        const isBot = isBotUserId(userId);
 
         return isBot ? count : count + 1;
       }, 0);
@@ -235,9 +237,7 @@ export const filterActiveUsers = (users) => {
 
   return users.filter(user => {
     const userId = user.userId || user.id || '';
-    const isBot = userId === 'system' ||
-                  userId?.startsWith('bot_') ||
-                  userId?.startsWith('static_bot_');
+    const isBot = isBotUserId(userId);
 
     if (isBot) return false;
 
@@ -248,6 +248,50 @@ export const filterActiveUsers = (users) => {
 
     return timeSinceLastSeen <= ACTIVE_THRESHOLD;
   });
+};
+
+/**
+ * Registro explícito de presencia para bots en sala de pruebas admin-testing.
+ * Se usa desde botEngine para no mezclar lógica de usuarios reales.
+ */
+export const registerBotPresenceForTesting = async (roomId, botData) => {
+  if (roomId !== 'admin-testing') return false;
+  if (!botData?.userId || !botData?.username) return false;
+
+  const presenceRef = doc(db, 'roomPresence', roomId, 'users', botData.userId);
+  try {
+    await setDoc(presenceRef, {
+      userId: botData.userId,
+      username: botData.username,
+      avatar: botData.avatar || '',
+      isPremium: false,
+      isAnonymous: false,
+      isGuest: false,
+      isBot: true,
+      joinedAt: serverTimestamp(),
+      lastSeen: serverTimestamp(),
+    }, { merge: true });
+    return true;
+  } catch (error) {
+    console.warn('[PRESENCE] No se pudo registrar bot en presencia:', error?.message || error);
+    return false;
+  }
+};
+
+/**
+ * Limpia presencia de bots en sala de pruebas.
+ */
+export const removeBotPresenceForTesting = async (roomId, botUserId) => {
+  if (roomId !== 'admin-testing') return false;
+  if (!botUserId) return false;
+
+  try {
+    await deleteDoc(doc(db, 'roomPresence', roomId, 'users', botUserId));
+    return true;
+  } catch (error) {
+    console.warn('[PRESENCE] No se pudo eliminar bot de presencia:', error?.message || error);
+    return false;
+  }
 };
 
 /**

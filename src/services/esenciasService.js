@@ -13,8 +13,8 @@ import {
 import { db } from '@/config/firebase';
 
 const ESENCIAS_COLLECTION = 'esencias';
-const ESENCIA_DURATION_MS = 5 * 60 * 1000;
-const MAX_MESSAGE_LENGTH = 120;
+const ESENCIA_DURATION_MS = 7 * 24 * 60 * 60 * 1000; // 1 semana
+const MAX_MESSAGE_LENGTH = 300;
 const ACTIVE_ESENCIAS_LIMIT = 15;
 const SNAPSHOT_FETCH_LIMIT = 50;
 const QUERY_REFRESH_INTERVAL_MS = 30 * 1000;
@@ -47,13 +47,38 @@ const normalizeEsenciaDoc = (docSnap) => {
   };
 };
 
+/**
+ * Baraja un array usando Fisher-Yates con una semilla determinista.
+ * La semilla cambia cada 5 minutos para que el orden se reorganice automáticamente.
+ */
+const seededShuffle = (arr, seed) => {
+  const shuffled = [...arr];
+  let s = seed;
+  for (let i = shuffled.length - 1; i > 0; i--) {
+    s = (s * 16807 + 0) % 2147483647;
+    const j = s % (i + 1);
+    [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
+  }
+  return shuffled;
+};
+
+/** Genera una semilla que cambia cada 5 minutos (epoch / 300000) */
+const getAutoShuffleSeed = () => Math.floor(Date.now() / (5 * 60 * 1000));
+
+/** Semilla manual que se incrementa cada vez que el usuario pulsa el botón de reinicio */
+let manualShuffleSeed = 0;
+export const triggerManualShuffle = () => { manualShuffleSeed++; };
+export const getManualShuffleSeed = () => manualShuffleSeed;
+
 const computeActiveEsencias = (esencias) => {
   const nowMs = Date.now();
 
-  return esencias
+  const active = esencias
     .filter((item) => item.expiresAtMs > nowMs)
-    .sort((a, b) => b.createdAtMs - a.createdAtMs)
     .slice(0, ACTIVE_ESENCIAS_LIMIT);
+
+  const seed = getAutoShuffleSeed() + manualShuffleSeed;
+  return seededShuffle(active, seed);
 };
 
 const normalizeMessage = (mensaje) => {
@@ -75,7 +100,7 @@ const normalizeMessage = (mensaje) => {
 };
 
 /**
- * Crear una esencia con expiración automática de 5 minutos.
+ * Crear una esencia con expiración automática de 1 semana.
  */
 export const createEsencia = async (userId, username, avatar, mensaje) => {
   if (!userId || typeof userId !== 'string') {

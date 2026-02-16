@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
@@ -6,8 +6,9 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
-import { X, Save } from 'lucide-react';
+import { X, Save, Loader2 } from 'lucide-react';
 import { toast } from '@/components/ui/use-toast';
+import { checkUsernameAvailability } from '@/services/userService';
 
 const ROLES = ['Activo', 'Pasivo', 'Versátil', 'Trans', 'No Binario', 'Fluido', 'Otro'];
 const INTERESTS = [
@@ -35,11 +36,35 @@ const INTERESTS = [
 
 const EditProfileModal = ({ isOpen, onClose }) => {
   const { user, updateProfile } = useAuth();
+  const isProfileRoleOption = (value) => ROLES.includes(value);
+  const getInitialProfileRole = () => {
+    if (isProfileRoleOption(user?.profileRole)) return user.profileRole;
+    if (isProfileRoleOption(user?.role)) return user.role;
+    return '';
+  };
   const [formData, setFormData] = useState({
-    description: user.description || '',
-    role: user.role || '',
-    interests: user.interests || [],
+    username: user?.username || '',
+    description: user?.description || '',
+    estado: user?.estado || '',
+    profileRole: getInitialProfileRole(),
+    interests: user?.interests || [],
   });
+  const [isSaving, setIsSaving] = useState(false);
+  const [usernameError, setUsernameError] = useState('');
+
+  // Resetear form cuando se abre el modal
+  useEffect(() => {
+    if (isOpen && user) {
+      setFormData({
+        username: user.username || '',
+        description: user.description || '',
+        estado: user.estado || '',
+        profileRole: getInitialProfileRole(),
+        interests: user.interests || [],
+      });
+      setUsernameError('');
+    }
+  }, [isOpen, user]);
 
   const handleInterestChange = (interest) => {
     setFormData(prev => {
@@ -50,14 +75,62 @@ const EditProfileModal = ({ isOpen, onClose }) => {
     });
   };
 
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault();
-    updateProfile(formData);
-    toast({
-      title: '✅ Perfil Actualizado',
-      description: 'Tus cambios se han guardado correctamente.',
-    });
-    onClose();
+    setIsSaving(true);
+    setUsernameError('');
+
+    try {
+      const newUsername = formData.username.trim();
+
+      // Validar nombre
+      if (!newUsername || newUsername.length < 2) {
+        setUsernameError('El nombre debe tener al menos 2 caracteres.');
+        setIsSaving(false);
+        return;
+      }
+      if (newUsername.length > 30) {
+        setUsernameError('El nombre no puede tener más de 30 caracteres.');
+        setIsSaving(false);
+        return;
+      }
+
+      // Si el nombre cambió, verificar disponibilidad
+      if (newUsername.toLowerCase() !== (user?.username || '').toLowerCase()) {
+        const available = await checkUsernameAvailability(newUsername, user?.id);
+        if (!available) {
+          setUsernameError('Este nombre ya está en uso. Elige otro.');
+          setIsSaving(false);
+          return;
+        }
+      }
+
+      // Validar estado (máximo 100 caracteres)
+      const estado = (formData.estado || '').trim().slice(0, 100);
+
+      await updateProfile({
+        username: newUsername,
+        description: formData.description,
+        estado,
+        profileRole: formData.profileRole,
+        interests: formData.interests,
+      });
+
+      toast({
+        title: 'Perfil Actualizado',
+        description: 'Tus cambios se han guardado correctamente.',
+      });
+      onClose();
+    } catch (error) {
+      console.error('Error guardando perfil:', error);
+      toast({
+        title: 'Error',
+        description: error?.message || 'No se pudo guardar. Intenta de nuevo.',
+        variant: 'destructive',
+      });
+    } finally {
+      setIsSaving(false);
+    }
   };
 
   return (
@@ -71,6 +144,45 @@ const EditProfileModal = ({ isOpen, onClose }) => {
         </DialogHeader>
 
         <form onSubmit={handleSubmit} className="px-6 pb-6 space-y-6 max-h-[70vh] overflow-y-auto scrollbar-hide">
+          {/* Cambiar nombre */}
+          <div>
+            <Label htmlFor="username" className="font-bold text-foreground">Tu Nombre</Label>
+            <Input
+              id="username"
+              value={formData.username}
+              onChange={(e) => {
+                setFormData({ ...formData, username: e.target.value });
+                setUsernameError('');
+              }}
+              placeholder="Tu nombre en Chactivo"
+              maxLength={30}
+              className="mt-1 bg-background border-2 border-border focus:border-primary text-foreground"
+            />
+            {usernameError && (
+              <p className="text-xs text-red-400 mt-1">{usernameError}</p>
+            )}
+            <p className="text-xs text-muted-foreground mt-1">
+              {formData.username.length}/30 caracteres
+            </p>
+          </div>
+
+          {/* Estado */}
+          <div>
+            <Label htmlFor="estado" className="font-bold text-foreground">Tu Estado</Label>
+            <Input
+              id="estado"
+              value={formData.estado}
+              onChange={(e) => setFormData({ ...formData, estado: e.target.value })}
+              placeholder="Ej: Buscando pasarla bien, Quiero conocer gente..."
+              maxLength={100}
+              className="mt-1 bg-background border-2 border-border focus:border-primary text-foreground"
+            />
+            <p className="text-xs text-muted-foreground mt-1">
+              {(formData.estado || '').length}/100 caracteres — visible en tu perfil
+            </p>
+          </div>
+
+          {/* Descripción */}
           <div>
             <Label htmlFor="description" className="font-bold text-foreground">Tu Descripción</Label>
             <Textarea
@@ -84,9 +196,9 @@ const EditProfileModal = ({ isOpen, onClose }) => {
 
           <div>
             <Label className="font-bold text-foreground">Tu Rol</Label>
-            <RadioGroup value={formData.role} onValueChange={(value) => setFormData({ ...formData, role: value })} className="mt-2 grid grid-cols-2 gap-2">
+            <RadioGroup value={formData.profileRole} onValueChange={(value) => setFormData({ ...formData, profileRole: value })} className="mt-2 grid grid-cols-2 gap-2">
               {ROLES.map(role => (
-                <Label key={role} className={`flex items-center gap-2 p-3 rounded-lg cursor-pointer transition-all border-2 ${formData.role === role ? 'border-primary bg-primary/10' : 'border-transparent bg-accent hover:bg-accent/80'}`}>
+                <Label key={role} className={`flex items-center gap-2 p-3 rounded-lg cursor-pointer transition-all border-2 ${formData.profileRole === role ? 'border-primary bg-primary/10' : 'border-transparent bg-accent hover:bg-accent/80'}`}>
                   <RadioGroupItem value={role} id={role} />
                   <span className="text-foreground">{role}</span>
                 </Label>
@@ -115,9 +227,12 @@ const EditProfileModal = ({ isOpen, onClose }) => {
             </p>
           </div>
 
-          <Button type="submit" className="w-full magenta-gradient text-white font-bold py-3 text-lg">
-            <Save className="mr-2 h-5 w-5" />
-            Guardar Cambios
+          <Button type="submit" disabled={isSaving} className="w-full magenta-gradient text-white font-bold py-3 text-lg">
+            {isSaving ? (
+              <><Loader2 className="mr-2 h-5 w-5 animate-spin" /> Guardando...</>
+            ) : (
+              <><Save className="mr-2 h-5 w-5" /> Guardar Cambios</>
+            )}
           </Button>
         </form>
 

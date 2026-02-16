@@ -1,9 +1,9 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Sparkles, Plus, RefreshCw, X } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { useAuth } from '@/contexts/AuthContext';
 import { toast } from '@/components/ui/use-toast';
-import { createEsencia, subscribeToActiveEsencias } from '@/services/esenciasService';
+import { createEsencia, subscribeToActiveEsencias, triggerManualShuffle, getManualShuffleSeed } from '@/services/esenciasService';
 import CreateEsenciaModal from '@/components/esencias/CreateEsenciaModal';
 import EsenciaCard from '@/components/esencias/EsenciaCard';
 import { auth } from '@/config/firebase';
@@ -22,6 +22,24 @@ const EsenciasColumn = ({
   const [nowMs, setNowMs] = useState(Date.now());
   const [internalMobilePanelOpen, setInternalMobilePanelOpen] = useState(false);
   const [showMobileHint, setShowMobileHint] = useState(false);
+  const [shuffleKey, setShuffleKey] = useState(0);
+  const lastShuffleRef = useRef(0);
+  const SHUFFLE_COOLDOWN_MS = 10_000; // 10 segundos entre reinicios manuales
+
+  const handleManualShuffle = useCallback(() => {
+    const now = Date.now();
+    if (now - lastShuffleRef.current < SHUFFLE_COOLDOWN_MS) {
+      toast({
+        title: 'Espera un momento',
+        description: 'Puedes reiniciar cada 10 segundos.',
+      });
+      return;
+    }
+    lastShuffleRef.current = now;
+    triggerManualShuffle();
+    setShuffleKey((k) => k + 1);
+  }, []);
+
   const isMobilePanelOpen = typeof mobilePanelOpen === 'boolean' ? mobilePanelOpen : internalMobilePanelOpen;
   const setIsMobilePanelOpen = onMobilePanelOpenChange || setInternalMobilePanelOpen;
 
@@ -30,10 +48,13 @@ const EsenciasColumn = ({
     return Boolean(normalized && normalized !== 'invitado');
   }, [user?.username]);
 
+  // Raw esencias from Firestore (unshuffled)
+  const [rawEsencias, setRawEsencias] = useState([]);
+
   useEffect(() => {
     const unsubscribe = subscribeToActiveEsencias(
       (items) => {
-        setEsencias(items);
+        setRawEsencias(items);
         setErrorMessage('');
         setIsLoading(false);
       },
@@ -47,12 +68,26 @@ const EsenciasColumn = ({
     return () => unsubscribe();
   }, []);
 
+  // Re-compute shuffled list when rawEsencias change or shuffleKey changes
+  useEffect(() => {
+    setEsencias([...rawEsencias]);
+  }, [rawEsencias, shuffleKey]);
+
   useEffect(() => {
     const timer = setInterval(() => {
       setNowMs(Date.now());
     }, 5000);
 
     return () => clearInterval(timer);
+  }, []);
+
+  // Auto-reshuffle cada 5 minutos
+  useEffect(() => {
+    const autoShuffleTimer = setInterval(() => {
+      setShuffleKey((k) => k + 1);
+    }, 5 * 60 * 1000);
+
+    return () => clearInterval(autoShuffleTimer);
   }, []);
 
   useEffect(() => {
@@ -70,6 +105,13 @@ const EsenciasColumn = ({
     return () => clearTimeout(hideTimer);
   }, [showMobileLauncher]);
 
+  /** Genera un nombre para invitados: "Invitado 234" usando los últimos dígitos del uid */
+  const getGuestDisplayName = () => {
+    const uid = auth.currentUser?.uid || user?.id || '';
+    const digits = uid.replace(/\D/g, '').slice(-3) || Math.floor(Math.random() * 900 + 100);
+    return `Invitado ${digits}`;
+  };
+
   const handleOpenModal = () => {
     const resolvedUserId = auth.currentUser?.uid || user?.id;
 
@@ -81,20 +123,16 @@ const EsenciasColumn = ({
       return;
     }
 
-    if (!hasNickname) {
-      toast({
-        title: 'Completa tu perfil de chat',
-        description: 'Elige nickname para poder dejar tu esencia.',
-      });
-      return;
-    }
     setIsModalOpen(true);
     setIsMobilePanelOpen(false);
   };
 
   const handleCreateEsencia = async (mensaje) => {
     const resolvedUserId = auth.currentUser?.uid || user?.id;
-    const resolvedUsername = (user?.username || '').trim();
+    const rawUsername = (user?.username || '').trim();
+    const resolvedUsername = (!rawUsername || rawUsername.toLowerCase() === 'invitado')
+      ? getGuestDisplayName()
+      : rawUsername;
 
     if (!resolvedUserId) {
       toast({
@@ -105,20 +143,12 @@ const EsenciasColumn = ({
       return;
     }
 
-    if (!resolvedUsername || resolvedUsername.toLowerCase() === 'invitado') {
-      toast({
-        title: 'Falta tu nickname',
-        description: 'Primero elige tu nickname para publicar una esencia.',
-      });
-      return;
-    }
-
     setIsCreating(true);
     try {
       await createEsencia(resolvedUserId, resolvedUsername, user?.avatar || '', mensaje);
       toast({
         title: 'Esencia publicada',
-        description: 'Tu esencia estará visible durante 5 minutos.',
+        description: 'Tu esencia estará visible durante 1 semana.',
       });
       setIsModalOpen(false);
     } catch (error) {
@@ -145,14 +175,25 @@ const EsenciasColumn = ({
               </h3>
               <p className="mt-1 text-xs text-muted-foreground">Usuarios recientemente aquí</p>
             </div>
-            <Button
-              size="sm"
-              className="h-8 px-2.5 text-xs"
-              onClick={handleOpenModal}
-            >
-              <Plus className="w-3.5 h-3.5 mr-1" />
-              Crear
-            </Button>
+            <div className="flex items-center gap-1.5">
+              <Button
+                size="icon"
+                variant="ghost"
+                className="h-8 w-8 text-muted-foreground hover:text-cyan-400"
+                onClick={handleManualShuffle}
+                title="Reiniciar orden"
+              >
+                <RefreshCw className="w-4 h-4" />
+              </Button>
+              <Button
+                size="sm"
+                className="h-8 px-2.5 text-xs"
+                onClick={handleOpenModal}
+              >
+                <Plus className="w-3.5 h-3.5 mr-1" />
+                Crear
+              </Button>
+            </div>
           </div>
         </div>
 
@@ -235,6 +276,15 @@ const EsenciasColumn = ({
                   <p className="text-[11px] text-muted-foreground">Usuarios recientemente aquí</p>
                 </div>
                 <div className="flex items-center gap-1.5">
+                  <Button
+                    size="icon"
+                    variant="ghost"
+                    className="h-8 w-8 text-muted-foreground hover:text-cyan-400"
+                    onClick={handleManualShuffle}
+                    title="Reiniciar orden"
+                  >
+                    <RefreshCw className="w-4 h-4" />
+                  </Button>
                   <Button size="sm" className="h-8 px-2.5 text-xs" onClick={handleOpenModal}>
                     <Plus className="w-3.5 h-3.5 mr-1" />
                     Crear

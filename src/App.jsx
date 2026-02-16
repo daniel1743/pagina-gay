@@ -16,6 +16,7 @@ import { useVersionChecker } from '@/hooks/useVersionChecker';
 import { useSessionTracking } from '@/hooks/useSessionTracking';
 import PerformanceSummaryButton from '@/components/PerformanceSummaryButton'; // 📊 Performance Monitor Button
 import GlobalLandingPage from '@/pages/GlobalLandingPage'; // Landing principal - crítica para SEO
+import ChatBottomNav from '@/components/chat/ChatBottomNav';
 
 // 🚀 SEO LANDING MINIMALISTA - 1 segundo y redirige al chat
 import SEOLanding, {
@@ -98,8 +99,9 @@ function MainLayout({ children }) {
         }
       `}</style>
       <Header />
-      <main className="flex-1 pt-16 sm:pt-20">{children}</main>
+      <main className="flex-1 pt-16 sm:pt-20 pb-16 lg:pb-0">{children}</main>
       <Footer />
+      <ChatBottomNav />
     </div>
   );
 }
@@ -120,8 +122,9 @@ function OpinLayout({ children }) {
         }
       `}</style>
       <Header />
-      <main className={`flex-1 ${isReadOnlyMode ? '' : 'pt-16 sm:pt-20'}`}>{children}</main>
+      <main className={`flex-1 pb-16 lg:pb-0 ${isReadOnlyMode ? '' : 'pt-16 sm:pt-20'}`}>{children}</main>
       <Footer />
+      <ChatBottomNav />
     </div>
   );
 }

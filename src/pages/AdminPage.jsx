@@ -79,6 +79,7 @@ import {
 import OpinStablesPanel from '@/components/admin/OpinStablesPanel';
 import AdminOpinRepliesPanel from '@/components/admin/AdminOpinRepliesPanel';
 import AdminEventosPanel from '@/components/admin/AdminEventosPanel';
+import BotControlPanel from '@/components/admin/BotControlPanel';
 
 const AdminPage = () => {
   const navigate = useNavigate();
@@ -939,6 +940,7 @@ const AdminPage = () => {
             <TabsTrigger value="moderation">Moderación</TabsTrigger>
             <TabsTrigger value="generator">Generador</TabsTrigger>
             <TabsTrigger value="eventos">Eventos</TabsTrigger>
+            <TabsTrigger value="bots">Bots</TabsTrigger>
           </TabsList>
 
           {/* Dashboard Tab */}
@@ -2937,6 +2939,10 @@ const AdminPage = () => {
 
           <TabsContent value="eventos" className="space-y-6">
             <AdminEventosPanel />
+          </TabsContent>
+
+          <TabsContent value="bots" className="space-y-6">
+            <BotControlPanel />
           </TabsContent>
         </Tabs>
 

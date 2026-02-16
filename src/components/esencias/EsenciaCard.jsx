@@ -14,7 +14,10 @@ const formatTimeAgo = (createdAtMs, nowMs) => {
   if (minutes < 60) return `hace ${minutes}m`;
 
   const hours = Math.floor(minutes / 60);
-  return `hace ${hours}h`;
+  if (hours < 24) return `hace ${hours}h`;
+
+  const days = Math.floor(hours / 24);
+  return `hace ${days}d`;
 };
 
 const formatRemaining = (expiresAtMs, nowMs) => {
@@ -23,8 +26,14 @@ const formatRemaining = (expiresAtMs, nowMs) => {
   if (remainingSeconds <= 0) return 'expirada';
   if (remainingSeconds < 60) return `${remainingSeconds}s`;
 
-  const remainingMinutes = Math.ceil(remainingSeconds / 60);
-  return `${remainingMinutes}m`;
+  const remainingMinutes = Math.floor(remainingSeconds / 60);
+  if (remainingMinutes < 60) return `${remainingMinutes}m`;
+
+  const remainingHours = Math.floor(remainingMinutes / 60);
+  if (remainingHours < 24) return `${remainingHours}h`;
+
+  const remainingDays = Math.floor(remainingHours / 24);
+  return `${remainingDays}d`;
 };
 
 const EsenciaCard = ({ esencia, nowMs }) => {

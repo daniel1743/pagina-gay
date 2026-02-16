@@ -242,7 +242,7 @@ const ChatPage = () => {
   // 🔒 VERIFICAR ACCESO A LA SALA - Redirigir si no tiene permiso
   useEffect(() => {
     const referrer = document.referrer || '';
-    const accessCheck = canAccessRoom(roomId, referrer);
+    const accessCheck = canAccessRoom(roomId, referrer, user);
 
     if (!accessCheck.allowed) {
       console.log(`[ROOM ACCESS] 🔒 Acceso denegado a sala "${roomId}": ${accessCheck.message}`);
@@ -253,7 +253,7 @@ const ChatPage = () => {
       });
       navigate(accessCheck.redirect, { replace: true });
     }
-  }, [roomId, navigate]);
+  }, [roomId, navigate, user]);
 
   // ✅ Cerrar sidebar automáticamente en móvil cuando cambia el tamaño de ventana
   useEffect(() => {

@@ -114,11 +114,19 @@ const UserProfileModal = ({ user, onClose, onReport, onSelectUser }) => {
 
           {/* Información adicional */}
           <div className="space-y-4 mt-6 px-6">
+            {/* Estado */}
+            {user.estado && (
+              <div>
+                <h3 className="text-sm font-bold text-muted-foreground mb-1">Estado</h3>
+                <p className="text-sm font-medium text-cyan-400">{user.estado}</p>
+              </div>
+            )}
+
             {/* Bio / Descripción */}
-            {user.bio && (
+            {(user.bio || user.description) && (
               <div>
                 <h3 className="text-sm font-bold text-muted-foreground mb-2">Acerca de</h3>
-                <p className="text-sm text-foreground">{user.bio}</p>
+                <p className="text-sm text-foreground">{user.bio || user.description}</p>
               </div>
             )}
 

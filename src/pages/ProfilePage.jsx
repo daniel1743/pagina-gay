@@ -36,6 +36,9 @@ const ProfilePage = () => {
 
   const navigate = useNavigate();
   const { user, logout, updateProfile } = useAuth();
+  const roleValue = (user?.role || '').toString().toLowerCase();
+  const isAdminRole = roleValue === 'admin' || roleValue === 'administrator' || roleValue === 'superadmin';
+  const displayProfileRole = user?.profileRole || (!['admin', 'administrator', 'superadmin', 'support', 'user'].includes(roleValue) ? user?.role : '');
   const [isEditModalOpen, setEditModalOpen] = useState(false);
   const [isAvatarSelectorOpen, setAvatarSelectorOpen] = useState(false);
   const [isPhotoUploadOpen, setPhotoUploadOpen] = useState(false);
@@ -138,7 +141,7 @@ const ProfilePage = () => {
             <div className="flex flex-col md:flex-row items-center md:items-start gap-8 mb-8">
               <div className="relative">
                 <div className={`rounded-full ${
-                  user.role === 'admin'
+                  isAdminRole
                     ? 'admin-avatar-ring'
                     : user.verified
                       ? 'verified-avatar-ring'
@@ -175,10 +178,10 @@ const ProfilePage = () => {
               <div className="flex-1 text-center md:text-left">
                 <h1 className="text-3xl md:text-4xl font-bold text-foreground mb-2 flex items-center justify-center md:justify-start gap-2">
                   {user.username}
-                  {(user.isPremium || user.role === 'admin') && (
+                  {(user.isPremium || isAdminRole) && (
                     <CheckCircle className="w-6 h-6 text-[#FFD700]"/>
                   )}
-                  {user.verified && !user.isPremium && user.role !== 'admin' && (
+                  {user.verified && !user.isPremium && !isAdminRole && (
                     <CheckCircle className="w-6 h-6 text-[#1DA1F2]"/>
                   )}
                 </h1>
@@ -191,8 +194,11 @@ const ProfilePage = () => {
                   )}
                 </div>
                 <p className="text-muted-foreground mb-2">"{user.description || '¡Hola! Soy nuevo en Chactivo.'}"</p>
+                {user.estado && (
+                  <p className="text-sm font-medium text-cyan-400 mb-2">{user.estado}</p>
+                )}
                 <div className="flex flex-wrap gap-2 justify-center md:justify-start">
-                  {user.role && <span className="bg-accent text-cyan-600 dark:text-cyan-300 px-3 py-1 text-sm rounded-full font-medium">{user.role}</span>}
+                  {displayProfileRole && <span className="bg-accent text-cyan-600 dark:text-cyan-300 px-3 py-1 text-sm rounded-full font-medium">{displayProfileRole}</span>}
                   {user.interests?.map(interest => (
                     <span key={interest} className="bg-accent text-foreground px-3 py-1 text-sm rounded-full">{interest}</span>
                   ))}
@@ -207,7 +213,7 @@ const ProfilePage = () => {
                 </Button>
 
                 {/* 🛡️ PANEL DE ADMINISTRADOR - Solo visible para admins */}
-                {user.role === 'admin' && (
+                {isAdminRole && (
                   <Button
                     onClick={() => navigate('/admin')}
                     variant="outline"
