@@ -1,4 +1,4 @@
-import React, { useEffect } from 'react';
+import React, { useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { track, trackPageExit, trackPageView } from '@/services/eventTrackingService';
 
@@ -20,7 +20,7 @@ const SEOLanding = ({
   redirectDelay = 100 // ⚡ 100ms - casi instantáneo pero Google aún indexa
 }) => {
   const navigate = useNavigate();
-  const pageStartMs = Date.now();
+  const pageStartRef = useRef(Date.now());
 
   // 🔍 SEO - Actualizar meta tags dinámicamente
   useEffect(() => {
@@ -71,10 +71,10 @@ const SEOLanding = ({
 
     return () => {
       clearTimeout(timer);
-      const timeOnPage = Math.max(0, Math.round((Date.now() - pageStartMs) / 1000));
+      const timeOnPage = Math.max(0, Math.round((Date.now() - pageStartRef.current) / 1000));
       trackPageExit(window.location.pathname, timeOnPage).catch(() => {});
     };
-  }, [navigate, chatRoom, redirectDelay, title, pageStartMs]);
+  }, [navigate, chatRoom, redirectDelay, title]);
 
   return (
     <>

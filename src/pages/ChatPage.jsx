@@ -57,7 +57,7 @@ import { requestNotificationPermission, canRequestPush } from '@/services/pushNo
 // import { sendModeratorWelcome } from '@/services/moderatorWelcome';
 // ⚠️ BOTS ELIMINADOS (06/01/2026) - A petición del usuario
 // import { checkAndSeedConversations } from '@/services/seedConversationsService';
-import { trackPageView, trackPageExit, trackRoomJoined, trackMessageSent } from '@/services/eventTrackingService';
+import { track, getSessionId, trackPageView, trackPageExit, trackRoomJoined, trackMessageSent } from '@/services/eventTrackingService';
 import { useCanonical } from '@/hooks/useCanonical';
 import { checkUserSanctions, SANCTION_TYPES } from '@/services/sanctionsService';
 import { roomsData, canAccessRoom } from '@/config/rooms';
@@ -698,6 +698,7 @@ const ChatPage = () => {
       pageStartRef.current = Date.now();
       trackPageView(`/chat/${roomId}`, `Chat - ${roomId}`, { user });
       trackRoomJoined(roomId, { user });
+      track('chat_room_view', { roomId, roomName: roomId }, { user }).catch(() => {});
     }
 
     return () => {
@@ -2200,6 +2201,21 @@ const ChatPage = () => {
         // ✅ Mensaje enviado exitosamente - se actualizará automáticamente vía onSnapshot
         // Track GA4 (background, no bloquea)
         trackMessageSent(currentRoom, { user: currentUser });
+
+        try {
+          const sessionId = getSessionId();
+          const firstMessageKey = `first_message_sent:${sessionId}`;
+          if (sessionStorage.getItem(firstMessageKey) !== '1') {
+            sessionStorage.setItem(firstMessageKey, '1');
+            track('first_message_sent', {
+              roomId: currentRoom,
+              roomName: currentRoom,
+              isGuest: !!(currentUser?.isGuest || currentUser?.isAnonymous),
+            }, { user: currentUser }).catch(() => {});
+          }
+        } catch {
+          // Non-blocking tracking
+        }
         
         // 📊 PERFORMANCE MONITOR: Completar tracking de envío
         endTiming('messageSent', { 

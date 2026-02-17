@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { motion } from 'framer-motion';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
@@ -8,12 +8,13 @@ import { Label } from '@/components/ui/label';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { ArrowLeft, Mail, Eye, EyeOff } from 'lucide-react';
 import { useCanonical } from '@/hooks/useCanonical';
+import { track, trackPageExit, trackPageView } from '@/services/eventTrackingService';
 
 const AuthPage = () => {
   // SEO: Canonical tag para página de autenticación
   useCanonical('/auth');
 
-  React.useEffect(() => {
+  useEffect(() => {
     const previousTitle = document.title;
     // Título optimizado para atraer clics desde Google
     document.title = "Iniciar Sesión o Registrarse | Chactivo";
@@ -28,7 +29,8 @@ const AuthPage = () => {
 
   const navigate = useNavigate();
   const location = useLocation();
-  const { login, register } = useAuth();
+  const { login, register, user } = useAuth();
+  const pageStartRef = useRef(Date.now());
   const [loginData, setLoginData] = useState({ email: '', password: '' });
   const [registerData, setRegisterData] = useState({
     username: '',
@@ -48,10 +50,24 @@ const AuthPage = () => {
     return typeof rawRedirect === 'string' && rawRedirect.startsWith('/') ? rawRedirect : '/home';
   };
 
+  useEffect(() => {
+    pageStartRef.current = Date.now();
+    const redirectTarget = getRedirectPath();
+    trackPageView('/auth', 'Auth - Chactivo', { user }).catch(() => {});
+    track('auth_page_view', { redirect_to: redirectTarget }, { user }).catch(() => {});
+
+    return () => {
+      const timeOnPage = Math.max(0, Math.round((Date.now() - pageStartRef.current) / 1000));
+      trackPageExit('/auth', timeOnPage, { user }).catch(() => {});
+    };
+  }, [user]);
+
   const handleLogin = async (e) => {
     e.preventDefault();
+    track('auth_submit', { mode: 'login' }, { user }).catch(() => {});
     const success = await login(loginData.email, loginData.password);
     if (success) {
+      track('auth_success', { mode: 'login' }, { user }).catch(() => {});
       navigate(getRedirectPath(), { replace: true });
     }
   };
@@ -71,8 +87,10 @@ const AuthPage = () => {
       return;
     }
 
+    track('auth_submit', { mode: 'register' }, { user }).catch(() => {});
     const success = await register(registerData);
     if (success) {
+      track('auth_success', { mode: 'register' }, { user }).catch(() => {});
       navigate(getRedirectPath(), { replace: true });
     }
   };

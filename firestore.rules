@@ -362,6 +362,28 @@ service cloud.firestore {
                            request.resource.data.content.size() > 0)
                         );
       }
+
+      // ✅ Typing indicator para chats privados
+      // Cada participante solo puede escribir/borrar su propio doc en typing/{uid}
+      match /typing/{typingUserId} {
+        allow read: if isAuthenticated() &&
+                      request.auth.uid in get(/databases/$(database)/documents/private_chats/$(chatId)).data.participants;
+
+        allow create, update: if isAuthenticated() &&
+                                request.auth.uid in get(/databases/$(database)/documents/private_chats/$(chatId)).data.participants &&
+                                request.auth.uid == typingUserId &&
+                                request.resource.data.userId == request.auth.uid &&
+                                request.resource.data.isTyping is bool &&
+                                request.resource.data.updatedAt is timestamp &&
+                                (
+                                  !('username' in request.resource.data) ||
+                                  request.resource.data.username is string
+                                );
+
+        allow delete: if isAuthenticated() &&
+                        request.auth.uid in get(/databases/$(database)/documents/private_chats/$(chatId)).data.participants &&
+                        request.auth.uid == typingUserId;
+      }
     }
 
     // ===========================

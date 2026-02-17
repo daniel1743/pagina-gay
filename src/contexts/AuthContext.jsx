@@ -370,12 +370,23 @@ export const AuthProvider = ({ children }) => {
           }
         }
       } else {
-        // No hay usuario - Limpiar estado
-        console.log('[AUTH] ⚠️ firebaseUser es NULL, limpiando estado de usuario...');
-        setUser(null);
-        setGuestMessageCount(0);
+        // No hay usuario Firebase - verificar si hay identidad guardada para restaurar sesión
+        const identity = getGuestIdentity();
+        if (identity && !isLoggingOutRef.current) {
+          console.log('[AUTH] 🔄 firebaseUser null pero identidad guardada — restaurando sesión como invitado');
+          try {
+            await signInAnonymously(auth);
+            // onAuthStateChanged se disparará de nuevo con el nuevo usuario y aplicará la identidad
+          } catch (err) {
+            console.warn('[AUTH] No se pudo restaurar sesión:', err?.message);
+            setUser(null);
+            setGuestMessageCount(0);
+          }
+        } else {
+          setUser(null);
+          setGuestMessageCount(0);
+        }
 
-        // Resetear el flag de logout si estaba activo
         if (isLoggingOutRef.current) {
           setTimeout(() => {
             isLoggingOutRef.current = false;

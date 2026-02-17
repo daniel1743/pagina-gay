@@ -6,6 +6,7 @@ import { useAuth } from '@/contexts/AuthContext';
 // ⚠️ MODAL INVITADO ELIMINADO - Solo registro normal
 // import { GuestUsernameModal } from '@/components/auth/GuestUsernameModal';
 import TelegramBanner from '@/components/ui/TelegramBanner';
+import { track } from '@/services/eventTrackingService';
 
 export default function LandingPage() {
   const navigate = useNavigate();
@@ -13,6 +14,7 @@ export default function LandingPage() {
 
   // ✅ Redirigir usuarios autenticados (no guests) directamente al home
   useEffect(() => {
+    track('landing_view', { page_path: '/landing', seo_landing: false }, { user }).catch(() => {});
     if (user && !user.isGuest && !user.isAnonymous) {
       navigate('/home', { replace: true });
     } else if (user && (user.isGuest || user.isAnonymous)) {
@@ -23,6 +25,11 @@ export default function LandingPage() {
 
   // ✅ Redirigir a registro normal
   const handleQuickJoin = () => {
+    track('entry_to_chat', {
+      method: 'cta_click',
+      from_path: '/landing',
+      target: user && (user.isGuest || user.isAnonymous) ? '/chat/principal' : '/auth',
+    }, { user }).catch(() => {});
     if (user && (user.isGuest || user.isAnonymous)) {
       navigate('/chat/principal', { replace: true });
     } else {

@@ -3,6 +3,7 @@ import {
   addDoc,
   doc,
   updateDoc,
+  deleteDoc,
   arrayUnion,
   arrayRemove,
   serverTimestamp,
@@ -147,6 +148,108 @@ export const getOrCreatePrivateChat = async (userAId, userBId) => {
   });
 
   return { chatId, created: true };
+};
+
+/**
+ * Envía un mensaje dentro de un chat privado existente
+ */
+export const sendMessageToPrivateChat = async (chatId, { userId, username, avatar, content }) => {
+  if (!chatId || !userId || !content?.trim()) {
+    throw new Error('Missing chatId, userId or content');
+  }
+  const messagesRef = collection(db, 'private_chats', chatId, 'messages');
+  await addDoc(messagesRef, {
+    userId,
+    username: username || 'Usuario',
+    avatar: avatar || '',
+    content: content.trim(),
+    type: 'text',
+    timestamp: serverTimestamp(),
+  });
+};
+
+/**
+ * Actualiza el estado "escribiendo..." en chat privado
+ * Se guarda en /private_chats/{chatId}/typing/{userId}
+ */
+export const updatePrivateChatTypingStatus = async (
+  chatId,
+  userId,
+  isTyping,
+  username = 'Usuario'
+) => {
+  if (!chatId || !userId) return;
+
+  // Usar roomPresence para evitar dependencia de nuevas reglas en private_chats/typing
+  const typingRef = doc(db, 'roomPresence', `private_${chatId}`, 'users', userId);
+
+  if (isTyping) {
+    await setDoc(
+      typingRef,
+      {
+        userId,
+        username,
+        isTyping: true,
+        typingChatId: chatId,
+        updatedAt: serverTimestamp(),
+      },
+      { merge: true }
+    );
+    return;
+  }
+
+  // Cuando deja de escribir, eliminamos el documento para evitar "ghost typing"
+  await deleteDoc(typingRef).catch(() => {});
+};
+
+/**
+ * Suscribe estados de escritura de otros participantes
+ */
+export const subscribeToPrivateChatTyping = (chatId, currentUserId, callback) => {
+  if (!chatId) {
+    callback([]);
+    return () => {};
+  }
+
+  const typingRef = collection(db, 'roomPresence', `private_${chatId}`, 'users');
+  const STALE_MS = 10000;
+
+  return onSnapshot(
+    typingRef,
+    (snapshot) => {
+      const now = Date.now();
+      const typingUsers = snapshot.docs
+        .map((docSnap) => {
+          const data = docSnap.data() || {};
+          const updatedAtMs = data.updatedAt?.toMillis?.() || 0;
+          return {
+            id: docSnap.id,
+            userId: data.userId || docSnap.id,
+            username: data.username || 'Usuario',
+            isTyping: data.isTyping === true,
+            updatedAtMs,
+          };
+        })
+        .filter((item) => item.userId !== currentUserId)
+        .filter((item) => item.isTyping)
+        .filter((item) => !item.updatedAtMs || now - item.updatedAtMs <= STALE_MS);
+
+      callback(typingUsers);
+    },
+    (error) => {
+      const isTransientError =
+        error?.name === 'AbortError' ||
+        error?.code === 'cancelled' ||
+        error?.code === 'unavailable' ||
+        error?.message?.includes('WebChannelConnection') ||
+        error?.message?.includes('transport errored');
+
+      if (!isTransientError) {
+        console.error('Error subscribing to private chat typing:', error);
+      }
+      callback([]);
+    }
+  );
 };
 
 /**

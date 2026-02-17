@@ -1,5 +1,5 @@
 import React from 'react';
-import { Funnel, TrendingUp } from 'lucide-react';
+import { Filter, TrendingUp } from 'lucide-react';
 
 const formatPercent = (value = 0) => `${Number(value || 0).toFixed(1)}%`;
 
@@ -14,7 +14,7 @@ const ConversionFunnelPanel = ({ funnelMetrics }) => {
       <div className="flex items-center justify-between mb-6">
         <div>
           <h2 className="text-2xl font-bold flex items-center gap-2">
-            <Funnel className="w-6 h-6 text-cyan-400" />
+            <Filter className="w-6 h-6 text-cyan-400" />
             Embudo de Conversión ({days} días)
           </h2>
           <p className="text-sm text-muted-foreground mt-1">

@@ -19,8 +19,8 @@ import {
   MessageCircle,
   Shield
 } from 'lucide-react';
-import { enviarMensajeTarjeta, formatearHorarios, getColorRol, verificarInteresMutuo } from '@/services/tarjetaService';
-import { sendPrivateChatRequest } from '@/services/socialService';
+import { formatearHorarios, getColorRol, verificarInteresMutuo } from '@/services/tarjetaService';
+import { sendPrivateChatRequest, getOrCreatePrivateChat, sendMessageToPrivateChat } from '@/services/socialService';
 import { blockUser } from '@/services/blockService';
 import { toast } from '@/components/ui/use-toast';
 
@@ -30,6 +30,8 @@ const MensajeTarjetaModal = ({
   tarjeta,
   miUserId,
   miUsername,
+  miAvatar = '',
+  onAbrirChat,
   readOnly = false
 }) => {
   const navigate = useNavigate();
@@ -109,21 +111,30 @@ const MensajeTarjetaModal = ({
     setIsEnviando(true);
 
     try {
-      const exito = await enviarMensajeTarjeta(
-        tarjeta.odIdUsuari,
-        miUserId,
-        miUsername,
-        mensaje.trim()
-      );
+      const { chatId } = await getOrCreatePrivateChat(miUserId, tarjeta.odIdUsuari);
+      await sendMessageToPrivateChat(chatId, {
+        userId: miUserId,
+        username: miUsername,
+        avatar: miAvatar,
+        content: mensaje.trim(),
+      });
 
-      if (exito) {
-        toast({
-          title: 'Mensaje enviado',
-          description: `${tarjeta.nombre} verá tu mensaje cuando entre`,
+      toast({
+        title: 'Mensaje enviado',
+        description: 'Conversación abierta — podrás seguir chateando aquí',
+      });
+
+      onClose();
+
+      if (onAbrirChat) {
+        onAbrirChat({
+          chatId,
+          partner: {
+            id: tarjeta.odIdUsuari,
+            username: tarjeta.nombre || tarjeta.odIdUsuariNombre || 'Usuario',
+            avatar: tarjeta.fotoUrl || tarjeta.fotoUrlThumb || tarjeta.fotoUrlFull || '',
+          },
         });
-        onClose();
-      } else {
-        throw new Error('No se pudo enviar');
       }
     } catch (error) {
       if (error?.message === 'BLOCKED') {
@@ -133,11 +144,11 @@ const MensajeTarjetaModal = ({
           variant: 'destructive'
         });
       } else {
-      toast({
-        title: 'Error',
-        description: 'No se pudo enviar el mensaje',
-        variant: 'destructive'
-      });
+        toast({
+          title: 'Error',
+          description: 'No se pudo enviar el mensaje',
+          variant: 'destructive',
+        });
       }
     } finally {
       setIsEnviando(false);

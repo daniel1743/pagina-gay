@@ -68,14 +68,16 @@ export const clearAllCache = async () => {
     const criticalKeys = [
       'chactivo-theme', // Tema del usuario
       'age_verified_', // Verificaciones de edad (se limpian parcialmente)
+      'chactivo_guest_identity', // Identidad persistente del invitado (pseudónimo)
+      'chactivo_guest_temp', // Datos temporales del modal de invitado
     ];
 
     const keysToKeep = new Set();
     
-    // Preservar keys críticas
+    // Preservar keys críticas (identidad de invitado, tema, edad)
     for (let i = 0; i < localStorage.length; i++) {
       const key = localStorage.key(i);
-      if (key && criticalKeys.some(critical => key.startsWith(critical))) {
+      if (key && criticalKeys.some(critical => key === critical || key.startsWith(critical))) {
         keysToKeep.add(key);
       }
     }

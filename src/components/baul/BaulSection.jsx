@@ -835,6 +835,12 @@ const BaulSection = ({ isOpen = true, onClose, variant = 'modal' }) => {
           tarjeta={tarjetaSeleccionada}
           miUserId={odIdUsuari}
           miUsername={miTarjeta?.nombre || user?.username || 'Usuario'}
+          miAvatar={miTarjeta?.fotoUrl || user?.avatar || ''}
+          onAbrirChat={({ chatId, partner }) => {
+            setMostrarMensajeModal(false);
+            setTarjetaSeleccionada(null);
+            setActivePrivateChat({ chatId, partner });
+          }}
           readOnly={isGuestView}
         />
       )}
