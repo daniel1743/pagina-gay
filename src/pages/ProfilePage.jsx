@@ -36,6 +36,13 @@ const ProfilePage = () => {
 
   const navigate = useNavigate();
   const { user, logout, updateProfile } = useAuth();
+  const hasProVisual = Boolean(
+    user?.isProUser ||
+    user?.hasRainbowBorder ||
+    user?.hasProBadge ||
+    user?.hasFeaturedCard ||
+    user?.canUploadSecondPhoto
+  );
   const roleValue = (user?.role || '').toString().toLowerCase();
   const isAdminRole = roleValue === 'admin' || roleValue === 'administrator' || roleValue === 'superadmin';
   const displayProfileRole = user?.profileRole || (!['admin', 'administrator', 'superadmin', 'support', 'user'].includes(roleValue) ? user?.role : '');
@@ -141,7 +148,9 @@ const ProfilePage = () => {
             <div className="flex flex-col md:flex-row items-center md:items-start gap-8 mb-8">
               <div className="relative">
                 <div className={`rounded-full ${
-                  isAdminRole
+                  hasProVisual
+                    ? 'rainbow-avatar-ring'
+                    : isAdminRole
                     ? 'admin-avatar-ring'
                     : user.verified
                       ? 'verified-avatar-ring'
@@ -178,6 +187,11 @@ const ProfilePage = () => {
               <div className="flex-1 text-center md:text-left">
                 <h1 className="text-3xl md:text-4xl font-bold text-foreground mb-2 flex items-center justify-center md:justify-start gap-2">
                   {user.username}
+                  {hasProVisual && (
+                    <span className="inline-flex items-center gap-0.5 bg-gradient-to-r from-amber-500 to-orange-500 text-[9px] font-bold px-1.5 py-0.5 rounded text-white uppercase tracking-wider">
+                      PRO
+                    </span>
+                  )}
                   {(user.isPremium || isAdminRole) && (
                     <CheckCircle className="w-6 h-6 text-[#FFD700]"/>
                   )}
@@ -186,6 +200,12 @@ const ProfilePage = () => {
                   )}
                 </h1>
                 <div className="flex flex-wrap gap-2 justify-center md:justify-start mb-4">
+                  {hasProVisual && (
+                    <span className="bg-gradient-to-r from-amber-500 to-orange-500 text-white px-3 py-1 rounded-full text-xs font-bold flex items-center gap-1">
+                      <Crown className="w-4 h-4" />
+                      Usuario PRO
+                    </span>
+                  )}
                   {user.verified && (
                     <span className="bg-[#1DA1F2] text-white px-3 py-1 rounded-full text-xs font-bold flex items-center gap-1">
                       <Shield className="w-4 h-4" />

@@ -16,7 +16,7 @@ import {
   removeQuickPhrase as removeQuickPhraseService,
   upgradeToPremium as upgradeToPremiumService,
 } from '@/services/userService';
-import { doc, getDoc, setDoc } from 'firebase/firestore';
+import { doc, getDoc, setDoc, onSnapshot } from 'firebase/firestore';
 import { db } from '@/config/firebase';
 import { toast } from '@/components/ui/use-toast';
 import { trackUserRegister, trackUserLogin } from '@/services/eventTrackingService';
@@ -61,6 +61,7 @@ const DEFAULT_AUTH_CONTEXT = {
   signInAsGuest: async () => false,
   logout: async () => {},
   updateProfile: async () => {},
+  refreshProfile: async () => {},
   upgradeToPremium: async () => {},
   updateThemeSetting: async () => {},
   addQuickPhrase: async () => {},
@@ -443,7 +444,13 @@ export const AuthProvider = ({ children }) => {
           username: user.username || 'Usuario',
           esInvitado: user.isGuest || user.isAnonymous || false,
           edad: user.edad || null,
-          avatar: user.avatar || null
+          avatar: user.avatar || null,
+          isProUser: user.isProUser || false,
+          proUntil: user.proUntil || null,
+          canUploadSecondPhoto: user.canUploadSecondPhoto || false,
+          hasFeaturedCard: user.hasFeaturedCard || false,
+          hasRainbowBorder: user.hasRainbowBorder || false,
+          hasProBadge: user.hasProBadge || false
         });
 
         console.log('[AUTH/BAUL] ✅ Tarjeta verificada/creada para:', user.username);
@@ -454,7 +461,41 @@ export const AuthProvider = ({ children }) => {
 
     // Ejecutar en background, no bloquear la UI
     crearTarjetaSiNoExiste();
-  }, [user?.id]); // Solo ejecutar cuando cambia el user.id
+  }, [
+    user?.id,
+    user?.isProUser,
+    user?.proUntil,
+    user?.canUploadSecondPhoto,
+    user?.hasFeaturedCard,
+    user?.hasRainbowBorder,
+    user?.hasProBadge
+  ]);
+
+  // 🔄 Sincronizar perfil en tiempo real (premios PRO, verificación, premium, etc.)
+  useEffect(() => {
+    if (!user?.id || user.isGuest || user.isAnonymous) return () => {};
+
+    const userRef = doc(db, 'users', user.id);
+    const unsubscribe = onSnapshot(userRef, (snap) => {
+      if (!snap.exists()) return;
+      const latest = snap.data() || {};
+
+      setUser((prev) => {
+        if (!prev || prev.id !== user.id) return prev;
+        // Si admin usa identidad genérica temporal, no sobreescribir su máscara local
+        if (prev._isUsingGenericIdentity) return prev;
+        return {
+          ...prev,
+          ...latest,
+          id: user.id,
+        };
+      });
+    }, (error) => {
+      console.warn('[AUTH] Error sincronizando perfil en tiempo real:', error?.message);
+    });
+
+    return () => unsubscribe();
+  }, [user?.id, user?.isGuest, user?.isAnonymous]);
 
   /**
    * Inicio de sesión con email y contraseña
@@ -816,6 +857,21 @@ export const AuthProvider = ({ children }) => {
   };
 
   /**
+   * Refrescar perfil desde Firestore (útil cuando cambia por recompensas/otros)
+   */
+  const refreshProfile = async () => {
+    if (!auth.currentUser?.uid || user?.isGuest || user?.isAnonymous) return;
+    try {
+      const fresh = await getUserProfile(auth.currentUser.uid);
+      if (fresh) {
+        setUser((prev) => (prev?.id === fresh.id ? { ...prev, ...fresh } : prev));
+      }
+    } catch (err) {
+      console.warn('[AUTH] Error refreshProfile:', err?.message);
+    }
+  };
+
+  /**
    * Actualizar perfil de usuario
    */
   const updateProfile = async (updates) => {
@@ -1072,6 +1128,7 @@ export const AuthProvider = ({ children }) => {
     signInAsGuest,
     logout,
     updateProfile,
+    refreshProfile,
     upgradeToPremium,
     updateThemeSetting,
     addQuickPhrase,

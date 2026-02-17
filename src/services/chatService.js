@@ -232,6 +232,11 @@ const doSendMessage = async (roomId, messageData, isAnonymous = false) => {
     username, // ✅ Validado arriba
     avatar: ensureAvatar(messageData.avatar, username), // ✅ NUNCA null
     isPremium: messageData.isPremium || false,
+    isProUser: messageData.isProUser || false, // ⚡ Usuario PRO (premio: arcoíris, badge)
+    hasRainbowBorder: messageData.hasRainbowBorder || false,
+    hasProBadge: messageData.hasProBadge || false,
+    hasFeaturedCard: messageData.hasFeaturedCard || false,
+    canUploadSecondPhoto: messageData.canUploadSecondPhoto || false,
     badge: messageData.badge || 'Nuevo', // 🏅 Badge de participación en eventos
     content: messageData.content,
     type: messageData.type || 'text',
@@ -755,6 +760,11 @@ const doSendSecondaryMessage = async (roomId, messageData, isAnonymous = false) 
     username,
     avatar: ensureAvatar(messageData.avatar, username),
     isPremium: messageData.isPremium || false,
+    isProUser: messageData.isProUser || false,
+    hasRainbowBorder: messageData.hasRainbowBorder || false,
+    hasProBadge: messageData.hasProBadge || false,
+    hasFeaturedCard: messageData.hasFeaturedCard || false,
+    canUploadSecondPhoto: messageData.canUploadSecondPhoto || false,
     content: messageData.content,
     type: messageData.type || 'text',
     timestamp: serverTimestamp(),

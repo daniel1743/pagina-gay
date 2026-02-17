@@ -160,7 +160,7 @@ function SessionTracker() {
 }
 
 function RewardInboxListener() {
-  const { user } = useAuth();
+  const { user, refreshProfile } = useAuth();
   const [pendingRewards, setPendingRewards] = useState([]);
   const [currentReward, setCurrentReward] = useState(null);
 
@@ -228,6 +228,9 @@ function RewardInboxListener() {
     if (currentReward.type === REWARD_TYPES.PRO_USER) {
       localStorage.setItem(`pro_congrats_seen:${user.id}`, 'true');
     }
+
+    // Refrescar perfil para que se muestren arcoíris, badge, segunda foto, etc.
+    refreshProfile?.();
 
     const acceptedId = currentReward.id;
     setCurrentReward(null);

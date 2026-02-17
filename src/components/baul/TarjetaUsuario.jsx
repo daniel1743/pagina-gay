@@ -91,7 +91,13 @@ const TarjetaUsuario = ({
   const impresionSentRef = useRef(false);
 
   // PRO user detection
-  const isProUser = Boolean(tarjeta.isProUser);
+  const isProUser = Boolean(
+    tarjeta?.isProUser ||
+    tarjeta?.canUploadSecondPhoto ||
+    tarjeta?.hasFeaturedCard ||
+    tarjeta?.hasRainbowBorder ||
+    tarjeta?.hasProBadge
+  );
   const hasSecondPhoto = Boolean(tarjeta.fotoUrl2);
   const estadoActual = tarjeta.estadoReal || tarjeta.estado;
   const nowMs = Date.now();
@@ -286,8 +292,8 @@ const TarjetaUsuario = ({
           </div>
         )}
 
-        {/* Second photo toggle arrows (PRO only) */}
-        {isProUser && hasSecondPhoto && !shouldBlur && (
+        {/* Second photo toggle arrows */}
+        {hasSecondPhoto && !shouldBlur && (
           <>
             <button
               type="button"

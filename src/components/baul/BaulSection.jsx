@@ -312,7 +312,13 @@ const BaulSection = ({ isOpen = true, onClose, variant = 'modal' }) => {
           username: user?.username || user?.displayName || 'Usuario',
           esInvitado: user?.esInvitado || user?.isGuest || false,
           edad: user?.edad,
-          avatar: user?.avatar || user?.photoURL
+          avatar: user?.avatar || user?.photoURL,
+          isProUser: user?.isProUser || false,
+          proUntil: user?.proUntil || null,
+          canUploadSecondPhoto: user?.canUploadSecondPhoto || false,
+          hasFeaturedCard: user?.hasFeaturedCard || false,
+          hasRainbowBorder: user?.hasRainbowBorder || false,
+          hasProBadge: user?.hasProBadge || false
         });
         console.log('[BAUL] Tarjeta creada:', tarjeta);
       }

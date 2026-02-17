@@ -308,7 +308,8 @@ export const getUserById = async (userId) => {
  */
 const PUBLIC_PROFILE_FIELDS = [
   'id', 'username', 'avatar', 'description', 'estado',
-  'profileRole', 'role', 'interests', 'verified', 'isPremium'
+  'profileRole', 'role', 'interests', 'verified', 'isPremium',
+  'isProUser', 'canUploadSecondPhoto', 'hasFeaturedCard', 'hasRainbowBorder', 'hasProBadge'
 ];
 
 /**

@@ -17,7 +17,9 @@ import {
   Eye,
   Ruler,
   MessageCircle,
-  Shield
+  Shield,
+  ChevronLeft,
+  ChevronRight
 } from 'lucide-react';
 import { formatearHorarios, getColorRol, verificarInteresMutuo } from '@/services/tarjetaService';
 import { sendPrivateChatRequest, getOrCreatePrivateChat, sendMessageToPrivateChat } from '@/services/socialService';
@@ -43,9 +45,33 @@ const MensajeTarjetaModal = ({
   const [hayMatch, setHayMatch] = useState(false);
   const [verificandoMatch, setVerificandoMatch] = useState(true);
   const [isBlocking, setIsBlocking] = useState(false);
+  const [activePhotoIndex, setActivePhotoIndex] = useState(0);
   const isReadOnly = readOnly || !miUserId;
 
   const maxChars = 200;
+
+  const photoUrls = Array.from(new Set([
+    tarjeta?.fotoUrlFull || tarjeta?.fotoUrl || '',
+    tarjeta?.fotoUrl2 || ''
+  ].filter(Boolean)));
+  const hasMultiplePhotos = photoUrls.length > 1;
+  const photoToShow = photoUrls[activePhotoIndex] || null;
+
+  useEffect(() => {
+    setActivePhotoIndex(0);
+  }, [isOpen, tarjeta?.odIdUsuari, tarjeta?.id]);
+
+  const handlePrevPhoto = (e) => {
+    e.stopPropagation();
+    if (!hasMultiplePhotos) return;
+    setActivePhotoIndex((prev) => (prev - 1 + photoUrls.length) % photoUrls.length);
+  };
+
+  const handleNextPhoto = (e) => {
+    e.stopPropagation();
+    if (!hasMultiplePhotos) return;
+    setActivePhotoIndex((prev) => (prev + 1) % photoUrls.length);
+  };
 
   // Verificar si hay interés mutuo (match, likes o mensajes mutuos)
   useEffect(() => {
@@ -208,11 +234,11 @@ const MensajeTarjetaModal = ({
         >
           {/* Header con foto grande */}
           <div className="relative">
-            {/* Foto */}
+            {/* Foto */} 
             <div className="aspect-[4/3] bg-gradient-to-br from-gray-700 to-gray-900 relative">
-              {tarjeta.fotoUrl ? (
+              {photoToShow ? (
                 <img
-                  src={tarjeta.fotoUrlFull || tarjeta.fotoUrl}
+                  src={photoToShow}
                   alt={tarjeta.nombre}
                   className="w-full h-full object-cover"
                 />
@@ -221,6 +247,49 @@ const MensajeTarjetaModal = ({
                   <User className="w-24 h-24 text-gray-600" />
                 </div>
               )}
+
+              {hasMultiplePhotos && (
+                <>
+                  <button
+                    type="button"
+                    onClick={handlePrevPhoto}
+                    className="absolute left-2 top-1/2 -translate-y-1/2 z-10 p-1.5 rounded-full bg-black/45 text-white/90 hover:bg-black/65 transition-colors"
+                    aria-label="Foto anterior"
+                  >
+                    <ChevronLeft className="w-4 h-4" />
+                  </button>
+                  <button
+                    type="button"
+                    onClick={handleNextPhoto}
+                    className="absolute right-2 top-1/2 -translate-y-1/2 z-10 p-1.5 rounded-full bg-black/45 text-white/90 hover:bg-black/65 transition-colors"
+                    aria-label="Foto siguiente"
+                  >
+                    <ChevronRight className="w-4 h-4" />
+                  </button>
+
+                  <div className="absolute top-3 left-3 z-10 px-2 py-0.5 rounded-full bg-black/45 text-white text-[11px]">
+                    {activePhotoIndex + 1}/{photoUrls.length}
+                  </div>
+
+                  <div className="absolute bottom-3 left-1/2 -translate-x-1/2 z-10 flex gap-1.5">
+                    {photoUrls.map((_, idx) => (
+                      <button
+                        key={`photo-dot-${idx}`}
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setActivePhotoIndex(idx);
+                        }}
+                        className={`w-2 h-2 rounded-full transition-colors ${
+                          idx === activePhotoIndex ? 'bg-white' : 'bg-white/45'
+                        }`}
+                        aria-label={`Ver foto ${idx + 1}`}
+                      />
+                    ))}
+                  </div>
+                </>
+              )}
+
               {/* Gradiente inferior */}
               <div className="absolute inset-0 bg-gradient-to-t from-gray-800 via-transparent to-transparent" />
             </div>

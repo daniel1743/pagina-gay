@@ -229,11 +229,30 @@ service cloud.firestore {
                       !request.resource.data.keys().hasAny(['role']) && // 🔒 SEGURIDAD: Prevenir inyección de rol
                       isAdult(request.resource.data.get('age', null));
 
-      allow update: if isOwner(userId) &&
-                      request.resource.data.email == resource.data.email &&
-                      request.resource.data.id == resource.data.id &&
-                      request.resource.data.isPremium == resource.data.isPremium &&
-                      request.resource.data.get('role', null) == resource.data.get('role', null); // 🔒 SEGURIDAD: Prevenir modificación de rol
+      allow update: if
+                      // Dueño actualiza su propio perfil (sin escalar rol)
+                      (
+                        isOwner(userId) &&
+                        request.resource.data.email == resource.data.email &&
+                        request.resource.data.id == resource.data.id &&
+                        request.resource.data.isPremium == resource.data.isPremium &&
+                        request.resource.data.get('role', null) == resource.data.get('role', null)
+                      )
+                      ||
+                      // Admin: solo puede modificar flags de recompensas
+                      (
+                        isAdmin() &&
+                        request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+                          'isPremium', 'premiumUntil', 'premiumType',
+                          'verified', 'verifiedUntil', 'verificationType',
+                          'hasSpecialAvatar', 'specialAvatarUntil', 'specialAvatarType',
+                          'isFeatured', 'featuredUntil',
+                          'isModerator', 'moderatorUntil',
+                          'isProUser', 'proUntil',
+                          'canUploadSecondPhoto', 'hasFeaturedCard', 'hasRainbowBorder', 'hasProBadge',
+                          'updatedAt'
+                        ])
+                      ); // 🔒 SEGURIDAD: Prevenir modificación de rol/campos sensibles
 
       allow delete: if isOwner(userId);
 
@@ -882,14 +901,20 @@ service cloud.firestore {
       // Leer: Cualquier usuario autenticado puede ver tarjetas
       allow read: if isAuthenticated();
 
-      // Crear: Solo el dueño puede crear su propia tarjeta
-      allow create: if isAuthenticated() && request.auth.uid == odIdUsuari;
+      // Crear: El dueño o un admin pueden crear la tarjeta
+      allow create: if isAuthenticated() && (request.auth.uid == odIdUsuari || isAdmin());
 
       // Actualizar: El dueño puede actualizar su info,
       // OTROS usuarios pueden actualizar solo campos de interacción (likes, visitas)
       allow update: if isAuthenticated() && (
         // El dueño puede actualizar todo
         request.auth.uid == odIdUsuari ||
+        // Admin: flags PRO/recompensas de la tarjeta
+        (
+          isAdmin() &&
+          request.resource.data.diff(resource.data).affectedKeys()
+            .hasOnly(['isProUser', 'proUntil', 'canUploadSecondPhoto', 'hasFeaturedCard', 'hasRainbowBorder', 'hasProBadge', 'actualizadaEn'])
+        ) ||
         // Otros usuarios solo pueden modificar campos de interacción
         (
           request.resource.data.diff(resource.data).affectedKeys()

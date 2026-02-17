@@ -1,6 +1,7 @@
 import {
   collection,
   addDoc,
+  deleteDoc,
   query,
   where,
   getDocs,
@@ -80,12 +81,26 @@ export const createReward = async (rewardData) => {
     metrics: rewardData.metrics || {}, // Métricas del usuario al momento del premio
   };
 
-  const docRef = await addDoc(rewardsRef, reward);
+  let docRef = null;
 
-  // Aplicar la recompensa al perfil del usuario
-  await applyRewardToUser(rewardData.userId, reward.type, expirationDate);
+  try {
+    docRef = await addDoc(rewardsRef, reward);
 
-  return docRef.id;
+    // Aplicar la recompensa al perfil del usuario
+    await applyRewardToUser(rewardData.userId, reward.type, expirationDate);
+
+    return docRef.id;
+  } catch (error) {
+    // Rollback si la recompensa no pudo aplicarse al usuario
+    if (docRef?.id) {
+      try {
+        await deleteDoc(doc(db, 'rewards', docRef.id));
+      } catch (rollbackError) {
+        console.error('Error rolling back reward document:', rollbackError);
+      }
+    }
+    throw error;
+  }
 };
 
 /**
@@ -152,14 +167,23 @@ export const applyRewardToUser = async (userId, rewardType, expiresAt) => {
         try {
           const tarjetaRef = doc(db, 'tarjetas', userId);
           const tarjetaSnap = await getDoc(tarjetaRef);
+          const proFields = {
+            isProUser: true,
+            proUntil: expiresAt,
+            canUploadSecondPhoto: true,
+            hasFeaturedCard: true,
+            hasRainbowBorder: true,
+            hasProBadge: true,
+            actualizadaEn: serverTimestamp(),
+          };
           if (tarjetaSnap.exists()) {
-            await updateDoc(tarjetaRef, {
-              isProUser: true,
-              proUntil: expiresAt,
-              canUploadSecondPhoto: true,
-              hasFeaturedCard: true,
-              hasRainbowBorder: true,
-              hasProBadge: true,
+            await updateDoc(tarjetaRef, proFields);
+          } else {
+            // Crear tarjeta con campos PRO si no existe
+            await setDoc(tarjetaRef, {
+              odIdUsuari: userId,
+              ...proFields,
+              creadaEn: serverTimestamp(),
             });
           }
         } catch (tarjetaError) {
@@ -169,6 +193,7 @@ export const applyRewardToUser = async (userId, rewardType, expiresAt) => {
     }
   } catch (error) {
     console.error('Error applying reward to user:', error);
+    throw error;
   }
 };
 
@@ -347,7 +372,7 @@ export const removeRewardFromUser = async (userId, rewardType) => {
             });
           }
         } catch (tarjetaError) {
-          console.warn('No se pudo limpiar tarjeta PRO:', tarjetaError);
+          console.warn('No se pudo limpiar tarjeta PRO (remove):', tarjetaError);
         }
       }
     }

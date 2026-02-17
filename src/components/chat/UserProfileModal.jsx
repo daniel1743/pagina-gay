@@ -22,6 +22,13 @@ const UserProfileModal = ({ user, onClose, onReport, onSelectUser }) => {
   const [loadingFavorites, setLoadingFavorites] = useState(false);
   const [showAllFavorites, setShowAllFavorites] = useState(false);
   const [userIsBlocked, setUserIsBlocked] = useState(false);
+  const hasProVisual = Boolean(
+    user?.isProUser ||
+    user?.hasRainbowBorder ||
+    user?.hasProBadge ||
+    user?.hasFeaturedCard ||
+    user?.canUploadSecondPhoto
+  );
 
   const isOwnProfile = currentUser && user.userId === currentUser.id;
 
@@ -83,7 +90,7 @@ const UserProfileModal = ({ user, onClose, onReport, onSelectUser }) => {
         <DialogContent className="bg-card border text-foreground max-w-sm rounded-2xl">
           <DialogHeader className="items-center text-center">
              <div className={`rounded-full ${
-               user.isProUser
+               hasProVisual
                  ? 'rainbow-avatar-ring'
                  : user.role === 'admin'
                    ? 'admin-avatar-ring'
@@ -102,7 +109,7 @@ const UserProfileModal = ({ user, onClose, onReport, onSelectUser }) => {
             </div>
             <DialogTitle className="text-foreground text-2xl flex items-center gap-2">
               {user.username}
-              {user.isProUser && (
+              {hasProVisual && (
                 <span className="inline-flex items-center gap-0.5 bg-gradient-to-r from-amber-500 to-orange-500 text-[9px] font-bold px-1.5 py-0.5 rounded text-white uppercase tracking-wider">PRO</span>
               )}
               {(user.isPremium || user.role === 'admin') && (

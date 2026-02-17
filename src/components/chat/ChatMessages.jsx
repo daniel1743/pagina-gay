@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Button } from '@/components/ui/button';
-import { Flag, ThumbsUp, ThumbsDown, CheckCircle, Reply, Lock } from 'lucide-react';
+import { Flag, ThumbsUp, ThumbsDown, CheckCircle, Reply, Lock, Zap } from 'lucide-react';
 import { motion } from 'framer-motion';
 import { useAuth } from '@/contexts/AuthContext';
 import MessageQuote from './MessageQuote';
@@ -43,6 +43,13 @@ const ChatMessages = ({
 
   // ⚡ SEGURIDAD: roomUsers siempre array
   const safeRoomUsers = Array.isArray(roomUsers) ? roomUsers : [];
+  const hasProVisualFlags = (obj) => Boolean(
+    obj?.isProUser ||
+    obj?.hasProBadge ||
+    obj?.hasRainbowBorder ||
+    obj?.hasFeaturedCard ||
+    obj?.canUploadSecondPhoto
+  );
 
   // 🔍 TRACE: Rastrear mensajes nuevos
   useEffect(() => {
@@ -110,6 +117,24 @@ const ChatMessages = ({
     if (authUser?.id === userId) return authUser?.role || null;
     const userMessage = messages.find(m => m.userId === userId);
     return userMessage?.role || null;
+  };
+
+  const findUserProStatus = (userId) => {
+    if (authUser && (authUser.id === userId || authUser.uid === userId)) {
+      return hasProVisualFlags(authUser);
+    }
+    const presence = safeRoomUsers.find(u => (u.userId || u.id) === userId);
+    if (hasProVisualFlags(presence)) return true;
+
+    // Buscar de atrás hacia adelante para priorizar el estado más reciente.
+    for (let i = messages.length - 1; i >= 0; i--) {
+      const message = messages[i];
+      if (message.userId === userId && hasProVisualFlags(message)) {
+        return true;
+      }
+    }
+
+    return false;
   };
 
   // 🎯 Saltar a mensaje específico
@@ -184,6 +209,11 @@ const ChatMessages = ({
           username: message.username,
           avatar: message.avatar,
           isPremium: message.isPremium || false,
+          isProUser: message.isProUser || false,
+          hasRainbowBorder: message.hasRainbowBorder || false,
+          hasProBadge: message.hasProBadge || false,
+          hasFeaturedCard: message.hasFeaturedCard || false,
+          canUploadSecondPhoto: message.canUploadSecondPhoto || false,
           badge: message.badge || 'Nuevo',
           messages: [message],
           isSystem: false,
@@ -250,6 +280,7 @@ const ChatMessages = ({
           const isOwn = group.userId === currentUserId;
           const isUserPremium = findUserPremiumStatus(group.userId);
           const isUserVerified = findUserVerifiedStatus(group.userId);
+          const isUserPro = findUserProStatus(group.userId) || hasProVisualFlags(group);
           const userRole = findUserRole(group.userId);
           const showDivider = lastReadMessageIndex >= 0 && absoluteIndex === lastReadMessageIndex + 1;
 
@@ -261,6 +292,11 @@ const ChatMessages = ({
               {!isOwn && (
                 <div className="message-username flex items-center gap-1.5 flex-wrap">
                   <span>{group.username}</span>
+                  {isUserPro && (
+                    <span className="inline-flex items-center gap-0.5 bg-gradient-to-r from-amber-500 to-orange-500 text-[9px] font-bold px-1.5 py-0.5 rounded text-white uppercase tracking-wider">
+                      <Zap className="w-2.5 h-2.5" />PRO
+                    </span>
+                  )}
                   {(() => {
                     const presence = safeRoomUsers.find(u => (u.userId || u.id) === group.userId);
                     if (presence?.inPrivateWith) {
@@ -339,17 +375,22 @@ const ChatMessages = ({
                     {/* ✅ Avatar: Solo en primer mensaje, solo para otros */}
                     {!isOwn && isFirst && (
                       <div
-                        className="message-avatar cursor-pointer relative"
+                        className={`message-avatar cursor-pointer relative ${isUserPro ? 'rainbow-avatar-ring p-[2px] rounded-full' : ''}`}
                         onClick={() => onUserClick({
                           username: group.username,
                           avatar: group.avatar,
                           userId: group.userId,
                           isPremium: isUserPremium,
                           verified: isUserVerified,
+                          isProUser: isUserPro,
+                          hasRainbowBorder: group.hasRainbowBorder || false,
+                          hasProBadge: group.hasProBadge || false,
+                          hasFeaturedCard: group.hasFeaturedCard || false,
+                          canUploadSecondPhoto: group.canUploadSecondPhoto || false,
                           role: userRole
                         })}
                       >
-                        <Avatar className="w-full h-full">
+                        <Avatar className={`w-full h-full ${isUserPro ? 'rounded-full' : ''}`}>
                           <AvatarImage
                             src={group.avatar || `https://api.dicebear.com/7.x/avataaars/svg?seed=${group.username || 'guest'}`}
                             alt={group.username || 'Usuario'}

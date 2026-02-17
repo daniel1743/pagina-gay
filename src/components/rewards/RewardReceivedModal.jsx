@@ -110,6 +110,14 @@ const RewardReceivedModal = ({ isOpen, reward, onAccept, username }) => {
               <span>Tu premio ya fue aplicado a tu cuenta</span>
             </div>
 
+            {reward.type === REWARD_TYPES.PRO_USER && (
+              <div className="mt-3 rounded-xl border border-amber-500/30 bg-amber-500/10 p-3">
+                <p className="text-xs text-amber-100">
+                  Ve a <strong>Baul → Mi tarjeta</strong> para subir tu segunda foto. Tu tarjeta ya queda destacada y tu perfil muestra borde arcoiris + badge PRO.
+                </p>
+              </div>
+            )}
+
             <motion.button
               type="button"
               whileTap={{ scale: 0.97 }}

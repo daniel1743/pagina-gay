@@ -45,7 +45,7 @@ import { useEngagementNudge } from '@/hooks/useEngagementNudge';
 import { toast } from '@/components/ui/use-toast';
 import { RegistrationRequiredModal } from '@/components/auth/RegistrationRequiredModal';
 import { sendMessage, subscribeToRoomMessages, addReactionToMessage, markMessagesAsRead, generateUUID } from '@/services/chatService';
-import { joinRoom, leaveRoom, subscribeToRoomUsers, subscribeToMultipleRoomCounts, updateUserActivity, cleanInactiveUsers, filterActiveUsers, subscribeToTypingUsers } from '@/services/presenceService';
+import { joinRoom, leaveRoom, subscribeToRoomUsers, subscribeToMultipleRoomCounts, updateUserActivity, cleanInactiveUsers, filterActiveUsers, subscribeToTypingUsers, updatePresenceFields } from '@/services/presenceService';
 import { validateMessage } from '@/services/antiSpamService';
 import { auth, db } from '@/config/firebase'; // ✅ CRÍTICO: Necesario para obtener UID real de Firebase Auth
 import { doc, getDoc, deleteDoc } from 'firebase/firestore';
@@ -68,6 +68,7 @@ import { monitorActivityAndSendVOC, resetVOCCooldown } from '@/services/vocServi
 import { generateNicoWelcome, sendNicoQuestion, getLastNicoMessageAge, NICO, QUESTION_INTERVAL_MS } from '@/services/nicoBot';
 import EventoBanner from '@/components/eventos/EventoBanner';
 import EventReminderPopup from '@/components/eventos/EventReminderPopup';
+import ProCongratsModal from '@/components/rewards/ProCongratsModal';
 import { markReminderPopupShown, wasReminderPopupShown, cleanOldReminders } from '@/utils/eventReminderUtils';
 import { registrarParticipacionEvento } from '@/services/eventosService';
 import '@/utils/chatDiagnostics'; // 🔍 Cargar diagnóstico en consola
@@ -274,6 +275,41 @@ const ChatPage = () => {
     if (blockedUserIds.size === 0 && blockedByUserIds.size === 0) return;
     setMessages(prev => filterBlockedMessages(prev));
   }, [blockedUserIds, blockedByUserIds, filterBlockedMessages]);
+
+  // 🏆 PRO: Modal de felicitaciones
+  const [showProCongrats, setShowProCongrats] = useState(false);
+
+  // Mostrar modal de felicitaciones PRO (solo una vez)
+  useEffect(() => {
+    if (!user?.id || !user?.isProUser) return;
+    const key = `pro_congrats_seen:${user.id}`;
+    if (localStorage.getItem(key)) return;
+    const timer = setTimeout(() => {
+      setShowProCongrats(true);
+      localStorage.setItem(key, '1');
+    }, 2000);
+    return () => clearTimeout(timer);
+  }, [user?.id, user?.isProUser]);
+
+  // 🏆 PRO: Sincronizar presencia cuando isProUser cambia en tiempo real
+  useEffect(() => {
+    if (!user?.id || !roomId) return;
+    updatePresenceFields(roomId, {
+      isProUser: user.isProUser || false,
+      hasRainbowBorder: user.hasRainbowBorder || false,
+      hasProBadge: user.hasProBadge || false,
+      hasFeaturedCard: user.hasFeaturedCard || false,
+      canUploadSecondPhoto: user.canUploadSecondPhoto || false,
+    });
+  }, [
+    user?.isProUser,
+    user?.hasRainbowBorder,
+    user?.hasProBadge,
+    user?.hasFeaturedCard,
+    user?.canUploadSecondPhoto,
+    roomId,
+    user?.id,
+  ]);
 
   // 🔒 VERIFICAR ACCESO A LA SALA - Redirigir si no tiene permiso
   useEffect(() => {
@@ -2086,6 +2122,11 @@ const ChatPage = () => {
       username: currentUser.username || 'Usuario', // ✅ FIX: Fallback si username es undefined
       avatar: optimisticAvatar, // ✅ SIEMPRE tiene valor válido
       isPremium: currentUser.isPremium || false,
+      isProUser: currentUser.isProUser || false, // ⚡ PRO para arcoíris y badge
+      hasRainbowBorder: currentUser.hasRainbowBorder || false,
+      hasProBadge: currentUser.hasProBadge || false,
+      hasFeaturedCard: currentUser.hasFeaturedCard || false,
+      canUploadSecondPhoto: currentUser.canUploadSecondPhoto || false,
       badge: currentUser.badge || 'Nuevo', // 🏅 Badge de participación
       content,
       type,
@@ -2271,6 +2312,11 @@ const ChatPage = () => {
         username: currentUser.username || 'Usuario', // ✅ FIX: Fallback si username es undefined
         avatar: messageAvatar, // ✅ SIEMPRE tiene valor válido
         isPremium: currentUser.isPremium || false,
+        isProUser: currentUser.isProUser || false,
+        hasRainbowBorder: currentUser.hasRainbowBorder || false,
+        hasProBadge: currentUser.hasProBadge || false,
+        hasFeaturedCard: currentUser.hasFeaturedCard || false,
+        canUploadSecondPhoto: currentUser.canUploadSecondPhoto || false,
         badge: currentUser.badge || 'Nuevo', // 🏅 Badge de participación
         content,
         type,
@@ -3085,6 +3131,13 @@ const ChatPage = () => {
           open={showPremiumWelcome}
           onClose={handleClosePremiumWelcome}
         /> */}
+
+        {/* 🏆 Modal de Felicitaciones PRO */}
+        <ProCongratsModal
+          isOpen={showProCongrats}
+          onClose={() => setShowProCongrats(false)}
+          username={user?.username || 'Usuario'}
+        />
 
         <AgeVerificationModal
           isOpen={showAgeVerification}

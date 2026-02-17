@@ -191,7 +191,18 @@ const TarjetaEditor = ({ isOpen, onClose, tarjeta }) => {
   const [errores, setErrores] = useState({});
   const fileInputRef = useRef(null);
   const fileInput2Ref = useRef(null);
-  const isProUser = Boolean(user?.isProUser || tarjeta?.isProUser);
+  const isProUser = Boolean(
+    user?.isProUser ||
+    user?.canUploadSecondPhoto ||
+    user?.hasFeaturedCard ||
+    user?.hasRainbowBorder ||
+    user?.hasProBadge ||
+    tarjeta?.isProUser ||
+    tarjeta?.canUploadSecondPhoto ||
+    tarjeta?.hasFeaturedCard ||
+    tarjeta?.hasRainbowBorder ||
+    tarjeta?.hasProBadge
+  );
 
   // Cargar datos de la tarjeta
   useEffect(() => {
@@ -514,7 +525,10 @@ const TarjetaEditor = ({ isOpen, onClose, tarjeta }) => {
       const cloudinaryData = await response.json();
       const downloadUrl = cloudinaryData.secure_url;
 
-      await actualizarTarjeta(userId, { fotoUrl2: downloadUrl });
+      const saved = await actualizarTarjeta(userId, { fotoUrl2: downloadUrl });
+      if (!saved) {
+        throw new Error('No se pudo guardar la segunda foto en la tarjeta');
+      }
 
       URL.revokeObjectURL(previewUrl);
       setFoto2Preview(null);

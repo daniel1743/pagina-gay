@@ -56,6 +56,10 @@ export const joinRoom = async (roomId, userData) => {
       avatar: userData.avatar,
       isPremium: userData.isPremium || false,
       isProUser: userData.isProUser || false,
+      hasRainbowBorder: userData.hasRainbowBorder || false,
+      hasProBadge: userData.hasProBadge || false,
+      hasFeaturedCard: userData.hasFeaturedCard || false,
+      canUploadSecondPhoto: userData.canUploadSecondPhoto || false,
       isAnonymous: auth.currentUser.isAnonymous || userData.isAnonymous || false,
       isGuest: userData.isGuest || false,
       isBot: canJoinAsBotInTesting,
@@ -125,6 +129,19 @@ export const clearInPrivateChat = async (roomId) => {
     }, { merge: true });
   } catch (error) {
     console.warn('[PRESENCE] Error limpiando estado privado:', error?.message);
+  }
+};
+
+/**
+ * Actualizar campos en la presencia de sala (ej: isProUser cuando cambia en tiempo real)
+ */
+export const updatePresenceFields = async (roomId, fields) => {
+  if (!auth.currentUser || !roomId) return;
+  const presenceRef = doc(db, 'roomPresence', roomId, 'users', auth.currentUser.uid);
+  try {
+    await setDoc(presenceRef, fields, { merge: true });
+  } catch (error) {
+    console.warn('[PRESENCE] Error actualizando campos:', error?.message);
   }
 };
 

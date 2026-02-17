@@ -41,6 +41,13 @@ const ChatSidebar = ({ currentRoom, setCurrentRoom, isOpen, onClose, onOpenBaul,
   const [showRegistrationModal, setShowRegistrationModal] = useState(false);
   const [pendingRoomId, setPendingRoomId] = useState(null);
   const [showAuthModal, setShowAuthModal] = useState(false);
+  const hasProVisual = Boolean(
+    user?.isProUser ||
+    user?.hasRainbowBorder ||
+    user?.hasProBadge ||
+    user?.hasFeaturedCard ||
+    user?.canUploadSecondPhoto
+  );
   
   // ✅ Detectar si estamos en una sala secundaria
   const isSecondaryRoom = location.pathname.startsWith('/chat-secondary/');
@@ -343,7 +350,7 @@ const ChatSidebar = ({ currentRoom, setCurrentRoom, isOpen, onClose, onOpenBaul,
             >
               <motion.div
                 className={`${
-                  user.isProUser
+                  hasProVisual
                     ? 'rainbow-avatar-ring'
                     : user.role === 'admin'
                       ? 'admin-avatar-ring'
@@ -366,6 +373,11 @@ const ChatSidebar = ({ currentRoom, setCurrentRoom, isOpen, onClose, onOpenBaul,
               <div className="flex-1 min-w-0">
                 <p className="text-sm font-semibold text-foreground truncate flex items-center gap-1">
                   {user.username}
+                  {hasProVisual && (
+                    <span className="inline-flex items-center gap-0.5 bg-gradient-to-r from-amber-500 to-orange-500 text-[8px] font-bold px-1.5 py-0.5 rounded text-white uppercase tracking-wider">
+                      PRO
+                    </span>
+                  )}
                   {(user.isPremium || user.role === 'admin') && (
                     <CheckCircle className="w-3 h-3 text-[#FFD700] flex-shrink-0" />
                   )}
@@ -641,7 +653,7 @@ const ChatSidebar = ({ currentRoom, setCurrentRoom, isOpen, onClose, onOpenBaul,
             >
               <motion.div
                 className={`${
-                  user.isProUser
+                  hasProVisual
                     ? 'rainbow-avatar-ring'
                     : user.role === 'admin'
                       ? 'admin-avatar-ring'
@@ -664,6 +676,11 @@ const ChatSidebar = ({ currentRoom, setCurrentRoom, isOpen, onClose, onOpenBaul,
               <div className="flex-1 min-w-0">
                 <p className="text-sm font-semibold text-foreground truncate flex items-center gap-1">
                   {user.username}
+                  {hasProVisual && (
+                    <span className="inline-flex items-center gap-0.5 bg-gradient-to-r from-amber-500 to-orange-500 text-[8px] font-bold px-1.5 py-0.5 rounded text-white uppercase tracking-wider">
+                      PRO
+                    </span>
+                  )}
                   {(user.isPremium || user.role === 'admin') && (
                     <CheckCircle className="w-3 h-3 text-[#FFD700] flex-shrink-0" />
                   )}
