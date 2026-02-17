@@ -189,6 +189,14 @@ service cloud.firestore {
              data.timestamp is timestamp;
     }
 
+    function isAutomatedSenderId(userId) {
+      return userId is string &&
+             (userId.matches('bot_.*') ||
+              userId.matches('ai_.*') ||
+              userId.matches('seed_user_.*') ||
+              userId.matches('static_bot_.*'));
+    }
+
     function isAdult(age) {
       return age == null || (age is number && age >= 18);
     }
@@ -299,7 +307,12 @@ service cloud.firestore {
       allow create: if
         request.resource.data.content is string &&
         request.resource.data.content.size() > 0 &&
-        request.resource.data.content.size() <= 1000;
+        request.resource.data.content.size() <= 1000 &&
+        !(
+          roomId == 'principal' &&
+          'userId' in request.resource.data &&
+          isAutomatedSenderId(request.resource.data.userId)
+        );
 
       // ✅ Permitir actualizar reacciones, deliveredTo, readBy, status (para sistema de checks)
       // ✅ Permitir actualizar reacciones, deliveredTo, readBy, status (para sistema de checks)

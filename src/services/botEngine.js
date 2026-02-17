@@ -21,6 +21,7 @@ import { db } from '@/config/firebase';
 
 // Estado global del motor por sala
 const engineState = {};
+const BOT_ALLOWED_ROOM_ID = 'admin-testing';
 
 const DEFAULT_STATE = {
   status: 'stopped', // 'running' | 'paused' | 'stopped'
@@ -40,6 +41,10 @@ function getState(roomId) {
     engineState[roomId] = { ...DEFAULT_STATE, activeBots: new Set(), activeConversations: [], recentConversationIds: [] };
   }
   return engineState[roomId];
+}
+
+function canRunBotsInRoom(roomId) {
+  return roomId === BOT_ALLOWED_ROOM_ID;
 }
 
 /**
@@ -68,6 +73,11 @@ async function removeBotPresence(roomId, username) {
  * Envía un mensaje de bot a la sala
  */
 async function sendBotMessage(roomId, username, text) {
+  if (!canRunBotsInRoom(roomId)) {
+    console.warn(`[BotEngine] Mensaje bloqueado: bots no permitidos en sala ${roomId}`);
+    return;
+  }
+
   const profile = getBotProfileByUsername(username);
   if (!profile) return;
 
@@ -255,11 +265,16 @@ function monitorRealUsers(roomId) {
  * Inicia el sistema de bots en una sala
  */
 export function startBots(roomId) {
+  if (!canRunBotsInRoom(roomId)) {
+    console.error(`[BotEngine] Bloqueado: no se permite iniciar bots en sala "${roomId}". Solo en "${BOT_ALLOWED_ROOM_ID}".`);
+    return false;
+  }
+
   const state = getState(roomId);
 
   if (state.status === 'running') {
     console.log(`[BotEngine] Already running in room ${roomId}`);
-    return;
+    return true;
   }
 
   console.log(`[BotEngine] Starting bots in room ${roomId}`);
@@ -280,6 +295,8 @@ export function startBots(roomId) {
       }
     }, delay);
   }
+
+  return true;
 }
 
 /**

@@ -88,6 +88,13 @@ export function generateUUID() {
   });
 }
 
+const isAutomatedSenderId = (userId = '') => {
+  return userId.startsWith('bot_') ||
+         userId.startsWith('ai_') ||
+         userId.startsWith('seed_user_') ||
+         userId.startsWith('static_bot_');
+};
+
 /**
  * Envío directo (sin cola) - usado internamente
  */
@@ -110,6 +117,11 @@ const doSendMessage = async (roomId, messageData, isAnonymous = false) => {
                          messageData.userId?.startsWith('bot_') ||
                          messageData.userId?.startsWith('ai_') ||
                          messageData.userId?.startsWith('seed_user_');
+
+  // 🔒 Hard-block: nunca permitir bots/IA/seed en la sala principal.
+  if (roomId === 'principal' && isAutomatedSenderId(messageData.userId || '')) {
+    throw new Error('Bots bloqueados en sala principal');
+  }
 
   // Para usuarios autenticados, validar que userId coincida
   if (auth.currentUser && !isSystemMessage && messageData.userId !== auth.currentUser.uid) {
@@ -430,6 +442,10 @@ export const sendMessage = async (roomId, messageData, isAnonymous = false, skip
  * Usa el flujo estándar de sendMessage, pero fuerza trazabilidad BOT.
  */
 export const sendBotMessageFromEngine = async (roomId, messageData = {}) => {
+  if (roomId !== 'admin-testing') {
+    throw new Error(`BOT_ENGINE bloqueado: roomId "${roomId}" no permitido`);
+  }
+
   const username = messageData.username || 'bot_engine';
   const userId = messageData.userId || `bot_${username}`;
   const avatar = messageData.avatar || `https://api.dicebear.com/7.x/avataaars/svg?seed=${encodeURIComponent(username)}`;

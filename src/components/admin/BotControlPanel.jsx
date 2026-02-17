@@ -16,7 +16,13 @@ const BotControlPanel = () => {
   const [status, setStatus] = useState(null);
   const [autoOff, setAutoOff] = useState(true);
 
-  const rooms = getAllRooms();
+  const rooms = getAllRooms().filter((room) => room.adminOnly === true);
+
+  useEffect(() => {
+    if (!rooms.find((room) => room.id === selectedRoom) && rooms[0]?.id) {
+      setSelectedRoom(rooms[0].id);
+    }
+  }, [rooms, selectedRoom]);
 
   // Polling del estado cada 2 segundos
   useEffect(() => {
@@ -32,7 +38,10 @@ const BotControlPanel = () => {
   }, [selectedRoom]);
 
   const handleStart = useCallback(() => {
-    startBots(selectedRoom);
+    const started = startBots(selectedRoom);
+    if (!started) {
+      console.warn(`[BOT PANEL] Inicio bloqueado en sala: ${selectedRoom}`);
+    }
     setStatus(getBotStatus(selectedRoom));
   }, [selectedRoom]);
 
