@@ -101,15 +101,16 @@ const NICO_BOT_ENABLED = false;
 
 // 💬 Frases rápidas para primer mensaje (sin fricción)
 const QUICK_STARTER_PHRASES = [
-  'Hola, quiero coger 🔥',
-  'Hola, soy pasivo 🙋',
-  'Hola, soy activo 💪',
-  '¿De dónde eres? 👀',
-  '¿Quién de Santiago por aquí? 🌆',
-  '¿Buscas chat o algo más? 😏',
-  '¿Activo, pasivo o versátil? 🔥',
-  '¿Alguien para conversar ahora? 💬',
-  '¿Qué plan tienen para hoy? ✨',
+  'Wena, quién anda despierto por acá? 👀',
+  'Hola cabros, de qué comuna son? 🌆',
+  'Yo ando en modo charla con intención 😏',
+  'Recién llegué, qué se cuenta hoy? 💬',
+  'Quién de Santiago centro conectado ahora?',
+  'Activos, pasivos o vers por acá? 🔥',
+  'Busco buena conversa y ver qué sale',
+  'Alguien con buena onda para hablar un rato?',
+  'Qué plan tienen para esta noche? ✨',
+  'Estoy por [tu comuna], alguien cerca?',
 ];
 
 const ChatPage = () => {

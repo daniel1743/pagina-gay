@@ -6,13 +6,14 @@
  * Acciones: like, mensaje, ver perfil completo
  */
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { motion } from 'framer-motion';
 import {
   Heart,
   MessageSquare,
   User,
-  Eye
+  Eye,
+  Footprints
 } from 'lucide-react';
 import { getColorRol, getEmojiEstado, formatearHorarios, obtenerFotoPrincipal } from '@/services/tarjetaService';
 import { getBadgeConfig } from '@/services/badgeService';
@@ -64,16 +65,25 @@ const TarjetaUsuario = ({
   tarjeta,
   onLike,
   onMensaje,
+  onDejarHuella,
+  onImpresion,
   onVerPerfil,
   esMiTarjeta = false,
   yaLeDiLike = false,
+  yaDejeHuella = false,
   isLoading = false,
+  isLoadingHuella = false,
   interactionLocked = false,
   onLockedAction
 }) => {
   const { user } = useAuth();
   const [liked, setLiked] = useState(yaLeDiLike);
   const [likesCount, setLikesCount] = useState(tarjeta.likesRecibidos || 0);
+  const [huellasCount, setHuellasCount] = useState(tarjeta.huellasRecibidas || 0);
+  const [vistasCount, setVistasCount] = useState((tarjeta.impresionesRecibidas || 0) + (tarjeta.visitasRecibidas || 0));
+  const [dejeHuella, setDejeHuella] = useState(yaDejeHuella);
+  const cardRef = useRef(null);
+  const impresionSentRef = useRef(false);
   const estadoActual = tarjeta.estadoReal || tarjeta.estado;
   const nowMs = Date.now();
   const getTimestampMs = (value) => {
@@ -102,6 +112,15 @@ const TarjetaUsuario = ({
   useEffect(() => {
     setRevealed(sessionStorage.getItem(revealKey) === '1');
   }, [revealKey]);
+  useEffect(() => {
+    setLiked(yaLeDiLike);
+  }, [yaLeDiLike]);
+  useEffect(() => {
+    setDejeHuella(yaDejeHuella);
+  }, [yaDejeHuella]);
+  useEffect(() => {
+    setHuellasCount(tarjeta.huellasRecibidas || 0);
+  }, [tarjeta.huellasRecibidas]);
   const priorityClass = !esMiTarjeta
     ? (isActive
         ? 'ring-1 ring-emerald-400/40 shadow-[0_0_12px_rgba(16,185,129,0.12)]'
@@ -152,6 +171,20 @@ const TarjetaUsuario = ({
     e.stopPropagation();
     sessionStorage.setItem(revealKey, '1');
     setRevealed(true);
+  };
+
+  const handleDejarHuella = async (e) => {
+    e.stopPropagation();
+    if (esMiTarjeta || dejeHuella || isLoadingHuella) return;
+    if (!onDejarHuella) return;
+    // Huella permitida incluso a invitados (acción ligera); el padre valida canDejarHuella
+    setHuellasCount(prev => prev + 1);
+    setDejeHuella(true);
+    const exito = await onDejarHuella(tarjeta);
+    if (!exito) {
+      setHuellasCount(prev => prev - 1);
+      setDejeHuella(false);
+    }
   };
 
   const fotoMostrar = obtenerFotoPrincipal(tarjeta);
@@ -256,6 +289,10 @@ const TarjetaUsuario = ({
             <Eye className="w-2.5 h-2.5" />
             <span>{tarjeta.visitasRecibidas || 0}</span>
           </div>
+          <div className="flex items-center gap-0.5">
+            <Footprints className={`w-2.5 h-2.5 ${huellasCount > 0 ? 'text-amber-400' : ''}`} />
+            <span>{huellasCount}</span>
+          </div>
           {!esMiTarjeta && (
             <motion.button
               whileTap={{ scale: 0.95 }}
@@ -268,6 +305,23 @@ const TarjetaUsuario = ({
             </motion.button>
           )}
         </div>
+
+        {/* Pasé por aquí */}
+        {!esMiTarjeta && (
+          <motion.button
+            whileTap={{ scale: 0.98 }}
+            onClick={handleDejarHuella}
+            disabled={dejeHuella || isLoadingHuella}
+            className={`w-full flex items-center justify-center gap-1.5 py-1 rounded-md text-[9px] font-medium transition-all
+              ${dejeHuella
+                ? 'bg-amber-500/20 text-amber-400 cursor-default'
+                : 'bg-gray-700/60 text-amber-300/90 hover:bg-amber-500/20'
+              }`}
+          >
+            <Footprints className={`w-2.5 h-2.5 ${dejeHuella ? 'opacity-70' : ''}`} />
+            {dejeHuella ? 'Pasaste' : 'Pasé por aquí'}
+          </motion.button>
+        )}
 
         {/* Acción primaria */}
         {!esMiTarjeta && (

@@ -40,6 +40,8 @@ import {
   darLike,
   quitarLike,
   yaLeDiLike,
+  dejarHuella,
+  yaDejeHuella,
   registrarVisita,
   suscribirseAMiTarjeta,
   actualizarTarjeta,
@@ -161,6 +163,7 @@ const BaulSection = ({ isOpen = true, onClose, variant = 'modal' }) => {
   const isActive = isModal ? isOpen : true;
   const isGuestView = !user || user.isGuest || user.isAnonymous;
   const canInteract = Boolean(user && !user.isGuest && !user.isAnonymous);
+  const canDejarHuella = canInteract;
   const canEditOwnCard = Boolean(user && user.id);
 
   useEffect(() => {
@@ -179,6 +182,8 @@ const BaulSection = ({ isOpen = true, onClose, variant = 'modal' }) => {
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [miUbicacion, setMiUbicacion] = useState(null);
   const [likesData, setLikesData] = useState({}); // { odIdUsuari: boolean }
+  const [huellasData, setHuellasData] = useState({}); // { odIdUsuari: boolean }
+  const [loadingHuella, setLoadingHuella] = useState(null); // odIdUsuari en progreso
 
   // Modales
   const [tarjetaSeleccionada, setTarjetaSeleccionada] = useState(null);
@@ -236,18 +241,41 @@ const BaulSection = ({ isOpen = true, onClose, variant = 'modal' }) => {
 
       setTarjetas(tarjetasCargadas || []);
 
-      // Verificar likes en paralelo (batch pequeño)
-      if (canInteract && tarjetasCargadas.length > 0) {
+      // Verificar likes (solo registrados) y huellas (cualquier autenticado) en paralelo
+      if (tarjetasCargadas.length > 0 && odIdUsuari) {
         const primeras20 = tarjetasCargadas.slice(0, 20);
-        const likesResults = await Promise.all(
-          primeras20.map(async (t) => {
-            if (t.odIdUsuari === odIdUsuari) return [t.odIdUsuari, false];
-            return [t.odIdUsuari, await yaLeDiLike(t.odIdUsuari, odIdUsuari)];
-          })
-        );
-        setLikesData(Object.fromEntries(likesResults));
+        const promises = [];
+        if (canInteract) {
+          promises.push(
+            Promise.all(
+              primeras20.map(async (t) => {
+                if (t.odIdUsuari === odIdUsuari) return [t.odIdUsuari, false];
+                return [t.odIdUsuari, await yaLeDiLike(t.odIdUsuari, odIdUsuari)];
+              })
+            ).then(r => ({ likes: Object.fromEntries(r) }))
+          );
+        } else {
+          promises.push(Promise.resolve({ likes: {} }));
+        }
+        if (canDejarHuella) {
+          promises.push(
+            Promise.all(
+              primeras20.map(async (t) => {
+                if (t.odIdUsuari === odIdUsuari) return [t.odIdUsuari, false];
+                return [t.odIdUsuari, await yaDejeHuella(t.odIdUsuari, odIdUsuari)];
+              })
+            ).then(r => ({ huellas: Object.fromEntries(r) }))
+          );
+        } else {
+          promises.push(Promise.resolve({ huellas: {} }));
+        }
+        const results = await Promise.all(promises);
+        const combined = results.reduce((acc, r) => ({ ...acc, ...r }), {});
+        if (combined.likes) setLikesData(combined.likes);
+        if (combined.huellas) setHuellasData(combined.huellas);
       } else {
         setLikesData({});
+        setHuellasData({});
       }
     } catch (error) {
       console.error('[BAUL] Error:', error);
@@ -255,7 +283,7 @@ const BaulSection = ({ isOpen = true, onClose, variant = 'modal' }) => {
       setIsLoading(false);
       setIsRefreshing(false);
     }
-  }, [user, canInteract]);
+  }, [user, canInteract, canDejarHuella]);
 
   // Cargar mi tarjeta
   const cargarMiTarjeta = useCallback(async () => {
@@ -428,6 +456,69 @@ const BaulSection = ({ isOpen = true, onClose, variant = 'modal' }) => {
     }
     setTarjetaSeleccionada(tarjeta);
     setMostrarMensajeModal(true);
+  };
+
+  const handleDejarHuella = async (tarjeta) => {
+    if (!canDejarHuella) {
+      showGuestPrompt('huella');
+      return false;
+    }
+    const odIdUsuari = user?.id;
+    const tarjetaId = tarjeta?.odIdUsuari || tarjeta?.id;
+    if (!odIdUsuari || !tarjetaId || tarjetaId === odIdUsuari) return false;
+
+    setLoadingHuella(tarjetaId);
+    try {
+      const res = await dejarHuella(
+        tarjetaId,
+        odIdUsuari,
+        miTarjeta?.nombre || user?.username || 'Usuario'
+      );
+      if (res?.success) {
+        setHuellasData(prev => ({ ...prev, [tarjetaId]: true }));
+        toast({
+          title: 'Pasaste por su perfil',
+          description: `${tarjeta.nombre || 'Usuario'} verá que pasaste por aquí`,
+          duration: 3000
+        });
+      } else {
+        const reason = res?.reason;
+        let description = 'Intenta de nuevo en un momento';
+
+        if (reason === 'already_left') {
+          description = 'Ya pasaste por este perfil hoy';
+        } else if (reason === 'limit') {
+          description = res?.message || 'Límite diario de huellas alcanzado';
+        } else if (reason === 'blocked') {
+          description = 'No puedes interactuar con este perfil';
+        } else if (reason === 'permissions') {
+          description = 'Faltan permisos en Firestore para registrar huellas';
+        } else if (reason === 'not_found') {
+          description = 'La tarjeta ya no existe';
+        } else if (res?.message) {
+          description = res.message;
+        }
+
+        toast({
+          title: 'No pudiste dejar huella',
+          description,
+          variant: 'destructive',
+          duration: 4000
+        });
+        return false;
+      }
+      return res?.success || false;
+    } catch (err) {
+      console.error('[BAUL] Error dejando huella:', err);
+      toast({
+        title: 'Error',
+        description: 'Intenta de nuevo en un momento',
+        variant: 'destructive'
+      });
+      return false;
+    } finally {
+      setLoadingHuella(null);
+    }
   };
 
   const handleVerPerfil = async (tarjeta) => {
@@ -683,9 +774,12 @@ const BaulSection = ({ isOpen = true, onClose, variant = 'modal' }) => {
                       tarjeta={tarjeta}
                       esMiTarjeta={esMiTarjetaActual}
                       yaLeDiLike={likesData[tarjeta.odIdUsuari] || false}
+                      yaDejeHuella={huellasData[tarjeta.odIdUsuari] || false}
                       onLike={handleLike}
                       onMensaje={handleMensaje}
+                      onDejarHuella={handleDejarHuella}
                       onVerPerfil={handleVerPerfil}
+                      isLoadingHuella={loadingHuella === tarjetaId}
                       interactionLocked={isGuestView && !esMiTarjetaActual}
                       onLockedAction={showGuestPrompt}
                     />

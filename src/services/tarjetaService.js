@@ -86,12 +86,14 @@ export const TARJETA_SCHEMA = {
 
   // Métricas de actividad
   likesRecibidos: 0,
-  visitasRecibidas: 0,
+  visitasRecibidas: 0,    // Clicks para abrir perfil
+  impresionesRecibidas: 0, // Visualizaciones (tarjeta vista en grid)
   mensajesRecibidos: 0,
 
   // Arrays de interacciones
   likesDe: [],             // UIDs de quien dio like (max 100)
   visitasDe: [],           // UIDs de últimas visitas (max 50)
+  impresionesDe: [],       // userId_YYYY-MM-DD para rate limit 1/día
 
   // Metadata
   creadaEn: null,          // Timestamp de creación
@@ -208,6 +210,10 @@ export async function crearTarjetaAutomatica(usuario) {
       ultimaConexion: serverTimestamp(),
       likesRecibidos: 0,
       visitasRecibidas: 0,
+      impresionesRecibidas: 0,
+      impresionesDe: [],
+      huellasRecibidas: 0,
+      huellasDe: [],
       mensajesRecibidos: 0,
       likesDe: [],
       visitasDe: [],
@@ -1047,6 +1053,155 @@ export async function registrarVisita(tarjetaId, miUserId, miUsername) {
 }
 
 // ============================================
+// 📺 SISTEMA DE IMPRESIONES (visualizaciones en grid)
+// ============================================
+
+/**
+ * Registrar impresión: cuando la tarjeta entra en viewport del usuario
+ * Cuenta como "visualización" - alguien vio la tarjeta en el Baúl
+ * Rate limit: 1 por usuario por tarjeta por día (no spam al hacer scroll)
+ */
+export async function registrarImpresion(tarjetaId, miUserId) {
+  try {
+    if (!tarjetaId || !miUserId) return;
+    if (tarjetaId === miUserId) return;
+
+    const today = new Date().toISOString().slice(0, 10);
+    const impresionKey = `${miUserId}_${today}`;
+
+    const tarjetaSnap = await getDoc(doc(db, 'tarjetas', tarjetaId));
+    const data = tarjetaSnap.data() || {};
+    const impresionesDe = data.impresionesDe || [];
+    if (impresionesDe.includes(impresionKey)) return; // Ya contó hoy
+
+    await updateDoc(doc(db, 'tarjetas', tarjetaId), {
+      impresionesRecibidas: increment(1),
+      impresionesDe: arrayUnion(impresionKey),
+      actualizadaEn: serverTimestamp()
+    });
+
+    track('tarjeta_impression', { card_id: tarjetaId, viewer_id: miUserId }, { user: { id: miUserId } }).catch(() => {});
+  } catch (error) {
+    console.warn('[TARJETA] Error registrando impresión:', error?.message);
+  }
+}
+
+// ============================================
+// 👣 SISTEMA "PASÉ POR AQUÍ" (HUELLAS)
+// ============================================
+
+const HUELLAS_MAX_POR_DIA = 15; // Máximo de huellas que un usuario puede dejar por día
+
+/**
+ * Dejar huella en una tarjeta ("Pasé por aquí")
+ * Más ligero que like - solo indica que viste el perfil
+ * Máx 1 por usuario por tarjeta por día; máx 15 huellas total por día
+ */
+export async function dejarHuella(tarjetaId, miUserId, miUsername) {
+  try {
+    if (!tarjetaId || !miUserId) {
+      throw new Error('Datos incompletos');
+    }
+    if (tarjetaId === miUserId) {
+      return { success: false, reason: 'own_card' };
+    }
+    try {
+      const blocked = await isBlockedBetween(miUserId, tarjetaId);
+      if (blocked) return { success: false, reason: 'blocked' };
+    } catch (blockError) {
+      if (blockError.message === 'BLOCKED') return { success: false, reason: 'blocked' };
+      console.warn('[TARJETA] Error verificando bloqueo en huella:', blockError?.message);
+    }
+
+    const today = new Date().toISOString().slice(0, 10); // YYYY-MM-DD
+    const huellaKey = `${miUserId}_${today}`;
+
+    // 1. Verificar si ya dejó huella hoy en esta tarjeta
+    const tarjetaSnap = await getDoc(doc(db, 'tarjetas', tarjetaId));
+    if (!tarjetaSnap.exists()) {
+      console.warn('[TARJETA] Tarjeta no existe:', tarjetaId);
+      return { success: false, reason: 'not_found', message: 'Tarjeta no encontrada' };
+    }
+    const tarjetaData = tarjetaSnap.data() || {};
+    const huellasDe = tarjetaData.huellasDe || [];
+    if (huellasDe.includes(huellaKey)) {
+      return { success: false, reason: 'already_left', message: 'Ya pasaste por aquí hoy' };
+    }
+
+    // 2. Verificar rate limit: máx 15 huellas por día
+    const userHuellasRef = doc(db, 'userHuellas', miUserId);
+    const userHuellasSnap = await getDoc(userHuellasRef);
+    const userData = userHuellasSnap.data() || {};
+    const storedDate = userData.date || '';
+    let count = userData.count || 0;
+    if (storedDate !== today) {
+      count = 0;
+    }
+    if (count >= HUELLAS_MAX_POR_DIA) {
+      return { success: false, reason: 'limit', message: `Máximo ${HUELLAS_MAX_POR_DIA} huellas por día` };
+    }
+
+    // 3. Actualizar tarjeta: increment huellasRecibidas, arrayUnion huellasDe
+    const tarjetaRef = doc(db, 'tarjetas', tarjetaId);
+    await updateDoc(tarjetaRef, {
+      huellasRecibidas: increment(1),
+      huellasDe: arrayUnion(huellaKey),
+      actividadNoLeida: increment(1),
+      actualizadaEn: serverTimestamp()
+    });
+
+    // 4. Actualizar contador del usuario
+    await setDoc(userHuellasRef, {
+      count: count + 1,
+      date: today,
+      lastAt: serverTimestamp()
+    }, { merge: true });
+
+    // 5. Registrar actividad en background (no bloquear éxito; si falla solo no aparece en feed)
+    agregarActividad(tarjetaId, {
+      tipo: 'huella',
+      deUserId: miUserId,
+      deUsername: miUsername,
+      mensaje: `${miUsername} pasó por tu perfil`,
+      timestamp: serverTimestamp()
+    }).catch((err) => console.warn('[TARJETA] Actividad huella (no crítico):', err?.message));
+
+    track('tarjeta_huella', { card_id: tarjetaId, viewer_id: miUserId }, { user: { id: miUserId } }).catch(() => {});
+    console.log('[TARJETA] 👣 Huella dejada en', tarjetaId);
+    return { success: true };
+  } catch (error) {
+    console.error('[TARJETA] Error dejando huella:', error?.code, error?.message, error);
+    if (error?.code === 'permission-denied') {
+      return {
+        success: false,
+        reason: 'permissions',
+        message: 'Permisos insuficientes para dejar huella'
+      };
+    }
+    return {
+      success: false,
+      reason: 'error',
+      message: error?.message || 'Error inesperado al dejar huella'
+    };
+  }
+}
+
+/**
+ * Verificar si ya dejé huella hoy en esta tarjeta
+ */
+export async function yaDejeHuella(tarjetaId, miUserId) {
+  try {
+    if (!tarjetaId || !miUserId) return false;
+    const tarjeta = await obtenerTarjeta(tarjetaId);
+    const today = new Date().toISOString().slice(0, 10);
+    const huellaKey = `${miUserId}_${today}`;
+    return tarjeta?.huellasDe?.includes(huellaKey) || false;
+  } catch (error) {
+    return false;
+  }
+}
+
+// ============================================
 // 📊 ACTIVIDAD Y FEED
 // ============================================
 
@@ -1056,7 +1211,7 @@ export async function registrarVisita(tarjetaId, miUserId, miUsername) {
 async function agregarActividad(tarjetaId, actividad) {
   try {
     const actividadRef = collection(db, 'tarjetas', tarjetaId, 'actividad');
-    await setDoc(doc(actividadRef), {
+    await addDoc(actividadRef, {
       ...actividad,
       leida: false
     });

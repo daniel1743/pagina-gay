@@ -20,7 +20,8 @@ import {
   Loader2,
   Bell,
   ChevronRight,
-  Sparkles
+  Sparkles,
+  Footprints
 } from 'lucide-react';
 import { obtenerMiActividad, marcarActividadLeida, obtenerTarjeta, darLike, yaLeDiLike } from '@/services/tarjetaService';
 import MensajeTarjetaModal from './MensajeTarjetaModal';
@@ -39,6 +40,8 @@ const ActividadItem = ({ actividad, onVerTarjeta, onDevolverLike, loadingLike })
         return <MessageSquare className="w-5 h-5 text-cyan-500 fill-cyan-500" />;
       case 'visita':
         return <Eye className="w-5 h-5 text-purple-500" />;
+      case 'huella':
+        return <Footprints className="w-5 h-5 text-amber-500" />;
       case 'match':
         return <Sparkles className="w-5 h-5 text-yellow-500" />;
       default:
@@ -147,6 +150,12 @@ const ActividadItem = ({ actividad, onVerTarjeta, onDevolverLike, loadingLike })
             {actividad.tipo === 'visita' && (
               <p className="text-sm text-purple-400 mt-1">
                 Visitó tu perfil
+              </p>
+            )}
+
+            {actividad.tipo === 'huella' && (
+              <p className="text-sm text-amber-400 mt-1">
+                Pasó por tu perfil
               </p>
             )}
 
@@ -408,6 +417,7 @@ const ActividadFeed = ({ isOpen, onClose, miUserId }) => {
   const matches = actividades.filter(a => a.tipo === 'match');
   const likes = actividades.filter(a => a.tipo === 'like');
   const visitas = actividades.filter(a => a.tipo === 'visita');
+  const huellas = actividades.filter(a => a.tipo === 'huella');
 
   if (!isOpen) return null;
 
@@ -527,6 +537,27 @@ const ActividadFeed = ({ isOpen, onClose, miUserId }) => {
                     </h4>
                     <div className="space-y-3">
                       {visitas.map((actividad) => (
+                        <ActividadItem
+                          key={actividad.id}
+                          actividad={actividad}
+                          onVerTarjeta={handleVerTarjeta}
+                          onDevolverLike={handleDevolverLike}
+                          loadingLike={loadingLike}
+                        />
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {/* Pasaron por aquí */}
+                {huellas.length > 0 && (
+                  <div>
+                    <h4 className="text-xs font-semibold text-amber-400 uppercase tracking-wider mb-3 flex items-center gap-2">
+                      <Footprints className="w-4 h-4" />
+                      Pasaron por tu perfil ({huellas.length})
+                    </h4>
+                    <div className="space-y-3">
+                      {huellas.map((actividad) => (
                         <ActividadItem
                           key={actividad.id}
                           actividad={actividad}

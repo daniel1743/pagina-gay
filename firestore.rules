@@ -848,7 +848,7 @@ service cloud.firestore {
         // Otros usuarios solo pueden modificar campos de interacción
         (
           request.resource.data.diff(resource.data).affectedKeys()
-            .hasOnly(['likesRecibidos', 'likesDe', 'visitasRecibidas', 'visitasDe', 'mensajesRecibidos', 'actividadNoLeida', 'actualizadaEn'])
+            .hasOnly(['likesRecibidos', 'likesDe', 'visitasRecibidas', 'visitasDe', 'impresionesRecibidas', 'impresionesDe', 'huellasRecibidas', 'huellasDe', 'mensajesRecibidos', 'actividadNoLeida', 'actualizadaEn'])
         )
       );
 
@@ -869,6 +869,16 @@ service cloud.firestore {
         // Eliminar: Solo el dueño o admin
         allow delete: if isOwner(odIdUsuari) || isAdmin();
       }
+    }
+
+    // ===========================
+    // HUELLAS POR USUARIO (rate limit diario de "pasé por aquí")
+    // ===========================
+
+    match /userHuellas/{userId} {
+      // El usuario solo puede leer/escribir su propio contador diario
+      allow read, create, update, delete: if isAuthenticated() &&
+                                            (request.auth.uid == userId || isAdmin());
     }
 
     // ===========================
