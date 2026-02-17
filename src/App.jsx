@@ -12,10 +12,12 @@ import { AuthProvider, useAuth } from '@/contexts/AuthContext';
 import { ThemeProvider } from '@/contexts/ThemeContext';
 import { PrivateChatProvider } from '@/contexts/PrivateChatContext';
 import GlobalPrivateChatWindow from '@/components/chat/GlobalPrivateChatWindow';
+import RewardReceivedModal from '@/components/rewards/RewardReceivedModal';
 import PWASplashScreen from '@/components/pwa/PWASplashScreen';
 import ErrorBoundary from '@/components/ui/ErrorBoundary';
 import { useVersionChecker } from '@/hooks/useVersionChecker';
 import { useSessionTracking } from '@/hooks/useSessionTracking';
+import { subscribeToUserRewards, REWARD_TYPES } from '@/services/rewardsService';
 import PerformanceSummaryButton from '@/components/PerformanceSummaryButton'; // 📊 Performance Monitor Button
 import GlobalLandingPage from '@/pages/GlobalLandingPage'; // Landing principal - crítica para SEO
 import ChatBottomNav from '@/components/chat/ChatBottomNav';
@@ -141,6 +143,7 @@ function AppWithOverlay() {
   return (
     <>
       <PrivateChatProvider>
+        <RewardInboxListener />
         <AppRoutes />
         {/* Chat privado persistente: no se cierra al navegar entre secciones */}
         <GlobalPrivateChatWindow />
@@ -154,6 +157,91 @@ function AppWithOverlay() {
 function SessionTracker() {
   useSessionTracking();
   return null;
+}
+
+function RewardInboxListener() {
+  const { user } = useAuth();
+  const [pendingRewards, setPendingRewards] = useState([]);
+  const [currentReward, setCurrentReward] = useState(null);
+
+  useEffect(() => {
+    if (!user?.id || user?.isGuest || user?.isAnonymous) {
+      setPendingRewards([]);
+      setCurrentReward(null);
+      return () => {};
+    }
+
+    const seenKey = `rewards_seen_ids:${user.id}`;
+
+    const getSeenRewardIds = () => {
+      try {
+        const raw = localStorage.getItem(seenKey);
+        const parsed = raw ? JSON.parse(raw) : [];
+        return new Set(Array.isArray(parsed) ? parsed : []);
+      } catch {
+        return new Set();
+      }
+    };
+
+    const unsubscribe = subscribeToUserRewards(user.id, (userRewards) => {
+      const seenIds = getSeenRewardIds();
+
+      const unseenActiveRewards = (userRewards || [])
+        .filter((reward) => reward?.status === 'active' && reward?.id && !seenIds.has(reward.id))
+        .sort((a, b) => {
+          const aTs = a?.createdAt ? new Date(a.createdAt).getTime() : 0;
+          const bTs = b?.createdAt ? new Date(b.createdAt).getTime() : 0;
+          return bTs - aTs;
+        });
+
+      setPendingRewards(unseenActiveRewards);
+    });
+
+    return () => unsubscribe();
+  }, [user?.id, user?.isGuest, user?.isAnonymous]);
+
+  useEffect(() => {
+    if (!currentReward && pendingRewards.length > 0) {
+      setCurrentReward(pendingRewards[0]);
+    }
+  }, [pendingRewards, currentReward]);
+
+  const handleAcceptReward = () => {
+    if (!currentReward?.id || !user?.id) {
+      setCurrentReward(null);
+      return;
+    }
+
+    const seenKey = `rewards_seen_ids:${user.id}`;
+    try {
+      const raw = localStorage.getItem(seenKey);
+      const parsed = raw ? JSON.parse(raw) : [];
+      const seenList = Array.isArray(parsed) ? parsed : [];
+      if (!seenList.includes(currentReward.id)) {
+        seenList.push(currentReward.id);
+      }
+      localStorage.setItem(seenKey, JSON.stringify(seenList.slice(-200)));
+    } catch {
+      localStorage.setItem(seenKey, JSON.stringify([currentReward.id]));
+    }
+
+    if (currentReward.type === REWARD_TYPES.PRO_USER) {
+      localStorage.setItem(`pro_congrats_seen:${user.id}`, 'true');
+    }
+
+    const acceptedId = currentReward.id;
+    setCurrentReward(null);
+    setPendingRewards((prev) => prev.filter((reward) => reward.id !== acceptedId));
+  };
+
+  return (
+    <RewardReceivedModal
+      isOpen={Boolean(currentReward)}
+      reward={currentReward}
+      onAccept={handleAcceptReward}
+      username={user?.username || 'Usuario'}
+    />
+  );
 }
 
 // ✅ Componente de rutas que está dentro del AuthProvider

@@ -427,58 +427,82 @@ export const getRewardStats = async () => {
  */
 export const getTop20ActiveUsers = async () => {
   try {
-    // Obtener todos los usuarios
     const usersRef = collection(db, 'users');
-    const usersSnapshot = await getDocs(usersRef);
+    const sanctionsRef = collection(db, 'sanctions');
+
+    const [usersSnapshot, activeSanctionsSnapshot] = await Promise.all([
+      getDocs(usersRef),
+      getDocs(query(sanctionsRef, where('status', '==', 'active'))).catch(() => null),
+    ]);
+
+    const sanctionedUserIds = new Set();
+    if (activeSanctionsSnapshot) {
+      activeSanctionsSnapshot.forEach((sanctionDoc) => {
+        const sanctionedUserId = sanctionDoc.data()?.userId;
+        if (sanctionedUserId) sanctionedUserIds.add(sanctionedUserId);
+      });
+    }
 
     const usersWithMetrics = [];
 
-    for (const userDoc of usersSnapshot.docs) {
+    usersSnapshot.forEach((userDoc) => {
       const userData = userDoc.data();
       const userId = userDoc.id;
 
-      // Excluir usuarios anónimos, invitados, y administradores
-      if (userData.isGuest || userData.isAnonymous || userData.role === 'admin') {
-        continue;
+      if (!userData || userData.isGuest || userData.isAnonymous || userData.role === 'admin') {
+        return;
       }
 
-      // Verificar que no tenga sanciones activas
-      const sanctionsRef = collection(db, 'sanctions');
-      const sanctionsQuery = query(
-        sanctionsRef,
-        where('userId', '==', userId),
-        where('status', '==', 'active')
-      );
-      const sanctionsSnapshot = await getDocs(sanctionsQuery);
-
-      // Si tiene sanciones activas, excluir
-      if (!sanctionsSnapshot.empty) {
-        continue;
+      if (sanctionedUserIds.has(userId)) {
+        return;
       }
 
-      // Contar mensajes del usuario
-      const messagesCount = await countUserMessages(userId);
+      const metrics = userData.metrics || {};
 
-      // Contar threads creados
-      const threadsCount = await countUserThreads(userId);
+      const messagesCount = Number(
+        userData.messageCount ??
+        userData.messagesCount ??
+        metrics.messageCount ??
+        metrics.messagesCount ??
+        0
+      ) || 0;
 
-      // Contar replies en foro
-      const repliesCount = await countUserForumReplies(userId);
+      const threadsCount = Number(
+        userData.threadCount ??
+        userData.threadsCount ??
+        userData.forumThreadsCount ??
+        metrics.threadCount ??
+        metrics.threadsCount ??
+        0
+      ) || 0;
 
-      // Calcular tiempo activo (si existe)
-      const totalActiveTime = userData.totalActiveTime || 0;
+      const repliesCount = Number(
+        userData.replyCount ??
+        userData.repliesCount ??
+        userData.forumRepliesCount ??
+        metrics.replyCount ??
+        metrics.repliesCount ??
+        0
+      ) || 0;
 
-      // Calcular score de actividad
+      const totalActiveTimeSeconds = Number(
+        userData.totalActiveTimeSeconds ??
+        userData.totalActiveTime ??
+        metrics.totalActiveTimeSeconds ??
+        metrics.totalActiveTime ??
+        0
+      ) || 0;
+
       const activityScore = (
         messagesCount * 1 +
         threadsCount * 3 +
         repliesCount * 2 +
-        (totalActiveTime / 3600) * 0.5 // Horas * 0.5
+        (totalActiveTimeSeconds / 3600) * 0.5
       );
 
       usersWithMetrics.push({
         id: userId,
-        username: userData.username,
+        username: userData.username || 'Usuario',
         avatar: userData.avatar,
         isPremium: userData.isPremium || false,
         verified: userData.verified || false,
@@ -488,16 +512,19 @@ export const getTop20ActiveUsers = async () => {
           messagesCount,
           threadsCount,
           repliesCount,
-          totalActiveTime: Math.floor(totalActiveTime / 60), // Minutos
+          totalActiveTime: Math.floor(totalActiveTimeSeconds / 60),
           activityScore: Math.round(activityScore),
         },
       });
-    }
+    });
 
-    // Ordenar por score de actividad
-    usersWithMetrics.sort((a, b) => b.metrics.activityScore - a.metrics.activityScore);
+    usersWithMetrics.sort((a, b) => {
+      const scoreA = a.metrics?.activityScore || 0;
+      const scoreB = b.metrics?.activityScore || 0;
+      if (scoreB !== scoreA) return scoreB - scoreA;
+      return (b.metrics?.messagesCount || 0) - (a.metrics?.messagesCount || 0);
+    });
 
-    // Retornar top 20
     return usersWithMetrics.slice(0, 20);
   } catch (error) {
     console.error('Error getting top 20 users:', error);
@@ -506,45 +533,39 @@ export const getTop20ActiveUsers = async () => {
 };
 
 /**
- * Helper: Cuenta mensajes de un usuario
+ * Suscripción en tiempo real a recompensas de un usuario específico
+ * @param {string} userId - ID del usuario premiado
+ * @param {function} callback - Recibe lista de recompensas del usuario
+ * @returns {function} función para desuscribirse
  */
-const countUserMessages = async (userId) => {
-  try {
-    // Esto requeriría iterar por todas las salas, lo cual es costoso
-    // Por ahora, retornamos 0 y se puede implementar con un campo en el perfil
-    // que se incremente cada vez que el usuario envía un mensaje
-    const userRef = doc(db, 'users', userId);
-    const userSnap = await getDoc(userRef);
-    return userSnap.data()?.messageCount || 0;
-  } catch (error) {
-    return 0;
+export const subscribeToUserRewards = (userId, callback) => {
+  if (!userId) {
+    callback([]);
+    return () => {};
   }
-};
 
-/**
- * Helper: Cuenta threads de un usuario
- */
-const countUserThreads = async (userId) => {
-  try {
-    const threadsRef = collection(db, 'forum_threads');
-    const q = query(threadsRef, where('authorId', '==', userId));
-    const snapshot = await getDocs(q);
-    return snapshot.size;
-  } catch (error) {
-    return 0;
-  }
-};
+  const rewardsRef = collection(db, 'rewards');
+  const q = query(
+    rewardsRef,
+    where('userId', '==', userId),
+    limit(50)
+  );
 
-/**
- * Helper: Cuenta replies de un usuario
- */
-const countUserForumReplies = async (userId) => {
-  try {
-    const repliesRef = collection(db, 'forum_replies');
-    const q = query(repliesRef, where('authorId', '==', userId));
-    const snapshot = await getDocs(q);
-    return snapshot.size;
-  } catch (error) {
-    return 0;
-  }
+  return onSnapshot(q, (snapshot) => {
+    const rewards = snapshot.docs.map((docSnap) => {
+      const data = docSnap.data();
+      return {
+        id: docSnap.id,
+        ...data,
+        createdAt: data.createdAt?.toDate?.()?.toISOString?.() || null,
+        expiresAt: data.expiresAt?.toDate?.()?.toISOString?.() || null,
+        revokedAt: data.revokedAt?.toDate?.()?.toISOString?.() || null,
+      };
+    });
+
+    callback(rewards);
+  }, (error) => {
+    console.error('Error subscribing to user rewards:', error);
+    callback([]);
+  });
 };

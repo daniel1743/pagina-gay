@@ -44,7 +44,6 @@ import { useEngagementNudge } from '@/hooks/useEngagementNudge';
 // import RulesBanner from '@/components/chat/RulesBanner';
 import { toast } from '@/components/ui/use-toast';
 import { RegistrationRequiredModal } from '@/components/auth/RegistrationRequiredModal';
-import ProCongratsModal from '@/components/rewards/ProCongratsModal';
 import { sendMessage, subscribeToRoomMessages, addReactionToMessage, markMessagesAsRead, generateUUID } from '@/services/chatService';
 import { joinRoom, leaveRoom, subscribeToRoomUsers, subscribeToMultipleRoomCounts, updateUserActivity, cleanInactiveUsers, filterActiveUsers, subscribeToTypingUsers } from '@/services/presenceService';
 import { validateMessage } from '@/services/antiSpamService';
@@ -341,22 +340,10 @@ const ChatPage = () => {
   const [showAgeVerification, setShowAgeVerification] = useState(false); // ✅ Modal de edad
   const [showRegistrationModal, setShowRegistrationModal] = useState(false);
   const [registrationModalFeature, setRegistrationModalFeature] = useState(null);
-  const [showProCongrats, setShowProCongrats] = useState(false);
   const [needsNickname, setNeedsNickname] = useState(false); // ✅ Exigir nickname después de primer mensaje rápido
 
   // 🔔 Limpiar recordatorios de eventos viejos al montar
   useEffect(() => { cleanOldReminders(); }, []);
-
-  // 🏆 Mostrar modal PRO si el usuario tiene PRO y no lo ha visto
-  useEffect(() => {
-    if (user?.isProUser && !user?.isGuest && !user?.isAnonymous) {
-      const proSeenKey = `pro_congrats_seen:${user.id}`;
-      if (!localStorage.getItem(proSeenKey)) {
-        setTimeout(() => setShowProCongrats(true), 2000);
-        localStorage.setItem(proSeenKey, 'true');
-      }
-    }
-  }, [user?.isProUser, user?.id]);
 
   // 🔔 Manejar evento activo con recordatorio → mostrar popup
   const handleEventoActivoConRecordatorio = useCallback((evento) => {
@@ -3098,13 +3085,6 @@ const ChatPage = () => {
           open={showPremiumWelcome}
           onClose={handleClosePremiumWelcome}
         /> */}
-
-        {/* 🏆 Modal de Felicitaciones PRO */}
-        <ProCongratsModal
-          isOpen={showProCongrats}
-          onClose={() => setShowProCongrats(false)}
-          username={user?.username || 'Usuario'}
-        />
 
         <AgeVerificationModal
           isOpen={showAgeVerification}

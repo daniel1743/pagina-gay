@@ -106,6 +106,9 @@ const AdminPage = () => {
   const [selectedUserToReward, setSelectedUserToReward] = useState(null);
   const [showRewardModal, setShowRewardModal] = useState(false);
   const [loadingTop20, setLoadingTop20] = useState(false);
+  const [rewardSearchTerm, setRewardSearchTerm] = useState('');
+  const [rewardSearchResults, setRewardSearchResults] = useState([]);
+  const [searchingRewardUsers, setSearchingRewardUsers] = useState(false);
   
   // Estadísticas de reportes
   const [reportStats, setReportStats] = useState({
@@ -721,6 +724,31 @@ const AdminPage = () => {
   const handleSelectUserForReward = (selectedUser) => {
     setSelectedUserToReward(selectedUser);
     setShowRewardModal(true);
+    setRewardSearchTerm('');
+    setRewardSearchResults([]);
+  };
+
+  // Buscar usuarios para recompensar
+  const handleRewardUserSearch = async () => {
+    if (!rewardSearchTerm.trim()) {
+      setRewardSearchResults([]);
+      return;
+    }
+
+    setSearchingRewardUsers(true);
+    try {
+      const results = await searchUsers(rewardSearchTerm);
+      setRewardSearchResults(results);
+    } catch (error) {
+      console.error('Error searching users for rewards:', error);
+      toast({
+        title: "Error",
+        description: "No se pudo buscar usuarios para recompensar",
+        variant: "destructive",
+      });
+    } finally {
+      setSearchingRewardUsers(false);
+    }
   };
 
   // Revocar recompensa
@@ -1645,6 +1673,89 @@ const AdminPage = () => {
                   <div className="text-2xl font-bold mb-1 text-pink-400">{rewardStats.featured}</div>
                   <div className="text-xs text-muted-foreground">Destacados</div>
                 </div>
+              </div>
+
+              {/* Buscador de Usuarios para Recompensar */}
+              <div className="mb-6 glass-effect p-6 rounded-xl border border-green-500/30 bg-gradient-to-br from-green-500/10 to-emerald-500/10">
+                <h3 className="text-xl font-bold mb-4">
+                  Buscar Usuario para Recompensar
+                </h3>
+
+                <div className="flex flex-col md:flex-row gap-3">
+                  <div className="flex-1">
+                    <Input
+                      placeholder="Buscar por ID de usuario o nombre de usuario..."
+                      value={rewardSearchTerm}
+                      onChange={(e) => setRewardSearchTerm(e.target.value)}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter') {
+                          handleRewardUserSearch();
+                        }
+                      }}
+                      className="bg-background border-2 border-input focus:border-green-400"
+                    />
+                  </div>
+                  <Button
+                    onClick={handleRewardUserSearch}
+                    disabled={searchingRewardUsers || !rewardSearchTerm.trim()}
+                    className="bg-green-500 hover:bg-green-600 text-white font-bold"
+                  >
+                    {searchingRewardUsers ? (
+                      'Buscando...'
+                    ) : (
+                      <>
+                        <Search className="w-4 h-4 mr-2" />
+                        Buscar
+                      </>
+                    )}
+                  </Button>
+                </div>
+
+                {rewardSearchResults.length > 0 && (
+                  <div className="mt-4 space-y-2 max-h-96 overflow-y-auto">
+                    <p className="text-sm text-muted-foreground mb-2">
+                      {rewardSearchResults.length} usuario(s) encontrado(s):
+                    </p>
+                    {rewardSearchResults.map((foundUser) => (
+                      <div
+                        key={foundUser.id}
+                        className="flex items-center justify-between p-4 bg-background rounded-lg border border-border hover:border-green-500/50 transition-all"
+                      >
+                        <div className="flex items-center gap-3">
+                          <img
+                            src={foundUser.avatar || `https://api.dicebear.com/7.x/avataaars/svg?seed=${foundUser.username || foundUser.id}`}
+                            alt={foundUser.username || foundUser.id}
+                            className="w-10 h-10 rounded-full border-2 border-border"
+                          />
+                          <div>
+                            <p className="font-semibold">{foundUser.username || 'Usuario sin nombre'}</p>
+                            <p className="text-xs text-muted-foreground">ID: {foundUser.id}</p>
+                            {foundUser.email && (
+                              <p className="text-xs text-muted-foreground">{foundUser.email}</p>
+                            )}
+                          </div>
+                        </div>
+
+                        <Button
+                          size="sm"
+                          onClick={() => handleSelectUserForReward(foundUser)}
+                          className="bg-gradient-to-r from-green-500 to-emerald-500 hover:from-green-600 hover:to-emerald-600 text-white"
+                        >
+                          <Gift className="w-4 h-4 mr-1" />
+                          Premiar
+                        </Button>
+                      </div>
+                    ))}
+                  </div>
+                )}
+
+                {rewardSearchResults.length === 0 && rewardSearchTerm && !searchingRewardUsers && (
+                  <div className="mt-4 text-center py-8 bg-background rounded-lg border border-border">
+                    <p className="text-muted-foreground">
+                      No se encontraron usuarios con "{rewardSearchTerm}"
+                    </p>
+                  </div>
+                )}
               </div>
 
               {/* TOP 20 Usuarios Más Activos */}
