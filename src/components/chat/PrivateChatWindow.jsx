@@ -50,7 +50,7 @@ const formatMessageTime = (value) => {
   return new Date(timestampMs).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
 };
 
-const PrivateChatWindow = ({ user, partner, onClose, chatId, initialMessage = '', autoFocus = true }) => {
+const PrivateChatWindow = ({ user, partner, onClose, chatId, initialMessage = '', autoFocus = true, roomId = null, onEnterPrivate, onLeavePrivate }) => {
   const [messages, setMessages] = useState([]);
   const [newMessage, setNewMessage] = useState(initialMessage || '');
   const [blockState, setBlockState] = useState({ blockedByMe: false, blockedByOther: false });
@@ -82,6 +82,18 @@ const PrivateChatWindow = ({ user, partner, onClose, chatId, initialMessage = ''
   useEffect(() => {
     isMinimizedRef.current = isMinimized;
   }, [isMinimized]);
+
+  // Notificar que estoy en chat privado (para que otros en la sala vean el indicador)
+  useEffect(() => {
+    if (roomId && onEnterPrivate && partnerId && partnerName) {
+      onEnterPrivate(roomId, partnerId, partnerName);
+    }
+    return () => {
+      if (roomId && onLeavePrivate) {
+        onLeavePrivate(roomId);
+      }
+    };
+  }, [roomId, partnerId, partnerName]); // onEnterPrivate/onLeavePrivate son estables
 
   const emojiPickerCategories = useMemo(() => ([
     { name: 'Recientes', category: Categories.SUGGESTED },

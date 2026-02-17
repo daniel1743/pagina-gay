@@ -85,6 +85,7 @@ export const AuthProvider = ({ children }) => {
   const isLoggingOutRef = useRef(false); // Ref para evitar auto-login después de logout
   const loadingTimeoutRef = useRef(null); // ✅ FIX: Timeout de seguridad para loading
   const authStateChangedCalledRef = useRef(false); // ✅ FIX: Flag para rastrear si onAuthStateChanged se ha ejecutado
+  const autoRestoreAttemptedRef = useRef(false); // Evitar loop en useEffect de auto-restauración
 
   // Escuchar cambios de autenticación de Firebase
   useEffect(() => {
@@ -370,22 +371,9 @@ export const AuthProvider = ({ children }) => {
           }
         }
       } else {
-        // No hay usuario Firebase - verificar si hay identidad guardada para restaurar sesión
-        const identity = getGuestIdentity();
-        if (identity && !isLoggingOutRef.current) {
-          console.log('[AUTH] 🔄 firebaseUser null pero identidad guardada — restaurando sesión como invitado');
-          try {
-            await signInAnonymously(auth);
-            // onAuthStateChanged se disparará de nuevo con el nuevo usuario y aplicará la identidad
-          } catch (err) {
-            console.warn('[AUTH] No se pudo restaurar sesión:', err?.message);
-            setUser(null);
-            setGuestMessageCount(0);
-          }
-        } else {
-          setUser(null);
-          setGuestMessageCount(0);
-        }
+        // No hay usuario Firebase — la restauración se hace en useEffect cuando loading=false
+        setUser(null);
+        setGuestMessageCount(0);
 
         if (isLoggingOutRef.current) {
           setTimeout(() => {
@@ -1023,15 +1011,14 @@ export const AuthProvider = ({ children }) => {
 
   // ✅ FASE 2: AUTO-RESTAURACIÓN de identidad persistente
   // Cuando el componente carga y NO hay usuario pero SÍ hay identidad guardada,
-  // restaurar automáticamente la sesión sin mostrar modal
+  // restaurar automáticamente la sesión sin mostrar modal (solo UNA vez para evitar loops)
   useEffect(() => {
-    // Solo ejecutar cuando loading termina y confirmamos que no hay usuario
-    // y NO se está ejecutando ya otro proceso de autenticación
+    if (autoRestoreAttemptedRef.current) return;
     if (!loading && !user && !isLoggingOutRef.current && !guestAuthInProgress && hasGuestIdentity()) {
+      autoRestoreAttemptedRef.current = true;
       console.log('[AUTH] 🔄 Auto-restaurando identidad persistente...');
       const identity = getGuestIdentity();
       if (identity) {
-        // Restaurar sesión automáticamente (sin mostrar modal)
         signInAsGuest(identity.nombre, identity.avatar, true);
       }
     }

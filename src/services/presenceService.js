@@ -94,6 +94,40 @@ export const leaveRoom = async (roomId) => {
 };
 
 /**
+ * Marcar usuario como "en chat privado" (visible para otros en la sala)
+ */
+export const setInPrivateChat = async (roomId, partnerId, partnerUsername) => {
+  if (!auth.currentUser || !roomId) return;
+  const presenceRef = doc(db, 'roomPresence', roomId, 'users', auth.currentUser.uid);
+  try {
+    await setDoc(presenceRef, {
+      inPrivateWith: partnerId,
+      inPrivateWithUsername: partnerUsername || 'Usuario',
+      inPrivateSince: serverTimestamp(),
+    }, { merge: true });
+  } catch (error) {
+    console.warn('[PRESENCE] Error marcando en privado:', error?.message);
+  }
+};
+
+/**
+ * Quitar marca de "en chat privado"
+ */
+export const clearInPrivateChat = async (roomId) => {
+  if (!auth.currentUser || !roomId) return;
+  const presenceRef = doc(db, 'roomPresence', roomId, 'users', auth.currentUser.uid);
+  try {
+    await setDoc(presenceRef, {
+      inPrivateWith: null,
+      inPrivateWithUsername: null,
+      inPrivateSince: null,
+    }, { merge: true });
+  } catch (error) {
+    console.warn('[PRESENCE] Error limpiando estado privado:', error?.message);
+  }
+};
+
+/**
  * ✅ HABILITADO: Escuchar usuarios conectados (SIN verificación de roles)
  * ⚠️ NO hace queries de getDoc - solo retorna lo que está en roomPresence
  */

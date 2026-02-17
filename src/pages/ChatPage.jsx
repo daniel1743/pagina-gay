@@ -45,7 +45,7 @@ import { toast } from '@/components/ui/use-toast';
 import PrivateChatWindow from '@/components/chat/PrivateChatWindow';
 import { RegistrationRequiredModal } from '@/components/auth/RegistrationRequiredModal';
 import { sendMessage, subscribeToRoomMessages, addReactionToMessage, markMessagesAsRead, generateUUID } from '@/services/chatService';
-import { joinRoom, leaveRoom, subscribeToRoomUsers, subscribeToMultipleRoomCounts, updateUserActivity, cleanInactiveUsers, filterActiveUsers, subscribeToTypingUsers } from '@/services/presenceService';
+import { joinRoom, leaveRoom, subscribeToRoomUsers, subscribeToMultipleRoomCounts, updateUserActivity, cleanInactiveUsers, filterActiveUsers, subscribeToTypingUsers, setInPrivateChat, clearInPrivateChat } from '@/services/presenceService';
 import { validateMessage } from '@/services/antiSpamService';
 import { auth, db } from '@/config/firebase'; // ✅ CRÍTICO: Necesario para obtener UID real de Firebase Auth
 import { doc, getDoc, deleteDoc } from 'firebase/firestore';
@@ -99,18 +99,32 @@ const roomWelcomeMessages = {
 // 🤖 NICO BOT: DESACTIVADO POR SPAM EN SALA PRINCIPAL
 const NICO_BOT_ENABLED = false;
 
-// 💬 Frases rápidas para primer mensaje (sin fricción)
+// 💬 Frases rápidas reales — rol, intención y ubicación
 const QUICK_STARTER_PHRASES = [
-  'Wena, quién anda despierto por acá? 👀',
-  'Hola cabros, de qué comuna son? 🌆',
-  'Yo ando en modo charla con intención 😏',
-  'Recién llegué, qué se cuenta hoy? 💬',
-  'Quién de Santiago centro conectado ahora?',
-  'Activos, pasivos o vers por acá? 🔥',
-  'Busco buena conversa y ver qué sale',
-  'Alguien con buena onda para hablar un rato?',
-  'Qué plan tienen para esta noche? ✨',
-  'Estoy por [tu comuna], alguien cerca?',
+  'Hola, soy pasivo 👋',
+  'Soy activo, quién?',
+  'Pasivo buscando activo',
+  'Activo buscando pasivo',
+  'Soy vers, y ustedes?',
+  'Wena, quién anda despierto? 👀',
+  'Busco pasivo por acá',
+  'Busco activo por acá',
+  'Ando con intención de concretar 🔥',
+  'Hola cabros, de qué comuna?',
+  'Quiero conversa con intención',
+  'Activo disponible ahora',
+  'Pasivo disponible, alguien?',
+  // Originales (más genéricas):
+  // 'Wena, quién anda despierto por acá? 👀',
+  // 'Hola cabros, de qué comuna son? 🌆',
+  // 'Yo ando en modo charla con intención 😏',
+  // 'Recién llegué, qué se cuenta hoy? 💬',
+  // 'Quién de Santiago centro conectado ahora?',
+  // 'Activos, pasivos o vers por acá? 🔥',
+  // 'Busco buena conversa y ver qué sale',
+  // 'Alguien con buena onda para hablar un rato?',
+  // 'Qué plan tienen para esta noche? ✨',
+  // 'Estoy por [tu comuna], alguien cerca?',
 ];
 
 const ChatPage = () => {
@@ -168,6 +182,20 @@ const ChatPage = () => {
     if (!userId) return false;
     return userId === 'system' || userId.startsWith('system_');
   }, []);
+
+  const isAutomatedUserId = useCallback((userId) => {
+    if (!userId) return false;
+    return userId.startsWith('bot_') ||
+           userId.startsWith('ai_') ||
+           userId.startsWith('seed_user_') ||
+           userId.startsWith('static_bot_');
+  }, []);
+
+  const filterAutomatedMessagesInPrincipal = useCallback((incomingMessages) => {
+    if (!Array.isArray(incomingMessages) || incomingMessages.length === 0) return [];
+    if (currentRoom !== 'principal') return incomingMessages;
+    return incomingMessages.filter((msg) => !isAutomatedUserId(msg?.userId));
+  }, [currentRoom, isAutomatedUserId]);
 
   const refreshBlockedByUsers = useCallback(async (userIds) => {
     if (!user?.id || !Array.isArray(userIds)) return;
@@ -1018,9 +1046,10 @@ const ChatPage = () => {
       // const moderatorMsg = newMessages.find(m => m.userId === 'system_moderator');
       // const regularMessages = newMessages.filter(m => m.userId !== 'system_moderator');
       // ✅ Verificar bloqueos en background y filtrar mensajes bloqueados
-      const senderIds = Array.from(new Set(newMessages.map(m => m.userId).filter(Boolean)));
+      const principalSafeMessages = filterAutomatedMessagesInPrincipal(newMessages);
+      const senderIds = Array.from(new Set(principalSafeMessages.map(m => m.userId).filter(Boolean)));
       refreshBlockedByUsers(senderIds);
-      const regularMessages = filterBlockedMessages(newMessages); // ✅ Solo mensajes visibles
+      const regularMessages = filterBlockedMessages(principalSafeMessages); // ✅ Solo mensajes visibles
 
       // 🔍 TRACE: Estado actualizado con mensajes recibidos
       traceEvent(TRACE_EVENTS.STATE_UPDATED, {
@@ -1292,7 +1321,6 @@ const ChatPage = () => {
       // 🔒 CRÍTICO: Solo actualizar estado si realmente cambió (evitar re-renders innecesarios)
       usersUpdateInProgressRef.current = true; // ✅ Marcar en progreso
       setRoomUsers(prevUsers => {
-        // Comparar por IDs para evitar actualizaciones si los usuarios son los mismos
         const prevIds = new Set(prevUsers.map(u => (u.userId || u.id)));
         const newIds = new Set(finalUsers.map(u => (u.userId || u.id)));
 
@@ -1308,7 +1336,20 @@ const ChatPage = () => {
           }
         }
 
-        // Si son los mismos usuarios, no actualizar (evitar re-render)
+        // ✅ Actualizar si cambió "en privado" de algún usuario (para indicador y toast)
+        const prevInPrivate = new Map(prevUsers.filter(u => u.inPrivateWith).map(u => [(u.userId || u.id), u.inPrivateWith]));
+        const newInPrivate = new Map(finalUsers.filter(u => u.inPrivateWith).map(u => [(u.userId || u.id), u.inPrivateWith]));
+        if (prevInPrivate.size !== newInPrivate.size) {
+          setTimeout(() => { usersUpdateInProgressRef.current = false; }, 50);
+          return finalUsers;
+        }
+        for (const [id, pw] of newInPrivate) {
+          if (prevInPrivate.get(id) !== pw) {
+            setTimeout(() => { usersUpdateInProgressRef.current = false; }, 50);
+            return finalUsers;
+          }
+        }
+
         setTimeout(() => { usersUpdateInProgressRef.current = false; }, 50);
         return prevUsers;
       });
@@ -1443,6 +1484,32 @@ const ChatPage = () => {
       }
     };
   }, [roomId, user?.id]); // ✅ F3: user?.id en vez de user (evita re-suscripciones por cambio de referencia)
+
+  // 🔒 Toast cuando alguien entra en chat privado (para que otros se enteren)
+  const inPrivateToastShownRef = useRef(new Set());
+  useEffect(() => {
+    if (!user?.id || !roomUsers?.length) return;
+    const toRemove = [];
+    for (const k of inPrivateToastShownRef.current) {
+      const uId = k.split('_')[0];
+      const still = roomUsers.find(r => (r.userId || r.id) === uId && r.inPrivateWith);
+      if (!still) toRemove.push(k);
+    }
+    toRemove.forEach(k => inPrivateToastShownRef.current.delete(k));
+    for (const u of roomUsers) {
+      const uid = u.userId || u.id;
+      if (!uid || uid === user.id || !u.inPrivateWith) continue;
+      const key = `${uid}_${u.inPrivateWith}`;
+      if (inPrivateToastShownRef.current.has(key)) continue;
+      inPrivateToastShownRef.current.add(key);
+      const name = u.username || 'Alguien';
+      toast({
+        title: `${name} está en privado`,
+        description: 'En una conversación privada ahora',
+        duration: 4000,
+      });
+    }
+  }, [roomUsers, user?.id]);
 
   // 💓 Heartbeat: Actualizar presencia cada 10 segundos + Limpiar inactivos cada 30s
   useEffect(() => {
@@ -2965,8 +3032,10 @@ const ChatPage = () => {
             user={activePrivateChat.user}
             partner={activePrivateChat.partner}
             chatId={activePrivateChat.chatId}
+            roomId={currentRoom}
+            onEnterPrivate={setInPrivateChat}
+            onLeavePrivate={clearInPrivateChat}
             onClose={() => {
-              // Agregar el chatId a la lista de chats cerrados manualmente
               if (activePrivateChat.chatId) {
                 setDismissedPrivateChats(prev => new Set([...prev, activePrivateChat.chatId]));
               }

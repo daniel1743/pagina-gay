@@ -1,7 +1,8 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Button } from '@/components/ui/button';
-import { Flag, ThumbsUp, ThumbsDown, CheckCircle, Reply } from 'lucide-react';
+import { Flag, ThumbsUp, ThumbsDown, CheckCircle, Reply, Lock } from 'lucide-react';
+import { motion } from 'framer-motion';
 import { useAuth } from '@/contexts/AuthContext';
 import MessageQuote from './MessageQuote';
 import NewMessagesDivider from './NewMessagesDivider';
@@ -258,8 +259,38 @@ const ChatMessages = ({
 
               {/* ✅ Nombre: Solo una vez, solo para otros */}
               {!isOwn && (
-                <div className="message-username">
-                  {group.username}
+                <div className="message-username flex items-center gap-1.5 flex-wrap">
+                  <span>{group.username}</span>
+                  {(() => {
+                    const presence = safeRoomUsers.find(u => (u.userId || u.id) === group.userId);
+                    if (presence?.inPrivateWith) {
+                      return (
+                        <motion.span
+                          key="private"
+                          initial={{ opacity: 0 }}
+                          animate={{ opacity: [0.6, 1, 0.6] }}
+                          transition={{ duration: 2, repeat: Infinity }}
+                          className="inline-flex items-center gap-1 text-[10px] text-muted-foreground"
+                          title={`${group.username} está en chat privado`}
+                        >
+                          <Lock className="w-3 h-3" />
+                          <span className="font-medium">en privado</span>
+                          <span className="inline-flex gap-0.5">
+                            {[0, 1, 2].map(i => (
+                              <motion.span
+                                key={i}
+                                animate={{ opacity: [0.3, 1, 0.3] }}
+                                transition={{ duration: 0.8, repeat: Infinity, delay: i * 0.2 }}
+                              >
+                                ·
+                              </motion.span>
+                            ))}
+                          </span>
+                        </motion.span>
+                      );
+                    }
+                    return null;
+                  })()}
                   {(isUserPremium || userRole === 'admin') && (
                     <CheckCircle className="inline w-3 h-3 ml-1 text-yellow-500" />
                   )}
