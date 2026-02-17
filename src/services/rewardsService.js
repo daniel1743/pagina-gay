@@ -29,6 +29,7 @@ export const REWARD_TYPES = {
   SPECIAL_AVATAR: 'special_avatar_1_month',
   FEATURED_USER: 'featured_user', // Usuario destacado
   MODERATOR_1_MONTH: 'moderator_1_month',
+  PRO_USER: 'pro_user', // Paquete PRO: 2da foto, tarjeta destacada, borde arcoíris, badge PRO
 };
 
 /**
@@ -41,6 +42,7 @@ export const REWARD_REASONS = {
   HELPFUL: 'helpful', // Usuario servicial
   COMMUNITY_BUILDER: 'community_builder', // Constructor de comunidad
   AMBASSADOR: 'ambassador', // Embajador
+  PRO_RECOGNITION: 'pro_recognition', // Reconocimiento PRO por participación activa
   OTHER: 'other',
 };
 
@@ -126,6 +128,15 @@ export const applyRewardToUser = async (userId, rewardType, expiresAt) => {
         updates.moderatorUntil = expiresAt;
         break;
 
+      case REWARD_TYPES.PRO_USER:
+        updates.isProUser = true;
+        updates.proUntil = expiresAt;
+        updates.canUploadSecondPhoto = true;
+        updates.hasFeaturedCard = true;
+        updates.hasRainbowBorder = true;
+        updates.hasProBadge = true;
+        break;
+
       default:
         console.warn('Tipo de recompensa desconocido:', rewardType);
     }
@@ -135,6 +146,26 @@ export const applyRewardToUser = async (userId, rewardType, expiresAt) => {
         ...updates,
         updatedAt: serverTimestamp(),
       });
+
+      // Si es PRO, también actualizar la tarjeta del Baúl
+      if (rewardType === REWARD_TYPES.PRO_USER) {
+        try {
+          const tarjetaRef = doc(db, 'tarjetas', userId);
+          const tarjetaSnap = await getDoc(tarjetaRef);
+          if (tarjetaSnap.exists()) {
+            await updateDoc(tarjetaRef, {
+              isProUser: true,
+              proUntil: expiresAt,
+              canUploadSecondPhoto: true,
+              hasFeaturedCard: true,
+              hasRainbowBorder: true,
+              hasProBadge: true,
+            });
+          }
+        } catch (tarjetaError) {
+          console.warn('No se pudo actualizar tarjeta PRO:', tarjetaError);
+        }
+      }
     }
   } catch (error) {
     console.error('Error applying reward to user:', error);
@@ -281,6 +312,15 @@ export const removeRewardFromUser = async (userId, rewardType) => {
         updates.moderatorUntil = null;
         break;
 
+      case REWARD_TYPES.PRO_USER:
+        updates.isProUser = false;
+        updates.proUntil = null;
+        updates.canUploadSecondPhoto = false;
+        updates.hasFeaturedCard = false;
+        updates.hasRainbowBorder = false;
+        updates.hasProBadge = false;
+        break;
+
       default:
         console.warn('Tipo de recompensa desconocido:', rewardType);
     }
@@ -290,6 +330,26 @@ export const removeRewardFromUser = async (userId, rewardType) => {
         ...updates,
         updatedAt: serverTimestamp(),
       });
+
+      // Si es PRO, también limpiar la tarjeta del Baúl
+      if (rewardType === REWARD_TYPES.PRO_USER) {
+        try {
+          const tarjetaRef = doc(db, 'tarjetas', userId);
+          const tarjetaSnap = await getDoc(tarjetaRef);
+          if (tarjetaSnap.exists()) {
+            await updateDoc(tarjetaRef, {
+              isProUser: false,
+              proUntil: null,
+              canUploadSecondPhoto: false,
+              hasFeaturedCard: false,
+              hasRainbowBorder: false,
+              hasProBadge: false,
+            });
+          }
+        } catch (tarjetaError) {
+          console.warn('No se pudo limpiar tarjeta PRO:', tarjetaError);
+        }
+      }
     }
   } catch (error) {
     console.error('Error removing reward from user:', error);
@@ -342,6 +402,7 @@ export const getRewardStats = async () => {
       verified: rewards.filter(r => r.type === REWARD_TYPES.VERIFIED_1_MONTH).length,
       specialAvatar: rewards.filter(r => r.type === REWARD_TYPES.SPECIAL_AVATAR).length,
       featured: rewards.filter(r => r.type === REWARD_TYPES.FEATURED_USER).length,
+      pro: rewards.filter(r => r.type === REWARD_TYPES.PRO_USER).length,
       revoked: rewards.filter(r => r.status === 'revoked').length,
     };
   } catch (error) {
@@ -353,6 +414,7 @@ export const getRewardStats = async () => {
       verified: 0,
       specialAvatar: 0,
       featured: 0,
+      pro: 0,
       revoked: 0,
     };
   }

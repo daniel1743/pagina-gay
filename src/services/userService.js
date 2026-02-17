@@ -301,3 +301,49 @@ export const getUserById = async (userId) => {
     return null;
   }
 };
+
+/**
+ * Campos públicos del perfil que otros usuarios pueden ver
+ * (foto, nombre, rol, intereses, descripción, estado)
+ */
+const PUBLIC_PROFILE_FIELDS = [
+  'id', 'username', 'avatar', 'description', 'estado',
+  'profileRole', 'role', 'interests', 'verified', 'isPremium'
+];
+
+/**
+ * Obtiene el perfil público de un usuario para que otros puedan verlo.
+ * Respeta profileVisible: si es false, retorna null (perfil oculto).
+ * @param {string} userId - ID del usuario cuyo perfil se quiere ver
+ * @returns {Promise<object|null>} Perfil público o null si no existe o está oculto
+ */
+export const getPublicProfile = async (userId) => {
+  try {
+    if (!userId) return null;
+
+    const fullProfile = await getUserById(userId);
+    if (!fullProfile) return null;
+
+    // Si el usuario ocultó su perfil, no mostrarlo
+    if (fullProfile.profileVisible === false) {
+      return null;
+    }
+
+    // Extraer solo campos públicos (evitar exponer email, etc.)
+    const publicProfile = {};
+    for (const key of PUBLIC_PROFILE_FIELDS) {
+      if (fullProfile[key] !== undefined) {
+        publicProfile[key] = fullProfile[key];
+      }
+    }
+    // Asegurar que id y username existan
+    publicProfile.id = fullProfile.id;
+    publicProfile.userId = fullProfile.id; // alias para compatibilidad
+    publicProfile.username = fullProfile.username || 'Usuario';
+
+    return publicProfile;
+  } catch (error) {
+    console.error('Error getting public profile:', error);
+    return null;
+  }
+};

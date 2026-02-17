@@ -21,7 +21,7 @@ const FavoritesModal = ({ favorites, onClose, onSelectFavorite }) => {
         <DialogHeader>
           <DialogTitle className="text-2xl flex items-center gap-2">
             <Heart className="w-6 h-6 text-pink-400" />
-            Mis Favoritos
+            Lista de Amigos
             <span className="text-sm text-muted-foreground font-normal ml-auto">
               {favorites.length}/15
             </span>
@@ -33,10 +33,10 @@ const FavoritesModal = ({ favorites, onClose, onSelectFavorite }) => {
             <div className="text-center py-8">
               <Heart className="w-16 h-16 text-muted-foreground mx-auto mb-4 opacity-30" />
               <p className="text-muted-foreground">
-                Aún no has agregado amigos favoritos
+                Aún no has agregado amigos
               </p>
               <p className="text-sm text-muted-foreground mt-2">
-                Agrega usuarios a favoritos para acceso rápido
+                Agrega usuarios a tu lista para acceso rápido
               </p>
             </div>
           ) : (

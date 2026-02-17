@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { useParams, useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
+import { usePrivateChat } from '@/contexts/PrivateChatContext';
 import { useChatScrollManager } from '@/hooks/useChatScrollManager';
 
 import ChatSidebar from '@/components/chat/ChatSidebar';
@@ -42,10 +43,10 @@ import { useEngagementNudge } from '@/hooks/useEngagementNudge';
 // ⚠️ MODERADOR ELIMINADO (06/01/2026) - A petición del usuario
 // import RulesBanner from '@/components/chat/RulesBanner';
 import { toast } from '@/components/ui/use-toast';
-import PrivateChatWindow from '@/components/chat/PrivateChatWindow';
 import { RegistrationRequiredModal } from '@/components/auth/RegistrationRequiredModal';
+import ProCongratsModal from '@/components/rewards/ProCongratsModal';
 import { sendMessage, subscribeToRoomMessages, addReactionToMessage, markMessagesAsRead, generateUUID } from '@/services/chatService';
-import { joinRoom, leaveRoom, subscribeToRoomUsers, subscribeToMultipleRoomCounts, updateUserActivity, cleanInactiveUsers, filterActiveUsers, subscribeToTypingUsers, setInPrivateChat, clearInPrivateChat } from '@/services/presenceService';
+import { joinRoom, leaveRoom, subscribeToRoomUsers, subscribeToMultipleRoomCounts, updateUserActivity, cleanInactiveUsers, filterActiveUsers, subscribeToTypingUsers } from '@/services/presenceService';
 import { validateMessage } from '@/services/antiSpamService';
 import { auth, db } from '@/config/firebase'; // ✅ CRÍTICO: Necesario para obtener UID real de Firebase Auth
 import { doc, getDoc, deleteDoc } from 'firebase/firestore';
@@ -127,6 +128,8 @@ const QUICK_STARTER_PHRASES = [
   // 'Estoy por [tu comuna], alguien cerca?',
 ];
 
+const MAX_OPEN_PRIVATE_CHATS = 3;
+
 const ChatPage = () => {
   const { roomId } = useParams();
   const navigate = useNavigate();
@@ -158,11 +161,15 @@ const ChatPage = () => {
   });
 
   const [showPushBanner, setShowPushBanner] = useState(false);
+  const pushBannerDismissKey = user?.id
+    ? `push_banner_dismissed_${user.id}`
+    : 'push_banner_dismissed_guest';
 
   // Mostrar banner de push despues de 30s (solo una vez por sesion, solo si no ha dado permiso)
   useEffect(() => {
     if (!user || user.isAnonymous || user.isGuest) return;
     if (!canRequestPush()) return;
+    if (localStorage.getItem(pushBannerDismissKey)) return;
     if (sessionStorage.getItem('push_banner_shown')) return;
 
     const timer = setTimeout(() => {
@@ -171,10 +178,11 @@ const ChatPage = () => {
     }, 30000);
 
     return () => clearTimeout(timer);
-  }, [user]);
+  }, [user, pushBannerDismissKey]);
 
   const handleEnablePush = async () => {
     setShowPushBanner(false);
+    localStorage.setItem(pushBannerDismissKey, Date.now().toString());
     await requestNotificationPermission();
   };
 
@@ -308,19 +316,21 @@ const ChatPage = () => {
     }
   }, [currentRoom]);
   const [privateChatRequest, setPrivateChatRequest] = useState(null);
-  const [activePrivateChat, setActivePrivateChat] = useState(null);
-  const [dismissedPrivateChats, setDismissedPrivateChats] = useState(new Set());
+  // Chat privado persistente: usa contexto global para mantener conversación al navegar
+  const { openPrivateChats, setActivePrivateChat, dismissedChatIds, maxOpenPrivateChats } = usePrivateChat();
   // 🔔 Estado para popup de recordatorio de evento
   const [reminderEvento, setReminderEvento] = useState(null);
   // Refs para leer estado actual dentro del callback del listener sin re-crear el listener
   const privateChatRequestRef = useRef(null);
-  const activePrivateChatRef = useRef(null);
-  const dismissedPrivateChatsRef = useRef(new Set());
+  const openPrivateChatsRef = useRef([]);
+  const dismissedChatIdsRef = useRef(new Set());
+  const currentRoomRef = useRef(null);
   const userRef = useRef(null);
-  // Mantener refs sincronizados con state
+  // Mantener refs sincronizados con state/contexto
   privateChatRequestRef.current = privateChatRequest;
-  activePrivateChatRef.current = activePrivateChat;
-  dismissedPrivateChatsRef.current = dismissedPrivateChats;
+  openPrivateChatsRef.current = openPrivateChats;
+  dismissedChatIdsRef.current = dismissedChatIds;
+  currentRoomRef.current = currentRoom;
   userRef.current = user;
 
   const [showVerificationModal, setShowVerificationModal] = useState(false);
@@ -331,10 +341,22 @@ const ChatPage = () => {
   const [showAgeVerification, setShowAgeVerification] = useState(false); // ✅ Modal de edad
   const [showRegistrationModal, setShowRegistrationModal] = useState(false);
   const [registrationModalFeature, setRegistrationModalFeature] = useState(null);
+  const [showProCongrats, setShowProCongrats] = useState(false);
   const [needsNickname, setNeedsNickname] = useState(false); // ✅ Exigir nickname después de primer mensaje rápido
 
   // 🔔 Limpiar recordatorios de eventos viejos al montar
   useEffect(() => { cleanOldReminders(); }, []);
+
+  // 🏆 Mostrar modal PRO si el usuario tiene PRO y no lo ha visto
+  useEffect(() => {
+    if (user?.isProUser && !user?.isGuest && !user?.isAnonymous) {
+      const proSeenKey = `pro_congrats_seen:${user.id}`;
+      if (!localStorage.getItem(proSeenKey)) {
+        setTimeout(() => setShowProCongrats(true), 2000);
+        localStorage.setItem(proSeenKey, 'true');
+      }
+    }
+  }, [user?.isProUser, user?.id]);
 
   // 🔔 Manejar evento activo con recordatorio → mostrar popup
   const handleEventoActivoConRecordatorio = useCallback((evento) => {
@@ -1676,6 +1698,19 @@ const ChatPage = () => {
     };
   }, [currentRoom, user?.id, countRealUsers]); // No incluir messages/roomUsers para evitar re-crear el intervalo
 
+  const openPrivateChatWindow = useCallback((chatPayload) => {
+    const result = setActivePrivateChat(chatPayload);
+    if (!result?.ok && result?.reason === 'limit_reached') {
+      toast({
+        title: 'Límite de chats privados',
+        description: `Puedes tener hasta ${maxOpenPrivateChats || MAX_OPEN_PRIVATE_CHATS} conversaciones privadas abiertas. Cierra una para abrir otra.`,
+        variant: 'destructive',
+      });
+      return false;
+    }
+    return Boolean(result?.ok);
+  }, [setActivePrivateChat, maxOpenPrivateChats]);
+
   // Suscribirse a notificaciones de chat privado (un solo listener por user.id)
   useEffect(() => {
     if (!user?.id || user.isGuest || user.isAnonymous) return;
@@ -1683,8 +1718,8 @@ const ChatPage = () => {
     const unsubscribe = subscribeToNotifications(user.id, (notifications) => {
       // Leer estado actual desde refs (no re-crea el listener)
       const currentRequest = privateChatRequestRef.current;
-      const currentActiveChat = activePrivateChatRef.current;
-      const currentDismissed = dismissedPrivateChatsRef.current;
+      const currentOpenChats = openPrivateChatsRef.current;
+      const currentDismissed = dismissedChatIdsRef.current;
       const currentUser = userRef.current;
 
       // Buscar solicitudes de chat privado pendientes
@@ -1711,9 +1746,11 @@ const ChatPage = () => {
         n.type === 'private_chat_accepted' && !currentDismissed.has(n.chatId)
       );
 
-      if (acceptedChats.length > 0 && !currentActiveChat) {
-        const latestAccepted = acceptedChats[0];
-        setActivePrivateChat({
+      if (acceptedChats.length > 0) {
+        const latestAccepted = acceptedChats.find((n) => !currentOpenChats.some((chat) => chat.chatId === n.chatId))
+          || acceptedChats[0];
+        const roomId = currentRoomRef.current || null;
+        const opened = openPrivateChatWindow({
           user: currentUser,
           partner: {
             userId: latestAccepted.from,
@@ -1721,15 +1758,18 @@ const ChatPage = () => {
             avatar: latestAccepted.fromAvatar,
             isPremium: latestAccepted.fromIsPremium,
           },
-          chatId: latestAccepted.chatId
+          chatId: latestAccepted.chatId,
+          roomId
         });
 
-        markNotificationAsRead(user.id, latestAccepted.id).catch(() => {});
+        if (opened || currentOpenChats.some((chat) => chat.chatId === latestAccepted.chatId)) {
+          markNotificationAsRead(user.id, latestAccepted.id).catch(() => {});
+        }
       }
     });
 
     return () => unsubscribe();
-  }, [user?.id]); // Solo depende de user.id — refs manejan el estado mutable
+  }, [user?.id, openPrivateChatWindow]); // refs manejan el estado mutable
 
   // ✅ OLD SCROLL LOGIC REMOVED - Now using useChatScrollManager hook
 
@@ -2505,7 +2545,7 @@ const ChatPage = () => {
     if (targetUser.userId === user.id) return;
 
     if (targetUser.userId === 'demo-user-123') {
-      setActivePrivateChat({ user, partner: targetUser });
+      openPrivateChatWindow({ user, partner: targetUser, roomId: currentRoom });
       return;
     }
 
@@ -2557,15 +2597,18 @@ const ChatPage = () => {
         const result = await respondToPrivateChatRequest(user.id, notificationId, accepted);
         
         if (accepted && result?.chatId) {
-          setActivePrivateChat({
+          const opened = openPrivateChatWindow({
             user: user,
             partner: partner,
-            chatId: result.chatId
+            chatId: result.chatId,
+            roomId: currentRoom
           });
-          toast({
-            title: "¡Chat privado aceptado!",
-            description: `Ahora estás en un chat privado con ${partnerName}.`,
-          });
+          if (opened) {
+            toast({
+              title: "¡Chat privado aceptado!",
+              description: `Ahora estás en un chat privado con ${partnerName}.`,
+            });
+          }
         } else if (!accepted) {
           toast({
             title: "Solicitud rechazada",
@@ -2586,14 +2629,17 @@ const ChatPage = () => {
     } else {
       // Para el emisor o cuando no hay notificationId (compatibilidad)
       if (accepted) {
-        setActivePrivateChat({
+        const opened = openPrivateChatWindow({
           user: user,
-          partner: partner
+          partner: partner,
+          roomId: currentRoom
         });
-        toast({
-          title: "¡Chat privado aceptado!",
-          description: `Ahora estás en un chat privado con ${partnerName}.`,
-        });
+        if (opened) {
+          toast({
+            title: "¡Chat privado aceptado!",
+            description: `Ahora estás en un chat privado con ${partnerName}.`,
+          });
+        }
       } else {
         toast({
           title: "Solicitud rechazada",
@@ -2611,13 +2657,15 @@ const ChatPage = () => {
    */
   const handleOpenPrivateChatFromNotification = useCallback(({ chatId, partner }) => {
     const currentUser = userRef.current;
+    const roomId = currentRoomRef.current || null;
     if (!currentUser?.id) return;
-    setActivePrivateChat({
+    openPrivateChatWindow({
       chatId,
       user: currentUser,
-      partner: partner
+      partner: partner,
+      roomId
     });
-  }, []);
+  }, [openPrivateChatWindow]);
 
   // ========================================
   // 💬 DETECTAR RESPUESTAS: Verificar si hay respuestas cuando el usuario está scrolleado arriba
@@ -2807,7 +2855,10 @@ const ChatPage = () => {
                   Activar
                 </button>
                 <button
-                  onClick={() => setShowPushBanner(false)}
+                  onClick={() => {
+                    setShowPushBanner(false);
+                    localStorage.setItem(pushBannerDismissKey, Date.now().toString());
+                  }}
                   className="px-3 py-1 text-xs text-gray-400 hover:text-white transition-colors"
                 >
                   Ahora no
@@ -3027,22 +3078,7 @@ const ChatPage = () => {
           />
         )} */}
 
-        {activePrivateChat && (
-          <PrivateChatWindow
-            user={activePrivateChat.user}
-            partner={activePrivateChat.partner}
-            chatId={activePrivateChat.chatId}
-            roomId={currentRoom}
-            onEnterPrivate={setInPrivateChat}
-            onLeavePrivate={clearInPrivateChat}
-            onClose={() => {
-              if (activePrivateChat.chatId) {
-                setDismissedPrivateChats(prev => new Set([...prev, activePrivateChat.chatId]));
-              }
-              setActivePrivateChat(null);
-            }}
-          />
-        )}
+        {/* Chat privado renderizado globalmente para persistir entre secciones */}
 
         {showWelcomeTour && (
           <WelcomeTour onComplete={() => setShowWelcomeTour(false)} />
@@ -3062,6 +3098,13 @@ const ChatPage = () => {
           open={showPremiumWelcome}
           onClose={handleClosePremiumWelcome}
         /> */}
+
+        {/* 🏆 Modal de Felicitaciones PRO */}
+        <ProCongratsModal
+          isOpen={showProCongrats}
+          onClose={() => setShowProCongrats(false)}
+          username={user?.username || 'Usuario'}
+        />
 
         <AgeVerificationModal
           isOpen={showAgeVerification}

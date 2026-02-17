@@ -183,10 +183,15 @@ const TarjetaEditor = ({ isOpen, onClose, tarjeta }) => {
   });
   const [isGuardando, setIsGuardando] = useState(false);
   const [isSubiendoFoto, setIsSubiendoFoto] = useState(false);
+  const [isSubiendoFoto2, setIsSubiendoFoto2] = useState(false);
   const [fotoPreview, setFotoPreview] = useState(null);
+  const [foto2Preview, setFoto2Preview] = useState(null);
   const [nuevaFotoUrl, setNuevaFotoUrl] = useState(null);
+  const [nuevaFoto2Url, setNuevaFoto2Url] = useState(null);
   const [errores, setErrores] = useState({});
   const fileInputRef = useRef(null);
+  const fileInput2Ref = useRef(null);
+  const isProUser = Boolean(user?.isProUser || tarjeta?.isProUser);
 
   // Cargar datos de la tarjeta
   useEffect(() => {
@@ -473,6 +478,58 @@ const TarjetaEditor = ({ isOpen, onClose, tarjeta }) => {
     }
   };
 
+  // ✅ Manejar selección de segunda foto (PRO)
+  const handleFoto2Select = async (e) => {
+    if (!isProUser) return;
+    const file = e.target.files?.[0];
+    if (!file) return;
+    if (!file.type.startsWith('image/')) {
+      toast({ title: 'Archivo inválido', description: 'Solo se permiten imágenes', variant: 'destructive' });
+      return;
+    }
+    if (file.size > 10 * 1024 * 1024) {
+      toast({ title: 'Imagen muy grande', description: 'La imagen debe ser menor a 10MB', variant: 'destructive' });
+      return;
+    }
+
+    setFoto2Preview(prev => { if (prev?.startsWith('blob:')) URL.revokeObjectURL(prev); return null; });
+    const previewUrl = URL.createObjectURL(file);
+    setFoto2Preview(previewUrl);
+    setIsSubiendoFoto2(true);
+
+    try {
+      const compressed = await compressImage(file, 'tarjeta');
+      const userId = tarjeta?.odIdUsuari || tarjeta?.id;
+      const formData = new FormData();
+      formData.append('file', compressed.blob);
+      formData.append('upload_preset', CLOUDINARY_UPLOAD_PRESET);
+      formData.append('folder', `tarjetas/${userId}/foto2`);
+
+      const response = await fetch(
+        `https://api.cloudinary.com/v1_1/${CLOUDINARY_CLOUD_NAME}/image/upload`,
+        { method: 'POST', body: formData }
+      );
+      if (!response.ok) throw new Error('Error subiendo segunda foto');
+
+      const cloudinaryData = await response.json();
+      const downloadUrl = cloudinaryData.secure_url;
+
+      await actualizarTarjeta(userId, { fotoUrl2: downloadUrl });
+
+      URL.revokeObjectURL(previewUrl);
+      setFoto2Preview(null);
+      setNuevaFoto2Url(downloadUrl);
+      setIsSubiendoFoto2(false);
+      toast({ title: '✅ Segunda foto guardada', description: 'Tu segunda foto PRO ya es visible' });
+    } catch (error) {
+      console.error('[FOTO2] Error:', error);
+      URL.revokeObjectURL(previewUrl);
+      setFoto2Preview(null);
+      setIsSubiendoFoto2(false);
+      toast({ title: 'Error', description: 'No se pudo subir la segunda foto', variant: 'destructive' });
+    }
+  };
+
   // ✅ Limpiar preview al cerrar (evitar ERR_FILE_NOT_FOUND)
   const fotoPreviewRef = useRef(null);
   fotoPreviewRef.current = fotoPreview;
@@ -648,6 +705,45 @@ const TarjetaEditor = ({ isOpen, onClose, tarjeta }) => {
                 Marcar foto como sensible (blur inicial)
               </label>
             </div>
+
+            {/* Segunda foto PRO */}
+            {isProUser && (
+              <div className="border border-amber-500/30 rounded-xl p-3 bg-amber-500/5">
+                <div className="flex items-center gap-2 mb-2">
+                  <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-gradient-to-r from-amber-500 to-orange-500 text-white uppercase tracking-wider">PRO</span>
+                  <span className="text-sm font-medium text-amber-200">Segunda foto</span>
+                </div>
+                <div className="flex items-center gap-3">
+                  <div className={`w-16 h-16 rounded-lg bg-gray-700 flex items-center justify-center overflow-hidden border ${isSubiendoFoto2 ? 'border-amber-500 animate-pulse' : 'border-gray-600'}`}>
+                    {(foto2Preview || nuevaFoto2Url || tarjeta?.fotoUrl2) ? (
+                      <img src={foto2Preview || nuevaFoto2Url || tarjeta?.fotoUrl2} alt="" className="w-full h-full object-cover" />
+                    ) : (
+                      <Camera className="w-6 h-6 text-gray-500" />
+                    )}
+                    {isSubiendoFoto2 && (
+                      <div className="absolute inset-0 bg-black/50 flex items-center justify-center rounded-lg">
+                        <Loader2 className="w-4 h-4 text-amber-400 animate-spin" />
+                      </div>
+                    )}
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => fileInput2Ref.current?.click()}
+                    disabled={isSubiendoFoto2}
+                    className="text-xs px-3 py-1.5 rounded-lg bg-amber-500/20 text-amber-300 hover:bg-amber-500/30 transition-colors disabled:opacity-50"
+                  >
+                    {tarjeta?.fotoUrl2 ? 'Cambiar' : 'Subir'}
+                  </button>
+                  <input
+                    ref={fileInput2Ref}
+                    type="file"
+                    accept="image/*"
+                    onChange={handleFoto2Select}
+                    className="hidden"
+                  />
+                </div>
+              </div>
+            )}
 
             {/* Datos básicos */}
             <div className="grid grid-cols-2 gap-4">

@@ -10,6 +10,8 @@ import Footer from '@/components/layout/Footer';
 import LandingLayout from '@/components/layout/LandingLayout';
 import { AuthProvider, useAuth } from '@/contexts/AuthContext';
 import { ThemeProvider } from '@/contexts/ThemeContext';
+import { PrivateChatProvider } from '@/contexts/PrivateChatContext';
+import GlobalPrivateChatWindow from '@/components/chat/GlobalPrivateChatWindow';
 import PWASplashScreen from '@/components/pwa/PWASplashScreen';
 import ErrorBoundary from '@/components/ui/ErrorBoundary';
 import { useVersionChecker } from '@/hooks/useVersionChecker';
@@ -53,6 +55,7 @@ const TestLandingPage = lazy(() => import('@/pages/TestLandingPage'));
 const TestModalPage = lazy(() => import('@/pages/TestModalPage'));
 const FAQPage = lazy(() => import('@/pages/FAQPage'));
 const BaulPage = lazy(() => import('@/pages/BaulPage'));
+const ProfileViewPage = lazy(() => import('@/pages/ProfileViewPage'));
 
 // 🎯 OPIN - Discovery Wall
 const OpinFeedPage = lazy(() => import('@/pages/OpinFeedPage'));
@@ -137,7 +140,11 @@ function AppWithOverlay() {
 
   return (
     <>
-      <AppRoutes />
+      <PrivateChatProvider>
+        <AppRoutes />
+        {/* Chat privado persistente: no se cierra al navegar entre secciones */}
+        <GlobalPrivateChatWindow />
+      </PrivateChatProvider>
       {/* ⚡ LoadingOverlay DESHABILITADO - Bloqueaba la UI por 155+ segundos */}
       {/* <LoadingOverlay show={guestAuthInProgress} /> */}
     </>
@@ -250,6 +257,7 @@ function AppRoutes() {
           }
         />
 
+        <Route path="/profile/:userId" element={<MainLayout><ProfileViewPage /></MainLayout>} />
         <Route
           path="/profile"
           element={

@@ -83,13 +83,15 @@ const UserProfileModal = ({ user, onClose, onReport, onSelectUser }) => {
         <DialogContent className="bg-card border text-foreground max-w-sm rounded-2xl">
           <DialogHeader className="items-center text-center">
              <div className={`rounded-full ${
-               user.role === 'admin'
-                 ? 'admin-avatar-ring'
-                 : user.verified
-                   ? 'verified-avatar-ring'
-                   : user.isPremium
-                     ? 'premium-avatar-ring'
-                     : ''
+               user.isProUser
+                 ? 'rainbow-avatar-ring'
+                 : user.role === 'admin'
+                   ? 'admin-avatar-ring'
+                   : user.verified
+                     ? 'verified-avatar-ring'
+                     : user.isPremium
+                       ? 'premium-avatar-ring'
+                       : ''
              } mb-4`}>
               <Avatar className="w-24 h-24 text-4xl">
                 <AvatarImage src={user.avatar} alt={user.username} />
@@ -100,6 +102,9 @@ const UserProfileModal = ({ user, onClose, onReport, onSelectUser }) => {
             </div>
             <DialogTitle className="text-foreground text-2xl flex items-center gap-2">
               {user.username}
+              {user.isProUser && (
+                <span className="inline-flex items-center gap-0.5 bg-gradient-to-r from-amber-500 to-orange-500 text-[9px] font-bold px-1.5 py-0.5 rounded text-white uppercase tracking-wider">PRO</span>
+              )}
               {(user.isPremium || user.role === 'admin') && (
                 <CheckCircle className="w-5 h-5 text-[#FFD700]"/>
               )}

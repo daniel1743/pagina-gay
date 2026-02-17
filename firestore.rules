@@ -374,6 +374,16 @@ service cloud.firestore {
                            request.resource.data.content is string &&
                            request.resource.data.content.size() > 0)
                         );
+
+        // ✅ Checks de entregado/visto para chat privado
+        allow update: if isAuthenticated() &&
+                        request.auth.uid in get(/databases/$(database)/documents/private_chats/$(chatId)).data.participants &&
+                        request.resource.data.userId == resource.data.userId &&
+                        request.resource.data.content == resource.data.content &&
+                        request.resource.data.timestamp == resource.data.timestamp &&
+                        request.resource.data.type == resource.data.type &&
+                        request.resource.data.diff(resource.data).affectedKeys()
+                          .hasOnly(['deliveredTo', 'readBy', 'status', 'deliveredAt', 'readAt']);
       }
 
       // ✅ Typing indicator para chats privados

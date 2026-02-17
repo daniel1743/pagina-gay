@@ -169,6 +169,45 @@ export const sendMessageToPrivateChat = async (chatId, { userId, username, avata
 };
 
 /**
+ * Deja un comentario de perfil a otro usuario
+ * Se entrega como notificación específica al destinatario
+ */
+export const sendProfileComment = async (fromUserId, toUserId, content) => {
+  try {
+    const blocked = await isBlockedBetween(fromUserId, toUserId);
+    if (blocked) {
+      throw new Error('BLOCKED');
+    }
+
+    const fromUserDoc = await getDoc(doc(db, 'users', fromUserId));
+    const fromUserData = fromUserDoc.data();
+
+    const commentData = {
+      from: fromUserId,
+      fromUsername: fromUserData?.username || 'Usuario',
+      fromAvatar: fromUserData?.avatar || '',
+      fromIsPremium: fromUserData?.isPremium || false,
+      to: toUserId,
+      content,
+      type: 'profile_comment',
+      read: false,
+      timestamp: serverTimestamp(),
+    };
+
+    await addDoc(collection(db, 'users', toUserId, 'notifications'), commentData);
+    await addDoc(collection(db, 'users', fromUserId, 'sent_messages'), {
+      ...commentData,
+      read: true,
+    });
+
+    return { success: true };
+  } catch (error) {
+    console.error('Error sending profile comment:', error);
+    throw error;
+  }
+};
+
+/**
  * Actualiza el estado "escribiendo..." en chat privado
  * Se guarda en /private_chats/{chatId}/typing/{userId}
  */

@@ -453,3 +453,82 @@ body {
     position: sticky;
   }
 }
+
+/* ============================================
+   🏆 TARJETA PRO - Borde dorado animado
+   ============================================ */
+
+@keyframes pro-border-rotate {
+  0% { --pro-angle: 0deg; }
+  100% { --pro-angle: 360deg; }
+}
+
+@property --pro-angle {
+  syntax: "<angle>";
+  initial-value: 0deg;
+  inherits: false;
+}
+
+.tarjeta-pro {
+  position: relative;
+  border: 2px solid transparent;
+  background-clip: padding-box;
+}
+
+.tarjeta-pro-border {
+  pointer-events: none;
+  border-radius: inherit;
+  padding: 2px;
+  background: conic-gradient(
+    from var(--pro-angle, 0deg),
+    #fbbf24,
+    #f59e0b,
+    #d97706,
+    #fbbf24,
+    #fde68a,
+    #fbbf24
+  );
+  -webkit-mask:
+    linear-gradient(#fff 0 0) content-box,
+    linear-gradient(#fff 0 0);
+  -webkit-mask-composite: xor;
+  mask-composite: exclude;
+  animation: pro-border-rotate 3s linear infinite;
+}
+
+/* ============================================
+   🌈 PERFIL PRO - Borde arcoíris animado
+   ============================================ */
+
+@keyframes rainbow-border-rotate {
+  0% { --rainbow-angle: 0deg; }
+  100% { --rainbow-angle: 360deg; }
+}
+
+@property --rainbow-angle {
+  syntax: "<angle>";
+  initial-value: 0deg;
+  inherits: false;
+}
+
+.rainbow-avatar-ring {
+  position: relative;
+  padding: 3px;
+  border-radius: 9999px;
+  background: conic-gradient(
+    from var(--rainbow-angle, 0deg),
+    #ff0000,
+    #ff8800,
+    #ffff00,
+    #00ff00,
+    #0088ff,
+    #8800ff,
+    #ff0088,
+    #ff0000
+  );
+  animation: rainbow-border-rotate 4s linear infinite;
+}
+
+.rainbow-avatar-ring > * {
+  border-radius: 9999px;
+}

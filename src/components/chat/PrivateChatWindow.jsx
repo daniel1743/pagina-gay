@@ -1,20 +1,23 @@
 import React, { useState, useEffect, useRef, lazy, Suspense, useMemo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Dialog, DialogContent, DialogTitle, DialogDescription } from '@/components/ui/dialog';
-import { VisuallyHidden } from '@radix-ui/react-visually-hidden';
+import { Dialog, DialogContent, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { Textarea } from '@/components/ui/textarea';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
-import { Send, X, Shield, PhoneOff, User, MoreVertical, Smile, Minus, MessageCircle } from 'lucide-react';
+import { Send, X, Shield, PhoneOff, User, MoreVertical, Smile, Minus, MessageCircle, BellOff, Bell, Flag, Archive, Trash2, UserPlus, UserMinus, Check, CheckCheck } from 'lucide-react';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import { toast } from '@/components/ui/use-toast';
-import { collection, addDoc, onSnapshot, query, orderBy, serverTimestamp, doc } from 'firebase/firestore';
+import { collection, addDoc, onSnapshot, query, orderBy, serverTimestamp, doc, getDoc, writeBatch, arrayUnion } from 'firebase/firestore';
 import { EmojiStyle, Categories } from 'emoji-picker-react';
 import { db } from '@/config/firebase';
 import { blockUser, isBlocked } from '@/services/blockService';
+import { createReport } from '@/services/reportService';
 import {
   subscribeToPrivateChatTyping,
   updatePrivateChatTypingStatus,
+  addToFavorites,
+  removeFromFavorites,
 } from '@/services/socialService';
 import { notificationSounds } from '@/services/notificationSounds';
 
@@ -22,6 +25,7 @@ const EmojiPicker = lazy(() => import('emoji-picker-react'));
 
 const RECENT_EMOJIS_STORAGE_KEY = 'private_chat_recent_emojis_v1';
 const DEFAULT_RECENT_EMOJIS = ['😂', '😍', '🔥', '😘', '😉', '😈', '😏', '🥵', '❤️', '😎'];
+const DELETE_CONFIRM_TEXT = 'ELIMINAR';
 
 const getTimestampMs = (value) => {
   if (!value) return null;
@@ -31,6 +35,26 @@ const getTimestampMs = (value) => {
   if (typeof value === 'number') return value;
   const parsed = new Date(value).getTime();
   return Number.isNaN(parsed) ? null : parsed;
+};
+
+const getStoredChatSet = (storageKey) => {
+  try {
+    const raw = localStorage.getItem(storageKey);
+    if (!raw) return new Set();
+    const parsed = JSON.parse(raw);
+    if (!Array.isArray(parsed)) return new Set();
+    return new Set(parsed.filter((item) => typeof item === 'string' && item.trim()));
+  } catch {
+    return new Set();
+  }
+};
+
+const saveStoredChatSet = (storageKey, setValue) => {
+  try {
+    localStorage.setItem(storageKey, JSON.stringify([...setValue]));
+  } catch {
+    // noop
+  }
 };
 
 const formatRelativeTime = (timestampMs) => {
@@ -50,7 +74,21 @@ const formatMessageTime = (value) => {
   return new Date(timestampMs).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
 };
 
-const PrivateChatWindow = ({ user, partner, onClose, chatId, initialMessage = '', autoFocus = true, roomId = null, onEnterPrivate, onLeavePrivate }) => {
+const PrivateChatWindow = ({
+  user,
+  partner,
+  onClose,
+  chatId,
+  initialMessage = '',
+  autoFocus = true,
+  roomId = null,
+  onEnterPrivate,
+  onLeavePrivate,
+  windowIndex = 0,
+  onViewProfile,
+  onArchiveConversation,
+  onDeleteConversation,
+}) => {
   const [messages, setMessages] = useState([]);
   const [newMessage, setNewMessage] = useState(initialMessage || '');
   const [blockState, setBlockState] = useState({ blockedByMe: false, blockedByOther: false });
@@ -62,6 +100,16 @@ const PrivateChatWindow = ({ user, partner, onClose, chatId, initialMessage = ''
     typeof window !== 'undefined' ? window.innerWidth < 768 : false
   ));
   const [recentEmojis, setRecentEmojis] = useState(DEFAULT_RECENT_EMOJIS);
+  const [isMuted, setIsMuted] = useState(false);
+  const [isArchived, setIsArchived] = useState(false);
+  const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
+  const [deleteConfirmationInput, setDeleteConfirmationInput] = useState('');
+  const [isReportDialogOpen, setIsReportDialogOpen] = useState(false);
+  const [reportReason, setReportReason] = useState('acoso');
+  const [reportDescription, setReportDescription] = useState('');
+  const [isSubmittingReport, setIsSubmittingReport] = useState(false);
+  const [isActionsMenuOpen, setIsActionsMenuOpen] = useState(false);
+  const [isFriend, setIsFriend] = useState(false);
   const [partnerPresence, setPartnerPresence] = useState({
     isOnline: Boolean(partner?.estaOnline || partner?.isOnline),
     lastSeenMs: getTimestampMs(partner?.ultimaConexion || partner?.lastSeen),
@@ -74,14 +122,33 @@ const PrivateChatWindow = ({ user, partner, onClose, chatId, initialMessage = ''
   const hasLoadedSnapshotRef = useRef(false);
   const leaveNotifiedRef = useRef(false);
   const isMinimizedRef = useRef(false);
+  const isMutedRef = useRef(false);
 
   const partnerId = partner?.id || partner?.userId;
   const partnerName = partner?.username || 'Usuario';
   const isChatBlocked = blockState.blockedByMe || blockState.blockedByOther;
+  const mutedStorageKey = `private_chat_muted_v1_${user?.id || 'anon'}`;
+  const archivedStorageKey = `private_chat_archived_v1_${user?.id || 'anon'}`;
+  const deletedStorageKey = `private_chat_deleted_v1_${user?.id || 'anon'}`;
+
+  const isMobileViewport = isMobileEmojiSheet;
+  const desktopWindowWidth = 420;
+  const desktopWindowGap = 16;
+  const minimizedWindowWidth = 330;
+  const floatingWindowStyle = isMobileViewport
+    ? { left: '0.5rem', right: '0.5rem' }
+    : { right: `${16 + (windowIndex * (desktopWindowWidth + desktopWindowGap))}px` };
+  const minimizedWindowStyle = isMobileViewport
+    ? { left: '0.5rem', right: '0.5rem' }
+    : { right: `${16 + (windowIndex * (minimizedWindowWidth + 12))}px` };
 
   useEffect(() => {
     isMinimizedRef.current = isMinimized;
   }, [isMinimized]);
+
+  useEffect(() => {
+    isMutedRef.current = isMuted;
+  }, [isMuted]);
 
   // Notificar que estoy en chat privado (para que otros en la sala vean el indicador)
   useEffect(() => {
@@ -116,6 +183,34 @@ const PrivateChatWindow = ({ user, partner, onClose, chatId, initialMessage = ''
         ? `Activo ${formatRelativeTime(partnerPresence.lastSeenMs)}`
         : 'Desconectado';
 
+  useEffect(() => {
+    if (!chatId) return;
+    const mutedSet = getStoredChatSet(mutedStorageKey);
+    const archivedSet = getStoredChatSet(archivedStorageKey);
+    setIsMuted(mutedSet.has(chatId));
+    setIsArchived(archivedSet.has(chatId));
+  }, [chatId, mutedStorageKey, archivedStorageKey]);
+
+  useEffect(() => {
+    if (!user?.id || !partnerId) return;
+    let active = true;
+
+    const loadFriendStatus = async () => {
+      try {
+        const userDoc = await getDoc(doc(db, 'users', user.id));
+        const favoriteIds = userDoc.data()?.favorites || [];
+        if (active) {
+          setIsFriend(Array.isArray(favoriteIds) && favoriteIds.includes(partnerId));
+        }
+      } catch {
+        if (active) setIsFriend(false);
+      }
+    };
+
+    loadFriendStatus();
+    return () => { active = false; };
+  }, [user?.id, partnerId]);
+
   // Suscribirse a mensajes en tiempo real
   useEffect(() => {
     if (!chatId) return;
@@ -131,6 +226,8 @@ const PrivateChatWindow = ({ user, partner, onClose, chatId, initialMessage = ''
         timestamp: docSnap.data().timestamp?.toDate?.()?.toISOString() || new Date().toISOString(),
       }));
       setMessages(newMessages);
+      const canMarkAsRead = !isMinimizedRef.current && !document.hidden;
+      markIncomingMessagesStatus(newMessages, { markRead: canMarkAsRead });
 
       // No sonar en primera carga para evitar ruido con historial
       if (!hasLoadedSnapshotRef.current) {
@@ -144,7 +241,9 @@ const PrivateChatWindow = ({ user, partner, onClose, chatId, initialMessage = ''
         const isOwn = data.userId === user?.id;
         const isSystem = data.type === 'system';
         if (!isOwn && !isSystem) {
-          notificationSounds.playMessageSound();
+          if (!isMutedRef.current) {
+            notificationSounds.playMessageSound();
+          }
           if (isMinimizedRef.current) {
             setMinimizedUnreadCount((prev) => prev + 1);
           }
@@ -156,6 +255,21 @@ const PrivateChatWindow = ({ user, partner, onClose, chatId, initialMessage = ''
 
     return () => unsubscribe();
   }, [chatId, user?.id]);
+
+  useEffect(() => {
+    if (isMinimized || document.hidden) return;
+    markIncomingMessagesStatus(messages, { markRead: true });
+  }, [isMinimized, messages, chatId, user?.id]);
+
+  useEffect(() => {
+    const onVisibilityChange = () => {
+      if (!document.hidden && !isMinimizedRef.current) {
+        markIncomingMessagesStatus(messages, { markRead: true });
+      }
+    };
+    document.addEventListener('visibilitychange', onVisibilityChange);
+    return () => document.removeEventListener('visibilitychange', onVisibilityChange);
+  }, [messages, chatId, user?.id]);
 
   // Estado de bloqueo
   useEffect(() => {
@@ -359,6 +473,11 @@ const PrivateChatWindow = ({ user, partner, onClose, chatId, initialMessage = ''
         avatar: user.avatar,
         content: contentToSend,
         type: 'text',
+        status: 'sent',
+        deliveredTo: [user.id],
+        readBy: [user.id],
+        deliveredAt: serverTimestamp(),
+        readAt: serverTimestamp(),
         timestamp: serverTimestamp(),
       });
 
@@ -388,7 +507,7 @@ const PrivateChatWindow = ({ user, partner, onClose, chatId, initialMessage = ''
           description: 'No recibirás más mensajes de este usuario.',
           variant: 'destructive',
         });
-        onClose();
+        onClose?.(chatId);
       } catch (error) {
         console.error('Error bloqueando usuario:', error);
         toast({
@@ -402,13 +521,160 @@ const PrivateChatWindow = ({ user, partner, onClose, chatId, initialMessage = ''
   };
 
   const handleVisitProfile = () => {
-    toast({ title: `Pronto podrás visitar el perfil de ${partnerName}` });
+    if (typeof onViewProfile === 'function') {
+      onViewProfile({
+        ...partner,
+        userId: partnerId,
+        username: partnerName,
+        avatar: partner?.avatar || '',
+      });
+      return;
+    }
+    toast({ title: `Perfil de ${partnerName}`, description: 'Abriremos esta vista desde tu flujo actual.' });
   };
 
   const handleLeaveChat = () => {
     notifyLeaveOnce();
     toast({ title: `Has abandonado el chat con ${partnerName}` });
-    onClose();
+    onClose?.(chatId);
+  };
+
+  const handleToggleMute = () => {
+    if (!chatId) return;
+    const nextMuted = !isMuted;
+    const mutedSet = getStoredChatSet(mutedStorageKey);
+    if (nextMuted) mutedSet.add(chatId);
+    else mutedSet.delete(chatId);
+    saveStoredChatSet(mutedStorageKey, mutedSet);
+    setIsMuted(nextMuted);
+    toast({
+      title: nextMuted ? 'Usuario silenciado' : 'Usuario con sonido activo',
+      description: nextMuted ? 'No escucharás notificaciones de este chat.' : 'Las notificaciones volvieron a activarse.',
+    });
+  };
+
+  const handleArchiveConversation = () => {
+    if (!chatId) return;
+    const archivedSet = getStoredChatSet(archivedStorageKey);
+    archivedSet.add(chatId);
+    saveStoredChatSet(archivedStorageKey, archivedSet);
+    setIsArchived(true);
+    notifyLeaveOnce();
+    toast({ title: 'Conversación archivada' });
+    onArchiveConversation?.(chatId);
+    onClose?.(chatId);
+  };
+
+  const handleToggleFriend = async () => {
+    if (!user?.id || !partnerId) return;
+    if (partner?.isGuest || partner?.isAnonymous) {
+      toast({
+        title: 'No disponible',
+        description: 'Este usuario no puede agregarse a la lista de amigos.',
+        variant: 'destructive',
+      });
+      return;
+    }
+
+    try {
+      if (isFriend) {
+        await removeFromFavorites(user.id, partnerId);
+        setIsFriend(false);
+        toast({ title: 'Eliminado de tu lista de amigos' });
+      } else {
+        await addToFavorites(user.id, partnerId);
+        setIsFriend(true);
+        toast({ title: 'Agregado a tu lista de amigos' });
+      }
+    } catch (error) {
+      toast({
+        title: 'No pudimos actualizar tu lista',
+        description: error?.message === 'FAVORITES_LIMIT_REACHED'
+          ? 'Solo puedes tener hasta 15 amigos.'
+          : 'Intenta nuevamente en un momento.',
+        variant: 'destructive',
+      });
+    }
+  };
+
+  const handleDeleteConversation = () => {
+    if (!chatId) return;
+    const deletedSet = getStoredChatSet(deletedStorageKey);
+    deletedSet.add(chatId);
+    saveStoredChatSet(deletedStorageKey, deletedSet);
+    notifyLeaveOnce();
+    toast({ title: 'Conversación eliminada de tu vista' });
+    onDeleteConversation?.(chatId);
+    onClose?.(chatId);
+  };
+
+  const markIncomingMessagesStatus = async (messageList, { markRead = false } = {}) => {
+    if (!chatId || !user?.id || !Array.isArray(messageList) || messageList.length === 0) return;
+
+    const batch = writeBatch(db);
+    let hasUpdates = false;
+
+    messageList.forEach((msg) => {
+      if (!msg?.id || msg?.type === 'system' || msg?.userId === user.id) return;
+
+      const deliveredTo = Array.isArray(msg.deliveredTo) ? msg.deliveredTo : [];
+      const readBy = Array.isArray(msg.readBy) ? msg.readBy : [];
+      const updates = {};
+
+      if (!deliveredTo.includes(user.id)) {
+        updates.deliveredTo = arrayUnion(user.id);
+        if (!msg.deliveredAt) updates.deliveredAt = serverTimestamp();
+      }
+
+      if (markRead && !readBy.includes(user.id)) {
+        updates.readBy = arrayUnion(user.id);
+        if (!msg.readAt) updates.readAt = serverTimestamp();
+      }
+
+      if (Object.keys(updates).length > 0) {
+        const msgRef = doc(db, 'private_chats', chatId, 'messages', msg.id);
+        batch.update(msgRef, updates);
+        hasUpdates = true;
+      }
+    });
+
+    if (!hasUpdates) return;
+    try {
+      await batch.commit();
+    } catch {
+      // Puede fallar si rules no desplegadas todavía; evitar ruido
+    }
+  };
+
+  const handleSubmitReport = async () => {
+    if (!partnerId || !user?.id) return;
+    setIsSubmittingReport(true);
+    try {
+      await createReport({
+        reporterUsername: user.username || 'Usuario',
+        reportedUserId: partnerId,
+        reportedUsername: partnerName,
+        targetId: partnerId,
+        targetUsername: partnerName,
+        reason: reportReason,
+        type: reportReason,
+        description: reportDescription || `Reporte desde chat privado (${reportReason})`,
+        context: 'private_chat',
+        roomId: chatId || null,
+      });
+      toast({ title: 'Reporte enviado', description: 'Gracias. Revisaremos este caso.' });
+      setIsReportDialogOpen(false);
+      setReportDescription('');
+      setReportReason('acoso');
+    } catch (error) {
+      toast({
+        title: 'No pudimos enviar el reporte',
+        description: error?.message || 'Intenta nuevamente.',
+        variant: 'destructive',
+      });
+    } finally {
+      setIsSubmittingReport(false);
+    }
   };
 
   const handleMinimizeChat = () => {
@@ -428,7 +694,8 @@ const PrivateChatWindow = ({ user, partner, onClose, chatId, initialMessage = ''
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
         exit={{ opacity: 0, y: 20 }}
-        className="fixed bottom-4 right-4 z-[130] w-[min(92vw,330px)] rounded-2xl border border-border bg-card/95 backdrop-blur-md shadow-2xl p-2.5"
+        className="fixed bottom-4 z-[130] w-[min(92vw,330px)] rounded-2xl border border-border bg-card/95 backdrop-blur-md shadow-2xl p-2.5"
+        style={minimizedWindowStyle}
       >
         <div className="flex items-center gap-2.5">
           <div className="relative">
@@ -476,7 +743,7 @@ const PrivateChatWindow = ({ user, partner, onClose, chatId, initialMessage = ''
             size="icon"
             onClick={() => {
               notifyLeaveOnce();
-              onClose();
+              onClose?.(chatId);
             }}
             className="w-8 h-8 text-muted-foreground hover:text-red-400"
             title="Cerrar chat"
@@ -489,22 +756,15 @@ const PrivateChatWindow = ({ user, partner, onClose, chatId, initialMessage = ''
   }
 
   return (
-    <Dialog
-      open
-      onOpenChange={(isOpen) => {
-        if (!isOpen) {
-          notifyLeaveOnce();
-          onClose();
-        }
-      }}
-    >
-      <DialogContent className="p-0 !w-[min(92vw,420px)] !max-w-[min(92vw,420px)] h-[min(84vh,640px)] flex flex-col gap-0 bg-card border rounded-2xl shadow-2xl overflow-hidden [&>button]:hidden">
-        <VisuallyHidden>
-          <DialogTitle>Chat privado con {partnerName}</DialogTitle>
-          <DialogDescription>
-            Conversación privada entre tú y {partnerName}
-          </DialogDescription>
-        </VisuallyHidden>
+    <>
+      <motion.section
+        initial={{ opacity: 0, y: 20, scale: 0.98 }}
+        animate={{ opacity: 1, y: 0, scale: 1 }}
+        exit={{ opacity: 0, y: 20, scale: 0.98 }}
+        className="fixed bottom-4 z-[130] w-[min(92vw,420px)] h-[min(84vh,640px)] flex flex-col gap-0 bg-card border rounded-2xl shadow-2xl overflow-hidden"
+        style={floatingWindowStyle}
+        aria-label={`Chat privado con ${partnerName}`}
+      >
 
         <header className="bg-secondary/95 backdrop-blur-md px-3 py-3 border-b border-border/60 flex items-center justify-between shrink-0">
           <div className="flex items-center gap-3 min-w-0">
@@ -528,24 +788,60 @@ const PrivateChatWindow = ({ user, partner, onClose, chatId, initialMessage = ''
           </div>
 
           <div className="flex items-center gap-1">
-            <DropdownMenu>
+            <DropdownMenu modal={false} open={isActionsMenuOpen} onOpenChange={setIsActionsMenuOpen}>
               <DropdownMenuTrigger asChild>
-                <Button variant="ghost" size="icon" className="w-8 h-8 text-muted-foreground">
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="icon"
+                  className="w-8 h-8 text-muted-foreground"
+                  title="Opciones del chat"
+                >
                   <MoreVertical className="w-5 h-5" />
                 </Button>
               </DropdownMenuTrigger>
-              <DropdownMenuContent align="end" className="bg-card border text-foreground">
-                <DropdownMenuItem onClick={handleVisitProfile}>
-                  <User className="w-4 h-4 mr-2" />
-                  Visitar perfil
-                </DropdownMenuItem>
-                <DropdownMenuItem onClick={handleBlockUser} className="text-red-500 focus:text-red-500">
+              <DropdownMenuContent
+                align="end"
+                sideOffset={8}
+                className="z-[260] bg-card border text-foreground w-64 shadow-2xl"
+              >
+                <DropdownMenuItem onSelect={handleBlockUser}>
                   <Shield className="w-4 h-4 mr-2" />
                   Bloquear usuario
                 </DropdownMenuItem>
-                <DropdownMenuItem onClick={handleLeaveChat}>
+                <DropdownMenuItem onSelect={handleToggleMute}>
+                  {isMuted ? <Bell className="w-4 h-4 mr-2" /> : <BellOff className="w-4 h-4 mr-2" />}
+                  {isMuted ? 'Activar sonido' : 'Silenciar usuario'}
+                </DropdownMenuItem>
+                <DropdownMenuItem onSelect={handleLeaveChat}>
                   <PhoneOff className="w-4 h-4 mr-2" />
-                  Dejar chat
+                  Cerrar conversación
+                </DropdownMenuItem>
+                <DropdownMenuItem onSelect={() => setIsReportDialogOpen(true)}>
+                  <Flag className="w-4 h-4 mr-2" />
+                  Denunciar usuario
+                </DropdownMenuItem>
+                <DropdownMenuItem onSelect={handleVisitProfile}>
+                  <User className="w-4 h-4 mr-2" />
+                  Ver perfil
+                </DropdownMenuItem>
+                <DropdownMenuItem onSelect={handleToggleFriend}>
+                  {isFriend ? <UserMinus className="w-4 h-4 mr-2" /> : <UserPlus className="w-4 h-4 mr-2" />}
+                  {isFriend ? 'Quitar de mi lista de amigos' : 'Agregar a mi lista de amigos'}
+                </DropdownMenuItem>
+                <DropdownMenuItem onSelect={handleArchiveConversation}>
+                  <Archive className="w-4 h-4 mr-2" />
+                  {isArchived ? 'Archivar nuevamente' : 'Archivar conversación'}
+                </DropdownMenuItem>
+                <DropdownMenuItem
+                  onSelect={() => {
+                    setDeleteConfirmationInput('');
+                    setIsDeleteDialogOpen(true);
+                  }}
+                  className="text-red-500 focus:text-red-500"
+                >
+                  <Trash2 className="w-4 h-4 mr-2" />
+                  Eliminar conversación
                 </DropdownMenuItem>
               </DropdownMenuContent>
             </DropdownMenu>
@@ -563,7 +859,7 @@ const PrivateChatWindow = ({ user, partner, onClose, chatId, initialMessage = ''
               size="icon"
               onClick={() => {
                 notifyLeaveOnce();
-                onClose();
+                onClose?.(chatId);
               }}
               className="w-8 h-8 text-muted-foreground"
               title="Cerrar chat"
@@ -622,9 +918,29 @@ const PrivateChatWindow = ({ user, partner, onClose, chatId, initialMessage = ''
                       }`}
                     >
                       <p className="text-sm leading-relaxed break-words break-all whitespace-pre-wrap">{msg.content}</p>
-                      <p className={`text-[10px] mt-1 ${isOwn ? 'text-white/70' : 'text-muted-foreground'}`}>
-                        {formatMessageTime(msg.timestamp)}
-                      </p>
+                      {isOwn ? (
+                        <div className="mt-1 flex items-center justify-end gap-1.5 text-[10px] text-white/70">
+                          <span>{formatMessageTime(msg.timestamp)}</span>
+                          {(() => {
+                            const deliveredTo = Array.isArray(msg.deliveredTo) ? msg.deliveredTo : [];
+                            const readBy = Array.isArray(msg.readBy) ? msg.readBy : [];
+                            const partnerRead = Boolean(partnerId && readBy.includes(partnerId));
+                            const partnerDelivered = Boolean(partnerId && (deliveredTo.includes(partnerId) || partnerRead));
+
+                            if (partnerRead) {
+                              return <CheckCheck className="w-3 h-3 text-cyan-300" />;
+                            }
+                            if (partnerDelivered) {
+                              return <CheckCheck className="w-3 h-3 text-white/70" />;
+                            }
+                            return <Check className="w-3 h-3 text-white/70" />;
+                          })()}
+                        </div>
+                      ) : (
+                        <p className="text-[10px] mt-1 text-muted-foreground">
+                          {formatMessageTime(msg.timestamp)}
+                        </p>
+                      )}
                     </div>
                   </motion.div>
                 );
@@ -791,8 +1107,81 @@ const PrivateChatWindow = ({ user, partner, onClose, chatId, initialMessage = ''
             </Button>
           </div>
         </form>
-      </DialogContent>
-    </Dialog>
+
+      </motion.section>
+
+      <Dialog open={isReportDialogOpen} onOpenChange={setIsReportDialogOpen}>
+        <DialogContent className="sm:max-w-md">
+          <DialogTitle>Denunciar usuario</DialogTitle>
+          <DialogDescription>
+            Reportar a {partnerName}. Esto ayuda a moderación a revisar comportamientos indebidos.
+          </DialogDescription>
+          <div className="space-y-3">
+            <label className="block text-sm text-foreground/90">
+              Motivo
+              <select
+                value={reportReason}
+                onChange={(e) => setReportReason(e.target.value)}
+                className="mt-1 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+              >
+                <option value="acoso">Acoso</option>
+                <option value="violencia">Violencia/amenaza</option>
+                <option value="ventas">Spam o ventas</option>
+                <option value="otras">Otro</option>
+              </select>
+            </label>
+            <label className="block text-sm text-foreground/90">
+              Detalle (opcional)
+              <Textarea
+                value={reportDescription}
+                onChange={(e) => setReportDescription(e.target.value)}
+                placeholder="Describe brevemente lo ocurrido..."
+                className="mt-1 min-h-[90px]"
+              />
+            </label>
+          </div>
+          <DialogFooter>
+            <Button type="button" variant="outline" onClick={() => setIsReportDialogOpen(false)}>
+              Cancelar
+            </Button>
+            <Button type="button" onClick={handleSubmitReport} disabled={isSubmittingReport}>
+              {isSubmittingReport ? 'Enviando...' : 'Enviar reporte'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={isDeleteDialogOpen} onOpenChange={setIsDeleteDialogOpen}>
+        <DialogContent className="sm:max-w-md">
+          <DialogTitle>Eliminar conversación</DialogTitle>
+          <DialogDescription>
+            Escribe <strong>{DELETE_CONFIRM_TEXT}</strong> para confirmar. Esta acción la ocultará de tu vista.
+          </DialogDescription>
+          <Input
+            value={deleteConfirmationInput}
+            onChange={(e) => setDeleteConfirmationInput(e.target.value)}
+            placeholder={DELETE_CONFIRM_TEXT}
+            autoFocus
+          />
+          <DialogFooter>
+            <Button type="button" variant="outline" onClick={() => setIsDeleteDialogOpen(false)}>
+              Cancelar
+            </Button>
+            <Button
+              type="button"
+              variant="destructive"
+              disabled={deleteConfirmationInput.trim().toUpperCase() !== DELETE_CONFIRM_TEXT}
+              onClick={() => {
+                setIsDeleteDialogOpen(false);
+                handleDeleteConversation();
+              }}
+            >
+              Eliminar conversación
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </>
   );
 };
 

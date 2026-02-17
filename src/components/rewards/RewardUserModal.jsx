@@ -6,7 +6,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { createReward, REWARD_TYPES, REWARD_REASONS } from '@/services/rewardsService';
 import { toast } from '@/components/ui/use-toast';
-import { Loader2, Gift, Award, Star, Crown, Shield } from 'lucide-react';
+import { Loader2, Gift, Award, Star, Crown, Shield, Zap } from 'lucide-react';
 
 const RewardUserModal = ({ isOpen, onClose, user, currentAdmin, onRewardCreated }) => {
   const [loading, setLoading] = useState(false);
@@ -71,6 +71,7 @@ const RewardUserModal = ({ isOpen, onClose, user, currentAdmin, onRewardCreated 
       case REWARD_TYPES.SPECIAL_AVATAR: return 'Avatar Especial 1 Mes';
       case REWARD_TYPES.FEATURED_USER: return 'Usuario Destacado';
       case REWARD_TYPES.MODERATOR_1_MONTH: return 'Moderador 1 Mes';
+      case REWARD_TYPES.PRO_USER: return 'Usuario PRO (Paquete Completo)';
       default: return 'Recompensa';
     }
   };
@@ -83,6 +84,7 @@ const RewardUserModal = ({ isOpen, onClose, user, currentAdmin, onRewardCreated 
       case REWARD_REASONS.HELPFUL: return 'Usuario Servicial';
       case REWARD_REASONS.COMMUNITY_BUILDER: return 'Constructor de Comunidad';
       case REWARD_REASONS.AMBASSADOR: return 'Embajador';
+      case REWARD_REASONS.PRO_RECOGNITION: return 'Reconocimiento PRO';
       case REWARD_REASONS.OTHER: return 'Otra';
       default: return reason;
     }
@@ -171,6 +173,12 @@ const RewardUserModal = ({ isOpen, onClose, user, currentAdmin, onRewardCreated 
                     Moderador por 1 Mes
                   </div>
                 </SelectItem>
+                <SelectItem value={REWARD_TYPES.PRO_USER}>
+                  <div className="flex items-center gap-2">
+                    <Zap className="w-4 h-4 text-amber-400" />
+                    PRO (2da foto + tarjeta destacada + arcoíris + badge)
+                  </div>
+                </SelectItem>
               </SelectContent>
             </Select>
           </div>
@@ -191,6 +199,7 @@ const RewardUserModal = ({ isOpen, onClose, user, currentAdmin, onRewardCreated 
                 <SelectItem value={REWARD_REASONS.HELPFUL}>Usuario Servicial</SelectItem>
                 <SelectItem value={REWARD_REASONS.COMMUNITY_BUILDER}>Constructor de Comunidad</SelectItem>
                 <SelectItem value={REWARD_REASONS.AMBASSADOR}>Embajador</SelectItem>
+                <SelectItem value={REWARD_REASONS.PRO_RECOGNITION}>Reconocimiento PRO</SelectItem>
                 <SelectItem value={REWARD_REASONS.OTHER}>Otra</SelectItem>
               </SelectContent>
             </Select>

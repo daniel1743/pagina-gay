@@ -13,7 +13,11 @@ import {
   MessageSquare,
   User,
   Eye,
-  Footprints
+  Footprints,
+  Star,
+  Zap,
+  ChevronLeft,
+  ChevronRight
 } from 'lucide-react';
 import { getColorRol, getEmojiEstado, formatearHorarios, obtenerFotoPrincipal } from '@/services/tarjetaService';
 import { getBadgeConfig } from '@/services/badgeService';
@@ -82,8 +86,13 @@ const TarjetaUsuario = ({
   const [huellasCount, setHuellasCount] = useState(tarjeta.huellasRecibidas || 0);
   const [vistasCount, setVistasCount] = useState((tarjeta.impresionesRecibidas || 0) + (tarjeta.visitasRecibidas || 0));
   const [dejeHuella, setDejeHuella] = useState(yaDejeHuella);
+  const [showingSecondPhoto, setShowingSecondPhoto] = useState(false);
   const cardRef = useRef(null);
   const impresionSentRef = useRef(false);
+
+  // PRO user detection
+  const isProUser = Boolean(tarjeta.isProUser);
+  const hasSecondPhoto = Boolean(tarjeta.fotoUrl2);
   const estadoActual = tarjeta.estadoReal || tarjeta.estado;
   const nowMs = Date.now();
   const getTimestampMs = (value) => {
@@ -210,9 +219,14 @@ const TarjetaUsuario = ({
     }
   };
 
-  const fotoMostrar = obtenerFotoPrincipal(tarjeta);
+  const fotoMostrar = showingSecondPhoto && hasSecondPhoto ? tarjeta.fotoUrl2 : obtenerFotoPrincipal(tarjeta);
   const hasPhoto = Boolean(fotoMostrar);
   const shouldBlur = isSensitive && !esMiTarjeta && !revealed && hasPhoto;
+
+  const handleTogglePhoto = (e) => {
+    e.stopPropagation();
+    if (hasSecondPhoto) setShowingSecondPhoto(prev => !prev);
+  };
 
   return (
     <motion.div
@@ -223,12 +237,24 @@ const TarjetaUsuario = ({
       className={`
         relative rounded-lg overflow-hidden cursor-pointer
         bg-gradient-to-br from-gray-800/90 to-gray-900/90
-        border border-gray-700/50 hover:border-gray-600/50
         shadow-md hover:shadow-lg transition-all
         ${esMiTarjeta ? 'ring-2 ring-cyan-500/50' : ''}
+        ${isProUser ? 'tarjeta-pro' : 'border border-gray-700/50 hover:border-gray-600/50'}
         ${priorityClass}
       `}
     >
+      {/* PRO animated border overlay */}
+      {isProUser && (
+        <div className="absolute inset-0 z-0 rounded-lg tarjeta-pro-border" />
+      )}
+
+      {/* PRO star badge */}
+      {isProUser && !esMiTarjeta && (
+        <div className="absolute top-1.5 right-6 z-20 flex items-center gap-0.5">
+          <Star className="w-3 h-3 text-amber-400 fill-amber-400 drop-shadow-[0_0_4px_rgba(251,191,36,0.6)]" />
+        </div>
+      )}
+
       {/* Badge "Tu" */}
       {esMiTarjeta && (
         <div className="absolute top-1.5 left-1.5 z-20 bg-cyan-500 text-white text-[9px] font-bold px-1.5 py-0.5 rounded-full">
@@ -245,8 +271,8 @@ const TarjetaUsuario = ({
         </div>
       )}
 
-      {/* Foto / Avatar - MÁS COMPACTO (fallback: fotoUrlFull, fotoUrlThumb) */}
-      <div className="relative aspect-[4/5] bg-gradient-to-br from-gray-700 to-gray-800">
+      {/* Foto / Avatar */}
+      <div className="relative aspect-[4/5] bg-gradient-to-br from-gray-700 to-gray-800 z-[1]">
         {hasPhoto ? (
           <img
             src={fotoMostrar}
@@ -258,6 +284,31 @@ const TarjetaUsuario = ({
           <div className="absolute inset-0 flex items-center justify-center">
             <User className="w-10 h-10 text-gray-600" />
           </div>
+        )}
+
+        {/* Second photo toggle arrows (PRO only) */}
+        {isProUser && hasSecondPhoto && !shouldBlur && (
+          <>
+            <button
+              type="button"
+              onClick={handleTogglePhoto}
+              className="absolute left-1 top-1/2 -translate-y-1/2 z-15 p-0.5 rounded-full bg-black/50 text-white/80 hover:bg-black/70 transition-colors"
+            >
+              <ChevronLeft className="w-3 h-3" />
+            </button>
+            <button
+              type="button"
+              onClick={handleTogglePhoto}
+              className="absolute right-1 top-1/2 -translate-y-1/2 z-15 p-0.5 rounded-full bg-black/50 text-white/80 hover:bg-black/70 transition-colors"
+            >
+              <ChevronRight className="w-3 h-3" />
+            </button>
+            {/* Photo indicator dots */}
+            <div className="absolute bottom-8 left-1/2 -translate-x-1/2 z-15 flex gap-1">
+              <div className={`w-1.5 h-1.5 rounded-full transition-colors ${!showingSecondPhoto ? 'bg-white' : 'bg-white/40'}`} />
+              <div className={`w-1.5 h-1.5 rounded-full transition-colors ${showingSecondPhoto ? 'bg-white' : 'bg-white/40'}`} />
+            </div>
+          </>
         )}
 
         {shouldBlur && (
@@ -274,7 +325,7 @@ const TarjetaUsuario = ({
         <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-transparent" />
 
         {/* Estado - punto pequeño */}
-        <div className="absolute top-1.5 right-1.5">
+        <div className="absolute top-1.5 right-1.5 z-20">
           <div className={`w-2 h-2 rounded-full ${
             estadoActual === 'online' ? 'bg-green-500 animate-pulse' :
             estadoActual === 'reciente' ? 'bg-orange-500' : 'bg-gray-500'
@@ -283,9 +334,14 @@ const TarjetaUsuario = ({
 
       {/* Info principal - sobre la foto */}
       <div className="absolute bottom-0 left-0 right-0 p-1.5">
-        <h3 className="text-xs sm:text-sm font-bold text-white truncate">
-          {tarjeta.nombre || 'Usuario'}
-          {tarjeta.edad && <span className="font-normal text-gray-300">, {tarjeta.edad}</span>}
+        <h3 className="text-xs sm:text-sm font-bold text-white truncate flex items-center gap-1">
+          {isProUser && (
+            <span className="inline-flex items-center gap-0.5 bg-gradient-to-r from-amber-500 to-orange-500 text-[7px] font-bold px-1 py-0.5 rounded text-white uppercase tracking-wider flex-shrink-0">
+              <Zap className="w-2 h-2" />PRO
+            </span>
+          )}
+          <span className="truncate">{tarjeta.nombre || 'Usuario'}</span>
+          {tarjeta.edad && <span className="font-normal text-gray-300 flex-shrink-0">, {tarjeta.edad}</span>}
         </h3>
         <div className="flex items-center gap-1 mt-0.5">
           <RolBadge rol={tarjeta.rol} />

@@ -14,21 +14,47 @@ import { suscribirseAEventos, unirseAEvento } from '@/services/eventosService';
 import { isEventoActivo, isEventoProgramado, formatCountdown, formatFechaEvento, toMs } from '@/utils/eventosUtils';
 import { setEventReminder, removeEventReminder, hasEventReminder } from '@/utils/eventReminderUtils';
 
+const PRE_EVENT_WINDOW_MS = 5 * 60 * 1000; // 5 minutos antes del inicio
+
 export default function EventoBanner({ currentRoomId, onEventoActivoConRecordatorio }) {
   const navigate = useNavigate();
   const { user } = useAuth();
   const [eventos, setEventos] = useState([]);
   const [countdown, setCountdown] = useState('');
-  const [dismissed, setDismissed] = useState(false);
+  const [dismissedEventIds, setDismissedEventIds] = useState(new Set());
   const [reminded, setReminded] = useState(false);
   const [showDetails, setShowDetails] = useState(false);
   const countdownRef = useRef(null);
+  const dismissedStorageKey = user?.id ? `evento_banner_dismissed_${user.id}` : 'evento_banner_dismissed_guest';
+
+  useEffect(() => {
+    try {
+      const raw = localStorage.getItem(dismissedStorageKey);
+      if (!raw) {
+        setDismissedEventIds(new Set());
+        return;
+      }
+      const parsed = JSON.parse(raw);
+      if (Array.isArray(parsed)) {
+        setDismissedEventIds(new Set(parsed.filter(Boolean)));
+      } else {
+        setDismissedEventIds(new Set());
+      }
+    } catch {
+      setDismissedEventIds(new Set());
+    }
+  }, [dismissedStorageKey]);
+
+  useEffect(() => {
+    try {
+      localStorage.setItem(dismissedStorageKey, JSON.stringify(Array.from(dismissedEventIds)));
+    } catch {}
+  }, [dismissedEventIds, dismissedStorageKey]);
 
   // Suscripción real-time a eventos
   useEffect(() => {
     const unsub = suscribirseAEventos((eventosData) => {
       setEventos(eventosData);
-      setDismissed(false);
     });
     return () => unsub();
   }, []);
@@ -36,7 +62,13 @@ export default function EventoBanner({ currentRoomId, onEventoActivoConRecordato
   // Encontrar el evento más relevante: activo > próximo más cercano
   const eventoActivo = eventos.find(e => isEventoActivo(e));
   const eventoProgramado = eventos.find(e => isEventoProgramado(e));
-  const evento = eventoActivo || eventoProgramado;
+  const msHastaEventoProgramado = eventoProgramado
+    ? toMs(eventoProgramado.fechaInicio) - Date.now()
+    : null;
+  const mostrarEventoProgramado = !!eventoProgramado &&
+    msHastaEventoProgramado > 0 &&
+    msHastaEventoProgramado <= PRE_EVENT_WINDOW_MS;
+  const evento = eventoActivo || (mostrarEventoProgramado ? eventoProgramado : null);
 
   // Sincronizar estado de recordatorio con localStorage
   useEffect(() => {
@@ -62,7 +94,6 @@ export default function EventoBanner({ currentRoomId, onEventoActivoConRecordato
       const updateCountdown = () => {
         const cd = formatCountdown(eventoProgramado.fechaInicio);
         setCountdown(cd || '');
-        if (!cd) setDismissed(false);
       };
       updateCountdown();
       countdownRef.current = setInterval(updateCountdown, 1000);
@@ -73,8 +104,9 @@ export default function EventoBanner({ currentRoomId, onEventoActivoConRecordato
     };
   }, [eventoProgramado, eventoActivo]);
 
-  // No mostrar si no hay evento, si fue cerrado, o si ya estamos en la sala del evento
-  if (!evento || dismissed) return null;
+  // No mostrar si no hay evento, si fue cerrado para este evento, o si ya estamos en la sala del evento
+  if (!evento) return null;
+  if (dismissedEventIds.has(evento.id)) return null;
   if (currentRoomId === evento.roomId) return null;
 
   const esActivo = isEventoActivo(evento);
@@ -191,7 +223,13 @@ export default function EventoBanner({ currentRoomId, onEventoActivoConRecordato
 
             {/* Cerrar */}
             <button
-              onClick={() => setDismissed(true)}
+              onClick={() => {
+                setDismissedEventIds((prev) => {
+                  const next = new Set(prev);
+                  if (evento?.id) next.add(evento.id);
+                  return next;
+                });
+              }}
               className="flex-shrink-0 p-1 rounded text-gray-500 hover:text-gray-300 transition-colors"
             >
               <X className="w-3.5 h-3.5" />

@@ -343,13 +343,15 @@ const ChatSidebar = ({ currentRoom, setCurrentRoom, isOpen, onClose, onOpenBaul,
             >
               <motion.div
                 className={`${
-                  user.role === 'admin'
-                    ? 'admin-avatar-ring'
-                    : user.verified
-                      ? 'verified-avatar-ring'
-                      : user.isPremium
-                        ? 'premium-avatar-ring'
-                        : ''
+                  user.isProUser
+                    ? 'rainbow-avatar-ring'
+                    : user.role === 'admin'
+                      ? 'admin-avatar-ring'
+                      : user.verified
+                        ? 'verified-avatar-ring'
+                        : user.isPremium
+                          ? 'premium-avatar-ring'
+                          : ''
                 }`}
                 whileHover={{ rotate: [0, -5, 5, -5, 0] }}
                 transition={{ duration: 0.5 }}
@@ -639,13 +641,15 @@ const ChatSidebar = ({ currentRoom, setCurrentRoom, isOpen, onClose, onOpenBaul,
             >
               <motion.div
                 className={`${
-                  user.role === 'admin'
-                    ? 'admin-avatar-ring'
-                    : user.verified
-                      ? 'verified-avatar-ring'
-                      : user.isPremium
-                        ? 'premium-avatar-ring'
-                        : ''
+                  user.isProUser
+                    ? 'rainbow-avatar-ring'
+                    : user.role === 'admin'
+                      ? 'admin-avatar-ring'
+                      : user.verified
+                        ? 'verified-avatar-ring'
+                        : user.isPremium
+                          ? 'premium-avatar-ring'
+                          : ''
                 }`}
                 whileHover={{ rotate: [0, -5, 5, -5, 0] }}
                 transition={{ duration: 0.5 }}

@@ -26,6 +26,7 @@ import {
   TrendingUp
 } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
+import { usePrivateChat } from '@/contexts/PrivateChatContext';
 import TarjetaUsuario from './TarjetaUsuario';
 import TarjetaEditor from './TarjetaEditor';
 import MensajeTarjetaModal from './MensajeTarjetaModal';
@@ -33,7 +34,6 @@ import ActividadFeed from './ActividadFeed';
 import MetricasTarjetaPanel from './MetricasTarjetaPanel';
 import MatchModal from './MatchModal';
 import MatchesList from './MatchesList';
-import PrivateChatWindow from '@/components/chat/PrivateChatWindow';
 import {
   obtenerTarjetasCercanas,
   obtenerTarjetasRecientes,
@@ -198,7 +198,7 @@ const BaulSection = ({ isOpen = true, onClose, variant = 'modal' }) => {
   const [mostrarMatchModal, setMostrarMatchModal] = useState(false);
   const [mostrarMatchesList, setMostrarMatchesList] = useState(false);
   const [matchesNoLeidos, setMatchesNoLeidos] = useState(0);
-  const [activePrivateChat, setActivePrivateChat] = useState(null);
+  const { setActivePrivateChat, maxOpenPrivateChats } = usePrivateChat();
 
   // Cargar tarjetas (sin dependencia de miUbicacion para evitar loop)
   const cargarTarjetas = useCallback(async (mostrarLoading = true, ubicacionParam = null) => {
@@ -597,7 +597,7 @@ const BaulSection = ({ isOpen = true, onClose, variant = 'modal' }) => {
 
     try {
       const { chatId } = await getOrCreatePrivateChat(user.id, tarjetaDestino.odIdUsuari);
-      setActivePrivateChat({
+      const result = setActivePrivateChat({
         chatId,
         partner: {
           id: tarjetaDestino.odIdUsuari,
@@ -606,6 +606,13 @@ const BaulSection = ({ isOpen = true, onClose, variant = 'modal' }) => {
         },
         initialMessage: obtenerMensajeSugerido()
       });
+      if (!result?.ok && result?.reason === 'limit_reached') {
+        toast({
+          title: 'Límite de chats privados',
+          description: `Puedes tener hasta ${maxOpenPrivateChats || 3} conversaciones privadas abiertas. Cierra una para abrir otra.`,
+          variant: 'destructive',
+        });
+      }
     } catch (error) {
       console.error('[BAUL] Error creando chat privado:', error);
       toast({
@@ -839,7 +846,14 @@ const BaulSection = ({ isOpen = true, onClose, variant = 'modal' }) => {
           onAbrirChat={({ chatId, partner }) => {
             setMostrarMensajeModal(false);
             setTarjetaSeleccionada(null);
-            setActivePrivateChat({ chatId, partner });
+            const result = setActivePrivateChat({ chatId, partner });
+            if (!result?.ok && result?.reason === 'limit_reached') {
+              toast({
+                title: 'Límite de chats privados',
+                description: `Puedes tener hasta ${maxOpenPrivateChats || 3} conversaciones privadas abiertas. Cierra una para abrir otra.`,
+                variant: 'destructive',
+              });
+            }
           }}
           readOnly={isGuestView}
         />
@@ -937,16 +951,7 @@ const BaulSection = ({ isOpen = true, onClose, variant = 'modal' }) => {
         />
       )}
 
-      {activePrivateChat && (
-        <PrivateChatWindow
-          user={user}
-          partner={activePrivateChat.partner}
-          chatId={activePrivateChat.chatId}
-          initialMessage={activePrivateChat.initialMessage}
-          autoFocus={true}
-          onClose={() => setActivePrivateChat(null)}
-        />
-      )}
+      {/* Chat privado renderizado globalmente para persistir entre secciones */}
     </>
   );
 

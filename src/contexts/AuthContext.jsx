@@ -33,6 +33,7 @@ import {
   hasGuestIdentity,
 } from '@/utils/guestIdentity';
 import { crearTarjetaAutomatica } from '@/services/tarjetaService';
+import { removeRewardFromUser, REWARD_TYPES } from '@/services/rewardsService';
 
 // ⚡ Helper para agregar timeout a promesas de Firestore (evita delays de 41+ segundos)
 const withTimeout = (promise, timeoutMs = 3000) => {
@@ -316,6 +317,39 @@ export const AuthProvider = ({ children }) => {
                 console.log('✅ [AUTH] Rol de admin asignado y guardado en Firestore');
               } catch (error) {
                 console.error('❌ [AUTH] Error al guardar rol de admin:', error);
+              }
+            }
+
+            // 🔄 Verificar expiración PRO por inactividad de 48h
+            if (userProfile.isProUser) {
+              try {
+                const lastActive = userProfile.lastActiveAt?.toMillis?.() ||
+                                   userProfile.lastActiveAt ||
+                                   userProfile.lastSeenAt?.toMillis?.() ||
+                                   userProfile.lastSeenAt ||
+                                   userProfile.updatedAt?.toMillis?.() ||
+                                   userProfile.updatedAt ||
+                                   userProfile.lastSeen?.toMillis?.() ||
+                                   userProfile.lastSeen;
+
+                if (lastActive) {
+                  const horasSinConexion = (Date.now() - lastActive) / (1000 * 60 * 60);
+                  if (horasSinConexion > 48) {
+                    console.log(`⚠️ [PRO] Usuario ${userProfile.username} inactivo ${Math.round(horasSinConexion)}h - revocando PRO`);
+                    await removeRewardFromUser(firebaseUser.uid, REWARD_TYPES.PRO_USER);
+                    userProfile.isProUser = false;
+                    userProfile.canUploadSecondPhoto = false;
+                    userProfile.hasFeaturedCard = false;
+                    userProfile.hasRainbowBorder = false;
+                    userProfile.hasProBadge = false;
+                    toast({
+                      title: "Estado PRO expirado",
+                      description: "Tu premio PRO ha expirado por más de 48 horas sin conectarte. ¡Sigue participando para recuperarlo!",
+                    });
+                  }
+                }
+              } catch (proCheckError) {
+                console.warn('Error verificando expiración PRO:', proCheckError);
               }
             }
 

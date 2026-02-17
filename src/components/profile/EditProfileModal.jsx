@@ -6,7 +6,8 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
-import { X, Save, Loader2 } from 'lucide-react';
+import { X, Save, Loader2, Eye, EyeOff } from 'lucide-react';
+import { Switch } from '@/components/ui/switch';
 import { toast } from '@/components/ui/use-toast';
 import { checkUsernameAvailability } from '@/services/userService';
 
@@ -61,6 +62,7 @@ const EditProfileModal = ({ isOpen, onClose }) => {
         estado: user.estado || '',
         profileRole: getInitialProfileRole(),
         interests: user.interests || [],
+        profileVisible: user.profileVisible !== false,
       });
       setUsernameError('');
     }
@@ -114,6 +116,7 @@ const EditProfileModal = ({ isOpen, onClose }) => {
         estado,
         profileRole: formData.profileRole,
         interests: formData.interests,
+        profileVisible: formData.profileVisible,
       });
 
       toast({
@@ -144,6 +147,27 @@ const EditProfileModal = ({ isOpen, onClose }) => {
         </DialogHeader>
 
         <form onSubmit={handleSubmit} className="px-6 pb-6 space-y-6 max-h-[70vh] overflow-y-auto scrollbar-hide">
+          {/* Visibilidad del perfil */}
+          <div className="flex items-center justify-between p-4 rounded-xl bg-accent/50 border border-border">
+            <div className="flex items-center gap-3">
+              {formData.profileVisible ? (
+                <Eye className="w-5 h-5 text-cyan-500" />
+              ) : (
+                <EyeOff className="w-5 h-5 text-muted-foreground" />
+              )}
+              <div>
+                <Label className="font-bold text-foreground">Mi perfil visible</Label>
+                <p className="text-xs text-muted-foreground mt-0.5">
+                  Otros pueden ver tu foto, rol, intereses y descripción
+                </p>
+              </div>
+            </div>
+            <Switch
+              checked={formData.profileVisible}
+              onCheckedChange={(checked) => setFormData({ ...formData, profileVisible: checked })}
+            />
+          </div>
+
           {/* Cambiar nombre */}
           <div>
             <Label htmlFor="username" className="font-bold text-foreground">Tu Nombre</Label>

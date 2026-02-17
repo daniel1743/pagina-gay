@@ -8,7 +8,7 @@ import { User, MessageSquare, Video, Heart, Send, X, CheckCircle, Crown, Shield 
 import { motion, AnimatePresence } from 'framer-motion';
 import { toast } from '@/components/ui/use-toast';
 import { useAuth } from '@/contexts/AuthContext';
-import { sendDirectMessage, sendPrivateChatRequest, addToFavorites, removeFromFavorites } from '@/services/socialService';
+import { sendDirectMessage, sendPrivateChatRequest, addToFavorites, removeFromFavorites, sendProfileComment } from '@/services/socialService';
 import { blockUser } from '@/services/blockService';
 import {
   canSendChatInvite,
@@ -21,6 +21,7 @@ const UserActionsModal = ({ user: targetUser, onClose, onViewProfile, onShowRegi
   const { user: currentUser } = useAuth();
   const navigate = useNavigate();
   const [showMessageInput, setShowMessageInput] = useState(false);
+  const [composeMode, setComposeMode] = useState('direct'); // direct | comment
   const [message, setMessage] = useState('');
   const [isSending, setIsSending] = useState(false);
   const [isFavorite, setIsFavorite] = useState(
@@ -55,58 +56,71 @@ const UserActionsModal = ({ user: targetUser, onClose, onViewProfile, onShowRegi
       return;
     }
 
-    // Verificar límites
-    const canSend = canSendDirectMessage(currentUser);
+    // Para comentario de perfil no usamos límites de DM
+    if (composeMode === 'direct') {
+      const canSend = canSendDirectMessage(currentUser);
 
-    if (!canSend.allowed) {
-      if (canSend.reason === 'guest') {
-        toast({
-          title: "👤 Regístrate",
-          description: canSend.message,
-          action: {
-            label: "Registrarse",
-            onClick: () => navigate('/auth')
-          }
-        });
-        return;
-      }
+      if (!canSend.allowed) {
+        if (canSend.reason === 'guest') {
+          toast({
+            title: "👤 Regístrate",
+            description: canSend.message,
+            action: {
+              label: "Registrarse",
+              onClick: () => navigate('/auth')
+            }
+          });
+          return;
+        }
 
-      if (canSend.reason === 'limit_reached') {
-        toast({
-          title: "⏱️ Límite Alcanzado",
-          description: canSend.message,
-          action: {
-            label: "👑 Ver Premium",
-            onClick: () => navigate('/premium')
-          },
-          duration: 5000,
-        });
-        return;
+        if (canSend.reason === 'limit_reached') {
+          toast({
+            title: "⏱️ Límite Alcanzado",
+            description: canSend.message,
+            action: {
+              label: "👑 Ver Premium",
+              onClick: () => navigate('/premium')
+            },
+            duration: 5000,
+          });
+          return;
+        }
       }
     }
 
     setIsSending(true);
     try {
-      await sendDirectMessage(currentUser.id, targetUser.userId, message.trim());
+      if (composeMode === 'comment') {
+        await sendProfileComment(currentUser.id, targetUser.userId, message.trim());
+      } else {
+        await sendDirectMessage(currentUser.id, targetUser.userId, message.trim());
 
-      // Incrementar contador solo si no es Premium ni Admin
-      if (!currentUser.isPremium && currentUser.role !== 'admin') {
-        await incrementDirectMessages(currentUser.id);
-        const newLimits = getCurrentLimits(currentUser.id);
-        setLimits(newLimits);
+        // Incrementar contador solo si no es Premium ni Admin
+        if (!currentUser.isPremium && currentUser.role !== 'admin') {
+          await incrementDirectMessages(currentUser.id);
+          const newLimits = getCurrentLimits(currentUser.id);
+          setLimits(newLimits);
+        }
       }
 
       toast({
-        title: "✉️ Mensaje enviado",
-        description: `Tu mensaje fue enviado a ${targetUser.username}`,
+        title: composeMode === 'comment' ? "💬 Comentario enviado" : "✉️ Mensaje enviado",
+        description: composeMode === 'comment'
+          ? `Tu comentario fue enviado al perfil de ${targetUser.username}`
+          : `Tu mensaje fue enviado a ${targetUser.username}`,
       });
 
       setMessage('');
       setShowMessageInput(false);
+      setComposeMode('direct');
       onClose();
     } catch (error) {
       toast({
-        title: error?.message === 'BLOCKED' ? "No disponible" : "No pudimos enviar el mensaje",
+        title: error?.message === 'BLOCKED'
+          ? "No disponible"
+          : composeMode === 'comment'
+            ? "No pudimos enviar el comentario"
+            : "No pudimos enviar el mensaje",
         description: error?.message === 'BLOCKED'
           ? "No puedes enviar mensajes a este usuario."
           : "Intenta de nuevo en un momento",
@@ -115,6 +129,22 @@ const UserActionsModal = ({ user: targetUser, onClose, onViewProfile, onShowRegi
     } finally {
       setIsSending(false);
     }
+  };
+
+  const handleOpenCommentInput = () => {
+    // ✅ Validar que el usuario objetivo NO sea invitado/anónimo
+    if (targetUser.isGuest || targetUser.isAnonymous) {
+      toast({
+        title: "⚠️ No se puede comentar",
+        description: "Este usuario no puede recibir comentarios porque no está registrado.",
+        variant: "destructive",
+        duration: 5000,
+      });
+      onClose();
+      return;
+    }
+    setComposeMode('comment');
+    setShowMessageInput(true);
   };
 
   const handlePrivateChatRequest = async () => {
@@ -236,15 +266,15 @@ const UserActionsModal = ({ user: targetUser, onClose, onViewProfile, onShowRegi
         await removeFromFavorites(currentUser.id, targetUser.userId);
         setIsFavorite(false);
         toast({
-          title: "💔 Eliminado de favoritos",
-          description: `${targetUser.username} fue eliminado de tus favoritos`,
+          title: "💔 Eliminado de tu lista",
+          description: `${targetUser.username} fue eliminado de tu lista de amigos`,
         });
       } else {
         // Verificar límite de 15 favoritos
         if (currentUser.favorites?.length >= 15) {
           toast({
             title: "Límite alcanzado",
-            description: "Solo puedes tener hasta 15 amigos favoritos",
+            description: "Solo puedes tener hasta 15 amigos",
             variant: "destructive",
           });
           return;
@@ -253,8 +283,8 @@ const UserActionsModal = ({ user: targetUser, onClose, onViewProfile, onShowRegi
         await addToFavorites(currentUser.id, targetUser.userId);
         setIsFavorite(true);
         toast({
-          title: "💖 Agregado a favoritos",
-          description: `${targetUser.username} fue agregado a tus favoritos`,
+          title: "💖 Agregado a tu lista",
+          description: `${targetUser.username} fue agregado a tu lista de amigos`,
         });
       }
 
@@ -353,6 +383,7 @@ const UserActionsModal = ({ user: targetUser, onClose, onViewProfile, onShowRegi
       }
     }
 
+    setComposeMode('direct');
     setShowMessageInput(true);
   };
 
@@ -467,7 +498,24 @@ const UserActionsModal = ({ user: targetUser, onClose, onViewProfile, onShowRegi
                   </Button>
                 </motion.div>
 
-                {/* Agregar/Quitar de Favoritos */}
+                {/* Dejar Comentario */}
+                <motion.div whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }}>
+                  <Button
+                    onClick={handleOpenCommentInput}
+                    variant="outline"
+                    className="w-full justify-start h-auto py-3 text-left"
+                  >
+                    <MessageSquare className="w-5 h-5 mr-3 text-cyan-400" />
+                    <div>
+                      <p className="font-semibold">Dejar Comentario</p>
+                      <p className="text-xs text-muted-foreground">
+                        Envía un comentario breve para su perfil
+                      </p>
+                    </div>
+                  </Button>
+                </motion.div>
+
+                {/* Agregar/Quitar de Lista de Amigos */}
                 <motion.div whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }}>
                   <Button
                     onClick={handleToggleFavorite}
@@ -481,12 +529,12 @@ const UserActionsModal = ({ user: targetUser, onClose, onViewProfile, onShowRegi
                     />
                     <div>
                       <p className="font-semibold">
-                        {isFavorite ? 'Quitar de Favoritos' : 'Agregar a Favoritos'}
+                        {isFavorite ? 'Quitar de mi lista de amigos' : 'Agregar a mi lista de amigos'}
                       </p>
                       <p className="text-xs text-muted-foreground">
                         {isFavorite
-                          ? 'Este usuario es tu favorito'
-                          : `Máximo 15 favoritos (${currentUser?.favorites?.length || 0}/15)`}
+                          ? 'Este usuario está en tu lista'
+                          : `Máximo 15 amigos (${currentUser?.favorites?.length || 0}/15)`}
                       </p>
                     </div>
                   </Button>
@@ -539,7 +587,9 @@ const UserActionsModal = ({ user: targetUser, onClose, onViewProfile, onShowRegi
                 className="space-y-3"
               >
                 <div className="flex items-center justify-between">
-                  <h3 className="font-bold text-foreground">Mensaje Directo</h3>
+                  <h3 className="font-bold text-foreground">
+                    {composeMode === 'comment' ? 'Comentario de Perfil' : 'Mensaje Directo'}
+                  </h3>
                   <Button
                     variant="ghost"
                     size="icon"
@@ -554,14 +604,18 @@ const UserActionsModal = ({ user: targetUser, onClose, onViewProfile, onShowRegi
                 <Textarea
                   value={message}
                   onChange={(e) => setMessage(e.target.value)}
-                  placeholder={`Escribe un mensaje para ${targetUser.username}...`}
+                  placeholder={
+                    composeMode === 'comment'
+                      ? `Escribe un comentario para ${targetUser.username}...`
+                      : `Escribe un mensaje para ${targetUser.username}...`
+                  }
                   className="min-h-[120px] resize-none bg-secondary border-2 border-border focus:border-primary"
                   maxLength={500}
                 />
 
                 <div className="flex items-center justify-between text-xs text-muted-foreground">
                   <span>{message.length}/500 caracteres</span>
-                  {!currentUser.isPremium && currentUser.role !== 'admin' && (
+                  {composeMode === 'direct' && !currentUser.isPremium && currentUser.role !== 'admin' && (
                     <span className="text-amber-400 font-medium">
                       {limits.directMessages.remaining}/{limits.directMessages.limit} restantes hoy
                     </span>
@@ -583,13 +637,15 @@ const UserActionsModal = ({ user: targetUser, onClose, onViewProfile, onShowRegi
                       className="w-full magenta-gradient text-white"
                     >
                       <Send className="w-4 h-4 mr-2" />
-                      {isSending ? 'Enviando...' : 'Enviar Mensaje'}
+                      {isSending ? 'Enviando...' : composeMode === 'comment' ? 'Enviar Comentario' : 'Enviar Mensaje'}
                     </Button>
                   </motion.div>
                 </div>
 
                 <p className="text-xs text-center text-muted-foreground">
-                  El mensaje aparecerá en las notificaciones de {targetUser.username}
+                  {composeMode === 'comment'
+                    ? `El comentario aparecerá en las notificaciones de ${targetUser.username}`
+                    : `El mensaje aparecerá en las notificaciones de ${targetUser.username}`}
                 </p>
               </motion.div>
             )}

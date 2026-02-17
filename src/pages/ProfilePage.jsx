@@ -185,11 +185,16 @@ const ProfilePage = () => {
                     <CheckCircle className="w-6 h-6 text-[#1DA1F2]"/>
                   )}
                 </h1>
-                <div className="flex gap-2 justify-center md:justify-start mb-4">
+                <div className="flex flex-wrap gap-2 justify-center md:justify-start mb-4">
                   {user.verified && (
                     <span className="bg-[#1DA1F2] text-white px-3 py-1 rounded-full text-xs font-bold flex items-center gap-1">
                       <Shield className="w-4 h-4" />
                       Verificado
+                    </span>
+                  )}
+                  {user.profileVisible === false && (
+                    <span className="bg-muted text-muted-foreground px-3 py-1 rounded-full text-xs flex items-center gap-1">
+                      Perfil oculto — otros no pueden verlo
                     </span>
                   )}
                 </div>
@@ -294,12 +299,12 @@ const ProfilePage = () => {
               </div>
             )}
 
-            {/* Sección de Favoritos */}
+            {/* Sección de Lista de Amigos */}
             <div className="mt-8 mb-8">
               <div className="flex items-center justify-between mb-4">
                 <h2 className="text-2xl font-bold text-foreground flex items-center gap-2">
                   <Heart className="w-6 h-6 text-pink-400" />
-                  Amigos Favoritos
+                  Lista de Amigos
                 </h2>
                 <span className="text-sm text-muted-foreground">
                   {favorites.length}/15
@@ -364,10 +369,10 @@ const ProfilePage = () => {
                   <div className="text-center py-8">
                     <Heart className="w-16 h-16 text-muted-foreground mx-auto mb-4 opacity-30" />
                     <p className="text-muted-foreground">
-                      Aún no has agregado amigos favoritos
+                      Aún no has agregado amigos
                     </p>
                     <p className="text-sm text-muted-foreground mt-2">
-                      Agrega usuarios a favoritos desde el chat para acceso rápido
+                      Agrega usuarios a tu lista desde el chat para acceso rápido
                     </p>
                   </div>
                 </div>
@@ -456,10 +461,7 @@ const ProfilePage = () => {
           }}
           onClose={() => setSelectedFavorite(null)}
           onViewProfile={() => {
-            toast({
-              title: "Perfil",
-              description: `Viendo perfil de ${selectedFavorite.username}`,
-            });
+            navigate(`/profile/${selectedFavorite.id}`);
           }}
           onShowRegistrationModal={() => {
             // No aplica en esta página

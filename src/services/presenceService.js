@@ -55,6 +55,7 @@ export const joinRoom = async (roomId, userData) => {
       username: userData.username,
       avatar: userData.avatar,
       isPremium: userData.isPremium || false,
+      isProUser: userData.isProUser || false,
       isAnonymous: auth.currentUser.isAnonymous || userData.isAnonymous || false,
       isGuest: userData.isGuest || false,
       isBot: canJoinAsBotInTesting,

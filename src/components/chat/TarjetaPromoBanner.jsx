@@ -58,6 +58,7 @@ const TarjetaPromoBanner = ({ onOpenBaul, onOpenOpin }) => {
   const [tarjeta, setTarjeta] = useState(null);
   const [modo, setModo] = useState('baul'); // 'baul' o 'opin'
   const [cargado, setCargado] = useState(false);
+  const dismissStorageKey = user?.id ? `promo_banner_closed_${user.id}` : 'promo_banner_closed_guest';
 
   // Solo para usuarios registrados (no invitados)
   const esRegistrado = user && !user.isGuest && !user.isAnonymous;
@@ -65,11 +66,12 @@ const TarjetaPromoBanner = ({ onOpenBaul, onOpenOpin }) => {
   useEffect(() => {
     if (!esRegistrado) return;
 
-    // Verificar si ya fue cerrado en esta sesión
-    const cerradoEn = sessionStorage.getItem('promoBannerCerrado');
+    // Verificar si ya fue cerrado previamente (persistente)
+    const cerradoEn = localStorage.getItem(dismissStorageKey);
     if (cerradoEn) return;
 
     // Cargar tarjeta del usuario
+    let showTimer = null;
     const cargar = async () => {
       try {
         const miTarjeta = await obtenerTarjeta(user.id);
@@ -85,7 +87,7 @@ const TarjetaPromoBanner = ({ onOpenBaul, onOpenOpin }) => {
         }
 
         // Mostrar después de un delay natural (30 segundos)
-        setTimeout(() => {
+        showTimer = setTimeout(() => {
           setVisible(true);
         }, 30000);
       } catch (err) {
@@ -94,11 +96,15 @@ const TarjetaPromoBanner = ({ onOpenBaul, onOpenOpin }) => {
     };
 
     cargar();
-  }, [user, esRegistrado]);
+
+    return () => {
+      if (showTimer) clearTimeout(showTimer);
+    };
+  }, [user, esRegistrado, dismissStorageKey]);
 
   const handleCerrar = () => {
     setVisible(false);
-    sessionStorage.setItem('promoBannerCerrado', Date.now().toString());
+    localStorage.setItem(dismissStorageKey, Date.now().toString());
   };
 
   const handleAccion = () => {
