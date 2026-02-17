@@ -1294,6 +1294,80 @@ export async function verificarInteresMutuo(userId1, userId2) {
 }
 
 /**
+ * Obtener métricas completas de la tarjeta del usuario
+ * Para panel "Quién te vio, quién te escribió, quién te dio like, popularidad"
+ */
+export async function obtenerMetricasTarjeta(miUserId) {
+  try {
+    if (!miUserId) return null;
+
+    const [tarjetaSnap, actividadSnap] = await Promise.all([
+      getDoc(doc(db, 'tarjetas', miUserId)),
+      getDocs(
+        query(
+          collection(db, 'tarjetas', miUserId, 'actividad'),
+          orderBy('timestamp', 'desc'),
+          limit(100)
+        )
+      )
+    ]);
+
+    const tarjetaData = tarjetaSnap.data() || {};
+    const visitasDe = tarjetaData.visitasDe || [];
+    const impresionesDe = tarjetaData.impresionesDe || [];
+    const likesDe = tarjetaData.likesDe || [];
+
+    // Extraer userIds únicos de impresionesDe (formato "userId_YYYY-MM-DD")
+    const impresionUserIds = [...new Set(
+      impresionesDe
+        .filter((k) => typeof k === 'string' && k.includes('_'))
+        .map((k) => k.split('_')[0])
+    )];
+    const visitasUserIds = [...new Set(visitasDe.filter((id) => typeof id === 'string'))];
+    const teVieronIds = [...new Set([...visitasUserIds, ...impresionUserIds])].filter((id) => id !== miUserId);
+
+    const actividades = [];
+    actividadSnap.forEach((d) => actividades.push({ id: d.id, ...d.data() }));
+
+    const teEscribieron = actividades.filter((a) => a.tipo === 'mensaje');
+    const teDieronLike = actividades.filter((a) => a.tipo === 'like');
+    const teVisitaronAct = actividades.filter((a) => a.tipo === 'visita');
+    const tePasaron = actividades.filter((a) => a.tipo === 'huella');
+
+    // Popularidad: score ponderado
+    const vistas = (tarjetaData.impresionesRecibidas || 0) + (tarjetaData.visitasRecibidas || 0);
+    const likes = tarjetaData.likesRecibidos || 0;
+    const mensajes = tarjetaData.mensajesRecibidos || 0;
+    const huellas = tarjetaData.huellasRecibidas || 0;
+    const score =
+      likes * 3 +
+      mensajes * 5 +
+      vistas * 0.5 +
+      huellas * 1;
+
+    let nivelPopularidad = 'Principiante';
+    if (score >= 50) nivelPopularidad = 'Popular';
+    else if (score >= 20) nivelPopularidad = 'Reconocido';
+    else if (score >= 5) nivelPopularidad = 'En crecimiento';
+
+    return {
+      totales: { vistas, likes, mensajes, huellas },
+      popularidad: { score: Math.round(score), nivel: nivelPopularidad },
+      teVieronIds,
+      teEscribieron,
+      teDieronLike,
+      teVisitaron: teVisitaronAct,
+      tePasaron,
+      likesDe,
+      actividades,
+    };
+  } catch (error) {
+    console.error('[TARJETA] Error obteniendo métricas:', error);
+    return null;
+  }
+}
+
+/**
  * Marcar actividad como leída
  */
 export async function marcarActividadLeida(miUserId) {
@@ -1542,6 +1616,8 @@ export default {
   yaLeDiLike,
   enviarMensajeTarjeta,
   registrarVisita,
+  registrarImpresion,
+  obtenerMetricasTarjeta,
   obtenerMiActividad,
   marcarActividadLeida,
   suscribirseAMiTarjeta,

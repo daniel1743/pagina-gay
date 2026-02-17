@@ -155,7 +155,9 @@ const ActividadItem = ({ actividad, onVerTarjeta, onDevolverLike, loadingLike })
 
             {actividad.tipo === 'huella' && (
               <p className="text-sm text-amber-400 mt-1">
-                Pasó por tu perfil
+                {actividad.tarjetaInfo?.buscando
+                  ? `Pasó por tu perfil · Busca: ${actividad.tarjetaInfo.buscando}`
+                  : 'Pasó por tu perfil'}
               </p>
             )}
 
@@ -303,7 +305,8 @@ const ActividadFeed = ({ isOpen, onClose, miUserId }) => {
                   rol: tarjeta.rol,
                   edad: tarjeta.edad,
                   ubicacionTexto: tarjeta.ubicacionTexto,
-                  bio: tarjeta.bio
+                  bio: tarjeta.bio,
+                  buscando: tarjeta.buscando
                 } : null,
                 yaDevolviLike
               };

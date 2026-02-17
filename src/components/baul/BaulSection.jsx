@@ -22,13 +22,15 @@ import {
   ChevronRight,
   Heart,
   Sparkles,
-  ArrowLeft
+  ArrowLeft,
+  TrendingUp
 } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
 import TarjetaUsuario from './TarjetaUsuario';
 import TarjetaEditor from './TarjetaEditor';
 import MensajeTarjetaModal from './MensajeTarjetaModal';
 import ActividadFeed from './ActividadFeed';
+import MetricasTarjetaPanel from './MetricasTarjetaPanel';
 import MatchModal from './MatchModal';
 import MatchesList from './MatchesList';
 import PrivateChatWindow from '@/components/chat/PrivateChatWindow';
@@ -43,6 +45,7 @@ import {
   dejarHuella,
   yaDejeHuella,
   registrarVisita,
+  registrarImpresion,
   suscribirseAMiTarjeta,
   actualizarTarjeta,
   obtenerMisMatches,
@@ -190,6 +193,7 @@ const BaulSection = ({ isOpen = true, onClose, variant = 'modal' }) => {
   const [mostrarEditor, setMostrarEditor] = useState(false);
   const [mostrarMensajeModal, setMostrarMensajeModal] = useState(false);
   const [mostrarActividad, setMostrarActividad] = useState(false);
+  const [mostrarMetricas, setMostrarMetricas] = useState(false);
   const [matchData, setMatchData] = useState(null); // Para mostrar modal de match
   const [mostrarMatchModal, setMostrarMatchModal] = useState(false);
   const [mostrarMatchesList, setMostrarMatchesList] = useState(false);
@@ -476,9 +480,12 @@ const BaulSection = ({ isOpen = true, onClose, variant = 'modal' }) => {
       );
       if (res?.success) {
         setHuellasData(prev => ({ ...prev, [tarjetaId]: true }));
+        const intencion = (tarjeta?.buscando || '').trim();
         toast({
           title: 'Pasaste por su perfil',
-          description: `${tarjeta.nombre || 'Usuario'} verá que pasaste por aquí`,
+          description: intencion
+            ? `${tarjeta.nombre || 'Usuario'} busca: ${intencion}`
+            : `${tarjeta.nombre || 'Usuario'} verá que pasaste por aquí`,
           duration: 3000
         });
       } else {
@@ -520,6 +527,13 @@ const BaulSection = ({ isOpen = true, onClose, variant = 'modal' }) => {
       setLoadingHuella(null);
     }
   };
+
+  const handleImpresion = useCallback((tarjeta) => {
+    const odIdUsuari = user?.id;
+    const tarjetaId = tarjeta?.odIdUsuari || tarjeta?.id;
+    if (!odIdUsuari || !tarjetaId || tarjetaId === odIdUsuari) return;
+    registrarImpresion(tarjetaId, odIdUsuari);
+  }, [user?.id]);
 
   const handleVerPerfil = async (tarjeta) => {
     const odIdUsuari = user?.id;
@@ -707,6 +721,14 @@ const BaulSection = ({ isOpen = true, onClose, variant = 'modal' }) => {
                         </span>
                       )}
                     </motion.button>
+                    <motion.button
+                      whileTap={{ scale: 0.98 }}
+                      onClick={() => setMostrarMetricas(true)}
+                      className="inline-flex items-center gap-2 rounded-full border border-cyan-500/30 bg-cyan-500/10 px-3 py-1.5 text-[11px] text-cyan-200 hover:bg-cyan-500/20 transition-colors"
+                    >
+                      <TrendingUp className="w-3.5 h-3.5 text-cyan-300" />
+                      Métricas
+                    </motion.button>
                   </div>
                 )}
                 {isGuestView && canEditOwnCard && (
@@ -778,6 +800,7 @@ const BaulSection = ({ isOpen = true, onClose, variant = 'modal' }) => {
                       onLike={handleLike}
                       onMensaje={handleMensaje}
                       onDejarHuella={handleDejarHuella}
+                      onImpresion={handleImpresion}
                       onVerPerfil={handleVerPerfil}
                       isLoadingHuella={loadingHuella === tarjetaId}
                       interactionLocked={isGuestView && !esMiTarjetaActual}
@@ -834,6 +857,15 @@ const BaulSection = ({ isOpen = true, onClose, variant = 'modal' }) => {
           isOpen={mostrarActividad}
           onClose={() => setMostrarActividad(false)}
           miUserId={odIdUsuari}
+        />
+      )}
+
+      {/* Panel de métricas */}
+      {mostrarMetricas && (
+        <MetricasTarjetaPanel
+          isOpen={mostrarMetricas}
+          onClose={() => setMostrarMetricas(false)}
+          onRefresh={handleRefresh}
         />
       )}
 

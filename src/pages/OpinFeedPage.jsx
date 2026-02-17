@@ -133,7 +133,7 @@ const OpinFeedPage = () => {
     <div className="min-h-screen bg-background flex flex-col">
       {/* Header compacto */}
       <div className="sticky top-0 z-10 bg-card/95 backdrop-blur-sm border-b border-border">
-        <div className="max-w-2xl mx-auto px-4 py-3">
+        <div className="max-w-7xl mx-auto px-4 py-3">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-3">
               <button
@@ -184,7 +184,7 @@ const OpinFeedPage = () => {
       {/* Banner para invitados */}
       {isReadOnlyMode && (
         <div className="bg-gradient-to-r from-purple-600/90 to-pink-600/90 px-4 py-2">
-          <div className="max-w-2xl mx-auto flex items-center justify-between gap-3">
+          <div className="max-w-7xl mx-auto flex items-center justify-between gap-3">
             <div className="flex items-center gap-2 text-white text-sm">
               <Eye className="w-4 h-4" />
               <span>Estás mirando el tablón</span>
@@ -202,7 +202,7 @@ const OpinFeedPage = () => {
 
       {/* Lista de notas */}
       <div className="flex-1 overflow-y-auto">
-        <div className="max-w-2xl mx-auto">
+        <div className="max-w-7xl mx-auto">
           {loading ? (
             <div className="flex items-center justify-center py-20">
               <div className="animate-spin rounded-full h-8 w-8 border-2 border-purple-500 border-t-transparent" />
@@ -226,7 +226,7 @@ const OpinFeedPage = () => {
             </div>
           ) : (
             /* Lista de notas */
-            <div className="divide-y divide-white/5">
+            <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3 p-3">
               {posts.map((post) => (
                 <OpinCard
                   key={post.id}

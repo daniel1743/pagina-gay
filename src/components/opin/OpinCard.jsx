@@ -17,6 +17,8 @@ import { useAuth } from '@/contexts/AuthContext';
 import { toast } from '@/components/ui/use-toast';
 import { track, getSessionId } from '@/services/eventTrackingService';
 
+const COMMENTS_INLINE_LIMIT = 16;
+
 const OpinCard = forwardRef(({ post, onCommentsClick, onPostDeleted, isReadOnlyMode = false }, ref) => {
   const navigate = useNavigate();
   const { user, userProfile } = useAuth();
@@ -40,12 +42,12 @@ const OpinCard = forwardRef(({ post, onCommentsClick, onPostDeleted, isReadOnlyM
   // Estados para preview de respuestas
   const [previewReplies, setPreviewReplies] = useState([]);
   const [loadingReplies, setLoadingReplies] = useState(false);
+  const [commentsExpanded, setCommentsExpanded] = useState(false);
   const cardRef = useRef(null);
 
   const isOwner = user && (user.id === post.userId || user.uid === post.userId);
   const isLoggedIn = user && !user.isAnonymous && !user.isGuest;
   const totalReplies = post.commentCount || 0;
-  const hasMoreReplies = totalReplies > 3;
 
   const setRefs = (node) => {
     cardRef.current = node;
@@ -83,23 +85,28 @@ const OpinCard = forwardRef(({ post, onCommentsClick, onPostDeleted, isReadOnlyM
     return () => observer.disconnect();
   }, [post?.id, post?.userId, user]);
 
-  // Cargar preview de respuestas (primeras 3)
+  // Cargar preview de respuestas al desplegar el bloque de comentarios
   useEffect(() => {
     const loadPreviewReplies = async () => {
-      if (totalReplies > 0) {
-        setLoadingReplies(true);
-        try {
-          const replies = await getReplyPreview(post.id, 3);
-          setPreviewReplies(replies);
-        } catch (error) {
-          console.warn('[OPIN] Error cargando preview:', error);
-        } finally {
-          setLoadingReplies(false);
-        }
+      if (!commentsExpanded) return;
+      if (totalReplies <= 0) {
+        setPreviewReplies([]);
+        return;
+      }
+
+      setLoadingReplies(true);
+      try {
+        const dynamicLimit = Math.min(totalReplies, COMMENTS_INLINE_LIMIT);
+        const replies = await getReplyPreview(post.id, dynamicLimit);
+        setPreviewReplies(replies);
+      } catch (error) {
+        console.warn('[OPIN] Error cargando preview:', error);
+      } finally {
+        setLoadingReplies(false);
       }
     };
     loadPreviewReplies();
-  }, [post.id, totalReplies]);
+  }, [post.id, totalReplies, commentsExpanded]);
   const colorConfig = OPIN_COLORS[post.color || 'purple'];
 
   // Formatear tiempo - siempre mostrar tiempo transcurrido, nunca "Expirado"
@@ -189,8 +196,13 @@ const OpinCard = forwardRef(({ post, onCommentsClick, onPostDeleted, isReadOnlyM
   // Responder
   const handleReplyClick = (e) => {
     e.stopPropagation();
+    setCommentsExpanded((prev) => !prev);
+  };
+
+  const handleOpenCommentsModal = (e) => {
+    e.stopPropagation();
     if (isReadOnlyMode) {
-      toast({ description: 'Regístrate para responder' });
+      toast({ description: 'Regístrate para comentar' });
       return;
     }
     if (onCommentsClick) onCommentsClick(post);
@@ -254,7 +266,7 @@ const OpinCard = forwardRef(({ post, onCommentsClick, onPostDeleted, isReadOnlyM
     <>
       <div
         ref={setRefs}
-        className={`border-b border-white/10 py-4 px-4 hover:bg-white/5 transition-colors ${post.isStable ? 'bg-purple-500/5' : ''}`}
+        className={`group relative h-full rounded-2xl border border-white/10 bg-gradient-to-b from-white/[0.035] to-white/[0.015] px-4 py-4 shadow-[0_8px_30px_rgba(0,0,0,0.2)] transition-all duration-200 hover:-translate-y-0.5 hover:border-white/20 hover:shadow-[0_16px_40px_rgba(0,0,0,0.28)] ${post.isStable ? 'ring-1 ring-purple-400/30' : ''}`}
       >
         {/* Indicador de color (punto) + Texto */}
         <div className="flex gap-3">
@@ -317,13 +329,10 @@ const OpinCard = forwardRef(({ post, onCommentsClick, onPostDeleted, isReadOnlyM
               {/* Responder */}
               <button
                 onClick={handleReplyClick}
-                className="flex items-center gap-1 hover:text-cyan-400 transition-colors"
+                className="flex items-center gap-1 rounded-full px-2 py-1 hover:bg-white/10 hover:text-cyan-300 transition-colors"
               >
                 <MessageCircle className="w-3.5 h-3.5" />
-                <span>Responder</span>
-                {(post.commentCount || 0) > 0 && (
-                  <span className="text-cyan-400">({post.commentCount})</span>
-                )}
+                <span>{totalReplies > 0 ? `Comentarios (${totalReplies})` : 'Comentarios'}</span>
               </button>
 
               {/* Menú del dueño */}
@@ -383,60 +392,66 @@ const OpinCard = forwardRef(({ post, onCommentsClick, onPostDeleted, isReadOnlyM
               })}
             </div>
 
-            {/* Preview de respuestas (primeras 3 - visibles para todos) */}
-            {(previewReplies.length > 0 || loadingReplies) && (
-              <div className="mt-3 pt-2 border-t border-white/5 space-y-2">
-                {loadingReplies ? (
-                  <div className="flex items-center gap-2 text-xs text-muted-foreground">
-                    <div className="w-3 h-3 border border-purple-500 border-t-transparent rounded-full animate-spin" />
-                    <span>Cargando respuestas...</span>
-                  </div>
-                ) : (
-                  <>
-                    {previewReplies.map((reply) => (
-                      <div key={reply.id} className="flex items-start gap-2">
-                        {/* Avatar mini */}
-                        {reply.avatar ? (
-                          <img
-                            src={reply.avatar}
-                            alt={reply.username}
-                            className="w-5 h-5 rounded-full flex-shrink-0 object-cover"
-                          />
-                        ) : (
-                          <div className="w-5 h-5 rounded-full flex-shrink-0 bg-gradient-to-br from-purple-500 to-pink-500 flex items-center justify-center text-white text-[10px] font-bold">
-                            {reply.username?.charAt(0)?.toUpperCase() || '?'}
-                          </div>
-                        )}
-                        <p className="text-xs text-foreground/80 flex-1">
-                          <span className="font-semibold text-foreground">{reply.username}</span>
-                          {' '}
-                          {reply.comment}
-                        </p>
-                      </div>
-                    ))}
+            {/* Comentarios desplegables */}
+            {commentsExpanded && (
+              <div className="mt-3 rounded-xl border border-white/10 bg-black/20 overflow-hidden">
+                <div className="flex items-center justify-between px-3 py-2 border-b border-white/10">
+                  <p className="text-xs font-medium text-foreground/90">Comentarios</p>
+                  {totalReplies > 0 && (
+                    <span className="text-[11px] text-muted-foreground">
+                      Mostrando {Math.min(totalReplies, COMMENTS_INLINE_LIMIT)} de {totalReplies}
+                    </span>
+                  )}
+                </div>
 
-                    {/* Botón "Ver más respuestas" con auth-gating */}
-                    {hasMoreReplies && (
-                      <button
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          if (!isLoggedIn) {
-                            toast({
-                              title: 'Regístrate para ver más',
-                              description: 'Hay más respuestas, pero necesitas una cuenta para verlas',
-                            });
-                            return;
-                          }
-                          if (onCommentsClick) onCommentsClick(post);
-                        }}
-                        className="flex items-center gap-1.5 text-xs text-purple-400 hover:text-purple-300 mt-1"
-                      >
-                        {!isLoggedIn && <Lock className="w-3 h-3" />}
-                        <span>Ver más respuestas ({totalReplies - previewReplies.length})</span>
-                      </button>
-                    )}
-                  </>
-                )}
+                <div className="px-3 py-3">
+                  {loadingReplies ? (
+                    <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                      <div className="w-3 h-3 border border-purple-500 border-t-transparent rounded-full animate-spin" />
+                      <span>Cargando comentarios...</span>
+                    </div>
+                  ) : totalReplies <= 0 ? (
+                    <p className="text-xs text-muted-foreground">No hay información aquí</p>
+                  ) : (
+                    <div className="space-y-2 max-h-56 overflow-y-auto pr-1">
+                      {previewReplies.map((reply) => (
+                        <div key={reply.id} className="flex items-start gap-2">
+                          {reply.avatar ? (
+                            <img
+                              src={reply.avatar}
+                              alt={reply.username}
+                              className="w-5 h-5 rounded-full flex-shrink-0 object-cover"
+                            />
+                          ) : (
+                            <div className="w-5 h-5 rounded-full flex-shrink-0 bg-gradient-to-br from-purple-500 to-pink-500 flex items-center justify-center text-white text-[10px] font-bold">
+                              {reply.username?.charAt(0)?.toUpperCase() || '?'}
+                            </div>
+                          )}
+                          <p className="text-xs text-foreground/80 leading-relaxed flex-1">
+                            <span className="font-semibold text-foreground">{reply.username}</span>
+                            {' '}
+                            {reply.comment}
+                          </p>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+
+                <div className="flex items-center justify-between px-3 py-2 border-t border-white/10">
+                  <button
+                    onClick={handleOpenCommentsModal}
+                    className="text-xs text-purple-300 hover:text-purple-200 transition-colors"
+                  >
+                    Ver todo y comentar
+                  </button>
+                  {!isLoggedIn && (
+                    <span className="inline-flex items-center gap-1 text-[11px] text-muted-foreground">
+                      <Lock className="w-3 h-3" />
+                      Registro para responder
+                    </span>
+                  )}
+                </div>
               </div>
             )}
 

@@ -258,9 +258,9 @@ const MensajeTarjetaModal = ({
                 <Heart className="w-4 h-4 text-pink-500" />
                 <span>{tarjeta.likesRecibidos || 0} likes</span>
               </div>
-              <div className="flex items-center gap-1">
+              <div className="flex items-center gap-1" title="Visualizaciones">
                 <Eye className="w-4 h-4" />
-                <span>{tarjeta.visitasRecibidas || 0} visitas</span>
+                <span>{(tarjeta.impresionesRecibidas || 0) + (tarjeta.visitasRecibidas || 0)} vistas</span>
               </div>
               {/* Solo mostrar distancia si <= 5km para evitar fricción */}
               {tarjeta.distanciaTexto && tarjeta.distanciaKm && tarjeta.distanciaKm <= 5 && (

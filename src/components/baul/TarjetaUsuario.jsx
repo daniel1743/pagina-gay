@@ -121,6 +121,29 @@ const TarjetaUsuario = ({
   useEffect(() => {
     setHuellasCount(tarjeta.huellasRecibidas || 0);
   }, [tarjeta.huellasRecibidas]);
+  useEffect(() => {
+    setVistasCount((tarjeta.impresionesRecibidas || 0) + (tarjeta.visitasRecibidas || 0));
+  }, [tarjeta.impresionesRecibidas, tarjeta.visitasRecibidas]);
+
+  // Intersection Observer: registrar impresión cuando la tarjeta entra en viewport
+  useEffect(() => {
+    if (!onImpresion || esMiTarjeta || !cardRef.current) return;
+    const el = cardRef.current;
+    const obs = new IntersectionObserver(
+      (entries) => {
+        for (const e of entries) {
+          if (e.isIntersecting && e.intersectionRatio >= 0.2 && !impresionSentRef.current) {
+            impresionSentRef.current = true;
+            onImpresion(tarjeta);
+          }
+        }
+      },
+      { threshold: 0.2, rootMargin: '50px' }
+    );
+    obs.observe(el);
+    return () => obs.disconnect();
+  }, [tarjeta, onImpresion, esMiTarjeta]);
+
   const priorityClass = !esMiTarjeta
     ? (isActive
         ? 'ring-1 ring-emerald-400/40 shadow-[0_0_12px_rgba(16,185,129,0.12)]'
@@ -193,6 +216,7 @@ const TarjetaUsuario = ({
 
   return (
     <motion.div
+      ref={cardRef}
       initial={{ opacity: 0, scale: 0.95 }}
       animate={{ opacity: 1, scale: 1 }}
       onClick={handleClick}
@@ -279,15 +303,25 @@ const TarjetaUsuario = ({
 
       {/* Info compacta */}
       <div className="p-1.5 space-y-1.5">
+        {/* Intención */}
+        {tarjeta.buscando && (
+          <div
+            className="text-[10px] text-amber-200/90 bg-amber-500/10 border border-amber-500/20 rounded-md px-2 py-1 truncate"
+            title={tarjeta.buscando}
+          >
+            Busca: {tarjeta.buscando}
+          </div>
+        )}
+
         {/* Stats inline */}
         <div className="flex items-center justify-between text-[9px] text-gray-400">
           <div className="flex items-center gap-0.5">
             <Heart className={`w-2.5 h-2.5 ${likesCount > 0 ? 'text-pink-500' : ''}`} />
             <span>{likesCount}</span>
           </div>
-          <div className="flex items-center gap-0.5">
+          <div className="flex items-center gap-0.5" title="Visualizaciones (impresiones + visitas)">
             <Eye className="w-2.5 h-2.5" />
-            <span>{tarjeta.visitasRecibidas || 0}</span>
+            <span>{vistasCount}</span>
           </div>
           <div className="flex items-center gap-0.5">
             <Footprints className={`w-2.5 h-2.5 ${huellasCount > 0 ? 'text-amber-400' : ''}`} />

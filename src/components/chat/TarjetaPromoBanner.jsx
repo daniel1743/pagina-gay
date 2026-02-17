@@ -116,7 +116,7 @@ const TarjetaPromoBanner = ({ onOpenBaul, onOpenOpin }) => {
   if (!visible || !cargado || !esRegistrado) return null;
 
   // Usar métricas reales
-  const vistas = tarjeta?.visitasRecibidas || 0;
+  const vistas = (tarjeta?.impresionesRecibidas || 0) + (tarjeta?.visitasRecibidas || 0);
   const likes = tarjeta?.likesRecibidos || 0;
   const porcentaje = calcularPorcentaje(tarjeta);
   const faltante = tarjeta ? obtenerMensajeFaltante(tarjeta) : null;
