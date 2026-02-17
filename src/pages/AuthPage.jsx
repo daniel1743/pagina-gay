@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { motion } from 'framer-motion';
-import { useNavigate } from 'react-router-dom';
+import { useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -27,6 +27,7 @@ const AuthPage = () => {
   }, []);
 
   const navigate = useNavigate();
+  const location = useLocation();
   const { login, register } = useAuth();
   const [loginData, setLoginData] = useState({ email: '', password: '' });
   const [registerData, setRegisterData] = useState({
@@ -40,14 +41,22 @@ const AuthPage = () => {
   const [showLoginPassword, setShowLoginPassword] = useState(false);
   const [showRegisterPassword, setShowRegisterPassword] = useState(false);
 
-  const handleLogin = (e) => {
+  const getRedirectPath = () => {
+    const queryRedirect = new URLSearchParams(location.search).get('redirect');
+    const stateRedirect = location.state?.redirectTo;
+    const rawRedirect = stateRedirect || queryRedirect || '/home';
+    return typeof rawRedirect === 'string' && rawRedirect.startsWith('/') ? rawRedirect : '/home';
+  };
+
+  const handleLogin = async (e) => {
     e.preventDefault();
-    if (login(loginData.email, loginData.password)) {
-      navigate('/home'); // ✅ Redirigir a /home después del login
+    const success = await login(loginData.email, loginData.password);
+    if (success) {
+      navigate(getRedirectPath(), { replace: true });
     }
   };
 
-  const handleRegister = (e) => {
+  const handleRegister = async (e) => {
     e.preventDefault();
     setAgeError('');
 
@@ -62,8 +71,9 @@ const AuthPage = () => {
       return;
     }
 
-    if (register(registerData)) {
-      navigate('/home'); // ✅ Redirigir a /home después del registro
+    const success = await register(registerData);
+    if (success) {
+      navigate(getRedirectPath(), { replace: true });
     }
   };
 

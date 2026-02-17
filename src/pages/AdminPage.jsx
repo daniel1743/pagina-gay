@@ -17,6 +17,7 @@ import {
   getStatsForDays,
   getMostUsedFeatures,
   getExitPages,
+  getFunnelMetrics,
   getYesterdayStats,
   calculatePercentageChange,
   exportToCSV,
@@ -30,6 +31,7 @@ import TimeDistributionChart from '@/components/admin/TimeDistributionChart';
 import TrafficSourcesChart from '@/components/admin/TrafficSourcesChart';
 import ModerationAlerts from '@/components/admin/ModerationAlerts';
 import MessageGenerator from '@/components/admin/MessageGenerator';
+import ConversionFunnelPanel from '@/components/admin/ConversionFunnelPanel';
 import { 
   subscribeToTickets, 
   updateTicketStatus 
@@ -167,6 +169,7 @@ const AdminPage = () => {
   const [mostUsedFeatures, setMostUsedFeatures] = useState([]);
   const [exitPages, setExitPages] = useState([]);
   const [historicalStats, setHistoricalStats] = useState([]);
+  const [funnelMetrics, setFunnelMetrics] = useState({ steps: [], overallConversion: 0, days: 7 });
 
   const [isAdmin, setIsAdmin] = useState(false);
 
@@ -546,15 +549,17 @@ const AdminPage = () => {
 
     const loadAnalytics = async () => {
       try {
-        const [features, exits, history] = await Promise.all([
+        const [features, exits, history, funnel] = await Promise.all([
           getMostUsedFeatures(10),
           getExitPages(10),
-          getStatsForDays(7)
+          getStatsForDays(7),
+          getFunnelMetrics(7),
         ]);
 
         setMostUsedFeatures(features);
         setExitPages(exits);
         setHistoricalStats(history);
+        setFunnelMetrics(funnel);
       } catch (error) {
         console.error('Error loading analytics:', error);
       }
@@ -953,6 +958,8 @@ const AdminPage = () => {
               ticketStats={ticketStats}
               sanctionStats={sanctionStats}
             />
+
+            <ConversionFunnelPanel funnelMetrics={funnelMetrics} />
 
             {/* Estadísticas Principales - Analytics con Comparaciones */}
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
@@ -2739,6 +2746,8 @@ const AdminPage = () => {
                 Exportar a CSV
               </Button>
             </div>
+
+            <ConversionFunnelPanel funnelMetrics={funnelMetrics} />
 
             {/* KPIs Calculados */}
             <div className="grid grid-cols-1 md:grid-cols-4 gap-6">

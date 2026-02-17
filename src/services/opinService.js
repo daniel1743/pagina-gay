@@ -235,64 +235,24 @@ export const getOpinFeed = async (limitCount = 50) => {
   });
 
   // Usar todos los vigentes (dentro de 60 días)
-  let normals = vigentes;
-
-  // Asignar peso BASE a cada post (más compacto para permitir variación)
-  const getPostWeight = (post) => {
-    if (!post.isStable) {
-      // Post real: peso basado en antigüedad (escala reducida)
-      const createdMs = post.createdAt?.toMillis ? post.createdAt.toMillis() : nowMs;
-      const ageHours = (nowMs - createdMs) / (1000 * 60 * 60);
-      if (ageHours < 3) return 60;   // Muy reciente
-      if (ageHours < 8) return 50;   // Reciente
-      if (ageHours < 16) return 40;  // Medio
-      return 30;                      // Viejo
-    }
-    // Post estable: peso basado en likes + reacciones
-    const likes = post.likeCount || 0;
-    const totalReactions = Object.values(post.reactionCounts || {}).reduce((sum, c) => sum + (c || 0), 0);
-    const engagement = likes + totalReactions;
-    if (engagement > 10) return 45;
-    if (engagement > 5) return 35;
-    if (engagement >= 1) return 25;
-    return 15;
-  };
+  const normals = vigentes;
 
   // Combinar todos los posts activos
   const allActive = [...normals, ...stables];
 
-  // Shuffle ponderado: peso + factor aleatorio moderado para variación sin ocultar posts
-  const weighted = allActive.map(post => ({
-    post,
-    score: getPostWeight(post) + Math.random() * 15,
-  }));
-  weighted.sort((a, b) => b.score - a.score);
-
-  let posts = weighted.map(w => w.post);
-
-  // Garantizar: al menos 3 posts reales en top 10 (si existen)
-  const realesEnTop10 = posts.slice(0, 10).filter(p => !p.isStable).length;
-  const realesDisponibles = posts.filter(p => !p.isStable);
-  if (realesEnTop10 < 3 && realesDisponibles.length >= 3) {
-    const top10 = posts.slice(0, 10);
-    const resto = posts.slice(10);
-    const realesFuera = resto.filter(p => !p.isStable);
-    const necesarios = 3 - realesEnTop10;
-    const realesASubir = realesFuera.slice(0, necesarios);
-    // Insertar posts reales en posiciones aleatorias del top 10
-    for (const real of realesASubir) {
-      const idx = Math.floor(Math.random() * 10);
-      top10.splice(idx, 0, real);
+  // OPIN: Sin jerarquía. Todas las tarjetas tienen igual visibilidad.
+  // Shuffle puro (Fisher-Yates): cualquier posición puede ser primera, última, media.
+  const shuffleArray = (arr) => {
+    const a = [...arr];
+    for (let i = a.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [a[i], a[j]] = [a[j], a[i]];
     }
-    // Quitar los movidos del resto
-    const idsMovidos = new Set(realesASubir.map(r => r.id));
-    const restoFiltrado = resto.filter(p => !idsMovidos.has(p.id));
-    posts = [...top10, ...restoFiltrado];
-  }
+    return a;
+  };
+  const posts = shuffleArray(allActive).slice(0, limitCount);
 
-  posts = posts.slice(0, limitCount);
-
-  console.log(`📥 [OPIN] Feed ponderado: ${normals.length} reales, ${stables.length} estables, ${posts.length} total`);
+  console.log(`📥 [OPIN] Feed aleatorio: ${normals.length} reales, ${stables.length} estables, ${posts.length} total`);
 
   return posts;
 };

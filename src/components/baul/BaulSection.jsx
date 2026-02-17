@@ -619,12 +619,14 @@ const BaulSection = ({ isOpen = true, onClose, variant = 'modal' }) => {
   };
 
   const handleRefresh = () => {
+    if (canEditOwnCard) cargarMiTarjeta();
     cargarTarjetas(false);
   };
 
   const handleEditorClose = () => {
     setMostrarEditor(false);
-    cargarTarjetas(false); // Refrescar por si cambió algo
+    if (canEditOwnCard) cargarMiTarjeta(); // Refrescar mi tarjeta con datos actualizados
+    cargarTarjetas(false); // Refrescar lista por si cambió algo
   };
 
   if (!isActive) return null;
@@ -635,19 +637,14 @@ const BaulSection = ({ isOpen = true, onClose, variant = 'modal' }) => {
     const base = Array.isArray(tarjetas) ? [...tarjetas] : [];
     if (!odIdUsuari) return base;
     const idx = base.findIndex(t => isMiTarjeta(t));
+    // Para la tarjeta propia: miTarjeta es la fuente de verdad (evita sobrescribir con datos del query)
+    const miTarjetaFinal = miTarjeta
+      ? { ...miTarjeta, odIdUsuari: miTarjeta.odIdUsuari || odIdUsuari }
+      : null;
     if (idx >= 0) {
-      if (miTarjeta) {
-        base[idx] = {
-          ...base[idx],
-          ...miTarjeta,
-          odIdUsuari: base[idx].odIdUsuari || miTarjeta.odIdUsuari || odIdUsuari
-        };
-      }
-    } else if (miTarjeta) {
-      base.unshift({
-        ...miTarjeta,
-        odIdUsuari: miTarjeta.odIdUsuari || odIdUsuari
-      });
+      base[idx] = miTarjetaFinal || { ...base[idx], odIdUsuari: base[idx].odIdUsuari || odIdUsuari };
+    } else if (miTarjetaFinal) {
+      base.unshift(miTarjetaFinal);
     }
     const idxFinal = base.findIndex(t => isMiTarjeta(t));
     if (idxFinal > 0) {

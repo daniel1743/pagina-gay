@@ -19,11 +19,13 @@ import {
   trackPageExit as trackGA4PageExit,
   trackContentReport,
   trackSupportTicket,
+  trackTrafficSource,
 } from '@/services/ga4Service';
 
 const SESSION_ID_KEY = 'chactivo_session_id';
 const SESSION_START_KEY = 'chactivo_session_start';
 const LAST_SEEN_KEY = 'chactivo_last_seen';
+const TRAFFIC_CONTEXT_KEY = 'chactivo_traffic_context';
 
 const generateSessionId = () => {
   if (typeof crypto !== 'undefined' && crypto.randomUUID) {
@@ -50,6 +52,61 @@ const getUserMeta = (user) => {
     isAnonymous: !!(user?.isAnonymous || authUser?.isAnonymous),
     isAuthenticated: !!authUser,
   };
+};
+
+const parseTrafficContext = () => {
+  if (typeof window === 'undefined') return { source: 'direct', medium: 'direct', campaign: null };
+
+  const params = new URLSearchParams(window.location.search);
+  const utmSource = params.get('utm_source');
+  const utmMedium = params.get('utm_medium');
+  const utmCampaign = params.get('utm_campaign');
+  const utmTerm = params.get('utm_term');
+  const utmContent = params.get('utm_content');
+  const referrer = document.referrer || '';
+
+  let source = utmSource;
+  let medium = utmMedium;
+  if (!source) {
+    if (referrer) {
+      try {
+        source = new URL(referrer).hostname.replace(/^www\./, '');
+      } catch {
+        source = 'referral';
+      }
+      medium = medium || 'referral';
+    } else {
+      source = 'direct';
+      medium = medium || 'direct';
+    }
+  }
+
+  return {
+    source,
+    medium: medium || 'unknown',
+    campaign: utmCampaign,
+    term: utmTerm,
+    content: utmContent,
+  };
+};
+
+const getTrafficContext = () => {
+  if (typeof sessionStorage === 'undefined') {
+    return parseTrafficContext();
+  }
+
+  const stored = sessionStorage.getItem(TRAFFIC_CONTEXT_KEY);
+  if (stored) {
+    try {
+      return JSON.parse(stored);
+    } catch {
+      // ignore parse errors
+    }
+  }
+
+  const ctx = parseTrafficContext();
+  sessionStorage.setItem(TRAFFIC_CONTEXT_KEY, JSON.stringify(ctx));
+  return ctx;
 };
 
 const dispatchGA4 = (eventType, payload) => {
@@ -92,6 +149,9 @@ const dispatchGA4 = (eventType, payload) => {
         priority: payload.priority,
       });
       break;
+    case 'traffic_source':
+      trackTrafficSource(payload.source, payload.campaign);
+      break;
     default:
       break;
   }
@@ -114,9 +174,16 @@ export const track = async (eventType, data = {}, options = {}) => {
 export const trackPageView = async (pagePath, pageTitle, options = {}) => {
   const sessionId = getSessionId();
   const userMeta = getUserMeta(options.user);
+  const traffic = getTrafficContext();
 
-  await trackAnalyticsPageView(pagePath, pageTitle);
-  dispatchGA4('page_view', { pagePath, pageTitle, sessionId, ...userMeta });
+  await trackAnalyticsPageView(pagePath, pageTitle, {
+    source: traffic.source,
+    medium: traffic.medium,
+    campaign: traffic.campaign,
+    term: traffic.term,
+    content: traffic.content,
+  });
+  dispatchGA4('page_view', { pagePath, pageTitle, sessionId, ...traffic, ...userMeta });
 };
 
 export const trackPageExit = async (pagePath, timeOnPage = 0, options = {}) => {
@@ -167,6 +234,8 @@ export const startSession = (options = {}) => {
   sessionStorage.setItem(SESSION_START_KEY, String(startedAt));
 
   track('session_start', { started_at: startedAt }, options).catch(() => {});
+  const traffic = getTrafficContext();
+  track('traffic_source', traffic, options).catch(() => {});
 
   const lastSeen = localStorage.getItem(LAST_SEEN_KEY);
   if (lastSeen) {

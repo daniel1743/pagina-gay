@@ -73,17 +73,50 @@ const OpinFeedPage = () => {
     checkCanCreate();
   }, []);
 
+  // OPIN: Reacomodar tarjetas cada 10 minutos (visibilidad igual para todos)
+  useEffect(() => {
+    const interval = setInterval(() => {
+      setPosts((prev) => {
+        if (prev.length <= 1) return prev;
+        const a = [...prev];
+        for (let i = a.length - 1; i > 0; i--) {
+          const j = Math.floor(Math.random() * (i + 1));
+          [a[i], a[j]] = [a[j], a[i]];
+        }
+        return a;
+      });
+    }, 10 * 60 * 1000); // 10 minutos
+    return () => clearInterval(interval);
+  }, []);
+
   useEffect(() => {
     const key = user?.id || user?.guestId || 'anon';
     localStorage.setItem(`opin_visited:${key}`, '1');
   }, [user]);
+
+  const shufflePosts = (postsToShuffle) => {
+    const a = [...postsToShuffle];
+    for (let i = a.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [a[i], a[j]] = [a[j], a[i]];
+    }
+    return a;
+  };
+
+  const handleRestart = () => {
+    if (posts.length === 0) {
+      loadFeed();
+      return;
+    }
+    setPosts(shufflePosts(posts));
+    toast({ description: 'Tablón reordenado', duration: 2000 });
+  };
 
   const loadFeed = async () => {
     setLoading(true);
     try {
       const feedPosts = await getOpinFeed(50);
       setPosts(feedPosts);
-
     } catch (error) {
       console.error('Error cargando feed:', error);
       setPosts([]);

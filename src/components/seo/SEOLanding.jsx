@@ -1,5 +1,6 @@
 import React, { useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { track, trackPageExit, trackPageView } from '@/services/eventTrackingService';
 
 /**
  * 🚀 SEO LANDING MINIMALISTA
@@ -19,6 +20,7 @@ const SEOLanding = ({
   redirectDelay = 100 // ⚡ 100ms - casi instantáneo pero Google aún indexa
 }) => {
   const navigate = useNavigate();
+  const pageStartMs = Date.now();
 
   // 🔍 SEO - Actualizar meta tags dinámicamente
   useEffect(() => {
@@ -50,12 +52,29 @@ const SEOLanding = ({
 
   // ⚡ Auto-redirect después de 1 segundo
   useEffect(() => {
+    trackPageView(window.location.pathname, title).catch(() => {});
+    track('landing_view', {
+      page_path: window.location.pathname,
+      landing_variant: chatRoom,
+      seo_landing: true,
+    }).catch(() => {});
+
     const timer = setTimeout(() => {
+      track('entry_to_chat', {
+        method: 'auto_redirect',
+        from_path: window.location.pathname,
+        room_id: chatRoom,
+        delay_ms: redirectDelay,
+      }).catch(() => {});
       navigate(`/chat/${chatRoom}`, { replace: true });
     }, redirectDelay);
 
-    return () => clearTimeout(timer);
-  }, [navigate, chatRoom, redirectDelay]);
+    return () => {
+      clearTimeout(timer);
+      const timeOnPage = Math.max(0, Math.round((Date.now() - pageStartMs) / 1000));
+      trackPageExit(window.location.pathname, timeOnPage).catch(() => {});
+    };
+  }, [navigate, chatRoom, redirectDelay, title, pageStartMs]);
 
   return (
     <>

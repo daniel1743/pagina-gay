@@ -19,6 +19,19 @@ import { db, auth } from '@/config/firebase';
  * Trackea eventos de usuarios, visualizaciones, interacciones, etc.
  */
 
+const STORED_ANALYTICS_EVENT_TYPES = new Set([
+  'user_login',
+  'user_register',
+  'message_sent',
+  'landing_view',
+  'entry_to_chat',
+  'auth_page_view',
+  'auth_submit',
+  'auth_success',
+  'chat_room_view',
+  'first_message_sent',
+]);
+
 /**
  * Registra un evento de analytics con segmentación avanzada
  * OPTIMIZADO: Actualiza agregaciones diarias + guarda eventos clave para análisis de usuarios únicos
@@ -38,12 +51,23 @@ export const trackEvent = async (eventType, eventData = {}) => {
 
     let handled = false;
 
+    const sanitizeFieldSegment = (value = 'unknown') =>
+      String(value)
+        .toLowerCase()
+        .replace(/[^a-z0-9_-]/g, '_')
+        .slice(0, 80);
+
+    const getPageKey = (path = '/') => sanitizeFieldSegment(path || '/');
+
     // Incrementar contadores según el tipo de evento
     switch (eventType) {
       case 'page_view':
         updates.pageViews = increment(1);
         if (eventData.pagePath) {
           updates.lastPagePath = eventData.pagePath;
+          const pageKey = getPageKey(eventData.pagePath);
+          updates[`pageViewsByPath.${pageKey}`] = increment(1);
+          updates[`pagePathMap.${pageKey}`] = eventData.pagePath;
         }
         // Guardar timeOnPage si está disponible
         if (eventData.timeOnPage !== undefined) {
@@ -53,7 +77,8 @@ export const trackEvent = async (eventType, eventData = {}) => {
         }
         // Guardar fuente de tráfico (UTM)
         if (eventData.source) {
-          updates[`trafficSources.${eventData.source}`] = increment(1);
+          const sourceKey = sanitizeFieldSegment(eventData.source);
+          updates[`trafficSources.${sourceKey}`] = increment(1);
         }
         handled = true;
         break;
@@ -81,6 +106,9 @@ export const trackEvent = async (eventType, eventData = {}) => {
         updates.pageExits = increment(1);
         if (eventData.pagePath) {
           updates.lastExitPage = eventData.pagePath;
+          const pageKey = getPageKey(eventData.pagePath);
+          updates[`exitPagesByPath.${pageKey}`] = increment(1);
+          updates[`pagePathMap.${pageKey}`] = eventData.pagePath;
         }
         if (eventData.timeOnPage !== undefined) {
           const timeBucket = getTimeBucket(eventData.timeOnPage);
@@ -103,15 +131,35 @@ export const trackEvent = async (eventType, eventData = {}) => {
       }
     });
 
-    // NUEVO: Guardar eventos individuales SOLO para análisis de usuarios únicos
-    // Solo guardamos eventos clave (login, register, message_sent) para reducir escrituras
-    if (['user_login', 'user_register', 'message_sent'].includes(eventType) && eventData.userId) {
-      const eventRef = doc(collection(db, 'analytics_events'), `${dateKey}_${eventType}_${eventData.userId}_${Date.now()}`);
-      await setDoc(eventRef, {
+    // Guardar eventos individuales para análisis de embudo/usuarios únicos
+    if (STORED_ANALYTICS_EVENT_TYPES.has(eventType)) {
+      const sanitizeIdPart = (value = '') => String(value).replace(/[^a-zA-Z0-9_-]/g, '').slice(0, 80);
+      const sessionPart = sanitizeIdPart(eventData.sessionId || 'nosession');
+      const userPart = sanitizeIdPart(eventData.userId || 'nouser');
+      const eventRef = doc(
+        collection(db, 'analytics_events'),
+        `${dateKey}_${eventType}_${sessionPart}_${userPart}_${Date.now()}`
+      );
+
+      const payload = {
         type: eventType,
-        userId: eventData.userId,
+        userId: eventData.userId || null,
+        sessionId: eventData.sessionId || null,
         date: dateKey,
         timestamp: serverTimestamp(),
+        pagePath: eventData.pagePath || null,
+        roomId: eventData.roomId || null,
+        roomName: eventData.roomName || null,
+        mode: eventData.mode || null,
+        source: eventData.source || null,
+        medium: eventData.medium || null,
+        campaign: eventData.campaign || null,
+        isGuest: eventData.isGuest ?? null,
+        isAnonymous: eventData.isAnonymous ?? null,
+      };
+
+      await setDoc(eventRef, {
+        ...payload,
       }).catch(() => {}); // Silenciar errores, no es crítico
     }
 
@@ -149,10 +197,11 @@ const sanitizeEventType = (eventType = '') => {
  * @param {string} pagePath - Ruta de la página
  * @param {string} pageTitle - Título de la página
  */
-export const trackPageView = async (pagePath, pageTitle) => {
+export const trackPageView = async (pagePath, pageTitle, extraData = {}) => {
   await trackEvent('page_view', {
     pagePath,
     pageTitle,
+    ...extraData,
   });
 };
 
@@ -217,10 +266,11 @@ export const trackRoomJoined = async (roomId) => {
  * @param {string} pagePath - Ruta de la página
  * @param {number} timeSpent - Tiempo en segundos
  */
-export const trackPageExit = async (pagePath, timeSpent = 0) => {
+export const trackPageExit = async (pagePath, timeSpent = 0, extraData = {}) => {
   await trackEvent('page_exit', {
     pagePath,
     timeOnPage: timeSpent,
+    ...extraData,
   });
 };
 
@@ -433,8 +483,15 @@ export const getExitPages = async (limit = 10) => {
       
       if (statsSnap.exists()) {
         const data = statsSnap.data();
-        // Contar salidas por página (usando lastExitPage como aproximación)
-        if (data.lastExitPage) {
+        // Nuevo formato preciso: contador por página
+        if (data.exitPagesByPath && typeof data.exitPagesByPath === 'object') {
+          const pathMap = data.pagePathMap || {};
+          Object.entries(data.exitPagesByPath).forEach(([pageKey, count]) => {
+            const pagePath = pathMap[pageKey] || pageKey;
+            exitPages[pagePath] = (exitPages[pagePath] || 0) + (count || 0);
+          });
+        } else if (data.lastExitPage) {
+          // Fallback legado: aproximación con lastExitPage
           exitPages[data.lastExitPage] = (exitPages[data.lastExitPage] || 0) + (data.pageExits || 0);
         }
       }
@@ -545,6 +602,121 @@ export const getUniqueUsersToday = async () => {
       uniqueLogins: 0,
       uniqueRegistrations: 0,
       uniqueMessageSenders: 0,
+    };
+  }
+};
+
+/**
+ * 🆕 Embudo de conversión por sesiones (últimos N días)
+ * @param {number} days - Número de días a analizar
+ * @returns {Promise<object>} Métricas del embudo
+ */
+export const getFunnelMetrics = async (days = 7) => {
+  const dayCount = Math.min(Math.max(days, 1), 30);
+  const today = new Date();
+  const eventsRef = collection(db, 'analytics_events');
+
+  const rawEventTypes = [
+    'landing_view',
+    'entry_to_chat',
+    'auth_page_view',
+    'auth_submit',
+    'auth_success',
+    'user_register',
+    'user_login',
+    'chat_room_view',
+    'first_message_sent',
+  ];
+
+  const actorSets = {
+    landing_view: new Set(),
+    entry_to_chat: new Set(),
+    auth_page_view: new Set(),
+    auth_submit: new Set(),
+    auth_success: new Set(),
+    chat_room_view: new Set(),
+    first_message_sent: new Set(),
+  };
+
+  const buildActorKey = (data, fallbackId) => {
+    if (data.sessionId) return `sess:${data.sessionId}`;
+    if (data.userId) return `user:${data.userId}`;
+    return `evt:${fallbackId}`;
+  };
+
+  try {
+    for (let i = 0; i < dayCount; i++) {
+      const date = new Date(today);
+      date.setDate(date.getDate() - i);
+      const dateKey = date.toISOString().split('T')[0];
+
+      let snapshot;
+      try {
+        const q = query(
+          eventsRef,
+          where('date', '==', dateKey),
+          where('type', 'in', rawEventTypes)
+        );
+        snapshot = await getDocs(q);
+      } catch {
+        const qFallback = query(eventsRef, where('date', '==', dateKey));
+        snapshot = await getDocs(qFallback);
+      }
+
+      snapshot.forEach((eventDoc) => {
+        const data = eventDoc.data();
+        if (!rawEventTypes.includes(data.type)) return;
+        const actorKey = buildActorKey(data, eventDoc.id);
+
+        if (data.type === 'user_register' || data.type === 'user_login' || data.type === 'auth_success') {
+          actorSets.auth_success.add(actorKey);
+        }
+
+        if (actorSets[data.type]) {
+          actorSets[data.type].add(actorKey);
+        }
+      });
+    }
+
+    const orderedSteps = [
+      { key: 'landing_view', label: 'Landing vista' },
+      { key: 'entry_to_chat', label: 'Entrada al chat' },
+      { key: 'auth_page_view', label: 'Vista de auth' },
+      { key: 'auth_submit', label: 'Submit auth' },
+      { key: 'auth_success', label: 'Auth exitosa' },
+      { key: 'chat_room_view', label: 'Vista de sala' },
+      { key: 'first_message_sent', label: 'Primer mensaje' },
+    ];
+
+    const steps = orderedSteps.map((step, index) => {
+      const count = actorSets[step.key].size;
+      const previousCount = index > 0 ? actorSets[orderedSteps[index - 1].key].size : 0;
+      const conversionFromPrev = index === 0
+        ? 100
+        : (previousCount > 0 ? (count / previousCount) * 100 : 0);
+
+      return {
+        ...step,
+        count,
+        conversionFromPrev,
+      };
+    });
+
+    const first = steps[0]?.count || 0;
+    const last = steps[steps.length - 1]?.count || 0;
+    const overallConversion = first > 0 ? (last / first) * 100 : 0;
+
+    return {
+      days: dayCount,
+      steps,
+      overallConversion,
+    };
+  } catch (error) {
+    console.error('Error getting funnel metrics:', error);
+    return {
+      days: dayCount,
+      steps: [],
+      overallConversion: 0,
     };
   }
 };
