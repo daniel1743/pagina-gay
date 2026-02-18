@@ -1133,6 +1133,18 @@ service cloud.firestore {
     }
 
     // ===========================
+    // 👑 TOP PARTICIPANTES (SIDEBAR)
+    // ===========================
+    match /featured_participants/{userId} {
+      // Lectura pública para render en sidebar/chat
+      allow read: if true;
+
+      // Gestión solo admin
+      allow create, update: if isAdmin();
+      allow delete: if isAdmin();
+    }
+
+    // ===========================
     // DEFAULT: CERRADO
     // ===========================
 

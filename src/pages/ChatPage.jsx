@@ -681,10 +681,10 @@ const ChatPage = () => {
       //   ogDescription: '💬 La sala más popular de Chactivo. Todos los temas, todos bienvenidos. Ambiente relajado y conversación real.'
       // },
       'principal': {
-        title: 'Chat Principal - Chat Gay Chile 💬 | Sala General LGBT+ | Chactivo',
-        description: '💬 Sala de chat gay principal Chile. Todos los temas bienvenidos: amistad, relaciones, gaming, cultura. Conversación libre, ambiente relajado. La sala más activa de Chactivo. ¡Regístrate en 30 segundos!',
-        ogTitle: 'Chat Principal | Chat Gay Chile General 💬',
-        ogDescription: '💬 La sala más popular de Chactivo. Todos los temas, todos bienvenidos. Ambiente relajado y conversación real.'
+        title: 'Chat Principal - Chat Gay Chile 💬 | Cero Anuncios Molestos | Chactivo',
+        description: 'Habla y conecta en tiempo real con gente de Chile. Entra gratis en segundos, sin registro obligatorio y con cero anuncios molestos.',
+        ogTitle: 'Chat Gay Chile 💬 | Cero Anuncios Molestos | Chactivo',
+        ogDescription: 'Conecta con gente real de Chile en segundos: gratis, sin registro obligatorio y sin anuncios molestos.'
       }
     };
 
@@ -755,7 +755,7 @@ const ChatPage = () => {
     return () => {
       // Limpiar meta description al desmontar (volver a la del index.html)
       if (metaDescription && document.head.contains(metaDescription)) {
-        metaDescription.content = '🏳️‍🌈 Únete al chat gay más activo de Chile. Salas temáticas: Gaming 🎮, +30 años, Osos 🐻, Amistad. Conversaciones reales, comunidad LGBT+ segura. ¡Regístrate en 30 segundos!';
+        metaDescription.content = 'Habla y conecta en tiempo real con gente de Chile. Entra gratis en segundos, sin registro obligatorio y con cero anuncios molestos.';
       }
     };
   }, [roomId]);

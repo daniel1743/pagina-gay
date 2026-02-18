@@ -9,6 +9,7 @@ import { subscribeToMultipleRoomCounts } from '@/services/presenceService';
 import { colorClasses, getVisibleRoomsForUser } from '@/config/rooms';
 import { RegistrationRequiredModal } from '@/components/auth/RegistrationRequiredModal';
 import { AuthModal } from '@/components/auth/AuthModal';
+import TopParticipantsSidebarCards from '@/components/chat/TopParticipantsSidebarCards';
 
 /**
  * ✅ SISTEMA DE ESTADOS DE ACTIVIDAD
@@ -338,6 +339,8 @@ const ChatSidebar = ({ currentRoom, setCurrentRoom, isOpen, onClose, onOpenBaul,
               </Button>
             </div>
           </div>
+
+          <TopParticipantsSidebarCards />
         </div>
 
         <div className="mt-auto flex-shrink-0 p-4 border-t border-border">
@@ -638,6 +641,8 @@ const ChatSidebar = ({ currentRoom, setCurrentRoom, isOpen, onClose, onOpenBaul,
               </Button>
             </div>
           </div>
+
+          <TopParticipantsSidebarCards compact />
         </div>
 
         <div className="mt-auto flex-shrink-0 p-4 border-t border-border">
