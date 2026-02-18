@@ -38,7 +38,7 @@ import TelegramBanner from '@/components/ui/TelegramBanner';
 // 🚀 ENGAGEMENT: Banner promocional Baúl + OPIN
 import TarjetaPromoBanner from '@/components/chat/TarjetaPromoBanner';
 import ChatBottomNav from '@/components/chat/ChatBottomNav';
-import EsenciasColumn from '@/components/esencias/EsenciasColumn';
+import FeaturedChannelsColumn from '@/components/featured/FeaturedChannelsColumn';
 import { useEngagementNudge } from '@/hooks/useEngagementNudge';
 // ⚠️ MODERADOR ELIMINADO (06/01/2026) - A petición del usuario
 // import RulesBanner from '@/components/chat/RulesBanner';
@@ -412,7 +412,7 @@ const ChatPage = () => {
   const [isInputFocused, setIsInputFocused] = useState(false); // 📝 Input focus state for scroll manager
   const [suggestedMessage, setSuggestedMessage] = useState(null); // 🤖 Mensaje sugerido por Companion AI
   const [replyTo, setReplyTo] = useState(null); // 💬 Mensaje al que se está respondiendo { messageId, username, content }
-  const [isEsenciasMobileOpen, setIsEsenciasMobileOpen] = useState(false); // ✨ Panel de esencias en móvil
+  const [isFeaturedChannelsMobileOpen, setIsFeaturedChannelsMobileOpen] = useState(false); // ✨ Panel de canales destacados en móvil
   const [isLoadingMessages, setIsLoadingMessages] = useState(true); // ⏳ Estado de carga de mensajes
   const [unreadRepliesCount, setUnreadRepliesCount] = useState(0); // 💬 Contador de respuestas no leídas
   const lastReadMessageIdRef = useRef(null); // Para rastrear último mensaje leído
@@ -2854,7 +2854,7 @@ const ChatPage = () => {
 
   return (
     <>
-      {/* ✅ Layout Chat: Sidebar + Chat + Esencias (desktop) */}
+      {/* ✅ Layout Chat: Sidebar + Chat + Canales Destacados (desktop) */}
       <div className="h-screen overflow-hidden bg-background lg:flex" style={{ height: '100dvh', maxHeight: '100dvh' }}>
         <ChatSidebar
           currentRoom={currentRoom}
@@ -3012,10 +3012,10 @@ const ChatPage = () => {
           />
         </div>
 
-        <EsenciasColumn
+        <FeaturedChannelsColumn
           showMobileLauncher={false}
-          mobilePanelOpen={isEsenciasMobileOpen}
-          onMobilePanelOpenChange={setIsEsenciasMobileOpen}
+          mobilePanelOpen={isFeaturedChannelsMobileOpen}
+          onMobilePanelOpenChange={setIsFeaturedChannelsMobileOpen}
         />
 
         {/* ⚠️ MODERADOR COMPLETAMENTE ELIMINADO (06/01/2026) - A petición del usuario */}
@@ -3251,11 +3251,11 @@ const ChatPage = () => {
       />
 
       {/* 📋 BAÚL DE TARJETAS - Accesible desde banner promocional */}
-      {/* 📱 Barra inferior móvil: Baúl, OPIN, Esencias, Chat */}
+      {/* 📱 Barra inferior móvil: Baúl, OPIN, Canales, Chat */}
       <ChatBottomNav
         onOpenBaul={handleOpenBaul}
         onOpenOpin={handleOpenOpin}
-        onOpenEsencias={() => setIsEsenciasMobileOpen(true)}
+        onOpenFeaturedChannels={() => setIsFeaturedChannelsMobileOpen(true)}
       />
     </>
   );

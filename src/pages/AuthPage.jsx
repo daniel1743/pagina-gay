@@ -33,11 +33,9 @@ const AuthPage = () => {
   const pageStartRef = useRef(Date.now());
   const [loginData, setLoginData] = useState({ email: '', password: '' });
   const [registerData, setRegisterData] = useState({
-    username: '',
     email: '',
     password: '',
-    age: '',
-    phone: ''
+    age: ''
   });
   const [ageError, setAgeError] = useState('');
   const [showLoginPassword, setShowLoginPassword] = useState(false);
@@ -191,15 +189,26 @@ const AuthPage = () => {
               <TabsContent value="register">
                 <form onSubmit={handleRegister} className="space-y-4">
                   <div>
-                    <Label htmlFor="username" className="text-gray-400">Nombre de usuario</Label>
+                    <Label htmlFor="age" className="text-gray-400">Edad</Label>
                     <Input
-                      id="username"
+                      id="age"
+                      type="number"
                       required
-                      value={registerData.username}
-                      onChange={(e) => setRegisterData({ ...registerData, username: e.target.value })}
-                      className="bg-gray-800/30 border-gray-700 text-gray-300"
-                      placeholder="tu_nombre"
+                      min="18"
+                      max="120"
+                      value={registerData.age}
+                      onChange={(e) => {
+                        setRegisterData({ ...registerData, age: e.target.value });
+                        setAgeError('');
+                      }}
+                      className={`bg-gray-800/30 border-gray-700 text-gray-300 ${ageError ? 'border-red-500' : ''}`}
+                      placeholder="18+"
                     />
+                    {ageError && (
+                      <p className="text-red-400 text-sm mt-2 font-medium">
+                        ⚠️ {ageError}
+                      </p>
+                    )}
                   </div>
                   <div>
                     <Label htmlFor="email" className="text-gray-400">Email</Label>
@@ -215,42 +224,6 @@ const AuthPage = () => {
                       />
                       <Mail className="absolute right-3 top-1/2 transform -translate-y-1/2 w-5 h-5 text-gray-500 pointer-events-none" />
                     </div>
-                  </div>
-                  <div>
-                    <Label htmlFor="phone" className="text-gray-400">Teléfono (opcional)</Label>
-                    <Input
-                      id="phone"
-                      type="tel"
-                      value={registerData.phone}
-                      onChange={(e) => setRegisterData({ ...registerData, phone: e.target.value })}
-                      className="bg-gray-800/30 border-gray-700 text-gray-300"
-                      placeholder="+56 9 1234 5678"
-                    />
-                  </div>
-                  <div>
-                    <Label htmlFor="age" className="text-gray-400">Edad</Label>
-                    <Input
-                      id="age"
-                      type="number"
-                      required
-                      min="18"
-                      max="120"
-                      value={registerData.age}
-                      onChange={(e) => {
-                        setRegisterData({ ...registerData, age: e.target.value });
-                        setAgeError(''); // Limpiar error al escribir
-                      }}
-                      className={`bg-gray-800/30 border-gray-700 text-gray-300 ${ageError ? 'border-red-500' : ''}`}
-                      placeholder="18+"
-                    />
-                    {ageError && (
-                      <p className="text-red-400 text-sm mt-2 font-medium">
-                        ⚠️ {ageError}
-                      </p>
-                    )}
-                    <p className="text-gray-500 text-xs mt-1">
-                      Debes ser mayor de edad para usar Chactivo
-                    </p>
                   </div>
                   <div>
                     <Label htmlFor="password" className="text-gray-400">Contraseña</Label>

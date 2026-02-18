@@ -1,14 +1,14 @@
 /**
  * 📱 Barra de navegación inferior móvil
- * Cuatro iconos: Baúl, OPIN, Esencias, Chat Principal
+ * Cuatro iconos: Baúl, OPIN, Canales, Chat Principal
  * Solo visible en móvil (lg:hidden)
  */
 
 import React from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
-import { Archive, Sparkles, MessageCircle, Fingerprint } from 'lucide-react';
+import { Archive, Sparkles, MessageCircle, Megaphone } from 'lucide-react';
 
-const ChatBottomNav = ({ onOpenBaul, onOpenOpin, onOpenEsencias }) => {
+const ChatBottomNav = ({ onOpenBaul, onOpenOpin, onOpenFeaturedChannels, onOpenEsencias }) => {
   const navigate = useNavigate();
   const location = useLocation();
   const isChat = location.pathname.startsWith('/chat');
@@ -32,12 +32,16 @@ const ChatBottomNav = ({ onOpenBaul, onOpenOpin, onOpenEsencias }) => {
       active: isOpin,
     },
     {
-      id: 'esencias',
-      icon: Fingerprint,
-      label: 'Esencias',
+      id: 'featured',
+      icon: Megaphone,
+      label: 'Canales',
       onClick: () => {
+        if (onOpenFeaturedChannels) {
+          onOpenFeaturedChannels();
+          return;
+        }
         if (onOpenEsencias) {
-          onOpenEsencias();
+          onOpenEsencias(); // Compatibilidad retroactiva
           return;
         }
         navigate('/chat/principal');

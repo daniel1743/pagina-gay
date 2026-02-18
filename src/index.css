@@ -303,6 +303,29 @@
   .scrollbar-hide::-webkit-scrollbar {
     display: none;  /* Chrome, Safari y Opera */
   }
+
+  .featured-scroll {
+    scrollbar-width: thin;
+    scrollbar-color: rgba(148, 163, 184, 0.35) transparent;
+    scroll-behavior: smooth;
+  }
+
+  .featured-scroll::-webkit-scrollbar {
+    width: 6px;
+  }
+
+  .featured-scroll::-webkit-scrollbar-track {
+    background: transparent;
+  }
+
+  .featured-scroll::-webkit-scrollbar-thumb {
+    background: rgba(148, 163, 184, 0.35);
+    border-radius: 999px;
+  }
+
+  .featured-scroll::-webkit-scrollbar-thumb:hover {
+    background: rgba(148, 163, 184, 0.55);
+  }
 }
 
 /* Responsive Media Queries */

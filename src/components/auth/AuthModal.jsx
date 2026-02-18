@@ -25,11 +25,9 @@ export const AuthModal = ({ open, onClose }) => {
   
   const [loginData, setLoginData] = useState({ email: '', password: '' });
   const [registerData, setRegisterData] = useState({
-    username: '',
     email: '',
     password: '',
-    age: '',
-    phone: ''
+    age: ''
   });
   const [ageError, setAgeError] = useState('');
   const [showLoginPassword, setShowLoginPassword] = useState(false);
@@ -262,80 +260,6 @@ export const AuthModal = ({ open, onClose }) => {
               <TabsContent value="register">
                 <form onSubmit={handleRegister} className="space-y-4" style={{ textAlign: 'left' }}>
                   <div>
-                    <Label htmlFor="username" style={{ color: '#333', marginBottom: '8px', display: 'block' }}>
-                      Nombre de usuario *
-                    </Label>
-                    <Input
-                      id="username"
-                      required
-                      value={registerData.username}
-                      onChange={(e) => setRegisterData({ ...registerData, username: e.target.value })}
-                      style={{
-                        width: '100%',
-                        padding: '12px',
-                        fontSize: '16px',
-                        border: '2px solid #667eea',
-                        borderRadius: '10px',
-                        outline: 'none',
-                        boxSizing: 'border-box',
-                        backgroundColor: 'white',
-                        color: '#333'
-                      }}
-                      placeholder="tu_nombre"
-                    />
-                  </div>
-                  <div>
-                    <Label htmlFor="email" style={{ color: '#333', marginBottom: '8px', display: 'block' }}>
-                      Email *
-                    </Label>
-                    <div className="relative">
-                      <Input
-                        id="email"
-                        type="email"
-                        required
-                        value={registerData.email}
-                        onChange={(e) => setRegisterData({ ...registerData, email: e.target.value })}
-                        style={{
-                          width: '100%',
-                          padding: '12px',
-                          fontSize: '16px',
-                          border: '2px solid #667eea',
-                          borderRadius: '10px',
-                          outline: 'none',
-                          boxSizing: 'border-box',
-                          backgroundColor: 'white',
-                          color: '#333',
-                          paddingRight: '40px'
-                        }}
-                        placeholder="tu@email.com"
-                      />
-                      <Mail className="absolute right-3 top-1/2 transform -translate-y-1/2 w-5 h-5 text-gray-400 pointer-events-none" />
-                    </div>
-                  </div>
-                  <div>
-                    <Label htmlFor="phone" style={{ color: '#333', marginBottom: '8px', display: 'block' }}>
-                      Teléfono (opcional)
-                    </Label>
-                    <Input
-                      id="phone"
-                      type="tel"
-                      value={registerData.phone}
-                      onChange={(e) => setRegisterData({ ...registerData, phone: e.target.value })}
-                      style={{
-                        width: '100%',
-                        padding: '12px',
-                        fontSize: '16px',
-                        border: '2px solid #667eea',
-                        borderRadius: '10px',
-                        outline: 'none',
-                        boxSizing: 'border-box',
-                        backgroundColor: 'white',
-                        color: '#333'
-                      }}
-                      placeholder="+56 9 1234 5678"
-                    />
-                  </div>
-                  <div>
                     <Label htmlFor="age" style={{ color: '#333', marginBottom: '8px', display: 'block' }}>
                       Edad *
                     </Label>
@@ -369,8 +293,36 @@ export const AuthModal = ({ open, onClose }) => {
                       </p>
                     )}
                     <p style={{ color: '#999', fontSize: '12px', marginTop: '4px' }}>
-                      Debes ser mayor de edad para usar Chactivo
+                      Debes ser mayor de edad
                     </p>
+                  </div>
+                  <div>
+                    <Label htmlFor="email" style={{ color: '#333', marginBottom: '8px', display: 'block' }}>
+                      Email *
+                    </Label>
+                    <div className="relative">
+                      <Input
+                        id="email"
+                        type="email"
+                        required
+                        value={registerData.email}
+                        onChange={(e) => setRegisterData({ ...registerData, email: e.target.value })}
+                        style={{
+                          width: '100%',
+                          padding: '12px',
+                          fontSize: '16px',
+                          border: '2px solid #667eea',
+                          borderRadius: '10px',
+                          outline: 'none',
+                          boxSizing: 'border-box',
+                          backgroundColor: 'white',
+                          color: '#333',
+                          paddingRight: '40px'
+                        }}
+                        placeholder="tu@email.com"
+                      />
+                      <Mail className="absolute right-3 top-1/2 transform -translate-y-1/2 w-5 h-5 text-gray-400 pointer-events-none" />
+                    </div>
                   </div>
                   <div>
                     <Label htmlFor="password" style={{ color: '#333', marginBottom: '8px', display: 'block' }}>

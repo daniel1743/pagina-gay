@@ -589,20 +589,29 @@ export const AuthProvider = ({ children }) => {
    */
   const register = async (userData) => {
     try {
-      // Validaciones básicas del lado del cliente
-      if (!userData.email || !userData.password || !userData.username) {
+      // Validaciones básicas del lado del cliente (solo edad, email, contraseña)
+      if (!userData.email || !userData.password) {
         toast({
           title: "Datos incompletos",
-          description: "Por favor completa todos los campos requeridos",
+          description: "Ingresa email y contraseña",
           variant: "destructive",
         });
         return false;
       }
 
-      if (userData.age && parseInt(userData.age) < 18) {
+      const ageNum = userData.age ? parseInt(userData.age) : 0;
+      if (isNaN(ageNum) || ageNum < 18) {
         toast({
           title: "Edad insuficiente",
           description: "Debes ser mayor de 18 años para registrarte",
+          variant: "destructive",
+        });
+        return false;
+      }
+      if (ageNum > 120) {
+        toast({
+          title: "Edad inválida",
+          description: "Ingresa una edad válida",
           variant: "destructive",
         });
         return false;
@@ -617,6 +626,11 @@ export const AuthProvider = ({ children }) => {
         return false;
       }
 
+      // Username auto-generado desde email si no se proporciona (reduce fricción)
+      const base = (userData.email || '').split('@')[0] || '';
+      const sanitized = base.replace(/[^a-zA-Z0-9_]/g, '_').slice(0, 18) || `Usuario_${Math.random().toString(36).slice(2, 8)}`;
+      const username = userData.username?.trim() || sanitized;
+
       // Firebase crea el usuario con contraseña hasheada automáticamente
       const userCredential = await createUserWithEmailAndPassword(
         auth,
@@ -626,10 +640,10 @@ export const AuthProvider = ({ children }) => {
 
       // Crear perfil en Firestore
       const userProfile = await createUserProfile(userCredential.user.uid, {
-        username: userData.username,
+        username,
         email: userData.email,
         age: userData.age,
-        phone: userData.phone,
+        phone: userData.phone || null,
       });
 
       setUser(userProfile);
@@ -638,7 +652,7 @@ export const AuthProvider = ({ children }) => {
       trackUserRegister('email', { user: { id: userCredential.user.uid } });
 
       // Crear notificación de bienvenida
-      createWelcomeNotification(userCredential.user.uid, userData.username);
+      createWelcomeNotification(userCredential.user.uid, username);
 
       // Mostrar tour de bienvenida para nuevos usuarios
       setShowWelcomeTour(true);
@@ -650,22 +664,31 @@ export const AuthProvider = ({ children }) => {
 
       return true;
     } catch (error) {
-      console.error('Register error:', error);
+      console.error('Register error:', error?.code, error?.message, error);
 
       let errorMessage = "Error al crear la cuenta";
 
-      switch (error.code) {
+      switch (error?.code) {
         case 'auth/email-already-in-use':
-          errorMessage = "Este email ya está registrado";
+          errorMessage = "Este email ya está registrado. Usa otro o inicia sesión.";
           break;
         case 'auth/invalid-email':
-          errorMessage = "Email inválido";
+          errorMessage = "El formato del email no es válido.";
           break;
         case 'auth/weak-password':
-          errorMessage = "La contraseña es muy débil";
+          errorMessage = "La contraseña debe tener al menos 6 caracteres.";
+          break;
+        case 'auth/operation-not-allowed':
+          errorMessage = "Registro por email deshabilitado. Contacta al administrador.";
+          break;
+        case 'auth/invalid-api-key':
+          errorMessage = "Error de configuración. Contacta al administrador.";
+          break;
+        case 'auth/network-request-failed':
+          errorMessage = "Sin conexión a internet. Revisa tu red e intenta de nuevo.";
           break;
         default:
-          errorMessage = error.message;
+          errorMessage = error?.message || errorMessage;
       }
 
       toast({

@@ -82,6 +82,7 @@ import OpinStablesPanel from '@/components/admin/OpinStablesPanel';
 import AdminOpinRepliesPanel from '@/components/admin/AdminOpinRepliesPanel';
 import AdminEventosPanel from '@/components/admin/AdminEventosPanel';
 import BotControlPanel from '@/components/admin/BotControlPanel';
+import AdminFeaturedAdsPanel from '@/components/admin/AdminFeaturedAdsPanel';
 
 const AdminPage = () => {
   const navigate = useNavigate();
@@ -965,6 +966,7 @@ const AdminPage = () => {
             <TabsTrigger value="tickets">Tickets</TabsTrigger>
             <TabsTrigger value="sanctions">Sanciones</TabsTrigger>
             <TabsTrigger value="rewards">Recompensas</TabsTrigger>
+            <TabsTrigger value="featured-ads">Canales Destacados</TabsTrigger>
             <TabsTrigger value="forum">Foro</TabsTrigger>
             <TabsTrigger value="opin">OPIN estables</TabsTrigger>
             <TabsTrigger value="opin-replies">Responder OPINs</TabsTrigger>
@@ -1959,6 +1961,11 @@ const AdminPage = () => {
                 }}
               />
             )}
+          </TabsContent>
+
+          {/* Canales Destacados Tab */}
+          <TabsContent value="featured-ads" className="space-y-6">
+            <AdminFeaturedAdsPanel />
           </TabsContent>
 
           {/* Foro Tab - Gestión del Foro Anónimo */}
