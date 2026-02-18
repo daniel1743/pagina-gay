@@ -292,11 +292,6 @@ const ChatMessages = ({
               {!isOwn && (
                 <div className="message-username flex items-center gap-1.5 flex-wrap">
                   <span>{group.username}</span>
-                  {isUserPro && (
-                    <span className="inline-flex items-center gap-0.5 bg-gradient-to-r from-amber-500 to-orange-500 text-[9px] font-bold px-1.5 py-0.5 rounded text-white uppercase tracking-wider">
-                      <Zap className="w-2.5 h-2.5" />PRO
-                    </span>
-                  )}
                   {(() => {
                     const presence = safeRoomUsers.find(u => (u.userId || u.id) === group.userId);
                     if (presence?.inPrivateWith) {
