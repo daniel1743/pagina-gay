@@ -1,6 +1,6 @@
 import { initializeApp } from 'firebase/app';
 import { getAuth, connectAuthEmulator, setPersistence, inMemoryPersistence } from 'firebase/auth';
-import { getFirestore, connectFirestoreEmulator } from 'firebase/firestore';
+import { getFirestore, initializeFirestore, connectFirestoreEmulator } from 'firebase/firestore';
 import { getStorage, connectStorageEmulator } from 'firebase/storage';
 import { getMessaging, isSupported } from 'firebase/messaging';
 
@@ -44,10 +44,21 @@ const firebaseConfig = {
 // Inicializar Firebase
 const app = initializeApp(firebaseConfig);
 
-// Inicializar servicios (sin configuración especial de Firestore)
+// Inicializar servicios
 // ⚡ NOTA: Firestore usará configuración por defecto (modo online, sin persistence)
 export const auth = getAuth(app);
-export const db = getFirestore(app);
+export const db = (() => {
+  try {
+    // Configuración robusta para redes inestables/proxys/ISP con problemas QUIC/WebChannel.
+    return initializeFirestore(app, {
+      experimentalAutoDetectLongPolling: true,
+      useFetchStreams: false,
+    });
+  } catch (error) {
+    // Si ya existe una instancia inicializada, reutilizar la instancia por defecto.
+    return getFirestore(app);
+  }
+})();
 export const storage = getStorage(app);
 
 // FCM Messaging (condicional - no todos los navegadores lo soportan)

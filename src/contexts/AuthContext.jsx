@@ -568,6 +568,11 @@ export const AuthProvider = ({ children }) => {
         case 'auth/too-many-requests':
           errorMessage = "Demasiados intentos fallidos. Intenta más tarde";
           break;
+        case 'auth/network-request-failed':
+          errorMessage = !navigator.onLine
+            ? "Sin conexión a internet. Revisa tu red e intenta de nuevo."
+            : "No pudimos conectar con el servidor (error de red/DNS). Intenta de nuevo en unos segundos.";
+          break;
         default:
           errorMessage = error.message;
       }

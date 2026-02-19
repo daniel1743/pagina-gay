@@ -50,7 +50,7 @@ import { validateMessage } from '@/services/antiSpamService';
 import { auth, db } from '@/config/firebase'; // ✅ CRÍTICO: Necesario para obtener UID real de Firebase Auth
 import { doc, getDoc, deleteDoc } from 'firebase/firestore';
 import { evaluateMessage, checkAIMute, formatMuteRemaining } from '@/services/moderationAIService';
-import { sendPrivateChatRequest, respondToPrivateChatRequest, subscribeToNotifications, markNotificationAsRead } from '@/services/socialService';
+import { sendPrivateChatRequest, respondToPrivateChatRequest, subscribeToNotifications, markNotificationAsRead, getOrCreatePrivateChat } from '@/services/socialService';
 import { subscribeToBlockedUsers, isBlocked, isBlockedBetween } from '@/services/blockService';
 import { requestNotificationPermission, canRequestPush } from '@/services/pushNotificationService';
 // ⚠️ MODERADOR ELIMINADO (06/01/2026) - A petición del usuario
@@ -681,7 +681,7 @@ const ChatPage = () => {
       //   ogDescription: '💬 La sala más popular de Chactivo. Todos los temas, todos bienvenidos. Ambiente relajado y conversación real.'
       // },
       'principal': {
-        title: 'Chat Principal - Chat Gay Chile 💬 | Cero Anuncios Molestos | Chactivo',
+        title: 'Chat Gay Chile 💬 | Cero Anuncios Molestos | Chactivo',
         description: 'Habla y conecta en tiempo real con gente de Chile. Entra gratis en segundos, sin registro obligatorio y con cero anuncios molestos.',
         ogTitle: 'Chat Gay Chile 💬 | Cero Anuncios Molestos | Chactivo',
         ogDescription: 'Conecta con gente real de Chile en segundos: gratis, sin registro obligatorio y sin anuncios molestos.'
@@ -1046,12 +1046,12 @@ const ChatPage = () => {
     // console.log('📡 [CHAT] Suscribiéndose a mensajes INMEDIATAMENTE para sala:', roomId);
     setIsLoadingMessages(true); // ⏳ Marcar como cargando al iniciar suscripción
 
-    // ⚡ TIMEOUT DE SEGURIDAD: Desactivar loading después de 2 segundos
-    // Optimizado: Firebase ahora usa solo memoria (sin IndexedDB) = respuesta más rápida
+    // ⚡ TIMEOUT DE SEGURIDAD: Desactivar loading después de 8 segundos
+    // Evita mostrar "No hay mensajes" prematuramente cuando Firebase tarda (red lenta, etc.)
     const loadingTimeoutId = setTimeout(() => {
-      console.warn('⏰ [CHAT] Timeout de carga alcanzado (2s) - desactivando loading de seguridad');
+      console.warn('⏰ [CHAT] Timeout de carga alcanzado (8s) - desactivando loading de seguridad');
       setIsLoadingMessages(false);
-    }, 2000);
+    }, 8000);
 
     console.log(`[CHAT PAGE] 🚀 Llamando a subscribeToRoomMessages para sala ${roomId} con límite ${messageLimit}`);
     const unsubscribeMessages = subscribeToRoomMessages(roomId, (newMessages) => {
@@ -2662,15 +2662,29 @@ const ChatPage = () => {
     } else {
       // Para el emisor o cuando no hay notificationId (compatibilidad)
       if (accepted) {
-        const opened = openPrivateChatWindow({
-          user: user,
-          partner: partner,
-          roomId: currentRoom
-        });
-        if (opened) {
+        try {
+          const partnerId = partner?.userId || partner?.id;
+          if (!partnerId) throw new Error('MISSING_PARTNER');
+
+          const { chatId } = await getOrCreatePrivateChat(user.id, partnerId);
+          const opened = openPrivateChatWindow({
+            user: user,
+            partner: partner,
+            chatId,
+            roomId: currentRoom
+          });
+          if (opened) {
+            toast({
+              title: "¡Chat privado aceptado!",
+              description: `Ahora estás en un chat privado con ${partnerName}.`,
+            });
+          }
+        } catch (error) {
+          console.error('Error abriendo chat privado existente:', error);
           toast({
-            title: "¡Chat privado aceptado!",
-            description: `Ahora estás en un chat privado con ${partnerName}.`,
+            title: "No pudimos abrir el chat",
+            description: "Intenta de nuevo en un momento",
+            variant: "destructive",
           });
         }
       } else {
@@ -2919,17 +2933,10 @@ const ChatPage = () => {
             {/* 📅 Banner de evento activo/próximo */}
             <EventoBanner currentRoomId={roomId} onEventoActivoConRecordatorio={handleEventoActivoConRecordatorio} />
 
-            {/* ⏳ Mostrar loading simple cuando no hay mensajes y está cargando */}
-            {isLoadingMessages && messages.length === 0 ? (
-              <div className="flex-1 flex items-center justify-center">
-                <div className="text-center space-y-2">
-                  <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-purple-500 mx-auto"></div>
-                  <p className="text-sm text-muted-foreground">Se están cargando tus mensajes...</p>
-                </div>
-              </div>
-            ) : (
-              <ChatMessages
+            {/* ⏳ Siempre renderizar ChatMessages; él decide si mostrar loading o contenido */}
+            <ChatMessages
               messages={visibleMessages}
+              isLoadingMessages={isLoadingMessages}
               currentUserId={user?.id || null}
               onUserClick={setUserActionsTarget}
               onReport={setReportTarget}
@@ -2950,7 +2957,6 @@ const ChatPage = () => {
                 />
               }
             />
-            )}
           </div>
 
           <TypingIndicator typingUsers={[]} />

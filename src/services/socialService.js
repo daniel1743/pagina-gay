@@ -301,6 +301,12 @@ export const respondToPrivateChatRequest = async (
 ) => {
   try {
     const notificationRef = doc(db, 'users', userId, 'notifications', notificationId);
+    const notificationDoc = await getDoc(notificationRef);
+    const notificationData = notificationDoc.data();
+
+    if (!notificationData) {
+      throw new Error('REQUEST_NOT_FOUND');
+    }
 
     await updateDoc(notificationRef, {
       status: accepted ? 'accepted' : 'rejected',
@@ -310,21 +316,20 @@ export const respondToPrivateChatRequest = async (
 
     // Si fue aceptada, crear la sala de chat privado
     if (accepted) {
-      const notificationDoc = await getDoc(notificationRef);
-      const notificationData = notificationDoc.data();
       const blocked = await isBlockedBetween(notificationData.from, userId);
       if (blocked) {
         throw new Error('BLOCKED');
       }
 
-      // Crear sala de chat privado con ambos usuarios
-      const privateChatRef = doc(collection(db, 'private_chats'));
-      await setDoc(privateChatRef, {
-        participants: [notificationData.from, userId],
-        createdAt: serverTimestamp(),
-        lastMessage: null,
+      // ✅ IMPORTANTE: Reutilizar SIEMPRE el mismo chat entre ambos usuarios
+      // para mantener historial (evita crear un chat nuevo por cada invitación).
+      const { chatId } = await getOrCreatePrivateChat(notificationData.from, userId);
+
+      // Asegurar estado activo del chat (sin pisar historial existente).
+      await setDoc(doc(db, 'private_chats', chatId), {
         active: true,
-      });
+        updatedAt: serverTimestamp(),
+      }, { merge: true });
 
       // Obtener datos del usuario que aceptó
       const acceptedUserDoc = await getDoc(doc(db, 'users', userId));
@@ -339,12 +344,12 @@ export const respondToPrivateChatRequest = async (
         fromIsPremium: acceptedUserData?.isPremium || false,
         to: notificationData.from,
         type: 'private_chat_accepted',
-        chatId: privateChatRef.id,
+        chatId,
         read: false,
         timestamp: serverTimestamp(),
       });
 
-      return { success: true, chatId: privateChatRef.id };
+      return { success: true, chatId };
     }
 
     return { success: true };

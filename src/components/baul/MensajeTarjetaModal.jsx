@@ -46,6 +46,7 @@ const MensajeTarjetaModal = ({
   const [verificandoMatch, setVerificandoMatch] = useState(true);
   const [isBlocking, setIsBlocking] = useState(false);
   const [activePhotoIndex, setActivePhotoIndex] = useState(0);
+  const [isPhotoViewerOpen, setIsPhotoViewerOpen] = useState(false);
   const isReadOnly = readOnly || !miUserId;
 
   const maxChars = 200;
@@ -59,7 +60,19 @@ const MensajeTarjetaModal = ({
 
   useEffect(() => {
     setActivePhotoIndex(0);
+    setIsPhotoViewerOpen(false);
   }, [isOpen, tarjeta?.odIdUsuari, tarjeta?.id]);
+
+  useEffect(() => {
+    if (!isPhotoViewerOpen) return;
+    const handleEscape = (event) => {
+      if (event.key === 'Escape') {
+        setIsPhotoViewerOpen(false);
+      }
+    };
+    window.addEventListener('keydown', handleEscape);
+    return () => window.removeEventListener('keydown', handleEscape);
+  }, [isPhotoViewerOpen]);
 
   const handlePrevPhoto = (e) => {
     e.stopPropagation();
@@ -235,7 +248,13 @@ const MensajeTarjetaModal = ({
           {/* Header con foto grande */}
           <div className="relative">
             {/* Foto */} 
-            <div className="aspect-[4/3] bg-gradient-to-br from-gray-700 to-gray-900 relative">
+            <div
+              className="aspect-[4/3] bg-gradient-to-br from-gray-700 to-gray-900 relative cursor-zoom-in"
+              onClick={() => {
+                if (photoToShow) setIsPhotoViewerOpen(true);
+              }}
+              title={photoToShow ? 'Ver foto completa' : undefined}
+            >
               {photoToShow ? (
                 <img
                   src={photoToShow}
@@ -514,6 +533,67 @@ const MensajeTarjetaModal = ({
             )}
           </div>
         </motion.div>
+
+        {/* Visor de foto completa (sin recorte) */}
+        <AnimatePresence>
+          {isPhotoViewerOpen && photoToShow && (
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              className="fixed inset-0 z-[80] bg-black/90 backdrop-blur-sm flex items-center justify-center p-4"
+              onClick={() => setIsPhotoViewerOpen(false)}
+            >
+              <motion.div
+                initial={{ scale: 0.98, opacity: 0 }}
+                animate={{ scale: 1, opacity: 1 }}
+                exit={{ scale: 0.98, opacity: 0 }}
+                className="relative w-full h-full flex items-center justify-center"
+                onClick={(e) => e.stopPropagation()}
+              >
+                <img
+                  src={photoToShow}
+                  alt={tarjeta.nombre}
+                  className="max-w-[96vw] max-h-[90vh] w-auto h-auto object-contain rounded-lg"
+                />
+
+                <button
+                  type="button"
+                  onClick={() => setIsPhotoViewerOpen(false)}
+                  className="absolute top-2 right-2 p-2 rounded-full bg-black/55 text-white hover:bg-black/75 transition-colors"
+                  aria-label="Cerrar visor"
+                >
+                  <X className="w-5 h-5" />
+                </button>
+
+                {hasMultiplePhotos && (
+                  <>
+                    <button
+                      type="button"
+                      onClick={handlePrevPhoto}
+                      className="absolute left-3 top-1/2 -translate-y-1/2 p-2 rounded-full bg-black/55 text-white hover:bg-black/75 transition-colors"
+                      aria-label="Foto anterior"
+                    >
+                      <ChevronLeft className="w-5 h-5" />
+                    </button>
+                    <button
+                      type="button"
+                      onClick={handleNextPhoto}
+                      className="absolute right-3 top-1/2 -translate-y-1/2 p-2 rounded-full bg-black/55 text-white hover:bg-black/75 transition-colors"
+                      aria-label="Foto siguiente"
+                    >
+                      <ChevronRight className="w-5 h-5" />
+                    </button>
+
+                    <div className="absolute top-3 left-3 px-2.5 py-1 rounded-full bg-black/55 text-white text-xs">
+                      {activePhotoIndex + 1}/{photoUrls.length}
+                    </div>
+                  </>
+                )}
+              </motion.div>
+            </motion.div>
+          )}
+        </AnimatePresence>
       </motion.div>
     </AnimatePresence>
   );
