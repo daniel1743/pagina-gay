@@ -8,6 +8,7 @@ import { useNavigate } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
 import { Mail, Eye, EyeOff } from 'lucide-react';
 import { toast } from '@/components/ui/use-toast';
+import { PROFILE_ROLE_OPTIONS, normalizeProfileRole } from '@/config/profileRoles';
 
 const QuickSignupModal = ({ isOpen, onClose, redirectTo = '/home' }) => {
   const navigate = useNavigate();
@@ -15,7 +16,8 @@ const QuickSignupModal = ({ isOpen, onClose, redirectTo = '/home' }) => {
   const [formData, setFormData] = useState({
     email: '',
     password: '',
-    age: ''
+    age: '',
+    profileRole: '',
   });
   const [errors, setErrors] = useState({});
   const [showPassword, setShowPassword] = useState(false);
@@ -44,6 +46,10 @@ const QuickSignupModal = ({ isOpen, onClose, redirectTo = '/home' }) => {
       newErrors.password = 'Mínimo 6 caracteres';
     }
 
+    if (!normalizeProfileRole(formData.profileRole)) {
+      newErrors.profileRole = 'Selecciona tu rol';
+    }
+
     setErrors(newErrors);
     return Object.keys(newErrors).length === 0;
   };
@@ -57,7 +63,8 @@ const QuickSignupModal = ({ isOpen, onClose, redirectTo = '/home' }) => {
       const success = await register({
         email: formData.email,
         password: formData.password,
-        age: formData.age
+        age: formData.age,
+        profileRole: normalizeProfileRole(formData.profileRole),
       });
 
       if (success) {
@@ -91,7 +98,7 @@ const QuickSignupModal = ({ isOpen, onClose, redirectTo = '/home' }) => {
             Registro Rápido
           </DialogTitle>
           <DialogDescription className="text-purple-200 text-center">
-            Solo 3 campos para empezar a chatear
+            Solo 4 campos para empezar a chatear
           </DialogDescription>
         </DialogHeader>
 
@@ -137,6 +144,26 @@ const QuickSignupModal = ({ isOpen, onClose, redirectTo = '/home' }) => {
               <Mail className="absolute right-3 top-1/2 transform -translate-y-1/2 w-5 h-5 text-purple-400 pointer-events-none" />
             </div>
             {errors.email && <p className="text-red-400 text-xs mt-1">{errors.email}</p>}
+          </div>
+
+          <div>
+            <Label htmlFor="profile-role" className="text-purple-200">Rol</Label>
+            <select
+              id="profile-role"
+              value={formData.profileRole}
+              onChange={(e) => setFormData({ ...formData, profileRole: e.target.value })}
+              className={`w-full h-10 rounded-md px-3 bg-purple-900/30 border text-white ${
+                errors.profileRole ? 'border-red-500' : 'border-purple-700'
+              }`}
+            >
+              <option value="">Selecciona tu rol</option>
+              {PROFILE_ROLE_OPTIONS.map((roleOption) => (
+                <option key={roleOption.value} value={roleOption.value}>
+                  {roleOption.label}
+                </option>
+              ))}
+            </select>
+            {errors.profileRole && <p className="text-red-400 text-xs mt-1">{errors.profileRole}</p>}
           </div>
 
           <div>

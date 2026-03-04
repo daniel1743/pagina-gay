@@ -44,7 +44,7 @@ const FeaturedChannelsColumn = ({
   useEffect(() => {
     if (!showMobileLauncher) return;
     if (typeof window === 'undefined') return;
-    if (window.innerWidth >= 1280) return;
+    if (window.innerWidth >= 1024) return;
     if (sessionStorage.getItem('featured_channels_mobile_hint_v1')) return;
 
     setShowMobileHint(true);
@@ -105,7 +105,7 @@ const FeaturedChannelsColumn = ({
 
   return (
     <>
-      <aside className="hidden xl:flex w-80 2xl:w-96 h-full flex-col border-l border-border bg-card/35 backdrop-blur-sm">
+      <aside className="hidden lg:flex w-80 2xl:w-96 h-full flex-col border-l border-border bg-card/35 backdrop-blur-sm">
         <div className="p-4 border-b border-border/80">
           <div className="flex items-start justify-between gap-2">
             <div>
@@ -142,7 +142,7 @@ const FeaturedChannelsColumn = ({
         {renderBody()}
       </aside>
 
-      <div className="xl:hidden">
+      <div className="lg:hidden">
         {showMobileLauncher && showMobileHint && !isMobilePanelOpen && (
           <div className="fixed right-3 bottom-[8.2rem] z-[72] max-w-[12rem] rounded-xl border border-border/70 bg-card/95 backdrop-blur-md px-3 py-2 shadow-xl">
             <p className="text-[11px] font-medium text-foreground leading-tight">

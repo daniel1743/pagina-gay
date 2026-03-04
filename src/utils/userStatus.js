@@ -3,13 +3,13 @@
  * 
  * REGLAS DE COLORES:
  * 1) VERDE: si está conectado (online)
- * 2) NARANJA: si está desconectado hace MENOS de 2 minutos (≤ 120 segundos)
- * 3) ROJO: si está desconectado hace MÁS de 2 minutos (> 120 segundos)
+ * 2) NARANJA: actividad reciente (<= 2 horas)
+ * 3) ROJO: inactivo hace más de 2 horas
  * 
  * PRIORIDAD: Si existe isOnline/online === true, siempre VERDE (independiente de timestamp)
  * 
  * @param {object} user - Usuario con lastSeen, isOnline, online, lastActiveAt, etc.
- * @returns {string} 'online' | 'recently_offline' | 'offline'
+ * @returns {string} 'online' | 'recently_connected' | 'offline'
  */
 export const getUserConnectionStatus = (user) => {
   if (!user) {
@@ -40,31 +40,31 @@ export const getUserConnectionStatus = (user) => {
   const now = Date.now();
   const deltaSeconds = (now - lastActiveAt) / 1000;
 
-  // ✅ VERDE: Solo si está realmente online (últimos 30 segundos como heurística)
+  // ✅ VERDE: Solo si está realmente online (últimos 45 segundos como heurística)
   // NOTA: Esto solo se usa si NO hay flag isOnline/online
-  if (deltaSeconds <= 30) {
+  if (deltaSeconds <= 45) {
     return 'online';
   }
 
-  // ✅ NARANJA: Desconectado hace ≤ 2 minutos (120 segundos) pero > 30 segundos
-  if (deltaSeconds <= 120) {
-    return 'recently_offline';
+  // ✅ NARANJA: Actividad reciente <= 2 horas
+  if (deltaSeconds <= 2 * 60 * 60) {
+    return 'recently_connected';
   }
 
-  // ✅ ROJO: Desconectado hace > 2 minutos
+  // ✅ ROJO: Inactivo > 2 horas
   return 'offline';
 };
 
 /**
  * Obtiene el color del punto de estado
- * @param {string} status - 'online' | 'recently_offline' | 'offline'
+ * @param {string} status - 'online' | 'recently_connected' | 'offline'
  * @returns {string} Color en formato Tailwind
  */
 export const getStatusColor = (status) => {
   switch (status) {
     case 'online':
       return 'bg-green-500';
-    case 'recently_offline':
+    case 'recently_connected':
       return 'bg-orange-500';
     case 'offline':
       return 'bg-red-500';
@@ -75,17 +75,17 @@ export const getStatusColor = (status) => {
 
 /**
  * Obtiene el texto descriptivo del estado
- * @param {string} status - 'online' | 'recently_offline' | 'offline'
+ * @param {string} status - 'online' | 'recently_connected' | 'offline'
  * @returns {string} Texto descriptivo
  */
 export const getStatusText = (status) => {
   switch (status) {
     case 'online':
       return 'Conectado';
-    case 'recently_offline':
-      return 'Recién desconectado';
+    case 'recently_connected':
+      return 'Recién conectado';
     case 'offline':
-      return 'Desconectado';
+      return 'Desconectado (hace 2h+)';
     default:
       return 'Desconocido';
   }

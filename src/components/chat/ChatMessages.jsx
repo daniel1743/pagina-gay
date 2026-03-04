@@ -6,9 +6,10 @@ import { motion } from 'framer-motion';
 import { useAuth } from '@/contexts/AuthContext';
 import MessageQuote from './MessageQuote';
 import NewMessagesDivider from './NewMessagesDivider';
-import { getUserConnectionStatus, getStatusColor } from '@/utils/userStatus';
+import { getUserConnectionStatus, getStatusColor, getStatusText } from '@/utils/userStatus';
 import { traceEvent, TRACE_EVENTS } from '@/utils/messageTrace';
 import { getBadgeConfig } from '@/services/badgeService';
+import { getProfileRoleBadgeMeta } from '@/config/profileRoles';
 import './ChatMessages.css';
 
 /**
@@ -42,12 +43,24 @@ const ChatMessages = ({
   const [highlightedMessageId, setHighlightedMessageId] = useState(null);
   const [activeQuickReplyBadge, setActiveQuickReplyBadge] = useState(null);
   const [isMobileViewport, setIsMobileViewport] = useState(() => (
-    typeof window !== 'undefined' ? window.innerWidth < 768 : false
+    typeof window !== 'undefined'
+      ? (window.innerWidth < 900 || Boolean(window.matchMedia?.('(pointer: coarse)')?.matches))
+      : false
   ));
   const [activeImageActionsMessageId, setActiveImageActionsMessageId] = useState(null);
+  const [swipeReplyMessageId, setSwipeReplyMessageId] = useState(null);
+  const [swipeReplyOffset, setSwipeReplyOffset] = useState(0);
   const renderedMessageIdsRef = useRef(new Set());
   const shownQuickReplyBadgesRef = useRef(new Set());
   const quickReplyHideTimeoutRef = useRef(null);
+  const imageActionsHideTimeoutRef = useRef(null);
+  const swipeStateRef = useRef({
+    tracking: false,
+    messageKey: null,
+    startX: 0,
+    startY: 0,
+    deltaX: 0,
+  });
   const { user: authUser } = useAuth();
 
   // ⚡ SEGURIDAD: roomUsers siempre array
@@ -126,7 +139,7 @@ const ChatMessages = ({
 
   useEffect(() => {
     const handleResize = () => {
-      setIsMobileViewport(window.innerWidth < 768);
+      setIsMobileViewport(window.innerWidth < 900 || Boolean(window.matchMedia?.('(pointer: coarse)')?.matches));
     };
     handleResize();
     window.addEventListener('resize', handleResize);
@@ -140,6 +153,92 @@ const ChatMessages = ({
       setActiveImageActionsMessageId(null);
     }
   }, [messages, activeImageActionsMessageId]);
+
+  useEffect(() => {
+    return () => {
+      if (imageActionsHideTimeoutRef.current) {
+        clearTimeout(imageActionsHideTimeoutRef.current);
+      }
+    };
+  }, []);
+
+  const triggerReply = (message) => {
+    onReply?.({
+      messageId: message.id,
+      username: message.username,
+      content: message.type === 'image' ? '📷 Imagen' : message.content,
+    });
+  };
+
+  const toggleImageActions = (messageKey) => {
+    setActiveImageActionsMessageId((prev) => {
+      const next = prev === messageKey ? null : messageKey;
+      if (imageActionsHideTimeoutRef.current) {
+        clearTimeout(imageActionsHideTimeoutRef.current);
+      }
+      if (next) {
+        imageActionsHideTimeoutRef.current = setTimeout(() => {
+          setActiveImageActionsMessageId((current) => (current === next ? null : current));
+        }, 9000);
+      }
+      return next;
+    });
+  };
+
+  const handleSwipeStart = (event, message, isOwn) => {
+    if (!isMobileViewport || isOwn || !onReply) return;
+    const touch = event.touches?.[0];
+    if (!touch) return;
+    const messageKey = message._realId || message.id;
+    swipeStateRef.current = {
+      tracking: true,
+      messageKey,
+      startX: touch.clientX,
+      startY: touch.clientY,
+      deltaX: 0,
+    };
+    setSwipeReplyMessageId(messageKey);
+    setSwipeReplyOffset(0);
+  };
+
+  const handleSwipeMove = (event, message) => {
+    if (!swipeStateRef.current.tracking) return;
+    const touch = event.touches?.[0];
+    if (!touch) return;
+    const messageKey = message._realId || message.id;
+    if (swipeStateRef.current.messageKey !== messageKey) return;
+
+    const dx = touch.clientX - swipeStateRef.current.startX;
+    const dy = Math.abs(touch.clientY - swipeStateRef.current.startY);
+    if (dy > 40) {
+      swipeStateRef.current.tracking = false;
+      setSwipeReplyMessageId(null);
+      setSwipeReplyOffset(0);
+      return;
+    }
+
+    const clamped = Math.max(0, Math.min(dx * 0.65, 78));
+    swipeStateRef.current.deltaX = clamped;
+    setSwipeReplyOffset(clamped);
+  };
+
+  const handleSwipeEnd = (message) => {
+    if (!swipeStateRef.current.tracking) {
+      setSwipeReplyMessageId(null);
+      setSwipeReplyOffset(0);
+      return;
+    }
+
+    const shouldReply = swipeStateRef.current.deltaX >= 52;
+    swipeStateRef.current.tracking = false;
+    swipeStateRef.current.messageKey = null;
+    setSwipeReplyMessageId(null);
+    setSwipeReplyOffset(0);
+
+    if (shouldReply) {
+      triggerReply(message);
+    }
+  };
 
   // ⏰ Formatear timestamp
   const formatTime = (timestamp) => {
@@ -261,10 +360,11 @@ const ChatMessages = ({
         prevMessage.userId !== 'system' &&
         prevMessage.userId !== 'system_moderator' &&
         timeDiff <= GROUP_TIME_THRESHOLD;
+      const normalizedRoleBadge = getProfileRoleBadgeMeta(message.roleBadge)?.label || null;
 
       if (shouldGroup && currentGroup) {
         currentGroup.messages.push(message);
-        if (message.roleBadge) currentGroup.roleBadge = message.roleBadge;
+        if (normalizedRoleBadge) currentGroup.roleBadge = normalizedRoleBadge;
         if (message.comuna) currentGroup.comuna = message.comuna;
         if (message.quickReplyHighlight && !currentGroup.quickReplyHighlight) {
           currentGroup.quickReplyHighlight = message.quickReplyHighlight;
@@ -283,7 +383,7 @@ const ChatMessages = ({
           hasFeaturedCard: message.hasFeaturedCard || false,
           canUploadSecondPhoto: message.canUploadSecondPhoto || false,
           badge: message.badge || 'Nuevo',
-          roleBadge: message.roleBadge || null,
+          roleBadge: normalizedRoleBadge,
           comuna: message.comuna || null,
           quickReplyHighlight: message.quickReplyHighlight || null,
           messages: [message],
@@ -321,17 +421,10 @@ const ChatMessages = ({
       {messageGroups.length === 0 ? (
         <div className="flex items-center justify-center py-8">
           <div className="text-center">
-            {isLoadingMessages ? (
-              <>
-                <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-purple-500 mx-auto mb-2"></div>
-                <p className="text-sm text-gray-500">Cargando mensajes...</p>
-              </>
-            ) : (
-              <>
-                <p className="text-sm text-gray-500">No hay mensajes todavía</p>
-                <p className="text-xs text-gray-400 mt-1">Sé el primero en escribir</p>
-              </>
-            )}
+            <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-purple-500 mx-auto mb-2"></div>
+            <p className="text-sm text-gray-500">
+              {isLoadingMessages ? 'Cargando mensajes...' : 'Cargando conversación...'}
+            </p>
           </div>
         </div>
       ) : (
@@ -362,6 +455,7 @@ const ChatMessages = ({
           const isUserVerified = findUserVerifiedStatus(group.userId);
           const isUserPro = findUserProStatus(group.userId) || hasProVisualFlags(group);
           const userRole = findUserRole(group.userId);
+          const roleBadgeMeta = getProfileRoleBadgeMeta(group.roleBadge);
           const showDivider = lastReadMessageIndex >= 0 && absoluteIndex === lastReadMessageIndex + 1;
 
           return (
@@ -421,9 +515,9 @@ const ChatMessages = ({
                       </span>
                     );
                   })()}
-                  {group.roleBadge ? (
-                    <span className="inline-block ml-1.5 text-[9px] font-semibold px-1.5 py-0.5 rounded-full border border-cyan-400/35 bg-cyan-500/10 text-cyan-200">
-                      {group.roleBadge}
+                  {roleBadgeMeta ? (
+                    <span className={`inline-block ml-1.5 text-[9px] font-semibold px-1.5 py-0.5 rounded-full border ${roleBadgeMeta.badgeClassName}`}>
+                      {roleBadgeMeta.label}
                     </span>
                   ) : null}
                 </div>
@@ -450,12 +544,57 @@ const ChatMessages = ({
                 const userPresence = safeRoomUsers.find(u => (u.userId || u.id) === group.userId);
                 const status = getUserConnectionStatus(userPresence);
                 const statusColor = getStatusColor(status);
+                const reactionSummary = [
+                  {
+                    key: 'like',
+                    emoji: '👍',
+                    count: Number(message.reactions?.like || 0),
+                    className: 'bg-green-500/15 text-green-300',
+                  },
+                  {
+                    key: 'dislike',
+                    emoji: '👎',
+                    count: Number(message.reactions?.dislike || 0),
+                    className: 'bg-red-500/15 text-red-300',
+                  },
+                  {
+                    key: 'fire',
+                    emoji: '🔥',
+                    count: Number(message.reactions?.fire || 0),
+                    className: 'bg-orange-500/15 text-orange-300',
+                  },
+                  {
+                    key: 'heart',
+                    emoji: '❤️',
+                    count: Number(message.reactions?.heart || 0),
+                    className: 'bg-pink-500/15 text-pink-300',
+                  },
+                  {
+                    key: 'devil',
+                    emoji: '😈',
+                    count: Number(message.reactions?.devil || 0),
+                    className: 'bg-purple-500/15 text-purple-300',
+                  },
+                ].filter((item) => item.count > 0);
+                const hasImageReactions = message.type === 'image' && reactionSummary.length > 0;
 
                 return (
                   <div
                     key={message.id}
                     data-message-id={message.id}
                     className={`message-row group ${isOwn ? 'own' : 'other'}`}
+                    style={
+                      isMobileViewport && swipeReplyMessageId === (message._realId || message.id)
+                        ? {
+                            transform: `translateX(${swipeReplyOffset}px)`,
+                            transition: swipeReplyOffset > 0 ? 'none' : 'transform 0.16s ease-out',
+                          }
+                        : undefined
+                    }
+                    onTouchStart={(event) => handleSwipeStart(event, message, isOwn)}
+                    onTouchMove={(event) => handleSwipeMove(event, message)}
+                    onTouchEnd={() => handleSwipeEnd(message)}
+                    onTouchCancel={() => handleSwipeEnd(message)}
                   >
                     {/* ✅ Avatar: Solo en primer mensaje, solo para otros */}
                     {!isOwn && isFirst && (
@@ -487,7 +626,7 @@ const ChatMessages = ({
                         {/* Punto de estado */}
                         <div
                           className={`absolute bottom-0 right-0 w-2.5 h-2.5 ${statusColor} rounded-full border-2 border-white dark:border-gray-900`}
-                          title={status === 'online' ? 'Conectado' : status === 'recently_offline' ? 'Recién desconectado' : 'Desconectado'}
+                          title={getStatusText(status)}
                         />
                       </div>
                     )}
@@ -507,11 +646,11 @@ const ChatMessages = ({
 
                     {/* ⚡ BURBUJA */}
                     <div
-                      className={`message-bubble ${isOwn ? 'own' : 'other'} ${positionClass}`}
+                      className={`message-bubble ${isOwn ? 'own' : 'other'} ${positionClass} ${hasImageReactions ? 'has-image-reactions' : ''}`}
                       onClick={() => {
                         const messageKey = message._realId || message.id;
                         if (message.type === 'image' && !isOwn && isMobileViewport) {
-                          setActiveImageActionsMessageId((prev) => prev === messageKey ? null : messageKey);
+                          toggleImageActions(messageKey);
                           return;
                         }
                         onPrivateChat({
@@ -528,52 +667,29 @@ const ChatMessages = ({
                       )}
                       {message.type === 'image' && (
                         message.content
-                          ? <img src={message.content} alt="Imagen del chat" className="block rounded-lg w-auto h-auto max-w-[150px] sm:max-w-[200px] lg:max-w-[220px] max-h-[240px] object-cover" loading="lazy" />
+                          ? <img src={message.content} alt="Imagen del chat" className="chat-message-image block rounded-lg w-auto h-auto max-w-[150px] sm:max-w-[200px] lg:max-w-[220px] max-h-[240px] object-cover" loading="lazy" />
                           : <span className="text-xs text-muted-foreground">Imagen</span>
                       )}
-                      {(() => {
-                        const likeCount = Number(message.reactions?.like || 0);
-                        const dislikeCount = Number(message.reactions?.dislike || 0);
-                        const fireCount = Number(message.reactions?.fire || 0);
-                        const heartCount = Number(message.reactions?.heart || 0);
-                        const devilCount = Number(message.reactions?.devil || 0);
-                        if (likeCount <= 0 && dislikeCount <= 0 && fireCount <= 0 && heartCount <= 0 && devilCount <= 0) return null;
-
-                        return (
-                          <div className="mt-1.5 flex items-center gap-1 text-[10px]">
-                            {likeCount > 0 && (
-                              <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full bg-green-500/15 text-green-300">
-                                <ThumbsUp className="w-2.5 h-2.5" />
-                                {likeCount}
-                              </span>
-                            )}
-                            {dislikeCount > 0 && (
-                              <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full bg-red-500/15 text-red-300">
-                                <ThumbsDown className="w-2.5 h-2.5" />
-                                {dislikeCount}
-                              </span>
-                            )}
-                            {fireCount > 0 && (
-                              <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full bg-orange-500/15 text-orange-300">
-                                <span>🔥</span>
-                                {fireCount}
-                              </span>
-                            )}
-                            {heartCount > 0 && (
-                              <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full bg-pink-500/15 text-pink-300">
-                                <span>❤️</span>
-                                {heartCount}
-                              </span>
-                            )}
-                            {devilCount > 0 && (
-                              <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full bg-purple-500/15 text-purple-300">
-                                <span>😈</span>
-                                {devilCount}
-                              </span>
-                            )}
-                          </div>
-                        );
-                      })()}
+                      {message.type !== 'image' && reactionSummary.length > 0 && (
+                        <div className="mt-1.5 flex items-center gap-1 text-[10px]">
+                          {reactionSummary.map((item) => (
+                            <span key={item.key} className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full ${item.className}`}>
+                              <span>{item.emoji}</span>
+                              {item.count}
+                            </span>
+                          ))}
+                        </div>
+                      )}
+                      {hasImageReactions && (
+                        <div className="image-reactions-dock" aria-label="Reacciones de la imagen">
+                          {reactionSummary.map((item) => (
+                            <span key={item.key} className={`image-reaction-pill ${item.className}`}>
+                              <span>{item.emoji}</span>
+                              {item.count}
+                            </span>
+                          ))}
+                        </div>
+                      )}
                       {isOwn && message.type === 'image' && !message._optimistic && typeof onDeleteMessage === 'function' && (
                         <div className="mt-2 flex justify-end">
                           <button
@@ -600,14 +716,14 @@ const ChatMessages = ({
                           message.type === 'image'
                             ? (
                               isMobileViewport
-                                ? ((activeImageActionsMessageId === (message._realId || message.id)) ? 'opacity-100' : 'opacity-0 pointer-events-none')
+                                ? 'opacity-100 pointer-events-auto rounded-full bg-black/20 px-1.5 py-0.5'
                                 : 'opacity-100'
                             )
                             : 'opacity-0 group-hover:opacity-100'
                         }`}
                       >
                         <Button size="icon" variant="ghost" className="h-5 w-5 text-gray-400 hover:text-cyan-500"
-                          onClick={(e) => { e.stopPropagation(); onReply?.({ messageId: message.id, username: message.username, content: message.type === 'image' ? '📷 Imagen' : message.content }); }}>
+                          onClick={(e) => { e.stopPropagation(); triggerReply(message); }}>
                           <Reply className="h-3 w-3" />
                         </Button>
                         {currentUserId && !message._optimistic && (

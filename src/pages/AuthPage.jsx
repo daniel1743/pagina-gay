@@ -9,6 +9,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { ArrowLeft, Mail, Eye, EyeOff } from 'lucide-react';
 import { useCanonical } from '@/hooks/useCanonical';
 import { track, trackPageExit, trackPageView } from '@/services/eventTrackingService';
+import { PROFILE_ROLE_OPTIONS, normalizeProfileRole } from '@/config/profileRoles';
 
 const AuthPage = () => {
   // SEO: Canonical tag para página de autenticación
@@ -35,9 +36,11 @@ const AuthPage = () => {
   const [registerData, setRegisterData] = useState({
     email: '',
     password: '',
-    age: ''
+    age: '',
+    profileRole: '',
   });
   const [ageError, setAgeError] = useState('');
+  const [roleError, setRoleError] = useState('');
   const [showLoginPassword, setShowLoginPassword] = useState(false);
   const [showRegisterPassword, setShowRegisterPassword] = useState(false);
 
@@ -73,6 +76,7 @@ const AuthPage = () => {
   const handleRegister = async (e) => {
     e.preventDefault();
     setAgeError('');
+    setRoleError('');
 
     // ✅ VALIDACIÓN CRÍTICA: Verificar edad mínima (18 años)
     const age = parseInt(registerData.age);
@@ -84,9 +88,17 @@ const AuthPage = () => {
       setAgeError('Por favor ingresa una edad válida.');
       return;
     }
+    const normalizedRole = normalizeProfileRole(registerData.profileRole);
+    if (!normalizedRole) {
+      setRoleError('Selecciona tu rol para registrarte.');
+      return;
+    }
 
     track('auth_submit', { mode: 'register' }, { user }).catch(() => {});
-    const success = await register(registerData);
+    const success = await register({
+      ...registerData,
+      profileRole: normalizedRole,
+    });
     if (success) {
       track('auth_success', { mode: 'register' }, { user }).catch(() => {});
       navigate(getRedirectPath(), { replace: true });
@@ -207,6 +219,33 @@ const AuthPage = () => {
                     {ageError && (
                       <p className="text-red-400 text-sm mt-2 font-medium">
                         ⚠️ {ageError}
+                      </p>
+                    )}
+                  </div>
+                  <div>
+                    <Label htmlFor="register-role" className="text-gray-400">Rol</Label>
+                    <select
+                      id="register-role"
+                      required
+                      value={registerData.profileRole}
+                      onChange={(e) => {
+                        setRegisterData({ ...registerData, profileRole: e.target.value });
+                        setRoleError('');
+                      }}
+                      className={`w-full h-10 px-3 rounded-md bg-gray-800/30 border text-gray-300 focus:outline-none focus:ring-2 focus:ring-purple-500 ${
+                        roleError ? 'border-red-500' : 'border-gray-700'
+                      }`}
+                    >
+                      <option value="">Selecciona tu rol</option>
+                      {PROFILE_ROLE_OPTIONS.map((roleOption) => (
+                        <option key={roleOption.value} value={roleOption.value}>
+                          {roleOption.label}
+                        </option>
+                      ))}
+                    </select>
+                    {roleError && (
+                      <p className="text-red-400 text-sm mt-2 font-medium">
+                        ⚠️ {roleError}
                       </p>
                     )}
                   </div>

@@ -31,6 +31,28 @@ const isBotUserId = (userId = '') =>
   userId?.startsWith('bot_') ||
   userId?.startsWith('static_bot_');
 
+const ACTIVE_THRESHOLD_MS = 2 * 60 * 1000;
+
+const toMillisSafe = (value) => {
+  if (!value) return null;
+  if (typeof value?.toMillis === 'function') {
+    const ms = value.toMillis();
+    return Number.isFinite(ms) ? ms : null;
+  }
+  if (typeof value === 'number' && Number.isFinite(value)) return value;
+  if (typeof value?.seconds === 'number') return value.seconds * 1000;
+  return null;
+};
+
+const getPresenceLastActivityMs = (user = {}) => {
+  return (
+    toMillisSafe(user.lastSeen) ??
+    toMillisSafe(user.lastActiveAt) ??
+    toMillisSafe(user.updatedAt) ??
+    toMillisSafe(user.joinedAt)
+  );
+};
+
 /**
  * ✅ HABILITADO: Registrar usuario en sala (presencia básica)
  * ✅ Sincroniza tarjeta Baúl: usuarios registrados actualizan ultimaConexion/estaOnline
@@ -215,12 +237,15 @@ export const subscribeToMultipleRoomCounts = (roomIds, callback) => {
     const usersRef = collection(db, 'roomPresence', roomId, 'users');
 
     return onSnapshot(usersRef, (snapshot) => {
+      const now = Date.now();
       const realUsersCount = snapshot.docs.reduce((count, docSnap) => {
         const data = docSnap.data() || {};
         const userId = data.userId || docSnap.id || '';
         const isBot = isBotUserId(userId);
+        const lastActivityMs = getPresenceLastActivityMs(data);
+        const isActive = Number.isFinite(lastActivityMs) && (now - lastActivityMs) <= ACTIVE_THRESHOLD_MS;
 
-        return isBot ? count : count + 1;
+        return (!isBot && isActive) ? count + 1 : count;
       }, 0);
 
       counts[roomId] = realUsersCount;
@@ -287,7 +312,6 @@ export const cleanInactiveUsers = async () => {
  */
 export const filterActiveUsers = (users) => {
   const now = Date.now();
-  const ACTIVE_THRESHOLD = 5 * 60 * 1000; // 5 minutos
 
   return users.filter(user => {
     const userId = user.userId || user.id || '';
@@ -295,12 +319,10 @@ export const filterActiveUsers = (users) => {
 
     if (isBot) return false;
 
-    if (!user.lastSeen) return true;
+    const lastActivityMs = getPresenceLastActivityMs(user);
+    if (!Number.isFinite(lastActivityMs)) return false;
 
-    const lastSeen = user.lastSeen?.toMillis() || 0;
-    const timeSinceLastSeen = now - lastSeen;
-
-    return timeSinceLastSeen <= ACTIVE_THRESHOLD;
+    return (now - lastActivityMs) <= ACTIVE_THRESHOLD_MS;
   });
 };
 

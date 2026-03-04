@@ -87,7 +87,7 @@ const UserProfileModal = ({ user, onClose, onReport, onSelectUser }) => {
         animate={{ opacity: 1 }}
         exit={{ opacity: 0 }}
       >
-        <DialogContent className="bg-card border text-foreground max-w-sm rounded-2xl">
+        <DialogContent className="bg-card border text-foreground max-w-sm rounded-2xl max-h-[90dvh] overflow-y-auto">
           <DialogHeader className="items-center text-center">
              <div className={`rounded-full ${
                hasProVisual

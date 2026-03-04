@@ -67,15 +67,16 @@ export function getGuestIdentity() {
 
 /**
  * Crea y guarda una nueva identidad de invitado
- * @param {Object} data - { nombre, avatar? }
+ * @param {Object} data - { nombre, avatar?, profileRole? }
  * @returns {Object} - Identidad creada
  */
-export function createGuestIdentity({ nombre, avatar = null }) {
+export function createGuestIdentity({ nombre, avatar = null, profileRole = null }) {
   const guestId = uuidv4();
   const identity = {
     guestId,
     nombre: nombre || 'Invitado',
     avatar: avatar || generateAvatar(guestId),
+    profileRole: profileRole || null,
     createdAt: Date.now(),
     lastSeen: Date.now(),
     firebaseUid: null, // Se actualizará cuando se autentique con Firebase
@@ -194,7 +195,7 @@ export function hasGuestIdentity() {
 /**
  * Guarda datos temporales del modal (antes de crear la identidad permanente)
  * Útil para cuando el usuario llena el modal pero aún no se autentica
- * @param {Object} data - { nombre, avatar }
+ * @param {Object} data - { nombre, avatar, role? }
  */
 export function saveTempGuestData(data) {
   try {

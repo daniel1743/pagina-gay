@@ -24,6 +24,10 @@ const ROOM_RETENTION_MAX_MESSAGES = 205;
 const ROOM_RETENTION_QUERY_LIMIT = ROOM_RETENTION_MAX_MESSAGES + 1; // 206 when max=205
 const ROOM_RETENTION_DELETE_BATCH = 50;
 const ROOM_RETENTION_LOCK_TTL_MS = 15 * 1000;
+const PHOTO_UPLOADS_PER_HOUR_LIMIT = 3;
+const PHOTO_VISIBLE_WINDOW_MESSAGES = 100;
+const PHOTO_VISIBLE_WINDOW_USER_IMAGE_LIMIT = 3;
+const PHOTO_UPLOAD_HOURLY_WINDOW_MS = 60 * 60 * 1000;
 const PHOTO_PRIVILEGE_SCOPE = "principal";
 const PHOTO_PRIVILEGE_STREAK_DAYS_REQUIRED = 2;
 const PHOTO_PRIVILEGE_INACTIVITY_MS = 24 * 60 * 60 * 1000;
@@ -259,6 +263,101 @@ async function deleteStorageAsset(asset) {
     }
     console.error(`[RETENTION] Error deleting storage asset: ${asset.objectPath}`, error);
   }
+}
+
+function getDocTimestampMs(docSnap) {
+  return toMillis(docSnap.get("timestamp"));
+}
+
+function isRoomImageMessageForUser(docSnap, userId) {
+  const data = docSnap.data() || {};
+  return data.type === "image" && String(data.userId || "") === userId;
+}
+
+async function enforceImagePolicyForUser(messagesRef, roomId, createdMessageData = {}) {
+  if (roomId !== PHOTO_PRIVILEGE_SCOPE || createdMessageData.type !== "image") {
+    return { deletedMessages: 0, deletedAssets: 0, hourlyOverflow: 0, visibleOverflow: 0 };
+  }
+
+  const userId = String(createdMessageData.userId || "");
+  if (!userId || isBotLikeUserId(userId)) {
+    return { deletedMessages: 0, deletedAssets: 0, hourlyOverflow: 0, visibleOverflow: 0 };
+  }
+
+  const nowMs = toMillis(createdMessageData.timestamp) || Date.now();
+  const hourlyCutoffMs = nowMs - PHOTO_UPLOAD_HOURLY_WINDOW_MS;
+
+  const recentSnap = await messagesRef
+    .orderBy("timestamp", "desc")
+    .limit(ROOM_RETENTION_MAX_MESSAGES)
+    .get();
+
+  if (recentSnap.empty) {
+    return { deletedMessages: 0, deletedAssets: 0, hourlyOverflow: 0, visibleOverflow: 0 };
+  }
+
+  const userImageDocsAsc = recentSnap.docs
+    .filter((docSnap) => isRoomImageMessageForUser(docSnap, userId))
+    .sort((a, b) => getDocTimestampMs(a) - getDocTimestampMs(b));
+
+  const docsToDelete = new Map();
+  let hourlyOverflow = 0;
+  let visibleOverflow = 0;
+
+  const hourlyUserImageDocs = userImageDocsAsc.filter((docSnap) => getDocTimestampMs(docSnap) >= hourlyCutoffMs);
+  if (hourlyUserImageDocs.length > PHOTO_UPLOADS_PER_HOUR_LIMIT) {
+    hourlyOverflow = hourlyUserImageDocs.length - PHOTO_UPLOADS_PER_HOUR_LIMIT;
+    hourlyUserImageDocs.slice(0, hourlyOverflow).forEach((docSnap) => {
+      docsToDelete.set(docSnap.id, docSnap);
+    });
+  }
+
+  const visibleWindowDocs = recentSnap.docs.slice(0, PHOTO_VISIBLE_WINDOW_MESSAGES);
+  const visibleUserImageDocsAsc = visibleWindowDocs
+    .filter((docSnap) => isRoomImageMessageForUser(docSnap, userId))
+    .sort((a, b) => getDocTimestampMs(a) - getDocTimestampMs(b));
+
+  if (visibleUserImageDocsAsc.length > PHOTO_VISIBLE_WINDOW_USER_IMAGE_LIMIT) {
+    visibleOverflow = visibleUserImageDocsAsc.length - PHOTO_VISIBLE_WINDOW_USER_IMAGE_LIMIT;
+    visibleUserImageDocsAsc.slice(0, visibleOverflow).forEach((docSnap) => {
+      docsToDelete.set(docSnap.id, docSnap);
+    });
+  }
+
+  if (docsToDelete.size === 0) {
+    return { deletedMessages: 0, deletedAssets: 0, hourlyOverflow, visibleOverflow };
+  }
+
+  console.log(
+    `[PHOTO_LIMIT] Applying limits roomId=${roomId} userId=${userId} hourlyOverflow=${hourlyOverflow} visibleOverflow=${visibleOverflow} deleting=${docsToDelete.size}`
+  );
+
+  const batch = db.batch();
+  for (const docSnap of docsToDelete.values()) {
+    batch.delete(docSnap.ref);
+  }
+  await batch.commit();
+
+  let deletedAssets = 0;
+  for (const docSnap of docsToDelete.values()) {
+    const messageData = docSnap.data() || {};
+    const assets = extractMediaPaths(messageData);
+    for (const asset of assets) {
+      await deleteStorageAsset(asset);
+      deletedAssets += 1;
+    }
+  }
+
+  console.log(
+    `[PHOTO_LIMIT] Done roomId=${roomId} userId=${userId} deletedMessages=${docsToDelete.size} deletedAssets=${deletedAssets}`
+  );
+
+  return {
+    deletedMessages: docsToDelete.size,
+    deletedAssets,
+    hourlyOverflow,
+    visibleOverflow,
+  };
 }
 
 async function acquireRetentionLock(roomId, owner) {
@@ -699,8 +798,12 @@ exports.enforceRoomRetention = onDocumentCreated(
     console.log(`[RETENTION] Lock acquired roomId=${roomId} owner=${lockOwner}`);
 
     const messagesRef = db.collection("rooms").doc(roomId).collection("messages");
+    let retentionDeletedMessages = 0;
+    let retentionDeletedAssets = 0;
     let totalDeletedMessages = 0;
     let totalDeletedAssets = 0;
+    let policyDeletedMessages = 0;
+    let policyDeletedAssets = 0;
     let safetyPasses = 0;
     const MAX_PASSES = 100;
 
@@ -746,6 +849,7 @@ exports.enforceRoomRetention = onDocumentCreated(
       }
       await batch.commit();
 
+      retentionDeletedMessages += docsToDelete.length;
       totalDeletedMessages += docsToDelete.length;
 
       for (const docSnap of docsToDelete) {
@@ -753,18 +857,44 @@ exports.enforceRoomRetention = onDocumentCreated(
         const assets = extractMediaPaths(messageData);
         for (const asset of assets) {
           await deleteStorageAsset(asset);
+          retentionDeletedAssets += 1;
           totalDeletedAssets += 1;
         }
       }
+    }
+
+    try {
+      const photoPolicyResult = await enforceImagePolicyForUser(messagesRef, roomId, createdMessageData);
+      policyDeletedMessages = photoPolicyResult.deletedMessages;
+      policyDeletedAssets = photoPolicyResult.deletedAssets;
+      totalDeletedMessages += photoPolicyResult.deletedMessages;
+      totalDeletedAssets += photoPolicyResult.deletedAssets;
+
+      if (photoPolicyResult.hourlyOverflow > 0 || photoPolicyResult.visibleOverflow > 0) {
+        console.log(
+          `[PHOTO_LIMIT] roomId=${roomId} messageId=${messageId} hourlyOverflow=${photoPolicyResult.hourlyOverflow} visibleOverflow=${photoPolicyResult.visibleOverflow}`
+        );
+      }
+    } catch (error) {
+      console.error(`[PHOTO_LIMIT] Error enforcing photo policy roomId=${roomId} messageId=${messageId}`, error);
     }
 
     if (safetyPasses >= MAX_PASSES) {
       console.warn(`[RETENTION] Safety stop reached roomId=${roomId} passes=${MAX_PASSES}`);
     }
 
-    if (totalDeletedAssets > 0) {
-      await recordPhotoMetrics({ photoAssetsDeletedByRetention: totalDeletedAssets }, new Date()).catch((error) => {
+    if (retentionDeletedAssets > 0) {
+      await recordPhotoMetrics({ photoAssetsDeletedByRetention: retentionDeletedAssets }, new Date()).catch((error) => {
         console.error("[PHOTO_PRIV] Error recording retention delete metrics", error);
+      });
+    }
+
+    if (policyDeletedMessages > 0 || policyDeletedAssets > 0) {
+      await recordPhotoMetrics({
+        photoMessagesDeletedByPhotoLimit: policyDeletedMessages,
+        photoAssetsDeletedByPhotoLimit: policyDeletedAssets,
+      }, new Date()).catch((error) => {
+        console.error("[PHOTO_PRIV] Error recording photo limit delete metrics", error);
       });
     }
 
@@ -774,7 +904,7 @@ exports.enforceRoomRetention = onDocumentCreated(
       .get();
 
     console.log(
-      `[RETENTION] Retention done roomId=${roomId} deletedMessages=${totalDeletedMessages} deletedAssets=${totalDeletedAssets} finalProbeSize=${finalProbe.size}`
+      `[RETENTION] Retention done roomId=${roomId} deletedMessages=${totalDeletedMessages} deletedAssets=${totalDeletedAssets} retentionDeletedMessages=${retentionDeletedMessages} retentionDeletedAssets=${retentionDeletedAssets} policyDeletedMessages=${policyDeletedMessages} policyDeletedAssets=${policyDeletedAssets} finalProbeSize=${finalProbe.size}`
     );
 
     return null;

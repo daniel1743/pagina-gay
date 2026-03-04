@@ -1,4 +1,4 @@
-import React, { useState, useEffect, Suspense, lazy } from 'react';
+import React, { useState, useEffect, useRef, Suspense, lazy } from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 import { Toaster } from '@/components/ui/toaster';
 import PageLoader from '@/components/ui/PageLoader';
@@ -163,6 +163,7 @@ function RewardInboxListener() {
   const { user, refreshProfile } = useAuth();
   const [pendingRewards, setPendingRewards] = useState([]);
   const [currentReward, setCurrentReward] = useState(null);
+  const seenInSessionRef = useRef(new Set());
 
   useEffect(() => {
     if (!user?.id || user?.isGuest || user?.isAnonymous) {
@@ -187,7 +188,12 @@ function RewardInboxListener() {
       const seenIds = getSeenRewardIds();
 
       const unseenActiveRewards = (userRewards || [])
-        .filter((reward) => reward?.status === 'active' && reward?.id && !seenIds.has(reward.id))
+        .filter((reward) =>
+          reward?.status === 'active' &&
+          reward?.id &&
+          !seenIds.has(reward.id) &&
+          !seenInSessionRef.current.has(reward.id)
+        )
         .sort((a, b) => {
           const aTs = a?.createdAt ? new Date(a.createdAt).getTime() : 0;
           const bTs = b?.createdAt ? new Date(b.createdAt).getTime() : 0;
@@ -211,6 +217,8 @@ function RewardInboxListener() {
       setCurrentReward(null);
       return;
     }
+
+    seenInSessionRef.current.add(currentReward.id);
 
     const seenKey = `rewards_seen_ids:${user.id}`;
     try {

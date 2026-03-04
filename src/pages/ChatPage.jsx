@@ -71,6 +71,7 @@ import EventReminderPopup from '@/components/eventos/EventReminderPopup';
 import ProCongratsModal from '@/components/rewards/ProCongratsModal';
 import { markReminderPopupShown, wasReminderPopupShown, cleanOldReminders } from '@/utils/eventReminderUtils';
 import { registrarParticipacionEvento } from '@/services/eventosService';
+import { resolveProfileRole } from '@/config/profileRoles';
 import '@/utils/chatDiagnostics'; // 🔍 Cargar diagnóstico en consola
 import { 
   trackChatLoad, 
@@ -450,6 +451,8 @@ const ChatPage = () => {
   const usersUpdateInProgressRef = useRef(false); // 🔒 CRÍTICO: Evitar loops infinitos en setRoomUsers
   const chatLoadStartTimeRef = useRef(null); // 📊 PERFORMANCE: Timestamp cuando inicia carga del chat
   const chatLoadTrackedRef = useRef(false); // 📊 PERFORMANCE: Flag para evitar tracking duplicado
+  const firstNonEmptySnapshotRef = useRef(false); // Evita flicker "vacío" cuando Firestore responde tarde
+  const loadingFallbackTimeoutRef = useRef(null); // Fallback de carga inicial
   const nicoWelcomedUsersRef = useRef(new Set()); // 🤖 NICO: Usuarios ya bienvenidos esta sesion
   const nicoQuestionIntervalRef = useRef(null); // 🤖 NICO: Intervalo de preguntas cada 30min
   const nicoPreviousRoomUsersRef = useRef(null); // 🤖 NICO: null = primer render (no enviar bienvenidas)
@@ -488,6 +491,47 @@ const ChatPage = () => {
     if (blockedUserIds.size === 0) return messages;
     return messages.filter(msg => !blockedUserIds.has(msg.userId));
   }, [messages, blockedUserIds]);
+
+  const photoUsageStats = useMemo(() => {
+    if (!user?.id) {
+      return { hourlyCount: 0, visibleCount: 0 };
+    }
+
+    const nowMs = Date.now();
+    const oneHourAgoMs = nowMs - (60 * 60 * 1000);
+    const lastVisibleWindow = filteredMessages.slice(-100);
+
+    const getMessageTimestampMs = (msg) => (
+      msg?.timestampMs ||
+      (msg?.timestamp?.toMillis?.() ||
+        (typeof msg?.timestamp === 'number'
+          ? msg.timestamp
+          : (msg?.timestamp ? new Date(msg.timestamp).getTime() : null)))
+    );
+
+    const isOwnImage = (msg) => (
+      msg?.type === 'image' &&
+      msg?.userId === user.id
+    );
+
+    let hourlyCount = 0;
+    for (const msg of filteredMessages) {
+      if (!isOwnImage(msg)) continue;
+      const ts = getMessageTimestampMs(msg);
+      if (ts && ts >= oneHourAgoMs) {
+        hourlyCount += 1;
+      }
+    }
+
+    let visibleCount = 0;
+    for (const msg of lastVisibleWindow) {
+      if (isOwnImage(msg)) {
+        visibleCount += 1;
+      }
+    }
+
+    return { hourlyCount, visibleCount };
+  }, [filteredMessages, user?.id]);
 
   const lastMessageMs = useMemo(() => {
     if (!messages || messages.length === 0) return null;
@@ -617,7 +661,7 @@ const ChatPage = () => {
     const chunks = [];
 
     if (typeof activeUsersCount === 'number' && activeUsersCount > 0) {
-      chunks.push(`${activeUsersCount} ${activeUsersCount === 1 ? 'activo (5 min)' : 'activos (5 min)'}`);
+      chunks.push(`${activeUsersCount} ${activeUsersCount === 1 ? 'activo (2 min)' : 'activos (2 min)'}`);
     }
 
     if (recentMessagesCount10m > 0) {
@@ -998,22 +1042,14 @@ const ChatPage = () => {
     initAudioOnFirstGesture();
   }, []);
 
-  // 🚀 EXPERIMENTO: Safety timeout - Forzar loading a false después de 3 segundos si no hay usuario
-  // Esto evita el loading infinito cuando el usuario no está autenticado
+  // Evitar flicker de "chat vacío": mantener loading hasta que llegue snapshot real o timeout largo controlado.
   useEffect(() => {
-    if (!user && isLoadingMessages) {
-      loadingTimeoutRef.current = setTimeout(() => {
-        console.log('🚀 [CHAT] Safety timeout: Forzando loading a false para usuarios no autenticados');
-        setIsLoadingMessages(false);
-      }, 3000);
-    }
-
     return () => {
       if (loadingTimeoutRef.current) {
         clearTimeout(loadingTimeoutRef.current);
       }
     };
-  }, [user, isLoadingMessages]);
+  }, []);
 
   // ⚡ SUSCRIPCIÓN INMEDIATA: Suscribirse a mensajes ANTES de verificar edad
   // Esto permite que los mensajes carguen instantáneamente, incluso con usuario temporal
@@ -1021,6 +1057,11 @@ const ChatPage = () => {
   useEffect(() => {
     setCurrentRoom(roomId);
     setIsLoadingMessages(true); // ⏳ Marcar como cargando al cambiar de sala
+    firstNonEmptySnapshotRef.current = false;
+    if (loadingFallbackTimeoutRef.current) {
+      clearTimeout(loadingFallbackTimeoutRef.current);
+      loadingFallbackTimeoutRef.current = null;
+    }
     aiActivatedRef.current = false; // Resetear flag de IA cuando cambia de sala
     nicoWelcomedUsersRef.current = new Set(); // 🤖 NICO: Resetear bienvenidas al cambiar de sala
     nicoPreviousRoomUsersRef.current = null; // 🤖 NICO: null = primer render (no enviar bienvenidas al entrar a sala)
@@ -1048,12 +1089,12 @@ const ChatPage = () => {
     // console.log('📡 [CHAT] Suscribiéndose a mensajes INMEDIATAMENTE para sala:', roomId);
     setIsLoadingMessages(true); // ⏳ Marcar como cargando al iniciar suscripción
 
-    // ⚡ TIMEOUT DE SEGURIDAD: Desactivar loading después de 8 segundos
-    // Evita mostrar "No hay mensajes" prematuramente cuando Firebase tarda (red lenta, etc.)
-    const loadingTimeoutId = setTimeout(() => {
-      console.warn('⏰ [CHAT] Timeout de carga alcanzado (8s) - desactivando loading de seguridad');
+    // ⚡ TIMEOUT DE SEGURIDAD: mantiene spinner y evita mostrar estado vacío prematuro
+    loadingFallbackTimeoutRef.current = setTimeout(() => {
+      console.warn('⏰ [CHAT] Timeout de carga inicial alcanzado (12s) - finalizando estado de carga');
       setIsLoadingMessages(false);
-    }, 8000);
+      loadingFallbackTimeoutRef.current = null;
+    }, 12000);
 
     console.log(`[CHAT PAGE] 🚀 Llamando a subscribeToRoomMessages para sala ${roomId} con límite ${messageLimit}`);
     const unsubscribeMessages = subscribeToRoomMessages(roomId, (newMessages) => {
@@ -1061,11 +1102,19 @@ const ChatPage = () => {
       if (newMessages.length === 0) {
         console.warn(`[CHAT PAGE] ⚠️ ARRAY VACÍO recibido en callback para sala ${roomId} - esto NO debería pasar si la sala tiene mensajes`);
       }
-      // ✅ Limpiar timeout cuando llegan los mensajes
-      clearTimeout(loadingTimeoutId);
-      
-      // ⏳ Marcar como cargado cuando llegan los mensajes
-      setIsLoadingMessages(false);
+
+      if (newMessages.length > 0) {
+        firstNonEmptySnapshotRef.current = true;
+        if (loadingFallbackTimeoutRef.current) {
+          clearTimeout(loadingFallbackTimeoutRef.current);
+          loadingFallbackTimeoutRef.current = null;
+        }
+        setIsLoadingMessages(false);
+      } else if (firstNonEmptySnapshotRef.current) {
+        setIsLoadingMessages(false);
+      } else {
+        setIsLoadingMessages(true);
+      }
       
       // 🔍 DEBUG: Loguear siempre en desarrollo para diagnóstico
       if (import.meta.env.DEV) {
@@ -1275,7 +1324,10 @@ const ChatPage = () => {
     // Guardar funciones de desuscripción
     const baseCleanup = () => {
       // ✅ Limpiar timeout de loading
-      clearTimeout(loadingTimeoutId);
+      if (loadingFallbackTimeoutRef.current) {
+        clearTimeout(loadingFallbackTimeoutRef.current);
+        loadingFallbackTimeoutRef.current = null;
+      }
 
       try {
         unsubscribeMessages();
@@ -1368,7 +1420,13 @@ const ChatPage = () => {
         }
       }
 
-      const finalUsers = [...filteredUsers, ...usersToCheck.map(({ user }) => user)];
+      const dedupedByUid = new Map();
+      [...filteredUsers, ...usersToCheck.map(({ user }) => user)].forEach((presenceUser) => {
+        const uid = presenceUser?.userId || presenceUser?.id;
+        if (!uid) return;
+        dedupedByUid.set(uid, presenceUser);
+      });
+      const finalUsers = Array.from(dedupedByUid.values());
       const currentCounts = {
         total: users.length,
         active: activeUsers.length,
@@ -1447,6 +1505,30 @@ const ChatPage = () => {
           console.error('Error leaving room:', error);
         }
       });
+    };
+  }, [roomId, authReady, user?.id]);
+
+  // 💓 Heartbeat de presencia: refresca lastSeen para conteo online real y puntos de estado.
+  useEffect(() => {
+    if (!roomId || !authReady || !user?.id) return;
+
+    const pingPresence = () => {
+      updateUserActivity(roomId).catch(() => {});
+    };
+
+    pingPresence();
+    const intervalId = setInterval(pingPresence, 30000);
+
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === 'visible') {
+        pingPresence();
+      }
+    };
+
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+    return () => {
+      clearInterval(intervalId);
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
     };
   }, [roomId, authReady, user?.id]);
 
@@ -1777,7 +1859,7 @@ const ChatPage = () => {
         }
       }
       console.log('[REACTION] 📤 Enviando a Firestore...');
-      await addReactionToMessage(currentRoom, messageId, reaction);
+      const persistedReactions = await addReactionToMessage(currentRoom, messageId, reaction);
       console.log('[REACTION] ✅ Reacción guardada');
 
       // Reflejar inmediatamente en UI local
@@ -1785,13 +1867,9 @@ const ChatPage = () => {
         const msgId = msg._realId || msg.id;
         if (msgId !== messageId) return msg;
 
-        const currentReactions = msg.reactions || { like: 0, dislike: 0, fire: 0, heart: 0, devil: 0 };
         return {
           ...msg,
-          reactions: {
-            ...currentReactions,
-            [reaction]: (currentReactions[reaction] || 0) + 1,
-          }
+          reactions: persistedReactions || msg.reactions,
         };
       }));
 
@@ -2084,16 +2162,14 @@ const ChatPage = () => {
     const optimisticId = `temp_${Date.now()}_${Math.random()}`;
     const clientId = generateUUID(); // ✅ UUID real para correlación optimista/real (evitar colisiones)
     const nowMs = Date.now();
-    const roleDisplayMap = {
-      activo: 'Activo',
-      pasivo: 'Pasivo',
-      versatil: 'Versátil',
-    };
 
     const storedRoleRaw = localStorage.getItem('chactivo:role') || '';
     const storedComunaRaw = localStorage.getItem('chactivo:comuna') || '';
-    const normalizedRole = storedRoleRaw.trim().toLowerCase();
-    const roleBadge = roleDisplayMap[normalizedRole] || null;
+    const roleBadge = resolveProfileRole(
+      storedRoleRaw,
+      currentUser?.profileRole,
+      currentUser?.role
+    );
     const comuna = storedComunaRaw.trim() || null;
     
     // ✅ GARANTIZAR AVATAR: Nunca enviar null o undefined en optimistic message
@@ -2981,6 +3057,7 @@ const ChatPage = () => {
             onRequestNickname={() => setShowNicknameModal(true)}
             isGuest={!user || needsNickname}
             showOnboardingHints={!needsNickname}
+            photoUsageStats={photoUsageStats}
           />
         </div>
 

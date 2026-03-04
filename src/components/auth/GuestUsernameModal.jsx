@@ -12,6 +12,7 @@ import {
   hasGuestIdentity,
   saveTempGuestData,
 } from '@/utils/guestIdentity';
+import { PROFILE_ROLE_OPTIONS, normalizeProfileRole } from '@/config/profileRoles';
 import { 
   trackModalOpen, 
   trackChatEntry, 
@@ -56,6 +57,10 @@ export const GuestUsernameModal = ({
   const { signInAsGuest, setGuestAuthInProgress } = useAuth(); // ✅ FASE 2: Acceso al setter del loading overlay
 
   const [nickname, setNickname] = useState('');
+  const [selectedRole, setSelectedRole] = useState(() => {
+    if (typeof window === 'undefined') return '';
+    return normalizeProfileRole(localStorage.getItem('chactivo:role') || '') || '';
+  });
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState('');
   const [ageConfirmed, setAgeConfirmed] = useState(true); // ✅ PRE-MARCADO: Menos fricción para el usuario
@@ -121,6 +126,12 @@ export const GuestUsernameModal = ({
       setAgeConfirmed(false);
       return;
     }
+    const normalizedRole = normalizeProfileRole(selectedRole);
+    if (!normalizedRole) {
+      setError('Selecciona tu rol para entrar al chat');
+      setAgeConfirmed(false);
+      return;
+    }
 
     console.log('%c═══════════════════════════════════════════', 'color: #00ffff; font-weight: bold');
     console.log('%c🚀 FASE 1: Entrada OPTIMISTIC - Navegación instantánea', 'color: #00ffff; font-weight: bold; font-size: 16px');
@@ -137,9 +148,14 @@ export const GuestUsernameModal = ({
       // ✅ SIEMPRE guardar para persistencia (implícito keepSession=true)
       saveTempGuestData({
         nombre: nickname.trim(),
-        avatar: randomAvatar
+        avatar: randomAvatar,
+        role: normalizedRole,
       });
       console.log('[GuestModal] ✅ Datos guardados para persistencia automática');
+
+      if (typeof window !== 'undefined') {
+        localStorage.setItem('chactivo:role', normalizedRole);
+      }
 
       // 📊 PERFORMANCE MONITOR: Iniciar tracking de autenticación
       const authStartTime = performance.now();
@@ -157,7 +173,7 @@ export const GuestUsernameModal = ({
       console.log('%c✅ Iniciando signInAsGuest para setear usuario optimistic...', 'color: #00ff00; font-weight: bold; font-size: 14px');
 
       // Iniciar proceso (esto setea usuario en ~50ms)
-      const guestPromise = signInAsGuest(nickname.trim(), randomAvatar, false);
+      const guestPromise = signInAsGuest(nickname.trim(), randomAvatar, false, normalizedRole);
 
       // Esperar SOLO lo necesario para que setUser() se ejecute
       await new Promise(resolve => setTimeout(resolve, 100));
@@ -173,6 +189,7 @@ export const GuestUsernameModal = ({
           hasExistingIdentity: false,
           nickname: nickname.trim(),
           avatar: randomAvatar,
+          role: normalizedRole,
           authenticated: false,
           optimistic: true
         });
@@ -307,6 +324,42 @@ export const GuestUsernameModal = ({
                 <p style={{ fontSize: '12px', color: '#999', marginBottom: '16px' }}>
                   ✨ Avatar asignado automáticamente • Presiona ENTER para entrar
                 </p>
+
+                <label style={{ display: 'block', fontSize: '15px', fontWeight: '600', color: '#333', marginBottom: '10px' }}>
+                  Tu Rol (obligatorio):
+                </label>
+                <select
+                  value={selectedRole}
+                  onChange={(e) => {
+                    setSelectedRole(e.target.value);
+                    if (error) setError('');
+                  }}
+                  required
+                  disabled={isLoading}
+                  style={{
+                    width: '100%',
+                    padding: '14px',
+                    fontSize: '16px',
+                    border: '2px solid #667eea',
+                    borderRadius: '12px',
+                    outline: 'none',
+                    boxSizing: 'border-box',
+                    backgroundColor: 'white',
+                    color: '#333',
+                    fontWeight: '500',
+                    marginBottom: '16px'
+                  }}
+                >
+                  <option value="">Selecciona un rol</option>
+                  {PROFILE_ROLE_OPTIONS.map((roleOption) => (
+                    <option key={roleOption.value} value={roleOption.value}>
+                      {roleOption.label}
+                    </option>
+                  ))}
+                </select>
+                <p style={{ fontSize: '11px', color: '#888', marginBottom: '16px' }}>
+                  Activo, Versátil Act, Versátil Pasivo, Pasivo, Inter, Hetero Curioso, Solo Mamar, Solo Ver
+                </p>
                 
                 {/* ✅ Checkbox "Soy mayor de edad" (se auto-marca con ENTER o submit) */}
                 <div style={{ 
@@ -348,20 +401,20 @@ export const GuestUsernameModal = ({
                 <button
                   type="submit"
                   onClick={() => setAgeConfirmed(true)} // ✅ Auto-marcar checkbox al hacer click
-                  disabled={isLoading || !nickname.trim()}
+                  disabled={isLoading || !nickname.trim() || !selectedRole}
                   style={{
                     width: '100%',
                     padding: '16px 24px',
                     fontSize: '18px',
                     fontWeight: 'bold',
                     color: 'white',
-                    background: isLoading || !nickname.trim()
+                    background: isLoading || !nickname.trim() || !selectedRole
                       ? 'linear-gradient(135deg, #999 0%, #888 100%)'
                       : 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
                     border: 'none',
                     borderRadius: '12px',
-                    cursor: isLoading || !nickname.trim() ? 'not-allowed' : 'pointer',
-                    opacity: isLoading || !nickname.trim() ? '0.6' : '1',
+                    cursor: isLoading || !nickname.trim() || !selectedRole ? 'not-allowed' : 'pointer',
+                    opacity: isLoading || !nickname.trim() || !selectedRole ? '0.6' : '1',
                     boxShadow: '0 6px 20px rgba(102, 126, 234, 0.4)',
                     transition: 'all 0.2s',
                     display: 'flex',

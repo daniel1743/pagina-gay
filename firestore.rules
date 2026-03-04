@@ -66,12 +66,6 @@ service cloud.firestore {
              get(/databases/$(database)/documents/users/$(request.auth.uid)).data.get('banned', false) == false;
     }
 
-    function hasActiveChatPhotoPrivilege(userId) {
-      return exists(/databases/$(database)/documents/chat_photo_privileges/$(userId)) &&
-             get(/databases/$(database)/documents/chat_photo_privileges/$(userId)).data.active == true &&
-             get(/databases/$(database)/documents/chat_photo_privileges/$(userId)).data.scope == 'principal';
-    }
-
     function hasValidChatImageMedia() {
       let data = request.resource.data;
       return 'media' in data &&
@@ -83,7 +77,7 @@ service cloud.firestore {
              data.media[0].path.matches('^chat_media/principal/[^/]+/.+');
     }
 
-    function isValidPrivilegedImageMessage(roomId) {
+    function isValidRegisteredImageMessage(roomId) {
       let data = request.resource.data;
       return isRegistered() &&
              roomId == 'principal' &&
@@ -94,7 +88,6 @@ service cloud.firestore {
              'content' in data &&
              data.content is string &&
              data.content.size() <= 1000 &&
-             hasActiveChatPhotoPrivilege(request.auth.uid) &&
              hasValidChatImageMedia() &&
              !isAutomatedSenderId(data.userId);
     }
@@ -371,7 +364,7 @@ service cloud.firestore {
             isAutomatedSenderId(request.resource.data.userId)
           )
         ) ||
-        isValidPrivilegedImageMessage(roomId);
+        isValidRegisteredImageMessage(roomId);
 
       // ✅ Permitir actualizar reacciones, deliveredTo, readBy, status (para sistema de checks)
       // ✅ Permitir actualizar reacciones, deliveredTo, readBy, status (para sistema de checks)

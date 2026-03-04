@@ -501,31 +501,15 @@ export async function obtenerTarjetasCercanas(miUbicacion, miUserId, limite = 10
       ...t,
       puntajePerfil: calcularPuntajePerfil(t),
       prioridadPerfil: calcularPrioridadPerfil(t),
-      tieneFotoReal: tieneFotoRealEnTarjeta(t)
+      tieneFotoReal: tieneFotoRealEnTarjeta(t),
+      tieneAvatarSolo: tieneAvatarSoloEnTarjeta(t),
+      tieneCamposClave: tieneCamposClavePerfil(t),
+      creadaEnMs: getTimestampMs(t.creadaEn) || 0
     }));
 
     // Ordenar: Mi tarjeta primero, luego por PUNTAJE DE PERFIL (foto + datos)
     // Los que se esforzaron en configurar su perfil aparecen primero
-    tarjetas.sort((a, b) => {
-      // 1. Mi tarjeta siempre primera
-      if (a.esMiTarjeta) return -1;
-      if (b.esMiTarjeta) return 1;
-
-      // 2. Prioridad dura: perfiles configurados (con foto real) SIEMPRE primero
-      if (a.prioridadPerfil !== b.prioridadPerfil) {
-        return b.prioridadPerfil - a.prioridadPerfil;
-      }
-
-      // 3. Ordenar por puntaje de perfil (mayor = primero)
-      if (a.puntajePerfil !== b.puntajePerfil) {
-        return b.puntajePerfil - a.puntajePerfil;
-      }
-
-      // 4. Si tienen el mismo puntaje, ordenar por última conexión
-      const aTime = a.ultimaConexion?.toMillis?.() || a.ultimaConexion || 0;
-      const bTime = b.ultimaConexion?.toMillis?.() || b.ultimaConexion || 0;
-      return bTime - aTime;
-    });
+    tarjetas.sort(compareTarjetasBaul);
 
     const conFotoReal = tarjetas.filter(t => t.tieneFotoReal).length;
     console.log(`[BAUL] 📊 Ordenamiento aplicado: ${conFotoReal} con foto real, ${tarjetas.length - conFotoReal} solo avatar`);
@@ -634,31 +618,15 @@ export async function obtenerTarjetasRecientes(miUserId, limite = 100) {
       ...t,
       puntajePerfil: calcularPuntajePerfil(t),
       prioridadPerfil: calcularPrioridadPerfil(t),
-      tieneFotoReal: tieneFotoRealEnTarjeta(t)
+      tieneFotoReal: tieneFotoRealEnTarjeta(t),
+      tieneAvatarSolo: tieneAvatarSoloEnTarjeta(t),
+      tieneCamposClave: tieneCamposClavePerfil(t),
+      creadaEnMs: getTimestampMs(t.creadaEn) || 0
     }));
 
     // Ordenar: Mi tarjeta primero, luego por PUNTAJE DE PERFIL (foto + datos)
     // Los que se esforzaron en configurar su perfil aparecen primero
-    tarjetas.sort((a, b) => {
-      // 1. Mi tarjeta siempre primera
-      if (a.esMiTarjeta) return -1;
-      if (b.esMiTarjeta) return 1;
-
-      // 2. Prioridad dura: perfiles configurados (con foto real) SIEMPRE primero
-      if (a.prioridadPerfil !== b.prioridadPerfil) {
-        return b.prioridadPerfil - a.prioridadPerfil;
-      }
-
-      // 3. Ordenar por puntaje de perfil (mayor = primero)
-      if (a.puntajePerfil !== b.puntajePerfil) {
-        return b.puntajePerfil - a.puntajePerfil;
-      }
-
-      // 4. Si tienen el mismo puntaje, ordenar por última conexión
-      const aTime = a.ultimaConexion?.toMillis?.() || a.ultimaConexion || 0;
-      const bTime = b.ultimaConexion?.toMillis?.() || b.ultimaConexion || 0;
-      return bTime - aTime;
-    });
+    tarjetas.sort(compareTarjetasBaul);
 
     const conFotoReal = tarjetas.filter(t => t.tieneFotoReal).length;
     console.log(`[BAUL] 📊 Ordenamiento aplicado: ${conFotoReal} con foto real, ${tarjetas.length - conFotoReal} solo avatar`);
@@ -1552,9 +1520,15 @@ function calcularPuntajePerfil(tarjeta) {
 
   // 🖼️ FOTO REAL (máxima prioridad: +1000)
   const tieneFotoReal = tieneFotoRealEnTarjeta(tarjeta);
+  const tieneCamposClave = tieneCamposClavePerfil(tarjeta);
 
   if (tieneFotoReal) {
     puntaje += 1000; // Foto real = prioridad máxima
+  }
+
+  // 🔒 BONUS CRÍTICO: Rol + edad (campos clave del pedido)
+  if (tieneCamposClave) {
+    puntaje += 200;
   }
 
   // 📋 DATOS DEL PERFIL (secundarios)
@@ -1596,6 +1570,35 @@ function tieneFotoRealEnTarjeta(tarjeta) {
   return fotos.some((f) => !esAvatarGenerico(f));
 }
 
+function tieneAvatarSoloEnTarjeta(tarjeta) {
+  const fotos = obtenerFotosTarjeta(tarjeta);
+  return fotos.length > 0 && fotos.every((f) => esAvatarGenerico(f));
+}
+
+function normalizarRol(rol) {
+  if (!rol || typeof rol !== 'string') return '';
+  return rol
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .trim();
+}
+
+function tieneRolValidoPerfil(tarjeta) {
+  const rol = normalizarRol(tarjeta?.rol);
+  return rol.includes('activo') || rol.includes('pasivo') || rol.includes('versatil');
+}
+
+function tieneEdadValidaPerfil(tarjeta) {
+  const edad = Number(tarjeta?.edad);
+  return Number.isFinite(edad) && edad >= 18;
+}
+
+// Campos clave pedidos por negocio para destacar en primer nivel.
+function tieneCamposClavePerfil(tarjeta) {
+  return tieneRolValidoPerfil(tarjeta) && tieneEdadValidaPerfil(tarjeta);
+}
+
 function contarCamposConfigurados(tarjeta) {
   let count = 0;
   if (tarjeta?.rol?.trim()) count++;
@@ -1611,19 +1614,60 @@ function contarCamposConfigurados(tarjeta) {
 
 /**
  * Prioridad dura para orden del Baúl:
- * 3 = Foto real + perfil configurado
- * 2 = Foto real
- * 1 = Perfil configurado (sin foto real)
- * 0 = Avatar / perfil vacío
+ * 4 = Foto real + campos clave (rol + edad)
+ * 3 = Foto real (aunque no tenga campos clave)
+ * 2 = Avatar solo (sin foto real)
+ * 1 = Resto de perfiles
  */
 function calcularPrioridadPerfil(tarjeta) {
   const tieneFotoReal = tieneFotoRealEnTarjeta(tarjeta);
-  const campos = contarCamposConfigurados(tarjeta);
+  const avatarSolo = tieneAvatarSoloEnTarjeta(tarjeta);
+  const tieneCamposClave = tieneCamposClavePerfil(tarjeta);
 
-  if (tieneFotoReal && campos >= 2) return 3;
-  if (tieneFotoReal) return 2;
-  if (campos >= 2) return 1;
-  return 0;
+  if (tieneFotoReal && tieneCamposClave) return 4;
+  if (tieneFotoReal) return 3;
+  if (avatarSolo) return 2;
+  return 1;
+}
+
+function getTimestampMs(value) {
+  if (!value) return 0;
+  if (typeof value?.toMillis === 'function') return value.toMillis();
+  if (typeof value?.seconds === 'number') return value.seconds * 1000;
+  if (typeof value === 'number') return value;
+  const parsed = Date.parse(value);
+  return Number.isFinite(parsed) ? parsed : 0;
+}
+
+function compareTarjetasBaul(a, b) {
+  // 1. Mi tarjeta siempre primera
+  if (a.esMiTarjeta) return -1;
+  if (b.esMiTarjeta) return 1;
+
+  // 2. Prioridad por nivel
+  if (a.prioridadPerfil !== b.prioridadPerfil) {
+    return b.prioridadPerfil - a.prioridadPerfil;
+  }
+
+  // 3. Dentro del nivel 1 (foto real + rol + edad), mostrar primero los más antiguos (desde el principio)
+  if (a.prioridadPerfil === 4 && a.creadaEnMs !== b.creadaEnMs) {
+    return a.creadaEnMs - b.creadaEnMs;
+  }
+
+  // 4. Puntaje del perfil
+  if (a.puntajePerfil !== b.puntajePerfil) {
+    return b.puntajePerfil - a.puntajePerfil;
+  }
+
+  // 5. Recencia de actividad
+  const aTime = getTimestampMs(a.ultimaConexion);
+  const bTime = getTimestampMs(b.ultimaConexion);
+  if (aTime !== bTime) {
+    return bTime - aTime;
+  }
+
+  // 6. Desempate final por antigüedad
+  return (a.creadaEnMs || 0) - (b.creadaEnMs || 0);
 }
 
 /**

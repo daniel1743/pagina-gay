@@ -34,6 +34,7 @@ import {
 } from '@/utils/guestIdentity';
 import { crearTarjetaAutomatica } from '@/services/tarjetaService';
 import { removeRewardFromUser, REWARD_TYPES } from '@/services/rewardsService';
+import { resolveProfileRole } from '@/config/profileRoles';
 
 // ⚡ Helper para agregar timeout a promesas de Firestore (evita delays de 41+ segundos)
 const withTimeout = (promise, timeoutMs = 3000) => {
@@ -130,6 +131,7 @@ export const AuthProvider = ({ children }) => {
             // 🔒 PRIORIDAD 1: Identidad persistente (con UUID)
             if (identity) {
               console.log('[AUTH] ✅ Identidad persistente detectada:', identity.guestId);
+              const normalizedGuestRole = resolveProfileRole(identity.profileRole);
 
               guestUser = {
                 id: firebaseUser.uid,
@@ -142,7 +144,12 @@ export const AuthProvider = ({ children }) => {
                 quickPhrases: [],
                 theme: {},
                 guestId: identity.guestId, // ✅ UUID inmutable
+                profileRole: normalizedGuestRole || null,
               };
+
+              if (normalizedGuestRole && typeof window !== 'undefined') {
+                localStorage.setItem('chactivo:role', normalizedGuestRole);
+              }
 
               // Vincular con Firebase UID si no está vinculado
               if (identity.firebaseUid !== firebaseUser.uid) {
@@ -175,6 +182,7 @@ export const AuthProvider = ({ children }) => {
               const tempUsername = tempData.nombre || 'Invitado';
               const tempAvatar = tempData.avatar || 'https://api.dicebear.com/7.x/pixel-art/svg?seed=guest';
               const existingGuestId = tempData.guestId; // UUID ya creado optimísticamente
+              const normalizedGuestRole = resolveProfileRole(tempData.role);
 
               // Vincular con Firebase UID real
               linkGuestToFirebase(firebaseUser.uid);
@@ -193,7 +201,12 @@ export const AuthProvider = ({ children }) => {
                 quickPhrases: [],
                 theme: {},
                 guestId: existingGuestId, // ✅ Mantener el UUID existente
+                profileRole: normalizedGuestRole || null,
               };
+
+              if (normalizedGuestRole && typeof window !== 'undefined') {
+                localStorage.setItem('chactivo:role', normalizedGuestRole);
+              }
 
               setGuestMessageCount(0);
               setUser(guestUser); // ✅ Actualizar con ID real
@@ -205,6 +218,7 @@ export const AuthProvider = ({ children }) => {
                 username: tempUsername,
                 avatar: tempAvatar,
                 guestId: existingGuestId, // ✅ UUID ya creado
+                profileRole: normalizedGuestRole || null,
                 createdAt: new Date().toISOString(),
                 messageCount: 0,
                 expiresAt: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString()
@@ -358,6 +372,10 @@ export const AuthProvider = ({ children }) => {
             }
 
             setUser(userProfile);
+            const normalizedProfileRole = resolveProfileRole(userProfile?.profileRole);
+            if (normalizedProfileRole && typeof window !== 'undefined') {
+              localStorage.setItem('chactivo:role', normalizedProfileRole);
+            }
             setGuestMessageCount(0); // Los usuarios registrados no tienen límite
             setLoading(false); // ✅ FIX: Asegurar que loading se actualice
 
@@ -638,6 +656,15 @@ export const AuthProvider = ({ children }) => {
         });
         return false;
       }
+      const normalizedProfileRole = resolveProfileRole(userData.profileRole, userData.role);
+      if (!normalizedProfileRole) {
+        toast({
+          title: "Rol requerido",
+          description: "Selecciona tu rol para registrarte",
+          variant: "destructive",
+        });
+        return false;
+      }
 
       // Username auto-generado desde email si no se proporciona (reduce fricción)
       const base = (userData.email || '').split('@')[0] || '';
@@ -657,9 +684,13 @@ export const AuthProvider = ({ children }) => {
         email: userData.email,
         age: userData.age,
         phone: userData.phone || null,
+        profileRole: normalizedProfileRole,
       });
 
       setUser(userProfile);
+      if (typeof window !== 'undefined') {
+        localStorage.setItem('chactivo:role', normalizedProfileRole);
+      }
 
       // Track registration (Analytics interno + GA4)
       trackUserRegister('email', { user: { id: userCredential.user.uid } });
@@ -719,7 +750,7 @@ export const AuthProvider = ({ children }) => {
    * ⚡ ULTRA OPTIMIZADO: <500ms total
    * ✅ Integrado con sistema de persistencia UUID
    */
-  const signInAsGuest = async (username = null, avatarUrl = null, keepSession = false) => {
+  const signInAsGuest = async (username = null, avatarUrl = null, keepSession = false, profileRoleRaw = null) => {
     // ✅ FIX: Prevenir múltiples llamadas simultáneas
     if (signInAsGuest.inProgress) {
       console.log('%c⚠️ [TIMING] signInAsGuest ya está en progreso, ignorando llamada duplicada', 'color: #ffaa00; font-weight: bold');
@@ -737,12 +768,15 @@ export const AuthProvider = ({ children }) => {
     let identity;
     let finalUsername;
     let finalAvatar;
+    const requestedRole = resolveProfileRole(profileRoleRaw);
+    let finalProfileRole = requestedRole;
 
     if (keepSession && existingIdentity) {
       // Auto-restore: reutilizar identidad existente (mismo UUID, nombre, avatar)
       identity = existingIdentity;
       finalUsername = identity.nombre;
       finalAvatar = identity.avatar;
+      finalProfileRole = resolveProfileRole(requestedRole, identity.profileRole);
       console.log('⚡ [OPTIMISTIC] Identidad existente REUTILIZADA:', identity.guestId);
     } else {
       // Nueva entrada (modal/landing): crear identidad nueva
@@ -750,7 +784,8 @@ export const AuthProvider = ({ children }) => {
       const defaultAvatar = avatarUrl || `https://api.dicebear.com/7.x/avataaars/svg?seed=Guest${Math.random()}`;
       identity = createGuestIdentity({
         nombre: defaultUsername,
-        avatar: defaultAvatar
+        avatar: defaultAvatar,
+        profileRole: finalProfileRole || null,
       });
       finalUsername = defaultUsername;
       finalAvatar = defaultAvatar;
@@ -769,7 +804,12 @@ export const AuthProvider = ({ children }) => {
       quickPhrases: [],
       theme: {},
       guestId: identity.guestId,
+      profileRole: finalProfileRole || null,
     };
+
+    if (finalProfileRole && typeof window !== 'undefined') {
+      localStorage.setItem('chactivo:role', finalProfileRole);
+    }
 
     // ⚡ SETEAR USUARIO INMEDIATAMENTE (sin esperar Firebase)
     setUser(optimisticUser);
@@ -780,7 +820,8 @@ export const AuthProvider = ({ children }) => {
     saveTempGuestData({
       nombre: finalUsername,
       avatar: finalAvatar,
-      guestId: identity.guestId // Pasar el UUID para mantenerlo
+      guestId: identity.guestId, // Pasar el UUID para mantenerlo
+      role: finalProfileRole || null,
     });
 
     // ✅ FIX PERSISTENCIA: Si ya hay sesión anónima activa, no crear nueva
@@ -1145,7 +1186,7 @@ export const AuthProvider = ({ children }) => {
       console.log('[AUTH] 🔄 Auto-restaurando identidad persistente...');
       const identity = getGuestIdentity();
       if (identity) {
-        signInAsGuest(identity.nombre, identity.avatar, true);
+        signInAsGuest(identity.nombre, identity.avatar, true, identity.profileRole || null);
       }
     }
   }, [loading, user, guestAuthInProgress]);

@@ -14,6 +14,7 @@ import {
 } from '@/components/ui/dialog';
 import { Mail, Eye, EyeOff } from 'lucide-react';
 import { toast } from '@/components/ui/use-toast';
+import { PROFILE_ROLE_OPTIONS, normalizeProfileRole } from '@/config/profileRoles';
 
 /**
  * Modal de Autenticación (Login/Registro)
@@ -27,9 +28,11 @@ export const AuthModal = ({ open, onClose }) => {
   const [registerData, setRegisterData] = useState({
     email: '',
     password: '',
-    age: ''
+    age: '',
+    profileRole: '',
   });
   const [ageError, setAgeError] = useState('');
+  const [roleError, setRoleError] = useState('');
   const [showLoginPassword, setShowLoginPassword] = useState(false);
   const [showRegisterPassword, setShowRegisterPassword] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
@@ -64,6 +67,7 @@ export const AuthModal = ({ open, onClose }) => {
   const handleRegister = async (e) => {
     e.preventDefault();
     setAgeError('');
+    setRoleError('');
     setIsLoading(true);
 
     // ✅ VALIDACIÓN CRÍTICA: Verificar edad mínima (18 años)
@@ -78,9 +82,18 @@ export const AuthModal = ({ open, onClose }) => {
       setIsLoading(false);
       return;
     }
+    const normalizedRole = normalizeProfileRole(registerData.profileRole);
+    if (!normalizedRole) {
+      setRoleError('Selecciona tu rol para registrarte.');
+      setIsLoading(false);
+      return;
+    }
 
     try {
-      const success = await register(registerData);
+      const success = await register({
+        ...registerData,
+        profileRole: normalizedRole,
+      });
       if (success) {
         onClose();
         // No navegamos, el usuario ya está en el chat
@@ -295,6 +308,44 @@ export const AuthModal = ({ open, onClose }) => {
                     <p style={{ color: '#999', fontSize: '12px', marginTop: '4px' }}>
                       Debes ser mayor de edad
                     </p>
+                  </div>
+                  <div>
+                    <Label htmlFor="register-role" style={{ color: '#333', marginBottom: '8px', display: 'block' }}>
+                      Rol *
+                    </Label>
+                    <select
+                      id="register-role"
+                      required
+                      value={registerData.profileRole}
+                      onChange={(e) => {
+                        setRegisterData({ ...registerData, profileRole: e.target.value });
+                        setRoleError('');
+                      }}
+                      disabled={isLoading}
+                      style={{
+                        width: '100%',
+                        padding: '12px',
+                        fontSize: '16px',
+                        border: roleError ? '2px solid #f33' : '2px solid #667eea',
+                        borderRadius: '10px',
+                        outline: 'none',
+                        boxSizing: 'border-box',
+                        backgroundColor: 'white',
+                        color: '#333'
+                      }}
+                    >
+                      <option value="">Selecciona tu rol</option>
+                      {PROFILE_ROLE_OPTIONS.map((roleOption) => (
+                        <option key={roleOption.value} value={roleOption.value}>
+                          {roleOption.label}
+                        </option>
+                      ))}
+                    </select>
+                    {roleError && (
+                      <p style={{ color: '#c33', fontSize: '13px', marginTop: '8px', fontWeight: '600' }}>
+                        ⚠️ {roleError}
+                      </p>
+                    )}
                   </div>
                   <div>
                     <Label htmlFor="email" style={{ color: '#333', marginBottom: '8px', display: 'block' }}>

@@ -1,14 +1,12 @@
 import React, { useState, useRef, useEffect, lazy, Suspense, useMemo } from 'react';
 import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
 import { Send, Smile, Mic, Image, MessageSquarePlus, X, Reply } from 'lucide-react';
 import { toast } from '@/components/ui/use-toast';
 import ComingSoonModal from '@/components/ui/ComingSoonModal';
 import { EmojiStyle, Categories } from 'emoji-picker-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useAuth } from '@/contexts/AuthContext';
-import { db, storage } from '@/config/firebase';
-import { doc, onSnapshot } from 'firebase/firestore';
+import { storage } from '@/config/firebase';
 import { ref as storageRef, uploadBytes, getDownloadURL } from 'firebase/storage';
 import imageCompression from 'browser-image-compression';
 import { updateTypingStatus } from '@/services/presenceService';
@@ -83,7 +81,8 @@ const FIRST_MESSAGE_PROMPTS = [
 ];
 
 const PHOTO_MAX_SIZE_BYTES = 140 * 1024;
-const PHOTO_UNLOCK_STREAK_DAYS = 2;
+const PHOTO_HOURLY_LIMIT = 3;
+const PHOTO_VISIBLE_LIMIT = 3;
 
 
 const ChatInput = ({
@@ -97,6 +96,7 @@ const ChatInput = ({
   onRequestNickname,
   isGuest = false,
   showOnboardingHints = false,
+  photoUsageStats = { hourlyCount: 0, visibleCount: 0 },
 }) => {
   const { user, guestMessageCount } = useAuth();
   const [message, setMessage] = useState('');
@@ -109,16 +109,6 @@ const ChatInput = ({
   const [showComingSoon, setShowComingSoon] = useState(false);
   const [isUploadingPhoto, setIsUploadingPhoto] = useState(false);
   const [showPhotoTooltip, setShowPhotoTooltip] = useState(false);
-  const [photoPrivilege, setPhotoPrivilege] = useState({
-    active: false,
-    streakDays: 0,
-    autoEligible: false,
-    adminGranted: false,
-    loading: true,
-  });
-  const [activityState, setActivityState] = useState({
-    streakDays: 0,
-  });
   const [showComunaSelector, setShowComunaSelector] = useState(false);
   const [showFocusNudge, setShowFocusNudge] = useState(false);
   const [onboardingDismissed, setOnboardingDismissed] = useState(() => {
@@ -153,13 +143,11 @@ const ChatInput = ({
   const wrapperRef = useRef(null);
   const textareaRef = useRef(null);
   const isRegisteredUser = Boolean(user?.id && !user?.isGuest && !user?.isAnonymous);
-  const effectiveStreakDays = Math.max(
-    Number(photoPrivilege?.streakDays || 0),
-    Number(activityState?.streakDays || 0)
-  );
-  const missingPhotoDays = Math.max(0, PHOTO_UNLOCK_STREAK_DAYS - effectiveStreakDays);
-  const hasPhotoPrivilege = Boolean(photoPrivilege?.active);
-  const canSendPhotoNow = isRegisteredUser && roomId === 'principal' && hasPhotoPrivilege;
+  const hourlyPhotoCount = Number(photoUsageStats?.hourlyCount || 0);
+  const visiblePhotoCount = Number(photoUsageStats?.visibleCount || 0);
+  const reachedPhotoHourlyLimit = hourlyPhotoCount >= PHOTO_HOURLY_LIMIT;
+  const hasVisiblePhotoLimit = visiblePhotoCount >= PHOTO_VISIBLE_LIMIT;
+  const canSendPhotoNow = isRegisteredUser && roomId === 'principal';
 
   const shouldShowOnboarding = showOnboardingHints && !onboardingDismissed && !firstMessageSentInSession;
 
@@ -213,60 +201,6 @@ const ChatInput = ({
       }
     };
   }, []);
-
-  useEffect(() => {
-    if (!isRegisteredUser || !user?.id) {
-      setPhotoPrivilege({
-        active: false,
-        streakDays: 0,
-        autoEligible: false,
-        adminGranted: false,
-        loading: false,
-      });
-      setActivityState({ streakDays: 0 });
-      return () => {};
-    }
-
-    setPhotoPrivilege((prev) => ({ ...prev, loading: true }));
-
-    const privilegeRef = doc(db, 'chat_photo_privileges', user.id);
-    const activityRef = doc(db, 'user_activity_state', user.id);
-
-    const unsubscribePrivilege = onSnapshot(
-      privilegeRef,
-      (snapshot) => {
-        const data = snapshot.exists() ? snapshot.data() : {};
-        setPhotoPrivilege({
-          active: data?.active === true,
-          streakDays: Number(data?.streakDays || 0),
-          autoEligible: data?.autoEligible === true,
-          adminGranted: data?.adminGranted === true,
-          loading: false,
-        });
-      },
-      () => {
-        setPhotoPrivilege((prev) => ({ ...prev, loading: false }));
-      }
-    );
-
-    const unsubscribeActivity = onSnapshot(
-      activityRef,
-      (snapshot) => {
-        const data = snapshot.exists() ? snapshot.data() : {};
-        setActivityState({
-          streakDays: Number(data?.streakDays || 0),
-        });
-      },
-      () => {
-        setActivityState({ streakDays: 0 });
-      }
-    );
-
-    return () => {
-      unsubscribePrivilege();
-      unsubscribeActivity();
-    };
-  }, [isRegisteredUser, user?.id]);
 
   // 📱 FIX MÓVIL: Asegurar que el textarea sea focusable y visible en dispositivos móviles
   useEffect(() => {
@@ -586,20 +520,20 @@ const ChatInput = ({
     if (roomId !== 'principal') {
       return 'Las fotos solo están habilitadas en la sala Principal.';
     }
-    if (photoPrivilege.loading) {
-      return 'Estamos validando tu beneficio de fotos.';
-    }
-    if (!hasPhotoPrivilege) {
-      if (missingPhotoDays > 0) {
-        return `Te falta${missingPhotoDays === 1 ? '' : 'n'} ${missingPhotoDays} día${missingPhotoDays === 1 ? '' : 's'} seguido${missingPhotoDays === 1 ? '' : 's'} para activar fotos.`;
-      }
-      return 'Tu beneficio aún no está activo. Intenta reconectar para sincronizar.';
+    if (reachedPhotoHourlyLimit) {
+      return 'Ya usaste tus 3 fotos de la última hora. Intenta nuevamente en unos minutos.';
     }
     return '';
   };
 
   const getPhotoTooltipText = () => {
     if (canSendPhotoNow) {
+      if (reachedPhotoHourlyLimit) {
+        return 'Límite alcanzado: 3/3 fotos en la última hora.';
+      }
+      if (hasVisiblePhotoLimit) {
+        return 'Tienes 3 fotos visibles. La próxima reemplazará la más antigua.';
+      }
       return isUploadingPhoto ? 'Subiendo foto...' : 'Subir foto';
     }
     return buildPhotoBlockedDescription();
@@ -607,7 +541,7 @@ const ChatInput = ({
 
   const showPhotoBlockedToast = () => {
     toast({
-      title: !isRegisteredUser ? 'Debes loguearte' : 'Acceso a fotos',
+      title: !isRegisteredUser ? 'Debes iniciar sesión' : 'Límite de fotos',
       description: buildPhotoBlockedDescription(),
       duration: 4500,
     });
@@ -642,6 +576,10 @@ const ChatInput = ({
 
     if (!selectedFile) return;
     if (!canSendPhotoNow) {
+      showPhotoBlockedToast();
+      return;
+    }
+    if (reachedPhotoHourlyLimit) {
       showPhotoBlockedToast();
       return;
     }
@@ -686,6 +624,12 @@ const ChatInput = ({
           },
         ],
       });
+
+      toast({
+        title: 'Foto publicada',
+        description: 'Mientras más chateas, más aumentará tu cupo y desbloquearás beneficios prioritarios.',
+        duration: 4200,
+      });
     } catch (error) {
       toast({
         title: 'No se pudo subir la foto',
@@ -703,6 +647,17 @@ const ChatInput = ({
     if (!canSendPhotoNow) {
       showPhotoBlockedToast();
       return;
+    }
+    if (reachedPhotoHourlyLimit) {
+      showPhotoBlockedToast();
+      return;
+    }
+    if (hasVisiblePhotoLimit) {
+      toast({
+        title: 'Límite visual alcanzado',
+        description: 'Ahora mismo tienes 3 fotos visibles. Si publicas otra, se reemplazará automáticamente la más antigua.',
+        duration: 4200,
+      });
     }
     photoInputRef.current?.click();
   };
@@ -1029,7 +984,7 @@ const ChatInput = ({
             onFocus={() => setShowPhotoTooltip(true)}
             onBlur={() => setShowPhotoTooltip(false)}
             className={`min-w-[44px] min-h-[44px] sm:min-w-0 sm:min-h-0 transition-colors ${
-              canSendPhotoNow
+              canSendPhotoNow && !reachedPhotoHourlyLimit
                 ? 'text-muted-foreground hover:text-cyan-400'
                 : 'text-muted-foreground/80 hover:text-cyan-300'
             } ${isUploadingPhoto ? 'opacity-70' : ''}`}

@@ -1,5 +1,6 @@
 import { doc, getDoc, setDoc, updateDoc, serverTimestamp, collection, query, where, getDocs } from 'firebase/firestore';
 import { db } from '@/config/firebase';
+import { resolveProfileRole } from '@/config/profileRoles';
 
 /**
  * ✅ NUEVO: Verifica si un username ya existe (case-insensitive)
@@ -59,6 +60,7 @@ export const createUserProfile = async (uid, userData) => {
     }
     */
 
+    const normalizedProfileRole = resolveProfileRole(userData.profileRole, userData.role);
     const userRef = doc(db, 'users', uid);
 
     const userProfile = {
@@ -67,6 +69,7 @@ export const createUserProfile = async (uid, userData) => {
       email: userData.email,
       age: userData.age ? parseInt(userData.age) : null,
       phone: userData.phone || null,
+      profileRole: normalizedProfileRole || null,
       isPremium: false,
       verified: false,
       isGuest: false,

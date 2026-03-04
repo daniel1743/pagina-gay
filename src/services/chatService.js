@@ -708,27 +708,18 @@ export const addReactionToMessage = async (roomId, messageId, reactionType) => {
 
   try {
     const messageRef = doc(db, 'rooms', roomId, 'messages', messageId);
+    await updateDoc(messageRef, {
+      [`reactions.${reactionType}`]: increment(1),
+    });
 
-    // Verificar que el documento existe
-    const messageSnap = await getDoc(messageRef);
-    if (!messageSnap.exists()) {
+    const updatedSnap = await getDoc(messageRef);
+    if (!updatedSnap.exists()) {
       throw new Error(`Mensaje ${messageId} no encontrado en sala ${roomId}`);
     }
 
-    // Obtener reacciones actuales o inicializar
-    const currentData = messageSnap.data();
-    const currentReactions = currentData.reactions || { ...DEFAULT_MESSAGE_REACTIONS };
-
-    // Actualizar con el nuevo valor
-    const newReactions = {
-      ...currentReactions,
-      [reactionType]: (currentReactions[reactionType] || 0) + 1
-    };
-
-    await updateDoc(messageRef, { reactions: newReactions });
-    console.log('[REACTION SERVICE] ✅ Reacción guardada:', newReactions);
-
-    return newReactions;
+    const persistedReactions = updatedSnap.data()?.reactions || { ...DEFAULT_MESSAGE_REACTIONS };
+    console.log('[REACTION SERVICE] ✅ Reacción guardada:', persistedReactions);
+    return persistedReactions;
   } catch (error) {
     console.error('[REACTION SERVICE] ❌ Error:', error.message, error.code);
     throw error;
@@ -1073,22 +1064,16 @@ export const addReactionToSecondaryMessage = async (roomId, messageId, reaction)
     }
 
     const messageRef = doc(db, 'secondary-rooms', roomId, 'messages', messageId);
-    const messageDoc = await getDoc(messageRef);
-    
-    if (!messageDoc.exists()) {
+    await updateDoc(messageRef, {
+      [`reactions.${reaction}`]: increment(1),
+    });
+
+    const updatedSnap = await getDoc(messageRef);
+    if (!updatedSnap.exists()) {
       throw new Error('Mensaje no encontrado');
     }
 
-    const currentData = messageDoc.data();
-    const currentReactions = currentData.reactions || { ...DEFAULT_MESSAGE_REACTIONS };
-    
-    // Incrementar reacción
-    const newReactions = {
-      ...currentReactions,
-      [reaction]: (currentReactions[reaction] || 0) + 1
-    };
-
-    await updateDoc(messageRef, { reactions: newReactions });
+    return updatedSnap.data()?.reactions || { ...DEFAULT_MESSAGE_REACTIONS };
   } catch (error) {
     console.error('Error adding reaction to secondary message:', error);
     throw error;

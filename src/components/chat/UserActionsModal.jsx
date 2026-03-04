@@ -20,6 +20,9 @@ import {
 const UserActionsModal = ({ user: targetUser, onClose, onViewProfile, onShowRegistrationModal }) => {
   const { user: currentUser } = useAuth();
   const navigate = useNavigate();
+  const isGuestOrAnonymous = !currentUser?.id || currentUser?.isGuest || currentUser?.isAnonymous;
+  const isPremiumOrAdmin = currentUser?.isPremium || currentUser?.role === 'admin';
+  const favoritesCount = currentUser?.favorites?.length || 0;
   const [showMessageInput, setShowMessageInput] = useState(false);
   const [composeMode, setComposeMode] = useState('direct'); // direct | comment
   const [message, setMessage] = useState('');
@@ -34,14 +37,21 @@ const UserActionsModal = ({ user: targetUser, onClose, onViewProfile, onShowRegi
 
   // Cargar límites actuales al montar (solo para usuarios FREE, no Admin ni Premium)
   useEffect(() => {
-    if (currentUser && !currentUser.isPremium && currentUser.role !== 'admin') {
+    if (currentUser?.id && !isPremiumOrAdmin) {
       const currentLimits = getCurrentLimits(currentUser.id);
       setLimits(currentLimits);
     }
-  }, [currentUser]);
+  }, [currentUser?.id, isPremiumOrAdmin]);
 
   const handleSendMessage = async () => {
     if (!message.trim()) return;
+    if (!currentUser?.id) {
+      onClose();
+      if (onShowRegistrationModal) {
+        onShowRegistrationModal(composeMode === 'comment' ? 'comentar' : 'mensajes directos');
+      }
+      return;
+    }
 
     // ✅ Validar que el usuario objetivo NO sea invitado/anónimo
     if (targetUser.isGuest || targetUser.isAnonymous) {
@@ -96,7 +106,7 @@ const UserActionsModal = ({ user: targetUser, onClose, onViewProfile, onShowRegi
         await sendDirectMessage(currentUser.id, targetUser.userId, message.trim());
 
         // Incrementar contador solo si no es Premium ni Admin
-        if (!currentUser.isPremium && currentUser.role !== 'admin') {
+        if (!isPremiumOrAdmin) {
           await incrementDirectMessages(currentUser.id);
           const newLimits = getCurrentLimits(currentUser.id);
           setLimits(newLimits);
@@ -204,7 +214,7 @@ const UserActionsModal = ({ user: targetUser, onClose, onViewProfile, onShowRegi
       console.log('✅ [DEBUG] Solicitud enviada exitosamente a Firestore');
 
       // Incrementar contador solo si no es Premium ni Admin
-      if (!currentUser.isPremium && currentUser.role !== 'admin') {
+      if (!isPremiumOrAdmin) {
         console.log('📊 [DEBUG] Incrementando contador de invitaciones...');
         await incrementChatInvites(currentUser.id);
         const newLimits = getCurrentLimits(currentUser.id);
@@ -241,7 +251,7 @@ const UserActionsModal = ({ user: targetUser, onClose, onViewProfile, onShowRegi
 
   const handleToggleFavorite = async () => {
     // Validar que el usuario actual esté registrado
-    if (currentUser.isGuest || currentUser.isAnonymous) {
+    if (isGuestOrAnonymous) {
       onClose(); // Cerrar el modal de acciones primero
       if (onShowRegistrationModal) {
         onShowRegistrationModal('favoritos');
@@ -271,7 +281,7 @@ const UserActionsModal = ({ user: targetUser, onClose, onViewProfile, onShowRegi
         });
       } else {
         // Verificar límite de 15 favoritos
-        if (currentUser.favorites?.length >= 15) {
+        if (favoritesCount >= 15) {
           toast({
             title: "Límite alcanzado",
             description: "Solo puedes tener hasta 15 amigos",
@@ -300,7 +310,13 @@ const UserActionsModal = ({ user: targetUser, onClose, onViewProfile, onShowRegi
   };
 
   const handleBlockUser = async () => {
-    if (!currentUser?.id || !targetUser?.userId) return;
+    if (!currentUser?.id || !targetUser?.userId) {
+      onClose();
+      if (onShowRegistrationModal) {
+        onShowRegistrationModal('bloquear');
+      }
+      return;
+    }
     if (targetUser.userId === currentUser.id) return;
 
     const confirmed = window.confirm(`¿Bloquear a ${targetUser.username}? No podrán interactuar entre ustedes.`);
@@ -327,7 +343,7 @@ const UserActionsModal = ({ user: targetUser, onClose, onViewProfile, onShowRegi
   // Botón de "Ver Perfil"
   const handleViewProfile = () => {
     // Validar que el usuario actual esté registrado
-    if (currentUser.isGuest || currentUser.isAnonymous) {
+    if (isGuestOrAnonymous) {
       onClose();
       if (onShowRegistrationModal) {
         onShowRegistrationModal('ver perfil');
@@ -342,6 +358,14 @@ const UserActionsModal = ({ user: targetUser, onClose, onViewProfile, onShowRegi
 
   // Botón de "Enviar Mensaje Directo"
   const handleOpenMessageInput = () => {
+    if (!currentUser?.id) {
+      onClose();
+      if (onShowRegistrationModal) {
+        onShowRegistrationModal('mensajes directos');
+      }
+      return;
+    }
+
     // ✅ Validar que el usuario objetivo NO sea invitado/anónimo
     if (targetUser.isGuest || targetUser.isAnonymous) {
       toast({
@@ -389,7 +413,7 @@ const UserActionsModal = ({ user: targetUser, onClose, onViewProfile, onShowRegi
 
   return (
     <Dialog open={true} onOpenChange={onClose}>
-      <DialogContent className="bg-card border text-foreground max-w-md rounded-2xl p-0">
+      <DialogContent className="bg-card border text-foreground max-w-md rounded-2xl p-0 max-h-[90dvh] overflow-hidden">
         <DialogHeader className="p-6 pb-4">
           <div className="flex items-center gap-4">
             <div className={`${
@@ -425,7 +449,7 @@ const UserActionsModal = ({ user: targetUser, onClose, onViewProfile, onShowRegi
           </div>
         </DialogHeader>
 
-        <div className="px-6 pb-6 space-y-3">
+        <div className="px-6 pb-6 space-y-3 overflow-y-auto max-h-[calc(90dvh-10rem)]">
           <AnimatePresence>
             {!showMessageInput ? (
               <motion.div
@@ -461,7 +485,7 @@ const UserActionsModal = ({ user: targetUser, onClose, onViewProfile, onShowRegi
                     <div className="flex-1">
                       <p className="font-semibold">Enviar Mensaje Directo</p>
                       <p className="text-xs text-muted-foreground">
-                        {(currentUser.isPremium || currentUser.role === 'admin') ? (
+                        {isPremiumOrAdmin ? (
                           <span className="flex items-center gap-1">
                             <Crown className="w-3 h-3 text-amber-400" />
                             Mensajes ilimitados
@@ -485,7 +509,7 @@ const UserActionsModal = ({ user: targetUser, onClose, onViewProfile, onShowRegi
                     <div className="flex-1">
                       <p className="font-semibold">Invitar a Chat Privado</p>
                       <p className="text-xs text-muted-foreground">
-                        {(currentUser.isPremium || currentUser.role === 'admin') ? (
+                        {isPremiumOrAdmin ? (
                           <span className="flex items-center gap-1">
                             <Crown className="w-3 h-3 text-amber-400" />
                             Invitaciones ilimitadas
@@ -531,10 +555,10 @@ const UserActionsModal = ({ user: targetUser, onClose, onViewProfile, onShowRegi
                       <p className="font-semibold">
                         {isFavorite ? 'Quitar de mi lista de amigos' : 'Agregar a mi lista de amigos'}
                       </p>
-                      <p className="text-xs text-muted-foreground">
+                          <p className="text-xs text-muted-foreground">
                         {isFavorite
                           ? 'Este usuario está en tu lista'
-                          : `Máximo 15 amigos (${currentUser?.favorites?.length || 0}/15)`}
+                          : `Máximo 15 amigos (${favoritesCount}/15)`}
                       </p>
                     </div>
                   </Button>
@@ -558,7 +582,7 @@ const UserActionsModal = ({ user: targetUser, onClose, onViewProfile, onShowRegi
                 </motion.div>
 
                 {/* CTA Premium (solo si no es Premium ni Admin y tiene límites bajos) */}
-                {!currentUser.isPremium && currentUser.role !== 'admin' && (limits.chatInvites.remaining <= 1 || limits.directMessages.remaining <= 1) && (
+                {!isPremiumOrAdmin && (limits.chatInvites.remaining <= 1 || limits.directMessages.remaining <= 1) && (
                   <motion.div
                     initial={{ opacity: 0, y: 10 }}
                     animate={{ opacity: 1, y: 0 }}
@@ -615,7 +639,7 @@ const UserActionsModal = ({ user: targetUser, onClose, onViewProfile, onShowRegi
 
                 <div className="flex items-center justify-between text-xs text-muted-foreground">
                   <span>{message.length}/500 caracteres</span>
-                  {composeMode === 'direct' && !currentUser.isPremium && currentUser.role !== 'admin' && (
+                  {composeMode === 'direct' && !isPremiumOrAdmin && (
                     <span className="text-amber-400 font-medium">
                       {limits.directMessages.remaining}/{limits.directMessages.limit} restantes hoy
                     </span>
