@@ -66,6 +66,39 @@ service cloud.firestore {
              get(/databases/$(database)/documents/users/$(request.auth.uid)).data.get('banned', false) == false;
     }
 
+    function hasActiveChatPhotoPrivilege(userId) {
+      return exists(/databases/$(database)/documents/chat_photo_privileges/$(userId)) &&
+             get(/databases/$(database)/documents/chat_photo_privileges/$(userId)).data.active == true &&
+             get(/databases/$(database)/documents/chat_photo_privileges/$(userId)).data.scope == 'principal';
+    }
+
+    function hasValidChatImageMedia() {
+      let data = request.resource.data;
+      return 'media' in data &&
+             data.media is list &&
+             data.media.size() == 1 &&
+             data.media[0] is map &&
+             data.media[0].keys().hasAny(['path']) &&
+             data.media[0].path is string &&
+             data.media[0].path.matches('^chat_media/principal/[^/]+/.+');
+    }
+
+    function isValidPrivilegedImageMessage(roomId) {
+      let data = request.resource.data;
+      return isRegistered() &&
+             roomId == 'principal' &&
+             'type' in data &&
+             data.type == 'image' &&
+             'userId' in data &&
+             data.userId == request.auth.uid &&
+             'content' in data &&
+             data.content is string &&
+             data.content.size() <= 1000 &&
+             hasActiveChatPhotoPrivilege(request.auth.uid) &&
+             hasValidChatImageMedia() &&
+             !isAutomatedSenderId(data.userId);
+    }
+
     // ===========================
     // FILTROS DE CONTENIDO
     // ===========================
@@ -324,14 +357,21 @@ service cloud.firestore {
       // 🔥 TEMPORAL: Reglas MUY PERMISIVAS para debugging
       // Permite CUALQUIER mensaje con content válido
       allow create: if
-        request.resource.data.content is string &&
-        request.resource.data.content.size() > 0 &&
-        request.resource.data.content.size() <= 1000 &&
-        !(
-          roomId == 'principal' &&
-          'userId' in request.resource.data &&
-          isAutomatedSenderId(request.resource.data.userId)
-        );
+        (
+          (
+            !('type' in request.resource.data) ||
+            request.resource.data.type != 'image'
+          ) &&
+          request.resource.data.content is string &&
+          request.resource.data.content.size() > 0 &&
+          request.resource.data.content.size() <= 1000 &&
+          !(
+            roomId == 'principal' &&
+            'userId' in request.resource.data &&
+            isAutomatedSenderId(request.resource.data.userId)
+          )
+        ) ||
+        isValidPrivilegedImageMessage(roomId);
 
       // ✅ Permitir actualizar reacciones, deliveredTo, readBy, status (para sistema de checks)
       // ✅ Permitir actualizar reacciones, deliveredTo, readBy, status (para sistema de checks)
@@ -842,6 +882,20 @@ service cloud.firestore {
       allow update: if isAdmin();
 
       allow delete: if false;
+    }
+
+    // ===========================
+    // PRIVILEGIOS DE FOTO EN CHAT
+    // ===========================
+
+    match /user_activity_state/{userId} {
+      allow read: if isAdmin() || (isAuthenticated() && request.auth.uid == userId);
+      allow create, update, delete: if isAdmin();
+    }
+
+    match /chat_photo_privileges/{userId} {
+      allow read: if isAdmin() || (isAuthenticated() && request.auth.uid == userId);
+      allow create, update, delete: if isAdmin();
     }
 
     // ===========================

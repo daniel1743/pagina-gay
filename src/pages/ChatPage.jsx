@@ -44,7 +44,7 @@ import { useEngagementNudge } from '@/hooks/useEngagementNudge';
 // import RulesBanner from '@/components/chat/RulesBanner';
 import { toast } from '@/components/ui/use-toast';
 import { RegistrationRequiredModal } from '@/components/auth/RegistrationRequiredModal';
-import { sendMessage, subscribeToRoomMessages, addReactionToMessage, markMessagesAsRead, generateUUID } from '@/services/chatService';
+import { sendMessage, subscribeToRoomMessages, addReactionToMessage, deleteMessageWithMedia, markMessagesAsRead, generateUUID } from '@/services/chatService';
 import { joinRoom, leaveRoom, subscribeToRoomUsers, subscribeToMultipleRoomCounts, updateUserActivity, cleanInactiveUsers, filterActiveUsers, subscribeToTypingUsers, updatePresenceFields } from '@/services/presenceService';
 import { validateMessage } from '@/services/antiSpamService';
 import { auth, db } from '@/config/firebase'; // ✅ CRÍTICO: Necesario para obtener UID real de Firebase Auth
@@ -1785,7 +1785,7 @@ const ChatPage = () => {
         const msgId = msg._realId || msg.id;
         if (msgId !== messageId) return msg;
 
-        const currentReactions = msg.reactions || { like: 0, dislike: 0 };
+        const currentReactions = msg.reactions || { like: 0, dislike: 0, fire: 0, heart: 0, devil: 0 };
         return {
           ...msg,
           reactions: {
@@ -1796,8 +1796,15 @@ const ChatPage = () => {
       }));
 
       // Feedback visual
+      const reactionToastMap = {
+        like: '👍 Like agregado',
+        dislike: '👎 Dislike agregado',
+        fire: '🔥 Reacción agregada',
+        heart: '❤️ Reacción agregada',
+        devil: '😈 Reacción agregada',
+      };
       toast({
-        description: reaction === 'like' ? '👍 Like agregado' : '👎 Dislike agregado',
+        description: reactionToastMap[reaction] || '✅ Reacción agregada',
         duration: 1500,
       });
     } catch (error) {
@@ -1810,6 +1817,49 @@ const ChatPage = () => {
           ? "Solo usuarios registrados pueden reaccionar."
           : (error.message || "Intenta de nuevo"),
         variant: "destructive",
+      });
+    }
+  };
+
+  const handleDeleteOwnMessage = async (message) => {
+    const firestoreId = message?._realId || message?.id;
+    if (!firestoreId || message?._optimistic) return;
+
+    if (!user?.id) {
+      toast({
+        title: 'Debes iniciar sesión',
+        description: 'Inicia sesión para eliminar mensajes.',
+        variant: 'destructive',
+      });
+      return;
+    }
+
+    if ((message?.userId || '') !== user.id) {
+      toast({
+        title: 'Acción no permitida',
+        description: 'Solo puedes eliminar tus propias fotos.',
+        variant: 'destructive',
+      });
+      return;
+    }
+
+    const confirmed = window.confirm('¿Eliminar esta foto del chat?');
+    if (!confirmed) return;
+
+    try {
+      await deleteMessageWithMedia(currentRoom, firestoreId, message);
+      setMessages((prev) => prev.filter((m) => (m._realId || m.id) !== firestoreId));
+      toast({
+        description: '🗑️ Foto eliminada',
+        duration: 1500,
+      });
+    } catch (error) {
+      toast({
+        title: 'No se pudo eliminar',
+        description: error?.message === 'NOT_MESSAGE_OWNER'
+          ? 'Solo puedes eliminar tus propias fotos.'
+          : 'Intenta nuevamente en unos segundos.',
+        variant: 'destructive',
       });
     }
   };
@@ -1846,6 +1896,11 @@ const ChatPage = () => {
     const trimmedContent = typeof content === 'string' ? content.trim() : content;
     const isQuickStarter = QUICK_STARTER_PHRASES.includes(trimmedContent);
     const allowGuestAutoStart = options?.allowGuestAutoStart === true;
+    const messageType = type || 'text';
+    const isTextMessage = messageType === 'text';
+    const messageMedia = Array.isArray(options?.media)
+      ? options.media.filter((item) => item && typeof item.path === 'string' && item.path.trim())
+      : [];
 
     // 🔒 Si ya exigimos nickname (después del primer mensaje rápido), bloquear cualquier envío
     if (needsNickname && !(allowGuestAutoStart && isQuickStarter)) {
@@ -2018,7 +2073,7 @@ const ChatPage = () => {
     // 🔍 TRACE: Usuario escribió mensaje
     traceEvent(TRACE_EVENTS.USER_INPUT_TYPED, {
       content: content.substring(0, 50),
-      type,
+      type: messageType,
       userId: currentUser.id,
       username: currentUser.username,
       roomId: currentRoom,
@@ -2062,13 +2117,14 @@ const ChatPage = () => {
       roleBadge,
       comuna,
       content,
-      type,
+      type: messageType,
       timestamp: new Date().toISOString(),
       timestampMs: nowMs, // ✅ CRÍTICO: timestampMs para ordenamiento correcto (sin esto aparecen arriba)
       replyTo: replyData,
       _optimistic: true, // Marca para saber que es temporal
       status: 'sending', // ⚡ Estado: 'sending' -> 'sent' -> 'error' (para indicadores visuales)
       _retryCount: 0, // Contador de reintentos
+      ...(messageMedia.length > 0 ? { media: messageMedia } : {}),
     };
 
     // ⚡ INSTANTÁNEO: Agregar mensaje inmediatamente a la UI (usuario lo ve al instante)
@@ -2118,93 +2174,95 @@ const ChatPage = () => {
 
     // 🛡️ VALIDACIÓN EN BACKGROUND: Validar después de mostrar (no bloquea UI)
     // ⚡ CRÍTICO: Las validaciones se ejecutan en background para no retrasar la experiencia visual
-    const validationPromise = validateMessage(content, currentUser.id, currentUser.username, currentRoom)
-      .then(validation => {
-    if (!validation.allowed) {
-          // 🔍 TRACE: Validación falló
-          traceEvent(TRACE_EVENTS.PAYLOAD_VALIDATION_FAILED, {
-            traceId: clientId,
-            reason: validation.reason,
-            userId: currentUser.id,
-            roomId: currentRoom,
-          });
-          // ❌ VALIDACIÓN FALLÓ: Eliminar mensaje optimista y mostrar error
-          setMessages(prev => prev.filter(m => m.id !== optimisticId));
-          
-      // Mostrar mensaje amigable con explicación y botón a OPIN (no rojo, no punitivo)
-      const opinToastCommon = {
-        variant: "default",
-        duration: 8000,
-        action: {
-          label: "Ir a OPIN",
-          onClick: () => {
-            navigate('/opin');
-          },
-        },
-      };
+    const validationPromise = isTextMessage
+      ? validateMessage(content, currentUser.id, currentUser.username, currentRoom)
+          .then(validation => {
+            if (!validation.allowed) {
+              // 🔍 TRACE: Validación falló
+              traceEvent(TRACE_EVENTS.PAYLOAD_VALIDATION_FAILED, {
+                traceId: clientId,
+                reason: validation.reason,
+                userId: currentUser.id,
+                roomId: currentRoom,
+              });
+              // ❌ VALIDACIÓN FALLÓ: Eliminar mensaje optimista y mostrar error
+              setMessages(prev => prev.filter(m => m.id !== optimisticId));
 
-      if (validation.type === 'phone_number') {
-        toast({
-          ...opinToastCommon,
-          title: "Teléfono no permitido aquí",
-          description: "OPIN es donde puedes publicar lo que buscas y dejar tu contacto para que otros te encuentren.",
-        });
-      } else if (validation.type === 'email') {
-        toast({
-          ...opinToastCommon,
-          title: "Email no permitido aquí",
-          description: "OPIN es donde puedes hacer publicaciones con tu contacto (email, teléfono) para que otros te contacten.",
-        });
-      } else if (validation.type === 'forbidden_word') {
-        toast({
-          ...opinToastCommon,
-          title: "Enlaces externos no permitidos aquí",
-          description: "OPIN es donde puedes compartir redes sociales y enlaces. Publica ahí lo que buscas.",
-        });
-      } else if (validation.type === 'spam_duplicate_warning') {
-        toast({
-          title: "⚠️ ADVERTENCIA DE SPAM",
-          description: validation.reason,
-          variant: "destructive",
-          duration: 7000,
-        });
-      } else if (validation.type === 'spam_duplicate_ban') {
-        const mins = validation.muteMins ?? 5;
-        toast({
-          title: "🔨 Silenciado por spam",
-          description: `No puedes enviar mensajes por ${mins} minutos. Si intentas enviar verás el tiempo restante.`,
-          variant: "destructive",
-          duration: 10000,
-        });
-      } else if (validation.type === 'temp_ban') {
-        toast({
-          title: "🔨 EXPULSADO TEMPORALMENTE",
-          description: validation.reason,
-          variant: "destructive",
-          duration: 10000,
-        });
-      } else {
-        // Genérico
-        toast({
-          title: "❌ Mensaje Bloqueado",
-          description: validation.reason,
-          variant: "destructive",
-          duration: 5000,
-        });
-      }
-          return false; // No enviar
-        }
-        
-        // 🔍 TRACE: Validación exitosa
-        traceEvent(TRACE_EVENTS.PAYLOAD_VALIDATED, {
-          traceId: clientId,
-          userId: currentUser.id,
-          roomId: currentRoom,
-        });
-        
-        return true; // Validación OK, continuar
-      })
-      .catch(() => true); // Si falla validación, permitir envío (fail-open)
+              // Mostrar mensaje amigable con explicación y botón a OPIN (no rojo, no punitivo)
+              const opinToastCommon = {
+                variant: "default",
+                duration: 8000,
+                action: {
+                  label: "Ir a OPIN",
+                  onClick: () => {
+                    navigate('/opin');
+                  },
+                },
+              };
+
+              if (validation.type === 'phone_number') {
+                toast({
+                  ...opinToastCommon,
+                  title: "Teléfono no permitido aquí",
+                  description: "OPIN es donde puedes publicar lo que buscas y dejar tu contacto para que otros te encuentren.",
+                });
+              } else if (validation.type === 'email') {
+                toast({
+                  ...opinToastCommon,
+                  title: "Email no permitido aquí",
+                  description: "OPIN es donde puedes hacer publicaciones con tu contacto (email, teléfono) para que otros te contacten.",
+                });
+              } else if (validation.type === 'forbidden_word') {
+                toast({
+                  ...opinToastCommon,
+                  title: "Enlaces externos no permitidos aquí",
+                  description: "OPIN es donde puedes compartir redes sociales y enlaces. Publica ahí lo que buscas.",
+                });
+              } else if (validation.type === 'spam_duplicate_warning') {
+                toast({
+                  title: "⚠️ ADVERTENCIA DE SPAM",
+                  description: validation.reason,
+                  variant: "destructive",
+                  duration: 7000,
+                });
+              } else if (validation.type === 'spam_duplicate_ban') {
+                const mins = validation.muteMins ?? 5;
+                toast({
+                  title: "🔨 Silenciado por spam",
+                  description: `No puedes enviar mensajes por ${mins} minutos. Si intentas enviar verás el tiempo restante.`,
+                  variant: "destructive",
+                  duration: 10000,
+                });
+              } else if (validation.type === 'temp_ban') {
+                toast({
+                  title: "🔨 EXPULSADO TEMPORALMENTE",
+                  description: validation.reason,
+                  variant: "destructive",
+                  duration: 10000,
+                });
+              } else {
+                // Genérico
+                toast({
+                  title: "❌ Mensaje Bloqueado",
+                  description: validation.reason,
+                  variant: "destructive",
+                  duration: 5000,
+                });
+              }
+              return false; // No enviar
+            }
+
+            // 🔍 TRACE: Validación exitosa
+            traceEvent(TRACE_EVENTS.PAYLOAD_VALIDATED, {
+              traceId: clientId,
+              userId: currentUser.id,
+              roomId: currentRoom,
+            });
+
+            return true; // Validación OK, continuar
+          })
+          .catch(() => true) // Si falla validación, permitir envío (fail-open)
+      : Promise.resolve(true);
 
     // ⚡ INSTANTÁNEO: Enviar mensaje a Firestore en segundo plano (NO bloquear UI)
     // El mensaje optimista ya está visible, Firestore se sincroniza en background
@@ -2255,9 +2313,10 @@ const ChatPage = () => {
         roleBadge,
         comuna,
         content,
-        type,
+        type: messageType,
         replyTo: replyData,
         traceId: clientId, // ✅ Pasar traceId para correlación
+        ...(messageMedia.length > 0 ? { media: messageMedia } : {}),
       },
       currentUser.isAnonymous
         );
@@ -2311,41 +2370,43 @@ const ChatPage = () => {
         const latency = Date.now() - optimisticMessage.timestampMs;
         console.log(`⏱️ [LATENCY TEST] Mensaje sincronizado en ${latency}ms`);
 
-        // 🤖 MODERACIÓN IA: Evaluar mensaje DESPUÉS de enviarlo (post-send, async, no bloquea)
-        evaluateMessage(content, currentUser.id, currentUser.username, currentRoom)
-          .then((modResult) => {
-            if (!modResult.safe) {
-              console.log(`[MOD-AI] Violación detectada post-send:`, modResult);
+        // 🤖 MODERACIÓN IA: solo para texto
+        if (isTextMessage) {
+          evaluateMessage(content, currentUser.id, currentUser.username, currentRoom)
+            .then((modResult) => {
+              if (!modResult.safe) {
+                console.log(`[MOD-AI] Violación detectada post-send:`, modResult);
 
-              // Eliminar mensaje de Firestore
-              if (sentMessage?.id) {
-                deleteDoc(doc(db, 'rooms', currentRoom, 'messages', sentMessage.id)).catch(e =>
-                  console.warn('[MOD-AI] Error eliminando mensaje:', e.message)
-                );
+                // Eliminar mensaje de Firestore
+                if (sentMessage?.id) {
+                  deleteDoc(doc(db, 'rooms', currentRoom, 'messages', sentMessage.id)).catch(e =>
+                    console.warn('[MOD-AI] Error eliminando mensaje:', e.message)
+                  );
+                }
+
+                // Eliminar mensaje optimista de la UI
+                setMessages(prev => prev.filter(m => m.id !== optimisticId && m._realId !== sentMessage?.id));
+
+                // Mostrar feedback según acción
+                if (modResult.action === 'warning') {
+                  toast({
+                    title: "Advertencia",
+                    description: modResult.reason || 'Tu mensaje fue eliminado por violar las normas.',
+                    variant: "destructive",
+                    duration: 6000,
+                  });
+                } else if (modResult.action === 'mute') {
+                  toast({
+                    title: `Silenciado por ${modResult.muteMins} minutos`,
+                    description: `${modResult.reason || 'Violación de normas'} (Strike ${modResult.strikes})`,
+                    variant: "destructive",
+                    duration: 8000,
+                  });
+                }
               }
-
-              // Eliminar mensaje optimista de la UI
-              setMessages(prev => prev.filter(m => m.id !== optimisticId && m._realId !== sentMessage?.id));
-
-              // Mostrar feedback según acción
-              if (modResult.action === 'warning') {
-                toast({
-                  title: "Advertencia",
-                  description: modResult.reason || 'Tu mensaje fue eliminado por violar las normas.',
-                  variant: "destructive",
-                  duration: 6000,
-                });
-              } else if (modResult.action === 'mute') {
-                toast({
-                  title: `Silenciado por ${modResult.muteMins} minutos`,
-                  description: `${modResult.reason || 'Violación de normas'} (Strike ${modResult.strikes})`,
-                  variant: "destructive",
-                  duration: 8000,
-                });
-              }
-            }
-          })
-          .catch(() => {}); // Fail silently, never block
+            })
+            .catch(() => {}); // Fail silently, never block
+        }
 
         // ❌ TOAST DE LATENCIA ELIMINADO (07/01/2026) - No interesa al usuario
         // El usuario no necesita ver información técnica de latencia
@@ -2429,7 +2490,7 @@ const ChatPage = () => {
    * 🔄 REINTENTAR MENSAJE: Reintentar envío de mensaje fallido
    */
   const handleRetryMessage = async (optimisticMessage) => {
-    const { id: optimisticId, content, type, replyTo, _retryCount = 0 } = optimisticMessage;
+    const { id: optimisticId, content, type, replyTo, media, _retryCount = 0 } = optimisticMessage;
     
     // Limitar reintentos (máximo 3)
     if (_retryCount >= 3) {
@@ -2467,6 +2528,7 @@ const ChatPage = () => {
           content,
           type,
           replyTo,
+          ...(Array.isArray(media) && media.length > 0 ? { media } : {}),
         },
         user.isAnonymous
       );
@@ -2878,6 +2940,7 @@ const ChatPage = () => {
               onReport={setReportTarget}
               onPrivateChat={handlePrivateChatRequest}
               onReaction={handleMessageReaction}
+              onDeleteMessage={handleDeleteOwnMessage}
               onReply={handleReply}
               lastReadMessageIndex={-1}
               messagesEndRef={scrollManager.endMarkerRef}

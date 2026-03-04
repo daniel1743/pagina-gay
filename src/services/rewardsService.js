@@ -31,6 +31,7 @@ export const REWARD_TYPES = {
   FEATURED_USER: 'featured_user', // Usuario destacado
   MODERATOR_1_MONTH: 'moderator_1_month',
   PRO_USER: 'pro_user', // Paquete PRO: 2da foto, tarjeta destacada, borde arcoíris, badge PRO
+  CHAT_PHOTO_ACCESS: 'chat_photo_access', // Permiso para subir fotos en chat principal
 };
 
 /**
@@ -44,7 +45,90 @@ export const REWARD_REASONS = {
   COMMUNITY_BUILDER: 'community_builder', // Constructor de comunidad
   AMBASSADOR: 'ambassador', // Embajador
   PRO_RECOGNITION: 'pro_recognition', // Reconocimiento PRO por participación activa
+  PHOTO_ACTIVITY: 'photo_activity', // Beneficio de foto por actividad
   OTHER: 'other',
+};
+
+const CHAT_PHOTO_SCOPE = 'principal';
+
+const resolveChatPhotoSource = (autoEligible, adminGranted) => {
+  if (autoEligible && adminGranted) return 'auto+admin';
+  if (autoEligible) return 'auto';
+  if (adminGranted) return 'admin';
+  return 'none';
+};
+
+const getPhotoMetricsDocId = () => {
+  const now = new Date();
+  return `photo_usage_${now.getUTCFullYear()}_${String(now.getUTCMonth() + 1).padStart(2, '0')}`;
+};
+
+const recordPhotoPrivilegeMetric = async (field, amount = 1) => {
+  if (!field || !amount) return;
+  try {
+    await setDoc(
+      doc(db, 'analytics_stats', getPhotoMetricsDocId()),
+      {
+        [field]: increment(amount),
+        updatedAt: serverTimestamp(),
+      },
+      { merge: true }
+    );
+  } catch (error) {
+    console.warn('[REWARDS] No se pudo registrar métrica de privilegios de foto:', error);
+  }
+};
+
+const grantChatPhotoPrivilegeByAdmin = async (userId) => {
+  const privilegeRef = doc(db, 'chat_photo_privileges', userId);
+  const privilegeSnap = await getDoc(privilegeRef);
+  const privilegeData = privilegeSnap.exists() ? privilegeSnap.data() : {};
+
+  const autoEligible = privilegeData?.autoEligible === true;
+  const adminGranted = true;
+
+  await setDoc(
+    privilegeRef,
+    {
+      uid: userId,
+      scope: CHAT_PHOTO_SCOPE,
+      active: true,
+      autoEligible,
+      adminGranted,
+      source: resolveChatPhotoSource(autoEligible, adminGranted),
+      grantedBy: auth.currentUser?.uid || 'admin',
+      grantedAt: privilegeData?.grantedAt || serverTimestamp(),
+      revokedAt: null,
+      revokedReason: null,
+      lastActiveAt: privilegeData?.lastActiveAt || serverTimestamp(),
+      updatedAt: serverTimestamp(),
+    },
+    { merge: true }
+  );
+
+  await recordPhotoPrivilegeMetric('photoPrivilegeAdminGrants', 1);
+};
+
+const revokeChatPhotoPrivilegeByAdmin = async (userId) => {
+  const privilegeRef = doc(db, 'chat_photo_privileges', userId);
+  await setDoc(
+    privilegeRef,
+    {
+      uid: userId,
+      scope: CHAT_PHOTO_SCOPE,
+      active: false,
+      autoEligible: false,
+      adminGranted: false,
+      source: 'none',
+      grantedBy: null,
+      revokedAt: serverTimestamp(),
+      revokedReason: 'admin_revoke',
+      updatedAt: serverTimestamp(),
+    },
+    { merge: true }
+  );
+
+  await recordPhotoPrivilegeMetric('photoPrivilegeRevocationsAdmin', 1);
 };
 
 /**
@@ -150,6 +234,10 @@ export const applyRewardToUser = async (userId, rewardType, expiresAt) => {
         updates.hasFeaturedCard = true;
         updates.hasRainbowBorder = true;
         updates.hasProBadge = true;
+        break;
+
+      case REWARD_TYPES.CHAT_PHOTO_ACCESS:
+        await grantChatPhotoPrivilegeByAdmin(userId);
         break;
 
       default:
@@ -346,6 +434,10 @@ export const removeRewardFromUser = async (userId, rewardType) => {
         updates.hasProBadge = false;
         break;
 
+      case REWARD_TYPES.CHAT_PHOTO_ACCESS:
+        await revokeChatPhotoPrivilegeByAdmin(userId);
+        break;
+
       default:
         console.warn('Tipo de recompensa desconocido:', rewardType);
     }
@@ -428,6 +520,7 @@ export const getRewardStats = async () => {
       specialAvatar: rewards.filter(r => r.type === REWARD_TYPES.SPECIAL_AVATAR).length,
       featured: rewards.filter(r => r.type === REWARD_TYPES.FEATURED_USER).length,
       pro: rewards.filter(r => r.type === REWARD_TYPES.PRO_USER).length,
+      chatPhoto: rewards.filter(r => r.type === REWARD_TYPES.CHAT_PHOTO_ACCESS).length,
       revoked: rewards.filter(r => r.status === 'revoked').length,
     };
   } catch (error) {
@@ -440,6 +533,7 @@ export const getRewardStats = async () => {
       specialAvatar: 0,
       featured: 0,
       pro: 0,
+      chatPhoto: 0,
       revoked: 0,
     };
   }

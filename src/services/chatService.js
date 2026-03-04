@@ -12,10 +12,12 @@ import {
   setDoc,
   getDoc,
   getDocs,
+  deleteDoc,
   where,
   limit,
 } from 'firebase/firestore';
-import { db, auth } from '@/config/firebase';
+import { ref as storageRef, deleteObject } from 'firebase/storage';
+import { db, auth, storage } from '@/config/firebase';
 import { trackMessageSent, trackFirstMessage } from '@/services/ga4Service';
 import { checkRateLimit, recordMessage, unmuteUser } from '@/services/rateLimitService';
 import { moderateMessage } from '@/services/moderationService';
@@ -25,6 +27,45 @@ import { getDeliveryService } from '@/services/messageDeliveryService';
 import { traceEvent, TRACE_EVENTS } from '@/utils/messageTrace';
 
 const FAST_REPLY_WINDOW_MS = 120000;
+const DEFAULT_MESSAGE_REACTIONS = {
+  like: 0,
+  dislike: 0,
+  fire: 0,
+  heart: 0,
+  devil: 0,
+};
+const ALLOWED_REACTION_TYPES = new Set(['like', 'dislike', 'fire', 'heart', 'devil']);
+
+const extractMessageMediaPaths = (message = {}) => {
+  const paths = new Set();
+
+  if (Array.isArray(message.media)) {
+    message.media.forEach((item) => {
+      if (item && typeof item.path === 'string' && item.path.trim()) {
+        paths.add(item.path.trim());
+      }
+    });
+  }
+
+  ['imagePath', 'voicePath', 'storagePath'].forEach((field) => {
+    if (typeof message[field] === 'string' && message[field].trim()) {
+      paths.add(message[field].trim());
+    }
+  });
+
+  return Array.from(paths);
+};
+
+const isStorageNotFoundError = (error) => {
+  const code = error?.code || '';
+  const msg = String(error?.message || '').toLowerCase();
+  return (
+    code === 'storage/object-not-found' ||
+    code === 404 ||
+    msg.includes('object-not-found') ||
+    msg.includes('no such object')
+  );
+};
 
 const buildConversationPairKey = (userIdA, userIdB) => {
   const a = userIdA || 'unknown_a';
@@ -159,6 +200,8 @@ const isAutomatedSenderId = (userId = '') => {
  */
 const doSendMessage = async (roomId, messageData, isAnonymous = false) => {
   // Diagnósticos desactivados para reducir logs
+  const messageType = messageData.type || 'text';
+  const isTextMessage = messageType === 'text';
 
   // ✅ ESTRATEGIA DE CAPTACIÓN: Permitir usuarios NO autenticados PERMANENTEMENTE
   // Reducir fricción - usuarios pueden chatear en sala principal sin registrarse
@@ -237,8 +280,8 @@ const doSendMessage = async (roomId, messageData, isAnonymous = false) => {
     throw new Error('Username es requerido para enviar mensajes');
   }
 
-  // ⚠️ VALIDAR LINKS: Usuarios no autenticados NO pueden enviar links
-  if (!auth.currentUser) {
+  // ⚠️ VALIDAR LINKS: Usuarios no autenticados NO pueden enviar links de texto
+  if (!auth.currentUser && isTextMessage) {
     const linkPattern = /(https?:\/\/|www\.|@|#)/i;
     if (linkPattern.test(messageData.content)) {
       throw new Error('Los usuarios no registrados no pueden enviar links. Regístrate para compartir enlaces.');
@@ -247,25 +290,27 @@ const doSendMessage = async (roomId, messageData, isAnonymous = false) => {
 
   // 📱 SANITIZAR NÚMEROS DE WHATSAPP/TELÉFONO
   // Los números se reemplazan automáticamente con CTA de chat privado
-  try {
-    const sanitizeResult = await sanitizeMessage(
-      messageData.content,
-      messageData.userId,
-      messageData.username || 'Usuario',
-      roomId
-    );
+  if (isTextMessage) {
+    try {
+      const sanitizeResult = await sanitizeMessage(
+        messageData.content,
+        messageData.userId,
+        messageData.username || 'Usuario',
+        roomId
+      );
 
-    if (sanitizeResult.wasModified) {
-      console.log(`[SEND] 📱 Números de WhatsApp sanitizados para ${messageData.username}:`, {
-        numbersFound: sanitizeResult.numbersFound,
-        hasContactIntent: sanitizeResult.hasContactIntent
-      });
-      // Reemplazar el contenido con la versión sanitizada
-      messageData.content = sanitizeResult.content;
+      if (sanitizeResult.wasModified) {
+        console.log(`[SEND] 📱 Números de WhatsApp sanitizados para ${messageData.username}:`, {
+          numbersFound: sanitizeResult.numbersFound,
+          hasContactIntent: sanitizeResult.hasContactIntent
+        });
+        // Reemplazar el contenido con la versión sanitizada
+        messageData.content = sanitizeResult.content;
+      }
+    } catch (sanitizeError) {
+      // FAIL-SAFE: Si falla la sanitización, continuar con el mensaje original
+      console.warn('[SEND] ⚠️ Error en sanitización (continuando):', sanitizeError.message);
     }
-  } catch (sanitizeError) {
-    // FAIL-SAFE: Si falla la sanitización, continuar con el mensaje original
-    console.warn('[SEND] ⚠️ Error en sanitización (continuando):', sanitizeError.message);
   }
 
   // ✅ GARANTIZAR AVATAR: Nunca enviar null, siempre tener un avatar válido
@@ -300,10 +345,10 @@ const doSendMessage = async (roomId, messageData, isAnonymous = false) => {
     roleBadge: messageData.roleBadge || null,
     comuna: messageData.comuna || null,
     content: messageData.content,
-    type: messageData.type || 'text',
+    type: messageType,
     // ✅ Usar serverTimestamp() para sincronización correcta entre clientes
     timestamp: serverTimestamp(),
-    reactions: { like: 0, dislike: 0 },
+    reactions: { ...DEFAULT_MESSAGE_REACTIONS },
     read: false,
     replyTo: messageData.replyTo || null,
     trace,
@@ -314,6 +359,7 @@ const doSendMessage = async (roomId, messageData, isAnonymous = false) => {
     readBy: [], // Array de userIds que leyeron el mensaje
     deliveredAt: null, // Timestamp de primera entrega
     readAt: null, // Timestamp de primera lectura
+    ...(Array.isArray(messageData.media) && messageData.media.length > 0 ? { media: messageData.media } : {}),
   };
 
   // ⏱️ TIMING: Registrar timestamp de envío para medir velocidad
@@ -422,7 +468,9 @@ const doSendMessage = async (roomId, messageData, isAnonymous = false) => {
 
   // Tareas en background
   Promise.all([
-    isRealUser ? moderateMessage(messageData.content, messageData.userId, messageData.username, roomId).catch(() => {}) : Promise.resolve(),
+    isRealUser && isTextMessage
+      ? moderateMessage(messageData.content, messageData.userId, messageData.username, roomId).catch(() => {})
+      : Promise.resolve(),
     isAnonymous && auth.currentUser
       ? setDoc(doc(db, 'guests', auth.currentUser.uid), { messageCount: increment(1), lastMessageAt: serverTimestamp() }, { merge: true }).catch(() => {})
       : !isAnonymous && !isBot && messageData.userId
@@ -646,6 +694,12 @@ export const addReactionToMessage = async (roomId, messageId, reactionType) => {
     throw error;
   }
 
+  if (!ALLOWED_REACTION_TYPES.has(reactionType)) {
+    const error = new Error('INVALID_REACTION_TYPE');
+    console.warn('[REACTION SERVICE] ⚠️ Tipo de reacción no permitido:', reactionType);
+    throw error;
+  }
+
   if (!auth.currentUser || auth.currentUser.isAnonymous) {
     const error = new Error('REQUIRES_REGISTERED_USER');
     console.warn('[REACTION SERVICE] ⚠️ Reacción bloqueada para invitado/anónimo');
@@ -663,7 +717,7 @@ export const addReactionToMessage = async (roomId, messageId, reactionType) => {
 
     // Obtener reacciones actuales o inicializar
     const currentData = messageSnap.data();
-    const currentReactions = currentData.reactions || { like: 0, dislike: 0 };
+    const currentReactions = currentData.reactions || { ...DEFAULT_MESSAGE_REACTIONS };
 
     // Actualizar con el nuevo valor
     const newReactions = {
@@ -679,6 +733,44 @@ export const addReactionToMessage = async (roomId, messageId, reactionType) => {
     console.error('[REACTION SERVICE] ❌ Error:', error.message, error.code);
     throw error;
   }
+};
+
+export const deleteMessageWithMedia = async (roomId, messageId, messageData = null) => {
+  if (!roomId || !messageId) {
+    throw new Error('INVALID_DELETE_PARAMS');
+  }
+
+  if (!auth.currentUser || auth.currentUser.isAnonymous) {
+    throw new Error('REQUIRES_REGISTERED_USER');
+  }
+
+  const messageRef = doc(db, 'rooms', roomId, 'messages', messageId);
+  let effectiveMessage = messageData || null;
+
+  if (!effectiveMessage || !effectiveMessage.userId) {
+    const snap = await getDoc(messageRef);
+    if (!snap.exists()) {
+      throw new Error('MESSAGE_NOT_FOUND');
+    }
+    effectiveMessage = { id: snap.id, ...snap.data() };
+  }
+
+  if (effectiveMessage.userId !== auth.currentUser.uid) {
+    throw new Error('NOT_MESSAGE_OWNER');
+  }
+
+  await deleteDoc(messageRef);
+
+  const mediaPaths = extractMessageMediaPaths(effectiveMessage).filter((path) => path.startsWith('chat_media/'));
+  await Promise.all(mediaPaths.map(async (path) => {
+    try {
+      await deleteObject(storageRef(storage, path));
+    } catch (error) {
+      if (!isStorageNotFoundError(error)) {
+        console.warn('[DELETE][MEDIA] No se pudo borrar asset de Storage:', path, error?.message || error);
+      }
+    }
+  }));
 };
 
 /**
@@ -721,7 +813,7 @@ export const createWelcomeMessage = async (roomId, welcomeText) => {
       content: welcomeText,
       type: 'system',
       timestamp: serverTimestamp(),
-      reactions: {},
+      reactions: { ...DEFAULT_MESSAGE_REACTIONS },
     };
 
     await addDoc(messagesRef, welcomeMessage);
@@ -829,7 +921,7 @@ const doSendSecondaryMessage = async (roomId, messageData, isAnonymous = false) 
     content: messageData.content,
     type: messageData.type || 'text',
     timestamp: serverTimestamp(),
-    reactions: { like: 0, dislike: 0 },
+    reactions: { ...DEFAULT_MESSAGE_REACTIONS },
     read: false,
     replyTo: messageData.replyTo || null,
     trace,
@@ -976,6 +1068,10 @@ export const markSecondaryMessagesAsRead = async (roomId, currentUserId) => {
  */
 export const addReactionToSecondaryMessage = async (roomId, messageId, reaction) => {
   try {
+    if (!ALLOWED_REACTION_TYPES.has(reaction)) {
+      throw new Error('INVALID_REACTION_TYPE');
+    }
+
     const messageRef = doc(db, 'secondary-rooms', roomId, 'messages', messageId);
     const messageDoc = await getDoc(messageRef);
     
@@ -984,7 +1080,7 @@ export const addReactionToSecondaryMessage = async (roomId, messageId, reaction)
     }
 
     const currentData = messageDoc.data();
-    const currentReactions = currentData.reactions || { like: 0, dislike: 0 };
+    const currentReactions = currentData.reactions || { ...DEFAULT_MESSAGE_REACTIONS };
     
     // Incrementar reacción
     const newReactions = {

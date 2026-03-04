@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Button } from '@/components/ui/button';
-import { ThumbsUp, ThumbsDown, CheckCircle, Reply, Lock } from 'lucide-react';
+import { ThumbsUp, ThumbsDown, CheckCircle, Reply, Lock, Trash2 } from 'lucide-react';
 import { motion } from 'framer-motion';
 import { useAuth } from '@/contexts/AuthContext';
 import MessageQuote from './MessageQuote';
@@ -28,6 +28,7 @@ const ChatMessages = ({
   onReport,
   onPrivateChat,
   onReaction,
+  onDeleteMessage,
   messagesEndRef,
   messagesContainerRef,
   newMessagesIndicator,
@@ -497,10 +498,18 @@ const ChatMessages = ({
                       {message.type === 'gif' && (
                         <img src={message.content} alt="GIF" className="rounded max-w-full" />
                       )}
+                      {message.type === 'image' && (
+                        message.content
+                          ? <img src={message.content} alt="Imagen del chat" className="block rounded-lg w-auto h-auto max-w-[220px] sm:max-w-[300px] lg:max-w-[340px] max-h-[360px] object-cover" loading="lazy" />
+                          : <span className="text-xs text-muted-foreground">Imagen</span>
+                      )}
                       {(() => {
                         const likeCount = Number(message.reactions?.like || 0);
                         const dislikeCount = Number(message.reactions?.dislike || 0);
-                        if (likeCount <= 0 && dislikeCount <= 0) return null;
+                        const fireCount = Number(message.reactions?.fire || 0);
+                        const heartCount = Number(message.reactions?.heart || 0);
+                        const devilCount = Number(message.reactions?.devil || 0);
+                        if (likeCount <= 0 && dislikeCount <= 0 && fireCount <= 0 && heartCount <= 0 && devilCount <= 0) return null;
 
                         return (
                           <div className="mt-1.5 flex items-center gap-1 text-[10px]">
@@ -516,38 +525,119 @@ const ChatMessages = ({
                                 {dislikeCount}
                               </span>
                             )}
+                            {fireCount > 0 && (
+                              <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full bg-orange-500/15 text-orange-300">
+                                <span>🔥</span>
+                                {fireCount}
+                              </span>
+                            )}
+                            {heartCount > 0 && (
+                              <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full bg-pink-500/15 text-pink-300">
+                                <span>❤️</span>
+                                {heartCount}
+                              </span>
+                            )}
+                            {devilCount > 0 && (
+                              <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full bg-purple-500/15 text-purple-300">
+                                <span>😈</span>
+                                {devilCount}
+                              </span>
+                            )}
                           </div>
                         );
                       })()}
+                      {isOwn && message.type === 'image' && !message._optimistic && typeof onDeleteMessage === 'function' && (
+                        <div className="mt-2 flex justify-end">
+                          <button
+                            type="button"
+                            className="inline-flex items-center gap-1 rounded-full px-2 py-1 text-[10px] bg-black/20 hover:bg-black/30 text-white/90 transition-colors"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              onDeleteMessage(message);
+                            }}
+                            title="Eliminar foto"
+                            aria-label="Eliminar foto"
+                          >
+                            <Trash2 className="w-3 h-3" />
+                            Eliminar
+                          </button>
+                        </div>
+                      )}
                     </div>
 
                     {/* ACCIONES - Solo para otros */}
                     {!isOwn && (
                       <span className="inline-flex items-center gap-1 ml-1 opacity-0 group-hover:opacity-100 transition-opacity">
                         <Button size="icon" variant="ghost" className="h-5 w-5 text-gray-400 hover:text-cyan-500"
-                          onClick={(e) => { e.stopPropagation(); onReply?.({ messageId: message.id, username: message.username, content: message.content }); }}>
+                          onClick={(e) => { e.stopPropagation(); onReply?.({ messageId: message.id, username: message.username, content: message.type === 'image' ? '📷 Imagen' : message.content }); }}>
                           <Reply className="h-3 w-3" />
                         </Button>
                         {currentUserId && !message._optimistic && (
                           <>
-                            <Button size="icon" variant="ghost" className="h-5 w-5 text-gray-400 hover:text-green-500"
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                // Usar _realId (ID de Firestore) si existe, sino id
-                                const firestoreId = message._realId || message.id;
-                                console.log('[UI] Like click, ID:', firestoreId);
-                                onReaction(firestoreId, 'like');
-                              }}>
-                              <ThumbsUp className="h-3 w-3" />
-                            </Button>
-                            <Button size="icon" variant="ghost" className="h-5 w-5 text-gray-400 hover:text-red-500"
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                const firestoreId = message._realId || message.id;
-                                onReaction(firestoreId, 'dislike');
-                              }}>
-                              <ThumbsDown className="h-3 w-3" />
-                            </Button>
+                            {message.type === 'image' ? (
+                              <>
+                                <Button
+                                  size="icon"
+                                  variant="ghost"
+                                  className="h-5 w-5 text-gray-400 hover:text-orange-400"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    const firestoreId = message._realId || message.id;
+                                    onReaction(firestoreId, 'fire');
+                                  }}
+                                  title="Reaccionar con fuego"
+                                >
+                                  <span className="text-[13px] leading-none">🔥</span>
+                                </Button>
+                                <Button
+                                  size="icon"
+                                  variant="ghost"
+                                  className="h-5 w-5 text-gray-400 hover:text-pink-400"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    const firestoreId = message._realId || message.id;
+                                    onReaction(firestoreId, 'heart');
+                                  }}
+                                  title="Reaccionar con corazón"
+                                >
+                                  <span className="text-[13px] leading-none">❤️</span>
+                                </Button>
+                                <Button
+                                  size="icon"
+                                  variant="ghost"
+                                  className="h-5 w-5 text-gray-400 hover:text-purple-400"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    const firestoreId = message._realId || message.id;
+                                    onReaction(firestoreId, 'devil');
+                                  }}
+                                  title="Reaccionar con diablito"
+                                >
+                                  <span className="text-[13px] leading-none">😈</span>
+                                </Button>
+                              </>
+                            ) : (
+                              <>
+                                <Button size="icon" variant="ghost" className="h-5 w-5 text-gray-400 hover:text-green-500"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    // Usar _realId (ID de Firestore) si existe, sino id
+                                    const firestoreId = message._realId || message.id;
+                                    console.log('[UI] Like click, ID:', firestoreId);
+                                    onReaction(firestoreId, 'like');
+                                  }}>
+                                  <ThumbsUp className="h-3 w-3" />
+                                </Button>
+                                <Button size="icon" variant="ghost" className="h-5 w-5 text-gray-400 hover:text-red-500"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    const firestoreId = message._realId || message.id;
+                                    onReaction(firestoreId, 'dislike');
+                                  }}>
+                                  <ThumbsDown className="h-3 w-3" />
+                                </Button>
+                              </>
+                            )}
                           </>
                         )}
                       </span>

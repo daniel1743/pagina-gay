@@ -10,8 +10,9 @@
  */
 
 const { onDocumentCreated } = require("firebase-functions/v2/firestore");
+const { onSchedule } = require("firebase-functions/v2/scheduler");
 const { initializeApp } = require("firebase-admin/app");
-const { getFirestore } = require("firebase-admin/firestore");
+const { getFirestore, FieldValue } = require("firebase-admin/firestore");
 const { getMessaging } = require("firebase-admin/messaging");
 const { getStorage } = require("firebase-admin/storage");
 
@@ -19,10 +20,142 @@ initializeApp();
 const db = getFirestore();
 const storage = getStorage();
 
-const ROOM_RETENTION_MAX_MESSAGES = 200;
-const ROOM_RETENTION_QUERY_LIMIT = ROOM_RETENTION_MAX_MESSAGES + 1; // 201
+const ROOM_RETENTION_MAX_MESSAGES = 205;
+const ROOM_RETENTION_QUERY_LIMIT = ROOM_RETENTION_MAX_MESSAGES + 1; // 206 when max=205
 const ROOM_RETENTION_DELETE_BATCH = 50;
 const ROOM_RETENTION_LOCK_TTL_MS = 15 * 1000;
+const PHOTO_PRIVILEGE_SCOPE = "principal";
+const PHOTO_PRIVILEGE_STREAK_DAYS_REQUIRED = 2;
+const PHOTO_PRIVILEGE_INACTIVITY_MS = 24 * 60 * 60 * 1000;
+const PHOTO_PRIVILEGE_REVOKE_BATCH_SIZE = 200;
+const CHILE_TIME_ZONE = "America/Santiago";
+
+const chileDayFormatter = new Intl.DateTimeFormat("en-CA", {
+  timeZone: CHILE_TIME_ZONE,
+  year: "numeric",
+  month: "2-digit",
+  day: "2-digit",
+});
+
+function getChileDayString(date = new Date()) {
+  const parts = chileDayFormatter.formatToParts(date);
+  const year = parts.find((part) => part.type === "year")?.value;
+  const month = parts.find((part) => part.type === "month")?.value;
+  const day = parts.find((part) => part.type === "day")?.value;
+  if (!year || !month || !day) return "";
+  return `${year}-${month}-${day}`;
+}
+
+function parseDayStringToUtc(dayString) {
+  if (typeof dayString !== "string" || !/^\d{4}-\d{2}-\d{2}$/.test(dayString)) {
+    return null;
+  }
+  const parsed = new Date(`${dayString}T00:00:00.000Z`);
+  return Number.isNaN(parsed.getTime()) ? null : parsed;
+}
+
+function getDayDiff(previousDayString, currentDayString) {
+  const previous = parseDayStringToUtc(previousDayString);
+  const current = parseDayStringToUtc(currentDayString);
+  if (!previous || !current) return null;
+  return Math.floor((current.getTime() - previous.getTime()) / (24 * 60 * 60 * 1000));
+}
+
+function resolvePrivilegeSource(autoEligible, adminGranted) {
+  if (autoEligible && adminGranted) return "auto+admin";
+  if (autoEligible) return "auto";
+  if (adminGranted) return "admin";
+  return "none";
+}
+
+function isBotLikeUserId(userId = "") {
+  return (
+    userId.startsWith("bot_") ||
+    userId.startsWith("ai_") ||
+    userId.startsWith("seed_user_") ||
+    userId.startsWith("static_bot_") ||
+    userId === "system" ||
+    userId === "system_moderator"
+  );
+}
+
+function isRegisteredPresenceUser(presenceData = {}, fallbackUserId = "") {
+  const userId = String(presenceData.userId || fallbackUserId || "");
+  if (!userId) return false;
+  if (isBotLikeUserId(userId)) return false;
+  if (presenceData.isBot === true) return false;
+  if (presenceData.isGuest === true) return false;
+  if (presenceData.isAnonymous === true) return false;
+  if (userId.startsWith("unauthenticated_")) return false;
+  if (userId.startsWith("temp_")) return false;
+  return true;
+}
+
+function getMonthlyUsageDocId(date = new Date()) {
+  const year = date.getUTCFullYear();
+  const month = `${date.getUTCMonth() + 1}`.padStart(2, "0");
+  return `photo_usage_${year}_${month}`;
+}
+
+async function recordPhotoMetrics(increments = {}, date = new Date()) {
+  const metricsRef = db.collection("analytics_stats").doc(getMonthlyUsageDocId(date));
+  const payload = {};
+  for (const [key, value] of Object.entries(increments)) {
+    if (typeof value === "number" && Number.isFinite(value) && value !== 0) {
+      payload[key] = FieldValue.increment(value);
+    }
+  }
+  if (Object.keys(payload).length === 0) return;
+  payload.updatedAt = date;
+  await metricsRef.set(payload, { merge: true });
+}
+
+function extractImageUsageFromMessage(messageData = {}) {
+  const isImageType = messageData?.type === "image";
+  if (!isImageType) return { imageUploads: 0, imageUploadBytes: 0 };
+
+  let imageUploads = 0;
+  let imageUploadBytes = 0;
+
+  if (Array.isArray(messageData.media) && messageData.media.length > 0) {
+    for (const mediaItem of messageData.media) {
+      if (!mediaItem || typeof mediaItem !== "object") continue;
+      const path = typeof mediaItem.path === "string" ? mediaItem.path : "";
+      if (!path || !path.startsWith("chat_media/")) continue;
+      imageUploads += 1;
+      const sizeBytes = Number(mediaItem.sizeBytes || 0);
+      if (Number.isFinite(sizeBytes) && sizeBytes > 0) {
+        imageUploadBytes += sizeBytes;
+      }
+    }
+  }
+
+  if (imageUploads === 0) {
+    if (typeof messageData.imagePath === "string" && messageData.imagePath.startsWith("chat_media/")) {
+      imageUploads = 1;
+    } else if (typeof messageData.storagePath === "string" && messageData.storagePath.startsWith("chat_media/")) {
+      imageUploads = 1;
+    }
+  }
+
+  return { imageUploads, imageUploadBytes };
+}
+
+function buildInactivityNotification(userId, now) {
+  return {
+    userId,
+    type: "announcement",
+    title: "Perdiste el beneficio de fotos",
+    message: "Han pasado 24 horas sin actividad. Vuelve dos dias seguidos para recuperarlo.",
+    icon: "📷",
+    link: "/chat/principal",
+    read: false,
+    createdAt: now,
+    expiresAt: null,
+    priority: "normal",
+    createdBy: "system",
+  };
+}
 
 function toMillis(value) {
   if (!value) return 0;
@@ -150,6 +283,81 @@ async function acquireRetentionLock(roomId, owner) {
   });
 }
 
+async function syncPhotoPrivilegeFromActivity(userId, roomId, nowDate) {
+  const activityRef = db.collection("user_activity_state").doc(userId);
+  const privilegeRef = db.collection("chat_photo_privileges").doc(userId);
+  const currentDay = getChileDayString(nowDate);
+
+  return db.runTransaction(async (tx) => {
+    const [activitySnap, privilegeSnap] = await Promise.all([
+      tx.get(activityRef),
+      tx.get(privilegeRef),
+    ]);
+
+    const previousActivity = activitySnap.exists ? activitySnap.data() || {} : {};
+    const previousPrivilege = privilegeSnap.exists ? privilegeSnap.data() || {} : {};
+
+    const previousDay = previousActivity.lastActiveDay || "";
+    const previousStreak = Number(previousActivity.streakDays || 0);
+    let streakDays = 1;
+
+    if (previousDay === currentDay) {
+      streakDays = previousStreak > 0 ? previousStreak : 1;
+    } else if (previousDay) {
+      const dayDiff = getDayDiff(previousDay, currentDay);
+      streakDays = dayDiff === 1 ? previousStreak + 1 : 1;
+    }
+
+    const activityPayload = {
+      uid: userId,
+      lastActiveAt: nowDate,
+      lastActiveDay: currentDay,
+      streakDays,
+      updatedAt: nowDate,
+      lastRoomId: roomId,
+    };
+    tx.set(activityRef, activityPayload, { merge: true });
+
+    const wasActive = previousPrivilege.active === true;
+    const adminGranted = previousPrivilege.adminGranted === true;
+    const autoEligible = streakDays >= PHOTO_PRIVILEGE_STREAK_DAYS_REQUIRED;
+    const nextActive = autoEligible || adminGranted;
+
+    const privilegePayload = {
+      uid: userId,
+      scope: PHOTO_PRIVILEGE_SCOPE,
+      streakDays,
+      lastActiveAt: nowDate,
+      autoEligible,
+      adminGranted,
+      active: nextActive,
+      source: resolvePrivilegeSource(autoEligible, adminGranted),
+      updatedAt: nowDate,
+    };
+
+    if (nextActive && !previousPrivilege.grantedAt) {
+      privilegePayload.grantedAt = nowDate;
+    }
+    if (nextActive && !wasActive) {
+      privilegePayload.revokedAt = null;
+      privilegePayload.revokedReason = null;
+    }
+
+    tx.set(privilegeRef, privilegePayload, { merge: true });
+
+    return {
+      streakDays,
+      previousStreak,
+      wasActive,
+      isActive: nextActive,
+      adminGranted,
+      autoEligible,
+      previousAutoEligible: previousPrivilege.autoEligible === true,
+      justGrantedByAuto: !wasActive && nextActive && autoEligible,
+    };
+  });
+}
+
 /**
  * Verificar si estamos en quiet hours (00:00 - 08:00 Chile, UTC-3)
  */
@@ -222,7 +430,6 @@ async function sendPushToUser(userId, notification, data = {}) {
       });
 
       if (invalidTokens.length > 0) {
-        const { FieldValue } = require("firebase-admin/firestore");
         const userRef = db.collection("users").doc(userId);
         await userRef.update({
           fcmTokens: FieldValue.arrayRemove(...invalidTokens),
@@ -338,9 +545,128 @@ exports.notifyOnPrivateChatRequest = onDocumentCreated(
 );
 
 /**
+ * syncPhotoPrivilegeFromPresence
+ * Trigger: roomPresence/{roomId}/users/{presenceId} onCreate
+ * Regla de negocio:
+ * - Solo sala principal
+ * - Solo usuarios registrados (no guest/anónimo/bot)
+ * - Beneficio auto tras 2 días seguidos de actividad
+ */
+exports.syncPhotoPrivilegeFromPresence = onDocumentCreated(
+  "roomPresence/{roomId}/users/{presenceId}",
+  async (event) => {
+    const roomId = event.params.roomId;
+    const presenceId = event.params.presenceId;
+    const presenceData = event.data?.data() || {};
+
+    if (roomId !== PHOTO_PRIVILEGE_SCOPE) {
+      return null;
+    }
+
+    if (!isRegisteredPresenceUser(presenceData, presenceId)) {
+      console.log(`[PHOTO_PRIV] Skip ineligible presence user roomId=${roomId} presenceId=${presenceId}`);
+      return null;
+    }
+
+    const userId = String(presenceData.userId || presenceId);
+    const now = new Date();
+
+    try {
+      const result = await syncPhotoPrivilegeFromActivity(userId, roomId, now);
+      console.log(
+        `[PHOTO_PRIV] Synced from presence uid=${userId} streak=${result.streakDays} active=${result.isActive} autoEligible=${result.autoEligible} adminGranted=${result.adminGranted}`
+      );
+
+      if (result.justGrantedByAuto) {
+        await recordPhotoMetrics({ photoPrivilegeAutoGrants: 1 }, now).catch((error) => {
+          console.error("[PHOTO_PRIV] Error recording auto grant metrics", error);
+        });
+        console.log(`[PHOTO_PRIV] Auto grant applied uid=${userId}`);
+      }
+    } catch (error) {
+      console.error(`[PHOTO_PRIV] Error syncing privilege uid=${userId}`, error);
+    }
+
+    return null;
+  }
+);
+
+/**
+ * revokePhotoPrivilegeForInactivity
+ * Job cada hora:
+ * - Busca privilegios activos con lastActiveAt <= now-24h
+ * - Revoca privilegios y notifica al usuario
+ */
+exports.revokePhotoPrivilegeForInactivity = onSchedule(
+  {
+    schedule: "every 60 minutes",
+    timeZone: CHILE_TIME_ZONE,
+    region: "us-central1",
+  },
+  async () => {
+    const now = new Date();
+    const cutoff = new Date(now.getTime() - PHOTO_PRIVILEGE_INACTIVITY_MS);
+    let totalRevoked = 0;
+
+    console.log(`[PHOTO_PRIV] Inactivity revoke run start cutoff=${cutoff.toISOString()}`);
+
+    while (true) {
+      const snap = await db
+        .collection("chat_photo_privileges")
+        .where("active", "==", true)
+        .where("lastActiveAt", "<=", cutoff)
+        .orderBy("lastActiveAt", "asc")
+        .limit(PHOTO_PRIVILEGE_REVOKE_BATCH_SIZE)
+        .get();
+
+      if (snap.empty) break;
+
+      const batch = db.batch();
+      for (const docSnap of snap.docs) {
+        const data = docSnap.data() || {};
+        const userId = String(data.uid || docSnap.id);
+        if (!userId) continue;
+
+        batch.set(
+          docSnap.ref,
+          {
+            uid: userId,
+            active: false,
+            autoEligible: false,
+            adminGranted: false,
+            source: "none",
+            revokedAt: now,
+            revokedReason: "inactive_24h",
+            updatedAt: now,
+            grantedBy: null,
+          },
+          { merge: true }
+        );
+
+        const notificationRef = db.collection("systemNotifications").doc();
+        batch.set(notificationRef, buildInactivityNotification(userId, now));
+      }
+
+      await batch.commit();
+      totalRevoked += snap.size;
+      console.log(`[PHOTO_PRIV] Revoked by inactivity batchSize=${snap.size} total=${totalRevoked}`);
+    }
+
+    if (totalRevoked > 0) {
+      await recordPhotoMetrics({ photoPrivilegeRevocationsInactivity: totalRevoked }, now).catch((error) => {
+        console.error("[PHOTO_PRIV] Error recording inactivity revoke metrics", error);
+      });
+    }
+
+    console.log(`[PHOTO_PRIV] Inactivity revoke run done totalRevoked=${totalRevoked}`);
+    return null;
+  }
+);
+
+/**
  * enforceRoomRetention
  * Trigger: rooms/{roomId}/messages/{messageId} onCreate
- * Mantiene máximo de 200 mensajes por sala.
+ * Mantiene máximo de 205 mensajes por sala.
  * Si se eliminan mensajes con media en Storage, elimina también esos archivos.
  */
 exports.enforceRoomRetention = onDocumentCreated(
@@ -348,6 +674,17 @@ exports.enforceRoomRetention = onDocumentCreated(
   async (event) => {
     const roomId = event.params.roomId;
     const messageId = event.params.messageId;
+    const createdMessageData = event.data?.data() || {};
+
+    const imageUsage = extractImageUsageFromMessage(createdMessageData);
+    if (imageUsage.imageUploads > 0 || imageUsage.imageUploadBytes > 0) {
+      await recordPhotoMetrics(imageUsage, new Date()).catch((error) => {
+        console.error("[PHOTO_PRIV] Error recording image upload metrics", error);
+      });
+      console.log(
+        `[PHOTO_PRIV] Image upload metric roomId=${roomId} messageId=${messageId} uploads=${imageUsage.imageUploads} bytes=${imageUsage.imageUploadBytes}`
+      );
+    }
 
     console.log(`[RETENTION] Retention check roomId=${roomId} messageId=${messageId}`);
 
@@ -423,6 +760,12 @@ exports.enforceRoomRetention = onDocumentCreated(
 
     if (safetyPasses >= MAX_PASSES) {
       console.warn(`[RETENTION] Safety stop reached roomId=${roomId} passes=${MAX_PASSES}`);
+    }
+
+    if (totalDeletedAssets > 0) {
+      await recordPhotoMetrics({ photoAssetsDeletedByRetention: totalDeletedAssets }, new Date()).catch((error) => {
+        console.error("[PHOTO_PRIV] Error recording retention delete metrics", error);
+      });
     }
 
     const finalProbe = await messagesRef

@@ -7,6 +7,10 @@ import ComingSoonModal from '@/components/ui/ComingSoonModal';
 import { EmojiStyle, Categories } from 'emoji-picker-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useAuth } from '@/contexts/AuthContext';
+import { db, storage } from '@/config/firebase';
+import { doc, onSnapshot } from 'firebase/firestore';
+import { ref as storageRef, uploadBytes, getDownloadURL } from 'firebase/storage';
+import imageCompression from 'browser-image-compression';
 import { updateTypingStatus } from '@/services/presenceService';
 import { notificationSounds, initAudioOnFirstGesture } from '@/services/notificationSounds';
 
@@ -78,6 +82,9 @@ const FIRST_MESSAGE_PROMPTS = [
   '¿Quién tiene lugar?',
 ];
 
+const PHOTO_MAX_SIZE_BYTES = 350 * 1024;
+const PHOTO_UNLOCK_STREAK_DAYS = 2;
+
 
 const ChatInput = ({
   onSendMessage,
@@ -100,6 +107,18 @@ const ChatInput = ({
   const [recentEmojis, setRecentEmojis] = useState(DEFAULT_RECENT_EMOJIS);
   const [showQuickPhrases, setShowQuickPhrases] = useState(false);
   const [showComingSoon, setShowComingSoon] = useState(false);
+  const [isUploadingPhoto, setIsUploadingPhoto] = useState(false);
+  const [showPhotoTooltip, setShowPhotoTooltip] = useState(false);
+  const [photoPrivilege, setPhotoPrivilege] = useState({
+    active: false,
+    streakDays: 0,
+    autoEligible: false,
+    adminGranted: false,
+    loading: true,
+  });
+  const [activityState, setActivityState] = useState({
+    streakDays: 0,
+  });
   const [showComunaSelector, setShowComunaSelector] = useState(false);
   const [showFocusNudge, setShowFocusNudge] = useState(false);
   const [onboardingDismissed, setOnboardingDismissed] = useState(() => {
@@ -120,6 +139,7 @@ const ChatInput = ({
   });
   const typingTimeoutRef = useRef(null);
   const focusNudgeTimeoutRef = useRef(null);
+  const photoInputRef = useRef(null);
 
   // ✨ COMPANION AI: Setear mensaje cuando viene de sugerencia externa
   useEffect(() => {
@@ -132,6 +152,14 @@ const ChatInput = ({
   const [comingSoonFeature, setComingSoonFeature] = useState({ name: '', description: '' });
   const wrapperRef = useRef(null);
   const textareaRef = useRef(null);
+  const isRegisteredUser = Boolean(user?.id && !user?.isGuest && !user?.isAnonymous);
+  const effectiveStreakDays = Math.max(
+    Number(photoPrivilege?.streakDays || 0),
+    Number(activityState?.streakDays || 0)
+  );
+  const missingPhotoDays = Math.max(0, PHOTO_UNLOCK_STREAK_DAYS - effectiveStreakDays);
+  const hasPhotoPrivilege = Boolean(photoPrivilege?.active);
+  const canSendPhotoNow = isRegisteredUser && roomId === 'principal' && hasPhotoPrivilege;
 
   const shouldShowOnboarding = showOnboardingHints && !onboardingDismissed && !firstMessageSentInSession;
 
@@ -185,6 +213,60 @@ const ChatInput = ({
       }
     };
   }, []);
+
+  useEffect(() => {
+    if (!isRegisteredUser || !user?.id) {
+      setPhotoPrivilege({
+        active: false,
+        streakDays: 0,
+        autoEligible: false,
+        adminGranted: false,
+        loading: false,
+      });
+      setActivityState({ streakDays: 0 });
+      return () => {};
+    }
+
+    setPhotoPrivilege((prev) => ({ ...prev, loading: true }));
+
+    const privilegeRef = doc(db, 'chat_photo_privileges', user.id);
+    const activityRef = doc(db, 'user_activity_state', user.id);
+
+    const unsubscribePrivilege = onSnapshot(
+      privilegeRef,
+      (snapshot) => {
+        const data = snapshot.exists() ? snapshot.data() : {};
+        setPhotoPrivilege({
+          active: data?.active === true,
+          streakDays: Number(data?.streakDays || 0),
+          autoEligible: data?.autoEligible === true,
+          adminGranted: data?.adminGranted === true,
+          loading: false,
+        });
+      },
+      () => {
+        setPhotoPrivilege((prev) => ({ ...prev, loading: false }));
+      }
+    );
+
+    const unsubscribeActivity = onSnapshot(
+      activityRef,
+      (snapshot) => {
+        const data = snapshot.exists() ? snapshot.data() : {};
+        setActivityState({
+          streakDays: Number(data?.streakDays || 0),
+        });
+      },
+      () => {
+        setActivityState({ streakDays: 0 });
+      }
+    );
+
+    return () => {
+      unsubscribePrivilege();
+      unsubscribeActivity();
+    };
+  }, [isRegisteredUser, user?.id]);
 
   // 📱 FIX MÓVIL: Asegurar que el textarea sea focusable y visible en dispositivos móviles
   useEffect(() => {
@@ -495,6 +577,134 @@ const ChatInput = ({
     if (!onboardingDismissed && nextMessage.trim().length > 0) {
       dismissOnboardingForSession();
     }
+  };
+
+  const buildPhotoBlockedDescription = () => {
+    if (!isRegisteredUser) {
+      return 'Debes iniciar sesión para subir fotos.';
+    }
+    if (roomId !== 'principal') {
+      return 'Las fotos solo están habilitadas en la sala Principal.';
+    }
+    if (photoPrivilege.loading) {
+      return 'Estamos validando tu beneficio de fotos.';
+    }
+    if (!hasPhotoPrivilege) {
+      if (missingPhotoDays > 0) {
+        return `Te falta${missingPhotoDays === 1 ? '' : 'n'} ${missingPhotoDays} día${missingPhotoDays === 1 ? '' : 's'} seguido${missingPhotoDays === 1 ? '' : 's'} para activar fotos.`;
+      }
+      return 'Tu beneficio aún no está activo. Intenta reconectar para sincronizar.';
+    }
+    return '';
+  };
+
+  const getPhotoTooltipText = () => {
+    if (canSendPhotoNow) {
+      return isUploadingPhoto ? 'Subiendo foto...' : 'Subir foto';
+    }
+    return buildPhotoBlockedDescription();
+  };
+
+  const showPhotoBlockedToast = () => {
+    toast({
+      title: !isRegisteredUser ? 'Debes loguearte' : 'Acceso a fotos',
+      description: buildPhotoBlockedDescription(),
+      duration: 4500,
+    });
+  };
+
+  const getImageExtension = (contentType = '') => {
+    if (contentType.includes('png')) return 'png';
+    if (contentType.includes('webp')) return 'webp';
+    if (contentType.includes('heic')) return 'heic';
+    if (contentType.includes('heif')) return 'heif';
+    return 'jpg';
+  };
+
+  const compressImageForChat = async (file) => {
+    const compressionOptions = {
+      maxSizeMB: 0.33,
+      maxWidthOrHeight: 1280,
+      useWebWorker: true,
+      initialQuality: 0.72,
+    };
+
+    const compressed = await imageCompression(file, compressionOptions);
+    if (compressed.size > PHOTO_MAX_SIZE_BYTES) {
+      throw new Error('La imagen sigue siendo pesada. Prueba otra imagen o recórtala antes de subir.');
+    }
+    return compressed;
+  };
+
+  const handlePhotoFileSelected = async (event) => {
+    const selectedFile = event.target.files?.[0];
+    event.target.value = '';
+
+    if (!selectedFile) return;
+    if (!canSendPhotoNow) {
+      showPhotoBlockedToast();
+      return;
+    }
+    if (!selectedFile.type?.startsWith('image/')) {
+      toast({
+        title: 'Archivo no permitido',
+        description: 'Solo se permiten archivos de imagen.',
+        variant: 'destructive',
+      });
+      return;
+    }
+
+    setIsUploadingPhoto(true);
+    try {
+      const optimizedFile = await compressImageForChat(selectedFile);
+      const tempMessageId = (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function')
+        ? crypto.randomUUID()
+        : `msg_${Date.now()}_${Math.random().toString(36).slice(2, 9)}`;
+      const assetId = `${Date.now()}_${Math.random().toString(36).slice(2, 7)}`;
+      const extension = getImageExtension(optimizedFile.type);
+      const mediaPath = `chat_media/${roomId || 'principal'}/${tempMessageId}/${assetId}.${extension}`;
+
+      const fileRef = storageRef(storage, mediaPath);
+      await uploadBytes(fileRef, optimizedFile, {
+        contentType: optimizedFile.type,
+        customMetadata: {
+          roomId: roomId || 'principal',
+          userId: user?.id || '',
+          feature: 'chat_photo_access',
+        },
+      });
+
+      const downloadURL = await getDownloadURL(fileRef);
+
+      await onSendMessage(downloadURL, 'image', replyTo, {
+        media: [
+          {
+            kind: 'image',
+            path: mediaPath,
+            contentType: optimizedFile.type,
+            sizeBytes: optimizedFile.size,
+          },
+        ],
+      });
+    } catch (error) {
+      toast({
+        title: 'No se pudo subir la foto',
+        description: error?.message || 'Reintenta en unos segundos.',
+        variant: 'destructive',
+      });
+    } finally {
+      setIsUploadingPhoto(false);
+      setShowPhotoTooltip(false);
+    }
+  };
+
+  const handlePhotoButtonClick = () => {
+    if (isUploadingPhoto) return;
+    if (!canSendPhotoNow) {
+      showPhotoBlockedToast();
+      return;
+    }
+    photoInputRef.current?.click();
   };
 
   const handlePremiumFeature = (featureName, implementationMessage) => {
@@ -808,18 +1018,41 @@ const ChatInput = ({
           {showEmojiPicker ? <X className="w-5 h-5"/> : <Smile className="w-5 h-5" />}
         </Button>
 
-        {/* ✅ Icono de foto comentado - Más espacio para el input */}
-        {/* <Button
-          type="button"
-          variant="ghost"
-          size="icon"
-          onClick={() => handlePremiumFeature("fotos", "Selector de imágenes")}
-          className={`text-muted-foreground hover:text-cyan-400 min-w-[44px] min-h-[44px] sm:min-w-0 sm:min-h-0 ${!user.isPremium ? 'opacity-50' : ''}`}
-          title="Enviar Imagen (Premium)"
-          aria-label="Enviar imagen (función Premium)"
-        >
-          <Image className="w-5 h-5" />
-        </Button> */}
+        <div className="relative">
+          <Button
+            type="button"
+            variant="ghost"
+            size="icon"
+            onClick={handlePhotoButtonClick}
+            onMouseEnter={() => setShowPhotoTooltip(true)}
+            onMouseLeave={() => setShowPhotoTooltip(false)}
+            onFocus={() => setShowPhotoTooltip(true)}
+            onBlur={() => setShowPhotoTooltip(false)}
+            className={`min-w-[44px] min-h-[44px] sm:min-w-0 sm:min-h-0 transition-colors ${
+              canSendPhotoNow
+                ? 'text-muted-foreground hover:text-cyan-400'
+                : 'text-muted-foreground/80 hover:text-cyan-300'
+            } ${isUploadingPhoto ? 'opacity-70' : ''}`}
+            title={getPhotoTooltipText()}
+            aria-label="Subir imagen al chat"
+            aria-busy={isUploadingPhoto}
+          >
+            <Image className={`w-5 h-5 ${isUploadingPhoto ? 'animate-pulse' : ''}`} />
+          </Button>
+
+          {showPhotoTooltip && (
+            <div className="pointer-events-none absolute bottom-full left-1/2 z-30 mb-2 w-56 -translate-x-1/2 rounded-md border border-input bg-card/95 px-2 py-1 text-[11px] text-muted-foreground shadow-lg">
+              {getPhotoTooltipText()}
+            </div>
+          )}
+        </div>
+        <input
+          ref={photoInputRef}
+          type="file"
+          accept="image/jpeg,image/jpg,image/png,image/webp,image/heic,image/heif"
+          className="hidden"
+          onChange={handlePhotoFileSelected}
+        />
 
         {/* ✅ Icono de audio comentado - Más espacio para el input */}
         {/* <Button

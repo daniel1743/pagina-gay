@@ -1,6 +1,6 @@
 import React from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
-import { Award, Crown, Gift, Shield, Sparkles, Star, X, Zap } from 'lucide-react';
+import { Award, Camera, Crown, Gift, Shield, Sparkles, Star, X, Zap } from 'lucide-react';
 import { REWARD_TYPES } from '@/services/rewardsService';
 
 const typeConfig = {
@@ -33,6 +33,11 @@ const typeConfig = {
     icon: Zap,
     title: 'Premio PRO',
     accent: 'from-amber-400 to-orange-500',
+  },
+  [REWARD_TYPES.CHAT_PHOTO_ACCESS]: {
+    icon: Camera,
+    title: 'Acceso a fotos en chat',
+    accent: 'from-green-400 to-emerald-500',
   },
 };
 

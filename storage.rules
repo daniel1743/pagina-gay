@@ -42,14 +42,11 @@ service firebase.storage {
       // El chat actual es público para lectura, mantenemos compatibilidad
       allow read: if true;
 
-      // Solo usuarios autenticados pueden subir media (invitados: texto únicamente)
+      // Solo usuarios autenticados pueden subir imágenes comprimidas (no originales pesados)
       allow create, update: if request.auth != null
         && request.resource != null
-        && request.resource.size <= 2 * 1024 * 1024
-        && (
-          request.resource.contentType.matches('image/.*') ||
-          request.resource.contentType.matches('audio/.*')
-        );
+        && request.resource.size <= 350 * 1024
+        && request.resource.contentType.matches('image/.*');
 
       // Permitir borrar a usuarios autenticados; cleanup principal lo hace Cloud Functions (Admin SDK)
       allow delete: if request.auth != null;

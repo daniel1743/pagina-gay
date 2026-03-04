@@ -6,7 +6,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { createReward, REWARD_TYPES, REWARD_REASONS } from '@/services/rewardsService';
 import { toast } from '@/components/ui/use-toast';
-import { Loader2, Gift, Award, Star, Crown, Shield, Zap } from 'lucide-react';
+import { Loader2, Gift, Award, Star, Crown, Shield, Zap, Camera } from 'lucide-react';
 
 const RewardUserModal = ({ isOpen, onClose, user, currentAdmin, onRewardCreated }) => {
   const [loading, setLoading] = useState(false);
@@ -72,6 +72,7 @@ const RewardUserModal = ({ isOpen, onClose, user, currentAdmin, onRewardCreated 
       case REWARD_TYPES.FEATURED_USER: return 'Usuario Destacado';
       case REWARD_TYPES.MODERATOR_1_MONTH: return 'Moderador 1 Mes';
       case REWARD_TYPES.PRO_USER: return 'Usuario PRO (Paquete Completo)';
+      case REWARD_TYPES.CHAT_PHOTO_ACCESS: return 'Acceso a Fotos en Chat';
       default: return 'Recompensa';
     }
   };
@@ -85,6 +86,7 @@ const RewardUserModal = ({ isOpen, onClose, user, currentAdmin, onRewardCreated 
       case REWARD_REASONS.COMMUNITY_BUILDER: return 'Constructor de Comunidad';
       case REWARD_REASONS.AMBASSADOR: return 'Embajador';
       case REWARD_REASONS.PRO_RECOGNITION: return 'Reconocimiento PRO';
+      case REWARD_REASONS.PHOTO_ACTIVITY: return 'Beneficio de fotos por actividad';
       case REWARD_REASONS.OTHER: return 'Otra';
       default: return reason;
     }
@@ -180,6 +182,12 @@ const RewardUserModal = ({ isOpen, onClose, user, currentAdmin, onRewardCreated 
                       PRO (2da foto + tarjeta destacada + arcoíris + badge)
                     </div>
                   </SelectItem>
+                  <SelectItem value={REWARD_TYPES.CHAT_PHOTO_ACCESS}>
+                    <div className="flex items-center gap-2">
+                      <Camera className="w-4 h-4 text-green-400" />
+                      Acceso fotos chat (principal)
+                    </div>
+                  </SelectItem>
                 </SelectContent>
               </Select>
             </div>
@@ -201,6 +209,7 @@ const RewardUserModal = ({ isOpen, onClose, user, currentAdmin, onRewardCreated 
                   <SelectItem value={REWARD_REASONS.COMMUNITY_BUILDER}>Constructor de Comunidad</SelectItem>
                   <SelectItem value={REWARD_REASONS.AMBASSADOR}>Embajador</SelectItem>
                   <SelectItem value={REWARD_REASONS.PRO_RECOGNITION}>Reconocimiento PRO</SelectItem>
+                  <SelectItem value={REWARD_REASONS.PHOTO_ACTIVITY}>Beneficio de fotos por actividad</SelectItem>
                   <SelectItem value={REWARD_REASONS.OTHER}>Otra</SelectItem>
                 </SelectContent>
               </Select>

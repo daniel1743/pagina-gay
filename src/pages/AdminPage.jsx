@@ -5,7 +5,7 @@ import {
   Shield, AlertTriangle, Users, MessageSquare, TrendingUp, ArrowLeft,
   CheckCircle, XCircle, Clock, Eye, UserPlus, LogIn, BarChart3,
   Ticket, Activity, FileText, Search, Filter, Ban, VolumeX, Bell, Send, Megaphone,
-  Gift, Award, Star, Crown, Trophy, Zap, Download, User
+  Gift, Award, Star, Crown, Trophy, Zap, Download, User, Camera
 } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
 import { Button } from '@/components/ui/button';
@@ -1882,6 +1882,8 @@ const AdminPage = () => {
                               {reward.type === REWARD_TYPES.SPECIAL_AVATAR && <Star className="w-6 h-6 text-purple-400" />}
                               {reward.type === REWARD_TYPES.FEATURED_USER && <Award className="w-6 h-6 text-pink-400" />}
                               {reward.type === REWARD_TYPES.MODERATOR_1_MONTH && <Shield className="w-6 h-6 text-cyan-400" />}
+                              {reward.type === REWARD_TYPES.PRO_USER && <Zap className="w-6 h-6 text-amber-400" />}
+                              {reward.type === REWARD_TYPES.CHAT_PHOTO_ACCESS && <Camera className="w-6 h-6 text-green-400" />}
                               <div>
                                 <h3 className="font-semibold text-lg">{reward.username}</h3>
                                 <p className="text-sm text-muted-foreground">
@@ -1890,6 +1892,8 @@ const AdminPage = () => {
                                   {reward.type === REWARD_TYPES.SPECIAL_AVATAR && 'Avatar Especial 1 Mes'}
                                   {reward.type === REWARD_TYPES.FEATURED_USER && 'Usuario Destacado'}
                                   {reward.type === REWARD_TYPES.MODERATOR_1_MONTH && 'Moderador 1 Mes'}
+                                  {reward.type === REWARD_TYPES.PRO_USER && 'Usuario PRO'}
+                                  {reward.type === REWARD_TYPES.CHAT_PHOTO_ACCESS && 'Acceso a Fotos en Chat'}
                                 </p>
                               </div>
                             </div>
