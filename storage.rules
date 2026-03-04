@@ -35,6 +35,25 @@ service firebase.storage {
       // Permitir eliminación solo del propio usuario
       allow delete: if request.auth != null && request.auth.uid == userId;
     }
+
+    // Media efímera del chat (imágenes y notas de voz)
+    // Ruta esperada: chat_media/{roomId}/{messageId}/{assetId}
+    match /chat_media/{roomId}/{messageId}/{assetPath=**} {
+      // El chat actual es público para lectura, mantenemos compatibilidad
+      allow read: if true;
+
+      // Solo usuarios autenticados pueden subir media (invitados: texto únicamente)
+      allow create, update: if request.auth != null
+        && request.resource != null
+        && request.resource.size <= 2 * 1024 * 1024
+        && (
+          request.resource.contentType.matches('image/.*') ||
+          request.resource.contentType.matches('audio/.*')
+        );
+
+      // Permitir borrar a usuarios autenticados; cleanup principal lo hace Cloud Functions (Admin SDK)
+      allow delete: if request.auth != null;
+    }
     
     // ⚠️ NOTA: Si tienes reglas existentes, NO incluyas esta regla por defecto
     // porque podría estar en conflicto con tus reglas actuales.
@@ -44,4 +63,3 @@ service firebase.storage {
     // }
   }
 }
-
