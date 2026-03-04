@@ -12,27 +12,35 @@ export const PROFILE_ROLE_OPTIONS = [
 const ROLE_STYLE_BY_VALUE = {
   'Activo': {
     badgeClassName: 'border-emerald-400/35 bg-emerald-500/10 text-emerald-200',
+    avatarRingColor: '#34d399',
   },
   'Versátil Act': {
     badgeClassName: 'border-violet-400/35 bg-violet-500/10 text-violet-200',
+    avatarRingColor: '#a78bfa',
   },
   'Versátil Pasivo': {
     badgeClassName: 'border-fuchsia-400/35 bg-fuchsia-500/10 text-fuchsia-200',
+    avatarRingColor: '#e879f9',
   },
   'Pasivo': {
     badgeClassName: 'border-slate-400/45 bg-slate-500/10 text-slate-200',
+    avatarRingColor: '#94a3b8',
   },
   'Inter': {
     badgeClassName: 'border-sky-400/35 bg-sky-500/10 text-sky-200',
+    avatarRingColor: '#38bdf8',
   },
   'Hetero Curioso': {
     badgeClassName: 'border-amber-400/40 bg-amber-500/10 text-amber-200',
+    avatarRingColor: '#fbbf24',
   },
   'Solo Mamar': {
     badgeClassName: 'border-rose-400/35 bg-rose-500/10 text-rose-200',
+    avatarRingColor: '#fb7185',
   },
   'Solo Ver': {
     badgeClassName: 'border-zinc-400/40 bg-zinc-500/10 text-zinc-200',
+    avatarRingColor: '#a1a1aa',
   },
 };
 
@@ -86,5 +94,6 @@ export const getProfileRoleBadgeMeta = (rawRole) => {
     value,
     label: value,
     badgeClassName: ROLE_STYLE_BY_VALUE[value]?.badgeClassName || ROLE_STYLE_BY_VALUE.Activo.badgeClassName,
+    avatarRingColor: ROLE_STYLE_BY_VALUE[value]?.avatarRingColor || ROLE_STYLE_BY_VALUE.Activo.avatarRingColor,
   };
 };

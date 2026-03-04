@@ -599,7 +599,12 @@ const ChatMessages = ({
                     {/* ✅ Avatar: Solo en primer mensaje, solo para otros */}
                     {!isOwn && isFirst && (
                       <div
-                        className={`message-avatar cursor-pointer relative ${isUserPro ? 'rainbow-avatar-ring p-[2px] rounded-full' : ''}`}
+                        className={`message-avatar cursor-pointer relative ${
+                          roleBadgeMeta
+                            ? 'avatar-role-ring'
+                            : (isUserPro ? 'rainbow-avatar-ring p-[2px] rounded-full' : '')
+                        }`}
+                        style={roleBadgeMeta?.avatarRingColor ? { '--role-ring-color': roleBadgeMeta.avatarRingColor } : undefined}
                         onClick={() => onUserClick({
                           username: group.username,
                           avatar: group.avatar,
