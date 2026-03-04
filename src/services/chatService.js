@@ -24,6 +24,65 @@ import { getPerformanceMonitor } from '@/services/performanceMonitor';
 import { getDeliveryService } from '@/services/messageDeliveryService';
 import { traceEvent, TRACE_EVENTS } from '@/utils/messageTrace';
 
+const FAST_REPLY_WINDOW_MS = 120000;
+
+const buildConversationPairKey = (userIdA, userIdB) => {
+  const a = userIdA || 'unknown_a';
+  const b = userIdB || 'unknown_b';
+  return [a, b].sort().join('__');
+};
+
+const annotateFastReplyHighlights = (orderedMessages = []) => {
+  if (!Array.isArray(orderedMessages) || orderedMessages.length === 0) {
+    return orderedMessages;
+  }
+
+  const messageById = new Map();
+  orderedMessages.forEach((message) => {
+    if (message?.id) messageById.set(message.id, message);
+  });
+
+  const repliedMessageIds = new Set();
+  const highlightedPairs = new Set();
+
+  return orderedMessages.map((message) => {
+    const replyToMessageId = message?.replyTo?.messageId;
+    if (!replyToMessageId) return message;
+
+    // Solo cuenta la primera respuesta directa a ese mensaje.
+    if (repliedMessageIds.has(replyToMessageId)) return message;
+    repliedMessageIds.add(replyToMessageId);
+
+    const targetMessage = messageById.get(replyToMessageId);
+    if (!targetMessage) return message;
+
+    if (!message.timestampMs || !targetMessage.timestampMs) return message;
+
+    const deltaMs = message.timestampMs - targetMessage.timestampMs;
+    if (deltaMs < 0 || deltaMs > FAST_REPLY_WINDOW_MS) return message;
+
+    if (!message.userId || !targetMessage.userId) return message;
+    if (message.userId === targetMessage.userId) return message;
+
+    // Evita repetir badge múltiples veces para la misma conversación activa.
+    const pairKey = buildConversationPairKey(message.userId, targetMessage.userId);
+    if (highlightedPairs.has(pairKey)) return message;
+    highlightedPairs.add(pairKey);
+
+    return {
+      ...message,
+      quickReplyHighlight: {
+        key: `${pairKey}:${replyToMessageId}`,
+        pairKey,
+        triggerMessageId: replyToMessageId,
+        replyMessageId: message.id,
+        deltaMs,
+        deltaSeconds: Math.round(deltaMs / 1000),
+      },
+    };
+  });
+};
+
 // Persistencia de envíos pendientes (cuando la red falla)
 const pendingMessages = [];
 let isFlushingQueue = false;
@@ -238,6 +297,8 @@ const doSendMessage = async (roomId, messageData, isAnonymous = false) => {
     hasFeaturedCard: messageData.hasFeaturedCard || false,
     canUploadSecondPhoto: messageData.canUploadSecondPhoto || false,
     badge: messageData.badge || 'Nuevo', // 🏅 Badge de participación en eventos
+    roleBadge: messageData.roleBadge || null,
+    comuna: messageData.comuna || null,
     content: messageData.content,
     type: messageData.type || 'text',
     // ✅ Usar serverTimestamp() para sincronización correcta entre clientes
@@ -498,7 +559,7 @@ const processSnapshotToMessages = (snapshot, roomId) => {
   }
   const orderedMessages = [];
   for (let i = messages.length - 1; i >= 0; i--) orderedMessages.push(messages[i]);
-  return orderedMessages;
+  return annotateFastReplyHighlights(orderedMessages);
 };
 
 /**

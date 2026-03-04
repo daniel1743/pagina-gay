@@ -111,24 +111,12 @@ class NotificationSounds {
       return;
     }
 
-    if (!this.audioContext) {
-      console.warn('[SOUNDS] ⚠️ Sonido de mensaje bloqueado: AudioContext NO INICIALIZADO');
-      console.warn('[SOUNDS] 💡 Intentando inicializar AudioContext automáticamente...');
-      this.init();
-      if (!this.audioContext) {
-        console.error('[SOUNDS] ❌ No se pudo inicializar AudioContext');
-        return;
-      }
-    }
+    if (!this.audioContext) return;
 
     // Verificar si el AudioContext está suspendido (común en Chrome/Safari)
     if (this.audioContext.state === 'suspended') {
       // console.log('[SOUNDS] 🔄 AudioContext suspendido, reanudando...');
-      this.audioContext.resume().then(() => {
-        // console.log('[SOUNDS] ✅ AudioContext reanudado correctamente');
-      }).catch(err => {
-        console.warn('[SOUNDS] ⚠️ No se pudo reanudar AudioContext (autoplay policy):', err);
-      });
+      this.audioContext.resume().catch(() => {});
     }
 
     const now = Date.now();
@@ -191,24 +179,11 @@ class NotificationSounds {
       return;
     }
 
-    if (!this.audioContext) {
-      console.warn('[SOUNDS] ⚠️ Sonido de desconexión bloqueado: AudioContext NO INICIALIZADO');
-      console.warn('[SOUNDS] 💡 Intentando inicializar AudioContext automáticamente...');
-      this.init();
-      if (!this.audioContext) {
-        console.error('[SOUNDS] ❌ No se pudo inicializar AudioContext');
-        return;
-      }
-    }
+    if (!this.audioContext) return;
 
     // Verificar si el AudioContext está suspendido (común en Chrome/Safari)
     if (this.audioContext.state === 'suspended') {
-      console.log('[SOUNDS] 🔄 AudioContext suspendido, reanudando...');
-      this.audioContext.resume().then(() => {
-        console.log('[SOUNDS] ✅ AudioContext reanudado correctamente');
-      }).catch(err => {
-        console.warn('[SOUNDS] ⚠️ No se pudo reanudar AudioContext (autoplay policy):', err);
-      });
+      this.audioContext.resume().catch(() => {});
     }
 
     try {
@@ -259,17 +234,10 @@ class NotificationSounds {
       return;
     }
 
-    if (!this.audioContext) {
-      // ⚠️ LOG COMENTADO: Causaba sobrecarga en consola
-      // console.warn('[SOUNDS] ⚠️ Sonido de ingreso bloqueado: AudioContext NO INICIALIZADO');
-      this.init();
-      if (!this.audioContext) return;
-    }
+    if (!this.audioContext) return;
 
     if (this.audioContext.state === 'suspended') {
-      this.audioContext.resume().catch(err => {
-        console.warn('[SOUNDS] ⚠️ No se pudo reanudar AudioContext (autoplay policy):', err);
-      });
+      this.audioContext.resume().catch(() => {});
     }
 
     try {
@@ -311,16 +279,10 @@ class NotificationSounds {
       return;
     }
 
-    if (!this.audioContext) {
-      console.warn('[SOUNDS] ⚠️ Sonido de envío bloqueado: AudioContext NO INICIALIZADO');
-      this.init();
-      if (!this.audioContext) return;
-    }
+    if (!this.audioContext) return;
 
     if (this.audioContext.state === 'suspended') {
-      this.audioContext.resume().catch(err => {
-        console.warn('[SOUNDS] ⚠️ No se pudo reanudar AudioContext (autoplay policy):', err);
-      });
+      this.audioContext.resume().catch(() => {});
     }
 
     try {
@@ -359,16 +321,27 @@ class NotificationSounds {
 // Singleton
 export const notificationSounds = new NotificationSounds();
 
-// Inicializar automáticamente al primer clic del usuario
-let initialized = false;
-const initOnInteraction = () => {
-  if (!initialized) {
-    notificationSounds.init();
-    initialized = true;
-    document.removeEventListener('click', initOnInteraction);
-    document.removeEventListener('keydown', initOnInteraction);
+let gestureHookBound = false;
+let gestureInitialized = false;
+
+export const initAudioOnFirstGesture = () => {
+  if (gestureInitialized) return;
+
+  const unlockAudio = () => {
+    if (gestureInitialized) return;
+    gestureInitialized = notificationSounds.init();
+
+    if (gestureInitialized) {
+      document.removeEventListener('pointerdown', unlockAudio);
+      document.removeEventListener('touchstart', unlockAudio);
+      document.removeEventListener('keydown', unlockAudio);
+    }
+  };
+
+  if (!gestureHookBound) {
+    gestureHookBound = true;
+    document.addEventListener('pointerdown', unlockAudio, { passive: true });
+    document.addEventListener('touchstart', unlockAudio, { passive: true });
+    document.addEventListener('keydown', unlockAudio);
   }
 };
-
-document.addEventListener('click', initOnInteraction);
-document.addEventListener('keydown', initOnInteraction);

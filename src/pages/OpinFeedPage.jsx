@@ -13,6 +13,8 @@ import OpinCommentsModal from '@/components/opin/OpinCommentsModal';
 import { toast } from '@/components/ui/use-toast';
 import { trackPageView, trackPageExit, track } from '@/services/eventTrackingService';
 
+const OPIN_FEED_LIMIT = 200;
+
 const OpinFeedPage = () => {
   const navigate = useNavigate();
   const { user } = useAuth();
@@ -115,7 +117,7 @@ const OpinFeedPage = () => {
   const loadFeed = async () => {
     setLoading(true);
     try {
-      const feedPosts = await getOpinFeed(50);
+      const feedPosts = await getOpinFeed(OPIN_FEED_LIMIT);
       setPosts(feedPosts);
     } catch (error) {
       console.error('Error cargando feed:', error);

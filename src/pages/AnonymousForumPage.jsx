@@ -43,37 +43,48 @@ const AnonymousForumPage = () => {
     }
     canonical.href = 'https://chactivo.com/anonymous-forum';
 
-    // ✅ SEO: Schema.org para DiscussionForumPosting
+    // ✅ SEO: Schema.org para DiscussionForumPosting (Search Console compliant)
+    const forumStructuredData = {
+      "@context": "https://schema.org",
+      "@type": "DiscussionForumPosting",
+      "headline": "Foro Anónimo Gay Chile - Confesiones y Experiencias",
+      "description": "Espacio seguro y anónimo para la comunidad LGBT+ en Chile. Comparte experiencias, pide consejos y conecta sin revelar tu identidad.",
+      // Requerido para rich results de foro: al menos text/image/video
+      "text": "Foro gay 100% anónimo para compartir experiencias, dudas y apoyo entre la comunidad LGBT+ en Chile.",
+      // Requerido por Search Console en DiscussionForumPosting
+      "datePublished": "2026-02-21T00:00:00-03:00",
+      "dateModified": new Date().toISOString(),
+      "url": "https://chactivo.com/anonymous-forum",
+      "image": "https://chactivo.com/icon-512.png",
+      "author": {
+        "@type": "Organization",
+        "name": "Chactivo",
+        "url": "https://chactivo.com/"
+      },
+      "publisher": {
+        "@type": "Organization",
+        "name": "Chactivo",
+        "url": "https://chactivo.com/",
+        "logo": {
+          "@type": "ImageObject",
+          "url": "https://chactivo.com/icon-512.png"
+        }
+      },
+      "mainEntityOfPage": {
+        "@type": "WebPage",
+        "@id": "https://chactivo.com/anonymous-forum"
+      }
+    };
+
+    // ✅ SEO: Inyectar/actualizar schema en cada carga de la página
     let schemaScript = document.getElementById('forum-schema');
     if (!schemaScript) {
       schemaScript = document.createElement('script');
       schemaScript.id = 'forum-schema';
       schemaScript.type = 'application/ld+json';
-      schemaScript.textContent = JSON.stringify({
-        "@context": "https://schema.org",
-        "@type": "DiscussionForumPosting",
-        "headline": "Foro Anónimo Gay Chile - Confesiones y Experiencias",
-        "description": "Espacio seguro y anónimo para la comunidad LGBT+ en Chile. Comparte experiencias, pide consejos y conecta sin revelar tu identidad.",
-        "url": "https://chactivo.com/anonymous-forum",
-        "author": {
-          "@type": "Organization",
-          "name": "Chactivo"
-        },
-        "publisher": {
-          "@type": "Organization",
-          "name": "Chactivo",
-          "logo": {
-            "@type": "ImageObject",
-            "url": "https://chactivo.com/icon-512.png"
-          }
-        },
-        "mainEntityOfPage": {
-          "@type": "WebPage",
-          "@id": "https://chactivo.com/anonymous-forum"
-        }
-      });
       document.head.appendChild(schemaScript);
     }
+    schemaScript.textContent = JSON.stringify(forumStructuredData);
 
     return () => {
       document.title = previousTitle;

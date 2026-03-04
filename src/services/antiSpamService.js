@@ -1,5 +1,6 @@
 import { auth, db } from '@/config/firebase';
 import { doc, setDoc, getDoc, deleteDoc, serverTimestamp, updateDoc, increment } from 'firebase/firestore';
+import { checkDuplicateSpamBeforeSend } from '@/services/moderationAIService';
 
 /**
  * 🛡️ ANTI-SPAM SERVICE v3.0 (2026)
@@ -465,6 +466,19 @@ export async function validateMessage(message, userId, username, roomId) {
     }
 
     const trimmed = message.trim();
+
+    // 0. 🚫 SPAM POR DUPLICADOS (pre-envío): 3ª = bloqueo+toast, 4ª = bloqueo+mute 5 min
+    const dupCheck = checkDuplicateSpamBeforeSend(userId, trimmed);
+    if (dupCheck.block) {
+      console.log(`[ANTI-SPAM] Bloqueo por duplicados para ${username}:`, dupCheck.type);
+      return {
+        allowed: false,
+        content: trimmed,
+        type: dupCheck.type,
+        reason: dupCheck.reason || 'No se permite spam.',
+        muteMins: dupCheck.muteMins,
+      };
+    }
 
     // 1. 🚫 PALABRAS PROHIBIDAS (Instagram, Telegram, etc.)
     const forbidden = containsForbiddenWords(trimmed);

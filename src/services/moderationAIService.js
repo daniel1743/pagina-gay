@@ -43,9 +43,12 @@ const ESCALATION = [
 ];
 
 // Spam: mensajes iguales en ventana de tiempo
+// Regla: 1ª y 2ª repetición OK, 3ª bloquea + toast, 4ª bloquea + mute 5 min
 const SPAM_CONFIG = {
   DUPLICATE_WINDOW_MS: 60_000,   // 60 segundos
-  DUPLICATE_THRESHOLD: 3,        // 3 mensajes iguales = spam
+  DUPLICATE_WARN_AT: 3,          // 3ª repetición = bloqueo + advertencia
+  DUPLICATE_MUTE_AT: 4,          // 4ª repetición = bloqueo + mute 5 min
+  DUPLICATE_MUTE_MINS: 5,
   FLOOD_WINDOW_MS: 10_000,       // 10 segundos
   FLOOD_THRESHOLD: 5,            // 5 mensajes en 10s = flood
 };
@@ -164,11 +167,22 @@ function detectSpam(userId, message) {
   const duplicates = history.filter(
     m => m.timestamp >= recentWindow && m.text === normalized
   );
-  if (duplicates.length >= SPAM_CONFIG.DUPLICATE_THRESHOLD) {
+  if (duplicates.length >= SPAM_CONFIG.DUPLICATE_MUTE_AT) {
     return {
       isSpam: true,
       type: 'duplicate',
-      reason: `Mensaje repetido ${duplicates.length} veces en ${SPAM_CONFIG.DUPLICATE_WINDOW_MS / 1000}s`,
+      duplicateCount: duplicates.length,
+      severity: 'mute',
+      reason: `Mensaje repetido ${duplicates.length} veces`,
+    };
+  }
+  if (duplicates.length >= SPAM_CONFIG.DUPLICATE_WARN_AT) {
+    return {
+      isSpam: true,
+      type: 'duplicate',
+      duplicateCount: duplicates.length,
+      severity: 'warn',
+      reason: `Mensaje repetido ${duplicates.length} veces`,
     };
   }
 
@@ -184,6 +198,68 @@ function detectSpam(userId, message) {
   }
 
   return { isSpam: false };
+}
+
+/**
+ * Verifica spam por duplicados ANTES de enviar (pre-send).
+ * 3ª repetición: bloquea + toast. 4ª: bloquea + mute 5 min.
+ * Registra intentos bloqueados en historial para conteo correcto.
+ *
+ * @returns {{ block: boolean, type?: 'spam_duplicate_warning'|'spam_duplicate_ban', reason?: string, muteMins?: number }}
+ */
+export function checkDuplicateSpamBeforeSend(userId, message) {
+  const now = Date.now();
+  const normalized = (message || '').trim().toLowerCase();
+  if (!normalized) return { block: false };
+
+  if (!userMessageHistory.has(userId)) {
+    userMessageHistory.set(userId, []);
+  }
+  const history = userMessageHistory.get(userId);
+
+  const recentWindow = now - SPAM_CONFIG.DUPLICATE_WINDOW_MS;
+  const duplicates = history.filter(
+    m => m.timestamp >= recentWindow && m.text === normalized
+  );
+
+  // 4ª repetición: count >= 3 en historial → próxima sería la 4ª → bloquear + mute
+  if (duplicates.length >= 3) {
+    history.push({ text: normalized, timestamp: now });
+    applyDuplicateSpamMute(userId, SPAM_CONFIG.DUPLICATE_MUTE_MINS).catch(() => {});
+    return {
+      block: true,
+      type: 'spam_duplicate_ban',
+      reason: 'No se permite spam. Silenciado 5 minutos.',
+      muteMins: SPAM_CONFIG.DUPLICATE_MUTE_MINS,
+    };
+  }
+
+  // 3ª repetición: count >= 2 en historial → bloquear + toast
+  if (duplicates.length >= 2) {
+    history.push({ text: normalized, timestamp: now });
+    return {
+      block: true,
+      type: 'spam_duplicate_warning',
+      reason: 'No se permite repetir el mismo mensaje tantas veces.',
+    };
+  }
+
+  return { block: false };
+}
+
+/**
+ * Aplica mute por spam duplicado (sin incrementar strikes de moderación IA)
+ */
+async function applyDuplicateSpamMute(userId, minutes) {
+  const state = await getModerationState(userId);
+  const now = Date.now();
+  const muteUntil = now + (minutes * 60_000);
+  await updateModerationState(userId, {
+    strikes: state.strikes,
+    lastStrikeAt: state.lastStrikeAt || now,
+    muteUntil,
+    lastReason: 'Spam: mensaje repetido repetidamente',
+  });
 }
 
 // ═══════════════════════════════════════════════════════════════════
@@ -302,12 +378,26 @@ export async function evaluateMessage(message, userId, username, roomId) {
     const spamResult = detectSpam(userId, message);
     if (spamResult.isSpam) {
       console.log(`[MOD-AI] Spam detectado para ${username}:`, spamResult.reason);
-      return await applyEscalation(userId, username, message, roomId, {
+      // Duplicados: aplicar mute sin strikes (evitar doble sanción con pre-send)
+      if (spamResult.type === 'duplicate' && spamResult.severity === 'mute') {
+        await applyDuplicateSpamMute(userId, SPAM_CONFIG.DUPLICATE_MUTE_MINS);
+        return {
+          safe: false,
+          action: 'mute',
+          muteMins: SPAM_CONFIG.DUPLICATE_MUTE_MINS,
+          reason: spamResult.reason,
+          severity: 'medium',
+          detectedBy: 'spam',
+        };
+      }
+      // Duplicados warn o flood: solo eliminar mensaje, sin mute (pre-send ya bloquea 3ª/4ª)
+      return {
         safe: false,
+        action: 'warning',
         reason: spamResult.reason,
         severity: 'medium',
         detectedBy: 'spam',
-      });
+      };
     }
 
     // 2. AI MODERATION (DeepSeek → OpenAI → Qwen)

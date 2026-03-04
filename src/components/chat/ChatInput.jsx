@@ -8,6 +8,7 @@ import { EmojiStyle, Categories } from 'emoji-picker-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useAuth } from '@/contexts/AuthContext';
 import { updateTypingStatus } from '@/services/presenceService';
+import { notificationSounds, initAudioOnFirstGesture } from '@/services/notificationSounds';
 
 // Lazy load del EmojiPicker para mejorar rendimiento
 const EmojiPicker = lazy(() => import('emoji-picker-react'));
@@ -44,9 +45,52 @@ const PREMIUM_EMOJIS = [
 
 const RECENT_EMOJIS_STORAGE_KEY = 'chat_recent_emojis_v1';
 const DEFAULT_RECENT_EMOJIS = ['😂', '🤣', '😍', '🔥', '😘', '😉', '😈', '😏', '🥵', '🤤', '❤️', '😎'];
+const ONBOARDING_ROLE_KEY = 'chactivo:role';
+const ONBOARDING_COMUNA_KEY = 'chactivo:comuna';
+const ONBOARDING_DISMISSED_KEY = 'chactivo:onboarding:dismissed';
+const ONBOARDING_FIRST_MESSAGE_KEY = 'chactivo:onboarding:first_message_sent';
+const ONBOARDING_FOCUS_NUDGE_KEY = 'chactivo:onboarding:focus_nudge_shown';
+
+const ROLE_CHIPS = [
+  { value: 'activo', label: 'Soy Activo' },
+  { value: 'pasivo', label: 'Soy Pasivo' },
+  { value: 'versatil', label: 'Soy Versátil' },
+];
+
+const COMUNA_OPTIONS = [
+  'Santiago Centro',
+  'Providencia',
+  'Ñuñoa',
+  'La Florida',
+  'Maipú',
+  'Puente Alto',
+  'Las Condes',
+  'Independencia',
+  'Conchalí',
+  'Viña del Mar',
+  'Valparaíso',
+];
+
+const FIRST_MESSAGE_PROMPTS = [
+  '¿Quién de Santiago Centro?',
+  'Activo buscando pasivo 👀',
+  '¿Alguien despierto a esta hora?',
+  '¿Quién tiene lugar?',
+];
 
 
-const ChatInput = ({ onSendMessage, onFocus, onBlur, externalMessage = null, roomId = null, replyTo = null, onCancelReply, onRequestNickname, isGuest = false }) => {
+const ChatInput = ({
+  onSendMessage,
+  onFocus,
+  onBlur,
+  externalMessage = null,
+  roomId = null,
+  replyTo = null,
+  onCancelReply,
+  onRequestNickname,
+  isGuest = false,
+  showOnboardingHints = false,
+}) => {
   const { user, guestMessageCount } = useAuth();
   const [message, setMessage] = useState('');
   const [showEmojiPicker, setShowEmojiPicker] = useState(false);
@@ -56,7 +100,26 @@ const ChatInput = ({ onSendMessage, onFocus, onBlur, externalMessage = null, roo
   const [recentEmojis, setRecentEmojis] = useState(DEFAULT_RECENT_EMOJIS);
   const [showQuickPhrases, setShowQuickPhrases] = useState(false);
   const [showComingSoon, setShowComingSoon] = useState(false);
+  const [showComunaSelector, setShowComunaSelector] = useState(false);
+  const [showFocusNudge, setShowFocusNudge] = useState(false);
+  const [onboardingDismissed, setOnboardingDismissed] = useState(() => {
+    if (typeof window === 'undefined') return false;
+    return sessionStorage.getItem(ONBOARDING_DISMISSED_KEY) === '1';
+  });
+  const [firstMessageSentInSession, setFirstMessageSentInSession] = useState(() => {
+    if (typeof window === 'undefined') return false;
+    return sessionStorage.getItem(ONBOARDING_FIRST_MESSAGE_KEY) === '1';
+  });
+  const [selectedRole, setSelectedRole] = useState(() => {
+    if (typeof window === 'undefined') return '';
+    return localStorage.getItem(ONBOARDING_ROLE_KEY) || '';
+  });
+  const [selectedComuna, setSelectedComuna] = useState(() => {
+    if (typeof window === 'undefined') return '';
+    return localStorage.getItem(ONBOARDING_COMUNA_KEY) || '';
+  });
   const typingTimeoutRef = useRef(null);
+  const focusNudgeTimeoutRef = useRef(null);
 
   // ✨ COMPANION AI: Setear mensaje cuando viene de sugerencia externa
   useEffect(() => {
@@ -69,6 +132,59 @@ const ChatInput = ({ onSendMessage, onFocus, onBlur, externalMessage = null, roo
   const [comingSoonFeature, setComingSoonFeature] = useState({ name: '', description: '' });
   const wrapperRef = useRef(null);
   const textareaRef = useRef(null);
+
+  const shouldShowOnboarding = showOnboardingHints && !onboardingDismissed && !firstMessageSentInSession;
+
+  const persistSessionFlag = (key, value = '1') => {
+    if (typeof window === 'undefined') return;
+    sessionStorage.setItem(key, value);
+  };
+
+  const persistLocalValue = (key, value) => {
+    if (typeof window === 'undefined') return;
+    if (!value) {
+      localStorage.removeItem(key);
+      return;
+    }
+    localStorage.setItem(key, value);
+  };
+
+  const dismissOnboardingForSession = () => {
+    setOnboardingDismissed(true);
+    persistSessionFlag(ONBOARDING_DISMISSED_KEY, '1');
+  };
+
+  const markFirstMessageSent = () => {
+    if (firstMessageSentInSession) return;
+    setFirstMessageSentInSession(true);
+    persistSessionFlag(ONBOARDING_FIRST_MESSAGE_KEY, '1');
+  };
+
+  const maybeShowFocusNudge = () => {
+    if (!showOnboardingHints || firstMessageSentInSession) return;
+    if (typeof window !== 'undefined' && sessionStorage.getItem(ONBOARDING_FOCUS_NUDGE_KEY) === '1') {
+      return;
+    }
+
+    setShowFocusNudge(true);
+    persistSessionFlag(ONBOARDING_FOCUS_NUDGE_KEY, '1');
+
+    if (focusNudgeTimeoutRef.current) {
+      clearTimeout(focusNudgeTimeoutRef.current);
+    }
+
+    focusNudgeTimeoutRef.current = setTimeout(() => {
+      setShowFocusNudge(false);
+    }, 4000);
+  };
+
+  useEffect(() => {
+    return () => {
+      if (focusNudgeTimeoutRef.current) {
+        clearTimeout(focusNudgeTimeoutRef.current);
+      }
+    };
+  }, []);
 
   // 📱 FIX MÓVIL: Asegurar que el textarea sea focusable y visible en dispositivos móviles
   useEffect(() => {
@@ -93,8 +209,13 @@ const ChatInput = ({ onSendMessage, onFocus, onBlur, externalMessage = null, roo
           return;
         }
 
+        // 🔊 Inicializar audio solo con gesto real del usuario
+        initAudioOnFirstGesture();
+        notificationSounds.init();
+
         // Notificar al padre que el input está enfocado
         onFocus?.(true);
+        maybeShowFocusNudge();
 
         // ❌ REMOVIDO: scrollIntoView forzado que violaba la regla de no interrumpir lectura de historial
         // El ScrollManager ahora maneja esto correctamente respetando el estado del usuario
@@ -116,7 +237,7 @@ const ChatInput = ({ onSendMessage, onFocus, onBlur, externalMessage = null, roo
         }
       };
     }
-  }, [onFocus, onBlur, isGuest, onRequestNickname]);
+  }, [onFocus, onBlur, isGuest, onRequestNickname, showOnboardingHints, firstMessageSentInSession]);
 
   useEffect(() => {
     function handleClickOutside(event) {
@@ -266,6 +387,8 @@ const ChatInput = ({ onSendMessage, onFocus, onBlur, externalMessage = null, roo
     }
 
     if (message.trim() && !isSending) {
+      markFirstMessageSent();
+      setShowFocusNudge(false);
       setIsSending(true);
       checkForSensitiveWords(message);
 
@@ -346,9 +469,33 @@ const ChatInput = ({ onSendMessage, onFocus, onBlur, externalMessage = null, roo
   };
   
   const handleQuickPhraseClick = (phrase) => {
-    onSendMessage(phrase, 'text');
+    setMessage(phrase);
+    textareaRef.current?.focus({ preventScroll: true });
     setShowQuickPhrases(false);
   }
+
+  const handleRoleSelect = (roleValue) => {
+    setSelectedRole(roleValue);
+    persistLocalValue(ONBOARDING_ROLE_KEY, roleValue);
+  };
+
+  const handleComunaSelect = (comunaValue) => {
+    setSelectedComuna(comunaValue);
+    persistLocalValue(ONBOARDING_COMUNA_KEY, comunaValue);
+  };
+
+  const handlePromptClick = (prompt) => {
+    setMessage(prompt);
+    textareaRef.current?.focus({ preventScroll: true });
+  };
+
+  const handleMessageChange = (event) => {
+    const nextMessage = event.target.value;
+    setMessage(nextMessage);
+    if (!onboardingDismissed && nextMessage.trim().length > 0) {
+      dismissOnboardingForSession();
+    }
+  };
 
   const handlePremiumFeature = (featureName, implementationMessage) => {
      if (!user?.isPremium) {
@@ -509,6 +656,77 @@ const ChatInput = ({ onSendMessage, onFocus, onBlur, externalMessage = null, roo
         )}
       </AnimatePresence>
 
+      {shouldShowOnboarding && (
+        <div className="mb-3 space-y-2">
+          <div className="rounded-xl border border-input/70 bg-secondary/35 px-3 py-2">
+            <div className="flex flex-wrap items-center gap-2">
+              {ROLE_CHIPS.map((chip) => (
+                <button
+                  key={chip.value}
+                  type="button"
+                  onClick={() => handleRoleSelect(chip.value)}
+                  className={`rounded-full border px-2.5 py-1 text-xs font-medium transition-colors ${
+                    selectedRole === chip.value
+                      ? 'border-cyan-400/80 bg-cyan-500/15 text-cyan-200'
+                      : 'border-gray-600/60 bg-gray-700/40 text-gray-200 hover:border-gray-500/80 hover:bg-gray-700/60'
+                  }`}
+                >
+                  {chip.label}
+                </button>
+              ))}
+              <button
+                type="button"
+                onClick={() => setShowComunaSelector((prev) => !prev)}
+                className={`rounded-full border px-2.5 py-1 text-xs font-medium transition-colors ${
+                  showComunaSelector || selectedComuna
+                    ? 'border-purple-400/80 bg-purple-500/15 text-purple-200'
+                    : 'border-gray-600/60 bg-gray-700/40 text-gray-200 hover:border-gray-500/80 hover:bg-gray-700/60'
+                }`}
+              >
+                Agregar comuna
+              </button>
+              <button
+                type="button"
+                onClick={dismissOnboardingForSession}
+                className="ml-auto rounded-full border border-transparent px-2 py-1 text-[11px] text-muted-foreground hover:border-input hover:text-foreground transition-colors"
+              >
+                Omitir
+              </button>
+            </div>
+
+            {showComunaSelector && (
+              <div className="mt-2">
+                <select
+                  value={selectedComuna}
+                  onChange={(event) => handleComunaSelect(event.target.value)}
+                  className="w-full rounded-lg border border-input bg-card px-3 py-2 text-sm text-foreground outline-none focus:border-accent"
+                >
+                  <option value="">Selecciona comuna</option>
+                  {COMUNA_OPTIONS.map((comuna) => (
+                    <option key={comuna} value={comuna}>
+                      {comuna}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            )}
+          </div>
+
+          <div className="flex gap-1.5 overflow-x-auto scrollbar-hide px-0.5">
+            {FIRST_MESSAGE_PROMPTS.map((prompt) => (
+              <button
+                key={prompt}
+                type="button"
+                onClick={() => handlePromptClick(prompt)}
+                className="shrink-0 rounded-full border border-gray-600/60 bg-gray-700/45 px-3 py-1.5 text-xs font-medium text-gray-100 transition-colors hover:border-gray-500/70 hover:bg-gray-700/65"
+              >
+                {prompt}
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
+
       {/* 💬 REPLY PREVIEW: Mostrar cuando se está respondiendo a un mensaje */}
       <AnimatePresence>
         {replyTo && (
@@ -540,6 +758,19 @@ const ChatInput = ({ onSendMessage, onFocus, onBlur, externalMessage = null, roo
             >
               <X className="h-3 w-3" />
             </Button>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      <AnimatePresence>
+        {showFocusNudge && (
+          <motion.div
+            initial={{ opacity: 0, y: 8 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -6 }}
+            className="mb-2 rounded-lg border border-cyan-500/25 bg-cyan-500/10 px-3 py-2 text-xs text-cyan-100"
+          >
+            Tip: Si indicas tu comuna o rol, te responden más rápido.
           </motion.div>
         )}
       </AnimatePresence>
@@ -606,7 +837,7 @@ const ChatInput = ({ onSendMessage, onFocus, onBlur, externalMessage = null, roo
         <textarea
           ref={textareaRef}
           value={message}
-          onChange={(e) => setMessage(e.target.value)}
+          onChange={handleMessageChange}
           onKeyDown={(e) => {
             // ✅ Si es invitado sin nickname, mostrar modal al intentar escribir
             if (isGuest && onRequestNickname) {

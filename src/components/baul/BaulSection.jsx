@@ -167,7 +167,7 @@ const BaulSection = ({ isOpen = true, onClose, variant = 'modal' }) => {
   const isGuestView = !user || user.isGuest || user.isAnonymous;
   const canInteract = Boolean(user && !user.isGuest && !user.isAnonymous);
   const canDejarHuella = canInteract;
-  const canEditOwnCard = Boolean(user && user.id);
+  const canEditOwnCard = Boolean(user && user.id && !user.isGuest && !user.isAnonymous);
 
   useEffect(() => {
     if (!isActive) return;
@@ -295,7 +295,7 @@ const BaulSection = ({ isOpen = true, onClose, variant = 'modal' }) => {
     const odIdUsuari = user?.id;
     console.log('[BAUL] Mi user ID:', odIdUsuari);
 
-    if (!odIdUsuari) {
+    if (!odIdUsuari || user?.isGuest || user?.isAnonymous) {
       console.log('[BAUL] ❌ No hay user ID, no se puede cargar tarjeta');
       return null;
     }

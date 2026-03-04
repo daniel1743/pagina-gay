@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Button } from '@/components/ui/button';
-import { Flag, ThumbsUp, ThumbsDown, CheckCircle, Reply, Lock, Zap } from 'lucide-react';
+import { ThumbsUp, ThumbsDown, CheckCircle, Reply, Lock } from 'lucide-react';
 import { motion } from 'framer-motion';
 import { useAuth } from '@/contexts/AuthContext';
 import MessageQuote from './MessageQuote';
@@ -39,7 +39,10 @@ const ChatMessages = ({
   isLoadingMessages = false,
 }) => {
   const [highlightedMessageId, setHighlightedMessageId] = useState(null);
+  const [activeQuickReplyBadge, setActiveQuickReplyBadge] = useState(null);
   const renderedMessageIdsRef = useRef(new Set());
+  const shownQuickReplyBadgesRef = useRef(new Set());
+  const quickReplyHideTimeoutRef = useRef(null);
   const { user: authUser } = useAuth();
 
   // ⚡ SEGURIDAD: roomUsers siempre array
@@ -78,6 +81,43 @@ const ChatMessages = ({
       });
     });
   }, [messages, currentUserId]);
+
+  // ⚡ Respuesta rápida: mostrar badge temporal una sola vez por conversación activa
+  useEffect(() => {
+    if (!Array.isArray(messages) || messages.length === 0) return;
+
+    let latestQuickReply = null;
+    for (let i = messages.length - 1; i >= 0; i--) {
+      if (messages[i]?.quickReplyHighlight?.key) {
+        latestQuickReply = messages[i].quickReplyHighlight;
+        break;
+      }
+    }
+
+    if (!latestQuickReply?.key) return;
+    if (shownQuickReplyBadgesRef.current.has(latestQuickReply.key)) return;
+
+    shownQuickReplyBadgesRef.current.add(latestQuickReply.key);
+    setActiveQuickReplyBadge(latestQuickReply);
+
+    if (quickReplyHideTimeoutRef.current) {
+      clearTimeout(quickReplyHideTimeoutRef.current);
+    }
+
+    quickReplyHideTimeoutRef.current = setTimeout(() => {
+      setActiveQuickReplyBadge((prev) => (
+        prev?.key === latestQuickReply.key ? null : prev
+      ));
+    }, 30000);
+  }, [messages]);
+
+  useEffect(() => {
+    return () => {
+      if (quickReplyHideTimeoutRef.current) {
+        clearTimeout(quickReplyHideTimeoutRef.current);
+      }
+    };
+  }, []);
 
   // ⏰ Formatear timestamp
   const formatTime = (timestamp) => {
@@ -202,6 +242,11 @@ const ChatMessages = ({
 
       if (shouldGroup && currentGroup) {
         currentGroup.messages.push(message);
+        if (message.roleBadge) currentGroup.roleBadge = message.roleBadge;
+        if (message.comuna) currentGroup.comuna = message.comuna;
+        if (message.quickReplyHighlight && !currentGroup.quickReplyHighlight) {
+          currentGroup.quickReplyHighlight = message.quickReplyHighlight;
+        }
       } else {
         if (currentGroup) groups.push(currentGroup);
         currentGroup = {
@@ -216,6 +261,9 @@ const ChatMessages = ({
           hasFeaturedCard: message.hasFeaturedCard || false,
           canUploadSecondPhoto: message.canUploadSecondPhoto || false,
           badge: message.badge || 'Nuevo',
+          roleBadge: message.roleBadge || null,
+          comuna: message.comuna || null,
+          quickReplyHighlight: message.quickReplyHighlight || null,
           messages: [message],
           isSystem: false,
         };
@@ -297,6 +345,11 @@ const ChatMessages = ({
           return (
             <div key={group.groupId} className="message-group">
               {showDivider && <NewMessagesDivider show={true} />}
+              {group.quickReplyHighlight?.key && activeQuickReplyBadge?.key === group.quickReplyHighlight.key && (
+                <div className={`quick-reply-badge ${isOwn ? 'own' : 'other'}`}>
+                  ⚡ Conversación activa
+                </div>
+              )}
 
               {/* ✅ Nombre: Solo una vez, solo para otros */}
               {!isOwn && (
@@ -346,6 +399,11 @@ const ChatMessages = ({
                       </span>
                     );
                   })()}
+                  {group.roleBadge ? (
+                    <span className="inline-block ml-1.5 text-[9px] font-semibold px-1.5 py-0.5 rounded-full border border-cyan-400/35 bg-cyan-500/10 text-cyan-200">
+                      {group.roleBadge}
+                    </span>
+                  ) : null}
                 </div>
               )}
 

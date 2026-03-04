@@ -37,12 +37,12 @@ import { checkUserSanctions, SANCTION_TYPES } from '@/services/sanctionsService'
 import { roomsData } from '@/config/rooms';
 import { trackPageView, trackPageExit, trackRoomJoined, trackMessageSent } from '@/services/eventTrackingService';
 import { useCanonical } from '@/hooks/useCanonical';
-import { notificationSounds } from '@/services/notificationSounds';
+import { notificationSounds, initAudioOnFirstGesture } from '@/services/notificationSounds';
 
 const ChatSecondaryPage = () => {
   const { roomId } = useParams();
   const navigate = useNavigate();
-  const { user, loading: authLoading, signInAsGuest, updateAnonymousUserProfile } = useAuth();
+  const { user, loading: authLoading, authReady, signInAsGuest, updateAnonymousUserProfile } = useAuth();
 
   // Estados
   const [currentRoom, setCurrentRoom] = useState(roomId);
@@ -177,31 +177,20 @@ const ChatSecondaryPage = () => {
     }
   }, [user]);
 
-  // Inicializar sonidos
+  // Inicializar audio solo por gesto del usuario
   useEffect(() => {
-    if (!user) return;
-    const initialized = notificationSounds.init();
-    if (!initialized) {
-      const handleFirstInteraction = () => {
-        notificationSounds.init();
-        document.removeEventListener('click', handleFirstInteraction);
-        document.removeEventListener('touchstart', handleFirstInteraction);
-        document.removeEventListener('keydown', handleFirstInteraction);
-      };
-      document.addEventListener('click', handleFirstInteraction, { once: true });
-      document.addEventListener('touchstart', handleFirstInteraction, { once: true });
-      document.addEventListener('keydown', handleFirstInteraction, { once: true });
-      return () => {
-        document.removeEventListener('click', handleFirstInteraction);
-        document.removeEventListener('touchstart', handleFirstInteraction);
-        document.removeEventListener('keydown', handleFirstInteraction);
-      };
-    }
-  }, [user]);
+    initAudioOnFirstGesture();
+  }, []);
+
+  // Evitar estado de presencia/usuarios cuando auth aún no está lista
+  useEffect(() => {
+    if (authReady && user?.id) return;
+    setRoomUsers([]);
+  }, [authReady, user?.id]);
 
   // Suscripción a mensajes
   useEffect(() => {
-    if (!user || !user.id) return;
+    if (!authReady || !user?.id || !roomId) return;
 
     setCurrentRoom(roomId);
     setIsLoadingMessages(true);
@@ -255,7 +244,7 @@ const ChatSecondaryPage = () => {
       clearInterval(activityInterval);
       leaveRoom(roomId);
     };
-  }, [roomId, user]);
+  }, [roomId, user?.id, authReady]);
 
   // Detectar respuestas
   useEffect(() => {

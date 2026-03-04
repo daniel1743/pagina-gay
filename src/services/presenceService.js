@@ -68,7 +68,7 @@ export const joinRoom = async (roomId, userData) => {
     });
 
     // ✅ Sincronizar Baúl: usuarios registrados (no guest) actualizan su tarjeta al conectar
-    const esRegistrado = !userData.isGuest && !userData.isAnonymous;
+    const esRegistrado = !auth.currentUser.isAnonymous && !userData.isGuest && !userData.isAnonymous;
     if (esRegistrado && auth.currentUser.uid) {
       actualizarEstadoOnline(auth.currentUser.uid, true).catch(() => {});
     }
@@ -90,8 +90,10 @@ export const leaveRoom = async (roomId) => {
 
   try {
     await deleteDoc(presenceRef);
-    // ✅ Sincronizar Baúl: actualizar estado offline en tarjeta
-    actualizarEstadoOnline(auth.currentUser.uid, false).catch(() => {});
+    // ✅ Sincronizar Baúl solo para usuarios registrados (evita permission-denied en anónimos)
+    if (!auth.currentUser.isAnonymous) {
+      actualizarEstadoOnline(auth.currentUser.uid, false).catch(() => {});
+    }
     console.log(`✅ [PRESENCE] Usuario removido de ${roomId}`);
   } catch (error) {
     console.error('Error leaving room:', error);

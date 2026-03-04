@@ -199,11 +199,12 @@ export async function crearTarjetaAutomatica(usuario) {
       }
 
       try {
-        await updateDoc(doc(db, 'tarjetas', odIdUsuari), {
+        await setDoc(doc(db, 'tarjetas', odIdUsuari), {
+          odIdUsuari,
           estaOnline: true,
           ultimaConexion: serverTimestamp(),
           ...(Object.keys(proUpdates).length > 0 ? { ...proUpdates, actualizadaEn: serverTimestamp() } : {})
-        });
+        }, { merge: true });
         console.log('[TARJETA] 🔄 Estado online actualizado');
       } catch (updateError) {
         console.warn('[TARJETA] No se pudo actualizar estado online:', updateError.message);
@@ -342,7 +343,7 @@ export async function actualizarTarjeta(odIdUsuari, datos) {
     }
 
     const tarjetaRef = doc(db, 'tarjetas', odIdUsuari);
-    await updateDoc(tarjetaRef, datosLimpios);
+    await setDoc(tarjetaRef, { odIdUsuari, ...datosLimpios }, { merge: true });
     console.log('[TARJETA] ✅ Tarjeta actualizada exitosamente');
 
     return true;
@@ -361,10 +362,12 @@ export async function actualizarEstadoOnline(odIdUsuari, estaOnline) {
   try {
     if (!odIdUsuari) return;
 
-    await updateDoc(doc(db, 'tarjetas', odIdUsuari), {
+    await setDoc(doc(db, 'tarjetas', odIdUsuari), {
+      odIdUsuari,
       estaOnline,
-      ultimaConexion: serverTimestamp()
-    });
+      ultimaConexion: serverTimestamp(),
+      actualizadaEn: serverTimestamp()
+    }, { merge: true });
   } catch (error) {
     console.error('[TARJETA] Error actualizando estado online:', error);
   }
@@ -1426,9 +1429,11 @@ export async function marcarActividadLeida(miUserId) {
     if (!miUserId) return;
 
     // Resetear contador de actividad no leída
-    await updateDoc(doc(db, 'tarjetas', miUserId), {
-      actividadNoLeida: 0
-    });
+    await setDoc(doc(db, 'tarjetas', miUserId), {
+      odIdUsuari: miUserId,
+      actividadNoLeida: 0,
+      actualizadaEn: serverTimestamp()
+    }, { merge: true });
 
     // TODO: Marcar items individuales como leídos si es necesario
   } catch (error) {

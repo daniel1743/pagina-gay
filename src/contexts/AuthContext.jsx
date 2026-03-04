@@ -50,6 +50,7 @@ const withTimeout = (promise, timeoutMs = 3000) => {
 const DEFAULT_AUTH_CONTEXT = {
   user: null,
   loading: true,
+  authReady: false,
   guestMessageCount: 0,
   setGuestMessageCount: () => {},
   showWelcomeTour: false,
@@ -81,6 +82,7 @@ export const useAuth = () => {
 export const AuthProvider = ({ children }) => {
   const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [authReady, setAuthReady] = useState(false);
   const [guestMessageCount, setGuestMessageCount] = useState(0);
   const [showWelcomeTour, setShowWelcomeTour] = useState(false);
   const [guestAuthInProgress, setGuestAuthInProgress] = useState(false); // ✅ FASE 2: Estado para loading overlay
@@ -107,6 +109,7 @@ export const AuthProvider = ({ children }) => {
     const unsubscribe = onAuthStateChanged(auth, async (firebaseUser) => {
       // ✅ FIX: Marcar que onAuthStateChanged se ejecutó
       authStateChangedCalledRef.current = true;
+      setAuthReady(Boolean(firebaseUser?.uid));
       
       // ✅ FIX: Limpiar timeout cuando se actualiza el estado
       if (loadingTimeoutRef.current) {
@@ -431,9 +434,11 @@ export const AuthProvider = ({ children }) => {
     };
   }, []);
 
-  // ✅ BAÚL: Crear tarjeta automática cuando el usuario se conecta
+  // ✅ BAÚL: Crear tarjeta automática solo para usuarios REGISTRADOS con auth lista
   useEffect(() => {
-    if (!user || !user.id) return;
+    if (!authReady || !user?.id) return;
+    if (user.isGuest || user.isAnonymous) return;
+    if (!auth.currentUser?.uid || auth.currentUser.uid !== user.id) return;
 
     const crearTarjetaSiNoExiste = async () => {
       try {
@@ -462,7 +467,10 @@ export const AuthProvider = ({ children }) => {
     // Ejecutar en background, no bloquear la UI
     crearTarjetaSiNoExiste();
   }, [
+    authReady,
     user?.id,
+    user?.isGuest,
+    user?.isAnonymous,
     user?.isProUser,
     user?.proUntil,
     user?.canUploadSecondPhoto,
@@ -1145,6 +1153,7 @@ export const AuthProvider = ({ children }) => {
   const value = useMemo(() => ({
     user,
     loading,
+    authReady,
     guestMessageCount,
     setGuestMessageCount,
     showWelcomeTour,
@@ -1164,7 +1173,7 @@ export const AuthProvider = ({ children }) => {
     updateAnonymousUserProfile,
     switchToGenericIdentity,
     restoreAdminIdentity,
-  }), [user, loading, guestMessageCount, showWelcomeTour, guestAuthInProgress]);
+  }), [user, loading, authReady, guestMessageCount, showWelcomeTour, guestAuthInProgress]);
 
   return (
     <AuthContext.Provider value={value}>

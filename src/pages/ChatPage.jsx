@@ -63,7 +63,7 @@ import { checkUserSanctions, SANCTION_TYPES } from '@/services/sanctionsService'
 import { roomsData, canAccessRoom } from '@/config/rooms';
 import { traceEvent, TRACE_EVENTS } from '@/utils/messageTrace';
 import { startEngagementTracking, hasReachedOneHourLimit, getTotalEngagementTime, hasSeenEngagementModal, markEngagementModalAsShown } from '@/services/engagementService';
-import { notificationSounds } from '@/services/notificationSounds';
+import { notificationSounds, initAudioOnFirstGesture } from '@/services/notificationSounds';
 import { monitorActivityAndSendVOC, resetVOCCooldown } from '@/services/vocService';
 import { generateNicoWelcome, sendNicoQuestion, getLastNicoMessageAge, NICO, QUESTION_INTERVAL_MS } from '@/services/nicoBot';
 import EventoBanner from '@/components/eventos/EventoBanner';
@@ -134,7 +134,17 @@ const ChatPage = () => {
   const { roomId } = useParams();
   const navigate = useNavigate();
   const location = useLocation();
-  const { user, loading: authLoading, guestMessageCount, setGuestMessageCount, showWelcomeTour, setShowWelcomeTour, updateAnonymousUserProfile, signInAsGuest } = useAuth();
+  const {
+    user,
+    loading: authLoading,
+    authReady,
+    guestMessageCount,
+    setGuestMessageCount,
+    showWelcomeTour,
+    setShowWelcomeTour,
+    updateAnonymousUserProfile,
+    signInAsGuest
+  } = useAuth();
 
   // ✅ Estados y refs - DEBEN estar ANTES del early return
   const [currentRoom, setCurrentRoom] = useState(roomId);
@@ -190,6 +200,13 @@ const ChatPage = () => {
     if (!userId) return false;
     return userId === 'system' || userId.startsWith('system_');
   }, []);
+
+  useEffect(() => {
+    if (authReady && user?.id) return;
+    setRoomUsers([]);
+    previousRealUserCountRef.current = 0;
+    lastUserCountsRef.current = { total: 0, active: 0, real: 0 };
+  }, [authReady, user?.id]);
 
   const isAutomatedUserId = useCallback((userId) => {
     if (!userId) return false;
@@ -250,7 +267,7 @@ const ChatPage = () => {
   }, [isSystemUserId]);
 
   useEffect(() => {
-    if (!user?.id) {
+    if (!authReady || !user?.id) {
       setBlockedUserIds(new Set());
       setBlockedByUserIds(new Set());
       blockedByCacheRef.current = new Set();
@@ -261,7 +278,7 @@ const ChatPage = () => {
       setBlockedUserIds(new Set(ids));
     });
     return () => unsubscribe?.();
-  }, [user?.id]);
+  }, [authReady, user?.id]);
 
   useEffect(() => {
     blockedUserIdsRef.current = blockedUserIds;
@@ -293,7 +310,7 @@ const ChatPage = () => {
 
   // 🏆 PRO: Sincronizar presencia cuando isProUser cambia en tiempo real
   useEffect(() => {
-    if (!user?.id || !roomId) return;
+    if (!authReady || !user?.id || !roomId) return;
     updatePresenceFields(roomId, {
       isProUser: user.isProUser || false,
       hasRainbowBorder: user.hasRainbowBorder || false,
@@ -309,6 +326,7 @@ const ChatPage = () => {
     user?.canUploadSecondPhoto,
     roomId,
     user?.id,
+    authReady,
   ]);
 
   // 🔒 VERIFICAR ACCESO A LA SALA - Redirigir si no tiene permiso
@@ -484,6 +502,26 @@ const ChatPage = () => {
     return null;
   }, [messages]);
 
+  const recentMessagesCount10m = useMemo(() => {
+    if (!Array.isArray(messages) || messages.length === 0) return 0;
+    const thresholdMs = Date.now() - (10 * 60 * 1000);
+
+    return messages.reduce((count, msg) => {
+      const senderId = msg?.userId || '';
+      if (!senderId || isSystemUserId(senderId) || isAutomatedUserId(senderId)) {
+        return count;
+      }
+
+      const ts = msg.timestampMs ||
+        (msg.timestamp?.toMillis?.() ||
+          (typeof msg.timestamp === 'number' ? msg.timestamp :
+            (msg.timestamp ? new Date(msg.timestamp).getTime() : null)));
+
+      if (!ts || ts < thresholdMs) return count;
+      return count + 1;
+    }, 0);
+  }, [messages, isSystemUserId, isAutomatedUserId]);
+
   const formatRelativeTime = useCallback((timestampMs, nowMs) => {
     if (!timestampMs || !nowMs) return '';
     const diffMs = Math.max(0, nowMs - timestampMs);
@@ -576,10 +614,18 @@ const ChatPage = () => {
   }, [filteredMessages, activeUsersCount, lastMessageMs, activityNow, formatRelativeTime, DAILY_TOPICS, user]);
 
   const activityText = useMemo(() => {
-    if (typeof activeUsersCount !== 'number') return '';
-    if (activeUsersCount <= 0) return '';
-    return `${activeUsersCount} ${activeUsersCount === 1 ? 'persona activa' : 'personas activas'}`;
-  }, [activeUsersCount]);
+    const chunks = [];
+
+    if (typeof activeUsersCount === 'number' && activeUsersCount > 0) {
+      chunks.push(`${activeUsersCount} ${activeUsersCount === 1 ? 'activo (5 min)' : 'activos (5 min)'}`);
+    }
+
+    if (recentMessagesCount10m > 0) {
+      chunks.push(`${recentMessagesCount10m} ${recentMessagesCount10m === 1 ? 'mensaje (10 min)' : 'mensajes (10 min)'}`);
+    }
+
+    return chunks.join(' · ');
+  }, [activeUsersCount, recentMessagesCount10m]);
 
   const dailyTopic = useMemo(() => {
     const now = new Date(activityNow);
@@ -947,43 +993,10 @@ const ChatPage = () => {
     // }
   }, [user]);
 
-  // 🔊 INICIALIZACIÓN DE SONIDOS: Forzar inicialización al montar componente
+  // 🔊 Audio: armar unlock por gesto (sin inicializar AudioContext hasta interacción real)
   useEffect(() => {
-    if (!user) return;
-
-    // console.log('[CHAT] 🔊 Inicializando sistema de sonidos...');
-
-    // Intentar inicializar inmediatamente (funcionará si el usuario ya interactuó)
-    const initialized = notificationSounds.init();
-
-    if (!initialized) {
-      // console.log('[CHAT] ⏳ AudioContext requiere interacción del usuario, esperando...');
-
-      // Si no se pudo inicializar, agregar listener para el primer click/touch
-      const handleFirstInteraction = () => {
-        // console.log('[CHAT] 👆 Primera interacción detectada, inicializando sonidos...');
-        const success = notificationSounds.init();
-        if (success) {
-          // console.log('[CHAT] ✅ Sistema de sonidos listo');
-          document.removeEventListener('click', handleFirstInteraction);
-          document.removeEventListener('touchstart', handleFirstInteraction);
-          document.removeEventListener('keydown', handleFirstInteraction);
-        }
-      };
-
-      document.addEventListener('click', handleFirstInteraction, { once: true });
-      document.addEventListener('touchstart', handleFirstInteraction, { once: true });
-      document.addEventListener('keydown', handleFirstInteraction, { once: true });
-
-      return () => {
-        document.removeEventListener('click', handleFirstInteraction);
-        document.removeEventListener('touchstart', handleFirstInteraction);
-        document.removeEventListener('keydown', handleFirstInteraction);
-      };
-    } else {
-      // console.log('[CHAT] ✅ Sistema de sonidos inicializado correctamente');
-    }
-  }, [user]);
+    initAudioOnFirstGesture();
+  }, []);
 
   // 🚀 EXPERIMENTO: Safety timeout - Forzar loading a false después de 3 segundos si no hay usuario
   // Esto evita el loading infinito cuando el usuario no está autenticado
@@ -1017,17 +1030,6 @@ const ChatPage = () => {
     chatLoadTrackedRef.current = false; // Reset tracking flag
     startTiming('chatLoad', { roomId });
     startTiming('messagesSubscription', { roomId }); // Iniciar tracking de suscripción
-
-    // 🧹 Limpiar usuarios inactivos al entrar a la sala (solo si hay usuario)
-    if (user?.id) {
-      cleanInactiveUsers(roomId);
-      // Registrar presencia del usuario en la sala
-      joinRoom(roomId, user);
-      // Registrar participación para métricas de eventos (si aplica)
-      if (roomId?.startsWith('evento_')) {
-        registrarParticipacionEvento(roomId, user).catch(() => {});
-      }
-    }
 
     // ⚡ SUSCRIPCIÓN INMEDIATA: Suscribirse a mensajes SIN esperar verificación de edad
     // 🔒 CRITICAL: Limpiar suscripción anterior si existe
@@ -1270,166 +1272,6 @@ const ChatPage = () => {
 
     }, messageLimit); // ✅ Pasar límite de mensajes según tipo de usuario
 
-    // 🤖 Suscribirse a usuarios de la sala (para sistema de bots)
-    // ⚠️ TYPING STATUS: DESHABILITADO - causaba errores (setTypingUsers no definido)
-    // TODO: Re-habilitar cuando se arregle
-    /*
-    const unsubscribeTyping = subscribeToTypingUsers(roomId, user?.id || '', (typing) => {
-      setTypingUsers(typing);
-    });
-    */
-
-    const unsubscribeUsers = subscribeToRoomUsers(roomId, (users) => {
-      // 🔒 CRÍTICO: Evitar procesamiento si ya hay una actualización en progreso (previene loops infinitos)
-      if (usersUpdateInProgressRef.current) {
-        return; // Ignorar este callback para evitar re-renders masivos
-      }
-      
-      // ✅ Filtrar solo usuarios activos (<5min inactividad)
-      const activeUsers = filterActiveUsers(users);
-      
-      // ✅ OCULTAR MODERADORES: Filtrar usuarios con rol admin o moderator
-      // 🔒 CRÍTICO: Evitar consultas masivas con debounce y flags de control
-      const filteredUsers = [];
-      const usersToCheck = [];
-      
-      // Primero filtrar bots y preparar lista de usuarios a verificar
-      for (const u of activeUsers) {
-        const userId = u.userId || u.id;
-        
-        // Excluir bots y sistema
-        if (userId === 'system' || 
-            userId?.startsWith('bot_') || 
-            userId?.startsWith('static_bot_')) {
-          continue;
-        }
-        
-        // Verificar cache primero
-        const cachedRole = userRolesCacheRef.current.get(userId);
-        if (cachedRole === 'admin' || cachedRole === 'administrator' || cachedRole === 'moderator') {
-          continue; // Ocultar moderador
-        }
-        
-        if (cachedRole === 'user' || cachedRole === null) {
-          // Usuario normal, incluir
-          filteredUsers.push(u);
-        } else {
-          // No está en cache, agregar a lista para verificar (solo si no está siendo verificado)
-          if (!checkingRolesRef.current.has(userId)) {
-            usersToCheck.push({ user: u, userId });
-          } else {
-            // Ya está siendo verificado, incluir temporalmente hasta que termine
-            filteredUsers.push(u);
-          }
-        }
-      }
-      
-      // ❌ DESHABILITADO TEMPORALMENTE - Loop infinito de Firebase (07/01/2026)
-      // getDoc queries masivas sin throttle efectivo causaban lecturas infinitas
-      // Cada cambio en roomPresence disparaba consultas masivas
-      // TODO: Re-habilitar con mejor estrategia (verificar roles en batch 1 vez al día)
-
-      // ✅ HOTFIX: Incluir TODOS los usuarios sin verificar roles
-      // Asumir que todos son usuarios normales temporalmente
-      const finalUsers = [...filteredUsers, ...usersToCheck.map(({ user }) => user)];
-
-      // Actualizar contadores
-      const realUsers = finalUsers;
-
-      const currentCounts = {
-        total: users.length,
-        active: activeUsers.length,
-        real: realUsers.length
-      };
-
-      const hasChanged =
-        currentCounts.total !== lastUserCountsRef.current.total ||
-        currentCounts.active !== lastUserCountsRef.current.active ||
-        currentCounts.real !== lastUserCountsRef.current.real;
-
-      if (hasChanged) {
-        // 🔊 Reproducir sonido de INGRESO si un usuario real se conectó
-        if (previousRealUserCountRef.current > 0 && currentCounts.real > previousRealUserCountRef.current) {
-          notificationSounds.playUserJoinSound();
-        }
-
-        // 🔊 Reproducir sonido de SALIDA si un usuario real se desconectó
-        if (previousRealUserCountRef.current > 0 && currentCounts.real < previousRealUserCountRef.current) {
-          notificationSounds.playDisconnectSound();
-        }
-
-        // Actualizar contador de usuarios reales
-        previousRealUserCountRef.current = currentCounts.real;
-        lastUserCountsRef.current = currentCounts;
-      }
-
-      // 🔒 CRÍTICO: Solo actualizar estado si realmente cambió (evitar re-renders innecesarios)
-      usersUpdateInProgressRef.current = true; // ✅ Marcar en progreso
-      setRoomUsers(prevUsers => {
-        const prevIds = new Set(prevUsers.map(u => (u.userId || u.id)));
-        const newIds = new Set(finalUsers.map(u => (u.userId || u.id)));
-
-        if (prevIds.size !== newIds.size) {
-          setTimeout(() => { usersUpdateInProgressRef.current = false; }, 50);
-          return finalUsers;
-        }
-
-        for (const id of prevIds) {
-          if (!newIds.has(id)) {
-            setTimeout(() => { usersUpdateInProgressRef.current = false; }, 50);
-            return finalUsers;
-          }
-        }
-
-        // ✅ Actualizar si cambió "en privado" de algún usuario (para indicador y toast)
-        const prevInPrivate = new Map(prevUsers.filter(u => u.inPrivateWith).map(u => [(u.userId || u.id), u.inPrivateWith]));
-        const newInPrivate = new Map(finalUsers.filter(u => u.inPrivateWith).map(u => [(u.userId || u.id), u.inPrivateWith]));
-        if (prevInPrivate.size !== newInPrivate.size) {
-          setTimeout(() => { usersUpdateInProgressRef.current = false; }, 50);
-          return finalUsers;
-        }
-        for (const [id, pw] of newInPrivate) {
-          if (prevInPrivate.get(id) !== pw) {
-            setTimeout(() => { usersUpdateInProgressRef.current = false; }, 50);
-            return finalUsers;
-          }
-        }
-
-        setTimeout(() => { usersUpdateInProgressRef.current = false; }, 50);
-        return prevUsers;
-      });
-
-      // ❌ COMENTADO - Loop infinito de getDoc queries
-      // if (roleCheckDebounceRef.current) {
-      //   clearTimeout(roleCheckDebounceRef.current);
-      //   roleCheckDebounceRef.current = null;
-      // }
-      //
-      // if (usersToCheck.length > 0) {
-      //   roleCheckDebounceRef.current = setTimeout(() => {
-      //     usersToCheck.forEach(({ userId }) => {
-      //       checkingRolesRef.current.add(userId);
-      //     });
-      //
-      //     Promise.all(
-      //       usersToCheck.map(async ({ user, userId }) => {
-      //         try {
-      //           const userDocRef = doc(db, 'users', userId);
-      //           const userDoc = await getDoc(userDocRef);
-      //           // ...
-      //         } catch (error) {
-      //           // ...
-      //         }
-      //       })
-      //     ).then(checkedUsers => {
-      //       // ...
-      //     }).catch(error => {
-      //       // ...
-      //     });
-      //   }, 500);
-      // }
-    });
-
     // Guardar funciones de desuscripción
     const baseCleanup = () => {
       // ✅ Limpiar timeout de loading
@@ -1443,25 +1285,6 @@ const ChatPage = () => {
           console.error('Error canceling message subscription:', error);
         }
       }
-      try {
-        unsubscribeUsers();
-      } catch (error) {
-        // Ignorar errores de cancelación (AbortError es normal)
-        if (error.name !== 'AbortError' && error.code !== 'cancelled') {
-          console.error('Error canceling user subscription:', error);
-        }
-      }
-      // ⚠️ TYPING: Comentado porque subscription está deshabilitada
-      /*
-      try {
-        if (unsubscribeTyping) unsubscribeTyping();
-      } catch (error) {
-        // Ignorar errores de cancelación (AbortError es normal)
-        if (error.name !== 'AbortError' && error.code !== 'cancelled') {
-          console.error('Error canceling typing subscription:', error);
-        }
-      }
-      */
     };
     
     unsubscribeRef.current = baseCleanup;
@@ -1501,34 +1324,131 @@ const ChatPage = () => {
 
     // Cleanup: desuscribirse y remover presencia cuando se desmonta o cambia de sala
     return () => {
-      // 🔒 CRÍTICO: Limpiar debounce de consultas de roles
-      if (roleCheckDebounceRef.current) {
-        clearTimeout(roleCheckDebounceRef.current);
-        roleCheckDebounceRef.current = null;
-      }
-      
-      // Limpiar flags de verificación de roles
-      checkingRolesRef.current.clear();
-      
-      // 🔒 CRÍTICO: Limpiar flag de actualización en progreso
-      usersUpdateInProgressRef.current = false;
-      
       if (unsubscribeRef.current) {
         unsubscribeRef.current();
         unsubscribeRef.current = null; // Limpiar referencia
       }
-
-      // Solo llamar leaveRoom si había un usuario (evitar errores)
-      if (user?.id) {
-        leaveRoom(roomId).catch(error => {
-          // Ignorar errores al salir de la sala
-          if (error.name !== 'AbortError' && error.code !== 'cancelled') {
-            console.error('Error leaving room:', error);
-          }
-        });
-      }
     };
   }, [roomId, user?.id]); // ✅ F3: user?.id en vez de user (evita re-suscripciones por cambio de referencia)
+
+  // 🟢 PRESENCIA: Solo iniciar con auth lista + usuario válido
+  useEffect(() => {
+    if (!roomId || !authReady || !user?.id) return;
+
+    cleanInactiveUsers(roomId);
+    joinRoom(roomId, user);
+    if (roomId?.startsWith('evento_')) {
+      registrarParticipacionEvento(roomId, user).catch(() => {});
+    }
+
+    const unsubscribeUsers = subscribeToRoomUsers(roomId, (users) => {
+      if (usersUpdateInProgressRef.current) return;
+
+      const activeUsers = filterActiveUsers(users);
+      const filteredUsers = [];
+      const usersToCheck = [];
+
+      for (const u of activeUsers) {
+        const userId = u.userId || u.id;
+        if (userId === 'system' || userId?.startsWith('bot_') || userId?.startsWith('static_bot_')) {
+          continue;
+        }
+
+        const cachedRole = userRolesCacheRef.current.get(userId);
+        if (cachedRole === 'admin' || cachedRole === 'administrator' || cachedRole === 'moderator') {
+          continue;
+        }
+
+        if (cachedRole === 'user' || cachedRole === null) {
+          filteredUsers.push(u);
+        } else if (!checkingRolesRef.current.has(userId)) {
+          usersToCheck.push({ user: u, userId });
+        } else {
+          filteredUsers.push(u);
+        }
+      }
+
+      const finalUsers = [...filteredUsers, ...usersToCheck.map(({ user }) => user)];
+      const currentCounts = {
+        total: users.length,
+        active: activeUsers.length,
+        real: finalUsers.length
+      };
+
+      const hasChanged =
+        currentCounts.total !== lastUserCountsRef.current.total ||
+        currentCounts.active !== lastUserCountsRef.current.active ||
+        currentCounts.real !== lastUserCountsRef.current.real;
+
+      if (hasChanged) {
+        if (previousRealUserCountRef.current > 0 && currentCounts.real > previousRealUserCountRef.current) {
+          notificationSounds.playUserJoinSound();
+        }
+        if (previousRealUserCountRef.current > 0 && currentCounts.real < previousRealUserCountRef.current) {
+          notificationSounds.playDisconnectSound();
+        }
+        previousRealUserCountRef.current = currentCounts.real;
+        lastUserCountsRef.current = currentCounts;
+      }
+
+      usersUpdateInProgressRef.current = true;
+      setRoomUsers(prevUsers => {
+        const prevIds = new Set(prevUsers.map(u => (u.userId || u.id)));
+        const newIds = new Set(finalUsers.map(u => (u.userId || u.id)));
+
+        if (prevIds.size !== newIds.size) {
+          setTimeout(() => { usersUpdateInProgressRef.current = false; }, 50);
+          return finalUsers;
+        }
+
+        for (const id of prevIds) {
+          if (!newIds.has(id)) {
+            setTimeout(() => { usersUpdateInProgressRef.current = false; }, 50);
+            return finalUsers;
+          }
+        }
+
+        const prevInPrivate = new Map(prevUsers.filter(u => u.inPrivateWith).map(u => [(u.userId || u.id), u.inPrivateWith]));
+        const newInPrivate = new Map(finalUsers.filter(u => u.inPrivateWith).map(u => [(u.userId || u.id), u.inPrivateWith]));
+        if (prevInPrivate.size !== newInPrivate.size) {
+          setTimeout(() => { usersUpdateInProgressRef.current = false; }, 50);
+          return finalUsers;
+        }
+        for (const [id, pw] of newInPrivate) {
+          if (prevInPrivate.get(id) !== pw) {
+            setTimeout(() => { usersUpdateInProgressRef.current = false; }, 50);
+            return finalUsers;
+          }
+        }
+
+        setTimeout(() => { usersUpdateInProgressRef.current = false; }, 50);
+        return prevUsers;
+      });
+    });
+
+    return () => {
+      if (roleCheckDebounceRef.current) {
+        clearTimeout(roleCheckDebounceRef.current);
+        roleCheckDebounceRef.current = null;
+      }
+      checkingRolesRef.current.clear();
+      usersUpdateInProgressRef.current = false;
+
+      try {
+        unsubscribeUsers();
+      } catch (error) {
+        if (error.name !== 'AbortError' && error.code !== 'cancelled') {
+          console.error('Error canceling user subscription:', error);
+        }
+      }
+
+      leaveRoom(roomId).catch(error => {
+        if (error.name !== 'AbortError' && error.code !== 'cancelled') {
+          console.error('Error leaving room:', error);
+        }
+      });
+    };
+  }, [roomId, authReady, user?.id]);
 
   // 🔒 Toast cuando alguien entra en chat privado (para que otros se enteren)
   const inPrivateToastShownRef = useRef(new Set());
@@ -2109,6 +2029,17 @@ const ChatPage = () => {
     const optimisticId = `temp_${Date.now()}_${Math.random()}`;
     const clientId = generateUUID(); // ✅ UUID real para correlación optimista/real (evitar colisiones)
     const nowMs = Date.now();
+    const roleDisplayMap = {
+      activo: 'Activo',
+      pasivo: 'Pasivo',
+      versatil: 'Versátil',
+    };
+
+    const storedRoleRaw = localStorage.getItem('chactivo:role') || '';
+    const storedComunaRaw = localStorage.getItem('chactivo:comuna') || '';
+    const normalizedRole = storedRoleRaw.trim().toLowerCase();
+    const roleBadge = roleDisplayMap[normalizedRole] || null;
+    const comuna = storedComunaRaw.trim() || null;
     
     // ✅ GARANTIZAR AVATAR: Nunca enviar null o undefined en optimistic message
     const optimisticAvatar = currentUser.avatar && currentUser.avatar.trim() && !currentUser.avatar.includes('undefined')
@@ -2128,6 +2059,8 @@ const ChatPage = () => {
       hasFeaturedCard: currentUser.hasFeaturedCard || false,
       canUploadSecondPhoto: currentUser.canUploadSecondPhoto || false,
       badge: currentUser.badge || 'Nuevo', // 🏅 Badge de participación
+      roleBadge,
+      comuna,
       content,
       type,
       timestamp: new Date().toISOString(),
@@ -2236,9 +2169,10 @@ const ChatPage = () => {
           duration: 7000,
         });
       } else if (validation.type === 'spam_duplicate_ban') {
+        const mins = validation.muteMins ?? 5;
         toast({
-          title: "🔨 EXPULSADO POR SPAM",
-          description: validation.reason,
+          title: "🔨 Silenciado por spam",
+          description: `No puedes enviar mensajes por ${mins} minutos. Si intentas enviar verás el tiempo restante.`,
           variant: "destructive",
           duration: 10000,
         });
@@ -2318,6 +2252,8 @@ const ChatPage = () => {
         hasFeaturedCard: currentUser.hasFeaturedCard || false,
         canUploadSecondPhoto: currentUser.canUploadSecondPhoto || false,
         badge: currentUser.badge || 'Nuevo', // 🏅 Badge de participación
+        roleBadge,
+        comuna,
         content,
         type,
         replyTo: replyData,
@@ -2971,40 +2907,6 @@ const ChatPage = () => {
             count={unreadRepliesCount}
           />
 
-          {/* 💬 Chips de frases rápidas para romper el hielo */}
-          {(() => {
-            const hasUserMessage = user?.id
-              ? messages.some(m => m.userId === user.id)
-              : false;
-            const shouldShowChips = !hasUserMessage && !needsNickname;
-            if (!shouldShowChips) return null;
-            return (
-            <div className="px-3 pt-2 pb-1">
-              <div className="relative">
-                <div className="flex gap-1.5 overflow-x-auto scrollbar-hide snap-x snap-mandatory px-1 py-1">
-                  {QUICK_STARTER_PHRASES.map((chip) => (
-                    <button
-                      key={chip}
-                      onClick={() => handleSendMessage(chip, 'text', null, { allowGuestAutoStart: true })}
-                      className="snap-start shrink-0 px-3 py-1.5 rounded-full text-xs font-medium
-                        bg-gray-700/60 hover:bg-gray-600/80 text-gray-200 hover:text-white
-                        border border-gray-600/40 hover:border-gray-500/60
-                        transition-all active:scale-95"
-                    >
-                      {chip}
-                    </button>
-                  ))}
-                </div>
-                <div className="pointer-events-none absolute left-0 top-0 bottom-0 w-5 bg-gradient-to-r from-background to-transparent" />
-                <div className="pointer-events-none absolute right-0 top-0 bottom-0 w-8 bg-gradient-to-l from-background to-transparent" />
-              </div>
-              <p className="mt-1 text-center text-[11px] text-muted-foreground md:hidden">
-                Desliza para ver más frases
-              </p>
-            </div>
-            );
-          })()}
-
           <ChatInput
             onSendMessage={handleSendMessage}
             onFocus={() => setIsInputFocused(true)}
@@ -3015,6 +2917,7 @@ const ChatPage = () => {
             onCancelReply={handleCancelReply}
             onRequestNickname={() => setShowNicknameModal(true)}
             isGuest={!user || needsNickname}
+            showOnboardingHints={!needsNickname}
           />
         </div>
 
