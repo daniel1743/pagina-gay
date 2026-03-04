@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { X, Smartphone, Download, Zap, Shield, Wifi } from 'lucide-react';
+import { X, Download, Zap, Shield, Wifi } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 
 const PWAInstallBanner = () => {
@@ -111,8 +111,12 @@ const PWAInstallBanner = () => {
           <div className="relative p-6">
             {/* Header con icono */}
             <div className="flex items-start gap-4 mb-4">
-              <div className="flex-shrink-0 w-14 h-14 bg-gradient-to-br from-[#E4007C] to-[#a3005a] rounded-xl flex items-center justify-center shadow-lg">
-                <Smartphone className="w-7 h-7 text-white" />
+              <div className="flex-shrink-0 w-14 h-14 rounded-xl overflow-hidden shadow-lg border border-white/20 bg-black/30">
+                <img
+                  src="/icon-192.png"
+                  alt="Logo Chactivo"
+                  className="w-full h-full object-cover"
+                />
               </div>
 
               <div className="flex-1">

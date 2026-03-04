@@ -21,13 +21,13 @@ const LandingLayout = ({ children }) => {
         <div className="container mx-auto px-4 py-3">
           <div className="flex items-center justify-between">
             <img 
-              src="/LOGO-TRASPARENTE.png" 
+              src="/logo_chact.png" 
               alt="Chactivo" 
               className="h-8 cursor-pointer"
               onClick={() => navigate('/')}
               onError={(e) => {
                 // Fallback a logo alternativo
-                if (e.target.src.includes('LOGO-TRASPARENTE')) {
+                if (e.target.src.includes('logo_chact')) {
                   e.target.src = '/LOGO_CHACTIVO.png';
                 }
               }}

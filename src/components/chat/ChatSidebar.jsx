@@ -38,7 +38,7 @@ const ChatSidebar = ({ currentRoom, setCurrentRoom, isOpen, onClose, onOpenBaul,
   const location = useLocation();
   const { user, logout } = useAuth();
   const [roomCounts, setRoomCounts] = useState({});
-  const [logoSrc, setLogoSrc] = useState("/LOGO-TRASPARENTE.png");
+  const [logoSrc, setLogoSrc] = useState("/logo_chact.png");
   const [showRegistrationModal, setShowRegistrationModal] = useState(false);
   const [pendingRoomId, setPendingRoomId] = useState(null);
   const [showAuthModal, setShowAuthModal] = useState(false);
@@ -148,7 +148,7 @@ const ChatSidebar = ({ currentRoom, setCurrentRoom, isOpen, onClose, onOpenBaul,
                   className="w-10 h-10 object-contain" 
                   onError={() => {
                     // Intentar logo alternativo si el principal falla
-                    if (logoSrc === "/LOGO-TRASPARENTE.png") {
+                    if (logoSrc === "/logo_chact.png") {
                       setLogoSrc("/LOGO_CHACTIVO.png");
                     } else {
                       // Si también falla, mostrar fallback
@@ -443,7 +443,7 @@ const ChatSidebar = ({ currentRoom, setCurrentRoom, isOpen, onClose, onOpenBaul,
                   className="w-10 h-10 object-contain" 
                   onError={() => {
                     // Intentar logo alternativo si el principal falla
-                    if (logoSrc === "/LOGO-TRASPARENTE.png") {
+                    if (logoSrc === "/logo_chact.png") {
                       setLogoSrc("/LOGO_CHACTIVO.png");
                     } else {
                       // Si también falla, mostrar fallback

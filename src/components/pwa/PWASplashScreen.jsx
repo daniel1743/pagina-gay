@@ -87,7 +87,7 @@ export const PWASplashScreen = ({ onComplete }) => {
 
               {/* Logo */}
               <img
-                src="/LOGO-TRASPARENTE.png"
+                src="/logo_chact.png"
                 alt="Chactivo"
                 className="w-40 h-40 relative z-10 object-contain"
               />
