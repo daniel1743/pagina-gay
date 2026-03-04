@@ -82,7 +82,7 @@ const FIRST_MESSAGE_PROMPTS = [
   '¿Quién tiene lugar?',
 ];
 
-const PHOTO_MAX_SIZE_BYTES = 350 * 1024;
+const PHOTO_MAX_SIZE_BYTES = 140 * 1024;
 const PHOTO_UNLOCK_STREAK_DAYS = 2;
 
 
@@ -623,15 +623,15 @@ const ChatInput = ({
 
   const compressImageForChat = async (file) => {
     const compressionOptions = {
-      maxSizeMB: 0.33,
-      maxWidthOrHeight: 1280,
+      maxSizeMB: 0.14,
+      maxWidthOrHeight: 960,
       useWebWorker: true,
-      initialQuality: 0.72,
+      initialQuality: 0.68,
     };
 
     const compressed = await imageCompression(file, compressionOptions);
     if (compressed.size > PHOTO_MAX_SIZE_BYTES) {
-      throw new Error('La imagen sigue siendo pesada. Prueba otra imagen o recórtala antes de subir.');
+      throw new Error('La imagen supera 140 KB tras compresión. Prueba otra imagen o recórtala antes de subir.');
     }
     return compressed;
   };

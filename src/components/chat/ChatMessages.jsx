@@ -41,6 +41,10 @@ const ChatMessages = ({
 }) => {
   const [highlightedMessageId, setHighlightedMessageId] = useState(null);
   const [activeQuickReplyBadge, setActiveQuickReplyBadge] = useState(null);
+  const [isMobileViewport, setIsMobileViewport] = useState(() => (
+    typeof window !== 'undefined' ? window.innerWidth < 768 : false
+  ));
+  const [activeImageActionsMessageId, setActiveImageActionsMessageId] = useState(null);
   const renderedMessageIdsRef = useRef(new Set());
   const shownQuickReplyBadgesRef = useRef(new Set());
   const quickReplyHideTimeoutRef = useRef(null);
@@ -119,6 +123,23 @@ const ChatMessages = ({
       }
     };
   }, []);
+
+  useEffect(() => {
+    const handleResize = () => {
+      setIsMobileViewport(window.innerWidth < 768);
+    };
+    handleResize();
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  }, []);
+
+  useEffect(() => {
+    if (!activeImageActionsMessageId) return;
+    const exists = messages?.some((msg) => (msg._realId || msg.id) === activeImageActionsMessageId);
+    if (!exists) {
+      setActiveImageActionsMessageId(null);
+    }
+  }, [messages, activeImageActionsMessageId]);
 
   // ⏰ Formatear timestamp
   const formatTime = (timestamp) => {
@@ -487,12 +508,19 @@ const ChatMessages = ({
                     {/* ⚡ BURBUJA */}
                     <div
                       className={`message-bubble ${isOwn ? 'own' : 'other'} ${positionClass}`}
-                      onClick={() => onPrivateChat({
-                        username: message.username,
-                        avatar: message.avatar,
-                        userId: message.userId,
-                        isPremium: isUserPremium
-                      })}
+                      onClick={() => {
+                        const messageKey = message._realId || message.id;
+                        if (message.type === 'image' && !isOwn && isMobileViewport) {
+                          setActiveImageActionsMessageId((prev) => prev === messageKey ? null : messageKey);
+                          return;
+                        }
+                        onPrivateChat({
+                          username: message.username,
+                          avatar: message.avatar,
+                          userId: message.userId,
+                          isPremium: isUserPremium
+                        });
+                      }}
                     >
                       {message.type === 'text' && message.content}
                       {message.type === 'gif' && (
@@ -500,7 +528,7 @@ const ChatMessages = ({
                       )}
                       {message.type === 'image' && (
                         message.content
-                          ? <img src={message.content} alt="Imagen del chat" className="block rounded-lg w-auto h-auto max-w-[220px] sm:max-w-[300px] lg:max-w-[340px] max-h-[360px] object-cover" loading="lazy" />
+                          ? <img src={message.content} alt="Imagen del chat" className="block rounded-lg w-auto h-auto max-w-[150px] sm:max-w-[200px] lg:max-w-[220px] max-h-[240px] object-cover" loading="lazy" />
                           : <span className="text-xs text-muted-foreground">Imagen</span>
                       )}
                       {(() => {
@@ -567,7 +595,17 @@ const ChatMessages = ({
 
                     {/* ACCIONES - Solo para otros */}
                     {!isOwn && (
-                      <span className="inline-flex items-center gap-1 ml-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                      <span
+                        className={`inline-flex items-center gap-1 ml-1 transition-opacity ${
+                          message.type === 'image'
+                            ? (
+                              isMobileViewport
+                                ? ((activeImageActionsMessageId === (message._realId || message.id)) ? 'opacity-100' : 'opacity-0 pointer-events-none')
+                                : 'opacity-100'
+                            )
+                            : 'opacity-0 group-hover:opacity-100'
+                        }`}
+                      >
                         <Button size="icon" variant="ghost" className="h-5 w-5 text-gray-400 hover:text-cyan-500"
                           onClick={(e) => { e.stopPropagation(); onReply?.({ messageId: message.id, username: message.username, content: message.type === 'image' ? '📷 Imagen' : message.content }); }}>
                           <Reply className="h-3 w-3" />
