@@ -30,7 +30,8 @@ service cloud.firestore {
              exists(/databases/$(database)/documents/users/$(request.auth.uid)) &&
              get(/databases/$(database)/documents/users/$(request.auth.uid)).data.keys().hasAny(['role']) &&
              (get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin' || 
-              get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'administrator');
+              get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'administrator' ||
+              get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'superadmin');
     }
 
     // ✅ NUEVO: Admin o Support (para sistema de tickets)
@@ -40,6 +41,7 @@ service cloud.firestore {
              get(/databases/$(database)/documents/users/$(request.auth.uid)).data.keys().hasAny(['role']) &&
              (get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin' || 
               get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'administrator' ||
+              get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'superadmin' ||
               get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'support');
     }
 
@@ -386,7 +388,7 @@ service cloud.firestore {
                       );
 
       allow delete: if isAuthenticated() &&
-                      resource.data.userId == request.auth.uid;
+                      (resource.data.userId == request.auth.uid || isAdmin());
     }
 
     // ===========================

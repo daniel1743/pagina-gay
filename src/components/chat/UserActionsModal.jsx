@@ -4,7 +4,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/u
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
-import { User, MessageSquare, Video, Heart, Send, X, CheckCircle, Crown, Shield } from 'lucide-react';
+import { User, MessageSquare, Video, Heart, Send, X, CheckCircle, Crown, Shield, AlertTriangle, VolumeX, Ban, Trash2 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { toast } from '@/components/ui/use-toast';
 import { useAuth } from '@/contexts/AuthContext';
@@ -17,16 +17,27 @@ import {
   incrementDirectMessages,
   getCurrentLimits,
 } from '@/services/limitService';
-const UserActionsModal = ({ user: targetUser, onClose, onViewProfile, onShowRegistrationModal }) => {
+const UserActionsModal = ({
+  user: targetUser,
+  onClose,
+  onViewProfile,
+  onShowRegistrationModal,
+  onAdminQuickSanction,
+  onAdminDeleteUserMessages,
+  onAdminDeleteRoomMessages,
+}) => {
   const { user: currentUser } = useAuth();
   const navigate = useNavigate();
+  const adminRoles = new Set(['admin', 'administrator', 'superadmin']);
+  const isCurrentUserAdmin = adminRoles.has(String(currentUser?.role || '').toLowerCase());
   const isGuestOrAnonymous = !currentUser?.id || currentUser?.isGuest || currentUser?.isAnonymous;
-  const isPremiumOrAdmin = currentUser?.isPremium || currentUser?.role === 'admin';
+  const isPremiumOrAdmin = currentUser?.isPremium || isCurrentUserAdmin;
   const favoritesCount = currentUser?.favorites?.length || 0;
   const [showMessageInput, setShowMessageInput] = useState(false);
   const [composeMode, setComposeMode] = useState('direct'); // direct | comment
   const [message, setMessage] = useState('');
   const [isSending, setIsSending] = useState(false);
+  const [isAdminProcessing, setIsAdminProcessing] = useState(false);
   const [isFavorite, setIsFavorite] = useState(
     currentUser?.favorites?.includes(targetUser.userId) || false
   );
@@ -411,6 +422,42 @@ const UserActionsModal = ({ user: targetUser, onClose, onViewProfile, onShowRegi
     setShowMessageInput(true);
   };
 
+  const runAdminAction = async (action) => {
+    if (!isCurrentUserAdmin || typeof action !== 'function') return;
+    setIsAdminProcessing(true);
+    try {
+      await action();
+    } catch (error) {
+      console.error('[ADMIN ACTION] Error:', error);
+    } finally {
+      setIsAdminProcessing(false);
+    }
+  };
+
+  const handleAdminSanction = (type) => {
+    runAdminAction(async () => {
+      if (typeof onAdminQuickSanction !== 'function') return;
+      await onAdminQuickSanction(targetUser, type);
+      onClose();
+    });
+  };
+
+  const handleAdminDeleteUserMessages = () => {
+    runAdminAction(async () => {
+      if (typeof onAdminDeleteUserMessages !== 'function') return;
+      await onAdminDeleteUserMessages(targetUser);
+      onClose();
+    });
+  };
+
+  const handleAdminDeleteRoomMessages = () => {
+    runAdminAction(async () => {
+      if (typeof onAdminDeleteRoomMessages !== 'function') return;
+      await onAdminDeleteRoomMessages();
+      onClose();
+    });
+  };
+
   return (
     <Dialog open={true} onOpenChange={onClose}>
       <DialogContent className="bg-card border text-foreground max-w-md rounded-2xl p-0 max-h-[90dvh] overflow-hidden">
@@ -580,6 +627,62 @@ const UserActionsModal = ({ user: targetUser, onClose, onViewProfile, onShowRegi
                     </div>
                   </Button>
                 </motion.div>
+
+                {/* Moderación rápida para admin */}
+                {isCurrentUserAdmin && (
+                  <div className="mt-4 space-y-2 rounded-xl border border-red-500/30 bg-red-500/5 p-3">
+                    <p className="text-xs font-semibold uppercase tracking-wide text-red-300">
+                      Admin Moderación
+                    </p>
+                    <div className="grid grid-cols-1 gap-2">
+                      <Button
+                        onClick={() => handleAdminSanction('warning')}
+                        variant="outline"
+                        disabled={isAdminProcessing}
+                        className="w-full justify-start h-auto py-2.5 text-left border-yellow-500/40 text-yellow-300 hover:bg-yellow-500/10"
+                      >
+                        <AlertTriangle className="w-4 h-4 mr-2" />
+                        Advertir
+                      </Button>
+                      <Button
+                        onClick={() => handleAdminSanction('mute')}
+                        variant="outline"
+                        disabled={isAdminProcessing}
+                        className="w-full justify-start h-auto py-2.5 text-left border-orange-500/40 text-orange-300 hover:bg-orange-500/10"
+                      >
+                        <VolumeX className="w-4 h-4 mr-2" />
+                        Silenciar 24h
+                      </Button>
+                      <Button
+                        onClick={() => handleAdminSanction('ban')}
+                        variant="outline"
+                        disabled={isAdminProcessing}
+                        className="w-full justify-start h-auto py-2.5 text-left border-red-500/50 text-red-300 hover:bg-red-500/15"
+                      >
+                        <Ban className="w-4 h-4 mr-2" />
+                        Expulsar
+                      </Button>
+                      <Button
+                        onClick={handleAdminDeleteUserMessages}
+                        variant="outline"
+                        disabled={isAdminProcessing}
+                        className="w-full justify-start h-auto py-2.5 text-left border-rose-500/40 text-rose-300 hover:bg-rose-500/10"
+                      >
+                        <Trash2 className="w-4 h-4 mr-2" />
+                        Borrar mensajes de este usuario
+                      </Button>
+                      <Button
+                        onClick={handleAdminDeleteRoomMessages}
+                        variant="outline"
+                        disabled={isAdminProcessing}
+                        className="w-full justify-start h-auto py-2.5 text-left border-fuchsia-500/40 text-fuchsia-300 hover:bg-fuchsia-500/10"
+                      >
+                        <Trash2 className="w-4 h-4 mr-2" />
+                        Vaciar sala actual
+                      </Button>
+                    </div>
+                  </div>
+                )}
 
                 {/* CTA Premium (solo si no es Premium ni Admin y tiene límites bajos) */}
                 {!isPremiumOrAdmin && (limits.chatInvites.remaining <= 1 || limits.directMessages.remaining <= 1) && (

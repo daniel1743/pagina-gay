@@ -21,6 +21,9 @@ import {
   sendSecondaryMessage, 
   subscribeToSecondaryRoomMessages, 
   addReactionToSecondaryMessage, 
+  deleteMessageWithMedia,
+  deleteUserMessagesInRoom,
+  deleteAllMessagesInRoom,
   markSecondaryMessagesAsRead, 
   generateUUID 
 } from '@/services/chatService';
@@ -33,7 +36,7 @@ import {
 } from '@/services/presenceService';
 import { validateMessage } from '@/services/antiSpamService';
 import { auth, db } from '@/config/firebase';
-import { checkUserSanctions, SANCTION_TYPES } from '@/services/sanctionsService';
+import { checkUserSanctions, createSanction, SANCTION_TYPES, SANCTION_REASONS } from '@/services/sanctionsService';
 import { roomsData } from '@/config/rooms';
 import { trackPageView, trackPageExit, trackRoomJoined, trackMessageSent } from '@/services/eventTrackingService';
 import { useCanonical } from '@/hooks/useCanonical';
@@ -76,6 +79,9 @@ const ChatSecondaryPage = () => {
   const autoLoginAttemptedRef = useRef(false);
   const deliveryTimeoutsRef = useRef(new Map());
   const pageStartRef = useRef(Date.now());
+  const isCurrentUserAdmin = ['admin', 'administrator', 'superadmin'].includes(
+    String(user?.role || '').toLowerCase()
+  );
 
   // Scroll manager
   const scrollManager = useChatScrollManager({
@@ -492,6 +498,193 @@ const ChatSecondaryPage = () => {
     }
   };
 
+  const handleDeleteMessage = async (message) => {
+    const firestoreId = message?._realId || message?.id;
+    if (!firestoreId || message?._optimistic) return;
+
+    if (!user?.id) {
+      toast({
+        title: 'Debes iniciar sesión',
+        description: 'Inicia sesión para eliminar mensajes.',
+        variant: 'destructive',
+      });
+      return;
+    }
+
+    const isOwner = (message?.userId || '') === user.id;
+    if (!isOwner && !isCurrentUserAdmin) {
+      toast({
+        title: 'Acción no permitida',
+        description: 'Solo puedes eliminar tus propios mensajes.',
+        variant: 'destructive',
+      });
+      return;
+    }
+
+    const confirmed = window.confirm(
+      isCurrentUserAdmin && !isOwner
+        ? '¿Eliminar este mensaje como admin?'
+        : '¿Eliminar este mensaje?'
+    );
+    if (!confirmed) return;
+
+    try {
+      await deleteMessageWithMedia(currentRoom, firestoreId, message, {
+        isAdmin: isCurrentUserAdmin,
+        roomScope: 'secondary-rooms',
+      });
+      setMessages((prev) => prev.filter((m) => (m._realId || m.id) !== firestoreId));
+      toast({
+        description: '🗑️ Mensaje eliminado',
+        duration: 1500,
+      });
+    } catch (error) {
+      console.error('Error deleting message (secondary):', error);
+      toast({
+        title: 'No se pudo eliminar',
+        description: error?.code === 'permission-denied'
+          ? 'Permiso denegado en reglas de Firestore para borrar este mensaje.'
+          : 'Intenta nuevamente en unos segundos.',
+        variant: 'destructive',
+      });
+    }
+  };
+
+  const handleAdminQuickSanction = async (targetUser, actionType) => {
+    if (!isCurrentUserAdmin || !targetUser?.userId) return;
+
+    if (targetUser.userId === user?.id) {
+      toast({
+        title: 'Acción no permitida',
+        description: 'No puedes sancionarte a ti mismo.',
+        variant: 'destructive',
+      });
+      return;
+    }
+
+    if (targetUser?.isGuest || targetUser?.isAnonymous || String(targetUser.userId).startsWith('unauthenticated_')) {
+      toast({
+        title: 'Usuario no sancionable',
+        description: 'Este perfil es invitado/no registrado. Puedes borrar sus mensajes pero no aplicar sanción de cuenta.',
+        variant: 'destructive',
+      });
+      return;
+    }
+
+    const basePayload = {
+      userId: targetUser.userId,
+      username: targetUser.username || 'Usuario',
+      issuedByUsername: user?.username || 'Admin',
+      reason: SANCTION_REASONS.OTHER,
+      notes: `Acción rápida desde chat secundario/${currentRoom}`,
+    };
+
+    if (actionType === 'warning') {
+      await createSanction({
+        ...basePayload,
+        type: SANCTION_TYPES.WARNING,
+        reasonDescription: `Advertencia emitida por moderación en sala ${currentRoom}.`,
+      });
+      toast({
+        title: 'Advertencia enviada',
+        description: `${targetUser.username} recibió advertencia.`,
+      });
+      return;
+    }
+
+    if (actionType === 'mute') {
+      const expiresAt = new Date(Date.now() + 24 * 60 * 60 * 1000);
+      await createSanction({
+        ...basePayload,
+        type: SANCTION_TYPES.MUTE,
+        duration: 1,
+        expiresAt,
+        reasonDescription: `Silencio temporal de 24 horas en sala ${currentRoom}.`,
+      });
+      toast({
+        title: 'Usuario silenciado',
+        description: `${targetUser.username} quedó silenciado por 24 horas.`,
+      });
+      return;
+    }
+
+    if (actionType === 'ban') {
+      const confirmed = window.confirm(`¿Expulsar permanentemente a ${targetUser.username}?`);
+      if (!confirmed) return;
+
+      await createSanction({
+        ...basePayload,
+        type: SANCTION_TYPES.PERM_BAN,
+        reasonDescription: `Expulsión permanente desde moderación en sala ${currentRoom}.`,
+      });
+      toast({
+        title: 'Usuario expulsado',
+        description: `${targetUser.username} fue expulsado permanentemente.`,
+      });
+    }
+  };
+
+  const handleAdminDeleteUserMessages = async (targetUser) => {
+    if (!isCurrentUserAdmin || !targetUser?.userId) return;
+
+    const confirmed = window.confirm(
+      `¿Borrar todos los mensajes de ${targetUser.username || 'este usuario'} en la sala ${currentRoom}?`
+    );
+    if (!confirmed) return;
+
+    try {
+      const { deletedCount } = await deleteUserMessagesInRoom(currentRoom, targetUser.userId, {
+        isAdmin: true,
+        roomScope: 'secondary-rooms',
+      });
+      setMessages((prev) => prev.filter((msg) => msg.userId !== targetUser.userId));
+      toast({
+        title: 'Mensajes eliminados',
+        description: `Se eliminaron ${deletedCount} mensajes en ${currentRoom}.`,
+      });
+    } catch (error) {
+      console.error('[ADMIN DELETE USER MESSAGES][SECONDARY] Error:', error);
+      toast({
+        title: 'No se pudo borrar mensajes',
+        description: error?.code === 'permission-denied'
+          ? 'Permiso denegado por reglas de Firestore.'
+          : 'Intenta nuevamente en unos segundos.',
+        variant: 'destructive',
+      });
+    }
+  };
+
+  const handleAdminDeleteRoomMessages = async () => {
+    if (!isCurrentUserAdmin) return;
+
+    const confirmed = window.confirm(
+      `¿Vaciar completamente la sala ${currentRoom}? Esta acción no se puede deshacer.`
+    );
+    if (!confirmed) return;
+
+    try {
+      const { deletedCount } = await deleteAllMessagesInRoom(currentRoom, {
+        isAdmin: true,
+        roomScope: 'secondary-rooms',
+        includeSystem: true,
+      });
+      setMessages([]);
+      toast({
+        title: 'Sala vaciada',
+        description: `Se eliminaron ${deletedCount} mensajes de ${currentRoom}.`,
+      });
+    } catch (error) {
+      console.error('[ADMIN CLEAR ROOM][SECONDARY] Error:', error);
+      toast({
+        title: 'No se pudo vaciar la sala',
+        description: error?.code === 'permission-denied'
+          ? 'Permiso denegado por reglas de Firestore.'
+          : 'Intenta nuevamente en unos segundos.',
+        variant: 'destructive',
+      });
+    }
+  };
+
   const handleReply = (message) => {
     setReplyTo({
       messageId: message.id,
@@ -567,6 +760,8 @@ const ChatSecondaryPage = () => {
                 onReport={setReportTarget}
                 onPrivateChat={handlePrivateChatRequest}
                 onReaction={handleMessageReaction}
+                onDeleteMessage={handleDeleteMessage}
+                canModerateMessages={isCurrentUserAdmin}
                 onReply={handleReply}
                 lastReadMessageIndex={-1}
                 messagesEndRef={scrollManager.endMarkerRef}
@@ -620,6 +815,9 @@ const ChatSecondaryPage = () => {
               setRegistrationModalFeature(feature);
               setShowRegistrationModal(true);
             }}
+            onAdminQuickSanction={handleAdminQuickSanction}
+            onAdminDeleteUserMessages={handleAdminDeleteUserMessages}
+            onAdminDeleteRoomMessages={handleAdminDeleteRoomMessages}
           />
         )}
 

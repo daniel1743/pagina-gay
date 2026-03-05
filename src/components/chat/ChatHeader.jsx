@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { Menu, Home, Volume2, VolumeX, X, Eye } from 'lucide-react';
@@ -21,10 +21,43 @@ const roomNames = {
   // 'conversas-libres' → redirige a 'principal'
 };
 
-const ChatHeader = ({ currentRoom, onMenuClick, onOpenPrivateChat, onSimulate, activityText = '' }) => {
+const ChatHeader = ({
+  currentRoom,
+  onMenuClick,
+  onOpenPrivateChat,
+  onSimulate,
+  activityText = '',
+  activityTickerItems = [],
+}) => {
   const navigate = useNavigate();
   const { user } = useAuth();
   const [isMuted, setIsMuted] = useState(notificationSounds.getMuteState());
+  const [tickerIndex, setTickerIndex] = useState(0);
+
+  const normalizedTickerItems = useMemo(() => {
+    if (!Array.isArray(activityTickerItems)) return [];
+    const unique = new Set();
+    activityTickerItems.forEach((item) => {
+      const value = String(item || '').trim();
+      if (!value) return;
+      unique.add(value);
+    });
+    return Array.from(unique);
+  }, [activityTickerItems]);
+
+  useEffect(() => {
+    setTickerIndex(0);
+  }, [normalizedTickerItems.length, currentRoom]);
+
+  useEffect(() => {
+    if (normalizedTickerItems.length <= 1) return undefined;
+
+    const intervalId = setInterval(() => {
+      setTickerIndex((prev) => (prev + 1) % normalizedTickerItems.length);
+    }, 3200);
+
+    return () => clearInterval(intervalId);
+  }, [normalizedTickerItems]);
 
   const handleToggleMute = () => {
     const newMuteState = notificationSounds.toggleMute();
@@ -35,6 +68,9 @@ const ChatHeader = ({ currentRoom, onMenuClick, onOpenPrivateChat, onSimulate, a
     // Redirect to Google for quick escape without leaving history
     window.location.replace('https://www.google.com/search?q=Google.com');
   };
+
+  const tickerText = normalizedTickerItems[tickerIndex] || '';
+  const hasTicker = normalizedTickerItems.length > 0;
 
   return (
     <header className="bg-card border-b p-3 sm:p-4 flex items-center justify-between shrink-0">
@@ -53,7 +89,16 @@ const ChatHeader = ({ currentRoom, onMenuClick, onOpenPrivateChat, onSimulate, a
           <h2 className="font-bold text-foreground text-base sm:text-lg truncate">
             {roomNames[currentRoom] || 'Chat'}
           </h2>
-          {activityText ? (
+          {hasTicker ? (
+            <div className="mt-0.5 min-h-[1.25rem]">
+              <p
+                key={`${currentRoom}-${tickerIndex}`}
+                className="text-[11px] text-muted-foreground leading-tight whitespace-normal sm:truncate animate-in fade-in duration-300"
+              >
+                {tickerText}
+              </p>
+            </div>
+          ) : activityText ? (
             <p className="text-[11px] text-muted-foreground truncate leading-tight">
               {activityText}
             </p>

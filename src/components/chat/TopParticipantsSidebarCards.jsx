@@ -1,34 +1,37 @@
 import React, { useEffect, useState } from 'react';
 import { Crown, Lock, MessageCircle } from 'lucide-react';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
-import { subscribeTopParticipantsPublic } from '@/services/topParticipantsService';
+import { subscribeRealtimeTopParticipants } from '@/services/topParticipantsService';
 
-const TopParticipantsSidebarCards = ({ compact = false }) => {
+const TopParticipantsSidebarCards = ({ compact = false, roomId = 'principal', isSecondaryRoom = false }) => {
   const [participants, setParticipants] = useState([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    const unsubscribe = subscribeTopParticipantsPublic(
+    const unsubscribe = subscribeRealtimeTopParticipants(
+      roomId || 'principal',
       (items) => {
         setParticipants(items);
         setLoading(false);
       },
-      () => {
+      (error) => {
+        console.error('[TopParticipantsSidebarCards] Error realtime:', error);
         setParticipants([]);
         setLoading(false);
-      }
+      },
+      { isSecondaryRoom }
     );
 
     return () => unsubscribe?.();
-  }, []);
+  }, [roomId, isSecondaryRoom]);
 
-  const visibleParticipants = participants.slice(0, 8);
+  const visibleParticipants = participants.slice(0, 6);
 
   return (
     <div className="mt-4 mb-2">
       <h3 className="text-xs font-semibold text-muted-foreground uppercase mb-2 px-2 flex items-center gap-1.5">
         <Crown className="w-3.5 h-3.5 text-amber-400" />
-        Top Participantes
+        Top 6 Participantes
       </h3>
 
       <div

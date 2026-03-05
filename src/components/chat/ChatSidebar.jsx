@@ -340,7 +340,10 @@ const ChatSidebar = ({ currentRoom, setCurrentRoom, isOpen, onClose, onOpenBaul,
             </div>
           </div>
 
-          <TopParticipantsSidebarCards />
+          <TopParticipantsSidebarCards
+            roomId={currentRoom || 'principal'}
+            isSecondaryRoom={isSecondaryRoom}
+          />
         </div>
 
         <div className="mt-auto flex-shrink-0 p-4 border-t border-border">
@@ -642,7 +645,11 @@ const ChatSidebar = ({ currentRoom, setCurrentRoom, isOpen, onClose, onOpenBaul,
             </div>
           </div>
 
-          <TopParticipantsSidebarCards compact />
+          <TopParticipantsSidebarCards
+            compact
+            roomId={currentRoom || 'principal'}
+            isSecondaryRoom={isSecondaryRoom}
+          />
         </div>
 
         <div className="mt-auto flex-shrink-0 p-4 border-t border-border">

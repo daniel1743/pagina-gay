@@ -44,7 +44,16 @@ import { useEngagementNudge } from '@/hooks/useEngagementNudge';
 // import RulesBanner from '@/components/chat/RulesBanner';
 import { toast } from '@/components/ui/use-toast';
 import { RegistrationRequiredModal } from '@/components/auth/RegistrationRequiredModal';
-import { sendMessage, subscribeToRoomMessages, addReactionToMessage, deleteMessageWithMedia, markMessagesAsRead, generateUUID } from '@/services/chatService';
+import {
+  sendMessage,
+  subscribeToRoomMessages,
+  addReactionToMessage,
+  deleteMessageWithMedia,
+  deleteUserMessagesInRoom,
+  deleteAllMessagesInRoom,
+  markMessagesAsRead,
+  generateUUID
+} from '@/services/chatService';
 import { joinRoom, leaveRoom, subscribeToRoomUsers, subscribeToMultipleRoomCounts, updateUserActivity, cleanInactiveUsers, filterActiveUsers, subscribeToTypingUsers, updatePresenceFields } from '@/services/presenceService';
 import { validateMessage } from '@/services/antiSpamService';
 import { auth, db } from '@/config/firebase'; // ✅ CRÍTICO: Necesario para obtener UID real de Firebase Auth
@@ -59,7 +68,7 @@ import { requestNotificationPermission, canRequestPush } from '@/services/pushNo
 // import { checkAndSeedConversations } from '@/services/seedConversationsService';
 import { track, getSessionId, trackPageView, trackPageExit, trackRoomJoined, trackMessageSent } from '@/services/eventTrackingService';
 import { useCanonical } from '@/hooks/useCanonical';
-import { checkUserSanctions, SANCTION_TYPES } from '@/services/sanctionsService';
+import { checkUserSanctions, createSanction, SANCTION_TYPES, SANCTION_REASONS } from '@/services/sanctionsService';
 import { roomsData, canAccessRoom } from '@/config/rooms';
 import { traceEvent, TRACE_EVENTS } from '@/utils/messageTrace';
 import { startEngagementTracking, hasReachedOneHourLimit, getTotalEngagementTime, hasSeenEngagementModal, markEngagementModalAsShown } from '@/services/engagementService';
@@ -485,6 +494,10 @@ const ChatPage = () => {
   }, []);
 
   const activeUsersCount = useMemo(() => countRealUsers(roomUsers), [roomUsers, countRealUsers]);
+  const isCurrentUserAdmin = useMemo(() => {
+    const roleValue = String(user?.role || '').toLowerCase();
+    return roleValue === 'admin' || roleValue === 'administrator' || roleValue === 'superadmin';
+  }, [user?.role]);
 
   // Filtrar mensajes de usuarios bloqueados
   const filteredMessages = useMemo(() => {
@@ -565,6 +578,146 @@ const ChatPage = () => {
       return count + 1;
     }, 0);
   }, [messages, isSystemUserId, isAutomatedUserId]);
+
+  const recentMessagesCount20m = useMemo(() => {
+    if (!Array.isArray(messages) || messages.length === 0) return 0;
+    const thresholdMs = Date.now() - (20 * 60 * 1000);
+
+    return messages.reduce((count, msg) => {
+      const senderId = msg?.userId || '';
+      if (!senderId || isSystemUserId(senderId) || isAutomatedUserId(senderId)) {
+        return count;
+      }
+
+      const ts = msg.timestampMs ||
+        (msg.timestamp?.toMillis?.() ||
+          (typeof msg.timestamp === 'number' ? msg.timestamp :
+            (msg.timestamp ? new Date(msg.timestamp).getTime() : null)));
+
+      if (!ts || ts < thresholdMs) return count;
+      return count + 1;
+    }, 0);
+  }, [messages, isSystemUserId, isAutomatedUserId]);
+
+  const recentParticipants20m = useMemo(() => {
+    if (!Array.isArray(messages) || messages.length === 0) {
+      return { count: 0, connectedNames: [], activosOnline: 0, pasivosOnline: 0 };
+    }
+
+    const thresholdMs = Date.now() - (20 * 60 * 1000);
+    const byUser = new Map();
+
+    for (let i = messages.length - 1; i >= 0; i -= 1) {
+      const msg = messages[i];
+      const senderId = msg?.userId || '';
+      if (!senderId || isSystemUserId(senderId) || isAutomatedUserId(senderId)) continue;
+
+      const ts = msg.timestampMs ||
+        (msg.timestamp?.toMillis?.() ||
+          (typeof msg.timestamp === 'number' ? msg.timestamp :
+            (msg.timestamp ? new Date(msg.timestamp).getTime() : null)));
+
+      if (!ts || ts < thresholdMs) continue;
+      if (byUser.has(senderId)) continue;
+
+      const role = resolveProfileRole(
+        msg?.roleBadge,
+        msg?.profileRole,
+        msg?.role
+      );
+
+      byUser.set(senderId, {
+        userId: senderId,
+        username: msg?.username || 'Usuario',
+        role,
+      });
+    }
+
+    let activosOnline = 0;
+    let pasivosOnline = 0;
+    const connectedNames = [];
+
+    byUser.forEach((item) => {
+      connectedNames.push(item.username);
+      if (item.role === 'Activo' || item.role === 'Versátil Act') activosOnline += 1;
+      if (item.role === 'Pasivo' || item.role === 'Versátil Pasivo') pasivosOnline += 1;
+    });
+
+    return {
+      count: byUser.size,
+      connectedNames,
+      activosOnline,
+      pasivosOnline,
+    };
+  }, [messages, isSystemUserId, isAutomatedUserId]);
+
+  const latestRoleByConnectedUser = useMemo(() => {
+    const roleByUser = new Map();
+    if (!Array.isArray(messages) || messages.length === 0) return roleByUser;
+
+    for (let i = messages.length - 1; i >= 0; i -= 1) {
+      const msg = messages[i];
+      const userId = msg?.userId;
+      if (!userId || roleByUser.has(userId)) continue;
+      if (isSystemUserId(userId) || isAutomatedUserId(userId)) continue;
+
+      const normalizedRole = resolveProfileRole(
+        msg?.roleBadge,
+        msg?.profileRole,
+        msg?.role
+      );
+
+      if (normalizedRole) {
+        roleByUser.set(userId, normalizedRole);
+      }
+    }
+
+    return roleByUser;
+  }, [messages, isSystemUserId, isAutomatedUserId]);
+
+  const onlineRoleStats = useMemo(() => {
+    const safeUsers = Array.isArray(roomUsers) ? roomUsers : [];
+    let activosOnline = 0;
+    let pasivosOnline = 0;
+    const connectedNames = [];
+
+    safeUsers.forEach((presenceUser) => {
+      const userId = presenceUser?.userId || presenceUser?.id || '';
+      if (!userId || isSystemUserId(userId) || isAutomatedUserId(userId)) return;
+
+      if (presenceUser?.username) {
+        connectedNames.push(String(presenceUser.username));
+      }
+
+      const normalizedRole = resolveProfileRole(
+        presenceUser?.roleBadge,
+        presenceUser?.profileRole,
+        latestRoleByConnectedUser.get(userId)
+      );
+
+      if (normalizedRole === 'Activo' || normalizedRole === 'Versátil Act') {
+        activosOnline += 1;
+      }
+
+      if (normalizedRole === 'Pasivo' || normalizedRole === 'Versátil Pasivo') {
+        pasivosOnline += 1;
+      }
+    });
+
+    const uniqueNames = Array.from(new Set(connectedNames));
+
+    const hasPresenceUsers = uniqueNames.length > 0;
+
+    return {
+      activosOnline: hasPresenceUsers && activosOnline > 0
+        ? activosOnline
+        : Math.max(activosOnline, recentParticipants20m.activosOnline),
+      pasivosOnline: hasPresenceUsers && pasivosOnline > 0
+        ? pasivosOnline
+        : Math.max(pasivosOnline, recentParticipants20m.pasivosOnline),
+      connectedNames: hasPresenceUsers ? uniqueNames : recentParticipants20m.connectedNames,
+    };
+  }, [roomUsers, latestRoleByConnectedUser, isSystemUserId, isAutomatedUserId, recentParticipants20m]);
 
   const formatRelativeTime = useCallback((timestampMs, nowMs) => {
     if (!timestampMs || !nowMs) return '';
@@ -659,9 +812,10 @@ const ChatPage = () => {
 
   const activityText = useMemo(() => {
     const chunks = [];
+    const visibleOnlineCount = activeUsersCount > 0 ? activeUsersCount : recentParticipants20m.count;
 
-    if (typeof activeUsersCount === 'number' && activeUsersCount > 0) {
-      chunks.push(`${activeUsersCount} ${activeUsersCount === 1 ? 'activo (2 min)' : 'activos (2 min)'}`);
+    if (typeof visibleOnlineCount === 'number' && visibleOnlineCount > 0) {
+      chunks.push(`${visibleOnlineCount} ${visibleOnlineCount === 1 ? 'activo (2 min)' : 'activos (2 min)'}`);
     }
 
     if (recentMessagesCount10m > 0) {
@@ -669,7 +823,39 @@ const ChatPage = () => {
     }
 
     return chunks.join(' · ');
-  }, [activeUsersCount, recentMessagesCount10m]);
+  }, [activeUsersCount, recentMessagesCount10m, recentParticipants20m.count]);
+
+  const headerTickerItems = useMemo(() => {
+    const items = [];
+    const visibleOnlineCount = activeUsersCount > 0 ? activeUsersCount : recentParticipants20m.count;
+
+    items.push(
+      `${visibleOnlineCount} ${visibleOnlineCount === 1 ? 'persona en línea' : 'personas en línea'}`
+    );
+
+    items.push(
+      `${onlineRoleStats.activosOnline} ${onlineRoleStats.activosOnline === 1 ? 'activo en línea' : 'activos en línea'}`
+    );
+
+    items.push(
+      `${onlineRoleStats.pasivosOnline} ${onlineRoleStats.pasivosOnline === 1 ? 'pasivo en línea' : 'pasivos en línea'}`
+    );
+
+    items.push(
+      `${recentMessagesCount20m} ${recentMessagesCount20m === 1 ? 'mensaje' : 'mensajes'} en los últimos 20 min`
+    );
+
+    if (onlineRoleStats.connectedNames.length > 0) {
+      const visibleNames = onlineRoleStats.connectedNames.slice(0, 4);
+      const extraCount = Math.max(0, onlineRoleStats.connectedNames.length - visibleNames.length);
+      const suffix = extraCount > 0 ? ` +${extraCount}` : '';
+      items.push(`Conectados: ${visibleNames.join(', ')}${suffix}`);
+    } else {
+      items.push('Conectados: sin usuarios visibles ahora');
+    }
+
+    return items;
+  }, [activeUsersCount, onlineRoleStats, recentMessagesCount20m, recentParticipants20m.count]);
 
   const dailyTopic = useMemo(() => {
     const now = new Date(activityNow);
@@ -1761,7 +1947,10 @@ const ChatPage = () => {
             avatar: latestRequest.fromAvatar,
             isPremium: latestRequest.fromIsPremium,
           },
-          to: currentUser,
+          to: {
+            ...(currentUser || {}),
+            userId: currentUser?.userId || currentUser?.id || null,
+          },
           notificationId: latestRequest.id
         });
       }
@@ -1912,7 +2101,8 @@ const ChatPage = () => {
       return;
     }
 
-    if ((message?.userId || '') !== user.id) {
+    const isOwner = (message?.userId || '') === user.id;
+    if (!isOwner && !isCurrentUserAdmin) {
       toast({
         title: 'Acción no permitida',
         description: 'Solo puedes eliminar tus propias fotos.',
@@ -1921,21 +2111,167 @@ const ChatPage = () => {
       return;
     }
 
-    const confirmed = window.confirm('¿Eliminar esta foto del chat?');
+    const confirmed = window.confirm(
+      isCurrentUserAdmin && !isOwner
+        ? '¿Eliminar este mensaje como admin?'
+        : '¿Eliminar esta foto del chat?'
+    );
     if (!confirmed) return;
 
     try {
-      await deleteMessageWithMedia(currentRoom, firestoreId, message);
+      await deleteMessageWithMedia(currentRoom, firestoreId, message, {
+        isAdmin: isCurrentUserAdmin,
+        roomScope: 'rooms',
+      });
       setMessages((prev) => prev.filter((m) => (m._realId || m.id) !== firestoreId));
       toast({
-        description: '🗑️ Foto eliminada',
+        description: isCurrentUserAdmin && !isOwner ? '🗑️ Mensaje eliminado' : '🗑️ Foto eliminada',
         duration: 1500,
       });
     } catch (error) {
       toast({
         title: 'No se pudo eliminar',
-        description: error?.message === 'NOT_MESSAGE_OWNER'
-          ? 'Solo puedes eliminar tus propias fotos.'
+        description: error?.code === 'permission-denied'
+          ? 'Permiso denegado en reglas de Firestore para borrar este mensaje.'
+          : (error?.message === 'NOT_MESSAGE_OWNER'
+            ? 'Solo puedes eliminar tus propias fotos.'
+            : 'Intenta nuevamente en unos segundos.'),
+        variant: 'destructive',
+      });
+    }
+  };
+
+  const handleAdminQuickSanction = async (targetUser, actionType) => {
+    if (!isCurrentUserAdmin) return;
+    if (!targetUser?.userId) return;
+
+    if (targetUser.userId === user?.id) {
+      toast({
+        title: 'Acción no permitida',
+        description: 'No puedes sancionarte a ti mismo.',
+        variant: 'destructive',
+      });
+      return;
+    }
+
+    if (targetUser?.isGuest || targetUser?.isAnonymous || String(targetUser.userId).startsWith('unauthenticated_')) {
+      toast({
+        title: 'Usuario no sancionable',
+        description: 'Este perfil es invitado/no registrado. Puedes borrar sus mensajes pero no aplicar sanción de cuenta.',
+        variant: 'destructive',
+      });
+      return;
+    }
+
+    const basePayload = {
+      userId: targetUser.userId,
+      username: targetUser.username || 'Usuario',
+      issuedByUsername: user?.username || 'Admin',
+      reason: SANCTION_REASONS.OTHER,
+      notes: `Acción rápida desde chat/${currentRoom}`,
+    };
+
+    if (actionType === 'warning') {
+      await createSanction({
+        ...basePayload,
+        type: SANCTION_TYPES.WARNING,
+        reasonDescription: `Advertencia emitida por moderación en sala ${currentRoom}.`,
+      });
+      toast({
+        title: 'Advertencia enviada',
+        description: `${targetUser.username} recibió advertencia.`,
+      });
+      return;
+    }
+
+    if (actionType === 'mute') {
+      const expiresAt = new Date(Date.now() + 24 * 60 * 60 * 1000);
+      await createSanction({
+        ...basePayload,
+        type: SANCTION_TYPES.MUTE,
+        duration: 1,
+        expiresAt,
+        reasonDescription: `Silencio temporal de 24 horas en sala ${currentRoom}.`,
+      });
+      toast({
+        title: 'Usuario silenciado',
+        description: `${targetUser.username} quedó silenciado por 24 horas.`,
+      });
+      return;
+    }
+
+    if (actionType === 'ban') {
+      const confirmed = window.confirm(`¿Expulsar permanentemente a ${targetUser.username}?`);
+      if (!confirmed) return;
+
+      await createSanction({
+        ...basePayload,
+        type: SANCTION_TYPES.PERM_BAN,
+        reasonDescription: `Expulsión permanente desde moderación en sala ${currentRoom}.`,
+      });
+      toast({
+        title: 'Usuario expulsado',
+        description: `${targetUser.username} fue expulsado permanentemente.`,
+      });
+    }
+  };
+
+  const handleAdminDeleteUserMessages = async (targetUser) => {
+    if (!isCurrentUserAdmin) return;
+    if (!targetUser?.userId) return;
+
+    const confirmed = window.confirm(
+      `¿Borrar todos los mensajes de ${targetUser.username || 'este usuario'} en la sala ${currentRoom}?`
+    );
+    if (!confirmed) return;
+
+    try {
+      const { deletedCount } = await deleteUserMessagesInRoom(currentRoom, targetUser.userId, {
+        isAdmin: true,
+        roomScope: 'rooms',
+      });
+      setMessages((prev) => prev.filter((msg) => msg.userId !== targetUser.userId));
+      toast({
+        title: 'Mensajes eliminados',
+        description: `Se eliminaron ${deletedCount} mensajes en ${currentRoom}.`,
+      });
+    } catch (error) {
+      console.error('[ADMIN DELETE USER MESSAGES] Error:', error);
+      toast({
+        title: 'No se pudo borrar mensajes',
+        description: error?.code === 'permission-denied'
+          ? 'Permiso denegado por reglas de Firestore.'
+          : 'Intenta nuevamente en unos segundos.',
+        variant: 'destructive',
+      });
+    }
+  };
+
+  const handleAdminDeleteRoomMessages = async () => {
+    if (!isCurrentUserAdmin) return;
+
+    const confirmed = window.confirm(
+      `¿Vaciar completamente la sala ${currentRoom}? Esta acción no se puede deshacer.`
+    );
+    if (!confirmed) return;
+
+    try {
+      const { deletedCount } = await deleteAllMessagesInRoom(currentRoom, {
+        isAdmin: true,
+        roomScope: 'rooms',
+        includeSystem: true,
+      });
+      setMessages([]);
+      toast({
+        title: 'Sala vaciada',
+        description: `Se eliminaron ${deletedCount} mensajes de ${currentRoom}.`,
+      });
+    } catch (error) {
+      console.error('[ADMIN CLEAR ROOM] Error:', error);
+      toast({
+        title: 'No se pudo vaciar la sala',
+        description: error?.code === 'permission-denied'
+          ? 'Permiso denegado por reglas de Firestore.'
           : 'Intenta nuevamente en unos segundos.',
         variant: 'destructive',
       });
@@ -2694,9 +3030,10 @@ const ChatPage = () => {
   const handlePrivateChatResponse = async (accepted, notificationId = null) => {
     if (!privateChatRequest) return;
 
-    const isReceiver = user.id === privateChatRequest.to.userId;
-    const partnerName = isReceiver ? privateChatRequest.from.username : privateChatRequest.to.username;
+    const receiverId = privateChatRequest?.to?.userId || privateChatRequest?.to?.id || null;
+    const isReceiver = user.id === receiverId;
     const partner = isReceiver ? privateChatRequest.from : privateChatRequest.to;
+    const partnerName = partner?.username || 'Usuario';
 
     // ✅ Si es receptor y hay notificationId, usar el servicio para responder
     if (isReceiver && notificationId) {
@@ -2962,6 +3299,7 @@ const ChatPage = () => {
             onOpenPrivateChat={handleOpenPrivateChatFromNotification}
             onSimulate={() => setShowScreenSaver(true)}
             activityText={activityText}
+            activityTickerItems={headerTickerItems}
           />
 
           {/* Banner de Push Notifications */}
@@ -3017,6 +3355,7 @@ const ChatPage = () => {
               onPrivateChat={handlePrivateChatRequest}
               onReaction={handleMessageReaction}
               onDeleteMessage={handleDeleteOwnMessage}
+              canModerateMessages={isCurrentUserAdmin}
               onReply={handleReply}
               lastReadMessageIndex={-1}
               messagesEndRef={scrollManager.endMarkerRef}
@@ -3094,6 +3433,9 @@ const ChatPage = () => {
               setRegistrationModalFeature(feature);
               setShowRegistrationModal(true);
             }}
+            onAdminQuickSanction={handleAdminQuickSanction}
+            onAdminDeleteUserMessages={handleAdminDeleteUserMessages}
+            onAdminDeleteRoomMessages={handleAdminDeleteRoomMessages}
           />
         )}
 

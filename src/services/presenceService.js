@@ -25,6 +25,7 @@ import {
 } from 'firebase/firestore';
 import { db, auth } from '@/config/firebase';
 import { actualizarEstadoOnline } from '@/services/tarjetaService';
+import { resolveProfileRole } from '@/config/profileRoles';
 
 const isBotUserId = (userId = '') =>
   userId === 'system' ||
@@ -72,10 +73,18 @@ export const joinRoom = async (roomId, userData) => {
   }
 
   try {
+    const normalizedRole = resolveProfileRole(
+      userData?.roleBadge,
+      userData?.profileRole,
+      userData?.role
+    );
+
     await setDoc(presenceRef, {
       userId: canJoinAsBotInTesting ? userData.userId : auth.currentUser.uid,
       username: userData.username,
       avatar: userData.avatar,
+      roleBadge: normalizedRole || null,
+      profileRole: normalizedRole || null,
       isPremium: userData.isPremium || false,
       isProUser: userData.isProUser || false,
       hasRainbowBorder: userData.hasRainbowBorder || false,

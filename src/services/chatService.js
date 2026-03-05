@@ -15,6 +15,7 @@ import {
   deleteDoc,
   where,
   limit,
+  writeBatch,
 } from 'firebase/firestore';
 import { ref as storageRef, deleteObject } from 'firebase/storage';
 import { db, auth, storage } from '@/config/firebase';
@@ -35,6 +36,20 @@ const DEFAULT_MESSAGE_REACTIONS = {
   devil: 0,
 };
 const ALLOWED_REACTION_TYPES = new Set(['like', 'dislike', 'fire', 'heart', 'devil']);
+const MAX_BULK_DELETE_BATCH = 200;
+
+const normalizeRoomScope = (roomScope = 'rooms') => {
+  if (roomScope === 'secondary' || roomScope === 'secondary-rooms') {
+    return 'secondary-rooms';
+  }
+  return 'rooms';
+};
+
+const getRoomMessagesCollectionRef = (roomId, roomScope = 'rooms') =>
+  collection(db, normalizeRoomScope(roomScope), roomId, 'messages');
+
+const getRoomMessageDocRef = (roomId, messageId, roomScope = 'rooms') =>
+  doc(db, normalizeRoomScope(roomScope), roomId, 'messages', messageId);
 
 const extractMessageMediaPaths = (message = {}) => {
   const paths = new Set();
@@ -726,7 +741,12 @@ export const addReactionToMessage = async (roomId, messageId, reactionType) => {
   }
 };
 
-export const deleteMessageWithMedia = async (roomId, messageId, messageData = null) => {
+export const deleteMessageWithMedia = async (
+  roomId,
+  messageId,
+  messageData = null,
+  options = {}
+) => {
   if (!roomId || !messageId) {
     throw new Error('INVALID_DELETE_PARAMS');
   }
@@ -735,7 +755,9 @@ export const deleteMessageWithMedia = async (roomId, messageId, messageData = nu
     throw new Error('REQUIRES_REGISTERED_USER');
   }
 
-  const messageRef = doc(db, 'rooms', roomId, 'messages', messageId);
+  const roomScope = normalizeRoomScope(options?.roomScope);
+  const isAdminDelete = Boolean(options?.isAdmin);
+  const messageRef = getRoomMessageDocRef(roomId, messageId, roomScope);
   let effectiveMessage = messageData || null;
 
   if (!effectiveMessage || !effectiveMessage.userId) {
@@ -746,7 +768,7 @@ export const deleteMessageWithMedia = async (roomId, messageId, messageData = nu
     effectiveMessage = { id: snap.id, ...snap.data() };
   }
 
-  if (effectiveMessage.userId !== auth.currentUser.uid) {
+  if (!isAdminDelete && effectiveMessage.userId !== auth.currentUser.uid) {
     throw new Error('NOT_MESSAGE_OWNER');
   }
 
@@ -762,6 +784,124 @@ export const deleteMessageWithMedia = async (roomId, messageId, messageData = nu
       }
     }
   }));
+};
+
+const deleteMessageDocsAndMedia = async (docsToDelete = []) => {
+  if (!Array.isArray(docsToDelete) || docsToDelete.length === 0) {
+    return 0;
+  }
+
+  const batch = writeBatch(db);
+  const mediaPaths = [];
+
+  docsToDelete.forEach((docSnap) => {
+    const data = docSnap.data() || {};
+    batch.delete(docSnap.ref);
+    mediaPaths.push(
+      ...extractMessageMediaPaths(data).filter((path) => path.startsWith('chat_media/'))
+    );
+  });
+
+  await batch.commit();
+
+  await Promise.all(
+    mediaPaths.map(async (path) => {
+      try {
+        await deleteObject(storageRef(storage, path));
+      } catch (error) {
+        if (!isStorageNotFoundError(error)) {
+          console.warn('[DELETE][MEDIA] No se pudo borrar asset de Storage:', path, error?.message || error);
+        }
+      }
+    })
+  );
+
+  return docsToDelete.length;
+};
+
+export const deleteUserMessagesInRoom = async (
+  roomId,
+  targetUserId,
+  options = {}
+) => {
+  if (!roomId || !targetUserId) {
+    throw new Error('INVALID_DELETE_PARAMS');
+  }
+
+  if (!auth.currentUser || auth.currentUser.isAnonymous) {
+    throw new Error('REQUIRES_REGISTERED_USER');
+  }
+
+  if (!options?.isAdmin) {
+    throw new Error('ADMIN_REQUIRED');
+  }
+
+  const roomScope = normalizeRoomScope(options?.roomScope);
+  const messagesRef = getRoomMessagesCollectionRef(roomId, roomScope);
+  let deletedCount = 0;
+
+  while (true) {
+    const snapshot = await getDocs(
+      query(
+        messagesRef,
+        where('userId', '==', targetUserId),
+        limit(MAX_BULK_DELETE_BATCH)
+      )
+    );
+
+    if (snapshot.empty) break;
+
+    deletedCount += await deleteMessageDocsAndMedia(snapshot.docs);
+
+    if (snapshot.size < MAX_BULK_DELETE_BATCH) {
+      break;
+    }
+  }
+
+  return { deletedCount };
+};
+
+export const deleteAllMessagesInRoom = async (roomId, options = {}) => {
+  if (!roomId) {
+    throw new Error('INVALID_DELETE_PARAMS');
+  }
+
+  if (!auth.currentUser || auth.currentUser.isAnonymous) {
+    throw new Error('REQUIRES_REGISTERED_USER');
+  }
+
+  if (!options?.isAdmin) {
+    throw new Error('ADMIN_REQUIRED');
+  }
+
+  const roomScope = normalizeRoomScope(options?.roomScope);
+  const messagesRef = getRoomMessagesCollectionRef(roomId, roomScope);
+  const includeSystem = Boolean(options?.includeSystem ?? true);
+  let deletedCount = 0;
+
+  while (true) {
+    const snapshot = await getDocs(query(messagesRef, limit(MAX_BULK_DELETE_BATCH)));
+
+    if (snapshot.empty) break;
+
+    const docsToDelete = includeSystem
+      ? snapshot.docs
+      : snapshot.docs.filter((docSnap) => {
+          const data = docSnap.data() || {};
+          const userId = String(data.userId || '');
+          return userId !== 'system' && !userId.startsWith('system_');
+        });
+
+    if (docsToDelete.length > 0) {
+      deletedCount += await deleteMessageDocsAndMedia(docsToDelete);
+    }
+
+    if (snapshot.size < MAX_BULK_DELETE_BATCH) {
+      break;
+    }
+  }
+
+  return { deletedCount };
 };
 
 /**

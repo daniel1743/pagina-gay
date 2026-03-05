@@ -254,6 +254,44 @@
 
 .chat-message-image {
   display: block !important;
+  transition: filter 0.22s ease, transform 0.22s ease !important;
+}
+
+.chat-image-shell {
+  position: relative !important;
+  display: inline-block !important;
+  border-radius: 10px !important;
+  overflow: hidden !important;
+}
+
+.chat-message-image.is-sensitive-blurred {
+  filter: blur(7px) saturate(0.88) brightness(0.9) !important;
+  transform: scale(1.015) !important;
+}
+
+.chat-image-reveal-overlay {
+  position: absolute !important;
+  inset: 0 !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  pointer-events: none !important;
+  background: linear-gradient(to bottom, rgba(15, 23, 42, 0.24), rgba(15, 23, 42, 0.38)) !important;
+}
+
+.chat-image-reveal-pill {
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  font-size: 11px !important;
+  font-weight: 600 !important;
+  color: #e2e8f0 !important;
+  padding: 5px 10px !important;
+  border-radius: 999px !important;
+  border: 1px solid rgba(226, 232, 240, 0.35) !important;
+  background: rgba(15, 23, 42, 0.55) !important;
+  backdrop-filter: blur(3px) !important;
+  -webkit-backdrop-filter: blur(3px) !important;
 }
 
 .image-reactions-dock {

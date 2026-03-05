@@ -30,6 +30,7 @@ const ChatMessages = ({
   onPrivateChat,
   onReaction,
   onDeleteMessage,
+  canModerateMessages = false,
   messagesEndRef,
   messagesContainerRef,
   newMessagesIndicator,
@@ -48,6 +49,7 @@ const ChatMessages = ({
       : false
   ));
   const [activeImageActionsMessageId, setActiveImageActionsMessageId] = useState(null);
+  const [revealedImageIds, setRevealedImageIds] = useState(() => new Set());
   const [swipeReplyMessageId, setSwipeReplyMessageId] = useState(null);
   const [swipeReplyOffset, setSwipeReplyOffset] = useState(0);
   const renderedMessageIdsRef = useRef(new Set());
@@ -162,6 +164,23 @@ const ChatMessages = ({
     };
   }, []);
 
+  useEffect(() => {
+    if (!Array.isArray(messages) || messages.length === 0) return;
+    const validIds = new Set(messages.map((msg) => msg._realId || msg.id).filter(Boolean));
+    setRevealedImageIds((prev) => {
+      let changed = false;
+      const next = new Set();
+      prev.forEach((id) => {
+        if (validIds.has(id)) {
+          next.add(id);
+        } else {
+          changed = true;
+        }
+      });
+      return changed ? next : prev;
+    });
+  }, [messages]);
+
   const triggerReply = (message) => {
     onReply?.({
       messageId: message.id,
@@ -181,6 +200,16 @@ const ChatMessages = ({
           setActiveImageActionsMessageId((current) => (current === next ? null : current));
         }, 9000);
       }
+      return next;
+    });
+  };
+
+  const revealImage = (messageKey) => {
+    if (!messageKey) return;
+    setRevealedImageIds((prev) => {
+      if (prev.has(messageKey)) return prev;
+      const next = new Set(prev);
+      next.add(messageKey);
       return next;
     });
   };
@@ -528,6 +557,9 @@ const ChatMessages = ({
                 const isFirst = msgIndex === 0;
                 const isLast = msgIndex === group.messages.length - 1;
                 const isSingle = group.messages.length === 1;
+                const messageKey = message._realId || message.id;
+                const isImageMessage = message.type === 'image';
+                const isImageRevealed = !isImageMessage || revealedImageIds.has(messageKey);
 
                 // Determinar posición para border-radius
                 let positionClass = 'single';
@@ -641,21 +673,18 @@ const ChatMessages = ({
                       <div className="message-avatar-placeholder" />
                     )}
 
-                    {/* Quote si existe */}
-                    {message.replyTo && (
-                      <MessageQuote
-                        replyTo={message.replyTo}
-                        onJumpToMessage={handleJumpToMessage}
-                      />
-                    )}
-
                     {/* ⚡ BURBUJA */}
                     <div
                       className={`message-bubble ${isOwn ? 'own' : 'other'} ${positionClass} ${hasImageReactions ? 'has-image-reactions' : ''}`}
                       onClick={() => {
-                        const messageKey = message._realId || message.id;
-                        if (message.type === 'image' && !isOwn && isMobileViewport) {
-                          toggleImageActions(messageKey);
+                        if (isImageMessage) {
+                          if (!isImageRevealed) {
+                            revealImage(messageKey);
+                            return;
+                          }
+                          if (!isOwn && isMobileViewport) {
+                            toggleImageActions(messageKey);
+                          }
                           return;
                         }
                         onPrivateChat({
@@ -666,13 +695,35 @@ const ChatMessages = ({
                         });
                       }}
                     >
+                      {message.replyTo && (
+                        <MessageQuote
+                          replyTo={message.replyTo}
+                          onJumpToMessage={handleJumpToMessage}
+                        />
+                      )}
                       {message.type === 'text' && message.content}
                       {message.type === 'gif' && (
                         <img src={message.content} alt="GIF" className="rounded max-w-full" />
                       )}
                       {message.type === 'image' && (
                         message.content
-                          ? <img src={message.content} alt="Imagen del chat" className="chat-message-image block rounded-lg w-auto h-auto max-w-[150px] sm:max-w-[200px] lg:max-w-[220px] max-h-[240px] object-cover" loading="lazy" />
+                          ? (
+                            <div className="chat-image-shell">
+                              <img
+                                src={message.content}
+                                alt="Imagen del chat"
+                                className={`chat-message-image block rounded-lg w-auto h-auto max-w-[150px] sm:max-w-[200px] lg:max-w-[220px] max-h-[240px] object-cover ${
+                                  isImageRevealed ? '' : 'is-sensitive-blurred'
+                                }`}
+                                loading="lazy"
+                              />
+                              {!isImageRevealed && (
+                                <div className="chat-image-reveal-overlay" aria-hidden="true">
+                                  <span className="chat-image-reveal-pill">Toca para ver</span>
+                                </div>
+                              )}
+                            </div>
+                          )
                           : <span className="text-xs text-muted-foreground">Imagen</span>
                       )}
                       {message.type !== 'image' && reactionSummary.length > 0 && (
@@ -695,7 +746,9 @@ const ChatMessages = ({
                           ))}
                         </div>
                       )}
-                      {isOwn && message.type === 'image' && !message._optimistic && typeof onDeleteMessage === 'function' && (
+                      {((isOwn && message.type === 'image') || (canModerateMessages && !isOwn)) &&
+                        !message._optimistic &&
+                        typeof onDeleteMessage === 'function' && (
                         <div className="mt-2 flex justify-end">
                           <button
                             type="button"
@@ -704,8 +757,8 @@ const ChatMessages = ({
                               e.stopPropagation();
                               onDeleteMessage(message);
                             }}
-                            title="Eliminar foto"
-                            aria-label="Eliminar foto"
+                            title={canModerateMessages && !isOwn ? 'Eliminar mensaje (admin)' : 'Eliminar foto'}
+                            aria-label={canModerateMessages && !isOwn ? 'Eliminar mensaje (admin)' : 'Eliminar foto'}
                           >
                             <Trash2 className="w-3 h-3" />
                             Eliminar

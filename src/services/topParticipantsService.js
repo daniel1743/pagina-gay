@@ -15,6 +15,7 @@ import {
 import { db } from '@/config/firebase';
 
 const TOP_PARTICIPANTS_COLLECTION = 'featured_participants';
+const AUTO_TOP_LIMIT = 6;
 
 const toNumber = (value, fallback = 0) => {
   const parsed = Number(value);
@@ -71,6 +72,183 @@ const sortForDisplay = (participants) => {
       effectiveBlur: typeof item.blurEnabled === 'boolean' ? item.blurEnabled : fallbackBlur,
     };
   });
+};
+
+const toTimestampMs = (timestamp) => {
+  if (!timestamp) return Date.now();
+  if (typeof timestamp?.toMillis === 'function') return timestamp.toMillis();
+  if (typeof timestamp === 'number') return timestamp;
+  if (typeof timestamp?.seconds === 'number') return timestamp.seconds * 1000;
+  const parsed = new Date(timestamp).getTime();
+  return Number.isFinite(parsed) ? parsed : Date.now();
+};
+
+const isAutomatedOrSystemUserId = (userId = '') => {
+  if (!userId) return true;
+  return (
+    userId === 'system' ||
+    userId.startsWith('system_') ||
+    userId.startsWith('bot_') ||
+    userId.startsWith('ai_') ||
+    userId.startsWith('seed_user_') ||
+    userId.startsWith('static_bot_')
+  );
+};
+
+const buildHistoricalTopFromUsersSnapshot = (snapshot) => {
+  const candidates = [];
+
+  snapshot.docs.forEach((docSnap) => {
+    const data = docSnap.data() || {};
+    const roleValue = String(data.role || '').toLowerCase();
+    if (data.isGuest || data.isAnonymous) return;
+    if (['admin', 'administrator', 'superadmin', 'support'].includes(roleValue)) return;
+
+    const messagesCount = toNumber(
+      data.messageCount ??
+      data.messagesCount ??
+      data.metrics?.messageCount ??
+      data.metrics?.messagesCount,
+      0
+    );
+
+    if (messagesCount <= 0) return;
+
+    const threadsCount = toNumber(
+      data.threadCount ??
+      data.threadsCount ??
+      data.metrics?.threadCount ??
+      data.metrics?.threadsCount,
+      0
+    );
+    const repliesCount = toNumber(
+      data.replyCount ??
+      data.repliesCount ??
+      data.metrics?.replyCount ??
+      data.metrics?.repliesCount,
+      0
+    );
+    const totalActiveTime = toNumber(
+      data.totalActiveTime ??
+      data.totalActiveTimeSeconds ??
+      data.metrics?.totalActiveTime ??
+      data.metrics?.totalActiveTimeSeconds,
+      0
+    );
+
+    const lastMessageAtMs = toTimestampMs(
+      data.lastMessageAt ??
+      data.metrics?.lastMessageAt ??
+      data.updatedAt
+    );
+
+    const activityScore = Math.round(
+      messagesCount * 1 +
+      threadsCount * 3 +
+      repliesCount * 2 +
+      (totalActiveTime / 3600) * 0.5
+    );
+
+    candidates.push({
+      id: docSnap.id,
+      userId: docSnap.id,
+      username: data.username || 'Usuario',
+      avatar: data.avatar || '',
+      isActive: true,
+      sortOrder: 9999,
+      pinnedRank: null,
+      blurEnabled: null,
+      messagesCount,
+      threadsCount,
+      repliesCount,
+      totalActiveTime: Math.floor(totalActiveTime / 60),
+      activityScore,
+      source: 'historical_users',
+      updatedAt: data.updatedAt || null,
+      lastMessageAtMs,
+    });
+  });
+
+  return candidates
+    .sort((a, b) => {
+      if (b.messagesCount !== a.messagesCount) return b.messagesCount - a.messagesCount;
+      if (b.activityScore !== a.activityScore) return b.activityScore - a.activityScore;
+      if (b.lastMessageAtMs !== a.lastMessageAtMs) return b.lastMessageAtMs - a.lastMessageAtMs;
+      return String(a.username || '').localeCompare(String(b.username || ''), 'es');
+    })
+    .map((item, index) => {
+      const rank = index + 1;
+      return {
+        ...item,
+        displayRank: rank,
+        effectiveBlur: rank > 3,
+      };
+    })
+    .slice(0, AUTO_TOP_LIMIT);
+};
+
+const buildTopFromPublicMessagesSnapshot = (snapshot) => {
+  const byUserId = new Map();
+
+  snapshot.docs.forEach((docSnap) => {
+    const data = docSnap.data() || {};
+    const userId = String(data.userId || '').trim();
+
+    if (!userId || isAutomatedOrSystemUserId(userId)) return;
+
+    const timestampMs = toTimestampMs(data.timestamp || data.updatedAt || data.createdAt);
+    const username = data.username || 'Usuario';
+    const avatar = data.avatar || '';
+
+    const existing = byUserId.get(userId);
+    if (!existing) {
+      byUserId.set(userId, {
+        id: userId,
+        userId,
+        username,
+        avatar,
+        isActive: true,
+        sortOrder: 9999,
+        pinnedRank: null,
+        blurEnabled: null,
+        messagesCount: 1,
+        threadsCount: 0,
+        repliesCount: 0,
+        totalActiveTime: 0,
+        activityScore: 1,
+        source: 'public_messages_fallback',
+        updatedAt: data.timestamp || data.updatedAt || null,
+        lastMessageAtMs: timestampMs,
+      });
+      return;
+    }
+
+    existing.messagesCount += 1;
+    existing.activityScore = existing.messagesCount;
+
+    if (timestampMs >= existing.lastMessageAtMs) {
+      existing.lastMessageAtMs = timestampMs;
+      existing.username = username || existing.username;
+      existing.avatar = avatar || existing.avatar;
+      existing.updatedAt = data.timestamp || data.updatedAt || existing.updatedAt;
+    }
+  });
+
+  return Array.from(byUserId.values())
+    .sort((a, b) => {
+      if (b.messagesCount !== a.messagesCount) return b.messagesCount - a.messagesCount;
+      if (b.lastMessageAtMs !== a.lastMessageAtMs) return b.lastMessageAtMs - a.lastMessageAtMs;
+      return String(a.username || '').localeCompare(String(b.username || ''), 'es');
+    })
+    .map((item, index) => {
+      const rank = index + 1;
+      return {
+        ...item,
+        displayRank: rank,
+        effectiveBlur: rank > 3,
+      };
+    })
+    .slice(0, AUTO_TOP_LIMIT);
 };
 
 const buildFallbackFromUsers = async () => {
@@ -155,6 +333,97 @@ export const subscribeTopParticipantsPublic = (onUpdate, onError) => {
       if (typeof onError === 'function') onError(error);
     }
   );
+};
+
+export const subscribeRealtimeTopParticipants = (
+  roomId = 'principal',
+  onUpdate,
+  onError,
+  options = {}
+) => {
+  if (typeof onUpdate !== 'function') {
+    throw new Error('subscribeRealtimeTopParticipants requiere callback.');
+  }
+
+  const fallbackRoomId = options?.isSecondaryRoom ? 'principal' : roomId || 'principal';
+  let usersUnsubscribe = null;
+  let publicUnsubscribe = null;
+  let messagesUnsubscribe = null;
+
+  const stopFallbackSubscriptions = () => {
+    if (publicUnsubscribe) {
+      publicUnsubscribe();
+      publicUnsubscribe = null;
+    }
+    if (messagesUnsubscribe) {
+      messagesUnsubscribe();
+      messagesUnsubscribe = null;
+    }
+  };
+
+  const startMessagesFallback = () => {
+    if (messagesUnsubscribe) return;
+
+    const roomMessagesRef = collection(db, 'rooms', fallbackRoomId, 'messages');
+    const roomMessagesQuery = query(roomMessagesRef, orderBy('timestamp', 'desc'), limit(350));
+
+    messagesUnsubscribe = onSnapshot(
+      roomMessagesQuery,
+      (snapshot) => {
+        const ranking = buildTopFromPublicMessagesSnapshot(snapshot);
+        onUpdate(ranking);
+      },
+      (messagesError) => {
+        console.error('[TOP_PARTICIPANTS] Error fallback mensajes:', messagesError);
+        if (typeof onError === 'function') onError(messagesError);
+      }
+    );
+  };
+
+  const startFallbackSubscriptions = () => {
+    if (publicUnsubscribe || messagesUnsubscribe) return;
+
+    publicUnsubscribe = subscribeTopParticipantsPublic(
+      (items) => {
+        if (Array.isArray(items) && items.length > 0) {
+          onUpdate(items.slice(0, AUTO_TOP_LIMIT));
+          return;
+        }
+        startMessagesFallback();
+      },
+      (publicError) => {
+        console.warn('[TOP_PARTICIPANTS] Fallback publico no disponible:', publicError);
+        startMessagesFallback();
+      }
+    );
+  };
+
+  const usersRef = collection(db, 'users');
+  const usersQuery = query(usersRef, orderBy('messageCount', 'desc'), limit(120));
+
+  usersUnsubscribe = onSnapshot(
+    usersQuery,
+    (snapshot) => {
+      const ranking = buildHistoricalTopFromUsersSnapshot(snapshot);
+      if (ranking.length > 0) {
+        stopFallbackSubscriptions();
+        onUpdate(ranking);
+        return;
+      }
+
+      startFallbackSubscriptions();
+    },
+    (error) => {
+      console.error('[TOP_PARTICIPANTS] Error ranking realtime:', error);
+      startFallbackSubscriptions();
+      if (typeof onError === 'function') onError(error);
+    }
+  );
+
+  return () => {
+    usersUnsubscribe?.();
+    stopFallbackSubscriptions();
+  };
 };
 
 export const subscribeTopParticipantsAdmin = (onUpdate, onError) => {
