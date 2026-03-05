@@ -11,6 +11,7 @@ import { ref as storageRef, uploadBytes, getDownloadURL } from 'firebase/storage
 import imageCompression from 'browser-image-compression';
 import { updateTypingStatus } from '@/services/presenceService';
 import { notificationSounds, initAudioOnFirstGesture } from '@/services/notificationSounds';
+import { track } from '@/services/eventTrackingService';
 
 // Lazy load del EmojiPicker para mejorar rendimiento
 const EmojiPicker = lazy(() => import('emoji-picker-react'));
@@ -52,6 +53,7 @@ const ONBOARDING_COMUNA_KEY = 'chactivo:comuna';
 const ONBOARDING_DISMISSED_KEY = 'chactivo:onboarding:dismissed';
 const ONBOARDING_FIRST_MESSAGE_KEY = 'chactivo:onboarding:first_message_sent';
 const ONBOARDING_FOCUS_NUDGE_KEY = 'chactivo:onboarding:focus_nudge_shown';
+const ONBOARDING_SESSION_START_KEY = 'chactivo:onboarding:session_start_ts';
 
 const ROLE_CHIPS = [
   { value: 'activo', label: 'Soy Activo' },
@@ -165,15 +167,44 @@ const ChatInput = ({
     localStorage.setItem(key, value);
   };
 
+  const trackOnboardingEvent = (eventType, extra = {}) => {
+    track(eventType, {
+      roomId,
+      roomName: roomId,
+      ...extra,
+    }, { user }).catch(() => {});
+  };
+
   const dismissOnboardingForSession = () => {
     setOnboardingDismissed(true);
     persistSessionFlag(ONBOARDING_DISMISSED_KEY, '1');
+    trackOnboardingEvent('onboarding_dismissed');
   };
 
   const markFirstMessageSent = () => {
     if (firstMessageSentInSession) return;
     setFirstMessageSentInSession(true);
     persistSessionFlag(ONBOARDING_FIRST_MESSAGE_KEY, '1');
+
+    if (typeof window !== 'undefined') {
+      const startedAtRaw = sessionStorage.getItem(ONBOARDING_SESSION_START_KEY);
+      const startedAt = Number(startedAtRaw);
+      const elapsedMs = Number.isFinite(startedAt) && startedAt > 0
+        ? Math.max(0, Date.now() - startedAt)
+        : null;
+      const elapsedSeconds = elapsedMs === null ? null : Math.round(elapsedMs / 1000);
+
+      trackOnboardingEvent('onboarding_first_message_sent', {
+        elapsed_ms: elapsedMs,
+        elapsed_seconds: elapsedSeconds,
+      });
+      trackOnboardingEvent('onboarding_time_to_first_message', {
+        elapsed_ms: elapsedMs,
+        elapsed_seconds: elapsedSeconds,
+      });
+    } else {
+      trackOnboardingEvent('onboarding_first_message_sent');
+    }
   };
 
   const maybeShowFocusNudge = () => {
@@ -184,6 +215,7 @@ const ChatInput = ({
 
     setShowFocusNudge(true);
     persistSessionFlag(ONBOARDING_FOCUS_NUDGE_KEY, '1');
+    trackOnboardingEvent('onboarding_nudge_shown');
 
     if (focusNudgeTimeoutRef.current) {
       clearTimeout(focusNudgeTimeoutRef.current);
@@ -193,6 +225,13 @@ const ChatInput = ({
       setShowFocusNudge(false);
     }, 4000);
   };
+
+  useEffect(() => {
+    if (!showOnboardingHints || typeof window === 'undefined') return;
+    if (!sessionStorage.getItem(ONBOARDING_SESSION_START_KEY)) {
+      sessionStorage.setItem(ONBOARDING_SESSION_START_KEY, String(Date.now()));
+    }
+  }, [showOnboardingHints]);
 
   useEffect(() => {
     return () => {
@@ -493,16 +532,27 @@ const ChatInput = ({
   const handleRoleSelect = (roleValue) => {
     setSelectedRole(roleValue);
     persistLocalValue(ONBOARDING_ROLE_KEY, roleValue);
+    trackOnboardingEvent('onboarding_chip_click', {
+      chip_type: 'role',
+      chip_value: roleValue,
+    });
   };
 
   const handleComunaSelect = (comunaValue) => {
     setSelectedComuna(comunaValue);
     persistLocalValue(ONBOARDING_COMUNA_KEY, comunaValue);
+    trackOnboardingEvent('onboarding_chip_click', {
+      chip_type: 'comuna',
+      chip_value: comunaValue || 'none',
+    });
   };
 
   const handlePromptClick = (prompt) => {
     setMessage(prompt);
     textareaRef.current?.focus({ preventScroll: true });
+    trackOnboardingEvent('onboarding_prompt_click', {
+      prompt_text: prompt,
+    });
   };
 
   const handleMessageChange = (event) => {

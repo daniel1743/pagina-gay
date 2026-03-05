@@ -17,14 +17,49 @@ const AuthPage = () => {
 
   useEffect(() => {
     const previousTitle = document.title;
-    // Título optimizado para atraer clics desde Google
-    document.title = "Iniciar Sesión o Registrarse | Chactivo";
+    const metaRobots = document.querySelector('meta[name="robots"]');
+    const hadMetaRobots = !!metaRobots;
+    const previousRobots = metaRobots?.getAttribute('content') || '';
+    const metaDescription = document.querySelector('meta[name="description"]');
+    const hadMetaDescription = !!metaDescription;
+    const previousDescription = metaDescription?.getAttribute('content') || '';
 
-    // 🚨 HE BORRADO EL CÓDIGO DE NOINDEX 🚨
-    // Ahora Google podrá indexar esta página y mandar tráfico al botón de Invitado.
+    document.title = "Acceder a Chactivo | Login y Registro";
+
+    let ensuredMetaRobots = metaRobots;
+    if (!ensuredMetaRobots) {
+      ensuredMetaRobots = document.createElement('meta');
+      ensuredMetaRobots.setAttribute('name', 'robots');
+      document.head.appendChild(ensuredMetaRobots);
+    }
+    ensuredMetaRobots.setAttribute('content', 'noindex, nofollow, noarchive');
+
+    let ensuredMetaDescription = metaDescription;
+    if (!ensuredMetaDescription) {
+      ensuredMetaDescription = document.createElement('meta');
+      ensuredMetaDescription.setAttribute('name', 'description');
+      document.head.appendChild(ensuredMetaDescription);
+    }
+    ensuredMetaDescription.setAttribute('content', 'Accede a tu cuenta de Chactivo o crea una nueva para usar funciones avanzadas.');
 
     return () => {
       document.title = previousTitle;
+      const currentMetaRobots = document.querySelector('meta[name="robots"]');
+      if (currentMetaRobots) {
+        if (hadMetaRobots) {
+          currentMetaRobots.setAttribute('content', previousRobots);
+        } else {
+          currentMetaRobots.remove();
+        }
+      }
+      const currentMetaDescription = document.querySelector('meta[name="description"]');
+      if (currentMetaDescription) {
+        if (hadMetaDescription) {
+          currentMetaDescription.setAttribute('content', previousDescription);
+        } else {
+          currentMetaDescription.remove();
+        }
+      }
     };
   }, []);
 

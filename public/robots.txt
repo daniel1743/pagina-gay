@@ -34,9 +34,9 @@ Allow: /anonymous-chat
 Allow: /anonymous-forum
 
 # ❌ BLOQUEAR páginas privadas/autenticadas
-# NOTA: /auth y /premium NO están bloqueadas aquí porque:
-#   - /auth es pública (registro/login) y debe ser indexada
-#   - /premium tiene meta tag noindex (mejor práctica para evitar errores de redirección)
+# NOTA:
+#   - /auth no se bloquea por robots porque usa meta robots "noindex,nofollow" en runtime
+#   - /premium usa meta tag noindex para evitar indexación accidental
 Disallow: /home
 Disallow: /inicio
 Disallow: /lobby

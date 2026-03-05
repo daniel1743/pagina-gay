@@ -30,6 +30,12 @@ const STORED_ANALYTICS_EVENT_TYPES = new Set([
   'auth_success',
   'chat_room_view',
   'first_message_sent',
+  'onboarding_chip_click',
+  'onboarding_prompt_click',
+  'onboarding_nudge_shown',
+  'onboarding_dismissed',
+  'onboarding_first_message_sent',
+  'onboarding_time_to_first_message',
 ]);
 
 /**

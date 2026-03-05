@@ -932,8 +932,8 @@ const ChatPage = () => {
     // Meta information específica por sala (SIN números dinámicos para SEO estable)
     const roomSEO = {
       'gaming': {
-        title: 'Chat Gay Gamers Chile 🎮 | Sala Gaming LGBT+ | Chactivo',
-        description: '🎮 Únete a la sala de gaming gay más activa de Chile. Comparte LoL, Valorant, Genshin, Minecraft. Encuentra squad LGBT+, chatea sobre PS5, Xbox, PC, Switch. Comunidad gamer sin toxicidad. ¡Regístrate gratis!',
+        title: 'Video Chat Gay Gamers Chile 🎮 | Sala Gaming LGBT+ | Chactivo',
+        description: 'Video chat gay gamers Chile para hablar de LoL, Valorant, Minecraft y más. Comunidad LGBT+ gamer activa, segura y sin toxicidad.',
         ogTitle: 'Chat Gay para Gamers Chile 🎮 | Comunidad Gaming LGBT+',
         ogDescription: '🎮 Conecta con gamers LGBT+ de Chile. Sala activa 24/7 con +50 gamers. Todas las plataformas: PC, PS5, Xbox, Switch, Móvil. ¡Únete ahora!'
       },
@@ -957,10 +957,10 @@ const ChatPage = () => {
       //   ogDescription: '💬 La sala más popular de Chactivo. Todos los temas, todos bienvenidos. Ambiente relajado y conversación real.'
       // },
       'principal': {
-        title: 'Chat Gay Chile 💬 | Cero Anuncios Molestos | Chactivo',
-        description: 'Habla y conecta en tiempo real con gente de Chile. Entra gratis en segundos, sin registro obligatorio y con cero anuncios molestos.',
-        ogTitle: 'Chat Gay Chile 💬 | Cero Anuncios Molestos | Chactivo',
-        ogDescription: 'Conecta con gente real de Chile en segundos: gratis, sin registro obligatorio y sin anuncios molestos.'
+        title: 'Chat Gay Chile Gratis 💬 | En Vivo Sin Registro | Chactivo',
+        description: 'Chat gay Chile en vivo. Entra gratis en segundos, conoce gente real y conversa sin registro obligatorio.',
+        ogTitle: 'Chat Gay Chile Gratis 💬 | En Vivo Sin Registro',
+        ogDescription: 'Conecta con gente real de Chile en segundos: chat en vivo, gratis y sin registro obligatorio.'
       }
     };
 

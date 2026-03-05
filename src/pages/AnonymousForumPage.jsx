@@ -18,7 +18,7 @@ const AnonymousForumPage = () => {
   React.useEffect(() => {
     const previousTitle = document.title;
     // ✅ SEO: Título optimizado para CTR con keywords
-    document.title = "Foro Anónimo Gay Chile 🕵️ Confesiones y Experiencias | Chactivo";
+    document.title = "Foro Gay Chile Anónimo 🕵️ Confesiones y Experiencias | Chactivo";
 
     // ✅ SEO: Meta description con CTA
     let metaDescription = document.querySelector('meta[name="description"]');
@@ -26,11 +26,11 @@ const AnonymousForumPage = () => {
 
     if (metaDescription) {
       previousDescription = metaDescription.getAttribute('content');
-      metaDescription.content = "Foro gay 100% anónimo. Comparte experiencias, haz preguntas y lee confesiones sin que nadie sepa quién eres. Categorías: Apoyo, Experiencias, Preguntas. Entra ahora.";
+      metaDescription.content = "Foro gay Chile 100% anónimo. Comparte experiencias, haz preguntas y lee confesiones sin revelar tu identidad. Entra ahora.";
     } else {
       metaDescription = document.createElement('meta');
       metaDescription.name = 'description';
-      metaDescription.content = "Foro gay 100% anónimo. Comparte experiencias, haz preguntas y lee confesiones sin que nadie sepa quién eres. Categorías: Apoyo, Experiencias, Preguntas. Entra ahora.";
+      metaDescription.content = "Foro gay Chile 100% anónimo. Comparte experiencias, haz preguntas y lee confesiones sin revelar tu identidad. Entra ahora.";
       document.head.appendChild(metaDescription);
     }
 

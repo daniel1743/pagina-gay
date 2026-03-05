@@ -133,11 +133,11 @@ const SEOLanding = ({
 export const SEOLandingChile = () => (
   <SEOLanding
     chatRoom="principal"
-    title="Chat Gay Chile - Chatea Gratis Sin Registro"
-    description="Chat gay Chile gratis. Conoce hombres gay en Santiago, Valparaíso, Concepción y todo Chile. Sin registro, 100% anónimo."
-    keywords="chat gay chile, chat gay santiago, gay chile, chat gay gratis chile"
-    h1="Chat Gay Chile"
-    subtitle="Conecta con hombres en todo Chile"
+    title="Chat Gay Chile Gratis | Chat Gay en Vivo Sin Registro - Chactivo"
+    description="Chat gay Chile en vivo y gratis. Conecta con hombres de Santiago y todo Chile en segundos, sin registro obligatorio."
+    keywords="chat gay chile, chat gay en vivo, chat gay gratis chile, chat gay santiago, chatgay chile"
+    h1="Chat Gay Chile En Vivo"
+    subtitle="Conecta con hombres reales de Chile"
   />
 );
 

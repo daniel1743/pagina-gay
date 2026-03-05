@@ -7,6 +7,16 @@
       content="width=device-width, initial-scale=1.0, maximum-scale=5.0, user-scalable=yes, viewport-fit=cover, interactive-widget=resizes-content"
     />
 
+    <!-- Canonical host: forzar non-www -->
+    <script>
+      (function () {
+        if (window.location.hostname === "www.chactivo.com") {
+          const nextUrl = `https://chactivo.com${window.location.pathname}${window.location.search}${window.location.hash}`;
+          window.location.replace(nextUrl);
+        }
+      })();
+    </script>
+
     <!-- Tema rápido -->
     <script>
       (function () {
@@ -32,10 +42,10 @@
     <meta name="google-site-verification" content="m4Wrv1KeHpGhpLDkbmTpQerXSbWIjF7_a02YdmQp0rM" />
 
     <!-- SEO -->
-    <title>Chat Gay Chile 💬 Conecta Sin Registro y Sin Anuncios Molestos | Chactivo</title>
+    <title>Chat Gay Chile Gratis 💬 En Vivo Sin Registro | Chactivo</title>
     <meta
       name="description"
-      content="Habla y conecta en tiempo real con gente de Chile. Entra gratis en segundos, sin registro obligatorio y sin anuncios molestos."
+      content="Chat gay Chile gratis y en vivo. Entra en segundos, conoce gente real de Santiago y todo Chile, sin registro obligatorio."
     />
     <meta name="author" content="Chactivo" />
     <meta name="robots" content="index, follow, max-snippet:-1, max-image-preview:large, max-video-preview:-1" />
