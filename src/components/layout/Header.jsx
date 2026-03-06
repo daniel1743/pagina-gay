@@ -20,6 +20,7 @@ import { subscribeToSystemNotifications } from '@/services/systemNotificationsSe
 import { motion, AnimatePresence } from 'framer-motion';
 
 const Header = () => {
+  const logoSources = ["/transparente_logo.png"];
   const navigate = useNavigate();
   const location = useLocation();
   const { user, logout } = useAuth();
@@ -30,7 +31,8 @@ const Header = () => {
   const [showNotifications, setShowNotifications] = useState(false);
   const [unreadNotificationsCount, setUnreadNotificationsCount] = useState(0);
   const [showBetaPulse, setShowBetaPulse] = useState(true);
-  const [logoSrc, setLogoSrc] = useState("/logo_chact.png");
+  const [logoIndex, setLogoIndex] = useState(0);
+  const logoSrc = logoSources[logoIndex] || "";
   // ⚠️ MODAL COMENTADO - Ya no usamos EntryOptionsModal
   // const [showEntryModal, setShowEntryModal] = useState(false);
   // ⚠️ MODAL INVITADO ELIMINADO - Solo registro normal
@@ -120,6 +122,10 @@ const Header = () => {
     { id: 'opin', label: 'OPIN', icon: Sparkles, to: '/opin', active: location.pathname.startsWith('/opin') },
   ];
 
+  const handleLogoError = () => {
+    setLogoIndex((prev) => Math.min(prev + 1, logoSources.length));
+  };
+
   return (
     <header className="sticky top-0 left-0 right-0 z-50 bg-card/80 backdrop-blur-xl border-b m-0 p-0 shadow-sm" style={{ backdropFilter: 'blur(12px)' }}>
       <div className="container mx-auto px-4 sm:px-6 lg:px-8 flex items-center justify-between h-16 sm:h-20">
@@ -138,15 +144,7 @@ const Header = () => {
                   src={logoSrc} 
                   alt="Chactivo Logo" 
                   className="w-10 h-10 object-contain" 
-                  onError={() => {
-                    // Intentar logo alternativo si el principal falla
-                    if (logoSrc === "/logo_chact.png") {
-                      setLogoSrc("/LOGO_CHACTIVO.png");
-                    } else {
-                      // Si también falla, mostrar fallback
-                      setLogoSrc("");
-                    }
-                  }}
+                  onError={handleLogoError}
                 />
               ) : (
                 <div className="w-10 h-10 flex items-center justify-center bg-gradient-to-br from-purple-500 to-pink-500 rounded-lg">

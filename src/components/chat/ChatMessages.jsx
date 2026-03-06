@@ -41,6 +41,18 @@ const ChatMessages = ({
   dailyTopic = '',
   isLoadingMessages = false,
 }) => {
+  const DEFAULT_CHAT_AVATAR = '/avatar_por_defecto.jpeg';
+  const resolveChatAvatar = (avatar) => {
+    if (!avatar || typeof avatar !== 'string') return DEFAULT_CHAT_AVATAR;
+    const normalized = avatar.trim().toLowerCase();
+    if (!normalized) return DEFAULT_CHAT_AVATAR;
+    if (normalized === 'undefined' || normalized === 'null') return DEFAULT_CHAT_AVATAR;
+    if (normalized.includes('api.dicebear.com')) return DEFAULT_CHAT_AVATAR;
+    if (normalized.startsWith('data:image/svg+xml')) return DEFAULT_CHAT_AVATAR;
+    if (normalized.startsWith('blob:')) return DEFAULT_CHAT_AVATAR;
+    return avatar;
+  };
+
   const [highlightedMessageId, setHighlightedMessageId] = useState(null);
   const [activeQuickReplyBadge, setActiveQuickReplyBadge] = useState(null);
   const [isMobileViewport, setIsMobileViewport] = useState(() => (
@@ -404,7 +416,7 @@ const ChatMessages = ({
           groupId: `group_${message.id}`,
           userId: message.userId,
           username: message.username,
-          avatar: message.avatar,
+          avatar: resolveChatAvatar(message.avatar),
           isPremium: message.isPremium || false,
           isProUser: message.isProUser || false,
           hasRainbowBorder: message.hasRainbowBorder || false,
@@ -545,7 +557,7 @@ const ChatMessages = ({
                     );
                   })()}
                   {roleBadgeMeta ? (
-                    <span className={`inline-block ml-1.5 text-[9px] font-semibold px-1.5 py-0.5 rounded-full border ${roleBadgeMeta.badgeClassName}`}>
+                    <span className={`inline-block ml-1.5 text-[10px] font-bold tracking-[0.01em] px-2 py-0.5 rounded-full border ${roleBadgeMeta.badgeClassName}`}>
                       {roleBadgeMeta.label}
                     </span>
                   ) : null}
@@ -653,7 +665,7 @@ const ChatMessages = ({
                       >
                         <Avatar className={`w-full h-full ${isUserPro ? 'rounded-full' : ''}`}>
                           <AvatarImage
-                            src={group.avatar || `https://api.dicebear.com/7.x/avataaars/svg?seed=${group.username || 'guest'}`}
+                            src={resolveChatAvatar(group.avatar)}
                             alt={group.username || 'Usuario'}
                           />
                           <AvatarFallback className="bg-gradient-to-br from-purple-500 to-pink-500 text-white text-xs">
@@ -689,7 +701,7 @@ const ChatMessages = ({
                         }
                         onPrivateChat({
                           username: message.username,
-                          avatar: message.avatar,
+                          avatar: resolveChatAvatar(message.avatar || group.avatar),
                           userId: message.userId,
                           isPremium: isUserPremium
                         });

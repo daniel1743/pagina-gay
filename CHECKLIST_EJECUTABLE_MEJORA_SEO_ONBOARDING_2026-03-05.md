@@ -60,17 +60,17 @@ Evidencia: captura de eventos de prueba.
 
 ## P1 (semana 2 y 3)
 
-- [ ] Crear/optimizar landings por intención alta
+- [x] Crear/optimizar landings por intención alta
 Prioridad: `chat gay chile`, `video chat gay`, `foro gay`.
 Criterio de salida: cada landing con H1 claro, contenido útil real y CTA a chat.
 
-- [ ] Implementar `FAQ schema` donde aplique
+- [x] Implementar `FAQ schema` donde aplique
 Criterio de salida: datos estructurados válidos sin warnings críticos.
 
-- [ ] Mejorar enlazado interno desde home y páginas top a landings estratégicas
+- [x] Mejorar enlazado interno desde home y páginas top a landings estratégicas
 Criterio de salida: rutas estratégicas reciben enlaces contextuales visibles.
 
-- [ ] Optimización mobile-first (LCP/INP/CLS)
+- [x] Optimización mobile-first (LCP/INP/CLS)
 Criterio de salida: mejora medible de rendimiento móvil en páginas SEO top.
 
 ## P2 (semana 4 a 6)
@@ -104,7 +104,7 @@ Todos los viernes:
 |---|---|---|---|
 | 2026-03-05 | Baseline creado | Completado | Capturas GSC + checklist |
 | 2026-03-10 | P0 canónico + snippets | Pendiente | - |
-| 2026-03-17 | Landings intención alta | Pendiente | - |
+| 2026-03-06 | Landings intención alta | Completado | Nuevas rutas SEO + schema + enlaces internos |
 
 ## 6) Riesgos a controlar
 

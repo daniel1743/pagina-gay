@@ -316,6 +316,53 @@ const GlobalLandingPage = () => {
     };
   }, []);
 
+  React.useEffect(() => {
+    const faqData = {
+      "@context": "https://schema.org",
+      "@type": "FAQPage",
+      "mainEntity": [
+        {
+          "@type": "Question",
+          "name": "¿El chat gay Chile de Chactivo es gratis?",
+          "acceptedAnswer": {
+            "@type": "Answer",
+            "text": "Sí. Puedes entrar gratis y chatear con la comunidad en vivo."
+          }
+        },
+        {
+          "@type": "Question",
+          "name": "¿Necesito registro obligatorio para entrar?",
+          "acceptedAnswer": {
+            "@type": "Answer",
+            "text": "No es obligatorio para entrar al chat principal. El registro habilita opciones extra."
+          }
+        },
+        {
+          "@type": "Question",
+          "name": "¿Dónde encuentro foro gay y video chat gay?",
+          "acceptedAnswer": {
+            "@type": "Answer",
+            "text": "Puedes acceder a /foro-gay para discusiones anónimas y a /video-chat-gay para entrar a conversación en vivo."
+          }
+        }
+      ]
+    };
+
+    let faqScript = document.getElementById('global-landing-faq-schema');
+    if (!faqScript) {
+      faqScript = document.createElement('script');
+      faqScript.id = 'global-landing-faq-schema';
+      faqScript.type = 'application/ld+json';
+      document.head.appendChild(faqScript);
+    }
+    faqScript.textContent = JSON.stringify(faqData);
+
+    return () => {
+      const schema = document.getElementById('global-landing-faq-schema');
+      if (schema) schema.remove();
+    };
+  }, []);
+
   const handleChatearAhora = () => {
     if (user && !user.isGuest && !user.isAnonymous) {
       navigate('/chat/principal');
@@ -390,6 +437,9 @@ const GlobalLandingPage = () => {
                   src={encodeURI(modelImages[currentImageIndex])}
                   alt="Chat activo en Chile"
                   className="absolute inset-0 w-full h-full object-cover object-center"
+                  width="1080"
+                  height="1440"
+                  sizes="(max-width: 768px) 100vw, 1200px"
                   loading={currentImageIndex === 0 ? 'eager' : 'lazy'}
                   decoding="async"
                   fetchpriority={currentImageIndex === 0 ? 'high' : 'low'}
@@ -472,6 +522,22 @@ const GlobalLandingPage = () => {
                 <p className="text-base sm:text-lg text-white font-bold">
                   ⚡ Entra en 1 clic • 💬 Chatea con gente real • 🔒 100% Anónimo
                 </p>
+                <div className="flex flex-wrap justify-center gap-2 pt-1">
+                  <button
+                    type="button"
+                    onClick={() => navigate('/video-chat-gay')}
+                    className="rounded-full border border-cyan-300/50 bg-black/25 px-3 py-1 text-xs font-semibold text-cyan-100 hover:bg-black/35 transition-colors"
+                  >
+                    Video chat gay
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => navigate('/foro-gay')}
+                    className="rounded-full border border-fuchsia-300/50 bg-black/25 px-3 py-1 text-xs font-semibold text-fuchsia-100 hover:bg-black/35 transition-colors"
+                  >
+                    Foro gay
+                  </button>
+                </div>
                 {loadTime && loadTime < 2000 && (
                   <p className="text-sm text-green-300 font-semibold animate-pulse">
                     ⚡ Carga ultra-rápida: {loadTime.toFixed(0)}ms
@@ -768,6 +834,8 @@ const GlobalLandingPage = () => {
                       transition={{ delay: 0.9, type: "spring", stiffness: 200 }}
                       src="/creator-photo.jpg"
                       alt="Daniel Falcon - Creador de Chactivo"
+                      loading="lazy"
+                      decoding="async"
                       className="relative w-32 h-32 sm:w-40 sm:h-40 lg:w-48 lg:h-48 rounded-full object-cover border-4 border-white/20 shadow-2xl shadow-cyan-500/50 ring-4 ring-cyan-500/30 group-hover:ring-cyan-500/60 transition-all duration-500"
                       style={{ objectPosition: 'center 20%' }}
                       onError={(e) => {

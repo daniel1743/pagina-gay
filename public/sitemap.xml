@@ -39,6 +39,20 @@
     <priority>0.9</priority>
     <mobile:mobile/>
   </url>
+  <url>
+    <loc>https://chactivo.com/chat-gay-chile</loc>
+    <lastmod>2026-03-06</lastmod>
+    <changefreq>daily</changefreq>
+    <priority>0.95</priority>
+    <mobile:mobile/>
+  </url>
+  <url>
+    <loc>https://chactivo.com/video-chat-gay</loc>
+    <lastmod>2026-03-06</lastmod>
+    <changefreq>daily</changefreq>
+    <priority>0.9</priority>
+    <mobile:mobile/>
+  </url>
 
   <!-- ✅ LANDING PAGES INTERNACIONALES (Expansión) -->
   <url>
@@ -83,6 +97,13 @@
   <url>
     <loc>https://chactivo.com/anonymous-forum</loc>
     <lastmod>2026-02-09</lastmod>
+    <changefreq>hourly</changefreq>
+    <priority>0.9</priority>
+    <mobile:mobile/>
+  </url>
+  <url>
+    <loc>https://chactivo.com/foro-gay</loc>
+    <lastmod>2026-03-06</lastmod>
     <changefreq>hourly</changefreq>
     <priority>0.9</priority>
     <mobile:mobile/>

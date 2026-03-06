@@ -41,7 +41,7 @@ const AnonymousForumPage = () => {
       canonical.rel = 'canonical';
       document.head.appendChild(canonical);
     }
-    canonical.href = 'https://chactivo.com/anonymous-forum';
+    canonical.href = 'https://chactivo.com/foro-gay';
 
     // ✅ SEO: Schema.org para DiscussionForumPosting (Search Console compliant)
     const forumStructuredData = {
@@ -86,6 +86,46 @@ const AnonymousForumPage = () => {
     }
     schemaScript.textContent = JSON.stringify(forumStructuredData);
 
+    const forumFaqData = {
+      "@context": "https://schema.org",
+      "@type": "FAQPage",
+      "mainEntity": [
+        {
+          "@type": "Question",
+          "name": "¿El foro gay es realmente anónimo?",
+          "acceptedAnswer": {
+            "@type": "Answer",
+            "text": "Sí. Puedes publicar y leer experiencias sin mostrar tu identidad real."
+          }
+        },
+        {
+          "@type": "Question",
+          "name": "¿Necesito registrarme para leer el foro?",
+          "acceptedAnswer": {
+            "@type": "Answer",
+            "text": "No. Puedes entrar y leer contenido sin registro."
+          }
+        },
+        {
+          "@type": "Question",
+          "name": "¿Puedo ir del foro al chat principal?",
+          "acceptedAnswer": {
+            "@type": "Answer",
+            "text": "Sí. Desde el foro puedes entrar directo al chat principal y seguir la conversación en vivo."
+          }
+        }
+      ]
+    };
+
+    let faqScript = document.getElementById('forum-faq-schema');
+    if (!faqScript) {
+      faqScript = document.createElement('script');
+      faqScript.id = 'forum-faq-schema';
+      faqScript.type = 'application/ld+json';
+      document.head.appendChild(faqScript);
+    }
+    faqScript.textContent = JSON.stringify(forumFaqData);
+
     return () => {
       document.title = previousTitle;
       if (metaDescription && previousDescription) {
@@ -94,6 +134,8 @@ const AnonymousForumPage = () => {
       // Limpiar schema al salir
       const schema = document.getElementById('forum-schema');
       if (schema) schema.remove();
+      const faqSchema = document.getElementById('forum-faq-schema');
+      if (faqSchema) faqSchema.remove();
     };
   }, []);
 
@@ -207,6 +249,22 @@ const AnonymousForumPage = () => {
             <p className="text-muted-foreground max-w-3xl mx-auto text-base sm:text-lg mb-4">
               El foro gay más activo de Chile. Comunidad de apoyo mutuo 24/7, sin censura y completamente anónima.
             </p>
+            <div className="flex flex-wrap justify-center gap-2 text-xs sm:text-sm">
+              <button
+                type="button"
+                onClick={() => navigate('/chat-gay-chile')}
+                className="rounded-full border border-cyan-500/40 px-3 py-1 text-cyan-300 hover:bg-cyan-500/10 transition-colors"
+              >
+                Chat gay chile
+              </button>
+              <button
+                type="button"
+                onClick={() => navigate('/video-chat-gay')}
+                className="rounded-full border border-fuchsia-500/40 px-3 py-1 text-fuchsia-300 hover:bg-fuchsia-500/10 transition-colors"
+              >
+                Video chat gay
+              </button>
+            </div>
           </motion.div>
 
           {/* Banner Modo Máscara */}

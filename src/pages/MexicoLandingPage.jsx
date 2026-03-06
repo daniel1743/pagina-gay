@@ -42,12 +42,12 @@ const MexicoLandingPage = () => {
       { property: 'og:description', content: 'Chat gay México 100% gratis. Conoce chavos de CDMX, Zona Rosa, Guadalajara y todo México. Sin pedos, wey.' },
       { property: 'og:type', content: 'website' },
       { property: 'og:url', content: 'https://chactivo.com/modal-mx' },
-      { property: 'og:image', content: 'https://chactivo.com/LOGO_CHACTIVO.png' },
+      { property: 'og:image', content: 'https://chactivo.com/transparente_logo.png' },
       { property: 'og:locale', content: 'es_MX' },
       { name: 'twitter:card', content: 'summary_large_image' },
       { name: 'twitter:title', content: 'Chat Gay México 🏳️‍🌈 Gratis' },
       { name: 'twitter:description', content: 'Conoce chavos de CDMX, Zona Rosa, Guadalajara. 100% gratis y anónimo.' },
-      { name: 'twitter:image', content: 'https://chactivo.com/LOGO_CHACTIVO.png' },
+      { name: 'twitter:image', content: 'https://chactivo.com/transparente_logo.png' },
       { name: 'keywords', content: 'chat gay méxico, chat gay cdmx, chat gay guadalajara, chat gay monterrey, chat lgbt méxico, gays méxico, chat gay zona rosa, conocer gays méxico' }
     ];
 
@@ -229,3 +229,4 @@ const MexicoLandingPage = () => {
 };
 
 export default MexicoLandingPage;
+

@@ -277,6 +277,8 @@ function AppRoutes() {
         {/* ✅ RUTA PRINCIPAL: SEO Landing Chile (1 seg) → /chat/principal */}
         <Route path="/" element={<SEOLandingChile />} />
         <Route path="/landing" element={<SEOLandingChile />} />
+        <Route path="/chat-gay-chile" element={<SEOLandingChile />} />
+        <Route path="/chat-gay-chile/" element={<SEOLandingChile />} />
 
         {/* 🌍 RUTAS REGIONALES: SEO Landing específica → chat regional */}
         <Route path="/argentina" element={<SEOLandingArgentina />} />
@@ -321,6 +323,8 @@ function AppRoutes() {
         {/* 🚀 LANDINGS ESPECÍFICAS - Contenido único para mejor SEO */}
         <Route path="/global" element={<LandingRoute><LandingLayout><GlobalLandingPage /></LandingLayout></LandingRoute>} />
         <Route path="/gaming" element={<LandingRoute redirectTo="/chat/principal"><LandingLayout><GamingLandingPage /></LandingLayout></LandingRoute>} />
+        <Route path="/video-chat-gay" element={<LandingRoute redirectTo="/chat/principal"><LandingLayout><GamingLandingPage /></LandingLayout></LandingRoute>} />
+        <Route path="/video-chat-gay/" element={<LandingRoute redirectTo="/chat/principal"><LandingLayout><GamingLandingPage /></LandingLayout></LandingRoute>} />
         <Route path="/mas-30" element={<LandingRoute redirectTo="/chat/principal"><LandingLayout><Mas30LandingPage /></LandingLayout></LandingRoute>} />
         <Route path="/santiago" element={<LandingRoute redirectTo="/chat/principal"><LandingLayout><SantiagoLandingPage /></LandingLayout></LandingRoute>} />
 
@@ -340,6 +344,8 @@ function AppRoutes() {
         <Route path="/chat-secondary/:roomId" element={<Navigate to="/chat/principal" replace />} />
         <Route path="/anonymous-chat" element={<AnonymousChatPage />} />
         <Route path="/anonymous-forum" element={<AnonymousForumPage />} />
+        <Route path="/foro-gay" element={<AnonymousForumPage />} />
+        <Route path="/foro-gay/" element={<AnonymousForumPage />} />
         <Route path="/thread/:threadId" element={<MainLayout><ThreadDetailPage /></MainLayout>} />
 
         {/* 🎯 BAÚL - Página independiente */}

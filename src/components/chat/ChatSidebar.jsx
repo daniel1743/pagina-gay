@@ -34,11 +34,13 @@ const getRoomActivityStatus = (realUserCount) => {
 };
 
 const ChatSidebar = ({ currentRoom, setCurrentRoom, isOpen, onClose, onOpenBaul, onOpenOpin }) => {
+  const logoSources = ["/transparente_logo.png"];
   const navigate = useNavigate();
   const location = useLocation();
   const { user, logout } = useAuth();
   const [roomCounts, setRoomCounts] = useState({});
-  const [logoSrc, setLogoSrc] = useState("/logo_chact.png");
+  const [logoIndex, setLogoIndex] = useState(0);
+  const logoSrc = logoSources[logoIndex] || "";
   const [showRegistrationModal, setShowRegistrationModal] = useState(false);
   const [pendingRoomId, setPendingRoomId] = useState(null);
   const [showAuthModal, setShowAuthModal] = useState(false);
@@ -89,6 +91,10 @@ const ChatSidebar = ({ currentRoom, setCurrentRoom, isOpen, onClose, onOpenBaul,
 
   // 🔒 Usuarios normales: solo sala principal. Admin: principal + admin-testing.
   const visibleRooms = getVisibleRoomsForUser(user);
+
+  const handleLogoError = () => {
+    setLogoIndex((prev) => Math.min(prev + 1, logoSources.length));
+  };
 
   return (
     <>
@@ -146,15 +152,7 @@ const ChatSidebar = ({ currentRoom, setCurrentRoom, isOpen, onClose, onOpenBaul,
                   src={logoSrc} 
                   alt="Chactivo Logo" 
                   className="w-10 h-10 object-contain" 
-                  onError={() => {
-                    // Intentar logo alternativo si el principal falla
-                    if (logoSrc === "/logo_chact.png") {
-                      setLogoSrc("/LOGO_CHACTIVO.png");
-                    } else {
-                      // Si también falla, mostrar fallback
-                      setLogoSrc("");
-                    }
-                  }}
+                  onError={handleLogoError}
                 />
               ) : (
                 <div className="w-10 h-10 flex items-center justify-center bg-gradient-to-br from-purple-500 to-pink-500 rounded-lg">
@@ -444,15 +442,7 @@ const ChatSidebar = ({ currentRoom, setCurrentRoom, isOpen, onClose, onOpenBaul,
                   src={logoSrc} 
                   alt="Chactivo Logo" 
                   className="w-10 h-10 object-contain" 
-                  onError={() => {
-                    // Intentar logo alternativo si el principal falla
-                    if (logoSrc === "/logo_chact.png") {
-                      setLogoSrc("/LOGO_CHACTIVO.png");
-                    } else {
-                      // Si también falla, mostrar fallback
-                      setLogoSrc("");
-                    }
-                  }}
+                  onError={handleLogoError}
                 />
               ) : (
                 <div className="w-10 h-10 flex items-center justify-center bg-gradient-to-br from-purple-500 to-pink-500 rounded-lg">

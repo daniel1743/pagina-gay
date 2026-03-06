@@ -111,11 +111,14 @@ const PWAInstallBanner = () => {
           <div className="relative p-6">
             {/* Header con icono */}
             <div className="flex items-start gap-4 mb-4">
-              <div className="flex-shrink-0 w-14 h-14 rounded-xl overflow-hidden shadow-lg border border-white/20 bg-black/30">
+              <div className="flex-shrink-0 w-14 h-14 rounded-xl overflow-hidden shadow-lg border border-white/20 bg-transparent">
                 <img
-                  src="/icon-192.png"
+                  src="/transparente_logo.png"
                   alt="Logo Chactivo"
-                  className="w-full h-full object-cover"
+                  className="w-full h-full object-contain"
+                  onError={(event) => {
+                    event.currentTarget.src = '/icon-192.png';
+                  }}
                 />
               </div>
 

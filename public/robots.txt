@@ -9,6 +9,9 @@ User-agent: *
 Allow: /
 Allow: /landing
 Allow: /global
+Allow: /chat-gay-chile
+Allow: /video-chat-gay
+Allow: /foro-gay
 Allow: /gaming
 Allow: /mas-30
 Allow: /santiago

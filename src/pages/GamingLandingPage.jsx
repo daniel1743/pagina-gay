@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useLocation } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { Gamepad2, Users, MessageSquare, Star, ArrowRight, Check, Zap, Shield, Clock, Sparkles } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -11,11 +11,14 @@ import ChatDemo from '@/components/landing/ChatDemo';
 import TelegramBanner from '@/components/ui/TelegramBanner';
 
 const GamingLandingPage = () => {
-  // SEO: Canonical tag
-  useCanonical('/gaming');
-
   const navigate = useNavigate();
+  const location = useLocation();
   const { user } = useAuth();
+  const isVideoChatRoute = location.pathname.startsWith('/video-chat-gay');
+  const canonicalPath = isVideoChatRoute ? '/video-chat-gay' : '/gaming';
+
+  // SEO: Canonical tag
+  useCanonical(canonicalPath);
   // ⚠️ MODAL INVITADO ELIMINADO
   // const [showGuestModal, setShowGuestModal] = React.useState(false);
 
@@ -27,23 +30,83 @@ const GamingLandingPage = () => {
   }, [user, navigate]);
 
   React.useEffect(() => {
-    // ✅ SEO: Title y meta description optimizados para CTR
-    document.title = 'Chat Gamer Gay Chile 🎮 Squads y Discord Alternativo | Chactivo';
+    // ✅ SEO: Title y meta description optimizados para intención de búsqueda
+    const previousTitle = document.title;
+    const metaDescription = document.querySelector('meta[name="description"]');
+    const hadMetaDescription = !!metaDescription;
+    const previousDescription = metaDescription?.getAttribute('content') || '';
 
-    let metaDescription = document.querySelector('meta[name="description"]');
-    if (!metaDescription) {
-      metaDescription = document.createElement('meta');
-      metaDescription.name = 'description';
-      document.head.appendChild(metaDescription);
+    const seoTitle = isVideoChatRoute
+      ? 'Video Chat Gay Chile 🎥 | Chat en Vivo con Gente Real | Chactivo'
+      : 'Chat Gamer Gay Chile 🎮 | Video Chat en Vivo LGBT+ | Chactivo';
+    const seoDescription = isVideoChatRoute
+      ? 'Video chat gay Chile para hablar en vivo con gente real. Conversación activa, segura y sin vueltas. Entra gratis ahora.'
+      : 'Chat gamer gay Chile en vivo. Busca squad, habla de setup y conecta con comunidad LGBT+ activa. Acceso inmediato.';
+
+    document.title = seoTitle;
+
+    let ensuredMeta = metaDescription;
+    if (!ensuredMeta) {
+      ensuredMeta = document.createElement('meta');
+      ensuredMeta.name = 'description';
+      document.head.appendChild(ensuredMeta);
     }
-    metaDescription.content = 'Únete a la sala gamer. Busca partida, habla de setup y conoce amigos. Acceso libre inmediato.';
+    ensuredMeta.content = seoDescription;
+
+    const faqData = {
+      "@context": "https://schema.org",
+      "@type": "FAQPage",
+      "mainEntity": [
+        {
+          "@type": "Question",
+          "name": "¿El video chat gay de Chactivo es gratis?",
+          "acceptedAnswer": {
+            "@type": "Answer",
+            "text": "Sí. Puedes entrar gratis y conversar en vivo con la comunidad sin costos ocultos."
+          }
+        },
+        {
+          "@type": "Question",
+          "name": "¿Necesito registrarme para entrar al chat?",
+          "acceptedAnswer": {
+            "@type": "Answer",
+            "text": "No es obligatorio para entrar y explorar. El registro habilita funciones avanzadas."
+          }
+        },
+        {
+          "@type": "Question",
+          "name": "¿Hay gente real conectada en Chile?",
+          "acceptedAnswer": {
+            "@type": "Answer",
+            "text": "Sí, la comunidad está activa con usuarios de Chile y salas con conversación en vivo."
+          }
+        }
+      ]
+    };
+
+    let faqScript = document.getElementById('video-chat-faq-schema');
+    if (!faqScript) {
+      faqScript = document.createElement('script');
+      faqScript.id = 'video-chat-faq-schema';
+      faqScript.type = 'application/ld+json';
+      document.head.appendChild(faqScript);
+    }
+    faqScript.textContent = JSON.stringify(faqData);
 
     return () => {
-      if (metaDescription && document.head.contains(metaDescription)) {
-        metaDescription.content = 'La comunidad más libre. Conversación real en una sola sala principal. Sin perfiles, sin emails, solo entra y chatea.';
+      document.title = previousTitle;
+      const currentMeta = document.querySelector('meta[name="description"]');
+      if (currentMeta) {
+        if (hadMetaDescription) {
+          currentMeta.setAttribute('content', previousDescription);
+        } else {
+          currentMeta.remove();
+        }
       }
+      const schema = document.getElementById('video-chat-faq-schema');
+      if (schema) schema.remove();
     };
-  }, []);
+  }, [isVideoChatRoute]);
 
   const handleChatearAhora = () => {
     // 🔒 Sala gaming bloqueada - redirigir a sala principal
@@ -151,6 +214,24 @@ const GamingLandingPage = () => {
           <p className="text-sm text-muted-foreground mt-4">
             ⚡ Sin registro: Chatea gratis 1 mes • 💎 Con registro: Chats privados, likes y más
           </p>
+
+          {/* Enlaces internos SEO */}
+          <div className="mt-4 flex flex-wrap justify-center gap-2 text-xs sm:text-sm">
+            <button
+              type="button"
+              onClick={() => navigate('/chat-gay-chile')}
+              className="rounded-full border border-cyan-500/40 px-3 py-1 text-cyan-300 hover:bg-cyan-500/10 transition-colors"
+            >
+              Chat gay chile
+            </button>
+            <button
+              type="button"
+              onClick={() => navigate('/foro-gay')}
+              className="rounded-full border border-purple-500/40 px-3 py-1 text-purple-300 hover:bg-purple-500/10 transition-colors"
+            >
+              Foro gay
+            </button>
+          </div>
         </motion.div>
 
         {/* 🔥 CHAT DEMO - Vista previa con notificaciones animadas */}

@@ -64,12 +64,12 @@ const SpainLandingPage = () => {
       { property: 'og:description', content: 'Chat gay España 100% gratis. Conoce tíos de Madrid, Barcelona, Valencia y toda España. Sin rollos, tío.' },
       { property: 'og:type', content: 'website' },
       { property: 'og:url', content: 'https://chactivo.com/modal-es' },
-      { property: 'og:image', content: 'https://chactivo.com/LOGO_CHACTIVO.png' },
+      { property: 'og:image', content: 'https://chactivo.com/transparente_logo.png' },
       { property: 'og:locale', content: 'es_ES' },
       { name: 'twitter:card', content: 'summary_large_image' },
       { name: 'twitter:title', content: 'Chat Gay España 🏳️‍🌈 Gratis' },
       { name: 'twitter:description', content: 'Conoce tíos de Madrid, Barcelona, Valencia. 100% gratis y anónimo.' },
-      { name: 'twitter:image', content: 'https://chactivo.com/LOGO_CHACTIVO.png' },
+      { name: 'twitter:image', content: 'https://chactivo.com/transparente_logo.png' },
       { name: 'keywords', content: 'chat gay españa, chat gay madrid, chat gay barcelona, chat gay valencia, chat lgbt españa, gays españa, chat homosexual españa, conocer gays españa' }
     ];
 
@@ -499,3 +499,4 @@ const SpainLandingPage = () => {
 };
 
 export default SpainLandingPage;
+

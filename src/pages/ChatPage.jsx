@@ -139,6 +139,18 @@ const QUICK_STARTER_PHRASES = [
 ];
 
 const MAX_OPEN_PRIVATE_CHATS = 3;
+const DEFAULT_CHAT_AVATAR = '/avatar_por_defecto.jpeg';
+
+const resolveChatAvatar = (avatar) => {
+  if (!avatar || typeof avatar !== 'string') return DEFAULT_CHAT_AVATAR;
+  const normalized = avatar.trim().toLowerCase();
+  if (!normalized) return DEFAULT_CHAT_AVATAR;
+  if (normalized === 'undefined' || normalized === 'null') return DEFAULT_CHAT_AVATAR;
+  if (normalized.includes('api.dicebear.com')) return DEFAULT_CHAT_AVATAR;
+  if (normalized.startsWith('data:image/svg+xml')) return DEFAULT_CHAT_AVATAR;
+  if (normalized.startsWith('blob:')) return DEFAULT_CHAT_AVATAR;
+  return avatar;
+};
 
 const ChatPage = () => {
   const { roomId } = useParams();
@@ -2509,9 +2521,7 @@ const ChatPage = () => {
     const comuna = storedComunaRaw.trim() || null;
     
     // ✅ GARANTIZAR AVATAR: Nunca enviar null o undefined en optimistic message
-    const optimisticAvatar = currentUser.avatar && currentUser.avatar.trim() && !currentUser.avatar.includes('undefined')
-      ? currentUser.avatar
-      : `https://api.dicebear.com/7.x/avataaars/svg?seed=${encodeURIComponent(currentUser.username || currentUser.id || 'guest')}`;
+    const optimisticAvatar = resolveChatAvatar(currentUser.avatar);
     
     const optimisticMessage = {
       id: optimisticId,
@@ -2689,9 +2699,7 @@ const ChatPage = () => {
         if (!isValid) return; // Validación falló, no enviar
         
         // ✅ GARANTIZAR AVATAR: Nunca enviar null o undefined
-        const messageAvatar = currentUser.avatar && currentUser.avatar.trim() && !currentUser.avatar.includes('undefined')
-          ? currentUser.avatar
-          : `https://api.dicebear.com/7.x/avataaars/svg?seed=${encodeURIComponent(currentUser.username || currentUser.id || 'guest')}`;
+        const messageAvatar = resolveChatAvatar(currentUser.avatar);
 
         // 🔍 TRACE: Intentando escribir en Firebase
         traceEvent(TRACE_EVENTS.FIREBASE_WRITE_ATTEMPT, {
@@ -2924,9 +2932,7 @@ const ChatPage = () => {
     // Reintentar envío
     try {
       // ✅ GARANTIZAR AVATAR: Nunca enviar null o undefined
-      const messageAvatar = user.avatar && user.avatar.trim() && !user.avatar.includes('undefined')
-        ? user.avatar
-        : `https://api.dicebear.com/7.x/avataaars/svg?seed=${encodeURIComponent(user.username || user.id || 'guest')}`;
+      const messageAvatar = resolveChatAvatar(user.avatar);
 
       const sentMessage = await sendMessage(
         currentRoom,

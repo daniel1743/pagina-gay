@@ -42,12 +42,12 @@ const ArgentinaLandingPage = () => {
       { property: 'og:description', content: 'Chat gay Argentina 100% gratis. Conoce pibes de Buenos Aires, Palermo, Córdoba y toda Argentina. Sin vueltas, che.' },
       { property: 'og:type', content: 'website' },
       { property: 'og:url', content: 'https://chactivo.com/modal-arg' },
-      { property: 'og:image', content: 'https://chactivo.com/LOGO_CHACTIVO.png' },
+      { property: 'og:image', content: 'https://chactivo.com/transparente_logo.png' },
       { property: 'og:locale', content: 'es_AR' },
       { name: 'twitter:card', content: 'summary_large_image' },
       { name: 'twitter:title', content: 'Chat Gay Argentina 🏳️‍🌈 Gratis' },
       { name: 'twitter:description', content: 'Conoce pibes de Buenos Aires, Palermo, Córdoba. 100% gratis y anónimo.' },
-      { name: 'twitter:image', content: 'https://chactivo.com/LOGO_CHACTIVO.png' },
+      { name: 'twitter:image', content: 'https://chactivo.com/transparente_logo.png' },
       { name: 'keywords', content: 'chat gay argentina, chat gay buenos aires, chat gay palermo, chat gay córdoba, chat lgbt argentina, gays argentina, conocer gays argentina' }
     ];
 
@@ -272,3 +272,4 @@ const ArgentinaLandingPage = () => {
 };
 
 export default ArgentinaLandingPage;
+

@@ -7,7 +7,7 @@
     "ctaText": "Unirse",
     "url": "https://t.me/tu_canal",
     "mediaType": "image",
-    "mediaUrl": "/LOGO_CHACTIVO.png",
+    "mediaUrl": "/transparente_logo.png",
     "blurEnabled": true,
     "blurStrength": 14,
     "badge": "Popular",
@@ -37,7 +37,7 @@
     "ctaText": "Entrar",
     "url": "https://t.me/tu_comunidad",
     "mediaType": "image",
-    "mediaUrl": "/LOGO_CHACTIVO.png",
+    "mediaUrl": "/transparente_logo.png",
     "blurEnabled": false,
     "blurStrength": 14,
     "badge": "VIP",
@@ -52,7 +52,7 @@
     "ctaText": "Abrir",
     "url": "https://x.com/x",
     "mediaType": "image",
-    "mediaUrl": "/LOGO_CHACTIVO.png",
+    "mediaUrl": "/transparente_logo.png",
     "blurEnabled": true,
     "blurStrength": 14,
     "badge": null,
@@ -82,7 +82,7 @@
     "ctaText": "Abrir",
     "url": "https://t.me/tu_evento",
     "mediaType": "image",
-    "mediaUrl": "/LOGO_CHACTIVO.png",
+    "mediaUrl": "/transparente_logo.png",
     "blurEnabled": true,
     "blurStrength": 14,
     "badge": "VIP",
@@ -90,3 +90,4 @@
     "sortOrder": 6
   }
 ]
+

@@ -13,6 +13,20 @@ import { Button } from '@/components/ui/button';
  */
 const LandingLayout = ({ children }) => {
   const navigate = useNavigate();
+  const logoSources = ['/transparente_logo.png'];
+
+  const handleLogoError = (event) => {
+    const currentSrc = event.currentTarget.getAttribute('src') || '';
+    const currentIndex = logoSources.findIndex((src) => currentSrc.endsWith(src));
+    const nextSrc = logoSources[currentIndex + 1];
+
+    if (nextSrc) {
+      event.currentTarget.src = nextSrc;
+      return;
+    }
+
+    event.currentTarget.style.display = 'none';
+  };
 
   return (
     <div className="min-h-screen bg-background">
@@ -21,16 +35,11 @@ const LandingLayout = ({ children }) => {
         <div className="container mx-auto px-4 py-3">
           <div className="flex items-center justify-between">
             <img 
-              src="/logo_chact.png" 
+              src={logoSources[0]}
               alt="Chactivo" 
               className="h-8 cursor-pointer"
               onClick={() => navigate('/')}
-              onError={(e) => {
-                // Fallback a logo alternativo
-                if (e.target.src.includes('logo_chact')) {
-                  e.target.src = '/LOGO_CHACTIVO.png';
-                }
-              }}
+              onError={handleLogoError}
             />
             <Button 
               variant="ghost" 

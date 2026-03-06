@@ -13,8 +13,8 @@
   "dir": "ltr",
   "icons": [
     {
-      "src": "/logo_chact.png",
-      "sizes": "4250x4250",
+      "src": "/transparente_logo.png",
+      "sizes": "6250x6250",
       "type": "image/png",
       "purpose": "any"
     },

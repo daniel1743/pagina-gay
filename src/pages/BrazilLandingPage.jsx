@@ -59,12 +59,12 @@ const BrazilLandingPage = () => {
       { property: 'og:description', content: 'Chat gay Brasil 100% grátis. Conhece caras de São Paulo, Rio, BH e todo Brasil. Sem enrolação, mano.' },
       { property: 'og:type', content: 'website' },
       { property: 'og:url', content: 'https://chactivo.com/modal-br' },
-      { property: 'og:image', content: 'https://chactivo.com/LOGO_CHACTIVO.png' },
+      { property: 'og:image', content: 'https://chactivo.com/transparente_logo.png' },
       { property: 'og:locale', content: 'pt_BR' },
       { name: 'twitter:card', content: 'summary_large_image' },
       { name: 'twitter:title', content: 'Chat Gay Brasil 🏳️‍🌈 Grátis' },
       { name: 'twitter:description', content: 'Conhece caras de São Paulo, Rio, BH. 100% grátis e anônimo.' },
-      { name: 'twitter:image', content: 'https://chactivo.com/LOGO_CHACTIVO.png' },
+      { name: 'twitter:image', content: 'https://chactivo.com/transparente_logo.png' },
       { name: 'keywords', content: 'chat gay brasil, chat gay são paulo, chat gay rio, chat gay bh, chat lgbt brasil, gays brasil, chat gay sp, conhecer gays brasil' }
     ];
 
@@ -484,3 +484,4 @@ const BrazilLandingPage = () => {
 };
 
 export default BrazilLandingPage;
+

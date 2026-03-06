@@ -11,35 +11,35 @@ export const PROFILE_ROLE_OPTIONS = [
 
 const ROLE_STYLE_BY_VALUE = {
   'Activo': {
-    badgeClassName: 'border-emerald-400/35 bg-emerald-500/10 text-emerald-200',
+    badgeClassName: 'border-emerald-500/85 bg-emerald-100 text-emerald-900 ring-1 ring-emerald-400/75 dark:border-emerald-300/85 dark:bg-emerald-500/25 dark:text-emerald-100 dark:ring-emerald-300/70',
     avatarRingColor: '#34d399',
   },
   'Versátil Act': {
-    badgeClassName: 'border-violet-400/35 bg-violet-500/10 text-violet-200',
+    badgeClassName: 'border-violet-500/85 bg-violet-100 text-violet-900 ring-1 ring-violet-400/75 dark:border-violet-300/85 dark:bg-violet-500/25 dark:text-violet-100 dark:ring-violet-300/70',
     avatarRingColor: '#a78bfa',
   },
   'Versátil Pasivo': {
-    badgeClassName: 'border-fuchsia-400/35 bg-fuchsia-500/10 text-fuchsia-200',
+    badgeClassName: 'border-fuchsia-500/85 bg-fuchsia-100 text-fuchsia-900 ring-1 ring-fuchsia-400/75 dark:border-fuchsia-300/85 dark:bg-fuchsia-500/25 dark:text-fuchsia-100 dark:ring-fuchsia-300/70',
     avatarRingColor: '#e879f9',
   },
   'Pasivo': {
-    badgeClassName: 'border-slate-400/45 bg-slate-500/10 text-slate-200',
+    badgeClassName: 'border-cyan-600/85 bg-cyan-100 text-cyan-900 ring-1 ring-cyan-500/70 dark:border-cyan-300/85 dark:bg-cyan-500/25 dark:text-cyan-100 dark:ring-cyan-300/70',
     avatarRingColor: '#94a3b8',
   },
   'Inter': {
-    badgeClassName: 'border-sky-400/35 bg-sky-500/10 text-sky-200',
+    badgeClassName: 'border-sky-600/85 bg-sky-100 text-sky-900 ring-1 ring-sky-500/70 dark:border-sky-300/85 dark:bg-sky-500/25 dark:text-sky-100 dark:ring-sky-300/70',
     avatarRingColor: '#38bdf8',
   },
   'Hetero Curioso': {
-    badgeClassName: 'border-amber-400/40 bg-amber-500/10 text-amber-200',
+    badgeClassName: 'border-amber-500/90 bg-amber-100 text-amber-900 ring-1 ring-amber-400/75 dark:border-amber-300/85 dark:bg-amber-500/25 dark:text-amber-100 dark:ring-amber-300/70',
     avatarRingColor: '#fbbf24',
   },
   'Solo Mamar': {
-    badgeClassName: 'border-rose-400/35 bg-rose-500/10 text-rose-200',
+    badgeClassName: 'border-rose-500/85 bg-rose-100 text-rose-900 ring-1 ring-rose-400/75 dark:border-rose-300/85 dark:bg-rose-500/25 dark:text-rose-100 dark:ring-rose-300/70',
     avatarRingColor: '#fb7185',
   },
   'Solo Ver': {
-    badgeClassName: 'border-zinc-400/40 bg-zinc-500/10 text-zinc-200',
+    badgeClassName: 'border-zinc-600/85 bg-zinc-100 text-zinc-900 ring-1 ring-zinc-500/70 dark:border-zinc-300/85 dark:bg-zinc-500/25 dark:text-zinc-100 dark:ring-zinc-300/70',
     avatarRingColor: '#a1a1aa',
   },
 };

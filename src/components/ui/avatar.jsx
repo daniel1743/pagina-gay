@@ -3,6 +3,8 @@ import React from 'react';
 import * as AvatarPrimitive from '@radix-ui/react-avatar';
 import { cn } from '@/lib/utils';
 
+const DEFAULT_AVATAR_SRC = '/avatar_por_defecto.jpeg';
+
 const Avatar = React.forwardRef(({ className, ...props }, ref) => (
   <AvatarPrimitive.Root
     ref={ref}
@@ -21,7 +23,7 @@ const isInvalidAvatarSrc = (src) => {
 
   if (!normalized) return true;
   if (normalized === 'undefined' || normalized === 'null') return true;
-
+  if (normalized.includes('api.dicebear.com')) return true;
   // Evita errores de blob expirado persistido en Firestore/localStorage.
   if (normalized.startsWith('blob:')) return true;
 
@@ -29,7 +31,7 @@ const isInvalidAvatarSrc = (src) => {
 };
 
 const AvatarImage = React.forwardRef(({ className, src, ...props }, ref) => {
-  const safeSrc = isInvalidAvatarSrc(src) ? undefined : src;
+  const safeSrc = isInvalidAvatarSrc(src) ? DEFAULT_AVATAR_SRC : src;
 
   return (
     <AvatarPrimitive.Image
