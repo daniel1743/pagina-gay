@@ -24,11 +24,11 @@ const ROLE_STYLE_BY_VALUE = {
   },
   'Pasivo': {
     badgeClassName: 'border-cyan-600/85 bg-cyan-100 text-cyan-900 ring-1 ring-cyan-500/70 dark:border-cyan-300/85 dark:bg-cyan-500/25 dark:text-cyan-100 dark:ring-cyan-300/70',
-    avatarRingColor: '#94a3b8',
+    avatarRingColor: '#06b6d4',
   },
   'Inter': {
     badgeClassName: 'border-sky-600/85 bg-sky-100 text-sky-900 ring-1 ring-sky-500/70 dark:border-sky-300/85 dark:bg-sky-500/25 dark:text-sky-100 dark:ring-sky-300/70',
-    avatarRingColor: '#38bdf8',
+    avatarRingColor: '#0ea5e9',
   },
   'Hetero Curioso': {
     badgeClassName: 'border-amber-500/90 bg-amber-100 text-amber-900 ring-1 ring-amber-400/75 dark:border-amber-300/85 dark:bg-amber-500/25 dark:text-amber-100 dark:ring-amber-300/70',
@@ -40,7 +40,7 @@ const ROLE_STYLE_BY_VALUE = {
   },
   'Solo Ver': {
     badgeClassName: 'border-zinc-600/85 bg-zinc-100 text-zinc-900 ring-1 ring-zinc-500/70 dark:border-zinc-300/85 dark:bg-zinc-500/25 dark:text-zinc-100 dark:ring-zinc-300/70',
-    avatarRingColor: '#a1a1aa',
+    avatarRingColor: '#71717a',
   },
 };
 

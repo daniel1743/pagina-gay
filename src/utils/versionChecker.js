@@ -70,6 +70,8 @@ export const clearAllCache = async () => {
       'age_verified_', // Verificaciones de edad (se limpian parcialmente)
       'chactivo_guest_identity', // Identidad persistente del invitado (pseudónimo)
       'chactivo_guest_temp', // Datos temporales del modal de invitado
+      'rewards_seen_ids:', // Evitar repetir popup de premios ya aceptados
+      'pro_congrats_seen:', // Evitar repetir modal de felicitación PRO
     ];
 
     const keysToKeep = new Set();

@@ -79,22 +79,18 @@
 
 /* Ring de avatar por rol (color sincronizado con badge de rol) */
 .message-avatar.avatar-role-ring {
-  padding: 2px !important;
-  border: 2px solid transparent !important;
+  padding: 1px !important;
   border-radius: 999px !important;
-  background:
-    linear-gradient(transparent, transparent) padding-box,
-    conic-gradient(
-      from 210deg,
-      #ffffff 0deg,
-      var(--role-ring-color, #38bdf8) 95deg,
-      #ffffff 180deg,
-      var(--role-ring-color, #38bdf8) 300deg,
-      #ffffff 360deg
-    ) border-box !important;
+  background: var(--role-ring-color, #38bdf8) !important;
   box-shadow:
-    0 0 0 1px rgba(255, 255, 255, 0.65) inset,
-    0 0 8px rgba(148, 163, 184, 0.28) !important;
+    0 0 0 1px rgba(15, 23, 42, 0.08),
+    0 1px 4px rgba(15, 23, 42, 0.14) !important;
+}
+
+.dark .message-avatar.avatar-role-ring {
+  box-shadow:
+    0 0 0 1px rgba(255, 255, 255, 0.1),
+    0 1px 5px rgba(2, 6, 23, 0.45) !important;
 }
 
 /* Placeholder invisible para mantener alineación */

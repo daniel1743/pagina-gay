@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
-import { MessageSquare, Shield, Calendar, SlidersHorizontal, Users, Lock, MapPin, Sparkles, MessageCircle, Zap, ArrowRight } from 'lucide-react';
+import { MessageSquare, Shield, Calendar, SlidersHorizontal, Users, Lock, MapPin, Sparkles, Zap, ArrowRight } from 'lucide-react';
 import FeatureCard from '@/components/lobby/FeatureCard';
 import RoomsModal from '@/components/lobby/RoomsModal';
 import DenunciaModal from '@/components/lobby/DenunciaModal';
@@ -40,10 +40,10 @@ const NewsTicker = () => {
   const [isVisible, setIsVisible] = React.useState(true);
 
   const newsItems = [
-    { id: 1, text: "🏳️‍🌈 Chile avanza en reconocimiento de familias homoparentales" },
-    { id: 2, text: "🎉 Fiesta Pride este sábado en Blondie - Providencia 23:00hrs" },
-    { id: 3, text: "💉 Testeo VIH gratuito - Fundación Savia, Bellavista" },
-    { id: 4, text: "🌈 Marcha del Orgullo Santiago 2025 confirmada para junio" },
+    { id: 1, text: "🏳️‍🌈 Comunidad activa 24/7 en Chat Principal" },
+    { id: 2, text: "💬 Nuevo: OPIN para descubrir perfiles y conectar" },
+    { id: 3, text: "🛡️ Moderación activa para mantener buena convivencia" },
+    { id: 4, text: "📌 Completa tu perfil para obtener más respuestas" },
   ];
 
   React.useEffect(() => {
@@ -72,7 +72,7 @@ const NewsTicker = () => {
       ref={tickerRef}
       className="relative w-full overflow-hidden carousel-container py-4 sm:py-6 my-6 sm:my-8"
       role="region"
-      aria-label="Noticias y eventos"
+      aria-label="Noticias de la comunidad"
     >
       <div className="absolute inset-y-0 left-0 w-16 sm:w-24 bg-gradient-to-r from-background to-transparent z-10 pointer-events-none"></div>
       <div className="absolute inset-y-0 right-0 w-16 sm:w-24 bg-gradient-to-l from-background to-transparent z-10 pointer-events-none"></div>
@@ -306,20 +306,6 @@ const LobbyPage = () => {
 
   console.log('🏠 [LOBBY PAGE] cardData creado:', cardData.length, 'cards');
   console.log('🏠 [LOBBY PAGE] cardData[0]:', cardData[0]?.title);
-
-  // ✅ Tarjeta horizontal del Foro (ocupa todo el ancho)
-  const forumCard = {
-    id: 'foro',
-    icon: <MessageCircle className="w-8 h-8" />,
-    title: "Foro de Apoyo",
-    description: "Comparte experiencias, pide consejos y encuentra recursos en nuestro foro anónimo. Comunidad de apoyo mutuo 24/7.",
-    onClick: () => navigate('/anonymous-forum'),
-    variant: "default",
-    badge: "Activo",
-    stats: { label: "💬 Comunidad activa", icon: MessageCircle },
-    accentColor: "green",
-    isHorizontal: true // ✅ Flag para tarjeta horizontal
-  };
 
   // 🎯 Tarjeta horizontal de OPIN - Discovery Wall
   const opinCard = {
@@ -1940,26 +1926,7 @@ const LobbyPage = () => {
                     <Zap className="w-5 h-5 text-cyan-400" />
                   </motion.div>
 
-                  {/* Foro activo */}
-                  <motion.div
-                    initial={{ opacity: 0, x: -20 }}
-                    animate={{ opacity: 1, x: 0 }}
-                    transition={{ delay: 0.2 }}
-                    className="flex items-center gap-3 p-3 bg-purple-900/20 rounded-lg border border-purple-500/30 cursor-pointer hover:bg-purple-900/30 transition-all"
-                    onClick={() => navigate('/anonymous-forum')}
-                  >
-                    <div className="w-10 h-10 rounded-full bg-gradient-to-br from-purple-500 to-pink-500 flex items-center justify-center flex-shrink-0">
-                      <MessageCircle className="w-5 h-5 text-white" />
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <p className="text-sm text-gray-300">
-                        <span className="font-semibold text-purple-400">Foro Anónimo:</span>
-                        {' '}Nuevas conversaciones sobre salud mental y derechos LGBT+
-                      </p>
-                      <p className="text-xs text-purple-400 font-semibold">Ver foro →</p>
-                    </div>
-                    <MessageCircle className="w-5 h-5 text-purple-400" />
-                  </motion.div>
+                  {/* Foro oculto temporalmente */}
                 </div>
               </motion.div>
             )}
@@ -1995,84 +1962,42 @@ const LobbyPage = () => {
                 accentColor={cardData[0].accentColor}
               />
 
-              {/* 2. Foro Anónimo */}
-              <FeatureCard
-                key="foro-anonimo"
-                icon={<MessageCircle className="w-8 h-8" />}
-                title="Foro Anónimo"
-                description="Comparte experiencias LGBT+, pide consejos sobre salud mental y relaciones. 100% anónimo, comunidad activa 24/7."
-                onClick={() => navigate('/anonymous-forum')}
-                index={1}
-                variant="default"
-                badge="Activo"
-                stats={{ label: "💬 Comunidad activa", icon: MessageCircle }}
-                accentColor="green"
-              />
-
-              {/* 🎯 OPIN - Discovery Wall */}
+              {/* 2. OPIN - Discovery Wall */}
               <FeatureCard
                 key="opin-discovery"
                 icon={<Sparkles className="w-8 h-8" />}
                 title="OPIN - Descubrimiento"
                 description="Publica lo que buscas y descubre perfiles interesantes. Posts activos 24h. Encuentra conexiones reales más allá del chat efímero."
                 onClick={() => navigate('/opin')}
-                index={2}
+                index={1}
                 variant="default"
                 badge="🆕 Nuevo"
                 stats={{ label: "💜 Descubre perfiles", icon: Users }}
                 accentColor="purple"
               />
 
-              {/* 3. Chat Gamers */}
-              <FeatureCard
-                key="chat-gamers"
-                icon={<MessageSquare className="w-8 h-8" />}
-                title="Chat Gamers 🎮"
-                description="Conecta con gamers LGBT+ de Chile. Comparte juegos, forma squad, chatea sobre PS5, Xbox, PC, Switch."
-                onClick={() => navigate('/gaming')}
-                index={2}
-                variant="default"
-                badge="50+ activos"
-                stats={{ label: "🎮 Gaming 24/7", icon: MessageSquare }}
-                accentColor="purple"
-              />
-
-              {/* 4. Baúl de Perfiles (Tarjetas Sociales) */}
+              {/* 3. Baúl de Perfiles (Tarjetas Sociales) */}
               <FeatureCard
                 key="baul-perfiles"
                 icon={<Users className="w-8 h-8" />}
                 title="Baúl de Perfiles"
                 description="Crea tu tarjeta con tu info. Da likes, deja mensajes. Cuando vuelvas verás quién se interesó en ti."
                 onClick={() => navigate('/baul')}
-                index={3}
+                index={2}
                 variant="default"
                 badge="🆕 Nuevo"
                 stats={{ label: "❤️ Conecta diferente", icon: Users }}
                 accentColor="pink"
               />
 
-              {/* 5. Eventos LGBT+ */}
-              <FeatureCard
-                key="eventos"
-                icon={<Calendar className="w-8 h-8" />}
-                title="Eventos LGBT+"
-                description="Descubre eventos, fiestas y actividades de la comunidad. Marchas, pride, encuentros y más."
-                onClick={() => handleCardClick('EventosModal', { title: 'Eventos LGBT+', badge: 'Próximamente' })}
-                index={4}
-                variant="default"
-                badge="Próximamente"
-                stats={{ label: "📅 Próximos eventos", icon: Calendar }}
-                accentColor="pink"
-              />
-
-              {/* 6. Ajustes */}
+              {/* 4. Ajustes */}
               <FeatureCard
                 key="ajustes"
                 icon={<SlidersHorizontal className="w-8 h-8" />}
                 title="Ajustes"
                 description="Personaliza tu experiencia: temas, notificaciones, privacidad y preferencias de la app."
                 onClick={() => handleCardClick('AjustesModal', { title: 'Ajustes', badge: 'Próximamente' })}
-                index={5}
+                index={3}
                 variant="default"
                 badge="Próximamente"
                 stats={{ label: "⚙️ Personalizar", icon: SlidersHorizontal }}

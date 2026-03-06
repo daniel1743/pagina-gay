@@ -18,6 +18,8 @@ import ErrorBoundary from '@/components/ui/ErrorBoundary';
 import { useVersionChecker } from '@/hooks/useVersionChecker';
 import { useSessionTracking } from '@/hooks/useSessionTracking';
 import { subscribeToUserRewards, REWARD_TYPES } from '@/services/rewardsService';
+import { arrayUnion, doc, getDoc, serverTimestamp, updateDoc } from 'firebase/firestore';
+import { db } from '@/config/firebase';
 import PerformanceSummaryButton from '@/components/PerformanceSummaryButton'; // 📊 Performance Monitor Button
 import GlobalLandingPage from '@/pages/GlobalLandingPage'; // Landing principal - crítica para SEO
 import ChatBottomNav from '@/components/chat/ChatBottomNav';
@@ -44,9 +46,7 @@ const TicketDetailPage = lazy(() => import('@/pages/TicketDetailPage'));
 const AdminCleanup = lazy(() => import('@/pages/AdminCleanup'));
 const SeedConversaciones = lazy(() => import('@/pages/SeedConversaciones'));
 const AnonymousChatPage = lazy(() => import('@/pages/AnonymousChatPage'));
-const AnonymousForumPage = lazy(() => import('@/pages/AnonymousForumPage'));
 const ThreadDetailPage = lazy(() => import('@/pages/ThreadDetailPage'));
-const GamingLandingPage = lazy(() => import('@/pages/GamingLandingPage'));
 const Mas30LandingPage = lazy(() => import('@/pages/Mas30LandingPage'));
 const SantiagoLandingPage = lazy(() => import('@/pages/SantiagoLandingPage'));
 const SpainLandingPage = lazy(() => import('@/pages/SpainLandingPage'));
@@ -164,6 +164,35 @@ function RewardInboxListener() {
   const [pendingRewards, setPendingRewards] = useState([]);
   const [currentReward, setCurrentReward] = useState(null);
   const seenInSessionRef = useRef(new Set());
+  const seenInProfileRef = useRef(new Set());
+
+  useEffect(() => {
+    if (!user?.id || user?.isGuest || user?.isAnonymous) {
+      seenInProfileRef.current = new Set();
+      return;
+    }
+
+    let cancelled = false;
+
+    const loadSeenFromProfile = async () => {
+      try {
+        const userSnap = await getDoc(doc(db, 'users', user.id));
+        if (!userSnap.exists() || cancelled) return;
+
+        const rawIds = userSnap.data()?.rewardModalSeenIds;
+        const ids = Array.isArray(rawIds) ? rawIds.filter((id) => typeof id === 'string' && id.trim()) : [];
+        seenInProfileRef.current = new Set(ids);
+      } catch (error) {
+        console.warn('[REWARDS] No se pudo cargar rewardModalSeenIds del perfil:', error?.message || error);
+      }
+    };
+
+    loadSeenFromProfile();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [user?.id, user?.isGuest, user?.isAnonymous]);
 
   useEffect(() => {
     if (!user?.id || user?.isGuest || user?.isAnonymous) {
@@ -192,6 +221,7 @@ function RewardInboxListener() {
           reward?.status === 'active' &&
           reward?.id &&
           !seenIds.has(reward.id) &&
+          !seenInProfileRef.current.has(reward.id) &&
           !seenInSessionRef.current.has(reward.id)
         )
         .sort((a, b) => {
@@ -236,6 +266,15 @@ function RewardInboxListener() {
     if (currentReward.type === REWARD_TYPES.PRO_USER) {
       localStorage.setItem(`pro_congrats_seen:${user.id}`, 'true');
     }
+
+    // Persistencia robusta: guardar también en perfil del usuario (evita re-show tras limpieza de cache/localStorage)
+    updateDoc(doc(db, 'users', user.id), {
+      rewardModalSeenIds: arrayUnion(currentReward.id),
+      rewardModalSeenUpdatedAt: serverTimestamp(),
+    }).catch((error) => {
+      console.warn('[REWARDS] No se pudo persistir rewardModalSeenIds en perfil:', error?.message || error);
+    });
+    seenInProfileRef.current.add(currentReward.id);
 
     // Refrescar perfil para que se muestren arcoíris, badge, segunda foto, etc.
     refreshProfile?.();
@@ -322,9 +361,10 @@ function AppRoutes() {
 
         {/* 🚀 LANDINGS ESPECÍFICAS - Contenido único para mejor SEO */}
         <Route path="/global" element={<LandingRoute><LandingLayout><GlobalLandingPage /></LandingLayout></LandingRoute>} />
-        <Route path="/gaming" element={<LandingRoute redirectTo="/chat/principal"><LandingLayout><GamingLandingPage /></LandingLayout></LandingRoute>} />
-        <Route path="/video-chat-gay" element={<LandingRoute redirectTo="/chat/principal"><LandingLayout><GamingLandingPage /></LandingLayout></LandingRoute>} />
-        <Route path="/video-chat-gay/" element={<LandingRoute redirectTo="/chat/principal"><LandingLayout><GamingLandingPage /></LandingLayout></LandingRoute>} />
+        {/* ⏸️ TEMPORAL: gaming oculto */}
+        <Route path="/gaming" element={<Navigate to="/chat/principal" replace />} />
+        <Route path="/video-chat-gay" element={<Navigate to="/chat/principal" replace />} />
+        <Route path="/video-chat-gay/" element={<Navigate to="/chat/principal" replace />} />
         <Route path="/mas-30" element={<LandingRoute redirectTo="/chat/principal"><LandingLayout><Mas30LandingPage /></LandingLayout></LandingRoute>} />
         <Route path="/santiago" element={<LandingRoute redirectTo="/chat/principal"><LandingLayout><SantiagoLandingPage /></LandingLayout></LandingRoute>} />
 
@@ -340,12 +380,17 @@ function AppRoutes() {
           element={<Navigate to="/chat/principal" replace />}
         />
 
+        {/* ⏸️ TEMPORAL: sala gaming oculta */}
+        <Route path="/chat/gaming" element={<Navigate to="/chat/principal" replace />} />
+        <Route path="/chat/gaming/" element={<Navigate to="/chat/principal" replace />} />
         <Route path="/chat/:roomId" element={<ChatPage />} />
         <Route path="/chat-secondary/:roomId" element={<Navigate to="/chat/principal" replace />} />
         <Route path="/anonymous-chat" element={<AnonymousChatPage />} />
-        <Route path="/anonymous-forum" element={<AnonymousForumPage />} />
-        <Route path="/foro-gay" element={<AnonymousForumPage />} />
-        <Route path="/foro-gay/" element={<AnonymousForumPage />} />
+        {/* ⏸️ TEMPORAL: foro oculto */}
+        <Route path="/anonymous-forum" element={<Navigate to="/chat/principal" replace />} />
+        <Route path="/anonymous-forum/" element={<Navigate to="/chat/principal" replace />} />
+        <Route path="/foro-gay" element={<Navigate to="/chat/principal" replace />} />
+        <Route path="/foro-gay/" element={<Navigate to="/chat/principal" replace />} />
         <Route path="/thread/:threadId" element={<MainLayout><ThreadDetailPage /></MainLayout>} />
 
         {/* 🎯 BAÚL - Página independiente */}

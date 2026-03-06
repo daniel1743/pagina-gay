@@ -33,26 +33,13 @@
     <mobile:mobile/>
   </url>
   <url>
-    <loc>https://chactivo.com/gaming</loc>
-    <lastmod>2026-02-09</lastmod>
-    <changefreq>daily</changefreq>
-    <priority>0.9</priority>
-    <mobile:mobile/>
-  </url>
-  <url>
     <loc>https://chactivo.com/chat-gay-chile</loc>
     <lastmod>2026-03-06</lastmod>
     <changefreq>daily</changefreq>
     <priority>0.95</priority>
     <mobile:mobile/>
   </url>
-  <url>
-    <loc>https://chactivo.com/video-chat-gay</loc>
-    <lastmod>2026-03-06</lastmod>
-    <changefreq>daily</changefreq>
-    <priority>0.9</priority>
-    <mobile:mobile/>
-  </url>
+  <!-- ⏸️ TEMPORAL (2026-03-06): /gaming y /video-chat-gay ocultos y redirigidos a /chat/principal -->
 
   <!-- ✅ LANDING PAGES INTERNACIONALES (Expansión) -->
   <url>
@@ -93,21 +80,7 @@
     <mobile:mobile/>
   </url>
 
-  <!-- ✅ FORO ANÓNIMO (Alto engagement - 59 clics GSC) -->
-  <url>
-    <loc>https://chactivo.com/anonymous-forum</loc>
-    <lastmod>2026-02-09</lastmod>
-    <changefreq>hourly</changefreq>
-    <priority>0.9</priority>
-    <mobile:mobile/>
-  </url>
-  <url>
-    <loc>https://chactivo.com/foro-gay</loc>
-    <lastmod>2026-03-06</lastmod>
-    <changefreq>hourly</changefreq>
-    <priority>0.9</priority>
-    <mobile:mobile/>
-  </url>
+  <!-- ⏸️ TEMPORAL (2026-03-06): /anonymous-forum y /foro-gay ocultos y redirigidos a /chat/principal -->
 
   <!-- ✅ OPIN - Tablón de Notas (Discovery Wall) -->
   <url>
@@ -135,13 +108,7 @@
     <priority>0.9</priority>
     <mobile:mobile/>
   </url>
-  <url>
-    <loc>https://chactivo.com/chat/gaming</loc>
-    <lastmod>2026-01-02</lastmod>
-    <changefreq>hourly</changefreq>
-    <priority>0.85</priority>
-    <mobile:mobile/>
-  </url>
+  <!-- ⏸️ TEMPORAL (2026-03-06): /chat/gaming oculto y redirigido a /chat/principal -->
   <url>
     <loc>https://chactivo.com/chat/santiago</loc>
     <lastmod>2026-01-02</lastmod>

@@ -822,52 +822,99 @@ const ChatPage = () => {
     return result;
   }, [filteredMessages, activeUsersCount, lastMessageMs, activityNow, formatRelativeTime, DAILY_TOPICS, user]);
 
-  const activityText = useMemo(() => {
-    const chunks = [];
+  const headerActivitySnapshot = useMemo(() => {
     const visibleOnlineCount = activeUsersCount > 0 ? activeUsersCount : recentParticipants20m.count;
+    const roleSignal = onlineRoleStats.activosOnline + onlineRoleStats.pasivosOnline;
+    const hasConnectedPeople = visibleOnlineCount > 0 || roleSignal > 0 || onlineRoleStats.connectedNames.length > 0;
 
-    if (typeof visibleOnlineCount === 'number' && visibleOnlineCount > 0) {
-      chunks.push(`${visibleOnlineCount} ${visibleOnlineCount === 1 ? 'activo (2 min)' : 'activos (2 min)'}`);
+    let intensity = 'quiet';
+    if (recentMessagesCount20m >= 18 || visibleOnlineCount >= 10) {
+      intensity = 'high';
+    } else if (recentMessagesCount20m >= 8 || visibleOnlineCount >= 5) {
+      intensity = 'medium';
+    } else if (recentMessagesCount20m >= 2 || hasConnectedPeople) {
+      intensity = 'warm';
+    }
+
+    return {
+      intensity,
+      visibleOnlineCount,
+      hasConnectedPeople,
+    };
+  }, [activeUsersCount, onlineRoleStats, recentMessagesCount20m, recentParticipants20m.count]);
+
+  const activityText = useMemo(() => {
+    let baseText = 'Se quien abre la conversacion hoy ✨';
+
+    if (headerActivitySnapshot.intensity === 'high') {
+      baseText = '🔥 Sala muy activa ahora';
+    } else if (headerActivitySnapshot.intensity === 'medium') {
+      baseText = 'Hay movimiento en este momento';
+    } else if (headerActivitySnapshot.intensity === 'warm') {
+      baseText = 'Buena hora para romper el hielo';
+    }
+
+    if (recentMessagesCount10m >= 8) {
+      return `${baseText} · Conversacion en marcha`;
     }
 
     if (recentMessagesCount10m > 0) {
-      chunks.push(`${recentMessagesCount10m} ${recentMessagesCount10m === 1 ? 'mensaje (10 min)' : 'mensajes (10 min)'}`);
+      return `${baseText} · Ya hay actividad reciente`;
     }
 
-    return chunks.join(' · ');
-  }, [activeUsersCount, recentMessagesCount10m, recentParticipants20m.count]);
+    return baseText;
+  }, [headerActivitySnapshot.intensity, recentMessagesCount10m]);
 
   const headerTickerItems = useMemo(() => {
     const items = [];
-    const visibleOnlineCount = activeUsersCount > 0 ? activeUsersCount : recentParticipants20m.count;
 
-    items.push(
-      `${visibleOnlineCount} ${visibleOnlineCount === 1 ? 'persona en línea' : 'personas en línea'}`
-    );
+    if (headerActivitySnapshot.intensity === 'high') {
+      items.push('🔥 Sala activa ahora · Entra al hilo');
+    } else if (headerActivitySnapshot.intensity === 'medium') {
+      items.push('Hay movimiento ahora · Escribe y te responden');
+    } else if (headerActivitySnapshot.intensity === 'warm') {
+      items.push('Buena hora para romper el hielo');
+    } else {
+      items.push('Empieza tu la conversacion ✨');
+    }
 
-    items.push(
-      `${onlineRoleStats.activosOnline} ${onlineRoleStats.activosOnline === 1 ? 'activo en línea' : 'activos en línea'}`
-    );
+    if (headerActivitySnapshot.visibleOnlineCount >= 6) {
+      items.push(`${headerActivitySnapshot.visibleOnlineCount} personas conectadas ahora`);
+    } else if (headerActivitySnapshot.hasConnectedPeople) {
+      items.push('Hay personas conectadas ahora');
+    } else {
+      items.push('Tu mensaje puede activar la sala en segundos');
+    }
 
-    items.push(
-      `${onlineRoleStats.pasivosOnline} ${onlineRoleStats.pasivosOnline === 1 ? 'pasivo en línea' : 'pasivos en línea'}`
-    );
+    if (onlineRoleStats.activosOnline > 0 && onlineRoleStats.pasivosOnline > 0) {
+      items.push('Hay activos y pasivos en linea');
+    } else if (onlineRoleStats.activosOnline > 0) {
+      items.push('Hay activos en linea ahora');
+    } else if (onlineRoleStats.pasivosOnline > 0) {
+      items.push('Hay pasivos en linea ahora');
+    } else {
+      items.push('Tip: indicar rol y comuna mejora respuestas');
+    }
 
-    items.push(
-      `${recentMessagesCount20m} ${recentMessagesCount20m === 1 ? 'mensaje' : 'mensajes'} en los últimos 20 min`
-    );
+    if (recentMessagesCount20m >= 10) {
+      items.push('Conversacion en ritmo alto en los ultimos minutos');
+    } else if (recentMessagesCount20m >= 3) {
+      items.push('Conversacion en marcha en los ultimos minutos');
+    } else if (recentMessagesCount20m > 0) {
+      items.push('Ya hubo mensajes recientes en la sala');
+    } else {
+      items.push('Aun no arranca el hilo: abre tu la conversacion');
+    }
 
     if (onlineRoleStats.connectedNames.length > 0) {
       const visibleNames = onlineRoleStats.connectedNames.slice(0, 4);
       const extraCount = Math.max(0, onlineRoleStats.connectedNames.length - visibleNames.length);
       const suffix = extraCount > 0 ? ` +${extraCount}` : '';
-      items.push(`Conectados: ${visibleNames.join(', ')}${suffix}`);
-    } else {
-      items.push('Conectados: sin usuarios visibles ahora');
+      items.push(`En sala: ${visibleNames.join(', ')}${suffix}`);
     }
 
     return items;
-  }, [activeUsersCount, onlineRoleStats, recentMessagesCount20m, recentParticipants20m.count]);
+  }, [headerActivitySnapshot, onlineRoleStats, recentMessagesCount20m]);
 
   const dailyTopic = useMemo(() => {
     const now = new Date(activityNow);
