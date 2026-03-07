@@ -1,10 +1,11 @@
 /**
  * Cloud Functions para Chactivo - Push Notifications
  *
- * 3 funciones:
+ * 4 funciones:
  * 1. notifyOnNewMessage - Push cuando llega DM
  * 2. notifyOnMatch - Push cuando hay match en Baul
  * 3. notifyOnPrivateChatRequest - Push cuando piden chat privado
+ * 4. notifyOnOpinReply - Push cuando responden un OPIN
  *
  * Limites: max 1-2 push por dia por usuario. Quiet hours 00:00-08:00.
  */
@@ -33,12 +34,33 @@ const PHOTO_PRIVILEGE_STREAK_DAYS_REQUIRED = 2;
 const PHOTO_PRIVILEGE_INACTIVITY_MS = 24 * 60 * 60 * 1000;
 const PHOTO_PRIVILEGE_REVOKE_BATCH_SIZE = 200;
 const CHILE_TIME_ZONE = "America/Santiago";
+const PUSH_RATE_LIMITS = {
+  realtime: 40,
+  social: 10,
+  event: 3,
+  engagement: 1,
+  default: 6,
+};
+const ENGAGEMENT_REMINDER_SLOTS = [13, 21]; // 13:00 y 21:00 hora Chile
+const ENGAGEMENT_INACTIVITY_MS = 90 * 60 * 1000;
+const ENGAGEMENT_REMINDER_BATCH = 150;
+const EVENT_REMINDER_LOOKAHEAD_MS = 10 * 60 * 1000; // 10 min antes
+const EVENT_REMINDER_START_WINDOW_MS = 5 * 60 * 1000; // 5 min post inicio
+const EVENT_REMINDER_EVENT_LIMIT = 40;
+const EVENT_REMINDER_USER_LIMIT = 300;
 
 const chileDayFormatter = new Intl.DateTimeFormat("en-CA", {
   timeZone: CHILE_TIME_ZONE,
   year: "numeric",
   month: "2-digit",
   day: "2-digit",
+});
+
+const chileClockFormatter = new Intl.DateTimeFormat("en-GB", {
+  timeZone: CHILE_TIME_ZONE,
+  hour12: false,
+  hour: "2-digit",
+  minute: "2-digit",
 });
 
 function getChileDayString(date = new Date()) {
@@ -48,6 +70,19 @@ function getChileDayString(date = new Date()) {
   const day = parts.find((part) => part.type === "day")?.value;
   if (!year || !month || !day) return "";
   return `${year}-${month}-${day}`;
+}
+
+function getChileClockParts(date = new Date()) {
+  const parts = chileClockFormatter.formatToParts(date);
+  const hourRaw = parts.find((part) => part.type === "hour")?.value || "00";
+  const minuteRaw = parts.find((part) => part.type === "minute")?.value || "00";
+  const hour = Number.parseInt(hourRaw, 10);
+  const minute = Number.parseInt(minuteRaw, 10);
+
+  return {
+    hour: Number.isFinite(hour) ? hour : 0,
+    minute: Number.isFinite(minute) ? minute : 0,
+  };
 }
 
 function parseDayStringToUtc(dayString) {
@@ -462,8 +497,38 @@ async function syncPhotoPrivilegeFromActivity(userId, roomId, nowDate) {
  */
 function isQuietHours() {
   const now = new Date();
-  const chileHour = (now.getUTCHours() - 3 + 24) % 24;
+  const chileHour = getChileClockParts(now).hour;
   return chileHour >= 0 && chileHour < 8;
+}
+
+function resolvePushRateLimitConfig(data = {}) {
+  const type = String(data?.type || "").toLowerCase();
+
+  if (type === "dm" || type === "private_chat_request") {
+    return { bucket: "realtime", limit: PUSH_RATE_LIMITS.realtime };
+  }
+
+  if (type === "match") {
+    return { bucket: "social", limit: PUSH_RATE_LIMITS.social };
+  }
+
+  if (type === "opin_reply" || type.startsWith("opin_")) {
+    return { bucket: "social", limit: PUSH_RATE_LIMITS.social };
+  }
+
+  if (type === "event_soon" || type === "event_start") {
+    return { bucket: "event", limit: PUSH_RATE_LIMITS.event };
+  }
+
+  if (type === "engagement_reminder") {
+    return { bucket: "engagement", limit: PUSH_RATE_LIMITS.engagement };
+  }
+
+  return { bucket: "default", limit: PUSH_RATE_LIMITS.default };
+}
+
+function shouldRespectQuietHours(type = "") {
+  return type === "engagement_reminder";
 }
 
 /**
@@ -481,30 +546,36 @@ async function getUserTokens(userId) {
  * Respeta quiet hours y limita a 2 notificaciones por dia
  */
 async function sendPushToUser(userId, notification, data = {}) {
-  if (isQuietHours()) {
+  const type = String(data?.type || "").toLowerCase();
+  if (shouldRespectQuietHours(type) && isQuietHours()) {
     console.log(`[PUSH] Quiet hours - no se envia push a ${userId}`);
-    return;
+    return false;
   }
 
   const tokens = await getUserTokens(userId);
   if (tokens.length === 0) {
     console.log(`[PUSH] Usuario ${userId} no tiene tokens FCM`);
-    return;
+    return false;
   }
 
-  // Rate limit: max 2 push por dia
-  const today = new Date().toISOString().split("T")[0];
-  const rateLimitRef = db.collection("pushRateLimit").doc(`${userId}_${today}`);
+  const { bucket, limit } = resolvePushRateLimitConfig(data);
+  const today = getChileDayString(new Date());
+  const rateLimitRef = db.collection("pushRateLimit").doc(`${userId}_${today}_${bucket}`);
   const rateLimitDoc = await rateLimitRef.get();
   const currentCount = rateLimitDoc.exists ? rateLimitDoc.data().count : 0;
 
-  if (currentCount >= 2) {
-    console.log(`[PUSH] Rate limit alcanzado para ${userId} (${currentCount}/2 hoy)`);
-    return;
+  if (currentCount >= limit) {
+    console.log(`[PUSH] Rate limit alcanzado para ${userId} (${currentCount}/${limit} hoy, bucket=${bucket})`);
+    return false;
   }
 
   // Incrementar contador
-  await rateLimitRef.set({ count: currentCount + 1, lastSent: new Date() }, { merge: true });
+  await rateLimitRef.set({
+    count: currentCount + 1,
+    lastSent: new Date(),
+    bucket,
+    type,
+  }, { merge: true });
 
   const message = {
     notification,
@@ -536,8 +607,10 @@ async function sendPushToUser(userId, notification, data = {}) {
         console.log(`[PUSH] Limpiados ${invalidTokens.length} tokens invalidos de ${userId}`);
       }
     }
+    return response.successCount > 0;
   } catch (error) {
     console.error(`[PUSH] Error enviando a ${userId}:`, error);
+    return false;
   }
 }
 
@@ -640,6 +713,288 @@ exports.notifyOnPrivateChatRequest = onDocumentCreated(
       url: "/chat",
       tag: "private_chat_request",
     });
+  }
+);
+
+/**
+ * 4. notifyOnOpinReply
+ * Trigger: Nuevo documento en users/{userId}/notifications con tipo opin_reply
+ * Envia push cuando alguien responde un OPIN del usuario.
+ */
+exports.notifyOnOpinReply = onDocumentCreated(
+  "users/{userId}/notifications/{notificationId}",
+  async (event) => {
+    const notification = event.data?.data();
+    if (!notification) return;
+
+    if (notification.type !== "opin_reply") {
+      return;
+    }
+
+    const targetUserId = event.params.userId;
+    const senderName = notification.fromUsername || "Alguien";
+    const message = String(notification.content || notification.message || "Respondieron tu OPIN").trim();
+    const postId = notification.postId || "";
+    const fallbackUrl = postId ? `/opin?postId=${postId}&openComments=1` : "/opin";
+
+    await sendPushToUser(targetUserId, {
+      title: `${senderName} respondió tu OPIN`,
+      body: message.length > 100 ? `${message.substring(0, 100)}...` : message,
+    }, {
+      type: "opin_reply",
+      postId,
+      commentId: notification.commentId || "",
+      url: notification.url || fallbackUrl,
+      tag: notification.tag || (postId ? `opin_reply_${postId}` : "opin_reply"),
+    });
+  }
+);
+
+function buildEventSoonNotification(eventName, minutesToStart) {
+  const safeMinutes = Math.max(1, Number.parseInt(minutesToStart, 10) || 1);
+  return {
+    title: "Tu evento empieza pronto",
+    body: `${eventName} comienza en ${safeMinutes} min. Entra y conecta con la comunidad.`,
+  };
+}
+
+function buildEventStartNotification(eventName) {
+  return {
+    title: "Evento en vivo ahora",
+    body: `${eventName} ya comenzo. La sala del evento esta activa ahora.`,
+  };
+}
+
+function buildEngagementReminderNotification(slotHour) {
+  if (slotHour >= 20) {
+    return {
+      title: "Hora de reconectar en Chactivo",
+      body: "La sala principal se mueve fuerte a esta hora. Entra y rompe el hielo.",
+    };
+  }
+
+  return {
+    title: "Comunidad conectandose ahora",
+    body: "Hay hora pico de conversacion. Entra al chat principal y participa.",
+  };
+}
+
+function shouldSkipReminderForUser(userData = {}) {
+  if (userData.pushEnabled === false) return true;
+  if (userData.pushReminderOptOut === true) return true;
+  if (userData.engagementReminderOptOut === true) return true;
+  return false;
+}
+
+async function hasReminderLog(collectionName, docId) {
+  const snap = await db.collection(collectionName).doc(docId).get();
+  return snap.exists;
+}
+
+async function saveReminderLog(collectionName, docId, payload = {}) {
+  await db.collection(collectionName).doc(docId).set({
+    ...payload,
+    createdAt: new Date(),
+  }, { merge: true });
+}
+
+/**
+ * Recordatorio de hora pico para usuarios inactivos con push habilitado.
+ * Ejecuta cada 30 min y solo dispara en slots definidos.
+ */
+exports.sendPeakHourConnectionReminders = onSchedule(
+  {
+    schedule: "every 30 minutes",
+    timeZone: CHILE_TIME_ZONE,
+    region: "us-central1",
+  },
+  async () => {
+    const now = new Date();
+    const { hour, minute } = getChileClockParts(now);
+
+    if (!ENGAGEMENT_REMINDER_SLOTS.includes(hour) || minute > 20) {
+      return null;
+    }
+
+    const cutoffDate = new Date(now.getTime() - ENGAGEMENT_INACTIVITY_MS);
+    const dayKey = getChileDayString(now);
+    const slotKey = `${dayKey}_${String(hour).padStart(2, "0")}`;
+
+    const inactiveSnap = await db
+      .collection("user_activity_state")
+      .where("lastActiveAt", "<=", cutoffDate)
+      .orderBy("lastActiveAt", "asc")
+      .limit(ENGAGEMENT_REMINDER_BATCH)
+      .get();
+
+    if (inactiveSnap.empty) {
+      console.log(`[PUSH_REMINDER] slot=${slotKey} sin candidatos inactivos`);
+      return null;
+    }
+
+    let sentCount = 0;
+    let skippedCount = 0;
+
+    for (const activityDoc of inactiveSnap.docs) {
+      const activityData = activityDoc.data() || {};
+      const userId = String(activityData.uid || activityDoc.id || "");
+      if (!userId || isBotLikeUserId(userId)) {
+        skippedCount += 1;
+        continue;
+      }
+
+      const logDocId = `${slotKey}_${userId}`;
+      const alreadySent = await hasReminderLog("pushReminderLog", logDocId);
+      if (alreadySent) {
+        skippedCount += 1;
+        continue;
+      }
+
+      const userDoc = await db.collection("users").doc(userId).get();
+      if (!userDoc.exists) {
+        skippedCount += 1;
+        continue;
+      }
+
+      const userData = userDoc.data() || {};
+      if (shouldSkipReminderForUser(userData)) {
+        skippedCount += 1;
+        continue;
+      }
+
+      if (!Array.isArray(userData.fcmTokens) || userData.fcmTokens.length === 0) {
+        skippedCount += 1;
+        continue;
+      }
+
+      const notification = buildEngagementReminderNotification(hour);
+      const sent = await sendPushToUser(userId, notification, {
+        type: "engagement_reminder",
+        slotHour: String(hour),
+        url: "/chat/principal",
+        tag: `engagement_${slotKey}`,
+      });
+
+      if (!sent) {
+        skippedCount += 1;
+        continue;
+      }
+
+      await saveReminderLog("pushReminderLog", logDocId, {
+        userId,
+        slotKey,
+        type: "engagement_reminder",
+        lastActiveAt: activityData.lastActiveAt || null,
+      });
+      sentCount += 1;
+    }
+
+    console.log(`[PUSH_REMINDER] slot=${slotKey} sent=${sentCount} skipped=${skippedCount}`);
+    return null;
+  }
+);
+
+/**
+ * Recordatorios de eventos:
+ * - 10 minutos antes (event_soon)
+ * - cuando inicia (event_start)
+ * Solo para asistentes registrados del evento.
+ */
+exports.sendEventReminderPushes = onSchedule(
+  {
+    schedule: "every 5 minutes",
+    timeZone: CHILE_TIME_ZONE,
+    region: "us-central1",
+  },
+  async () => {
+    const now = new Date();
+    const nowMs = now.getTime();
+    const dayKey = getChileDayString(now);
+
+    const eventsSnap = await db
+      .collection("eventos")
+      .where("activo", "==", true)
+      .limit(EVENT_REMINDER_EVENT_LIMIT)
+      .get();
+
+    if (eventsSnap.empty) {
+      return null;
+    }
+
+    let remindersSent = 0;
+    let eventsConsidered = 0;
+
+    for (const eventDoc of eventsSnap.docs) {
+      const eventData = eventDoc.data() || {};
+      const startMs = toMillis(eventData.fechaInicio);
+      const roomId = String(eventData.roomId || "");
+      const eventName = String(eventData.nombre || "Tu evento");
+      if (!startMs || !roomId) continue;
+
+      const deltaMs = startMs - nowMs;
+      let stage = "";
+
+      if (deltaMs > 0 && deltaMs <= EVENT_REMINDER_LOOKAHEAD_MS) {
+        stage = "soon";
+      } else if (deltaMs <= 0 && Math.abs(deltaMs) <= EVENT_REMINDER_START_WINDOW_MS) {
+        stage = "start";
+      }
+
+      if (!stage) continue;
+      eventsConsidered += 1;
+
+      const attendeesSnap = await eventDoc.ref
+        .collection("asistentes")
+        .limit(EVENT_REMINDER_USER_LIMIT)
+        .get();
+
+      if (attendeesSnap.empty) continue;
+
+      for (const attendeeDoc of attendeesSnap.docs) {
+        const attendeeData = attendeeDoc.data() || {};
+        const userId = String(attendeeData.userId || attendeeDoc.id || "");
+        if (!userId || isBotLikeUserId(userId)) continue;
+
+        const logDocId = `${eventDoc.id}_${stage}_${dayKey}_${userId}`;
+        const alreadySent = await hasReminderLog("eventPushReminderLog", logDocId);
+        if (alreadySent) continue;
+
+        const userDoc = await db.collection("users").doc(userId).get();
+        if (!userDoc.exists) continue;
+
+        const userData = userDoc.data() || {};
+        if (shouldSkipReminderForUser(userData)) continue;
+        if (!Array.isArray(userData.fcmTokens) || userData.fcmTokens.length === 0) continue;
+
+        const pushType = stage === "start" ? "event_start" : "event_soon";
+        const notification = stage === "start"
+          ? buildEventStartNotification(eventName)
+          : buildEventSoonNotification(eventName, Math.round(deltaMs / 60000));
+
+        const sent = await sendPushToUser(userId, notification, {
+          type: pushType,
+          eventId: eventDoc.id,
+          roomId,
+          url: `/chat/${roomId}`,
+          tag: `event_${eventDoc.id}_${stage}`,
+        });
+
+        if (!sent) continue;
+
+        await saveReminderLog("eventPushReminderLog", logDocId, {
+          userId,
+          eventId: eventDoc.id,
+          roomId,
+          stage,
+        });
+        remindersSent += 1;
+      }
+    }
+
+    if (eventsConsidered > 0) {
+      console.log(`[EVENT_PUSH] consideredEvents=${eventsConsidered} remindersSent=${remindersSent}`);
+    }
+    return null;
   }
 );
 

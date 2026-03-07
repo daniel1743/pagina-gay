@@ -19,6 +19,18 @@ import {
 import { db } from '@/config/firebase';
 import { isBlockedBetween } from '@/services/blockService';
 
+const OPIN_PRIVATE_REQUESTS_PER_HOUR = 4;
+const OPIN_PRIVATE_REQUEST_WINDOW_MS = 60 * 60 * 1000;
+const OPIN_PRIVATE_REQUEST_RECIPIENT_COOLDOWN_MS = 15 * 60 * 1000;
+const PRIVATE_CHAT_REQUEST_LOG_COLLECTION = 'private_chat_request_logs';
+
+const toMillis = (value) => {
+  if (value?.toMillis) return value.toMillis();
+  if (value instanceof Date) return value.getTime();
+  const parsed = new Date(value || 0).getTime();
+  return Number.isFinite(parsed) ? parsed : 0;
+};
+
 /**
  * Envía un mensaje directo a otro usuario
  * El mensaje aparece en las notificaciones del destinatario
@@ -169,6 +181,101 @@ export const sendMessageToPrivateChat = async (chatId, { userId, username, avata
 };
 
 /**
+ * Envía solicitud de chat privado desde OPIN con anti-spam:
+ * - Máximo N invitaciones por hora.
+ * - Cooldown por destinatario.
+ * - Evita duplicar invitación pendiente al mismo usuario.
+ */
+export const sendPrivateChatRequestFromOpin = async (
+  fromUserId,
+  toUserId,
+  metadata = {}
+) => {
+  try {
+    if (!fromUserId || !toUserId) {
+      throw new Error('MISSING_USER_IDS');
+    }
+    if (fromUserId === toUserId) {
+      throw new Error('SELF_REQUEST_NOT_ALLOWED');
+    }
+
+    const nowMs = Date.now();
+    const hourAgo = new Date(nowMs - OPIN_PRIVATE_REQUEST_WINDOW_MS);
+    const recipientCooldownAgoMs = nowMs - OPIN_PRIVATE_REQUEST_RECIPIENT_COOLDOWN_MS;
+
+    // 1) Límite por hora + cooldown por destinatario (logs del emisor)
+    const logsRef = collection(db, 'users', fromUserId, PRIVATE_CHAT_REQUEST_LOG_COLLECTION);
+    const recentLogsSnap = await getDocs(
+      query(
+        logsRef,
+        where('createdAt', '>=', hourAgo),
+        limit(100)
+      )
+    );
+
+    let sentLastHour = 0;
+    let recipientCooldownHit = false;
+
+    recentLogsSnap.docs.forEach((logDoc) => {
+      const data = logDoc.data() || {};
+      const createdAtMs = toMillis(data.createdAt);
+      if (!createdAtMs) return;
+      sentLastHour += 1;
+      if (
+        String(data.toUserId || '') === String(toUserId) &&
+        createdAtMs >= recipientCooldownAgoMs
+      ) {
+        recipientCooldownHit = true;
+      }
+    });
+
+    if (sentLastHour >= OPIN_PRIVATE_REQUESTS_PER_HOUR) {
+      throw new Error('OPIN_PRIVATE_REQUEST_RATE_LIMIT');
+    }
+
+    if (recipientCooldownHit) {
+      throw new Error('OPIN_PRIVATE_REQUEST_RECIPIENT_COOLDOWN');
+    }
+
+    // 2) Evitar duplicado pendiente al mismo destinatario
+    const notificationsRef = collection(db, 'users', toUserId, 'notifications');
+    const possibleDuplicatesSnap = await getDocs(
+      query(
+        notificationsRef,
+        where('from', '==', fromUserId),
+        limit(30)
+      )
+    );
+
+    const hasPending = possibleDuplicatesSnap.docs.some((item) => {
+      const data = item.data() || {};
+      return data.type === 'private_chat_request' && data.status === 'pending';
+    });
+
+    if (hasPending) {
+      throw new Error('REQUEST_ALREADY_PENDING');
+    }
+
+    // 3) Enviar solicitud estándar
+    const result = await sendPrivateChatRequest(fromUserId, toUserId);
+
+    // 4) Registrar en logs para anti-spam futuro
+    await addDoc(logsRef, {
+      toUserId,
+      source: 'opin',
+      postId: metadata?.postId || null,
+      commentId: metadata?.commentId || null,
+      createdAt: serverTimestamp(),
+    });
+
+    return result;
+  } catch (error) {
+    console.error('Error sending private chat request from OPIN:', error);
+    throw error;
+  }
+};
+
+/**
  * Deja un comentario de perfil a otro usuario
  * Se entrega como notificación específica al destinatario
  */
@@ -300,6 +407,10 @@ export const respondToPrivateChatRequest = async (
   accepted
 ) => {
   try {
+    if (!userId || !notificationId) {
+      throw new Error('MISSING_PARAMS');
+    }
+
     const notificationRef = doc(db, 'users', userId, 'notifications', notificationId);
     const notificationDoc = await getDoc(notificationRef);
     const notificationData = notificationDoc.data();
@@ -308,35 +419,55 @@ export const respondToPrivateChatRequest = async (
       throw new Error('REQUEST_NOT_FOUND');
     }
 
-    await updateDoc(notificationRef, {
-      status: accepted ? 'accepted' : 'rejected',
-      read: true,
-      respondedAt: serverTimestamp(),
-    });
+    if (notificationData.type !== 'private_chat_request') {
+      throw new Error('INVALID_REQUEST_TYPE');
+    }
+
+    // Idempotencia: si ya fue procesada, devolver estado sin romper UX
+    if (notificationData.status && notificationData.status !== 'pending') {
+      if (notificationData.status === 'accepted' && notificationData.from) {
+        // userId primero para que la query sea compatible con reglas Firestore
+        const { chatId } = await getOrCreatePrivateChat(userId, notificationData.from);
+        return { success: true, chatId, alreadyProcessed: true };
+      }
+      return { success: true, alreadyProcessed: true };
+    }
+
+    if (!accepted) {
+      await updateDoc(notificationRef, {
+        status: 'rejected',
+        read: true,
+        respondedAt: serverTimestamp(),
+      });
+      return { success: true };
+    }
 
     // Si fue aceptada, crear la sala de chat privado
-    if (accepted) {
-      const blocked = await isBlockedBetween(notificationData.from, userId);
-      if (blocked) {
-        throw new Error('BLOCKED');
-      }
+    const blocked = await isBlockedBetween(notificationData.from, userId);
+    if (blocked) {
+      throw new Error('BLOCKED');
+    }
 
-      // ✅ IMPORTANTE: Reutilizar SIEMPRE el mismo chat entre ambos usuarios
-      // para mantener historial (evita crear un chat nuevo por cada invitación).
-      const { chatId } = await getOrCreatePrivateChat(notificationData.from, userId);
+    // ✅ IMPORTANTE: Reutilizar SIEMPRE el mismo chat entre ambos usuarios
+    // para mantener historial (evita crear un chat nuevo por cada invitación).
+    // userId primero para que la query sea compatible con reglas Firestore
+    const { chatId } = await getOrCreatePrivateChat(userId, notificationData.from);
 
-      // Asegurar estado activo del chat (sin pisar historial existente).
-      await setDoc(doc(db, 'private_chats', chatId), {
-        active: true,
-        updatedAt: serverTimestamp(),
-      }, { merge: true });
+    // Marcar la solicitud como aceptada solo después de crear/activar el chat
+    await updateDoc(notificationRef, {
+      status: 'accepted',
+      read: true,
+      respondedAt: serverTimestamp(),
+      chatId,
+    });
 
-      // Obtener datos del usuario que aceptó
-      const acceptedUserDoc = await getDoc(doc(db, 'users', userId));
-      const acceptedUserData = acceptedUserDoc.data();
+    // Obtener datos del usuario que aceptó
+    const acceptedUserDoc = await getDoc(doc(db, 'users', userId));
+    const acceptedUserData = acceptedUserDoc.data();
 
-      // Enviar notificación al usuario que envió la solicitud original
-      // para que se le abra automáticamente la ventana de chat
+    // Enviar notificación al usuario que envió la solicitud original
+    // para que se le abra automáticamente la ventana de chat
+    try {
       await addDoc(collection(db, 'users', notificationData.from, 'notifications'), {
         from: userId,
         fromUsername: acceptedUserData?.username || 'Usuario',
@@ -348,11 +479,12 @@ export const respondToPrivateChatRequest = async (
         read: false,
         timestamp: serverTimestamp(),
       });
-
-      return { success: true, chatId };
+    } catch (notifyError) {
+      // El chat ya quedó abierto para el receptor; no bloquear por fallo secundario.
+      console.error('Error notifying sender about private chat acceptance:', notifyError);
     }
 
-    return { success: true };
+    return { success: true, chatId };
   } catch (error) {
     console.error('Error responding to private chat request:', error);
     throw error;

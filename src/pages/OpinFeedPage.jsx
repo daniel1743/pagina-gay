@@ -3,29 +3,98 @@
  */
 
 import React, { useState, useEffect, useRef } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useLocation } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { Plus, Sparkles, RefreshCw, Eye, UserPlus, ArrowLeft } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
 import { getOpinFeed, canCreatePost } from '@/services/opinService';
+import { requestNotificationPermission, canRequestPush, isPushEnabled } from '@/services/pushNotificationService';
 import OpinCard from '@/components/opin/OpinCard';
 import OpinCommentsModal from '@/components/opin/OpinCommentsModal';
 import { toast } from '@/components/ui/use-toast';
 import { trackPageView, trackPageExit, track } from '@/services/eventTrackingService';
 
 const OPIN_FEED_LIMIT = 200;
+const isRunningStandalone = () => {
+  if (typeof window === 'undefined') return false;
+  return window.matchMedia('(display-mode: standalone)').matches
+    || Boolean(window.navigator?.standalone)
+    || document.referrer.includes('android-app://');
+};
 
 const OpinFeedPage = () => {
   const navigate = useNavigate();
+  const location = useLocation();
   const { user } = useAuth();
   const [posts, setPosts] = useState([]);
   const [loading, setLoading] = useState(true);
   const [canCreate, setCanCreate] = useState(false);
   const [selectedPost, setSelectedPost] = useState(null);
   const [showCommentsModal, setShowCommentsModal] = useState(false);
+  const [showIntentCta, setShowIntentCta] = useState(false);
+  const [isInstalled, setIsInstalled] = useState(isRunningStandalone());
+  const [pushEnabled, setPushEnabled] = useState(isPushEnabled());
+  const [deferredInstallPrompt, setDeferredInstallPrompt] = useState(null);
+  const [activatingPush, setActivatingPush] = useState(false);
   const pageStartRef = useRef(Date.now());
 
   const isReadOnlyMode = !user || user.isAnonymous || user.isGuest;
+
+  useEffect(() => {
+    if (!posts.length) return;
+
+    const params = new URLSearchParams(location.search);
+    const postId = params.get('postId');
+    const openComments = params.get('openComments') === '1';
+    if (!postId || !openComments) return;
+
+    const targetPost = posts.find((post) => post.id === postId);
+    if (!targetPost) return;
+
+    setSelectedPost(targetPost);
+    setShowCommentsModal(true);
+  }, [location.search, posts]);
+
+  useEffect(() => {
+    const handleBeforeInstallPrompt = (event) => {
+      event.preventDefault();
+      setDeferredInstallPrompt(event);
+    };
+
+    const handleAppInstalled = () => {
+      setIsInstalled(true);
+      setDeferredInstallPrompt(null);
+    };
+
+    window.addEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
+    window.addEventListener('appinstalled', handleAppInstalled);
+
+    return () => {
+      window.removeEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
+      window.removeEventListener('appinstalled', handleAppInstalled);
+    };
+  }, []);
+
+  useEffect(() => {
+    if (!user || user.isAnonymous || user.isGuest) {
+      setShowIntentCta(false);
+      return;
+    }
+
+    const params = new URLSearchParams(location.search);
+    const fromComposer = params.get('fromComposer') === '1';
+    const sessionPosted = sessionStorage.getItem('opin:just_posted') === '1';
+    const dismissedKey = `opin:intent_cta:dismissed:${user.id}`;
+    const dismissed = sessionStorage.getItem(dismissedKey) === '1';
+    const needsNudge = !isInstalled || !pushEnabled;
+
+    if (dismissed || !needsNudge || (!fromComposer && !sessionPosted)) {
+      if (!needsNudge) setShowIntentCta(false);
+      return;
+    }
+
+    setShowIntentCta(true);
+  }, [user, location.search, isInstalled, pushEnabled]);
 
   // ✅ SEO: Meta tags para OPIN
   useEffect(() => {
@@ -140,6 +209,82 @@ const OpinFeedPage = () => {
   const handleCommentsClick = (post) => {
     setSelectedPost(post);
     setShowCommentsModal(true);
+  };
+
+  const clearComposerIntentFlags = () => {
+    sessionStorage.removeItem('opin:just_posted');
+    const params = new URLSearchParams(location.search);
+    if (!params.has('fromComposer')) return;
+    params.delete('fromComposer');
+    const query = params.toString();
+    navigate(query ? `/opin?${query}` : '/opin', { replace: true });
+  };
+
+  const handleEnablePushForOpin = async () => {
+    if (activatingPush) return;
+    if (!canRequestPush()) {
+      toast({ description: 'Ya definiste permisos de notificación en este navegador.' });
+      return;
+    }
+
+    setActivatingPush(true);
+    try {
+      const token = await requestNotificationPermission();
+      const granted = Boolean(token) || isPushEnabled();
+      setPushEnabled(granted);
+      if (granted) {
+        toast({ description: 'Notificaciones activadas. Te avisaremos cuando respondan tu OPIN.' });
+      } else {
+        toast({ description: 'No se activaron las notificaciones.', variant: 'destructive' });
+      }
+    } finally {
+      setActivatingPush(false);
+    }
+  };
+
+  const handleInstallForOpin = async () => {
+    if (deferredInstallPrompt) {
+      deferredInstallPrompt.prompt();
+      const result = await deferredInstallPrompt.userChoice.catch(() => ({ outcome: 'dismissed' }));
+      if (result?.outcome === 'accepted') {
+        toast({ description: 'Instalación iniciada. Te avisaremos cuando alguien responda.' });
+      }
+      setDeferredInstallPrompt(null);
+      return;
+    }
+
+    toast({
+      description: 'Abre el menú del navegador y selecciona "Instalar app" o "Agregar a pantalla de inicio".',
+    });
+  };
+
+  const handleDismissIntentCta = () => {
+    if (user?.id) {
+      sessionStorage.setItem(`opin:intent_cta:dismissed:${user.id}`, '1');
+    }
+    setShowIntentCta(false);
+    clearComposerIntentFlags();
+  };
+
+  useEffect(() => {
+    if (!user || user.isAnonymous || user.isGuest) return;
+    const params = new URLSearchParams(location.search);
+    const fromComposer = params.get('fromComposer') === '1';
+    const sessionPosted = sessionStorage.getItem('opin:just_posted') === '1';
+    if (!fromComposer && !sessionPosted) return;
+    if (!isInstalled || !pushEnabled) return;
+    clearComposerIntentFlags();
+    setShowIntentCta(false);
+  }, [user, location.search, isInstalled, pushEnabled]);
+
+  const handleCloseCommentsModal = () => {
+    setShowCommentsModal(false);
+    const params = new URLSearchParams(location.search);
+    if (!params.has('postId') && !params.has('openComments')) return;
+    params.delete('postId');
+    params.delete('openComments');
+    const query = params.toString();
+    navigate(query ? `/opin?${query}` : '/opin', { replace: true });
   };
 
   const handlePostDeleted = (postId) => {
@@ -293,8 +438,43 @@ const OpinFeedPage = () => {
         <OpinCommentsModal
           post={selectedPost}
           open={showCommentsModal}
-          onClose={() => setShowCommentsModal(false)}
+          onClose={handleCloseCommentsModal}
         />
+      )}
+
+      {!isReadOnlyMode && showIntentCta && (
+        <div className="px-3 pt-3">
+          <div className="max-w-7xl mx-auto rounded-xl border border-fuchsia-500/40 bg-fuchsia-500/10 p-3">
+            <p className="text-sm text-foreground font-medium">
+              Tu nota ya está en el tablón. Activa avisos para volver cuando te respondan.
+            </p>
+            <div className="flex flex-wrap gap-2 mt-2">
+              {!pushEnabled && canRequestPush() && (
+                <button
+                  onClick={handleEnablePushForOpin}
+                  disabled={activatingPush}
+                  className="px-3 py-1.5 rounded-full bg-cyan-500 text-black text-xs font-semibold disabled:opacity-60"
+                >
+                  {activatingPush ? 'Activando...' : 'Activar avisos'}
+                </button>
+              )}
+              {!isInstalled && (
+                <button
+                  onClick={handleInstallForOpin}
+                  className="px-3 py-1.5 rounded-full bg-fuchsia-500 text-white text-xs font-semibold"
+                >
+                  Instalar app
+                </button>
+              )}
+              <button
+                onClick={handleDismissIntentCta}
+                className="px-3 py-1.5 rounded-full bg-white/10 text-foreground text-xs font-medium"
+              >
+                Ahora no
+              </button>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );

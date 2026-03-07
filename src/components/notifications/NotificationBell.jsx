@@ -5,14 +5,32 @@ import { Badge } from '@/components/ui/badge';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useAuth } from '@/contexts/AuthContext';
 import { subscribeToNotifications } from '@/services/socialService';
+import { updateAppBadge } from '@/services/pushNotificationService';
 import { toast } from '@/components/ui/use-toast';
 import NotificationsPanel from './NotificationsPanel';
+
+const IMPORTANT_NOTIFICATION_TYPES = new Set([
+  'direct_message',
+  'private_chat_request',
+  'private_chat_accepted',
+  'opin_reply',
+  'opin_response',
+  'opin_comment',
+  'opin_mention',
+]);
+
+const isImportantNotification = (notification) => {
+  const type = String(notification?.type || '');
+  if (!type) return false;
+  if (IMPORTANT_NOTIFICATION_TYPES.has(type)) return true;
+  return type.startsWith('opin_');
+};
 
 const NotificationBell = ({ onOpenPrivateChat }) => {
   const { user } = useAuth(); // ✅ Usar useAuth normal (NotificationBell SIEMPRE está dentro de AuthProvider)
   const [isOpen, setIsOpen] = useState(false);
   const [notifications, setNotifications] = useState([]);
-  const [unreadCount, setUnreadCount] = useState(0);
+  const [importantCount, setImportantCount] = useState(0);
   const previousCountRef = useRef(0);
   const onOpenPrivateChatRef = useRef(onOpenPrivateChat);
 
@@ -71,12 +89,18 @@ const NotificationBell = ({ onOpenPrivateChat }) => {
               description: 'La ventana de chat privado se ha abierto',
               duration: 5000,
             });
+          } else if (isImportantNotification(latestNotification)) {
+            toast({
+              title: '🧵 Nueva actividad',
+              description: latestNotification.content?.substring(0, 100) || 'Alguien respondió o interactuó contigo.',
+              duration: 5000,
+            });
           }
         }
 
         previousCountRef.current = currentCount;
         setNotifications(newNotifications);
-        setUnreadCount(newNotifications.filter((n) => !n.read).length);
+        setImportantCount(newNotifications.filter(isImportantNotification).length);
       });
     } catch (error) {
       console.error('Error setting up notifications subscription:', error);
@@ -96,6 +120,22 @@ const NotificationBell = ({ onOpenPrivateChat }) => {
     };
   }, [user?.id, user?.isGuest, user?.isAnonymous]);
 
+  useEffect(() => {
+    if (!user?.id || user.isGuest || user.isAnonymous) return;
+
+    const key = `chactivo:important_notifications:${user.id}`;
+    localStorage.setItem(key, String(importantCount));
+    window.dispatchEvent(new CustomEvent('chactivo:important-notifications', {
+      detail: { userId: user.id, count: importantCount },
+    }));
+    updateAppBadge(importantCount).catch(() => {});
+  }, [importantCount, user?.id, user?.isGuest, user?.isAnonymous]);
+
+  useEffect(() => {
+    if (user?.id && !user.isGuest && !user.isAnonymous) return;
+    updateAppBadge(0).catch(() => {});
+  }, [user?.id, user?.isGuest, user?.isAnonymous]);
+
   if (!user || user.isGuest || user.isAnonymous) {
     return null;
   }
@@ -112,7 +152,7 @@ const NotificationBell = ({ onOpenPrivateChat }) => {
           >
             <Bell className="w-5 h-5" />
             <AnimatePresence>
-              {unreadCount > 0 && (
+              {importantCount > 0 && (
                 <motion.div
                   initial={{ scale: 0 }}
                   animate={{ scale: 1 }}
@@ -123,14 +163,14 @@ const NotificationBell = ({ onOpenPrivateChat }) => {
                     variant="destructive"
                     className="h-5 min-w-5 flex items-center justify-center px-1 text-xs font-bold bg-red-500"
                   >
-                    {unreadCount > 9 ? '9+' : unreadCount}
+                    {importantCount > 9 ? '9+' : importantCount}
                   </Badge>
                 </motion.div>
               )}
             </AnimatePresence>
 
             {/* Animación de pulso para notificaciones nuevas */}
-            {unreadCount > 0 && (
+            {importantCount > 0 && (
               <motion.div
                 className="absolute inset-0 rounded-full bg-red-500/20"
                 animate={{

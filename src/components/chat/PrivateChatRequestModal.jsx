@@ -10,8 +10,10 @@ import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Button } from '@/components/ui/button';
 
 const PrivateChatRequestModal = ({ request, currentUser, onResponse, onClose }) => {
-  const isReceiver = currentUser.id === request.to.userId;
-  const isSender = currentUser.id === request.from.id;
+  const receiverId = request?.to?.id || request?.to?.userId || null;
+  const senderId = request?.from?.id || request?.from?.userId || null;
+  const isReceiver = currentUser.id === receiverId;
+  const isSender = currentUser.id === senderId;
 
   if (isSender) {
     return (

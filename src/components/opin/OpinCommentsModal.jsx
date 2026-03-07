@@ -18,6 +18,7 @@ import { X, Send, Trash2, MessageCircle, Lock, UserPlus } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
 import { getPostComments, addComment, deleteComment } from '@/services/opinService';
+import { sendPrivateChatRequestFromOpin } from '@/services/socialService';
 import { toast } from '@/components/ui/use-toast';
 
 const QUICK_REPLIES = ['Me interesa', 'Yo también busco', 'Escríbeme', 'Suena bien'];
@@ -30,11 +31,13 @@ const OpinCommentsModal = ({ post, open, onClose }) => {
   const [loading, setLoading] = useState(true);
   const [commentText, setCommentText] = useState('');
   const [submitting, setSubmitting] = useState(false);
+  const [invitingTargetId, setInvitingTargetId] = useState(null);
   const commentsEndRef = useRef(null);
 
   // Detectar si es visitante (no logueado o guest)
   const isGuest = !user || user.isAnonymous || user.isGuest;
   const canInteract = !isGuest;
+  const currentUserId = user?.id || user?.uid || null;
 
   useEffect(() => {
     if (open && post) {
@@ -152,6 +155,53 @@ const OpinCommentsModal = ({ post, open, onClose }) => {
     }
   };
 
+  const getInviteErrorMessage = (error) => {
+    switch (error?.message) {
+      case 'BLOCKED':
+        return 'No puedes invitar a este usuario a chat privado.';
+      case 'REQUEST_ALREADY_PENDING':
+        return 'Ya tienes una invitacion pendiente con este usuario.';
+      case 'OPIN_PRIVATE_REQUEST_RATE_LIMIT':
+        return 'Limite alcanzado: intenta nuevamente en un rato.';
+      case 'OPIN_PRIVATE_REQUEST_RECIPIENT_COOLDOWN':
+        return 'Espera unos minutos antes de volver a invitar a este usuario.';
+      case 'SELF_REQUEST_NOT_ALLOWED':
+        return 'No puedes invitarte a ti mismo.';
+      default:
+        return 'No se pudo enviar la invitacion privada.';
+    }
+  };
+
+  const handleInviteToPrivateChat = async (targetUserId, targetUsername, metadata = {}) => {
+    if (!canInteract) {
+      toast({
+        title: 'Registra tu cuenta',
+        description: 'Debes iniciar sesion para invitar a chat privado',
+      });
+      return;
+    }
+
+    if (!currentUserId || !targetUserId || currentUserId === targetUserId) return;
+    if (invitingTargetId) return;
+
+    setInvitingTargetId(targetUserId);
+    try {
+      await sendPrivateChatRequestFromOpin(currentUserId, targetUserId, metadata);
+      toast({
+        title: 'Invitacion enviada',
+        description: `Invitaste a ${targetUsername || 'este usuario'} a chat privado.`,
+      });
+    } catch (error) {
+      toast({
+        title: 'No se pudo invitar',
+        description: getInviteErrorMessage(error),
+        variant: 'destructive',
+      });
+    } finally {
+      setInvitingTargetId(null);
+    }
+  };
+
   if (!open) return null;
 
   return (
@@ -206,6 +256,19 @@ const OpinCommentsModal = ({ post, open, onClose }) => {
                 <p className="text-sm text-foreground/80 mt-1 line-clamp-2">
                   {post.text}
                 </p>
+                {canInteract && post.userId && post.userId !== currentUserId && (
+                  <button
+                    onClick={() => handleInviteToPrivateChat(
+                      post.userId,
+                      post.username,
+                      { postId: post.id, source: 'opin_comments_modal_post' }
+                    )}
+                    disabled={invitingTargetId === post.userId}
+                    className="mt-2 inline-flex items-center rounded-full px-2.5 py-1 text-xs font-medium bg-fuchsia-500/20 text-fuchsia-300 hover:bg-fuchsia-500/30 transition-colors disabled:opacity-60"
+                  >
+                    {invitingTargetId === post.userId ? 'Enviando...' : 'Invitar a privado'}
+                  </button>
+                )}
               </div>
             </div>
           </div>
@@ -246,16 +309,37 @@ const OpinCommentsModal = ({ post, open, onClose }) => {
                       </p>
                     </div>
 
-                    {/* Botón eliminar (solo autor) */}
-                    {user && (comment.userId === user.id || comment.userId === user.uid) && (
-                      <button
-                        onClick={() => handleDeleteComment(comment.id)}
-                        className="opacity-0 group-hover:opacity-100 p-1 hover:bg-red-500/20 rounded transition-all"
-                        title="Eliminar respuesta"
-                      >
-                        <Trash2 className="w-3.5 h-3.5 text-red-400" />
-                      </button>
-                    )}
+                    <div className="flex items-center gap-1">
+                      {canInteract && comment.userId && comment.userId !== currentUserId && (
+                        <button
+                          onClick={() => handleInviteToPrivateChat(
+                            comment.userId,
+                            comment.username,
+                            {
+                              postId: post.id,
+                              commentId: comment.id || comment.commentId,
+                              source: 'opin_comments_modal_comment',
+                            }
+                          )}
+                          disabled={invitingTargetId === comment.userId}
+                          className="text-[11px] px-2 py-0.5 rounded-full bg-fuchsia-500/20 text-fuchsia-300 hover:bg-fuchsia-500/30 transition-colors disabled:opacity-60"
+                          title="Invitar a chat privado"
+                        >
+                          {invitingTargetId === comment.userId ? '...' : 'Privado'}
+                        </button>
+                      )}
+
+                      {/* Botón eliminar (solo autor) */}
+                      {user && (comment.userId === user.id || comment.userId === user.uid) && (
+                        <button
+                          onClick={() => handleDeleteComment(comment.id)}
+                          className="opacity-0 group-hover:opacity-100 p-1 hover:bg-red-500/20 rounded transition-all"
+                          title="Eliminar respuesta"
+                        >
+                          <Trash2 className="w-3.5 h-3.5 text-red-400" />
+                        </button>
+                      )}
+                    </div>
                   </div>
                 ))}
 

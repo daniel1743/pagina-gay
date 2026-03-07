@@ -61,7 +61,7 @@ import { doc, getDoc, deleteDoc } from 'firebase/firestore';
 import { evaluateMessage, checkAIMute, formatMuteRemaining } from '@/services/moderationAIService';
 import { sendPrivateChatRequest, respondToPrivateChatRequest, subscribeToNotifications, markNotificationAsRead, getOrCreatePrivateChat } from '@/services/socialService';
 import { subscribeToBlockedUsers, isBlocked, isBlockedBetween } from '@/services/blockService';
-import { requestNotificationPermission, canRequestPush } from '@/services/pushNotificationService';
+import { requestNotificationPermission, canRequestPush, setupForegroundMessages } from '@/services/pushNotificationService';
 // ⚠️ MODERADOR ELIMINADO (06/01/2026) - A petición del usuario
 // import { sendModeratorWelcome } from '@/services/moderatorWelcome';
 // ⚠️ BOTS ELIMINADOS (06/01/2026) - A petición del usuario
@@ -193,6 +193,7 @@ const ChatPage = () => {
   });
 
   const [showPushBanner, setShowPushBanner] = useState(false);
+  const lastForegroundPushRef = useRef({ key: '', at: 0 });
   const pushBannerDismissKey = user?.id
     ? `push_banner_dismissed_${user.id}`
     : 'push_banner_dismissed_guest';
@@ -217,6 +218,51 @@ const ChatPage = () => {
     localStorage.setItem(pushBannerDismissKey, Date.now().toString());
     await requestNotificationPermission();
   };
+
+  useEffect(() => {
+    if (!user || user.isAnonymous || user.isGuest) return undefined;
+
+    let cancelled = false;
+    let unsubscribeForeground = null;
+
+    Promise.resolve(setupForegroundMessages((payload) => {
+      const title = payload?.notification?.title || 'Chactivo';
+      const body = payload?.notification?.body || 'Tienes una nueva notificación';
+      const tag = payload?.data?.tag || payload?.messageId || `${title}:${body}`;
+      const now = Date.now();
+
+      // Evitar duplicados visuales/sonoros del mismo push en una ventana corta
+      if (
+        lastForegroundPushRef.current.key === tag &&
+        (now - lastForegroundPushRef.current.at) < 4000
+      ) {
+        return;
+      }
+      lastForegroundPushRef.current = { key: tag, at: now };
+
+      notificationSounds.playMessageSound();
+      toast({
+        title,
+        description: body,
+        duration: 5500,
+      });
+    })).then((unsubscribe) => {
+      if (cancelled) {
+        if (typeof unsubscribe === 'function') unsubscribe();
+        return;
+      }
+      if (typeof unsubscribe === 'function') {
+        unsubscribeForeground = unsubscribe;
+      }
+    }).catch(() => {});
+
+    return () => {
+      cancelled = true;
+      if (typeof unsubscribeForeground === 'function') {
+        unsubscribeForeground();
+      }
+    };
+  }, [user?.id, user?.isAnonymous, user?.isGuest]);
 
   const isSystemUserId = useCallback((userId) => {
     if (!userId) return false;
@@ -1999,8 +2045,10 @@ const ChatPage = () => {
 
       if (pendingRequests.length > 0 && !currentRequest) {
         const latestRequest = pendingRequests[0];
+        const currentUserId = currentUser?.id || currentUser?.userId || user?.id || null;
         setPrivateChatRequest({
           from: {
+            id: latestRequest.from,
             userId: latestRequest.from,
             username: latestRequest.fromUsername,
             avatar: latestRequest.fromAvatar,
@@ -2008,7 +2056,8 @@ const ChatPage = () => {
           },
           to: {
             ...(currentUser || {}),
-            userId: currentUser?.userId || currentUser?.id || null,
+            id: currentUserId,
+            userId: currentUserId,
           },
           notificationId: latestRequest.id
         });
@@ -3082,16 +3131,20 @@ const ChatPage = () => {
    */
   const handlePrivateChatResponse = async (accepted, notificationId = null) => {
     if (!privateChatRequest) return;
+    const currentUserId = user?.id || user?.uid || null;
+    if (!currentUserId) return;
 
-    const receiverId = privateChatRequest?.to?.userId || privateChatRequest?.to?.id || null;
-    const isReceiver = user.id === receiverId;
-    const partner = isReceiver ? privateChatRequest.from : privateChatRequest.to;
+    const receiverId = privateChatRequest?.to?.id || privateChatRequest?.to?.userId || null;
+    const isReceiver = currentUserId === receiverId;
+    const partner = notificationId
+      ? privateChatRequest.from
+      : (isReceiver ? privateChatRequest.from : privateChatRequest.to);
     const partnerName = partner?.username || 'Usuario';
 
-    // ✅ Si es receptor y hay notificationId, usar el servicio para responder
-    if (isReceiver && notificationId) {
+    // Si existe notificationId, responder SIEMPRE vía notificación para evitar rutas ambiguas
+    if (notificationId) {
       try {
-        const result = await respondToPrivateChatRequest(user.id, notificationId, accepted);
+        const result = await respondToPrivateChatRequest(currentUserId, notificationId, accepted);
         
         if (accepted && result?.chatId) {
           const opened = openPrivateChatWindow({
@@ -3130,7 +3183,7 @@ const ChatPage = () => {
           const partnerId = partner?.userId || partner?.id;
           if (!partnerId) throw new Error('MISSING_PARTNER');
 
-          const { chatId } = await getOrCreatePrivateChat(user.id, partnerId);
+          const { chatId } = await getOrCreatePrivateChat(currentUserId, partnerId);
           const opened = openPrivateChatWindow({
             user: user,
             partner: partner,
@@ -3358,7 +3411,7 @@ const ChatPage = () => {
           {/* Banner de Push Notifications */}
           {showPushBanner && (
             <div className="px-4 py-2 bg-purple-500/10 border-b border-purple-500/20 flex items-center justify-between gap-3">
-              <p className="text-sm text-purple-300">Activa notificaciones para saber cuando te escriban</p>
+              <p className="text-sm text-purple-300">Activa notificaciones para mensajes, eventos y recordatorios de hora pico</p>
               <div className="flex gap-2 flex-shrink-0">
                 <button
                   onClick={handleEnablePush}
@@ -3517,8 +3570,10 @@ const ChatPage = () => {
         )}
 
         {privateChatRequest && (() => {
-          const isReceiver = user.id === privateChatRequest.to.userId;
-          const isSender = user.id === privateChatRequest.from.id;
+          const receiverId = privateChatRequest?.to?.id || privateChatRequest?.to?.userId || null;
+          const senderId = privateChatRequest?.from?.id || privateChatRequest?.from?.userId || null;
+          const isReceiver = user.id === receiverId;
+          const isSender = user.id === senderId;
 
           // ✅ Si es el receptor, mostrar toast discreto arriba
           if (isReceiver) {

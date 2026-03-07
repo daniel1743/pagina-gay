@@ -719,8 +719,9 @@ export const addComment = async (postId, commentText) => {
   const commentsRef = collection(db, 'opin_comments');
 
   const postDoc = await getDoc(doc(db, 'opin_posts', postId));
+  const postData = postDoc.exists() ? postDoc.data() : null;
   if (postDoc.exists()) {
-    await assertCanInteractWithUser(postDoc.data().userId);
+    await assertCanInteractWithUser(postData?.userId);
   }
 
   // Verificar límite de 100 comentarios (sin requerir índice)
@@ -761,7 +762,37 @@ export const addComment = async (postId, commentText) => {
     commentCount: increment(1),
   });
 
-  track('opin_comment', { post_id: postId, author_id: postDoc.data()?.userId }, { user: { id: auth.currentUser.uid } }).catch(() => {});
+  // Notificar al autor del OPIN cuando otra persona responde
+  if (postData?.userId && postData.userId !== auth.currentUser.uid) {
+    const commenterName = userData.username || 'Usuario';
+    const trimmedComment = commentText.trim();
+    const safeCommentSnippet = trimmedComment.length > 90
+      ? `${trimmedComment.slice(0, 90)}...`
+      : trimmedComment;
+    const postSnippetRaw = String(postData.text || '').trim();
+    const postSnippet = postSnippetRaw.length > 110
+      ? `${postSnippetRaw.slice(0, 110)}...`
+      : postSnippetRaw;
+
+    await addDoc(collection(db, 'users', postData.userId, 'notifications'), {
+      from: auth.currentUser.uid,
+      fromUsername: commenterName,
+      fromAvatar: userData.avatar || '',
+      to: postData.userId,
+      type: 'opin_reply',
+      title: `${commenterName} respondió tu OPIN`,
+      content: safeCommentSnippet || 'Alguien respondió tu nota en OPIN',
+      postId,
+      commentId: docRef.id,
+      postPreview: postSnippet,
+      read: false,
+      timestamp: serverTimestamp(),
+      url: `/opin?postId=${postId}&openComments=1`,
+      tag: `opin_reply_${postId}`,
+    });
+  }
+
+  track('opin_comment', { post_id: postId, author_id: postData?.userId }, { user: { id: auth.currentUser.uid } }).catch(() => {});
   console.log('💬 [OPIN] Comentario agregado:', docRef.id);
 
   return { id: docRef.id, commentId: docRef.id, ...commentData };
@@ -1154,6 +1185,8 @@ export const addAdminReply = async (postId, text, authorName) => {
   }
 
   const commentsRef = collection(db, 'opin_comments');
+  const postDoc = await getDoc(doc(db, 'opin_posts', postId));
+  const postData = postDoc.exists() ? postDoc.data() : null;
 
   const replyData = {
     postId: postId,
@@ -1172,6 +1205,34 @@ export const addAdminReply = async (postId, text, authorName) => {
   await updateDoc(postRef, {
     commentCount: increment(1),
   });
+
+  // Notificar al autor del OPIN cuando el equipo/admin responde
+  if (postData?.userId && postData.userId !== auth.currentUser.uid) {
+    const replySnippet = text.trim().length > 90
+      ? `${text.trim().slice(0, 90)}...`
+      : text.trim();
+    const postSnippetRaw = String(postData.text || '').trim();
+    const postSnippet = postSnippetRaw.length > 110
+      ? `${postSnippetRaw.slice(0, 110)}...`
+      : postSnippetRaw;
+
+    await addDoc(collection(db, 'users', postData.userId, 'notifications'), {
+      from: auth.currentUser.uid,
+      fromUsername: authorName.trim(),
+      fromAvatar: '',
+      to: postData.userId,
+      type: 'opin_reply',
+      title: `${authorName.trim()} respondió tu OPIN`,
+      content: replySnippet || 'Hay una nueva respuesta en tu nota',
+      postId,
+      commentId: docRef.id,
+      postPreview: postSnippet,
+      read: false,
+      timestamp: serverTimestamp(),
+      url: `/opin?postId=${postId}&openComments=1`,
+      tag: `opin_reply_${postId}`,
+    });
+  }
 
   console.log('🛡️ [OPIN] Respuesta editorial agregada:', docRef.id, 'como', authorName);
 

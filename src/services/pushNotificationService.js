@@ -6,7 +6,7 @@
  */
 
 import { getToken, onMessage } from 'firebase/messaging';
-import { doc, updateDoc, arrayUnion } from 'firebase/firestore';
+import { doc, updateDoc, arrayUnion, serverTimestamp } from 'firebase/firestore';
 import { db, auth } from '@/config/firebase';
 
 const VAPID_KEY = import.meta.env.VITE_FIREBASE_VAPID_KEY;
@@ -25,6 +25,14 @@ export const requestNotificationPermission = async () => {
 
     const permission = await Notification.requestPermission();
     if (permission !== 'granted') {
+      if (auth.currentUser) {
+        const userRef = doc(db, 'users', auth.currentUser.uid);
+        await updateDoc(userRef, {
+          pushEnabled: false,
+          pushPermission: permission,
+          pushUpdatedAt: serverTimestamp(),
+        }).catch(() => {});
+      }
       console.log('[PUSH] Permiso de notificaciones denegado');
       return null;
     }
@@ -43,13 +51,24 @@ export const requestNotificationPermission = async () => {
 
     const token = await getToken(messaging, { vapidKey: VAPID_KEY });
 
-    if (token && auth.currentUser) {
+    if (auth.currentUser) {
       // Guardar token en Firestore
       const userRef = doc(db, 'users', auth.currentUser.uid);
-      await updateDoc(userRef, {
-        fcmTokens: arrayUnion(token),
-      });
-      console.log('[PUSH] Token FCM guardado en Firestore');
+      const payload = {
+        pushEnabled: permission === 'granted',
+        pushPermission: permission,
+        pushEnabledAt: serverTimestamp(),
+        pushUpdatedAt: serverTimestamp(),
+      };
+
+      if (token) {
+        payload.fcmTokens = arrayUnion(token);
+      }
+
+      await updateDoc(userRef, payload);
+      if (token) {
+        console.log('[PUSH] Token FCM guardado en Firestore');
+      }
     }
 
     return token;
@@ -93,4 +112,35 @@ export const isPushEnabled = () => {
  */
 export const canRequestPush = () => {
   return 'Notification' in window && Notification.permission === 'default';
+};
+
+/**
+ * Verifica soporte de App Badge API (icono de la app en SO)
+ */
+export const supportsAppBadge = () => {
+  if (typeof navigator === 'undefined') return false;
+  return typeof navigator.setAppBadge === 'function' || typeof navigator.clearAppBadge === 'function';
+};
+
+/**
+ * Actualiza el contador del icono de app (PWA/desktop compatible)
+ * Retorna false si no hay soporte o falla silenciosamente.
+ */
+export const updateAppBadge = async (count = 0) => {
+  try {
+    if (!supportsAppBadge()) return false;
+    const safeCount = Number.isFinite(Number(count)) ? Math.max(0, Number(count)) : 0;
+    if (safeCount > 0 && typeof navigator.setAppBadge === 'function') {
+      await navigator.setAppBadge(safeCount);
+      return true;
+    }
+    if (typeof navigator.clearAppBadge === 'function') {
+      await navigator.clearAppBadge();
+      return true;
+    }
+    return false;
+  } catch (error) {
+    console.warn('[PUSH] No se pudo actualizar app badge:', error?.message || error);
+    return false;
+  }
 };

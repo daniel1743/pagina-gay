@@ -4,7 +4,7 @@ import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Button } from '@/components/ui/button';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Input } from '@/components/ui/input';
-import { MessageSquare, Video, Check, X, ExternalLink, CheckCircle, Ticket, CheckCircle2, Search, Pin } from 'lucide-react';
+import { MessageSquare, MessageCircle, Video, Check, X, ExternalLink, CheckCircle, Ticket, CheckCircle2, Search, Pin } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
 import { markNotificationAsRead, respondToPrivateChatRequest } from '@/services/socialService';
@@ -15,16 +15,18 @@ import { es } from 'date-fns/locale';
 const NotificationsPanel = ({ isOpen, onClose, notifications, onOpenPrivateChat }) => {
   const { user } = useAuth();
   const navigate = useNavigate();
+  const currentUserId = user?.id || user?.uid || null;
   const [searchQuery, setSearchQuery] = useState('');
   const [pinnedIds, setPinnedIds] = useState(() => {
     // Cargar pins desde localStorage
-    const saved = localStorage.getItem(`pins_${user?.id}`);
+    const saved = localStorage.getItem(`pins_${currentUserId || ''}`);
     return saved ? new Set(JSON.parse(saved)) : new Set();
   });
 
   const handleAcceptPrivateChat = async (notification) => {
+    if (!currentUserId) return;
     try {
-      const result = await respondToPrivateChatRequest(user.id, notification.id, true);
+      const result = await respondToPrivateChatRequest(currentUserId, notification.id, true);
 
       toast({
         title: "✅ Chat privado aceptado",
@@ -53,8 +55,9 @@ const NotificationsPanel = ({ isOpen, onClose, notifications, onOpenPrivateChat 
   };
 
   const handleRejectPrivateChat = async (notification) => {
+    if (!currentUserId) return;
     try {
-      await respondToPrivateChatRequest(user.id, notification.id, false);
+      await respondToPrivateChatRequest(currentUserId, notification.id, false);
 
       toast({
         title: "Solicitud rechazada",
@@ -70,8 +73,9 @@ const NotificationsPanel = ({ isOpen, onClose, notifications, onOpenPrivateChat 
   };
 
   const handleMarkAsRead = async (notificationId) => {
+    if (!currentUserId) return;
     try {
-      await markNotificationAsRead(user.id, notificationId);
+      await markNotificationAsRead(currentUserId, notificationId);
     } catch (error) {
       console.error('Error marking as read:', error);
     }
@@ -133,8 +137,8 @@ const NotificationsPanel = ({ isOpen, onClose, notifications, onOpenPrivateChat 
       }
 
       // Guardar en localStorage
-      if (user?.id) {
-        localStorage.setItem(`pins_${user.id}`, JSON.stringify([...newPinned]));
+      if (currentUserId) {
+        localStorage.setItem(`pins_${currentUserId}`, JSON.stringify([...newPinned]));
       }
 
       return newPinned;
@@ -403,6 +407,41 @@ const NotificationsPanel = ({ isOpen, onClose, notifications, onOpenPrivateChat 
                               <span>Rechazada</span>
                             </div>
                           )}
+                        </div>
+                      )}
+
+                      {/* Notificación de Ticket */}
+                      {notification.type === 'opin_reply' && (
+                        <div
+                          className="flex gap-3 cursor-pointer"
+                          onClick={() => {
+                            const targetUrl = notification.url || `/opin?postId=${notification.postId}&openComments=1`;
+                            navigate(targetUrl);
+                            handleMarkAsRead(notification.id);
+                            onClose();
+                          }}
+                        >
+                          <MessageCircle className="w-5 h-5 text-fuchsia-400 flex-shrink-0 mt-1" />
+                          <div className="flex-1 min-w-0">
+                            <p className="font-semibold text-sm text-foreground">
+                              {notification.title || `${notification.fromUsername || 'Alguien'} respondió tu OPIN`}
+                            </p>
+                            <p className="text-sm text-muted-foreground mt-1 line-clamp-2">
+                              {notification.content || notification.message || 'Hay una nueva respuesta en tu nota'}
+                            </p>
+                            {notification.postPreview && (
+                              <p className="text-xs text-muted-foreground/80 mt-1 line-clamp-1">
+                                Tu OPIN: {notification.postPreview}
+                              </p>
+                            )}
+                            <p className="text-xs font-medium text-muted-foreground mt-2">
+                              {getContextualTimestamp(notification.timestamp || notification.createdAt)}
+                            </p>
+                            <p className="text-xs text-fuchsia-400 mt-1 flex items-center gap-1">
+                              <ExternalLink className="w-3 h-3" />
+                              Ver conversación en OPIN
+                            </p>
+                          </div>
                         </div>
                       )}
 

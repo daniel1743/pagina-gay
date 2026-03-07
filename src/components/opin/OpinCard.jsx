@@ -11,6 +11,7 @@ import React, { useState, useEffect, useRef, forwardRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Heart, MessageCircle, MoreHorizontal, Trash2, ChevronDown, ChevronUp, Lock } from 'lucide-react';
 import { getTimeRemaining, toggleLike, hasUserLiked, deleteOpinPost, OPIN_COLORS, OPIN_REACTIONS, toggleReaction, getUserReactions, getReplyPreview, incrementViewCount } from '@/services/opinService';
+import { sendPrivateChatRequestFromOpin } from '@/services/socialService';
 import { obtenerTarjeta } from '@/services/tarjetaService';
 import MensajeTarjetaModal from '@/components/baul/MensajeTarjetaModal';
 import { useAuth } from '@/contexts/AuthContext';
@@ -43,10 +44,12 @@ const OpinCard = forwardRef(({ post, onCommentsClick, onPostDeleted, isReadOnlyM
   const [previewReplies, setPreviewReplies] = useState([]);
   const [loadingReplies, setLoadingReplies] = useState(false);
   const [commentsExpanded, setCommentsExpanded] = useState(false);
+  const [invitingTargetId, setInvitingTargetId] = useState(null);
   const cardRef = useRef(null);
 
   const isOwner = user && (user.id === post.userId || user.uid === post.userId);
   const isLoggedIn = user && !user.isAnonymous && !user.isGuest;
+  const currentUserId = user?.id || user?.uid || null;
   const totalReplies = post.commentCount || 0;
 
   const setRefs = (node) => {
@@ -208,6 +211,51 @@ const OpinCard = forwardRef(({ post, onCommentsClick, onPostDeleted, isReadOnlyM
     if (onCommentsClick) onCommentsClick(post);
   };
 
+  const getInviteErrorMessage = (error) => {
+    switch (error?.message) {
+      case 'BLOCKED':
+        return 'No puedes invitar a este usuario a chat privado.';
+      case 'REQUEST_ALREADY_PENDING':
+        return 'Ya tienes una invitación pendiente con este usuario.';
+      case 'OPIN_PRIVATE_REQUEST_RATE_LIMIT':
+        return 'Límite alcanzado: intenta nuevamente en un rato.';
+      case 'OPIN_PRIVATE_REQUEST_RECIPIENT_COOLDOWN':
+        return 'Espera unos minutos antes de volver a invitar a este usuario.';
+      case 'SELF_REQUEST_NOT_ALLOWED':
+        return 'No puedes invitarte a ti mismo.';
+      default:
+        return 'No se pudo enviar la invitación privada.';
+    }
+  };
+
+  const handleInviteToPrivateChat = async (e, targetUserId, targetUsername, metadata = {}) => {
+    e.stopPropagation();
+    if (!isLoggedIn || isReadOnlyMode) {
+      toast({ description: 'Regístrate para invitar a chat privado' });
+      return;
+    }
+
+    if (!currentUserId || !targetUserId || currentUserId === targetUserId) return;
+    if (invitingTargetId) return;
+
+    setInvitingTargetId(targetUserId);
+    try {
+      await sendPrivateChatRequestFromOpin(currentUserId, targetUserId, metadata);
+      toast({
+        title: 'Invitación enviada',
+        description: `Invitaste a ${targetUsername || 'este usuario'} a chat privado.`,
+      });
+    } catch (error) {
+      toast({
+        title: 'No se pudo invitar',
+        description: getInviteErrorMessage(error),
+        variant: 'destructive',
+      });
+    } finally {
+      setInvitingTargetId(null);
+    }
+  };
+
   // Eliminar
   const handleDelete = async (e) => {
     e.stopPropagation();
@@ -335,6 +383,21 @@ const OpinCard = forwardRef(({ post, onCommentsClick, onPostDeleted, isReadOnlyM
                 <span>{totalReplies > 0 ? `Comentarios (${totalReplies})` : 'Comentarios'}</span>
               </button>
 
+              {!isOwner && isLoggedIn && (
+                <button
+                  onClick={(e) => handleInviteToPrivateChat(
+                    e,
+                    post.userId,
+                    post.username,
+                    { postId: post.id }
+                  )}
+                  disabled={invitingTargetId === post.userId}
+                  className="ml-auto flex items-center gap-1 rounded-full px-2 py-1 bg-fuchsia-500/20 text-fuchsia-300 hover:bg-fuchsia-500/30 transition-colors disabled:opacity-60"
+                >
+                  <span>{invitingTargetId === post.userId ? 'Enviando...' : 'Invitar privado'}</span>
+                </button>
+              )}
+
               {/* Menú del dueño */}
               {isOwner && !post.isStable && (
                 <div className="relative ml-auto">
@@ -432,6 +495,20 @@ const OpinCard = forwardRef(({ post, onCommentsClick, onPostDeleted, isReadOnlyM
                             {' '}
                             {reply.comment}
                           </p>
+                          {isLoggedIn && reply.userId && reply.userId !== currentUserId && (
+                            <button
+                              onClick={(e) => handleInviteToPrivateChat(
+                                e,
+                                reply.userId,
+                                reply.username,
+                                { postId: post.id, commentId: reply.id }
+                              )}
+                              disabled={invitingTargetId === reply.userId}
+                              className="text-[11px] px-2 py-0.5 rounded-full bg-fuchsia-500/20 text-fuchsia-300 hover:bg-fuchsia-500/30 transition-colors disabled:opacity-60"
+                            >
+                              {invitingTargetId === reply.userId ? '...' : 'Privado'}
+                            </button>
+                          )}
                         </div>
                       ))}
                     </div>

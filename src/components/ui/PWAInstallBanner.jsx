@@ -2,11 +2,18 @@ import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { X, Download, Zap, Shield, Wifi } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import { useAuth } from '@/contexts/AuthContext';
 
 const PWAInstallBanner = () => {
+  const { user } = useAuth();
   const [deferredPrompt, setDeferredPrompt] = useState(null);
   const [showBanner, setShowBanner] = useState(false);
   const [isInstalled, setIsInstalled] = useState(false);
+  const [importantCount, setImportantCount] = useState(0);
+
+  const storageKey = user?.id
+    ? `chactivo:important_notifications:${user.id}`
+    : 'chactivo:important_notifications:guest';
 
   useEffect(() => {
     // Detectar si ya está instalado como PWA
@@ -47,6 +54,30 @@ const PWAInstallBanner = () => {
       window.removeEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
     };
   }, []);
+
+  useEffect(() => {
+    const syncFromStorage = () => {
+      const raw = localStorage.getItem(storageKey);
+      const count = Number.parseInt(raw || '0', 10);
+      setImportantCount(Number.isFinite(count) && count > 0 ? count : 0);
+    };
+
+    const handleImportantNotifications = (event) => {
+      const eventUserId = event?.detail?.userId || null;
+      const eventCount = Number.parseInt(String(event?.detail?.count ?? '0'), 10);
+      if (user?.id && eventUserId && eventUserId !== user.id) return;
+      setImportantCount(Number.isFinite(eventCount) && eventCount > 0 ? eventCount : 0);
+    };
+
+    syncFromStorage();
+    window.addEventListener('storage', syncFromStorage);
+    window.addEventListener('chactivo:important-notifications', handleImportantNotifications);
+
+    return () => {
+      window.removeEventListener('storage', syncFromStorage);
+      window.removeEventListener('chactivo:important-notifications', handleImportantNotifications);
+    };
+  }, [storageKey, user?.id]);
 
   const handleInstallClick = async () => {
     if (!deferredPrompt) {
@@ -130,7 +161,9 @@ const PWAInstallBanner = () => {
                   </span>
                 </h3>
                 <p className="text-sm text-gray-300">
-                  Acceso rápido desde tu pantalla de inicio
+                  {importantCount > 0
+                    ? `Tienes ${importantCount > 9 ? '9+' : importantCount} avisos importantes pendientes`
+                    : 'Acceso rápido desde tu pantalla de inicio'}
                 </p>
               </div>
             </div>
@@ -166,10 +199,15 @@ const PWAInstallBanner = () => {
             <div className="flex gap-2">
               <Button
                 onClick={handleInstallClick}
-                className="flex-1 bg-gradient-to-r from-[#E4007C] to-[#a3005a] hover:from-[#ff0087] hover:to-[#c0006b] text-white font-bold py-3 rounded-xl shadow-lg transition-all hover:scale-105"
+                className="relative flex-1 bg-gradient-to-r from-[#E4007C] to-[#a3005a] hover:from-[#ff0087] hover:to-[#c0006b] text-white font-bold py-3 rounded-xl shadow-lg transition-all hover:scale-105"
               >
                 <Download className="w-4 h-4 mr-2" />
                 Instalar Ahora
+                {importantCount > 0 && (
+                  <span className="absolute -top-2 -right-2 h-6 min-w-6 px-1 rounded-full bg-red-500 text-white text-xs font-bold flex items-center justify-center border-2 border-[#2C2A4A]">
+                    {importantCount > 9 ? '9+' : importantCount}
+                  </span>
+                )}
               </Button>
               <Button
                 onClick={handleDismiss}

@@ -56,7 +56,8 @@ const OpinComposerPage = () => {
       });
 
       toast({ description: 'Nota publicada' });
-      navigate('/opin');
+      sessionStorage.setItem('opin:just_posted', '1');
+      navigate('/opin?fromComposer=1');
     } catch (error) {
       toast({ description: error.message || 'Error al publicar', variant: 'destructive' });
     } finally {

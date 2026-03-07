@@ -13,6 +13,7 @@ import { Radio, Clock, ChevronRight, X, Users, Bell, BellRing, Calendar, Timer }
 import { suscribirseAEventos, unirseAEvento } from '@/services/eventosService';
 import { isEventoActivo, isEventoProgramado, formatCountdown, formatFechaEvento, toMs } from '@/utils/eventosUtils';
 import { setEventReminder, removeEventReminder, hasEventReminder } from '@/utils/eventReminderUtils';
+import { requestNotificationPermission } from '@/services/pushNotificationService';
 
 const PRE_EVENT_WINDOW_MS = 5 * 60 * 1000; // 5 minutos antes del inicio
 
@@ -116,13 +117,15 @@ export default function EventoBanner({ currentRoomId, onEventoActivoConRecordato
     navigate(`/chat/${evento.roomId}`);
   };
 
-  const handleRecordarme = () => {
+  const handleRecordarme = async () => {
     if (!evento) return;
 
     if (reminded) {
       removeEventReminder(evento.roomId);
       setReminded(false);
     } else {
+      // Intentar habilitar push al activar recordatorio (no bloquea si usuario rechaza)
+      await requestNotificationPermission().catch(() => null);
       setEventReminder(evento.roomId);
       setReminded(true);
       if (user?.id) {
