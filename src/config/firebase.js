@@ -113,8 +113,16 @@ if (import.meta.env.DEV) {
 
 // ✅ CRÍTICO: Localhost debe conectarse a PRODUCCIÓN por defecto
 // Solo usar emuladores si EXPLÍCITAMENTE se configura VITE_USE_FIREBASE_EMULATOR='true'
-// Esto permite probar localhost → producción antes de hacer deploy
-const usingEmulator = import.meta.env.VITE_USE_FIREBASE_EMULATOR === 'true';
+// y además estamos ejecutando en localhost.
+const emulatorRequested = import.meta.env.VITE_USE_FIREBASE_EMULATOR === 'true';
+const runtimeHostname = typeof window !== 'undefined' ? window.location.hostname : '';
+const isRuntimeLocalhost = runtimeHostname === 'localhost' || runtimeHostname === '127.0.0.1';
+const usingEmulator = emulatorRequested && isRuntimeLocalhost;
+
+if (emulatorRequested && !isRuntimeLocalhost) {
+  console.warn('⚠️ [FIREBASE] VITE_USE_FIREBASE_EMULATOR=true ignorado fuera de localhost.');
+  console.warn('⚠️ [FIREBASE] Se forzará conexión a PRODUCCIÓN para evitar auth/network-request-failed.');
+}
 
 if (usingEmulator) {
   console.warn('🔧 [FIREBASE] ⚠️⚠️⚠️ USANDO EMULADORES ⚠️⚠️⚠️');

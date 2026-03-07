@@ -10,6 +10,72 @@ import { doc, updateDoc, arrayUnion, serverTimestamp } from 'firebase/firestore'
 import { db, auth } from '@/config/firebase';
 
 const VAPID_KEY = import.meta.env.VITE_FIREBASE_VAPID_KEY;
+const PUSH_ACTIVATION_NOTICE_SESSION_KEY = 'chactivo:push_activation_notice_shown';
+const PUSH_UPDATE_NOTICE_SESSION_KEY = 'chactivo:push_update_notice_shown';
+
+const showLocalNotification = async ({ title, body, url = '/chat/principal', tag = 'chactivo-push' }) => {
+  if (typeof window === 'undefined') return false;
+  if (!('Notification' in window) || Notification.permission !== 'granted') return false;
+
+  const options = {
+    body,
+    icon: '/icon-192.png',
+    badge: '/icon-192.png',
+    tag,
+    data: { url },
+    renotify: true,
+  };
+
+  try {
+    if ('serviceWorker' in navigator) {
+      const registration = await navigator.serviceWorker.getRegistration();
+      if (registration) {
+        await registration.showNotification(title, options);
+        return true;
+      }
+    }
+
+    const notification = new Notification(title, options);
+    notification.onclick = () => {
+      try {
+        window.focus?.();
+        window.location.assign(url);
+      } catch (_) {
+        // noop
+      }
+    };
+    return true;
+  } catch (error) {
+    console.warn('[PUSH] No se pudo mostrar notificacion local:', error?.message || error);
+    return false;
+  }
+};
+
+const maybeShowPushActivationNotices = async () => {
+  if (typeof window === 'undefined') return;
+  if (sessionStorage.getItem(PUSH_ACTIVATION_NOTICE_SESSION_KEY) === '1') return;
+
+  sessionStorage.setItem(PUSH_ACTIVATION_NOTICE_SESSION_KEY, '1');
+
+  await showLocalNotification({
+    title: 'Notificaciones activadas',
+    body: 'Te avisaremos cuando te escriban o te inviten a chat privado.',
+    tag: 'push-enabled',
+    url: '/chat/principal',
+  });
+
+  if (sessionStorage.getItem(PUSH_UPDATE_NOTICE_SESSION_KEY) === '1') return;
+  sessionStorage.setItem(PUSH_UPDATE_NOTICE_SESSION_KEY, '1');
+
+  setTimeout(() => {
+    showLocalNotification({
+      title: 'Actualizacion de avisos lista',
+      body: 'Tambien recibiras avisos cuando interactuen con tu OPIN.',
+      tag: 'push-update-ready',
+      url: '/opin',
+    }).catch(() => {});
+  }, 1200);
+};
 
 /**
  * Solicita permiso de notificaciones y obtiene token FCM
@@ -70,6 +136,8 @@ export const requestNotificationPermission = async () => {
         console.log('[PUSH] Token FCM guardado en Firestore');
       }
     }
+
+    await maybeShowPushActivationNotices();
 
     return token;
   } catch (error) {

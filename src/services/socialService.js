@@ -16,7 +16,7 @@ import {
   setDoc,
   limit,
 } from 'firebase/firestore';
-import { db } from '@/config/firebase';
+import { db, auth } from '@/config/firebase';
 import { isBlockedBetween } from '@/services/blockService';
 
 const OPIN_PRIVATE_REQUESTS_PER_HOUR = 4;
@@ -80,17 +80,25 @@ export const sendDirectMessage = async (fromUserId, toUserId, content) => {
  */
 export const sendPrivateChatRequest = async (fromUserId, toUserId) => {
   try {
-    const blocked = await isBlockedBetween(fromUserId, toUserId);
+    const senderUserId = auth?.currentUser?.uid || fromUserId;
+    if (!senderUserId || !toUserId) {
+      throw new Error('MISSING_USER_IDS');
+    }
+    if (senderUserId === toUserId) {
+      throw new Error('SELF_REQUEST_NOT_ALLOWED');
+    }
+
+    const blocked = await isBlockedBetween(senderUserId, toUserId);
     if (blocked) {
       throw new Error('BLOCKED');
     }
 
     // Obtener datos del remitente
-    const fromUserDoc = await getDoc(doc(db, 'users', fromUserId));
+    const fromUserDoc = await getDoc(doc(db, 'users', senderUserId));
     const fromUserData = fromUserDoc.data();
 
     const requestData = {
-      from: fromUserId,
+      from: senderUserId,
       fromUsername: fromUserData?.username || 'Usuario',
       fromAvatar: fromUserData?.avatar || '',
       fromIsPremium: fromUserData?.isPremium || false,
@@ -191,43 +199,62 @@ export const sendPrivateChatRequestFromOpin = async (
   toUserId,
   metadata = {}
 ) => {
+  let stage = 'init';
   try {
-    if (!fromUserId || !toUserId) {
+    stage = 'validate_auth';
+    // En OPIN exigimos UID autenticado para evitar desajustes de permisos en reglas.
+    const actorUserId = auth?.currentUser?.uid || null;
+    if (!actorUserId) {
+      throw new Error('AUTH_REQUIRED');
+    }
+
+    if (!toUserId) {
       throw new Error('MISSING_USER_IDS');
     }
-    if (fromUserId === toUserId) {
+    if (actorUserId === toUserId) {
       throw new Error('SELF_REQUEST_NOT_ALLOWED');
     }
 
+    stage = 'read_rate_logs';
     const nowMs = Date.now();
     const hourAgo = new Date(nowMs - OPIN_PRIVATE_REQUEST_WINDOW_MS);
     const recipientCooldownAgoMs = nowMs - OPIN_PRIVATE_REQUEST_RECIPIENT_COOLDOWN_MS;
 
     // 1) Límite por hora + cooldown por destinatario (logs del emisor)
-    const logsRef = collection(db, 'users', fromUserId, PRIVATE_CHAT_REQUEST_LOG_COLLECTION);
-    const recentLogsSnap = await getDocs(
-      query(
-        logsRef,
-        where('createdAt', '>=', hourAgo),
-        limit(100)
-      )
-    );
-
+    const logsRef = collection(db, 'users', actorUserId, PRIVATE_CHAT_REQUEST_LOG_COLLECTION);
     let sentLastHour = 0;
     let recipientCooldownHit = false;
 
-    recentLogsSnap.docs.forEach((logDoc) => {
-      const data = logDoc.data() || {};
-      const createdAtMs = toMillis(data.createdAt);
-      if (!createdAtMs) return;
-      sentLastHour += 1;
+    try {
+      const recentLogsSnap = await getDocs(
+        query(
+          logsRef,
+          where('createdAt', '>=', hourAgo),
+          limit(100)
+        )
+      );
+
+      recentLogsSnap.docs.forEach((logDoc) => {
+        const data = logDoc.data() || {};
+        const createdAtMs = toMillis(data.createdAt);
+        if (!createdAtMs) return;
+        sentLastHour += 1;
+        if (
+          String(data.toUserId || '') === String(toUserId) &&
+          createdAtMs >= recipientCooldownAgoMs
+        ) {
+          recipientCooldownHit = true;
+        }
+      });
+    } catch (rateError) {
       if (
-        String(data.toUserId || '') === String(toUserId) &&
-        createdAtMs >= recipientCooldownAgoMs
+        rateError?.code !== 'permission-denied' &&
+        rateError?.message !== 'Missing or insufficient permissions.'
       ) {
-        recipientCooldownHit = true;
+        throw rateError;
       }
-    });
+      // Si no hay permisos para leer logs, no bloqueamos el flujo principal.
+    }
 
     if (sentLastHour >= OPIN_PRIVATE_REQUESTS_PER_HOUR) {
       throw new Error('OPIN_PRIVATE_REQUEST_RATE_LIMIT');
@@ -237,40 +264,72 @@ export const sendPrivateChatRequestFromOpin = async (
       throw new Error('OPIN_PRIVATE_REQUEST_RECIPIENT_COOLDOWN');
     }
 
-    // 2) Evitar duplicado pendiente al mismo destinatario
-    const notificationsRef = collection(db, 'users', toUserId, 'notifications');
-    const possibleDuplicatesSnap = await getDocs(
-      query(
-        notificationsRef,
-        where('from', '==', fromUserId),
-        limit(30)
-      )
-    );
+    stage = 'check_duplicate_pending';
+    // 2) Evitar duplicado pendiente al mismo destinatario (best effort).
+    // En algunos entornos las reglas no permiten leer notifications de otro usuario.
+    // Si eso pasa, seguimos con cooldown + rate limit sin romper UX.
+    try {
+      const notificationsRef = collection(db, 'users', toUserId, 'notifications');
+      const possibleDuplicatesSnap = await getDocs(
+        query(
+          notificationsRef,
+          where('from', '==', actorUserId),
+          limit(30)
+        )
+      );
 
-    const hasPending = possibleDuplicatesSnap.docs.some((item) => {
-      const data = item.data() || {};
-      return data.type === 'private_chat_request' && data.status === 'pending';
-    });
+      const hasPending = possibleDuplicatesSnap.docs.some((item) => {
+        const data = item.data() || {};
+        return data.type === 'private_chat_request' && data.status === 'pending';
+      });
 
-    if (hasPending) {
-      throw new Error('REQUEST_ALREADY_PENDING');
+      if (hasPending) {
+        throw new Error('REQUEST_ALREADY_PENDING');
+      }
+    } catch (error) {
+      if (error?.message === 'REQUEST_ALREADY_PENDING') {
+        throw error;
+      }
+      // Ignorar solo denegaciones de permiso en este chequeo opcional.
+      if (error?.code !== 'permission-denied' && error?.message !== 'Missing or insufficient permissions.') {
+        throw error;
+      }
     }
 
+    stage = 'send_private_request';
     // 3) Enviar solicitud estándar
-    const result = await sendPrivateChatRequest(fromUserId, toUserId);
+    const result = await sendPrivateChatRequest(actorUserId, toUserId);
 
+    stage = 'write_rate_log';
     // 4) Registrar en logs para anti-spam futuro
-    await addDoc(logsRef, {
-      toUserId,
-      source: 'opin',
-      postId: metadata?.postId || null,
-      commentId: metadata?.commentId || null,
-      createdAt: serverTimestamp(),
-    });
+    try {
+      await addDoc(logsRef, {
+        toUserId,
+        source: 'opin',
+        postId: metadata?.postId || null,
+        commentId: metadata?.commentId || null,
+        createdAt: serverTimestamp(),
+      });
+    } catch (logError) {
+      // No bloquear invitación por fallo de telemetría/rate-log.
+      if (
+        logError?.code !== 'permission-denied' &&
+        logError?.message !== 'Missing or insufficient permissions.'
+      ) {
+        throw logError;
+      }
+    }
 
+    stage = 'done';
     return result;
   } catch (error) {
-    console.error('Error sending private chat request from OPIN:', error);
+    console.error('Error sending private chat request from OPIN:', {
+      stage,
+      code: error?.code || null,
+      message: error?.message || String(error),
+      actorUid: auth?.currentUser?.uid || null,
+      targetUid: toUserId || null,
+    });
     throw error;
   }
 };

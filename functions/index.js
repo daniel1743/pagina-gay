@@ -504,11 +504,16 @@ function isQuietHours() {
 function resolvePushRateLimitConfig(data = {}) {
   const type = String(data?.type || "").toLowerCase();
 
-  if (type === "dm" || type === "private_chat_request") {
+  if (
+    type === "dm" ||
+    type === "direct_message" ||
+    type === "private_chat_request" ||
+    type === "private_chat_accepted"
+  ) {
     return { bucket: "realtime", limit: PUSH_RATE_LIMITS.realtime };
   }
 
-  if (type === "match") {
+  if (type === "match" || type === "profile_comment") {
     return { bucket: "social", limit: PUSH_RATE_LIMITS.social };
   }
 
@@ -616,21 +621,23 @@ async function sendPushToUser(userId, notification, data = {}) {
 
 /**
  * 1. notifyOnNewMessage
- * Trigger: Nuevo documento en privateChats/{chatId}/messages/{messageId}
- * Envia push al destinatario del DM
+ * Trigger: Nuevo documento en private_chats/{chatId}/messages/{messageId}
+ * Envia push al destinatario del mensaje privado
  */
 exports.notifyOnNewMessage = onDocumentCreated(
-  "privateChats/{chatId}/messages/{messageId}",
+  "private_chats/{chatId}/messages/{messageId}",
   async (event) => {
     const message = event.data?.data();
     if (!message) return;
+    if (message.type === "system") return;
 
     const senderId = message.senderId || message.userId;
+    if (!senderId) return;
     const senderName = message.senderName || message.username || "Alguien";
-    const text = message.text || "Te envio un mensaje";
+    const text = message.text || message.content || "Te envio un mensaje";
 
     // Obtener info del chat para saber el destinatario
-    const chatDoc = await db.collection("privateChats").doc(event.params.chatId).get();
+    const chatDoc = await db.collection("private_chats").doc(event.params.chatId).get();
     if (!chatDoc.exists) return;
 
     const chatData = chatDoc.data();
@@ -645,7 +652,7 @@ exports.notifyOnNewMessage = onDocumentCreated(
     }, {
       type: "dm",
       chatId: event.params.chatId,
-      url: `/chat`,
+      url: "/chat/principal",
       tag: `dm_${event.params.chatId}`,
     });
   }
@@ -688,8 +695,12 @@ exports.notifyOnMatch = onDocumentCreated(
 
 /**
  * 3. notifyOnPrivateChatRequest
- * Trigger: Nuevo documento en users/{userId}/notifications con tipo privateChatRequest
- * Envia push cuando alguien pide chat privado
+ * Trigger: Nuevo documento en users/{userId}/notifications
+ * Envia push para:
+ * - private_chat_request
+ * - private_chat_accepted
+ * - direct_message
+ * - profile_comment
  */
 exports.notifyOnPrivateChatRequest = onDocumentCreated(
   "users/{userId}/notifications/{notificationId}",
@@ -697,29 +708,66 @@ exports.notifyOnPrivateChatRequest = onDocumentCreated(
     const notification = event.data?.data();
     if (!notification) return;
 
-    // Solo procesar solicitudes de chat privado
-    if (notification.type !== "privateChatRequest" && notification.type !== "private_chat_request") {
+    const targetUserId = event.params.userId;
+    const senderName = notification.fromUsername || notification.senderName || "Alguien";
+    const type = String(notification.type || "").toLowerCase();
+
+    if (type === "privatechatrequest" || type === "private_chat_request") {
+      await sendPushToUser(targetUserId, {
+        title: `${senderName} quiere chatear contigo`,
+        body: "Te enviaron una solicitud de chat privado. Entra para responder.",
+      }, {
+        type: "private_chat_request",
+        url: "/chat/principal",
+        tag: "private_chat_request",
+      });
       return;
     }
 
-    const targetUserId = event.params.userId;
-    const senderName = notification.fromUsername || notification.senderName || "Alguien";
+    if (type === "private_chat_accepted") {
+      await sendPushToUser(targetUserId, {
+        title: `${senderName} acepto tu invitacion`,
+        body: "Tu chat privado ya esta listo. Entra para continuar la conversacion.",
+      }, {
+        type: "private_chat_accepted",
+        chatId: notification.chatId || "",
+        url: "/chat/principal",
+        tag: notification.tag || "private_chat_accepted",
+      });
+      return;
+    }
 
-    await sendPushToUser(targetUserId, {
-      title: `${senderName} quiere chatear contigo`,
-      body: "Te enviaron una solicitud de chat privado. Entra para responder.",
-    }, {
-      type: "private_chat_request",
-      url: "/chat",
-      tag: "private_chat_request",
-    });
+    if (type === "direct_message" || type === "dm") {
+      const message = String(notification.content || notification.message || "Te enviaron un mensaje").trim();
+      await sendPushToUser(targetUserId, {
+        title: `${senderName} te escribio`,
+        body: message.length > 100 ? `${message.substring(0, 100)}...` : message,
+      }, {
+        type: "dm",
+        url: "/chat/principal",
+        tag: notification.tag || "direct_message",
+      });
+      return;
+    }
+
+    if (type === "profile_comment") {
+      const message = String(notification.content || notification.message || "Comentaron tu perfil").trim();
+      await sendPushToUser(targetUserId, {
+        title: `${senderName} comento tu perfil`,
+        body: message.length > 100 ? `${message.substring(0, 100)}...` : message,
+      }, {
+        type: "profile_comment",
+        url: "/baul",
+        tag: notification.tag || "profile_comment",
+      });
+    }
   }
 );
 
 /**
  * 4. notifyOnOpinReply
- * Trigger: Nuevo documento en users/{userId}/notifications con tipo opin_reply
- * Envia push cuando alguien responde un OPIN del usuario.
+ * Trigger: Nuevo documento en users/{userId}/notifications con tipo opin_*
+ * Envia push cuando alguien interactua con OPIN del usuario.
  */
 exports.notifyOnOpinReply = onDocumentCreated(
   "users/{userId}/notifications/{notificationId}",
@@ -727,7 +775,8 @@ exports.notifyOnOpinReply = onDocumentCreated(
     const notification = event.data?.data();
     if (!notification) return;
 
-    if (notification.type !== "opin_reply") {
+    const type = String(notification.type || "");
+    if (!type.startsWith("opin_")) {
       return;
     }
 
@@ -738,14 +787,14 @@ exports.notifyOnOpinReply = onDocumentCreated(
     const fallbackUrl = postId ? `/opin?postId=${postId}&openComments=1` : "/opin";
 
     await sendPushToUser(targetUserId, {
-      title: `${senderName} respondió tu OPIN`,
+      title: `${senderName} interactuo con tu OPIN`,
       body: message.length > 100 ? `${message.substring(0, 100)}...` : message,
     }, {
-      type: "opin_reply",
+      type,
       postId,
       commentId: notification.commentId || "",
       url: notification.url || fallbackUrl,
-      tag: notification.tag || (postId ? `opin_reply_${postId}` : "opin_reply"),
+      tag: notification.tag || (postId ? `${type}_${postId}` : type),
     });
   }
 );

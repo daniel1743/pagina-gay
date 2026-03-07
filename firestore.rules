@@ -308,6 +308,13 @@ service cloud.firestore {
         // No se pueden actualizar ni eliminar
         allow update, delete: if false;
       }
+
+      // Logs internos para anti-spam de invitaciones privadas desde OPIN
+      match /private_chat_request_logs/{logId} {
+        allow read: if isOwner(userId);
+        allow create: if isOwner(userId);
+        allow update, delete: if false;
+      }
     }
 
     // ===========================

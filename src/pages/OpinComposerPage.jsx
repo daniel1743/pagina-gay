@@ -56,6 +56,10 @@ const OpinComposerPage = () => {
       });
 
       toast({ description: 'Nota publicada' });
+      const currentUserId = user?.id || user?.uid || null;
+      if (currentUserId) {
+        sessionStorage.removeItem(`opin:intent_cta:dismissed:${currentUserId}`);
+      }
       sessionStorage.setItem('opin:just_posted', '1');
       navigate('/opin?fromComposer=1');
     } catch (error) {

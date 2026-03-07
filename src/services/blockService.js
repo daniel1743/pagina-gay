@@ -50,8 +50,16 @@ export const unblockUser = async (blockerId, blockedUserId) => {
 export const isBlocked = async (blockerId, blockedUserId) => {
   if (!blockerId || !blockedUserId) return false;
   if (blockerId === blockedUserId) return false;
-  const snap = await getDoc(getBlockDoc(blockerId, blockedUserId));
-  return snap.exists();
+  try {
+    const snap = await getDoc(getBlockDoc(blockerId, blockedUserId));
+    return snap.exists();
+  } catch (error) {
+    // Si las reglas no permiten leer bloques ajenos, se asume no bloqueado para no romper UX.
+    if (error?.code === 'permission-denied') {
+      return false;
+    }
+    throw error;
+  }
 };
 
 /**

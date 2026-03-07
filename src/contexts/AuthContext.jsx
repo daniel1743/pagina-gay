@@ -46,6 +46,91 @@ const withTimeout = (promise, timeoutMs = 3000) => {
   ]);
 };
 
+const diagnoseFirebaseAuthConnectivity = async () => {
+  const apiKey = import.meta.env.VITE_FIREBASE_API_KEY;
+  if (!apiKey) return { kind: 'missing_api_key' };
+
+  const endpoint = `https://identitytoolkit.googleapis.com/v1/accounts:signInWithPassword?key=${apiKey}`;
+  const body = JSON.stringify({
+    email: 'diagnostic@chactivo.local',
+    password: 'invalid_password_for_diagnostic',
+    returnSecureToken: true,
+  });
+
+  try {
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 5000);
+    const response = await fetch(endpoint, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body,
+      signal: controller.signal,
+    });
+    clearTimeout(timeout);
+
+    const responseText = await response.text();
+
+    if (
+      response.status === 400 &&
+      (
+        responseText.includes('INVALID_LOGIN_CREDENTIALS') ||
+        responseText.includes('EMAIL_NOT_FOUND') ||
+        responseText.includes('INVALID_PASSWORD') ||
+        responseText.includes('INVALID_EMAIL')
+      )
+    ) {
+      return { kind: 'reachable' };
+    }
+
+    if (response.status === 403 && responseText.includes('API_KEY')) {
+      return { kind: 'api_key_restricted' };
+    }
+
+    return {
+      kind: 'http_error',
+      status: response.status,
+      snippet: responseText.slice(0, 180),
+    };
+  } catch (err) {
+    return { kind: 'network_error', message: err?.message || String(err) };
+  }
+};
+
+// Diagnóstico amigable para errores de red en Firebase Auth.
+const buildAuthNetworkErrorMessage = async () => {
+  const isOffline = typeof navigator !== 'undefined' && navigator.onLine === false;
+  const emulatorRequested = import.meta.env.VITE_USE_FIREBASE_EMULATOR === 'true';
+  const runtimeHostname = typeof window !== 'undefined' ? window.location.hostname : '';
+  const isRuntimeLocalhost = runtimeHostname === 'localhost' || runtimeHostname === '127.0.0.1';
+
+  if (isOffline) {
+    return "Sin conexión a internet. Revisa tu red e intenta de nuevo.";
+  }
+
+  if (emulatorRequested && !isRuntimeLocalhost) {
+    return "Configuración inválida detectada (emulador activo fuera de localhost). Recarga la app actualizada.";
+  }
+
+  const diagnostic = await diagnoseFirebaseAuthConnectivity();
+  const diagnosticJson = JSON.stringify(diagnostic);
+  if (typeof window !== 'undefined') {
+    window.__lastAuthNetworkDiagnostic = diagnostic;
+  }
+  console.warn('[AUTH] Diagnóstico network-request-failed (json):', diagnosticJson);
+
+  if (diagnostic.kind === 'missing_api_key') {
+    return "Falta configuración de Firebase API key en el build actual.";
+  }
+  if (diagnostic.kind === 'api_key_restricted') {
+    return "La API key de Firebase está restringida para este dominio. Revisa restricciones en Google Cloud.";
+  }
+  if (diagnostic.kind === 'reachable') {
+    return "Firebase responde, pero tu navegador está bloqueando la sesión (cache PWA vieja, VPN o bloqueador). Recarga forzada y reintenta.";
+  }
+
+  return "No pudimos conectar con Firebase Auth (red/DNS/VPN/AdBlock). Intenta en unos segundos o cambia de red.";
+};
+
 // Valor por defecto para evitar crash durante ErrorBoundary recovery o StrictMode remount
 // Cuando el Provider está desmontado brevemente, los componentes reciben este fallback
 const DEFAULT_AUTH_CONTEXT = {
@@ -595,9 +680,7 @@ export const AuthProvider = ({ children }) => {
           errorMessage = "Demasiados intentos fallidos. Intenta más tarde";
           break;
         case 'auth/network-request-failed':
-          errorMessage = !navigator.onLine
-            ? "Sin conexión a internet. Revisa tu red e intenta de nuevo."
-            : "No pudimos conectar con el servidor (error de red/DNS). Intenta de nuevo en unos segundos.";
+          errorMessage = await buildAuthNetworkErrorMessage();
           break;
         default:
           errorMessage = error.message;
@@ -729,7 +812,7 @@ export const AuthProvider = ({ children }) => {
           errorMessage = "Error de configuración. Contacta al administrador.";
           break;
         case 'auth/network-request-failed':
-          errorMessage = "Sin conexión a internet. Revisa tu red e intenta de nuevo.";
+          errorMessage = await buildAuthNetworkErrorMessage();
           break;
         default:
           errorMessage = error?.message || errorMessage;

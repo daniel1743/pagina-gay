@@ -49,7 +49,7 @@ const OpinCard = forwardRef(({ post, onCommentsClick, onPostDeleted, isReadOnlyM
 
   const isOwner = user && (user.id === post.userId || user.uid === post.userId);
   const isLoggedIn = user && !user.isAnonymous && !user.isGuest;
-  const currentUserId = user?.id || user?.uid || null;
+  const currentUserId = user?.uid || user?.id || null;
   const totalReplies = post.commentCount || 0;
 
   const setRefs = (node) => {
@@ -223,6 +223,8 @@ const OpinCard = forwardRef(({ post, onCommentsClick, onPostDeleted, isReadOnlyM
         return 'Espera unos minutos antes de volver a invitar a este usuario.';
       case 'SELF_REQUEST_NOT_ALLOWED':
         return 'No puedes invitarte a ti mismo.';
+      case 'AUTH_REQUIRED':
+        return 'Tu sesion expiro. Vuelve a iniciar sesion.';
       default:
         return 'No se pudo enviar la invitación privada.';
     }

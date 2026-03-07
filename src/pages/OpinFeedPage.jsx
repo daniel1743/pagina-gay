@@ -39,6 +39,21 @@ const OpinFeedPage = () => {
   const pageStartRef = useRef(Date.now());
 
   const isReadOnlyMode = !user || user.isAnonymous || user.isGuest;
+  const currentUserId = user?.id || user?.uid || null;
+  const pushTokenCount = Array.isArray(user?.fcmTokens) ? user.fcmTokens.length : 0;
+
+  // Push "realmente activo" = permiso navegador + estado backend + token presente.
+  useEffect(() => {
+    if (!user || user.isAnonymous || user.isGuest) {
+      setPushEnabled(isPushEnabled());
+      return;
+    }
+
+    const browserGranted = isPushEnabled();
+    const backendEnabled = user?.pushEnabled === true;
+    const hasToken = pushTokenCount > 0;
+    setPushEnabled(browserGranted && backendEnabled && hasToken);
+  }, [user, pushTokenCount]);
 
   useEffect(() => {
     if (!posts.length) return;
@@ -84,7 +99,13 @@ const OpinFeedPage = () => {
     const params = new URLSearchParams(location.search);
     const fromComposer = params.get('fromComposer') === '1';
     const sessionPosted = sessionStorage.getItem('opin:just_posted') === '1';
-    const dismissedKey = `opin:intent_cta:dismissed:${user.id}`;
+    const dismissedKey = `opin:intent_cta:dismissed:${currentUserId || ''}`;
+
+    // Cada nueva publicación vuelve a habilitar el CTA.
+    if (fromComposer || sessionPosted) {
+      sessionStorage.removeItem(dismissedKey);
+    }
+
     const dismissed = sessionStorage.getItem(dismissedKey) === '1';
     const needsNudge = !isInstalled || !pushEnabled;
 
@@ -94,7 +115,7 @@ const OpinFeedPage = () => {
     }
 
     setShowIntentCta(true);
-  }, [user, location.search, isInstalled, pushEnabled]);
+  }, [user, currentUserId, location.search, isInstalled, pushEnabled]);
 
   // ✅ SEO: Meta tags para OPIN
   useEffect(() => {
@@ -222,10 +243,6 @@ const OpinFeedPage = () => {
 
   const handleEnablePushForOpin = async () => {
     if (activatingPush) return;
-    if (!canRequestPush()) {
-      toast({ description: 'Ya definiste permisos de notificación en este navegador.' });
-      return;
-    }
 
     setActivatingPush(true);
     try {
@@ -259,8 +276,8 @@ const OpinFeedPage = () => {
   };
 
   const handleDismissIntentCta = () => {
-    if (user?.id) {
-      sessionStorage.setItem(`opin:intent_cta:dismissed:${user.id}`, '1');
+    if (currentUserId) {
+      sessionStorage.setItem(`opin:intent_cta:dismissed:${currentUserId}`, '1');
     }
     setShowIntentCta(false);
     clearComposerIntentFlags();
@@ -456,6 +473,15 @@ const OpinFeedPage = () => {
                   className="px-3 py-1.5 rounded-full bg-cyan-500 text-black text-xs font-semibold disabled:opacity-60"
                 >
                   {activatingPush ? 'Activando...' : 'Activar avisos'}
+                </button>
+              )}
+              {!pushEnabled && !canRequestPush() && (
+                <button
+                  onClick={handleEnablePushForOpin}
+                  disabled={activatingPush}
+                  className="px-3 py-1.5 rounded-full bg-cyan-500 text-black text-xs font-semibold disabled:opacity-60"
+                >
+                  {activatingPush ? 'Sincronizando...' : 'Activar avisos'}
                 </button>
               )}
               {!isInstalled && (

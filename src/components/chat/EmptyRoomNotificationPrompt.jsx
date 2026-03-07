@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Bell, X, CheckCircle } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import { requestNotificationPermission } from '@/services/systemNotificationsService';
+import { requestNotificationPermission } from '@/services/pushNotificationService';
 import { toast } from '@/components/ui/use-toast';
 
 /**
@@ -27,7 +27,8 @@ const EmptyRoomNotificationPrompt = ({ roomName, isVisible }) => {
 
   const handleRequestPermission = async () => {
     try {
-      const granted = await requestNotificationPermission();
+      const token = await requestNotificationPermission();
+      const granted = Boolean(token) || Notification.permission === 'granted';
       
       if (granted) {
         setNotificationPermission('granted');
@@ -125,4 +126,3 @@ const EmptyRoomNotificationPrompt = ({ roomName, isVisible }) => {
 };
 
 export default EmptyRoomNotificationPrompt;
-

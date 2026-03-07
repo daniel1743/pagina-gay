@@ -37,7 +37,7 @@ const OpinCommentsModal = ({ post, open, onClose }) => {
   // Detectar si es visitante (no logueado o guest)
   const isGuest = !user || user.isAnonymous || user.isGuest;
   const canInteract = !isGuest;
-  const currentUserId = user?.id || user?.uid || null;
+  const currentUserId = user?.uid || user?.id || null;
 
   useEffect(() => {
     if (open && post) {
@@ -167,6 +167,8 @@ const OpinCommentsModal = ({ post, open, onClose }) => {
         return 'Espera unos minutos antes de volver a invitar a este usuario.';
       case 'SELF_REQUEST_NOT_ALLOWED':
         return 'No puedes invitarte a ti mismo.';
+      case 'AUTH_REQUIRED':
+        return 'Tu sesion expiro. Vuelve a iniciar sesion.';
       default:
         return 'No se pudo enviar la invitacion privada.';
     }

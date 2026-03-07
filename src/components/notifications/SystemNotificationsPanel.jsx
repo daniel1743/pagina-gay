@@ -12,9 +12,9 @@ import {
   subscribeToSystemNotifications,
   markNotificationAsRead,
   markAllNotificationsAsRead,
-  requestNotificationPermission,
   NOTIFICATION_TYPES
 } from '@/services/systemNotificationsService';
+import { requestNotificationPermission } from '@/services/pushNotificationService';
 import { toast } from '@/components/ui/use-toast';
 import { formatDistanceToNow } from 'date-fns';
 import { es } from 'date-fns/locale';
@@ -51,7 +51,8 @@ const SystemNotificationsPanel = ({ isOpen, onClose, onNotificationCountChange }
 
   // Solicitar permisos de notificaciones
   const handleRequestPermission = async () => {
-    const granted = await requestNotificationPermission();
+    const token = await requestNotificationPermission();
+    const granted = Boolean(token) || Notification.permission === 'granted';
     if (granted) {
       setNotificationPermission('granted');
       toast({

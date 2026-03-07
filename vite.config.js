@@ -102,6 +102,7 @@ console.error = function(...args) {
 
 const configWindowFetchMonkeyPatch = `
 const originalFetch = window.fetch;
+const isDevMode = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
 
 window.fetch = function(...args) {
 	const url = args[0] instanceof Request ? args[0].url : args[0];
@@ -146,11 +147,11 @@ window.fetch = function(...args) {
 					// ⚡ FILTRAR: Ignorar errores 304 (Not Modified) - son normales, no son errores
 					const isNotModified = response.status === 304;
 					
-					// ⚡ FILTRAR: Ignorar errores de recursos locales en desarrollo (hot reload)
-					const isLocalResourceError = 
-						import.meta.env.DEV && 
-						(requestUrl.includes('localhost') || requestUrl.includes('127.0.0.1')) &&
-						(requestUrl.includes('.jsx') || requestUrl.includes('.js') || requestUrl.includes('.ts'));
+						// ⚡ FILTRAR: Ignorar errores de recursos locales en desarrollo (hot reload)
+						const isLocalResourceError = 
+							isDevMode && 
+							(requestUrl.includes('localhost') || requestUrl.includes('127.0.0.1')) &&
+							(requestUrl.includes('.jsx') || requestUrl.includes('.js') || requestUrl.includes('.ts'));
 					
 					// ⚡ FILTRAR: Ignorar errores de recursos insuficientes (ERR_INSUFFICIENT_RESOURCES)
 					// Estos son errores del navegador cuando hay demasiadas peticiones, no errores reales
@@ -158,14 +159,14 @@ window.fetch = function(...args) {
 						errorFromRes.includes('ERR_INSUFFICIENT_RESOURCES') ||
 						errorFromRes.includes('net::ERR_INSUFFICIENT_RESOURCES');
 					
-					if (!isFirestoreInternalError && !isFirebaseAuthError && !isGoogleAnalyticsError && !isNotModified && !isLocalResourceError && !isInsufficientResources) {
-						console.error(\`Fetch error from \${requestUrl}: \${errorFromRes}\`);
-					} else {
-						// Log silencioso para debugging (solo en desarrollo)
-						if (import.meta.env.DEV) {
-							console.debug(\`[IGNORED] Transient error (\${response.status}): \${requestUrl}\`);
+						if (!isFirestoreInternalError && !isFirebaseAuthError && !isGoogleAnalyticsError && !isNotModified && !isLocalResourceError && !isInsufficientResources) {
+							console.error(\`Fetch error from \${requestUrl}: \${errorFromRes}\`);
+						} else {
+							// Log silencioso para debugging (solo en desarrollo)
+							if (isDevMode) {
+								console.debug(\`[IGNORED] Transient error (\${response.status}): \${requestUrl}\`);
+							}
 						}
-					}
 			}
 
 			return response;
@@ -183,10 +184,10 @@ window.fetch = function(...args) {
 				url.includes('G-PZQQL7WH39') ||
 				url.includes('gtag');
 			
-			const isLocalResourceError = 
-				import.meta.env.DEV && 
-				(url.includes('localhost') || url.includes('127.0.0.1')) &&
-				(url.includes('.jsx') || url.includes('.js') || url.includes('.ts'));
+				const isLocalResourceError = 
+					isDevMode && 
+					(url.includes('localhost') || url.includes('127.0.0.1')) &&
+					(url.includes('.jsx') || url.includes('.js') || url.includes('.ts'));
 			
 			if (!url.match(/\.html?$/i) && !isInsufficientResources && !isGoogleAnalyticsError && !isLocalResourceError) {
 				console.error(error);
