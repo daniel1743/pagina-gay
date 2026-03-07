@@ -12,6 +12,10 @@ import {
 } from 'firebase/firestore';
 import { db } from '@/config/firebase';
 
+const isPermissionDeniedError = (error) => {
+  return error?.code === 'permission-denied' || error?.message?.includes('Missing or insufficient permissions');
+};
+
 /**
  * Servicio de Notificaciones del Sistema
  * Maneja notificaciones generales: bienvenida, actualizaciones, noticias, difusiones
@@ -57,9 +61,33 @@ export const createSystemNotification = async (userId, notificationData) => {
     const docRef = await addDoc(notificationsRef, notification);
     return docRef.id;
   } catch (error) {
-    console.error('Error creating system notification:', error);
+    if (!isPermissionDeniedError(error)) {
+      console.error('Error creating system notification:', error);
+    }
     throw error;
   }
+};
+
+const createUserScopedWelcomeNotification = async (userId, username) => {
+  const notificationsRef = collection(db, 'users', userId, 'notifications');
+  const notification = {
+    type: 'system_welcome',
+    title: '¡Ya estás dentro de Chactivo! 🔥',
+    content: `Bienvenido ${username || ''}. Entra a la sala y empieza a conversar 😉`.trim(),
+    from: 'system',
+    fromName: 'Chactivo',
+    fromAvatar: '/transparente_logo.png',
+    status: 'unread',
+    createdAt: serverTimestamp(),
+    timestamp: Date.now(),
+    read: false,
+    metadata: {
+      link: '/chat/principal',
+      priority: 'high',
+    },
+  };
+  const docRef = await addDoc(notificationsRef, notification);
+  return docRef.id;
 };
 
 /**
@@ -86,6 +114,17 @@ Bienvenido a Chactivo.`,
       priority: 'high',
     });
   } catch (error) {
+    if (isPermissionDeniedError(error)) {
+      // Fallback compatible con reglas de users/{uid}/notifications
+      try {
+        await createUserScopedWelcomeNotification(userId, username);
+      } catch (fallbackError) {
+        if (!isPermissionDeniedError(fallbackError)) {
+          console.error('Error creating welcome notification fallback:', fallbackError);
+        }
+      }
+      return;
+    }
     console.error('Error creating welcome notification:', error);
   }
 };

@@ -110,50 +110,54 @@ export const updateUserBanStatus = async (userId, isBanned, banType) => {
 export const getUserActiveSanctions = async (userId) => {
   try {
     const sanctionsRef = collection(db, 'sanctions');
-    // Simplificar query para evitar necesidad de índice compuesto
-    // Primero filtrar por userId, luego filtrar en memoria por status
+    // Consultar solo sanciones activas para cumplir reglas de seguridad del cliente.
     const q = query(
       sanctionsRef,
       where('userId', '==', userId),
+      where('status', '==', 'active'),
       orderBy('createdAt', 'desc')
     );
 
     const snapshot = await getDocs(q);
-    const allSanctions = snapshot.docs.map(doc => ({
+    return snapshot.docs.map(doc => ({
       id: doc.id,
       ...doc.data(),
       createdAt: doc.data().createdAt?.toDate?.()?.toISOString() || new Date().toISOString(),
       expiresAt: doc.data().expiresAt?.toDate?.()?.toISOString() || null,
     }));
-    
-    // Filtrar por status activo en memoria
-    return allSanctions.filter(s => s.status === 'active');
   } catch (error) {
-    // Si la query falla (por ejemplo, falta índice), intentar sin orderBy
-    if (error?.code === 'failed-precondition' || error?.message?.includes('index')) {
+    // Fallback sin orderBy para evitar índices compuestos y mantener compatibilidad con reglas.
+    if (
+      error?.code === 'failed-precondition' ||
+      error?.message?.includes('index') ||
+      error?.code === 'permission-denied'
+    ) {
       try {
         const sanctionsRef = collection(db, 'sanctions');
         const q = query(
           sanctionsRef,
-          where('userId', '==', userId)
+          where('userId', '==', userId),
+          where('status', '==', 'active')
         );
         const snapshot = await getDocs(q);
-        const allSanctions = snapshot.docs.map(doc => ({
+        const activeSanctions = snapshot.docs.map(doc => ({
           id: doc.id,
           ...doc.data(),
           createdAt: doc.data().createdAt?.toDate?.()?.toISOString() || new Date().toISOString(),
           expiresAt: doc.data().expiresAt?.toDate?.()?.toISOString() || null,
         }));
-        // Filtrar por status activo y ordenar en memoria
-        return allSanctions
-          .filter(s => s.status === 'active')
+        return activeSanctions
           .sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
       } catch (fallbackError) {
-        console.error('Error getting user sanctions (fallback):', fallbackError);
+        if (fallbackError?.code !== 'permission-denied') {
+          console.error('Error getting user sanctions (fallback):', fallbackError);
+        }
         return [];
       }
     }
-    console.error('Error getting user sanctions:', error);
+    if (error?.code !== 'permission-denied') {
+      console.error('Error getting user sanctions:', error);
+    }
     return [];
   }
 };
@@ -344,4 +348,3 @@ export const getSanctionStats = async () => {
     };
   }
 };
-

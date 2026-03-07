@@ -113,21 +113,24 @@ window.fetch = function(...args) {
 	}
 
 	return originalFetch.apply(this, args)
-		.then(async response => {
-			const contentType = response.headers.get('Content-Type') || '';
+			.then(async response => {
+				const contentType = response.headers.get('Content-Type') || '';
+				const requestUrl = response.url || (url || '');
 
-			// Exclude HTML document responses
-			const isDocumentResponse =
-				contentType.includes('text/html') ||
-				contentType.includes('application/xhtml+xml');
+				// Exclude HTML document responses
+				const isDocumentResponse =
+					contentType.includes('text/html') ||
+					contentType.includes('application/xhtml+xml');
 
-			if (!response.ok && !isDocumentResponse) {
-					const responseClone = response.clone();
-					const errorFromRes = await responseClone.text();
-					const requestUrl = response.url;
-					
-					// ⚡ FILTRAR: Ignorar errores internos de Firestore que son transitorios
-					const isFirestoreInternalError = 
+				// Requests opacas/no-cors (ej: analytics) a veces no traen URL visible.
+				const isOpaqueOrNoUrl = response.type === 'opaque' || !requestUrl;
+
+				if (!response.ok && !isDocumentResponse && !isOpaqueOrNoUrl) {
+						const responseClone = response.clone();
+						const errorFromRes = await responseClone.text();
+						
+						// ⚡ FILTRAR: Ignorar errores internos de Firestore que son transitorios
+						const isFirestoreInternalError = 
 						requestUrl.includes('firestore.googleapis.com') && 
 						(response.status === 400 || response.status === 500 || response.status === 503);
 					
