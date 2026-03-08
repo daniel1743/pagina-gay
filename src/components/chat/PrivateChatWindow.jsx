@@ -5,12 +5,14 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
-import { Send, X, Shield, PhoneOff, User, MoreVertical, Smile, Minus, MessageCircle, BellOff, Bell, Flag, Archive, Trash2, UserPlus, UserMinus, Check, CheckCheck } from 'lucide-react';
+import { Send, X, Shield, PhoneOff, User, MoreVertical, Smile, Minus, MessageCircle, BellOff, Bell, Flag, Archive, Trash2, UserPlus, UserMinus, Check, CheckCheck, Image } from 'lucide-react';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import { toast } from '@/components/ui/use-toast';
 import { collection, addDoc, onSnapshot, query, orderBy, serverTimestamp, doc, getDoc, writeBatch, arrayUnion } from 'firebase/firestore';
 import { EmojiStyle, Categories } from 'emoji-picker-react';
-import { db } from '@/config/firebase';
+import { ref as storageRef, uploadBytes, getDownloadURL } from 'firebase/storage';
+import imageCompression from 'browser-image-compression';
+import { db, storage } from '@/config/firebase';
 import { blockUser, isBlocked } from '@/services/blockService';
 import { createReport } from '@/services/reportService';
 import {
@@ -26,6 +28,7 @@ const EmojiPicker = lazy(() => import('emoji-picker-react'));
 const RECENT_EMOJIS_STORAGE_KEY = 'private_chat_recent_emojis_v1';
 const DEFAULT_RECENT_EMOJIS = ['😂', '😍', '🔥', '😘', '😉', '😈', '😏', '🥵', '❤️', '😎'];
 const DELETE_CONFIRM_TEXT = 'ELIMINAR';
+const PHOTO_MAX_SIZE_BYTES = 140 * 1024;
 
 const getTimestampMs = (value) => {
   if (!value) return null;
@@ -94,6 +97,8 @@ const PrivateChatWindow = ({
   const [blockState, setBlockState] = useState({ blockedByMe: false, blockedByOther: false });
   const [typingUsers, setTypingUsers] = useState([]);
   const [showEmojiPicker, setShowEmojiPicker] = useState(false);
+  const [isUploadingPhoto, setIsUploadingPhoto] = useState(false);
+  const [showPhotoTooltip, setShowPhotoTooltip] = useState(false);
   const [isMinimized, setIsMinimized] = useState(false);
   const [minimizedUnreadCount, setMinimizedUnreadCount] = useState(0);
   const [isMobileEmojiSheet, setIsMobileEmojiSheet] = useState(() => (
@@ -117,6 +122,7 @@ const PrivateChatWindow = ({
 
   const messagesEndRef = useRef(null);
   const inputRef = useRef(null);
+  const photoInputRef = useRef(null);
   const wrapperRef = useRef(null);
   const typingTimeoutRef = useRef(null);
   const hasLoadedSnapshotRef = useRef(false);
@@ -127,6 +133,8 @@ const PrivateChatWindow = ({
   const partnerId = partner?.id || partner?.userId;
   const partnerName = partner?.username || 'Usuario';
   const isChatBlocked = blockState.blockedByMe || blockState.blockedByOther;
+  const isRegisteredUser = Boolean(user?.id && !user?.isGuest && !user?.isAnonymous);
+  const canSendPhotoNow = isRegisteredUser && !isChatBlocked && Boolean(chatId);
   const mutedStorageKey = `private_chat_muted_v1_${user?.id || 'anon'}`;
   const archivedStorageKey = `private_chat_archived_v1_${user?.id || 'anon'}`;
   const deletedStorageKey = `private_chat_deleted_v1_${user?.id || 'anon'}`;
@@ -426,6 +434,150 @@ const PrivateChatWindow = ({
     setNewMessage((prev) => prev + emoji);
     registerRecentEmoji(emoji);
     inputRef.current?.focus({ preventScroll: true });
+  };
+
+  const buildPhotoBlockedDescription = () => {
+    if (!isRegisteredUser) {
+      return 'Debes iniciar sesión para subir fotos.';
+    }
+    if (isChatBlocked) {
+      return 'No puedes subir fotos porque este chat está bloqueado.';
+    }
+    if (!chatId) {
+      return 'No hay un chat privado activo para subir fotos.';
+    }
+    return '';
+  };
+
+  const getPhotoTooltipText = () => {
+    if (canSendPhotoNow) {
+      return isUploadingPhoto ? 'Subiendo foto...' : 'Subir foto';
+    }
+    return buildPhotoBlockedDescription();
+  };
+
+  const showPhotoBlockedToast = () => {
+    toast({
+      title: !isRegisteredUser ? 'Debes iniciar sesión' : 'No disponible',
+      description: buildPhotoBlockedDescription(),
+      duration: 4200,
+    });
+  };
+
+  const getImageExtension = (contentType = '') => {
+    if (contentType.includes('png')) return 'png';
+    if (contentType.includes('webp')) return 'webp';
+    if (contentType.includes('heic')) return 'heic';
+    if (contentType.includes('heif')) return 'heif';
+    return 'jpg';
+  };
+
+  const compressImageForChat = async (file) => {
+    const compressionOptions = {
+      maxSizeMB: 0.14,
+      maxWidthOrHeight: 960,
+      useWebWorker: true,
+      initialQuality: 0.68,
+    };
+
+    const compressed = await imageCompression(file, compressionOptions);
+    if (compressed.size > PHOTO_MAX_SIZE_BYTES) {
+      throw new Error('La imagen supera 140 KB tras compresión. Prueba otra imagen o recórtala antes de subir.');
+    }
+    return compressed;
+  };
+
+  const handlePhotoFileSelected = async (event) => {
+    const selectedFile = event.target.files?.[0];
+    event.target.value = '';
+
+    if (!selectedFile) return;
+    if (!canSendPhotoNow) {
+      showPhotoBlockedToast();
+      return;
+    }
+    if (!selectedFile.type?.startsWith('image/')) {
+      toast({
+        title: 'Archivo no permitido',
+        description: 'Solo se permiten archivos de imagen.',
+        variant: 'destructive',
+      });
+      return;
+    }
+
+    setIsUploadingPhoto(true);
+    try {
+      const optimizedFile = await compressImageForChat(selectedFile);
+      const tempMessageId = (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function')
+        ? crypto.randomUUID()
+        : `private_msg_${Date.now()}_${Math.random().toString(36).slice(2, 9)}`;
+      const assetId = `${Date.now()}_${Math.random().toString(36).slice(2, 7)}`;
+      const extension = getImageExtension(optimizedFile.type);
+      const mediaPath = `chat_media/private/${chatId}/${tempMessageId}/${assetId}.${extension}`;
+
+      const fileRef = storageRef(storage, mediaPath);
+      await uploadBytes(fileRef, optimizedFile, {
+        contentType: optimizedFile.type,
+        customMetadata: {
+          roomId: `private_${chatId}`,
+          userId: user?.id || '',
+          feature: 'chat_photo_access_private',
+        },
+      });
+
+      const downloadURL = await getDownloadURL(fileRef);
+
+      const messagesRef = collection(db, 'private_chats', chatId, 'messages');
+      await addDoc(messagesRef, {
+        userId: user.id,
+        username: user.username,
+        avatar: user.avatar,
+        content: downloadURL,
+        type: 'image',
+        media: [
+          {
+            kind: 'image',
+            path: mediaPath,
+            contentType: optimizedFile.type,
+            sizeBytes: optimizedFile.size,
+          },
+        ],
+        status: 'sent',
+        deliveredTo: [user.id],
+        readBy: [user.id],
+        deliveredAt: serverTimestamp(),
+        readAt: serverTimestamp(),
+        timestamp: serverTimestamp(),
+      });
+
+      notificationSounds.playMessageSentSound();
+      setShowEmojiPicker(false);
+      updatePrivateChatTypingStatus(chatId, user.id, false, user.username).catch(() => {});
+      toast({
+        title: 'Foto enviada',
+        description: 'Se publicó correctamente en el chat privado.',
+        duration: 3200,
+      });
+    } catch (error) {
+      console.error('Error sending private image message:', error);
+      toast({
+        title: 'No se pudo subir la foto',
+        description: error?.message || 'Reintenta en unos segundos.',
+        variant: 'destructive',
+      });
+    } finally {
+      setIsUploadingPhoto(false);
+      setShowPhotoTooltip(false);
+    }
+  };
+
+  const handlePhotoButtonClick = () => {
+    if (isUploadingPhoto) return;
+    if (!canSendPhotoNow) {
+      showPhotoBlockedToast();
+      return;
+    }
+    photoInputRef.current?.click();
   };
 
   const notifyLeaveOnce = async () => {
@@ -885,6 +1037,7 @@ const PrivateChatWindow = ({
               {messages.map((msg) => {
                 const isOwn = msg.userId === user.id;
                 const isSystem = msg.type === 'system';
+                const isImageMessage = msg.type === 'image';
 
                 if (isSystem) {
                   return (
@@ -911,13 +1064,41 @@ const PrivateChatWindow = ({
                     className={`w-full flex gap-2 ${isOwn ? 'justify-end' : 'justify-start'}`}
                   >
                     <div
-                      className={`inline-block w-fit min-w-[2.5rem] px-3.5 py-2.5 rounded-2xl max-w-[72%] overflow-hidden break-words break-all whitespace-pre-wrap shadow-sm ${
+                      className={`inline-block w-fit rounded-2xl overflow-hidden break-words break-all whitespace-pre-wrap shadow-sm ${
+                        isImageMessage
+                          ? 'max-w-[78%] p-1.5'
+                          : 'min-w-[2.5rem] px-3.5 py-2.5 max-w-[72%]'
+                      } ${
                         isOwn
                           ? 'magenta-gradient text-white rounded-br-md'
                           : 'bg-secondary text-foreground border border-border rounded-bl-md'
                       }`}
                     >
-                      <p className="text-sm leading-relaxed break-words break-all whitespace-pre-wrap">{msg.content}</p>
+                      {isImageMessage ? (
+                        msg.content ? (
+                          <button
+                            type="button"
+                            onClick={() => {
+                              if (typeof window !== 'undefined') {
+                                window.open(msg.content, '_blank', 'noopener,noreferrer');
+                              }
+                            }}
+                            className="block rounded-xl overflow-hidden focus:outline-none focus-visible:ring-2 focus-visible:ring-cyan-400/80"
+                            title="Abrir imagen"
+                          >
+                            <img
+                              src={msg.content}
+                              alt="Imagen del chat privado"
+                              loading="lazy"
+                              className="block w-full max-w-[220px] h-auto object-cover rounded-xl"
+                            />
+                          </button>
+                        ) : (
+                          <span className="text-xs text-muted-foreground">Imagen no disponible</span>
+                        )
+                      ) : (
+                        <p className="text-sm leading-relaxed break-words break-all whitespace-pre-wrap">{msg.content}</p>
+                      )}
                       {isOwn ? (
                         <div className="mt-1 flex items-center justify-end gap-1.5 text-[10px] text-white/70">
                           <span>{formatMessageTime(msg.timestamp)}</span>
@@ -1086,6 +1267,42 @@ const PrivateChatWindow = ({
             >
               {showEmojiPicker ? <X className="w-4 h-4" /> : <Smile className="w-4 h-4" />}
             </Button>
+
+            <div className="relative">
+              <Button
+                type="button"
+                variant="ghost"
+                size="icon"
+                onClick={handlePhotoButtonClick}
+                onMouseEnter={() => setShowPhotoTooltip(true)}
+                onMouseLeave={() => setShowPhotoTooltip(false)}
+                onFocus={() => setShowPhotoTooltip(true)}
+                onBlur={() => setShowPhotoTooltip(false)}
+                className={`h-10 w-10 rounded-full transition-colors ${
+                  canSendPhotoNow
+                    ? 'text-muted-foreground hover:text-cyan-400'
+                    : 'text-muted-foreground/80 hover:text-cyan-300'
+                } ${isUploadingPhoto ? 'opacity-70' : ''}`}
+                title={getPhotoTooltipText()}
+                aria-label="Subir imagen al chat privado"
+                aria-busy={isUploadingPhoto}
+              >
+                <Image className={`w-4 h-4 ${isUploadingPhoto ? 'animate-pulse' : ''}`} />
+              </Button>
+
+              {showPhotoTooltip && (
+                <div className="pointer-events-none absolute bottom-full left-1/2 z-30 mb-2 w-56 -translate-x-1/2 rounded-md border border-input bg-card/95 px-2 py-1 text-[11px] text-muted-foreground shadow-lg">
+                  {getPhotoTooltipText()}
+                </div>
+              )}
+            </div>
+            <input
+              ref={photoInputRef}
+              type="file"
+              accept="image/jpeg,image/jpg,image/png,image/webp,image/heic,image/heif"
+              className="hidden"
+              onChange={handlePhotoFileSelected}
+            />
 
             <Input
               ref={inputRef}
