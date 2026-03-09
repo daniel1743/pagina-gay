@@ -78,7 +78,9 @@ const TarjetaUsuario = ({
   isLoading = false,
   isLoadingHuella = false,
   interactionLocked = false,
-  onLockedAction
+  onLockedAction,
+  previewLocked = false,
+  onPreviewLockedAction
 }) => {
   const { user } = useAuth();
   const [liked, setLiked] = useState(yaLeDiLike);
@@ -170,6 +172,10 @@ const TarjetaUsuario = ({
   const handleLike = async (e) => {
     e.stopPropagation();
     if (esMiTarjeta || isLoading) return;
+    if (isPreviewLocked) {
+      onPreviewLockedAction?.('like');
+      return;
+    }
     if (interactionLocked) {
       onLockedAction?.('like');
       return;
@@ -194,6 +200,10 @@ const TarjetaUsuario = ({
   const handleMensaje = (e) => {
     e.stopPropagation();
     if (esMiTarjeta) return;
+    if (isPreviewLocked) {
+      onPreviewLockedAction?.('chat');
+      return;
+    }
     if (interactionLocked) {
       onLockedAction?.('chat');
       return;
@@ -202,6 +212,10 @@ const TarjetaUsuario = ({
   };
 
   const handleClick = () => {
+    if (isPreviewLocked) {
+      onPreviewLockedAction?.('ver_perfil');
+      return;
+    }
     onVerPerfil?.(tarjeta);
   };
 
@@ -214,6 +228,10 @@ const TarjetaUsuario = ({
   const handleDejarHuella = async (e) => {
     e.stopPropagation();
     if (esMiTarjeta || dejeHuella || isLoadingHuella) return;
+    if (isPreviewLocked) {
+      onPreviewLockedAction?.('huella');
+      return;
+    }
     if (!onDejarHuella) return;
     // Huella permitida incluso a invitados (acción ligera); el padre valida canDejarHuella
     setHuellasCount(prev => prev + 1);
@@ -227,7 +245,9 @@ const TarjetaUsuario = ({
 
   const fotoMostrar = showingSecondPhoto && hasSecondPhoto ? tarjeta.fotoUrl2 : obtenerFotoPrincipal(tarjeta);
   const hasPhoto = Boolean(fotoMostrar);
-  const shouldBlur = isSensitive && !esMiTarjeta && !revealed && hasPhoto;
+  const isPreviewLocked = Boolean(previewLocked && !esMiTarjeta);
+  const shouldBlurSensitive = isSensitive && !esMiTarjeta && !revealed;
+  const shouldBlur = (shouldBlurSensitive || isPreviewLocked) && hasPhoto;
 
   const handleTogglePhoto = (e) => {
     e.stopPropagation();
@@ -283,7 +303,11 @@ const TarjetaUsuario = ({
           <img
             src={fotoMostrar}
             alt={tarjeta.nombre}
-            className={`w-full h-full object-cover transition ${shouldBlur ? 'blur-[10px] scale-[1.02]' : ''}`}
+            className={`w-full h-full object-cover transition ${
+              shouldBlur
+                ? (isPreviewLocked ? 'blur-[18px] scale-[1.08] brightness-50 saturate-0' : 'blur-[10px] scale-[1.02]')
+                : ''
+            }`}
             loading="lazy"
           />
         ) : (
@@ -317,13 +341,28 @@ const TarjetaUsuario = ({
           </>
         )}
 
-        {shouldBlur && (
+        {shouldBlurSensitive && !isPreviewLocked && (
           <button
             type="button"
             onClick={handleReveal}
             className="absolute inset-0 z-10 flex items-center justify-center bg-black/40 text-white text-[11px] font-semibold backdrop-blur-[1px]"
           >
             Tocar para ver
+          </button>
+        )}
+        {isPreviewLocked && (
+          <button
+            type="button"
+            onClick={(e) => {
+              e.stopPropagation();
+              onPreviewLockedAction?.('ver_perfil');
+            }}
+            className="absolute inset-0 z-20 flex items-center justify-center bg-black/70 text-white text-center px-2"
+          >
+            <div className="flex flex-col items-center gap-1">
+              <span className="text-[11px] font-semibold">Ver este perfil</span>
+              <span className="text-[10px] text-cyan-200/90">Regístrate para desbloquear</span>
+            </div>
           </button>
         )}
 

@@ -12,6 +12,30 @@ import { db, auth } from '@/config/firebase';
 const VAPID_KEY = import.meta.env.VITE_FIREBASE_VAPID_KEY;
 const PUSH_ACTIVATION_NOTICE_SESSION_KEY = 'chactivo:push_activation_notice_shown';
 const PUSH_UPDATE_NOTICE_SESSION_KEY = 'chactivo:push_update_notice_shown';
+const PUSH_INTERESTS_STORAGE_PREFIX = 'chactivo:push_interests:';
+
+const DEFAULT_PUSH_INTERESTS = Object.freeze({
+  more_people_connected: true,
+  more_room_activity: true,
+  direct_messages: true,
+  profile_views: true,
+  opin_comments: true,
+  baul_card_views: true,
+});
+
+const getPushInterestsStorageKey = (userId = 'anon') => `${PUSH_INTERESTS_STORAGE_PREFIX}${userId || 'anon'}`;
+
+const normalizePushInterests = (value) => {
+  const source = value && typeof value === 'object' ? value : {};
+  return {
+    more_people_connected: source.more_people_connected !== false,
+    more_room_activity: source.more_room_activity !== false,
+    direct_messages: source.direct_messages !== false,
+    profile_views: source.profile_views !== false,
+    opin_comments: source.opin_comments !== false,
+    baul_card_views: source.baul_card_views !== false,
+  };
+};
 
 const showLocalNotification = async ({ title, body, url = '/chat/principal', tag = 'chactivo-push' }) => {
   if (typeof window === 'undefined') return false;
@@ -180,6 +204,63 @@ export const isPushEnabled = () => {
  */
 export const canRequestPush = () => {
   return 'Notification' in window && Notification.permission === 'default';
+};
+
+export const getDefaultPushInterests = () => ({ ...DEFAULT_PUSH_INTERESTS });
+
+export const getPushInterestPreferences = (userId = null) => {
+  if (typeof window === 'undefined') return getDefaultPushInterests();
+
+  const directKey = getPushInterestsStorageKey(userId || 'anon');
+  const fallbackKey = getPushInterestsStorageKey('anon');
+  const candidates = userId ? [directKey, fallbackKey] : [fallbackKey];
+
+  for (const key of candidates) {
+    try {
+      const raw = localStorage.getItem(key);
+      if (!raw) continue;
+      const parsed = JSON.parse(raw);
+      return normalizePushInterests(parsed);
+    } catch (_) {
+      // noop
+    }
+  }
+
+  return getDefaultPushInterests();
+};
+
+export const savePushInterestPreferences = async (preferences, userId = null) => {
+  const normalized = normalizePushInterests(preferences);
+  const storageKey = getPushInterestsStorageKey(userId || 'anon');
+
+  if (typeof window !== 'undefined') {
+    try {
+      localStorage.setItem(storageKey, JSON.stringify(normalized));
+      window.dispatchEvent(new CustomEvent('chactivo:push-interest-preferences-updated', {
+        detail: { userId: userId || null, preferences: normalized },
+      }));
+    } catch (_) {
+      // noop
+    }
+  }
+
+  const authUserId = auth?.currentUser?.uid || null;
+  const targetUserId = userId || authUserId;
+  if (!targetUserId || authUserId !== targetUserId) {
+    return normalized;
+  }
+
+  try {
+    const userRef = doc(db, 'users', targetUserId);
+    await updateDoc(userRef, {
+      pushInterestPreferences: normalized,
+      pushInterestPreferencesUpdatedAt: serverTimestamp(),
+    });
+  } catch (error) {
+    console.warn('[PUSH] No se pudieron guardar preferencias push en Firestore:', error?.message || error);
+  }
+
+  return normalized;
 };
 
 /**

@@ -462,10 +462,17 @@ const ChatMessages = ({
       {messageGroups.length === 0 ? (
         <div className="flex items-center justify-center py-8">
           <div className="text-center">
-            <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-purple-500 mx-auto mb-2"></div>
-            <p className="text-sm text-gray-500">
-              {isLoadingMessages ? 'Cargando mensajes...' : 'Cargando conversación...'}
-            </p>
+            {isLoadingMessages ? (
+              <>
+                <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-purple-500 mx-auto mb-2"></div>
+                <p className="text-sm text-gray-500">Cargando mensajes...</p>
+              </>
+            ) : (
+              <>
+                <p className="text-sm text-gray-500">Aún no hay mensajes en esta sala.</p>
+                <p className="text-xs text-gray-400 mt-1">Sé el primero en escribir.</p>
+              </>
+            )}
           </div>
         </div>
       ) : (

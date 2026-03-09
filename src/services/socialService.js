@@ -78,7 +78,7 @@ export const sendDirectMessage = async (fromUserId, toUserId, content) => {
  * Envía una solicitud de chat privado
  * La solicitud aparece en las notificaciones del destinatario con opciones Aceptar/Rechazar
  */
-export const sendPrivateChatRequest = async (fromUserId, toUserId) => {
+export const sendPrivateChatRequest = async (fromUserId, toUserId, options = {}) => {
   try {
     const senderUserId = auth?.currentUser?.uid || fromUserId;
     if (!senderUserId || !toUserId) {
@@ -97,6 +97,20 @@ export const sendPrivateChatRequest = async (fromUserId, toUserId) => {
     const fromUserDoc = await getDoc(doc(db, 'users', senderUserId));
     const fromUserData = fromUserDoc.data();
 
+    const expiresAtMs = Number(options?.expiresAtMs);
+    const safeExpiresAtMs = Number.isFinite(expiresAtMs) && expiresAtMs > Date.now()
+      ? Math.floor(expiresAtMs)
+      : null;
+    const source = typeof options?.source === 'string' && options.source.trim()
+      ? options.source.trim()
+      : 'manual';
+    const systemPrompt = typeof options?.systemPrompt === 'string' && options.systemPrompt.trim()
+      ? options.systemPrompt.trim()
+      : null;
+    const suggestedStarter = typeof options?.suggestedStarter === 'string' && options.suggestedStarter.trim()
+      ? options.suggestedStarter.trim()
+      : null;
+
     const requestData = {
       from: senderUserId,
       fromUsername: fromUserData?.username || 'Usuario',
@@ -108,6 +122,10 @@ export const sendPrivateChatRequest = async (fromUserId, toUserId) => {
       status: 'pending', // pending | accepted | rejected
       read: false,
       timestamp: serverTimestamp(),
+      source,
+      ...(systemPrompt ? { systemPrompt } : {}),
+      ...(suggestedStarter ? { suggestedStarter } : {}),
+      ...(safeExpiresAtMs ? { expiresAtMs: safeExpiresAtMs } : {}),
     };
 
     // Guardar en notificaciones del destinatario
@@ -482,12 +500,30 @@ export const respondToPrivateChatRequest = async (
       throw new Error('INVALID_REQUEST_TYPE');
     }
 
+    const expiresAtMs = Number(notificationData.expiresAtMs || 0);
+    if (
+      notificationData.status === 'pending' &&
+      Number.isFinite(expiresAtMs) &&
+      expiresAtMs > 0 &&
+      Date.now() > expiresAtMs
+    ) {
+      await updateDoc(notificationRef, {
+        status: 'expired',
+        read: true,
+        respondedAt: serverTimestamp(),
+      });
+      throw new Error('REQUEST_EXPIRED');
+    }
+
     // Idempotencia: si ya fue procesada, devolver estado sin romper UX
     if (notificationData.status && notificationData.status !== 'pending') {
       if (notificationData.status === 'accepted' && notificationData.from) {
         // userId primero para que la query sea compatible con reglas Firestore
         const { chatId } = await getOrCreatePrivateChat(userId, notificationData.from);
         return { success: true, chatId, alreadyProcessed: true };
+      }
+      if (notificationData.status === 'expired') {
+        throw new Error('REQUEST_EXPIRED');
       }
       return { success: true, alreadyProcessed: true };
     }

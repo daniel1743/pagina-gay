@@ -4,8 +4,8 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useAuth } from '@/contexts/AuthContext';
-import { subscribeToNotifications } from '@/services/socialService';
-import { updateAppBadge } from '@/services/pushNotificationService';
+import { markNotificationAsRead, subscribeToNotifications } from '@/services/socialService';
+import { getPushInterestPreferences, updateAppBadge } from '@/services/pushNotificationService';
 import { toast } from '@/components/ui/use-toast';
 import NotificationsPanel from './NotificationsPanel';
 
@@ -26,17 +26,64 @@ const isImportantNotification = (notification) => {
   return type.startsWith('opin_');
 };
 
+const normalizePreferences = (userId) => getPushInterestPreferences(userId);
+
+const notificationMatchesPreferences = (notification, preferences) => {
+  const type = String(notification?.type || '');
+  if (!type) return true;
+
+  if (type === 'direct_message' || type === 'private_chat_request' || type === 'private_chat_accepted') {
+    return preferences.direct_messages !== false;
+  }
+  if (type.startsWith('opin_')) {
+    return preferences.opin_comments !== false;
+  }
+  if (type === 'profile_comment' || type === 'profile_view' || type.startsWith('profile_')) {
+    return preferences.profile_views !== false;
+  }
+  if (type.startsWith('tarjeta_')) {
+    return preferences.baul_card_views !== false;
+  }
+  if (
+    type === 'room_activity'
+    || type === 'presence_spike'
+    || type.includes('activity')
+    || type.includes('presence')
+  ) {
+    return preferences.more_room_activity !== false || preferences.more_people_connected !== false;
+  }
+
+  return true;
+};
+
 const NotificationBell = ({ onOpenPrivateChat }) => {
   const { user } = useAuth(); // ✅ Usar useAuth normal (NotificationBell SIEMPRE está dentro de AuthProvider)
   const [isOpen, setIsOpen] = useState(false);
   const [notifications, setNotifications] = useState([]);
   const [importantCount, setImportantCount] = useState(0);
+  const [interestPreferences, setInterestPreferences] = useState(() => normalizePreferences(user?.id || null));
   const previousCountRef = useRef(0);
   const onOpenPrivateChatRef = useRef(onOpenPrivateChat);
 
   useEffect(() => {
     onOpenPrivateChatRef.current = onOpenPrivateChat;
   }, [onOpenPrivateChat]);
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return undefined;
+
+    const userId = user?.id || null;
+    setInterestPreferences(normalizePreferences(userId));
+
+    const handler = (event) => {
+      const eventUserId = event?.detail?.userId || null;
+      if (eventUserId && userId && eventUserId !== userId) return;
+      setInterestPreferences(normalizePreferences(userId));
+    };
+
+    window.addEventListener('chactivo:push-interest-preferences-updated', handler);
+    return () => window.removeEventListener('chactivo:push-interest-preferences-updated', handler);
+  }, [user?.id]);
 
   useEffect(() => {
     if (!user || user.isGuest || user.isAnonymous) return;
@@ -50,13 +97,16 @@ const NotificationBell = ({ onOpenPrivateChat }) => {
         // ✅ Solo actualizar si el componente está montado
         if (!isMounted) return;
 
-        const currentCount = newNotifications.length;
+        const filteredNotifications = newNotifications.filter((item) =>
+          notificationMatchesPreferences(item, interestPreferences)
+        );
+        const currentCount = filteredNotifications.length;
         const previousCount = previousCountRef.current;
 
         // Si hay nuevas notificaciones, mostrar toast y/o abrir ventana
         // ✅ FIX: Solo mostrar toasts si hay diferencia y es un incremento
         if (currentCount > previousCount && previousCount > 0 && currentCount - previousCount === 1) {
-          const latestNotification = newNotifications[0];
+          const latestNotification = filteredNotifications[0];
 
           if (latestNotification.type === 'direct_message') {
             toast({
@@ -99,8 +149,10 @@ const NotificationBell = ({ onOpenPrivateChat }) => {
         }
 
         previousCountRef.current = currentCount;
-        setNotifications(newNotifications);
-        setImportantCount(newNotifications.filter(isImportantNotification).length);
+        setNotifications(filteredNotifications);
+        setImportantCount(
+          filteredNotifications.filter((item) => !item.read && isImportantNotification(item)).length
+        );
       });
     } catch (error) {
       console.error('Error setting up notifications subscription:', error);
@@ -118,7 +170,18 @@ const NotificationBell = ({ onOpenPrivateChat }) => {
         }
       }
     };
-  }, [user?.id, user?.isGuest, user?.isAnonymous]);
+  }, [interestPreferences, user?.id, user?.isGuest, user?.isAnonymous]);
+
+  useEffect(() => {
+    if (!isOpen || !user?.id || user.isGuest || user.isAnonymous) return;
+
+    const unreadImportant = notifications.filter((item) => !item.read && isImportantNotification(item));
+    if (unreadImportant.length === 0) return;
+
+    unreadImportant.forEach((item) => {
+      markNotificationAsRead(user.id, item.id).catch(() => {});
+    });
+  }, [isOpen, notifications, user?.id, user?.isGuest, user?.isAnonymous]);
 
   useEffect(() => {
     if (!user?.id || user.isGuest || user.isAnonymous) return;

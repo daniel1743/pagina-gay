@@ -12,6 +12,7 @@ import { collection, addDoc, onSnapshot, query, orderBy, serverTimestamp, doc, g
 import { EmojiStyle, Categories } from 'emoji-picker-react';
 import { ref as storageRef, uploadBytes, getDownloadURL } from 'firebase/storage';
 import imageCompression from 'browser-image-compression';
+import { useNavigate } from 'react-router-dom';
 import { db, storage } from '@/config/firebase';
 import { blockUser, isBlocked } from '@/services/blockService';
 import { createReport } from '@/services/reportService';
@@ -29,6 +30,7 @@ const RECENT_EMOJIS_STORAGE_KEY = 'private_chat_recent_emojis_v1';
 const DEFAULT_RECENT_EMOJIS = ['😂', '😍', '🔥', '😘', '😉', '😈', '😏', '🥵', '❤️', '😎'];
 const DELETE_CONFIRM_TEXT = 'ELIMINAR';
 const PHOTO_MAX_SIZE_BYTES = 140 * 1024;
+const GUEST_PRIVATE_MESSAGES_LIMIT = 12;
 
 const getTimestampMs = (value) => {
   if (!value) return null;
@@ -92,6 +94,7 @@ const PrivateChatWindow = ({
   onArchiveConversation,
   onDeleteConversation,
 }) => {
+  const navigate = useNavigate();
   const [messages, setMessages] = useState([]);
   const [newMessage, setNewMessage] = useState(initialMessage || '');
   const [blockState, setBlockState] = useState({ blockedByMe: false, blockedByOther: false });
@@ -138,6 +141,11 @@ const PrivateChatWindow = ({
   const mutedStorageKey = `private_chat_muted_v1_${user?.id || 'anon'}`;
   const archivedStorageKey = `private_chat_archived_v1_${user?.id || 'anon'}`;
   const deletedStorageKey = `private_chat_deleted_v1_${user?.id || 'anon'}`;
+  const guestPrivateCounterKey = useMemo(
+    () => `private_chat_guest_counter_v1_${user?.id || 'anon'}_${chatId || 'nochat'}`,
+    [user?.id, chatId]
+  );
+  const [guestPrivateSentCount, setGuestPrivateSentCount] = useState(0);
 
   const isMobileViewport = isMobileEmojiSheet;
   const desktopWindowWidth = 420;
@@ -198,6 +206,43 @@ const PrivateChatWindow = ({
     setIsMuted(mutedSet.has(chatId));
     setIsArchived(archivedSet.has(chatId));
   }, [chatId, mutedStorageKey, archivedStorageKey]);
+
+  useEffect(() => {
+    if (isRegisteredUser || !chatId) {
+      setGuestPrivateSentCount(0);
+      return;
+    }
+    try {
+      const raw = localStorage.getItem(guestPrivateCounterKey);
+      const parsed = Number(raw || 0);
+      setGuestPrivateSentCount(Number.isFinite(parsed) ? Math.max(0, parsed) : 0);
+    } catch {
+      setGuestPrivateSentCount(0);
+    }
+  }, [chatId, guestPrivateCounterKey, isRegisteredUser]);
+
+  const showGuestPrivateLimitToast = () => {
+    toast({
+      title: 'Debes registrarte para continuar',
+      description: 'Ya usaste tus 12 mensajes privados como invitado.',
+      duration: 4500,
+      action: {
+        label: 'Registrarme',
+        onClick: () => navigate('/auth'),
+      },
+    });
+  };
+
+  const registerGuestPrivateMessage = () => {
+    if (isRegisteredUser) return;
+    const nextCount = guestPrivateSentCount + 1;
+    setGuestPrivateSentCount(nextCount);
+    try {
+      localStorage.setItem(guestPrivateCounterKey, String(nextCount));
+    } catch {
+      // noop
+    }
+  };
 
   useEffect(() => {
     if (!user?.id || !partnerId) return;
@@ -616,6 +661,10 @@ const PrivateChatWindow = ({
     }
 
     const contentToSend = newMessage.trim();
+    if (!isRegisteredUser && guestPrivateSentCount >= GUEST_PRIVATE_MESSAGES_LIMIT) {
+      showGuestPrivateLimitToast();
+      return;
+    }
 
     try {
       const messagesRef = collection(db, 'private_chats', chatId, 'messages');
@@ -634,6 +683,7 @@ const PrivateChatWindow = ({
       });
 
       notificationSounds.playMessageSentSound();
+      registerGuestPrivateMessage();
       setNewMessage('');
       setShowEmojiPicker(false);
       updatePrivateChatTypingStatus(chatId, user.id, false, user.username).catch(() => {});

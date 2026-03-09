@@ -114,7 +114,6 @@ function MainLayout({ children }) {
 // Layout especial para OPIN - sin padding-top cuando usuario no está logueado
 function OpinLayout({ children }) {
   const { user } = useAuth();
-  const isReadOnlyMode = !user || user.isAnonymous || user.isGuest;
 
   return (
     <div className="flex flex-col min-h-screen">
@@ -127,7 +126,7 @@ function OpinLayout({ children }) {
         }
       `}</style>
       <Header />
-      <main className={`flex-1 pb-16 lg:pb-0 ${isReadOnlyMode ? '' : 'pt-16 sm:pt-20'}`}>{children}</main>
+      <main className="flex-1 pb-16 lg:pb-0">{children}</main>
       <Footer />
       <ChatBottomNav />
     </div>

@@ -56,6 +56,8 @@ import { getCurrentLocation } from '@/services/geolocationService';
 import { toast } from '@/components/ui/use-toast';
 import { track, getSessionId } from '@/services/eventTrackingService';
 
+const GUEST_VISIBLE_CARDS_LIMIT = 15;
+
 /**
  * Header del Baúl
  */
@@ -386,6 +388,18 @@ const BaulSection = ({ isOpen = true, onClose, variant = 'modal' }) => {
     toast({
       title: 'Crea tu perfil para interactuar',
       description: 'Regístrate para dar like, chatear y aparecer en Baúl.',
+      duration: 5000,
+      action: {
+        label: 'Crear cuenta',
+        onClick: () => navigate('/auth')
+      }
+    });
+  }, [navigate]);
+
+  const showGuestViewProfilePrompt = useCallback(() => {
+    toast({
+      title: 'Regístrate para ver este perfil',
+      description: 'Desbloquea todas las tarjetas del Baúl creando tu cuenta gratis.',
       duration: 5000,
       action: {
         label: 'Crear cuenta',
@@ -797,26 +811,39 @@ const BaulSection = ({ isOpen = true, onClose, variant = 'modal' }) => {
 
                 {/* Grid de tarjetas */}
                 <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-2.5 sm:gap-3">
-                  {tarjetasVisibles.map((tarjeta) => {
-                    const tarjetaId = tarjeta.odIdUsuari || tarjeta.id;
-                    const esMiTarjetaActual = tarjetaId === odIdUsuari;
-                    return (
-                    <TarjetaUsuario
-                      key={tarjetaId}
-                      tarjeta={tarjeta}
-                      esMiTarjeta={esMiTarjetaActual}
-                      yaLeDiLike={likesData[tarjeta.odIdUsuari] || false}
-                      yaDejeHuella={huellasData[tarjeta.odIdUsuari] || false}
-                      onLike={handleLike}
-                      onMensaje={handleMensaje}
-                      onDejarHuella={handleDejarHuella}
-                      onImpresion={handleImpresion}
-                      onVerPerfil={handleVerPerfil}
-                      isLoadingHuella={loadingHuella === tarjetaId}
-                      interactionLocked={isGuestView && !esMiTarjetaActual}
-                      onLockedAction={showGuestPrompt}
-                    />
-                  );})}
+                  {(() => {
+                    let guestNonOwnCardCount = 0;
+                    return tarjetasVisibles.map((tarjeta) => {
+                      const tarjetaId = tarjeta.odIdUsuari || tarjeta.id;
+                      const esMiTarjetaActual = tarjetaId === odIdUsuari;
+                      const shouldBlurForGuestGate =
+                        isGuestView &&
+                        !esMiTarjetaActual &&
+                        guestNonOwnCardCount >= GUEST_VISIBLE_CARDS_LIMIT;
+                      if (!esMiTarjetaActual) {
+                        guestNonOwnCardCount += 1;
+                      }
+                      return (
+                        <TarjetaUsuario
+                          key={tarjetaId}
+                          tarjeta={tarjeta}
+                          esMiTarjeta={esMiTarjetaActual}
+                          yaLeDiLike={likesData[tarjeta.odIdUsuari] || false}
+                          yaDejeHuella={huellasData[tarjeta.odIdUsuari] || false}
+                          onLike={handleLike}
+                          onMensaje={handleMensaje}
+                          onDejarHuella={handleDejarHuella}
+                          onImpresion={handleImpresion}
+                          onVerPerfil={handleVerPerfil}
+                          isLoadingHuella={loadingHuella === tarjetaId}
+                          interactionLocked={(isGuestView && !esMiTarjetaActual) || shouldBlurForGuestGate}
+                          onLockedAction={showGuestPrompt}
+                          previewLocked={shouldBlurForGuestGate}
+                          onPreviewLockedAction={showGuestViewProfilePrompt}
+                        />
+                      );
+                    });
+                  })()}
                 </div>
 
             {/* Info de ubicación */}

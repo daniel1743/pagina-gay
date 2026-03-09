@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { Menu, Home, Volume2, VolumeX, X, Eye } from 'lucide-react';
 import NotificationBell from '@/components/notifications/NotificationBell';
+import NotificationInterestsMenu from '@/components/notifications/NotificationInterestsMenu';
 import { notificationSounds } from '@/services/notificationSounds';
 import { useAuth } from '@/contexts/AuthContext';
 
@@ -134,6 +135,7 @@ const ChatHeader = ({
           </Button>
         </div>
         
+        <NotificationInterestsMenu />
         <NotificationBell onOpenPrivateChat={onOpenPrivateChat} />
         <Button
           variant="ghost"
