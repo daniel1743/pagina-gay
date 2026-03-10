@@ -51,6 +51,8 @@ const ChatStatesStrip = ({ roomId = 'principal', user }) => {
 
   const isEnabled = roomId === 'principal';
   const currentUserId = user?.id || null;
+  const isGuestUser = Boolean(user?.isGuest || user?.isAnonymous);
+  const statesHint = isGuestUser ? 'Solo lectura' : '24h';
   const ownState = useMemo(() => states.find((item) => item.userId === currentUserId) || null, [states, currentUserId]);
 
   const loadStates = useCallback(async () => {
@@ -97,6 +99,15 @@ const ChatStatesStrip = ({ roomId = 'principal', user }) => {
   if (!isEnabled) return null;
 
   const handleOpenComposer = () => {
+    if (isGuestUser) {
+      toast({
+        title: 'Solo lectura para invitados',
+        description: 'Regístrate para publicar estados.',
+        variant: 'destructive',
+      });
+      return;
+    }
+
     if (ownState) {
       setSelectedState(ownState);
       return;
@@ -123,6 +134,8 @@ const ChatStatesStrip = ({ roomId = 'principal', user }) => {
         username: user?.username || 'Usuario',
         avatar: user?.avatar || DEFAULT_AVATAR,
         roleBadge: user?.roleBadge || user?.profileRole || user?.role || null,
+        isGuest: user?.isGuest || false,
+        isAnonymous: user?.isAnonymous || false,
         message: text,
       });
 
@@ -149,6 +162,18 @@ const ChatStatesStrip = ({ roomId = 'principal', user }) => {
         toast({
           title: 'Sesión no lista',
           description: 'Espera 2 segundos e inténtalo de nuevo.',
+          variant: 'destructive',
+        });
+      } else if (error?.message === 'state/registered-only') {
+        toast({
+          title: 'Regístrate para publicar',
+          description: 'Como invitado puedes ver estados, pero no publicar.',
+          variant: 'destructive',
+        });
+      } else if (error?.message === 'state/photo-required') {
+        toast({
+          title: 'Foto de perfil obligatoria',
+          description: 'Desde el 4to estado debes subir una foto de perfil real para publicar.',
           variant: 'destructive',
         });
       } else if (error?.code === 'permission-denied') {
@@ -190,10 +215,10 @@ const ChatStatesStrip = ({ roomId = 'principal', user }) => {
 
   return (
     <div className="px-3 pt-2 pb-2 border-b border-border/60 bg-card/40">
-      <div className="mb-2 flex items-center justify-between">
+      <div className="mb-1 flex items-center justify-between">
         <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Estados</p>
         <p className="text-[11px] text-muted-foreground">
-          1 por 24h por usuario
+          {statesHint}
         </p>
       </div>
 
@@ -258,6 +283,9 @@ const ChatStatesStrip = ({ roomId = 'principal', user }) => {
               <span>Se elimina solo a las 24h.</span>
               <span>{composeText.length}/{MAX_STATE_LENGTH}</span>
             </div>
+            <p className="text-[11px] text-muted-foreground">
+              Tip: puedes publicar 3 estados sin foto real; desde el 4to se pedirá foto de perfil.
+            </p>
             <div className="flex justify-end gap-2">
               <Button variant="ghost" onClick={() => setIsComposeOpen(false)}>Cancelar</Button>
               <Button onClick={handlePublishState} disabled={isSubmitting || !composeText.trim()}>

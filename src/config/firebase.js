@@ -50,10 +50,25 @@ export const auth = getAuth(app);
 export const db = (() => {
   try {
     // Configuración robusta para redes inestables/proxys/ISP con problemas QUIC/WebChannel.
-    return initializeFirestore(app, {
-      experimentalAutoDetectLongPolling: true,
-      useFetchStreams: false,
-    });
+    // Por defecto forzamos long polling para evitar "primer snapshot" muy tardío (20-40s).
+    // Se puede desactivar con VITE_FIRESTORE_FORCE_LONG_POLLING=false
+    const forceLongPolling = import.meta.env.VITE_FIRESTORE_FORCE_LONG_POLLING !== 'false';
+
+    const firestoreSettings = forceLongPolling
+      ? {
+          experimentalForceLongPolling: true,
+          useFetchStreams: false,
+        }
+      : {
+          experimentalAutoDetectLongPolling: true,
+          useFetchStreams: false,
+        };
+
+    if (import.meta.env.DEV) {
+      console.log(`[FIREBASE] Firestore transport: ${forceLongPolling ? 'forceLongPolling' : 'autoDetectLongPolling'}`);
+    }
+
+    return initializeFirestore(app, firestoreSettings);
   } catch (error) {
     // Si ya existe una instancia inicializada, reutilizar la instancia por defecto.
     return getFirestore(app);

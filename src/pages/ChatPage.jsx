@@ -3794,7 +3794,7 @@ const ChatPage = () => {
 
           {/* Banner de Push Notifications */}
           {showPushBanner && (
-            <div className="px-4 py-2 bg-purple-500/10 border-b border-purple-500/20 flex items-center justify-between gap-3">
+            <div className="hidden md:flex px-4 py-2 bg-purple-500/10 border-b border-purple-500/20 items-center justify-between gap-3">
               <p className="text-sm text-purple-300">Activa notificaciones para mensajes, eventos y recordatorios de hora pico</p>
               <div className="flex gap-2 flex-shrink-0">
                 <button
@@ -3821,21 +3821,25 @@ const ChatPage = () => {
           <div className="flex-1 overflow-hidden flex flex-col min-h-0">
             {/* 🎯 OPIN Discovery Banner - Solo para invitados */}
             {user && (user.isGuest || user.isAnonymous) && (
-              <div className="px-4 pt-4">
+              <div className="hidden md:block px-4 pt-4">
                 <OpinDiscoveryBanner onOpenOpin={handleOpenOpin} />
               </div>
             )}
 
             {/* 🚀 BANNER PROMOCIONAL Baúl + OPIN - Solo para usuarios registrados */}
             {user && !user.isGuest && !user.isAnonymous && (
-              <TarjetaPromoBanner
-                onOpenBaul={handleOpenBaul}
-                onOpenOpin={handleOpenOpin}
-              />
+              <div className="hidden md:block">
+                <TarjetaPromoBanner
+                  onOpenBaul={handleOpenBaul}
+                  onOpenOpin={handleOpenOpin}
+                />
+              </div>
             )}
 
             {/* 📅 Banner de evento activo/próximo */}
-            <EventoBanner currentRoomId={roomId} onEventoActivoConRecordatorio={handleEventoActivoConRecordatorio} />
+            <div className="hidden md:block">
+              <EventoBanner currentRoomId={roomId} onEventoActivoConRecordatorio={handleEventoActivoConRecordatorio} />
+            </div>
 
             {/* ⏳ Siempre renderizar ChatMessages; él decide si mostrar loading o contenido */}
             <ChatMessages

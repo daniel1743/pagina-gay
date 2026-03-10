@@ -405,8 +405,8 @@ service cloud.firestore {
       // Lectura pública para que cualquier persona en la sala vea estados
       allow read: if true;
 
-      // Cada usuario solo puede crear/actualizar su propio estado
-      allow create, update: if isAuthenticated() &&
+      // Cada usuario REGISTRADO solo puede crear/actualizar su propio estado
+      allow create, update: if isRegistered() &&
                               request.auth.uid == stateUserId &&
                               request.resource.data.userId == request.auth.uid &&
                               request.resource.data.username is string &&
@@ -414,8 +414,8 @@ service cloud.firestore {
                               request.resource.data.message.size() > 0 &&
                               request.resource.data.message.size() <= 160;
 
-      // Solo el dueño del estado puede eliminarlo
-      allow delete: if isAuthenticated() && request.auth.uid == stateUserId;
+      // Solo el dueño REGISTRADO del estado puede eliminarlo
+      allow delete: if isRegistered() && request.auth.uid == stateUserId;
     }
 
     // ===========================

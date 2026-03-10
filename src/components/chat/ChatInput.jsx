@@ -75,13 +75,6 @@ const COMUNA_OPTIONS = [
   'Valparaíso',
 ];
 
-const FIRST_MESSAGE_PROMPTS = [
-  '¿Quién de Santiago Centro?',
-  'Activo buscando pasivo 👀',
-  '¿Alguien despierto a esta hora?',
-  '¿Quién tiene lugar?',
-];
-
 const PHOTO_MAX_SIZE_BYTES = 140 * 1024;
 const PHOTO_HOURLY_LIMIT = 3;
 const PHOTO_VISIBLE_LIMIT = 3;
@@ -151,7 +144,7 @@ const ChatInput = ({
   const hasVisiblePhotoLimit = visiblePhotoCount >= PHOTO_VISIBLE_LIMIT;
   const canSendPhotoNow = isRegisteredUser && roomId === 'principal';
 
-  const shouldShowOnboarding = showOnboardingHints && !onboardingDismissed && !firstMessageSentInSession;
+  const shouldShowOnboarding = showOnboardingHints && !onboardingDismissed && !firstMessageSentInSession && !isMobileEmojiSheet;
 
   const persistSessionFlag = (key, value = '1') => {
     if (typeof window === 'undefined') return;
@@ -547,14 +540,6 @@ const ChatInput = ({
     });
   };
 
-  const handlePromptClick = (prompt) => {
-    setMessage(prompt);
-    textareaRef.current?.focus({ preventScroll: true });
-    trackOnboardingEvent('onboarding_prompt_click', {
-      prompt_text: prompt,
-    });
-  };
-
   const handleMessageChange = (event) => {
     const nextMessage = event.target.value;
     setMessage(nextMessage);
@@ -942,18 +927,6 @@ const ChatInput = ({
             )}
           </div>
 
-          <div className="flex gap-1.5 overflow-x-auto scrollbar-hide px-0.5">
-            {FIRST_MESSAGE_PROMPTS.map((prompt) => (
-              <button
-                key={prompt}
-                type="button"
-                onClick={() => handlePromptClick(prompt)}
-                className="shrink-0 rounded-full border border-gray-600/60 bg-gray-700/45 px-3 py-1.5 text-xs font-medium text-gray-100 transition-colors hover:border-gray-500/70 hover:bg-gray-700/65"
-              >
-                {prompt}
-              </button>
-            ))}
-          </div>
         </div>
       )}
 

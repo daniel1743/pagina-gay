@@ -15,6 +15,20 @@ import { resolveProfileRole } from '@/config/profileRoles';
 
 const STATE_TTL_MS = 24 * 60 * 60 * 1000;
 const DEFAULT_FETCH_LIMIT = 60;
+const MAX_NO_PHOTO_STATES = 3;
+
+const GENERIC_AVATAR_PATTERNS = [
+  'dicebear.com',
+  'ui-avatars.com',
+  'gravatar.com/avatar',
+  '/avatar_por_defecto',
+  'default-avatar',
+  'default_avatar',
+  'no-avatar',
+  'no_avatar',
+  'blank-profile',
+  'blank_profile',
+];
 
 const toMillisSafe = (value) => {
   if (!value) return null;
@@ -26,6 +40,14 @@ const toMillisSafe = (value) => {
 
 const getStatesCollectionRef = (roomId) => collection(db, 'rooms', roomId, 'states');
 const getStateDocRef = (roomId, userId) => doc(db, 'rooms', roomId, 'states', userId);
+const getUserDocRef = (userId) => doc(db, 'users', userId);
+
+const hasRealProfilePhoto = (avatarUrl) => {
+  const safeUrl = String(avatarUrl || '').trim().toLowerCase();
+  if (!safeUrl) return false;
+  if (GENERIC_AVATAR_PATTERNS.some((pattern) => safeUrl.includes(pattern))) return false;
+  return true;
+};
 
 const normalizeState = (snap) => {
   const data = snap.data() || {};
@@ -99,11 +121,25 @@ export const getOwnStateCooldown = async (roomId, userId) => {
 export const publishRoomState = async (roomId, stateData) => {
   if (!roomId) throw new Error('state/invalid-room');
   if (!auth.currentUser?.uid) throw new Error('state/auth-required');
+  if (auth.currentUser.isAnonymous || stateData?.isGuest || stateData?.isAnonymous) {
+    throw new Error('state/registered-only');
+  }
 
   const userId = auth.currentUser.uid;
   const text = String(stateData?.message || '').trim();
   if (!text) throw new Error('state/empty-message');
   if (text.length > 160) throw new Error('state/message-too-long');
+
+  const hasRealPhoto = hasRealProfilePhoto(stateData?.avatar);
+  const userRef = getUserDocRef(userId);
+  const userSnap = await getDoc(userRef);
+  const noPhotoStatesCount = Number(userSnap.data()?.statesNoPhotoCount || 0);
+
+  if (!hasRealPhoto && noPhotoStatesCount >= MAX_NO_PHOTO_STATES) {
+    const profilePhotoError = new Error('state/photo-required');
+    profilePhotoError.requiredAfter = MAX_NO_PHOTO_STATES;
+    throw profilePhotoError;
+  }
 
   const cooldown = await getOwnStateCooldown(roomId, userId);
   if (!cooldown.canPublish) {
@@ -129,6 +165,14 @@ export const publishRoomState = async (roomId, stateData) => {
     updatedAt: serverTimestamp(),
     expiresAt: new Date(Date.now() + STATE_TTL_MS),
   }, { merge: true });
+
+  if (userSnap.exists()) {
+    await setDoc(userRef, {
+      statesNoPhotoCount: hasRealPhoto ? 0 : noPhotoStatesCount + 1,
+      statesNoPhotoLastAt: serverTimestamp(),
+      updatedAt: serverTimestamp(),
+    }, { merge: true });
+  }
 
   return { ok: true };
 };

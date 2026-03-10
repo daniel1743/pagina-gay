@@ -5,8 +5,9 @@
  * en otros clientes. Diseñado para identificar exactamente dónde se rompe la cadena.
  * 
  * ACTIVACIÓN:
- * - En desarrollo: automáticamente activo
- * - En producción: activar con localStorage.setItem('ENABLE_MESSAGE_TRACE', 'true')
+ * - Desactivado por defecto (incluyendo desarrollo)
+ * - Activar manualmente con localStorage.setItem('ENABLE_MESSAGE_TRACE', 'true')
+ * - También puedes activar con ?trace=1 en la URL
  * 
  * USO:
  * - Ver logs en consola (F12)
@@ -21,10 +22,10 @@ const MAX_TRACE_HISTORY = 1000; // Limitar historial para no consumir memoria
 
 // ✅ Inicializar sistema de tracing
 const initTracing = () => {
-  // Activar en desarrollo o si está explícitamente habilitado
-  const isDev = import.meta.env.DEV;
-  const explicitEnabled = localStorage.getItem('ENABLE_MESSAGE_TRACE') === 'true';
-  isTracingEnabled = isDev || explicitEnabled;
+  // Solo activar si está explícitamente habilitado
+  const traceParam = new URLSearchParams(window.location.search).get('trace');
+  const explicitEnabled = localStorage.getItem('ENABLE_MESSAGE_TRACE') === 'true' || traceParam === '1';
+  isTracingEnabled = explicitEnabled;
 
   if (isTracingEnabled) {
     console.log('%c🔍 [MESSAGE TRACE] Sistema de trazabilidad ACTIVADO', 
