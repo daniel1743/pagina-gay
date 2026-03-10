@@ -374,7 +374,7 @@ const ChatSecondaryPage = () => {
 
     notificationSounds.playMessageSentSound();
 
-    const validationPromise = validateMessage(content, user.id, user.username, currentRoom)
+    const validationPromise = validateMessage(content, user.id, user.username, currentRoom, { dryRun: true })
       .then(validation => {
         if (!validation.allowed) {
           setMessages(prev => prev.filter(m => m.id !== optimisticId));
@@ -483,11 +483,12 @@ const ChatSecondaryPage = () => {
           onClick: () => navigate('/auth')
         }
       });
-      return;
+      return false;
     }
 
     try {
       await addReactionToSecondaryMessage(currentRoom, messageId, reaction);
+      return true;
     } catch (error) {
       console.error('Error adding reaction:', error);
       toast({
@@ -495,6 +496,7 @@ const ChatSecondaryPage = () => {
         description: "Toca para reintentar",
         variant: "destructive",
       });
+      return false;
     }
   };
 

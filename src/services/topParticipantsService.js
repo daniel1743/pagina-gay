@@ -16,6 +16,8 @@ import { db } from '@/config/firebase';
 
 const TOP_PARTICIPANTS_COLLECTION = 'featured_participants';
 const AUTO_TOP_LIMIT = 6;
+const REALTIME_USERS_LIMIT = 60;
+const FALLBACK_MESSAGES_LIMIT = 120;
 
 const toNumber = (value, fallback = 0) => {
   const parsed = Number(value);
@@ -365,7 +367,11 @@ export const subscribeRealtimeTopParticipants = (
     if (messagesUnsubscribe) return;
 
     const roomMessagesRef = collection(db, 'rooms', fallbackRoomId, 'messages');
-    const roomMessagesQuery = query(roomMessagesRef, orderBy('timestamp', 'desc'), limit(350));
+    const roomMessagesQuery = query(
+      roomMessagesRef,
+      orderBy('timestamp', 'desc'),
+      limit(FALLBACK_MESSAGES_LIMIT)
+    );
 
     messagesUnsubscribe = onSnapshot(
       roomMessagesQuery,
@@ -399,7 +405,11 @@ export const subscribeRealtimeTopParticipants = (
   };
 
   const usersRef = collection(db, 'users');
-  const usersQuery = query(usersRef, orderBy('messageCount', 'desc'), limit(120));
+  const usersQuery = query(
+    usersRef,
+    orderBy('messageCount', 'desc'),
+    limit(REALTIME_USERS_LIMIT)
+  );
 
   usersUnsubscribe = onSnapshot(
     usersQuery,

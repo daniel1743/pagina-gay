@@ -115,6 +115,14 @@ const PRIVATE_MATCH_IDLE_MS = 4000;
 const PRIVATE_MATCH_REQUEST_WINDOW_MS = 30000;
 const PRIVATE_MATCH_COOLDOWN_MS = 2 * 60 * 1000;
 const PRIVATE_MATCH_QUICK_GREETINGS = ['Hola 👋', '¿Qué haces?', '¿De dónde eres?'];
+const isChatDebugEnabled = () => {
+  if (typeof window === 'undefined') return false;
+  const params = new URLSearchParams(window.location.search);
+  return import.meta.env.DEV && (
+    params.get('chatdebug') === '1' ||
+    localStorage.getItem('ENABLE_CHAT_DEBUG') === 'true'
+  );
+};
 
 const getRoleBucket = (roleLabel) => {
   const normalized = String(roleLabel || '').toLowerCase();
@@ -1640,30 +1648,41 @@ const ChatPage = () => {
     // - Invitados (guest/anonymous): 80 mensajes
     // - Logueados (registrados): 160 mensajes
     const messageLimit = (user && !user.isGuest && !user.isAnonymous) ? 160 : 80;
-    console.log(`📊 [CHAT] Límite de mensajes para ${user?.username}: ${messageLimit} (${user?.isGuest || user?.isAnonymous ? 'invitado' : 'registrado'})`);
+    const chatDebug = isChatDebugEnabled();
+    if (chatDebug) {
+      console.log(`📊 [CHAT] Límite de mensajes para ${user?.username}: ${messageLimit} (${user?.isGuest || user?.isAnonymous ? 'invitado' : 'registrado'})`);
+    }
 
     // console.log('📡 [CHAT] Suscribiéndose a mensajes INMEDIATAMENTE para sala:', roomId);
     setIsLoadingMessages(true); // ⏳ Marcar como cargando al iniciar suscripción
 
     // ⚡ TIMEOUT DE SEGURIDAD: mantiene spinner y evita mostrar estado vacío prematuro
     loadingFallbackTimeoutRef.current = setTimeout(() => {
-      console.warn('⏰ [CHAT] Timeout de carga inicial alcanzado (4.5s) - finalizando estado de carga');
+      if (chatDebug) {
+        console.warn('⏰ [CHAT] Timeout de carga inicial alcanzado (4.5s) - finalizando estado de carga');
+      }
       setIsLoadingMessages(false);
       loadingFallbackTimeoutRef.current = null;
     }, 4500);
 
-    console.log(`[CHAT PAGE] 🚀 Llamando a subscribeToRoomMessages para sala ${roomId} con límite ${messageLimit}`);
+    if (chatDebug) {
+      console.log(`[CHAT PAGE] 🚀 Llamando a subscribeToRoomMessages para sala ${roomId} con límite ${messageLimit}`);
+    }
     const subscriptionStartMs = performance.now();
     const unsubscribeMessages = subscribeToRoomMessages(roomId, (newMessages) => {
-      console.log(`[CHAT PAGE] 📨 Callback ejecutado con ${newMessages.length} mensajes para sala ${roomId}`);
-      if (newMessages.length === 0) {
+      if (chatDebug) {
+        console.log(`[CHAT PAGE] 📨 Callback ejecutado con ${newMessages.length} mensajes para sala ${roomId}`);
+      }
+      if (chatDebug && newMessages.length === 0) {
         console.warn(`[CHAT PAGE] ⚠️ ARRAY VACÍO recibido en callback para sala ${roomId} - esto NO debería pasar si la sala tiene mensajes`);
       }
 
       if (!firstSnapshotReceivedRef.current) {
         firstSnapshotReceivedRef.current = true;
         const firstSnapshotMs = Math.round(performance.now() - subscriptionStartMs);
-        console.log(`[CHAT PAGE] ⚡ Primer snapshot en ${firstSnapshotMs}ms (${roomId})`);
+        if (chatDebug) {
+          console.log(`[CHAT PAGE] ⚡ Primer snapshot en ${firstSnapshotMs}ms (${roomId})`);
+        }
       }
 
       if (newMessages.length > 0) {
@@ -1677,7 +1696,7 @@ const ChatPage = () => {
       setIsLoadingMessages(false);
       
       // 🔍 DEBUG: Loguear siempre en desarrollo para diagnóstico
-      if (import.meta.env.DEV) {
+      if (chatDebug) {
         console.log('[CHAT PAGE] 📨 Mensajes recibidos del listener:', {
           count: newMessages.length,
           roomId,
@@ -2073,11 +2092,12 @@ const ChatPage = () => {
     if (!roomId || !authReady || !user?.id) return;
 
     const pingPresence = () => {
+      if (typeof document !== 'undefined' && document.visibilityState !== 'visible') return;
       updateUserActivity(roomId).catch(() => {});
     };
 
     pingPresence();
-    const intervalId = setInterval(pingPresence, 30000);
+    const intervalId = setInterval(pingPresence, 60000);
 
     const handleVisibilityChange = () => {
       if (document.visibilityState === 'visible') {
@@ -2405,17 +2425,17 @@ const ChatPage = () => {
           onClick: () => navigate('/auth')
         }
       });
-      return;
+      return false;
     }
 
     if (!currentRoom) {
       console.error('[REACTION] ❌ No hay sala activa');
-      return;
+      return false;
     }
 
     if (!messageId) {
       console.error('[REACTION] ❌ No hay messageId');
-      return;
+      return false;
     }
 
     try {
@@ -2429,7 +2449,7 @@ const ChatPage = () => {
             description: "No puedes interactuar con este usuario.",
             variant: "destructive",
           });
-          return;
+          return false;
         }
       }
       console.log('[REACTION] 📤 Enviando a Firestore...');
@@ -2459,6 +2479,7 @@ const ChatPage = () => {
         description: reactionToastMap[reaction] || '✅ Reacción agregada',
         duration: 1500,
       });
+      return true;
     } catch (error) {
       console.error('[REACTION] ❌ Error:', error);
       toast({
@@ -2470,6 +2491,7 @@ const ChatPage = () => {
           : (error.message || "Intenta de nuevo"),
         variant: "destructive",
       });
+      return false;
     }
   };
 
@@ -2970,7 +2992,7 @@ const ChatPage = () => {
     // 🛡️ VALIDACIÓN EN BACKGROUND: Validar después de mostrar (no bloquea UI)
     // ⚡ CRÍTICO: Las validaciones se ejecutan en background para no retrasar la experiencia visual
     const validationPromise = isTextMessage
-      ? validateMessage(content, currentUser.id, currentUser.username, currentRoom)
+      ? validateMessage(content, currentUser.id, currentUser.username, currentRoom, { dryRun: true })
           .then(validation => {
             if (!validation.allowed) {
               // 🔍 TRACE: Validación falló

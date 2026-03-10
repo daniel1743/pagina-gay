@@ -303,28 +303,28 @@ const doSendMessage = async (roomId, messageData, isAnonymous = false) => {
     }
   }
 
-  // 📱 SANITIZAR NÚMEROS DE WHATSAPP/TELÉFONO
-  // Los números se reemplazan automáticamente con CTA de chat privado
+  // 🛡️ MODERACIÓN ANTI-EXTRACCIÓN (enforcement real previo a Firestore)
   if (isTextMessage) {
     try {
       const sanitizeResult = await sanitizeMessage(
         messageData.content,
         messageData.userId,
         messageData.username || 'Usuario',
-        roomId
+        roomId,
+        { dryRun: false }
       );
 
-      if (sanitizeResult.wasModified) {
-        console.log(`[SEND] 📱 Números de WhatsApp sanitizados para ${messageData.username}:`, {
-          numbersFound: sanitizeResult.numbersFound,
-          hasContactIntent: sanitizeResult.hasContactIntent
-        });
-        // Reemplazar el contenido con la versión sanitizada
-        messageData.content = sanitizeResult.content;
+      if (!sanitizeResult.allowed) {
+        const blockedError = new Error(sanitizeResult.reason || 'Mensaje bloqueado por moderación');
+        blockedError.code = 'content-blocked';
+        blockedError.moderation = sanitizeResult;
+        throw blockedError;
       }
+
+      messageData.content = sanitizeResult.content || String(messageData.content || '').trim();
     } catch (sanitizeError) {
-      // FAIL-SAFE: Si falla la sanitización, continuar con el mensaje original
-      console.warn('[SEND] ⚠️ Error en sanitización (continuando):', sanitizeError.message);
+      // La moderación no puede quedar en fail-open para bypass de seguridad
+      throw sanitizeError;
     }
   }
 
@@ -1012,21 +1012,26 @@ const doSendSecondaryMessage = async (roomId, messageData, isAnonymous = false) 
     }
   }
 
-  // 📱 SANITIZAR NÚMEROS DE WHATSAPP/TELÉFONO (Salas secundarias)
+  // 🛡️ MODERACIÓN ANTI-EXTRACCIÓN (enforcement real en salas secundarias)
   try {
     const sanitizeResult = await sanitizeMessage(
       messageData.content,
       messageData.userId,
       messageData.username || 'Usuario',
-      roomId
+      roomId,
+      { dryRun: false }
     );
 
-    if (sanitizeResult.wasModified) {
-      console.log(`[SEND SECONDARY] 📱 Números sanitizados para ${messageData.username}`);
-      messageData.content = sanitizeResult.content;
+    if (!sanitizeResult.allowed) {
+      const blockedError = new Error(sanitizeResult.reason || 'Mensaje bloqueado por moderación');
+      blockedError.code = 'content-blocked';
+      blockedError.moderation = sanitizeResult;
+      throw blockedError;
     }
+
+    messageData.content = sanitizeResult.content || String(messageData.content || '').trim();
   } catch (sanitizeError) {
-    console.warn('[SEND SECONDARY] ⚠️ Error en sanitización:', sanitizeError.message);
+    throw sanitizeError;
   }
 
   const ensureAvatar = (avatar, username) => {

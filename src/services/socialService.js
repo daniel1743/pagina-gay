@@ -23,12 +23,31 @@ const OPIN_PRIVATE_REQUESTS_PER_HOUR = 4;
 const OPIN_PRIVATE_REQUEST_WINDOW_MS = 60 * 60 * 1000;
 const OPIN_PRIVATE_REQUEST_RECIPIENT_COOLDOWN_MS = 15 * 60 * 1000;
 const PRIVATE_CHAT_REQUEST_LOG_COLLECTION = 'private_chat_request_logs';
+const sharedNotificationsListeners = new Map();
 
 const toMillis = (value) => {
   if (value?.toMillis) return value.toMillis();
   if (value instanceof Date) return value.getTime();
   const parsed = new Date(value || 0).getTime();
   return Number.isFinite(parsed) ? parsed : 0;
+};
+
+const mapNotificationsFromSnapshot = (snapshot) => snapshot.docs
+  .map((docSnap) => ({
+    id: docSnap.id,
+    ...docSnap.data(),
+    timestamp: docSnap.data().timestamp?.toDate?.()?.toISOString() || new Date().toISOString(),
+  }))
+  .filter((item) => item.read !== true);
+
+const notifyNotificationSubscribers = (entry, notifications) => {
+  entry.callbacks.forEach((cb) => {
+    try {
+      cb(notifications);
+    } catch {
+      // noop
+    }
+  });
 };
 
 /**
@@ -632,44 +651,73 @@ export const removeFromFavorites = async (userId, targetUserId) => {
  * Suscribe a las notificaciones del usuario en tiempo real
  */
 export const subscribeToNotifications = (userId, callback) => {
-  const notificationsRef = collection(db, 'users', userId, 'notifications');
-  const q = query(
-    notificationsRef,
-    orderBy('timestamp', 'desc'),
-    limit(100)
-  );
+  if (!userId || typeof callback !== 'function') {
+    callback?.([]);
+    return () => {};
+  }
 
-  return onSnapshot(
-    q,
-    (snapshot) => {
-      const notifications = snapshot.docs.map((doc) => ({
-        id: doc.id,
-        ...doc.data(),
-        timestamp: doc.data().timestamp?.toDate?.()?.toISOString() || new Date().toISOString(),
-      }))
-      .filter((item) => item.read !== true); // mantener comportamiento de "solo no leídas"
+  let sharedEntry = sharedNotificationsListeners.get(userId);
 
-      callback(notifications);
-    },
-    (error) => {
-      // ✅ Ignorar errores transitorios de Firestore WebChannel (errores 400 internos)
-      const isTransientError = 
-        error.name === 'AbortError' ||
-        error.code === 'cancelled' ||
-        error.code === 'unavailable' ||
-        error.message?.includes('WebChannelConnection') ||
-        error.message?.includes('transport errored') ||
-        error.message?.includes('RPC') ||
-        error.message?.includes('stream') ||
-        error.message?.includes('INTERNAL ASSERTION FAILED') ||
-        error.message?.includes('Unexpected state');
+  if (!sharedEntry) {
+    sharedEntry = {
+      callbacks: new Set(),
+      notifications: [],
+      unsubscribe: null,
+    };
 
-      if (!isTransientError) {
-        console.error('Error subscribing to notifications:', error);
+    const notificationsRef = collection(db, 'users', userId, 'notifications');
+    const q = query(
+      notificationsRef,
+      orderBy('timestamp', 'desc'),
+      limit(100)
+    );
+
+    sharedEntry.unsubscribe = onSnapshot(
+      q,
+      (snapshot) => {
+        sharedEntry.notifications = mapNotificationsFromSnapshot(snapshot);
+        notifyNotificationSubscribers(sharedEntry, sharedEntry.notifications);
+      },
+      (error) => {
+        // ✅ Ignorar errores transitorios de Firestore WebChannel (errores 400 internos)
+        const isTransientError =
+          error.name === 'AbortError' ||
+          error.code === 'cancelled' ||
+          error.code === 'unavailable' ||
+          error.message?.includes('WebChannelConnection') ||
+          error.message?.includes('transport errored') ||
+          error.message?.includes('RPC') ||
+          error.message?.includes('stream') ||
+          error.message?.includes('INTERNAL ASSERTION FAILED') ||
+          error.message?.includes('Unexpected state');
+
+        if (!isTransientError) {
+          console.error('Error subscribing to notifications:', error);
+        }
+        // Mantener último estado conocido; Firestore se reconecta automáticamente.
       }
-      // Los errores transitorios se ignoran silenciosamente - Firestore se reconectará automáticamente
+    );
+
+    sharedNotificationsListeners.set(userId, sharedEntry);
+  }
+
+  sharedEntry.callbacks.add(callback);
+  callback(sharedEntry.notifications);
+
+  return () => {
+    const entry = sharedNotificationsListeners.get(userId);
+    if (!entry) return;
+
+    entry.callbacks.delete(callback);
+    if (entry.callbacks.size > 0) return;
+
+    try {
+      entry.unsubscribe?.();
+    } catch {
+      // noop
     }
-  );
+    sharedNotificationsListeners.delete(userId);
+  };
 };
 
 /**

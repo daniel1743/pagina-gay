@@ -16,6 +16,7 @@ import { resolveProfileRole } from '@/config/profileRoles';
 const STATE_TTL_MS = 24 * 60 * 60 * 1000;
 const DEFAULT_FETCH_LIMIT = 60;
 const MAX_NO_PHOTO_STATES = 3;
+const ALLOWED_STATE_REACTIONS = ['fire', 'spark', 'eyes', 'heart', 'crown'];
 
 const GENERIC_AVATAR_PATTERNS = [
   'dicebear.com',
@@ -41,6 +42,10 @@ const toMillisSafe = (value) => {
 const getStatesCollectionRef = (roomId) => collection(db, 'rooms', roomId, 'states');
 const getStateDocRef = (roomId, userId) => doc(db, 'rooms', roomId, 'states', userId);
 const getUserDocRef = (userId) => doc(db, 'users', userId);
+const getStateReactionsCollectionRef = (roomId, stateUserId) =>
+  collection(db, 'rooms', roomId, 'states', stateUserId, 'reactions');
+const getStateReactionDocRef = (roomId, stateUserId, reactionUserId) =>
+  doc(db, 'rooms', roomId, 'states', stateUserId, 'reactions', reactionUserId);
 
 const hasRealProfilePhoto = (avatarUrl) => {
   const safeUrl = String(avatarUrl || '').trim().toLowerCase();
@@ -185,6 +190,57 @@ export const deleteRoomState = async (roomId, targetUserId = null) => {
   if (ownerId !== auth.currentUser.uid) throw new Error('state/not-owner');
 
   await deleteDoc(getStateDocRef(roomId, ownerId));
+  return { ok: true };
+};
+
+export const fetchStateReactions = async (roomId, stateUserId) => {
+  if (!roomId || !stateUserId) return [];
+  const reactionsRef = getStateReactionsCollectionRef(roomId, stateUserId);
+  const q = query(reactionsRef, orderBy('updatedAt', 'desc'), limit(200));
+  const snapshot = await getDocs(q);
+  return snapshot.docs.map((docSnap) => {
+    const data = docSnap.data() || {};
+    return {
+      id: docSnap.id,
+      userId: data.userId || docSnap.id,
+      username: data.username || 'Usuario',
+      avatar: data.avatar || '/avatar_por_defecto.jpeg',
+      reaction: data.reaction || null,
+      updatedAtMs: toMillisSafe(data.updatedAt),
+    };
+  }).filter((item) => ALLOWED_STATE_REACTIONS.includes(item.reaction));
+};
+
+export const setStateReaction = async (roomId, stateUserId, payload = {}) => {
+  if (!roomId || !stateUserId) throw new Error('state/reaction-invalid-target');
+  if (!auth.currentUser?.uid) throw new Error('state/auth-required');
+  if (auth.currentUser.isAnonymous || payload?.isGuest || payload?.isAnonymous) {
+    throw new Error('state/registered-only');
+  }
+
+  const reaction = String(payload?.reaction || '').trim();
+  if (!ALLOWED_STATE_REACTIONS.includes(reaction)) {
+    throw new Error('state/invalid-reaction');
+  }
+
+  const reactionRef = getStateReactionDocRef(roomId, stateUserId, auth.currentUser.uid);
+  await setDoc(reactionRef, {
+    userId: auth.currentUser.uid,
+    username: payload?.username || 'Usuario',
+    avatar: payload?.avatar || '/avatar_por_defecto.jpeg',
+    reaction,
+    updatedAt: serverTimestamp(),
+  }, { merge: true });
+
+  return { ok: true, reaction };
+};
+
+export const clearStateReaction = async (roomId, stateUserId) => {
+  if (!roomId || !stateUserId) throw new Error('state/reaction-invalid-target');
+  if (!auth.currentUser?.uid) throw new Error('state/auth-required');
+  if (auth.currentUser.isAnonymous) throw new Error('state/registered-only');
+
+  await deleteDoc(getStateReactionDocRef(roomId, stateUserId, auth.currentUser.uid));
   return { ok: true };
 };
 

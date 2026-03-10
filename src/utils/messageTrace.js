@@ -24,7 +24,10 @@ const MAX_TRACE_HISTORY = 1000; // Limitar historial para no consumir memoria
 const initTracing = () => {
   // Solo activar si está explícitamente habilitado
   const traceParam = new URLSearchParams(window.location.search).get('trace');
-  const explicitEnabled = localStorage.getItem('ENABLE_MESSAGE_TRACE') === 'true' || traceParam === '1';
+  // En producción, exigir ?trace=1 para evitar trazas permanentes por localStorage.
+  const isDev = import.meta.env.DEV;
+  const localFlagEnabled = localStorage.getItem('ENABLE_MESSAGE_TRACE') === 'true';
+  const explicitEnabled = traceParam === '1' || (isDev && localFlagEnabled);
   isTracingEnabled = explicitEnabled;
 
   if (isTracingEnabled) {

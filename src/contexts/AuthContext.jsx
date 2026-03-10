@@ -2,6 +2,7 @@ import React, { createContext, useContext, useState, useEffect, useMemo, useRef 
 import {
   createUserWithEmailAndPassword,
   signInWithEmailAndPassword,
+  fetchSignInMethodsForEmail,
   signInAnonymously,
   signOut,
   onAuthStateChanged,
@@ -129,6 +130,24 @@ const buildAuthNetworkErrorMessage = async () => {
   }
 
   return "No pudimos conectar con Firebase Auth (red/DNS/VPN/AdBlock). Intenta en unos segundos o cambia de red.";
+};
+
+const buildInvalidCredentialHint = async (email) => {
+  const normalizedEmail = String(email || '').trim().toLowerCase();
+  if (!normalizedEmail) {
+    return "Email o contraseña incorrectos. Verifica tus datos e intenta nuevamente.";
+  }
+
+  try {
+    const methods = await fetchSignInMethodsForEmail(auth, normalizedEmail);
+    if (Array.isArray(methods) && methods.includes('google.com') && !methods.includes('password')) {
+      return "Esta cuenta fue creada con Google. Usa 'Continuar con Google' para iniciar sesión.";
+    }
+  } catch (error) {
+    console.warn('[AUTH] No se pudo obtener hint de métodos de login:', error?.message || error);
+  }
+
+  return "Email o contraseña incorrectos. Verifica tus datos e intenta nuevamente.";
 };
 
 // Valor por defecto para evitar crash durante ErrorBoundary recovery o StrictMode remount
@@ -615,8 +634,20 @@ export const AuthProvider = ({ children }) => {
    */
   const login = async (email, password) => {
     try {
+      const normalizedEmail = String(email || '').trim().toLowerCase();
+      const normalizedPassword = String(password || '');
+
+      if (!normalizedEmail || !normalizedPassword) {
+        toast({
+          title: "Datos incompletos",
+          description: "Ingresa email y contraseña para continuar.",
+          variant: "destructive",
+        });
+        return false;
+      }
+
       // Firebase maneja el hash y validación de contraseña automáticamente
-      const userCredential = await signInWithEmailAndPassword(auth, email, password);
+      const userCredential = await signInWithEmailAndPassword(auth, normalizedEmail, normalizedPassword);
 
       // Obtener perfil del usuario desde Firestore
       const userProfile = await getUserProfile(userCredential.user.uid);
@@ -668,7 +699,7 @@ export const AuthProvider = ({ children }) => {
           errorMessage = "Contraseña incorrecta";
           break;
         case 'auth/invalid-credential':
-          errorMessage = "Email o contraseña incorrectos. Verifica tus datos e intenta nuevamente";
+          errorMessage = await buildInvalidCredentialHint(email);
           break;
         case 'auth/invalid-email':
           errorMessage = "Email inválido";

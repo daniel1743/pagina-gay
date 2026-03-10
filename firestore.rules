@@ -129,6 +129,16 @@ service cloud.firestore {
       return !content.matches('.*(' + prohibitedPrivate.join('|') + ').*');
     }
 
+    // Filtro especifico anti-extraccion de usuarios a plataformas externas.
+    // Mantiene costo bajo y cubre patrones obvios aunque un cliente intente saltar validaciones locales.
+    function hasNoExternalContactIntent(content) {
+      let c = content.lower();
+      return !c.matches('.*(https?://|www\\.|t\\.me|wa\\.me|discord\\.gg|telegram|whatsapp|instagram|facebook|discord|snapchat|skype).*') &&
+             !c.matches('.*(buscame|escribeme|agregame|te\\s+espero\\s+en|mi\\s+grupo|mi\\s+canal|hablame\\s+por|contactame).*') &&
+             !c.matches('.*([0-9][0-9\\s._\\-]{6,}).*') &&
+             !c.matches('.*([a-z0-9._%+-]+@[a-z0-9.-]+\\.[a-z]{2,}).*');
+    }
+
     // ===========================
     // VALIDACIONES DE MENSAJES
     // ===========================
@@ -356,23 +366,25 @@ service cloud.firestore {
       // Esto permite que usuarios que lleguen desde Google puedan ver el chat
       allow read: if true;
 
-      // 🔥 TEMPORAL: Reglas MUY PERMISIVAS para debugging
-      // Permite CUALQUIER mensaje con content válido
+      // Bloqueo de extraccion/contacto externo + validacion de ownership.
       allow create: if
         (
-          (
-            !('type' in request.resource.data) ||
-            request.resource.data.type != 'image'
-          ) &&
-          request.resource.data.content is string &&
-          request.resource.data.content.size() > 0 &&
-          request.resource.data.content.size() <= 1000 &&
+          isValidMessage() &&
           !(
             roomId == 'principal' &&
-            'userId' in request.resource.data &&
             isAutomatedSenderId(request.resource.data.userId)
+          ) &&
+          (
+            request.resource.data.type != 'text' ||
+            hasNoExternalContactIntent(request.resource.data.content)
           )
         ) ||
+        (
+          roomId == 'principal' &&
+          isValidUnauthenticatedMessage() &&
+          hasNoExternalContactIntent(request.resource.data.content)
+        ) ||
+        isValidSystemMessage() ||
         isValidRegisteredImageMessage(roomId);
 
       // ✅ Permitir actualizar reacciones, deliveredTo, readBy, status (para sistema de checks)
@@ -416,6 +428,19 @@ service cloud.firestore {
 
       // Solo el dueño REGISTRADO del estado puede eliminarlo
       allow delete: if isRegistered() && request.auth.uid == stateUserId;
+
+      // Reacciones por estado (un doc por usuario en subcolección reactions)
+      match /reactions/{reactionUserId} {
+        allow read: if true;
+
+        allow create, update: if isRegistered() &&
+                                request.auth.uid == reactionUserId &&
+                                request.resource.data.userId == request.auth.uid &&
+                                request.resource.data.reaction is string &&
+                                request.resource.data.reaction in ['fire', 'spark', 'eyes', 'heart', 'crown'];
+
+        allow delete: if isRegistered() && request.auth.uid == reactionUserId;
+      }
     }
 
     // ===========================

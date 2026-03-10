@@ -44,6 +44,9 @@ const ChatSidebar = ({ currentRoom, setCurrentRoom, isOpen, onClose, onOpenBaul,
   const [showRegistrationModal, setShowRegistrationModal] = useState(false);
   const [pendingRoomId, setPendingRoomId] = useState(null);
   const [showAuthModal, setShowAuthModal] = useState(false);
+  const [isDesktopViewport, setIsDesktopViewport] = useState(() => (
+    typeof window !== 'undefined' ? window.innerWidth >= 1024 : true
+  ));
   const hasProVisual = Boolean(
     user?.isProUser ||
     user?.hasRainbowBorder ||
@@ -54,6 +57,17 @@ const ChatSidebar = ({ currentRoom, setCurrentRoom, isOpen, onClose, onOpenBaul,
   
   // ✅ Detectar si estamos en una sala secundaria
   const isSecondaryRoom = location.pathname.startsWith('/chat-secondary/');
+
+  useEffect(() => {
+    const handleResize = () => {
+      setIsDesktopViewport(window.innerWidth >= 1024);
+    };
+
+    window.addEventListener('resize', handleResize);
+    handleResize();
+
+    return () => window.removeEventListener('resize', handleResize);
+  }, []);
 
   // Suscribirse a contadores en tiempo real (solo sala principal visible)
   useEffect(() => {
@@ -338,10 +352,12 @@ const ChatSidebar = ({ currentRoom, setCurrentRoom, isOpen, onClose, onOpenBaul,
             </div>
           </div>
 
-          <TopParticipantsSidebarCards
-            roomId={currentRoom || 'principal'}
-            isSecondaryRoom={isSecondaryRoom}
-          />
+          {isDesktopViewport && (
+            <TopParticipantsSidebarCards
+              roomId={currentRoom || 'principal'}
+              isSecondaryRoom={isSecondaryRoom}
+            />
+          )}
         </div>
 
         <div className="mt-auto flex-shrink-0 p-4 border-t border-border">
@@ -635,11 +651,13 @@ const ChatSidebar = ({ currentRoom, setCurrentRoom, isOpen, onClose, onOpenBaul,
             </div>
           </div>
 
-          <TopParticipantsSidebarCards
-            compact
-            roomId={currentRoom || 'principal'}
-            isSecondaryRoom={isSecondaryRoom}
-          />
+          {!isDesktopViewport && (
+            <TopParticipantsSidebarCards
+              compact
+              roomId={currentRoom || 'principal'}
+              isSecondaryRoom={isSecondaryRoom}
+            />
+          )}
         </div>
 
         <div className="mt-auto flex-shrink-0 p-4 border-t border-border">

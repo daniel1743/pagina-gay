@@ -1,20 +1,32 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
-import { Plus, X, Trash2, Clock3 } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
+import { Plus, X, Trash2, Clock3, User, Heart } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { toast } from '@/components/ui/use-toast';
 import {
   fetchRoomStates,
+  fetchStateReactions,
   publishRoomState,
+  setStateReaction,
+  clearStateReaction,
   deleteRoomState,
   formatStateCooldown,
 } from '@/services/chatStatesService';
+import { addToFavorites } from '@/services/socialService';
 
 const REFRESH_INTERVAL_MS = 10 * 60 * 1000;
 const ROTATION_INTERVAL_MS = 10 * 60 * 1000;
 const DEFAULT_AVATAR = '/avatar_por_defecto.jpeg';
 const MAX_STATE_LENGTH = 160;
+const REACTION_OPTIONS = [
+  { key: 'fire', emoji: '🔥', label: 'Arde' },
+  { key: 'spark', emoji: '✨', label: 'Brilla' },
+  { key: 'eyes', emoji: '👀', label: 'Mirada' },
+  { key: 'heart', emoji: '💜', label: 'Me gusta' },
+  { key: 'crown', emoji: '👑', label: 'Premium' },
+];
 
 const hashString = (value) => {
   let hash = 0;
@@ -41,12 +53,17 @@ const formatAge = (createdAtMs) => {
 };
 
 const ChatStatesStrip = ({ roomId = 'principal', user }) => {
+  const navigate = useNavigate();
   const [states, setStates] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isComposeOpen, setIsComposeOpen] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [composeText, setComposeText] = useState('');
   const [selectedState, setSelectedState] = useState(null);
+  const [stateReactions, setStateReactions] = useState([]);
+  const [isLoadingReactions, setIsLoadingReactions] = useState(false);
+  const [isReacting, setIsReacting] = useState(false);
+  const [reactionBurst, setReactionBurst] = useState([]);
   const [rotationSlot, setRotationSlot] = useState(Math.floor(Date.now() / ROTATION_INTERVAL_MS));
 
   const isEnabled = roomId === 'principal';
@@ -54,6 +71,26 @@ const ChatStatesStrip = ({ roomId = 'principal', user }) => {
   const isGuestUser = Boolean(user?.isGuest || user?.isAnonymous);
   const statesHint = isGuestUser ? 'Solo lectura' : '24h';
   const ownState = useMemo(() => states.find((item) => item.userId === currentUserId) || null, [states, currentUserId]);
+  const isRegisteredUser = Boolean(currentUserId && !isGuestUser);
+
+  const reactionSummary = useMemo(() => {
+    const counts = {};
+    let myReaction = null;
+
+    REACTION_OPTIONS.forEach((option) => {
+      counts[option.key] = 0;
+    });
+
+    stateReactions.forEach((item) => {
+      if (!item?.reaction || !Object.prototype.hasOwnProperty.call(counts, item.reaction)) return;
+      counts[item.reaction] += 1;
+      if (item.userId === currentUserId) {
+        myReaction = item.reaction;
+      }
+    });
+
+    return { counts, myReaction };
+  }, [stateReactions, currentUserId]);
 
   const loadStates = useCallback(async () => {
     if (!isEnabled) return;
@@ -87,6 +124,34 @@ const ChatStatesStrip = ({ roomId = 'principal', user }) => {
     return () => clearInterval(rotationTimer);
   }, [isEnabled]);
 
+  useEffect(() => {
+    if (!selectedState?.userId) {
+      setStateReactions([]);
+      setIsLoadingReactions(false);
+      return;
+    }
+
+    let isMounted = true;
+    const loadReactions = async () => {
+      try {
+        setIsLoadingReactions(true);
+        const reactions = await fetchStateReactions(roomId, selectedState.userId);
+        if (!isMounted) return;
+        setStateReactions(reactions);
+      } catch (error) {
+        if (!isMounted) return;
+        setStateReactions([]);
+      } finally {
+        if (isMounted) setIsLoadingReactions(false);
+      }
+    };
+
+    loadReactions();
+    return () => {
+      isMounted = false;
+    };
+  }, [roomId, selectedState?.userId]);
+
   const orderedStates = useMemo(() => {
     if (!states.length) return [];
     return [...states].sort((a, b) => {
@@ -96,15 +161,36 @@ const ChatStatesStrip = ({ roomId = 'principal', user }) => {
     });
   }, [states, rotationSlot]);
 
+  const triggerReactionBurst = useCallback((emoji) => {
+    const particles = Array.from({ length: 8 }, (_, index) => ({
+      id: `${Date.now()}_${index}`,
+      emoji,
+      x: (Math.random() - 0.5) * 160,
+      y: -50 - Math.random() * 80,
+      delay: Math.random() * 0.1,
+      rotate: (Math.random() - 0.5) * 40,
+    }));
+    setReactionBurst(particles);
+    setTimeout(() => setReactionBurst([]), 950);
+  }, []);
+
+  const showRegisteredOnlyToast = useCallback((title, description) => {
+    toast({
+      title,
+      description,
+      duration: 4500,
+      action: {
+        label: 'Registrarme',
+        onClick: () => navigate('/auth'),
+      },
+    });
+  }, [navigate]);
+
   if (!isEnabled) return null;
 
   const handleOpenComposer = () => {
     if (isGuestUser) {
-      toast({
-        title: 'Solo lectura para invitados',
-        description: 'Regístrate para publicar estados.',
-        variant: 'destructive',
-      });
+      showRegisteredOnlyToast('Solo lectura para invitados', 'Regístrate para publicar estados.');
       return;
     }
 
@@ -213,6 +299,125 @@ const ChatStatesStrip = ({ roomId = 'principal', user }) => {
     }
   };
 
+  const handleToggleReaction = async (reactionKey) => {
+    if (!selectedState?.userId) return;
+    if (!isRegisteredUser) {
+      showRegisteredOnlyToast(
+        'Reacciones para usuarios registrados',
+        'Puedes ver los estados, pero para reaccionar debes registrarte.'
+      );
+      return;
+    }
+
+    try {
+      setIsReacting(true);
+      if (reactionSummary.myReaction === reactionKey) {
+        await clearStateReaction(roomId, selectedState.userId);
+        setStateReactions((prev) => prev.filter((item) => item.userId !== currentUserId));
+        return;
+      }
+
+      await setStateReaction(roomId, selectedState.userId, {
+        reaction: reactionKey,
+        username: user?.username || 'Usuario',
+        avatar: user?.avatar || DEFAULT_AVATAR,
+        isGuest: user?.isGuest || false,
+        isAnonymous: user?.isAnonymous || false,
+      });
+
+      setStateReactions((prev) => {
+        const withoutMine = prev.filter((item) => item.userId !== currentUserId);
+        return [
+          {
+            id: currentUserId,
+            userId: currentUserId,
+            username: user?.username || 'Usuario',
+            avatar: user?.avatar || DEFAULT_AVATAR,
+            reaction: reactionKey,
+            updatedAtMs: Date.now(),
+          },
+          ...withoutMine,
+        ];
+      });
+
+      const option = REACTION_OPTIONS.find((item) => item.key === reactionKey);
+      if (option?.emoji) {
+        triggerReactionBurst(option.emoji);
+      }
+    } catch (error) {
+      if (error?.message === 'state/registered-only' || error?.message === 'state/auth-required') {
+        showRegisteredOnlyToast(
+          'Reacciones para usuarios registrados',
+          'Inicia sesión para reaccionar estados.'
+        );
+      } else {
+        toast({
+          title: 'No se pudo reaccionar',
+          description: 'Intenta nuevamente en unos segundos.',
+          variant: 'destructive',
+        });
+      }
+    } finally {
+      setIsReacting(false);
+    }
+  };
+
+  const handleOpenProfile = () => {
+    if (!selectedState?.userId) return;
+    if (!isRegisteredUser) {
+      showRegisteredOnlyToast(
+        'Ver perfil es para usuarios registrados',
+        'Regístrate para abrir perfiles y conversar con más confianza.'
+      );
+      return;
+    }
+    navigate(`/profile/${selectedState.userId}`);
+    setSelectedState(null);
+  };
+
+  const handleAddFavorite = async () => {
+    if (!selectedState?.userId || !currentUserId) return;
+
+    if (!isRegisteredUser) {
+      showRegisteredOnlyToast(
+        'Favoritos para usuarios registrados',
+        'Regístrate para guardar personas en favoritos.'
+      );
+      return;
+    }
+
+    if (selectedState.userId === currentUserId) {
+      toast({
+        title: 'No disponible',
+        description: 'No puedes agregarte a favoritos.',
+        variant: 'destructive',
+      });
+      return;
+    }
+
+    try {
+      await addToFavorites(currentUserId, selectedState.userId);
+      toast({
+        title: 'Agregado a favoritos',
+        description: `${selectedState.username} ahora está en tus favoritos.`,
+      });
+    } catch (error) {
+      if (error?.message === 'FAVORITES_LIMIT_REACHED') {
+        toast({
+          title: 'Límite alcanzado',
+          description: 'Puedes tener hasta 15 favoritos.',
+          variant: 'destructive',
+        });
+      } else {
+        toast({
+          title: 'No se pudo agregar',
+          description: 'Intenta nuevamente en unos segundos.',
+          variant: 'destructive',
+        });
+      }
+    }
+  };
+
   return (
     <div className="px-3 pt-2 pb-2 border-b border-border/60 bg-card/40">
       <div className="mb-1 flex items-center justify-between">
@@ -311,13 +516,88 @@ const ChatStatesStrip = ({ roomId = 'principal', user }) => {
               </DialogHeader>
 
               <div className="space-y-3">
-                <p className="text-sm text-foreground whitespace-pre-wrap break-words leading-relaxed">
-                  {selectedState.message}
-                </p>
+                <div className="relative overflow-hidden rounded-xl border border-cyan-500/30 bg-gradient-to-br from-[#10162f] via-[#151b3a] to-[#111629] p-4">
+                  <p className="text-sm text-foreground whitespace-pre-wrap break-words leading-relaxed">
+                    {selectedState.message}
+                  </p>
+                  {reactionBurst.length > 0 && (
+                    <div className="pointer-events-none absolute inset-0">
+                      {reactionBurst.map((particle) => (
+                        <span
+                          key={particle.id}
+                          className="absolute left-1/2 top-[72%] text-lg"
+                          style={{
+                            '--state-burst-x': `${particle.x}px`,
+                            '--state-burst-y': `${particle.y}px`,
+                            '--state-burst-delay': `${particle.delay}s`,
+                            '--state-burst-rotate': `${particle.rotate}deg`,
+                            animation: 'stateBurst 900ms cubic-bezier(0.2, 0.9, 0.2, 1) forwards',
+                            animationDelay: particle.delay,
+                          }}
+                        >
+                          {particle.emoji}
+                        </span>
+                      ))}
+                    </div>
+                  )}
+                </div>
                 <div className="flex items-center gap-2 text-xs text-muted-foreground">
                   <Clock3 className="w-3.5 h-3.5" />
                   <span>{formatAge(selectedState.createdAtMs)}</span>
                 </div>
+
+                <div className="rounded-lg border border-cyan-500/25 bg-cyan-500/5 p-2.5">
+                  <p className="mb-2 text-[11px] font-semibold uppercase tracking-wide text-cyan-200">
+                    Reacciones premium
+                  </p>
+                  <div className="flex flex-wrap gap-2">
+                    {REACTION_OPTIONS.map((option) => {
+                      const isActive = reactionSummary.myReaction === option.key;
+                      const count = reactionSummary.counts[option.key] || 0;
+                      return (
+                        <button
+                          key={option.key}
+                          type="button"
+                          onClick={() => handleToggleReaction(option.key)}
+                          disabled={isReacting}
+                          className={`inline-flex items-center gap-1 rounded-full border px-2.5 py-1 text-xs transition ${
+                            isActive
+                              ? 'border-cyan-300 bg-cyan-500/20 text-cyan-100 shadow-[0_0_14px_rgba(34,211,238,.28)]'
+                              : 'border-border/70 bg-card/70 text-muted-foreground hover:border-cyan-500/40 hover:text-foreground'
+                          }`}
+                          title={option.label}
+                        >
+                          <span className="text-sm leading-none">{option.emoji}</span>
+                          <span className="font-medium">{count}</span>
+                        </button>
+                      );
+                    })}
+                  </div>
+                  {isGuestUser && (
+                    <p className="mt-2 text-[11px] text-cyan-200/80">
+                      Puedes ver reacciones, pero para reaccionar debes registrarte.
+                    </p>
+                  )}
+                  {isLoadingReactions && (
+                    <p className="mt-2 text-[11px] text-muted-foreground">Cargando reacciones...</p>
+                  )}
+                </div>
+
+                <div className="grid grid-cols-2 gap-2">
+                  <Button variant="outline" className="gap-1.5" onClick={handleOpenProfile}>
+                    <User className="w-3.5 h-3.5" />
+                    Ver perfil
+                  </Button>
+                  <Button variant="outline" className="gap-1.5" onClick={handleAddFavorite}>
+                    <Heart className="w-3.5 h-3.5" />
+                    Favorito
+                  </Button>
+                </div>
+                {isGuestUser && (
+                  <p className="text-[11px] text-muted-foreground">
+                    Invitado: puedes ver estos botones, pero para usarlos debes registrarte.
+                  </p>
+                )}
 
                 <div className="flex justify-end gap-2">
                   {selectedState.userId === currentUserId && (
@@ -336,6 +616,25 @@ const ChatStatesStrip = ({ roomId = 'principal', user }) => {
           )}
         </DialogContent>
       </Dialog>
+
+      <style>{`
+        @keyframes stateBurst {
+          0% {
+            opacity: 0;
+            transform: translate(-50%, 0) scale(0.75) rotate(0deg);
+          }
+          20% {
+            opacity: 1;
+          }
+          100% {
+            opacity: 0;
+            transform:
+              translate(calc(-50% + var(--state-burst-x)), var(--state-burst-y))
+              scale(1.15)
+              rotate(var(--state-burst-rotate));
+          }
+        }
+      `}</style>
     </div>
   );
 };

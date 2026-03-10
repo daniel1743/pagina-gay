@@ -62,6 +62,7 @@ const ChatMessages = ({
   ));
   const [activeImageActionsMessageId, setActiveImageActionsMessageId] = useState(null);
   const [revealedImageIds, setRevealedImageIds] = useState(() => new Set());
+  const [reactionBursts, setReactionBursts] = useState([]);
   const [swipeReplyMessageId, setSwipeReplyMessageId] = useState(null);
   const [swipeReplyOffset, setSwipeReplyOffset] = useState(0);
   const renderedMessageIdsRef = useRef(new Set());
@@ -224,6 +225,41 @@ const ChatMessages = ({
       next.add(messageKey);
       return next;
     });
+  };
+
+  const spawnReactionBurst = (emoji, sourceEl) => {
+    if (!sourceEl || typeof window === 'undefined') return;
+
+    const rect = sourceEl.getBoundingClientRect();
+    const centerX = rect.left + rect.width / 2;
+    const centerY = rect.top + rect.height / 2;
+    const burstId = `${Date.now()}_${Math.random().toString(36).slice(2)}`;
+    const particles = Array.from({ length: 14 }, (_, index) => {
+      const angle = (Math.PI * 2 * index) / 14;
+      const radius = 24 + Math.random() * 32;
+      return {
+        id: `${burstId}_${index}`,
+        x: Math.cos(angle) * radius,
+        y: Math.sin(angle) * radius - 8,
+        scale: 0.8 + Math.random() * 0.9,
+        delay: Math.random() * 0.08,
+        duration: 520 + Math.random() * 320,
+      };
+    });
+
+    setReactionBursts((prev) => [...prev, { id: burstId, emoji, centerX, centerY, particles }]);
+    window.setTimeout(() => {
+      setReactionBursts((prev) => prev.filter((burst) => burst.id !== burstId));
+    }, 1200);
+  };
+
+  const triggerReaction = async (event, message, reactionKey, emoji) => {
+    event.stopPropagation();
+    const firestoreId = message._realId || message.id;
+    const success = await Promise.resolve(onReaction?.(firestoreId, reactionKey));
+    if (success === true) {
+      spawnReactionBurst(emoji, event.currentTarget);
+    }
   };
 
   const handleSwipeStart = (event, message, isOwn) => {
@@ -811,11 +847,7 @@ const ChatMessages = ({
                                   size="icon"
                                   variant="ghost"
                                   className="h-5 w-5 text-gray-400 hover:text-orange-400"
-                                  onClick={(e) => {
-                                    e.stopPropagation();
-                                    const firestoreId = message._realId || message.id;
-                                    onReaction(firestoreId, 'fire');
-                                  }}
+                                  onClick={(e) => triggerReaction(e, message, 'fire', '🔥')}
                                   title="Reaccionar con fuego"
                                 >
                                   <span className="text-[13px] leading-none">🔥</span>
@@ -824,11 +856,7 @@ const ChatMessages = ({
                                   size="icon"
                                   variant="ghost"
                                   className="h-5 w-5 text-gray-400 hover:text-pink-400"
-                                  onClick={(e) => {
-                                    e.stopPropagation();
-                                    const firestoreId = message._realId || message.id;
-                                    onReaction(firestoreId, 'heart');
-                                  }}
+                                  onClick={(e) => triggerReaction(e, message, 'heart', '❤️')}
                                   title="Reaccionar con corazón"
                                 >
                                   <span className="text-[13px] leading-none">❤️</span>
@@ -837,11 +865,7 @@ const ChatMessages = ({
                                   size="icon"
                                   variant="ghost"
                                   className="h-5 w-5 text-gray-400 hover:text-purple-400"
-                                  onClick={(e) => {
-                                    e.stopPropagation();
-                                    const firestoreId = message._realId || message.id;
-                                    onReaction(firestoreId, 'devil');
-                                  }}
+                                  onClick={(e) => triggerReaction(e, message, 'devil', '😈')}
                                   title="Reaccionar con diablito"
                                 >
                                   <span className="text-[13px] leading-none">😈</span>
@@ -850,21 +874,11 @@ const ChatMessages = ({
                             ) : (
                               <>
                                 <Button size="icon" variant="ghost" className="h-5 w-5 text-gray-400 hover:text-green-500"
-                                  onClick={(e) => {
-                                    e.stopPropagation();
-                                    // Usar _realId (ID de Firestore) si existe, sino id
-                                    const firestoreId = message._realId || message.id;
-                                    console.log('[UI] Like click, ID:', firestoreId);
-                                    onReaction(firestoreId, 'like');
-                                  }}>
+                                  onClick={(e) => triggerReaction(e, message, 'like', '👍')}>
                                   <ThumbsUp className="h-3 w-3" />
                                 </Button>
                                 <Button size="icon" variant="ghost" className="h-5 w-5 text-gray-400 hover:text-red-500"
-                                  onClick={(e) => {
-                                    e.stopPropagation();
-                                    const firestoreId = message._realId || message.id;
-                                    onReaction(firestoreId, 'dislike');
-                                  }}>
+                                  onClick={(e) => triggerReaction(e, message, 'dislike', '👎')}>
                                   <ThumbsDown className="h-3 w-3" />
                                 </Button>
                               </>
@@ -888,7 +902,51 @@ const ChatMessages = ({
         })
       )}
 
+      {reactionBursts.length > 0 && (
+        <div className="pointer-events-none fixed inset-0 z-[120]">
+          {reactionBursts.map((burst) => (
+            <div key={burst.id}>
+              {burst.particles.map((particle) => (
+                <span
+                  key={particle.id}
+                  className="absolute text-lg leading-none"
+                  style={{
+                    left: `${burst.centerX}px`,
+                    top: `${burst.centerY}px`,
+                    transform: 'translate(-50%, -50%)',
+                    animation: `chatReactionParticle ${particle.duration}ms cubic-bezier(0.2, 0.9, 0.25, 1) forwards`,
+                    animationDelay: `${particle.delay}s`,
+                    '--chat-rx': `${particle.x}px`,
+                    '--chat-ry': `${particle.y}px`,
+                    '--chat-scale': particle.scale,
+                  }}
+                >
+                  {burst.emoji}
+                </span>
+              ))}
+            </div>
+          ))}
+        </div>
+      )}
+
       <div ref={messagesEndRef} />
+      <style>{`
+        @keyframes chatReactionParticle {
+          0% {
+            opacity: 0;
+            transform: translate(-50%, -50%) scale(0.45);
+            filter: drop-shadow(0 0 0 rgba(34, 211, 238, 0));
+          }
+          20% {
+            opacity: 1;
+          }
+          100% {
+            opacity: 0;
+            transform: translate(calc(-50% + var(--chat-rx)), calc(-50% + var(--chat-ry))) scale(var(--chat-scale));
+            filter: drop-shadow(0 0 12px rgba(34, 211, 238, 0.5));
+          }
+        }
+      `}</style>
     </div>
   );
 };
