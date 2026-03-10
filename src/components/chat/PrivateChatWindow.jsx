@@ -8,11 +8,10 @@ import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Send, X, Shield, PhoneOff, User, MoreVertical, Smile, Minus, MessageCircle, BellOff, Bell, Flag, Archive, Trash2, UserPlus, UserMinus, Check, CheckCheck, Image } from 'lucide-react';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import { toast } from '@/components/ui/use-toast';
-import { collection, addDoc, onSnapshot, query, orderBy, serverTimestamp, doc, getDoc, writeBatch, arrayUnion } from 'firebase/firestore';
+import { collection, addDoc, onSnapshot, query, orderBy, serverTimestamp, doc, getDoc, writeBatch, arrayUnion, updateDoc, increment, deleteField } from 'firebase/firestore';
 import { EmojiStyle, Categories } from 'emoji-picker-react';
 import { ref as storageRef, uploadBytes, getDownloadURL } from 'firebase/storage';
 import imageCompression from 'browser-image-compression';
-import { useNavigate } from 'react-router-dom';
 import { db, storage } from '@/config/firebase';
 import { blockUser, isBlocked } from '@/services/blockService';
 import { createReport } from '@/services/reportService';
@@ -31,6 +30,29 @@ const DEFAULT_RECENT_EMOJIS = ['😂', '😍', '🔥', '😘', '😉', '😈', '
 const DELETE_CONFIRM_TEXT = 'ELIMINAR';
 const PHOTO_MAX_SIZE_BYTES = 140 * 1024;
 const GUEST_PRIVATE_MESSAGES_LIMIT = 12;
+const PRIVATE_IMAGE_REACTIONS = [
+  {
+    key: 'fire',
+    emoji: '🔥',
+    title: 'Reaccionar con fuego',
+    buttonClass: 'hover:text-orange-300',
+    pillClass: 'bg-orange-500/15 text-orange-300',
+  },
+  {
+    key: 'heart',
+    emoji: '❤️',
+    title: 'Reaccionar con corazón',
+    buttonClass: 'hover:text-pink-300',
+    pillClass: 'bg-pink-500/15 text-pink-300',
+  },
+  {
+    key: 'devil',
+    emoji: '😈',
+    title: 'Reaccionar con diablito',
+    buttonClass: 'hover:text-purple-300',
+    pillClass: 'bg-purple-500/15 text-purple-300',
+  },
+];
 
 const getTimestampMs = (value) => {
   if (!value) return null;
@@ -94,7 +116,6 @@ const PrivateChatWindow = ({
   onArchiveConversation,
   onDeleteConversation,
 }) => {
-  const navigate = useNavigate();
   const [messages, setMessages] = useState([]);
   const [newMessage, setNewMessage] = useState(initialMessage || '');
   const [blockState, setBlockState] = useState({ blockedByMe: false, blockedByOther: false });
@@ -118,6 +139,7 @@ const PrivateChatWindow = ({
   const [isSubmittingReport, setIsSubmittingReport] = useState(false);
   const [isActionsMenuOpen, setIsActionsMenuOpen] = useState(false);
   const [isFriend, setIsFriend] = useState(false);
+  const [revealedImageIds, setRevealedImageIds] = useState(() => new Set());
   const [partnerPresence, setPartnerPresence] = useState({
     isOnline: Boolean(partner?.estaOnline || partner?.isOnline),
     lastSeenMs: getTimestampMs(partner?.ultimaConexion || partner?.lastSeen),
@@ -228,7 +250,11 @@ const PrivateChatWindow = ({
       duration: 4500,
       action: {
         label: 'Registrarme',
-        onClick: () => navigate('/auth'),
+        onClick: () => {
+          if (typeof window !== 'undefined') {
+            window.location.assign('/auth');
+          }
+        },
       },
     });
   };
@@ -313,6 +339,23 @@ const PrivateChatWindow = ({
     if (isMinimized || document.hidden) return;
     markIncomingMessagesStatus(messages, { markRead: true });
   }, [isMinimized, messages, chatId, user?.id]);
+
+  useEffect(() => {
+    if (!Array.isArray(messages) || messages.length === 0) return;
+    const validMessageIds = new Set(messages.map((msg) => msg?.id).filter(Boolean));
+    setRevealedImageIds((prev) => {
+      let changed = false;
+      const next = new Set();
+      prev.forEach((id) => {
+        if (validMessageIds.has(id)) {
+          next.add(id);
+        } else {
+          changed = true;
+        }
+      });
+      return changed ? next : prev;
+    });
+  }, [messages]);
 
   useEffect(() => {
     const onVisibilityChange = () => {
@@ -623,6 +666,57 @@ const PrivateChatWindow = ({
       return;
     }
     photoInputRef.current?.click();
+  };
+
+  const togglePrivateImageBlur = (messageId) => {
+    if (!messageId) return;
+    setRevealedImageIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(messageId)) {
+        next.delete(messageId);
+      } else {
+        next.add(messageId);
+      }
+      return next;
+    });
+  };
+
+  const handlePrivateImageReaction = async (message, reactionKey) => {
+    if (!chatId || !message?.id || !reactionKey || !user?.id) return;
+    if (message.userId === user.id) return;
+
+    try {
+      const messageRef = doc(db, 'private_chats', chatId, 'messages', message.id);
+      const currentReaction = message?.reactionUsers?.[user.id] || null;
+      const currentReactions = message?.reactions || {};
+      const updates = {};
+
+      // Toggle: si toca la misma reacción, se elimina.
+      if (currentReaction === reactionKey) {
+        if (Number(currentReactions[reactionKey] || 0) > 0) {
+          updates[`reactions.${reactionKey}`] = increment(-1);
+        }
+        updates[`reactionUsers.${user.id}`] = deleteField();
+      } else {
+        // Si ya tenía otra reacción, moverla a la nueva (1 reacción por usuario/foto).
+        if (currentReaction && Number(currentReactions[currentReaction] || 0) > 0) {
+          updates[`reactions.${currentReaction}`] = increment(-1);
+        }
+        updates[`reactions.${reactionKey}`] = increment(1);
+        updates[`reactionUsers.${user.id}`] = reactionKey;
+      }
+
+      await updateDoc(messageRef, {
+        ...updates,
+      });
+    } catch (error) {
+      console.error('[PRIVATE CHAT] Error reaccionando imagen:', error);
+      toast({
+        title: 'No se pudo reaccionar',
+        description: 'Intenta nuevamente en unos segundos.',
+        variant: 'destructive',
+      });
+    }
   };
 
   const notifyLeaveOnce = async () => {
@@ -1088,6 +1182,18 @@ const PrivateChatWindow = ({
                 const isOwn = msg.userId === user.id;
                 const isSystem = msg.type === 'system';
                 const isImageMessage = msg.type === 'image';
+                const messageKey = msg.id;
+                const isImageRevealed = isImageMessage && revealedImageIds.has(messageKey);
+                const userImageReaction = isImageMessage ? (msg?.reactionUsers?.[user?.id] || null) : null;
+                const imageReactionSummary = isImageMessage
+                  ? PRIVATE_IMAGE_REACTIONS
+                      .map((item) => ({
+                        ...item,
+                        count: Number(msg.reactions?.[item.key] || 0),
+                      }))
+                      .filter((item) => item.count > 0)
+                  : [];
+                const hasImageReactions = isImageMessage && imageReactionSummary.length > 0;
 
                 if (isSystem) {
                   return (
@@ -1114,9 +1220,11 @@ const PrivateChatWindow = ({
                     className={`w-full flex gap-2 ${isOwn ? 'justify-end' : 'justify-start'}`}
                   >
                     <div
-                      className={`inline-block w-fit rounded-2xl overflow-hidden break-words break-all whitespace-pre-wrap shadow-sm ${
+                      className={`inline-block w-fit rounded-2xl break-words break-all whitespace-pre-wrap shadow-sm ${
+                        isImageMessage ? 'overflow-visible' : 'overflow-hidden'
+                      } ${
                         isImageMessage
-                          ? 'max-w-[78%] p-1.5'
+                          ? `max-w-[78%] p-1.5 ${hasImageReactions ? 'pb-4' : ''}`
                           : 'min-w-[2.5rem] px-3.5 py-2.5 max-w-[72%]'
                       } ${
                         isOwn
@@ -1128,20 +1236,35 @@ const PrivateChatWindow = ({
                         msg.content ? (
                           <button
                             type="button"
-                            onClick={() => {
-                              if (typeof window !== 'undefined') {
-                                window.open(msg.content, '_blank', 'noopener,noreferrer');
-                              }
-                            }}
-                            className="block rounded-xl overflow-hidden focus:outline-none focus-visible:ring-2 focus-visible:ring-cyan-400/80"
-                            title="Abrir imagen"
+                            onClick={() => togglePrivateImageBlur(messageKey)}
+                            className="group relative block rounded-xl overflow-hidden focus:outline-none focus-visible:ring-2 focus-visible:ring-cyan-400/80"
+                            title={isImageRevealed ? 'Toca para volver a ocultar' : 'Toca para ver'}
                           >
                             <img
                               src={msg.content}
                               alt="Imagen del chat privado"
                               loading="lazy"
-                              className="block w-full max-w-[220px] h-auto object-cover rounded-xl"
+                              className={`block w-full max-w-[220px] h-auto object-cover rounded-xl transition-[filter,transform] duration-200 ${
+                                isImageRevealed ? '' : 'scale-[1.015]'
+                              }`}
+                              style={{
+                                filter: isImageRevealed ? 'none' : 'blur(7px) saturate(0.88) brightness(0.9)',
+                              }}
                             />
+                            {!isImageRevealed && (
+                              <div className="absolute inset-0 flex items-center justify-center pointer-events-none bg-gradient-to-b from-slate-900/25 to-slate-900/40">
+                                <span className="inline-flex items-center justify-center text-[11px] font-semibold text-slate-100 px-2.5 py-1 rounded-full border border-slate-200/30 bg-slate-900/55 backdrop-blur-[2px]">
+                                  Toca para ver
+                                </span>
+                              </div>
+                            )}
+                            {isImageRevealed && (
+                              <div className="absolute bottom-2 right-2 pointer-events-none">
+                                <span className="inline-flex items-center justify-center text-[10px] font-medium text-slate-100 px-2 py-0.5 rounded-full border border-slate-200/20 bg-slate-900/45">
+                                  Toca para ocultar
+                                </span>
+                              </div>
+                            )}
                           </button>
                         ) : (
                           <span className="text-xs text-muted-foreground">Imagen no disponible</span>
@@ -1171,6 +1294,42 @@ const PrivateChatWindow = ({
                         <p className="text-[10px] mt-1 text-muted-foreground">
                           {formatMessageTime(msg.timestamp)}
                         </p>
+                      )}
+                      {hasImageReactions && (
+                        <div className="absolute left-1/2 -bottom-3 -translate-x-1/2 inline-flex items-center gap-1 px-1.5 py-1 rounded-full bg-slate-900/70 border border-slate-400/35 backdrop-blur-[6px] z-[2] whitespace-nowrap">
+                          {imageReactionSummary.map((item) => (
+                            <span
+                              key={item.key}
+                              className={`inline-flex items-center gap-1 text-[10px] leading-none px-1.5 py-0.5 rounded-full ${item.pillClass}`}
+                            >
+                              <span>{item.emoji}</span>
+                              {item.count}
+                            </span>
+                          ))}
+                        </div>
+                      )}
+                      {!isOwn && isImageMessage && (
+                        <div className="mt-1.5 flex items-center justify-end gap-1">
+                          {PRIVATE_IMAGE_REACTIONS.map((item) => (
+                            <button
+                              key={item.key}
+                              type="button"
+                              onClick={(event) => {
+                                event.stopPropagation();
+                                handlePrivateImageReaction(msg, item.key);
+                              }}
+                              className={`h-6 min-w-[24px] px-1.5 inline-flex items-center justify-center rounded-full text-[14px] transition-colors ${
+                                userImageReaction === item.key
+                                  ? 'text-white bg-cyan-500/30 border border-cyan-300/40'
+                                  : `text-muted-foreground bg-black/15 hover:bg-black/25 ${item.buttonClass}`
+                              }`}
+                              title={item.title}
+                              aria-pressed={userImageReaction === item.key}
+                            >
+                              {item.emoji}
+                            </button>
+                          ))}
+                        </div>
                       )}
                     </div>
                   </motion.div>
@@ -1237,9 +1396,18 @@ const PrivateChatWindow = ({
                   animate={{ opacity: 1, y: 0, scale: 1 }}
                   exit={{ opacity: 0, y: isMobileEmojiSheet ? 24 : 10, scale: isMobileEmojiSheet ? 1 : 0.98 }}
                   transition={{ type: 'spring', stiffness: 360, damping: 28 }}
+                  drag={isMobileEmojiSheet ? 'y' : false}
+                  dragDirectionLock={isMobileEmojiSheet}
+                  dragElastic={isMobileEmojiSheet ? 0.16 : 0}
+                  dragConstraints={isMobileEmojiSheet ? { top: 0, bottom: 140 } : undefined}
+                  onDragEnd={(_, info) => {
+                    if (isMobileEmojiSheet && info.offset.y > 85) {
+                      setShowEmojiPicker(false);
+                    }
+                  }}
                   className={
                     isMobileEmojiSheet
-                      ? 'fixed inset-x-2 bottom-2 z-[80] sm:inset-x-4'
+                      ? 'absolute bottom-full left-0 right-0 mb-2 z-[80]'
                       : 'absolute bottom-full left-0 mb-2 z-20 w-[min(360px,calc(100vw-1.5rem))]'
                   }
                 >
@@ -1249,6 +1417,12 @@ const PrivateChatWindow = ({
                     </div>
                   }>
                     <div className="w-full overflow-hidden rounded-2xl border border-input/80 bg-card/95 backdrop-blur-xl shadow-2xl">
+                      {isMobileEmojiSheet && (
+                        <div className="flex justify-center pt-2">
+                          <span className="h-1 w-10 rounded-full bg-muted-foreground/40" />
+                        </div>
+                      )}
+
                       <div className="px-3 pt-3 pb-2 border-b border-border/70 flex items-center justify-between">
                         <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Emojis</p>
                         <Button
@@ -1278,7 +1452,7 @@ const PrivateChatWindow = ({
                         </div>
                       </div>
 
-                      <div className={isMobileEmojiSheet ? 'h-[48vh] min-h-[280px] max-h-[420px]' : 'h-[340px]'}>
+                      <div className={isMobileEmojiSheet ? 'h-[40vh] min-h-[240px] max-h-[340px]' : 'h-[340px]'}>
                         <EmojiPicker
                           onEmojiClick={handleEmojiClick}
                           theme="dark"

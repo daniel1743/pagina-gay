@@ -8,6 +8,7 @@ import ChatSidebar from '@/components/chat/ChatSidebar';
 import ChatHeader from '@/components/chat/ChatHeader';
 import ChatMessages from '@/components/chat/ChatMessages';
 import ChatInput from '@/components/chat/ChatInput';
+import ChatStatesStrip from '@/components/chat/ChatStatesStrip';
 import NewMessagesIndicator from '@/components/chat/NewMessagesIndicator';
 import ScreenSaver from '@/components/chat/ScreenSaver';
 
@@ -237,10 +238,45 @@ const ChatPage = () => {
   });
 
   const [showPushBanner, setShowPushBanner] = useState(false);
+  const [showHelpLauncher, setShowHelpLauncher] = useState(false);
   const lastForegroundPushRef = useRef({ key: '', at: 0 });
+  const helpTourPromptShownRef = useRef(false);
   const pushBannerDismissKey = user?.id
     ? `push_banner_dismissed_${user.id}`
     : 'push_banner_dismissed_guest';
+  const tourCompletionKey = user?.id
+    ? `chactivo:welcome_tour:completed:${user.id}`
+    : 'chactivo:welcome_tour:completed:guest';
+  const helpPromptSessionKey = user?.id
+    ? `chactivo:help_tour_prompt:session:${user.id}`
+    : 'chactivo:help_tour_prompt:session:guest';
+  const helpLauncherDismissKey = user?.id
+    ? `chactivo:help_launcher:dismissed:${user.id}`
+    : 'chactivo:help_launcher:dismissed:guest';
+
+  useEffect(() => {
+    if (!user?.id) {
+      setShowHelpLauncher(false);
+      return;
+    }
+    if (currentRoom !== 'principal') {
+      setShowHelpLauncher(false);
+      return;
+    }
+
+    const dismissed = localStorage.getItem(helpLauncherDismissKey) === '1';
+    const completedTour = localStorage.getItem(tourCompletionKey) === '1';
+    setShowHelpLauncher(!dismissed && !completedTour);
+  }, [user?.id, currentRoom, helpLauncherDismissKey, tourCompletionKey]);
+
+  const handleOpenHelpTour = useCallback(() => {
+    setShowWelcomeTour(true);
+  }, [setShowWelcomeTour]);
+
+  const handleDismissHelpLauncher = useCallback(() => {
+    setShowHelpLauncher(false);
+    localStorage.setItem(helpLauncherDismissKey, '1');
+  }, [helpLauncherDismissKey]);
 
   // Mostrar banner de push despues de 30s (solo una vez por sesion, solo si no ha dado permiso)
   useEffect(() => {
@@ -256,6 +292,52 @@ const ChatPage = () => {
 
     return () => clearTimeout(timer);
   }, [user, pushBannerDismissKey]);
+
+  useEffect(() => {
+    if (!user?.id) return;
+    if (showWelcomeTour) return;
+    if (currentRoom !== 'principal') return;
+    if (helpTourPromptShownRef.current) return;
+    if (sessionStorage.getItem(helpPromptSessionKey)) return;
+    if (localStorage.getItem(tourCompletionKey) === '1') return;
+
+    // Mostrar a usuarios nuevos o invitados que aún no arrancan conversación
+    const shouldPrompt =
+      user.isGuest ||
+      user.isAnonymous ||
+      guestMessageCount === 0;
+
+    if (!shouldPrompt) return;
+
+    helpTourPromptShownRef.current = true;
+    const timer = setTimeout(() => {
+      toast({
+        title: '¿Necesitas conocer la página?',
+        description: 'Te mostramos un recorrido rápido para ubicarte en 30 segundos.',
+        duration: 7000,
+        action: {
+          label: 'Ver recorrido',
+          onClick: () => {
+            setShowWelcomeTour(true);
+            sessionStorage.setItem(helpPromptSessionKey, '1');
+          }
+        }
+      });
+      sessionStorage.setItem(helpPromptSessionKey, '1');
+    }, 9000);
+
+    return () => clearTimeout(timer);
+  }, [
+    user?.id,
+    user?.isGuest,
+    user?.isAnonymous,
+    guestMessageCount,
+    showWelcomeTour,
+    currentRoom,
+    helpPromptSessionKey,
+    tourCompletionKey,
+    setShowWelcomeTour,
+  ]);
 
   const handleEnablePush = async () => {
     setShowPushBanner(false);
@@ -1555,9 +1637,9 @@ const ChatPage = () => {
     }
     
     // 📊 LÍMITE DE MENSAJES según tipo de usuario
-    // - No logueados (guest/anonymous): 50 mensajes
-    // - Logueados (registrados): 100 mensajes
-    const messageLimit = (user && !user.isGuest && !user.isAnonymous) ? 80 : 50;
+    // - Invitados (guest/anonymous): 80 mensajes
+    // - Logueados (registrados): 160 mensajes
+    const messageLimit = (user && !user.isGuest && !user.isAnonymous) ? 160 : 80;
     console.log(`📊 [CHAT] Límite de mensajes para ${user?.username}: ${messageLimit} (${user?.isGuest || user?.isAnonymous ? 'invitado' : 'registrado'})`);
 
     // console.log('📡 [CHAT] Suscribiéndose a mensajes INMEDIATAMENTE para sala:', roomId);
@@ -3703,6 +3785,9 @@ const ChatPage = () => {
             onMenuClick={() => setSidebarOpen(true)}
             onOpenPrivateChat={handleOpenPrivateChatFromNotification}
             onSimulate={() => setShowScreenSaver(true)}
+            showHelpLauncher={showHelpLauncher}
+            onOpenHelpTour={handleOpenHelpTour}
+            onDismissHelpLauncher={handleDismissHelpLauncher}
             activityText={activityText}
             activityTickerItems={headerTickerItems}
           />
@@ -3730,6 +3815,8 @@ const ChatPage = () => {
               </div>
             </div>
           )}
+
+          <ChatStatesStrip roomId={currentRoom} user={user} />
 
           <div className="flex-1 overflow-hidden flex flex-col min-h-0">
             {/* 🎯 OPIN Discovery Banner - Solo para invitados */}
@@ -3928,7 +4015,11 @@ const ChatPage = () => {
         {/* Chat privado renderizado globalmente para persistir entre secciones */}
 
         {showWelcomeTour && (
-          <WelcomeTour onComplete={() => setShowWelcomeTour(false)} />
+          <WelcomeTour onComplete={() => {
+            localStorage.setItem(tourCompletionKey, '1');
+            setShowHelpLauncher(false);
+            setShowWelcomeTour(false);
+          }} />
         )}
 
         {/* 🔔 Popup de recordatorio de evento activo */}

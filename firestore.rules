@@ -399,19 +399,38 @@ service cloud.firestore {
     }
 
     // ===========================
+    // ESTADOS DEL CHAT (24H)
+    // ===========================
+    match /rooms/{roomId}/states/{stateUserId} {
+      // Lectura pública para que cualquier persona en la sala vea estados
+      allow read: if true;
+
+      // Cada usuario solo puede crear/actualizar su propio estado
+      allow create, update: if isAuthenticated() &&
+                              request.auth.uid == stateUserId &&
+                              request.resource.data.userId == request.auth.uid &&
+                              request.resource.data.username is string &&
+                              request.resource.data.message is string &&
+                              request.resource.data.message.size() > 0 &&
+                              request.resource.data.message.size() <= 160;
+
+      // Solo el dueño del estado puede eliminarlo
+      allow delete: if isAuthenticated() && request.auth.uid == stateUserId;
+    }
+
+    // ===========================
     // REGLAS DE CHATS PRIVADOS
     // ===========================
 
-    // ✅ RESTRICCIÓN: Chat privado SOLO para usuarios autenticados
-    // Usuarios NO autenticados NO pueden crear ni acceder a chats privados
-    // Esta restricción es parte de la estrategia de captación (incentivo para registrarse)
+    // ✅ Chat privado para usuarios autenticados (incluye invitados/anónimos)
+    // El límite de 12 mensajes para invitados se controla en frontend.
     match /private_chats/{chatId} {
-      // ❌ Usuarios NO autenticados NO pueden leer chats privados
-      allow read: if isRegistered() &&
+      // Solo participantes autenticados del chat
+      allow read: if isAuthenticated() &&
                     request.auth.uid in resource.data.participants;
 
-      // ❌ Usuarios NO autenticados NO pueden crear chats privados
-      allow create: if isRegistered() &&
+      // Crear chat: cualquier usuario autenticado participante
+      allow create: if isAuthenticated() &&
                       request.resource.data.keys().hasAll(['participants', 'createdAt']) &&
                       request.auth.uid in request.resource.data.participants &&
                       request.resource.data.participants.size() == 2;

@@ -7,6 +7,7 @@ import { Input } from '@/components/ui/input';
 import { MessageSquare, MessageCircle, Video, Check, X, ExternalLink, CheckCircle, Ticket, CheckCircle2, Search, Pin } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
+import { auth } from '@/config/firebase';
 import { markNotificationAsRead, respondToPrivateChatRequest } from '@/services/socialService';
 import { toast } from '@/components/ui/use-toast';
 import { formatDistanceToNow, format, isToday, isYesterday } from 'date-fns';
@@ -15,7 +16,7 @@ import { es } from 'date-fns/locale';
 const NotificationsPanel = ({ isOpen, onClose, notifications, onOpenPrivateChat }) => {
   const { user } = useAuth();
   const navigate = useNavigate();
-  const currentUserId = user?.id || user?.uid || null;
+  const currentUserId = auth?.currentUser?.uid || user?.id || user?.uid || null;
   const [searchQuery, setSearchQuery] = useState('');
   const [pinnedIds, setPinnedIds] = useState(() => {
     // Cargar pins desde localStorage
@@ -46,9 +47,23 @@ const NotificationsPanel = ({ isOpen, onClose, notifications, onOpenPrivateChat 
         });
       }
     } catch (error) {
+      const isExpired = error?.message === 'REQUEST_EXPIRED';
+      const isBlocked = error?.message === 'BLOCKED';
+      const isPermissionDenied = error?.code === 'permission-denied' || String(error?.message || '').includes('insufficient permissions');
+
       toast({
-        title: "Error",
-        description: "No se pudo aceptar la solicitud",
+        title: isExpired
+          ? "Invitación expirada"
+          : isBlocked
+            ? "No disponible"
+            : "Error al aceptar",
+        description: isExpired
+          ? "La invitación venció. Pide que te envíen una nueva."
+          : isBlocked
+            ? "No puedes abrir chat privado con este usuario."
+            : isPermissionDenied
+              ? "Tu cuenta no tiene permisos para abrir privados todavía."
+              : "No se pudo aceptar la solicitud",
         variant: "destructive",
       });
     }

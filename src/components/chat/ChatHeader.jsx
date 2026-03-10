@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
-import { Menu, Home, Volume2, VolumeX, X, Eye } from 'lucide-react';
+import { Menu, Home, Volume2, VolumeX, Eye } from 'lucide-react';
 import NotificationBell from '@/components/notifications/NotificationBell';
 import NotificationInterestsMenu from '@/components/notifications/NotificationInterestsMenu';
 import { notificationSounds } from '@/services/notificationSounds';
@@ -27,6 +27,9 @@ const ChatHeader = ({
   onMenuClick,
   onOpenPrivateChat,
   onSimulate,
+  showHelpLauncher = false,
+  onOpenHelpTour,
+  onDismissHelpLauncher,
   activityText = '',
   activityTickerItems = [],
 }) => {
@@ -65,17 +68,12 @@ const ChatHeader = ({
     setIsMuted(newMuteState);
   };
 
-  const handleQuickEscape = () => {
-    // Redirect to Google for quick escape without leaving history
-    window.location.replace('https://www.google.com/search?q=Google.com');
-  };
-
   const tickerText = normalizedTickerItems[tickerIndex] || '';
   const hasTicker = normalizedTickerItems.length > 0;
 
   return (
-    <header className="bg-card border-b p-3 sm:p-4 flex items-center justify-between shrink-0">
-      <div className="flex items-start gap-2 sm:gap-3 min-w-0 flex-1">
+    <header className="bg-card border-b h-[72px] sm:h-auto px-3 sm:px-4 py-2 sm:py-4 flex items-center justify-between shrink-0">
+      <div className="flex items-center gap-2 sm:gap-3 min-w-0 flex-1">
         {/* ✅ FLECHA ELIMINADA - A petición del usuario */}
         <Button
           variant="ghost"
@@ -90,20 +88,38 @@ const ChatHeader = ({
           <h2 className="font-bold text-foreground text-base sm:text-lg truncate">
             {roomNames[currentRoom] || 'Chat'}
           </h2>
-          {hasTicker ? (
-            <div className="mt-0.5 min-h-[1.25rem]">
+          <div className="mt-0.5 h-4">
+            {hasTicker ? (
               <p
                 key={`${currentRoom}-${tickerIndex}`}
-                className="text-[11px] text-muted-foreground leading-tight whitespace-normal sm:truncate animate-in fade-in duration-300"
+                className="text-[11px] text-muted-foreground leading-tight truncate whitespace-nowrap overflow-hidden animate-in fade-in duration-300"
               >
                 {tickerText}
               </p>
+            ) : activityText ? (
+              <p className="text-[11px] text-muted-foreground leading-tight truncate whitespace-nowrap overflow-hidden">
+                {activityText}
+              </p>
+            ) : null}
+          </div>
+          {showHelpLauncher && (
+            <div className="mt-1 hidden sm:flex items-center gap-2">
+              <button
+                type="button"
+                onClick={onOpenHelpTour}
+                className="text-[11px] text-cyan-300 hover:text-cyan-200 transition-colors"
+              >
+                ¿Perdido? Ver guía rápida
+              </button>
+              <button
+                type="button"
+                onClick={onDismissHelpLauncher}
+                className="text-[11px] text-muted-foreground hover:text-foreground transition-colors"
+              >
+                Ocultar ayuda
+              </button>
             </div>
-          ) : activityText ? (
-            <p className="text-[11px] text-muted-foreground truncate leading-tight">
-              {activityText}
-            </p>
-          ) : null}
+          )}
         </div>
       </div>
 
@@ -120,18 +136,6 @@ const ChatHeader = ({
             title="Simular - Ocultar chat y mostrar protector de pantalla"
           >
             <Eye className="w-4 h-4" />
-          </Button>
-
-          {/* Icono Quick Escape */}
-          <Button
-            variant="ghost"
-            size="icon"
-            onClick={handleQuickEscape}
-            className="text-muted-foreground hover:text-red-400 min-w-[32px] min-h-[32px] w-8 h-8 p-0"
-            aria-label="Escape rápido - Salir inmediatamente"
-            title="Escape rápido - Salir inmediatamente"
-          >
-            <X className="w-4 h-4" />
           </Button>
         </div>
         

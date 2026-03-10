@@ -12,6 +12,18 @@ import {
 } from 'firebase/firestore';
 import { db } from '@/config/firebase';
 
+const sharedNotificationListeners = new Map();
+
+const notifySharedSubscribers = (entry, payload) => {
+  entry.callbacks.forEach((cb) => {
+    try {
+      cb(payload);
+    } catch (error) {
+      // noop: evitar que un callback roto corte a los demás suscriptores
+    }
+  });
+};
+
 const isPermissionDeniedError = (error) => {
   return error?.code === 'permission-denied' || error?.message?.includes('Missing or insufficient permissions');
 };
@@ -237,47 +249,85 @@ export const subscribeToSystemNotifications = (userId, callback) => {
     return () => {}; // Retornar unsubscribe vacío
   }
 
-  try {
-    const notificationsRef = collection(db, 'systemNotifications');
-    const q = query(
-      notificationsRef,
-      where('userId', '==', userId),
-      limit(50)
-    );
+  let sharedEntry = sharedNotificationListeners.get(userId);
 
-    return onSnapshot(q, (snapshot) => {
-      try {
-        const notifications = snapshot.docs.map((doc) => ({
-          id: doc.id,
-          ...doc.data(),
-          createdAt: doc.data().createdAt?.toDate?.()?.toISOString() || new Date().toISOString(),
-        }));
+  if (!sharedEntry) {
+    sharedEntry = {
+      callbacks: new Set(),
+      notifications: [],
+      unsubscribe: null,
+    };
 
-        notifications.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
-        callback(notifications);
-      } catch {
-        callback([]);
-      }
-    }, (error) => {
-      const isTransient =
-        error.name === 'AbortError' ||
-        error.code === 'cancelled' ||
-        error.code === 'unavailable' ||
-        error.message?.includes('WebChannelConnection') ||
-        error.message?.includes('transport errored') ||
-        error.message?.includes('RPC') ||
-        error.message?.includes('stream');
+    try {
+      const notificationsRef = collection(db, 'systemNotifications');
+      const q = query(
+        notificationsRef,
+        where('userId', '==', userId),
+        limit(50)
+      );
 
-      if (!isTransient) {
-        console.error('Error in notifications subscription:', error);
-      }
+      sharedEntry.unsubscribe = onSnapshot(q, (snapshot) => {
+        try {
+          const notifications = snapshot.docs.map((docSnap) => ({
+            id: docSnap.id,
+            ...docSnap.data(),
+            createdAt: docSnap.data().createdAt?.toDate?.()?.toISOString() || new Date().toISOString(),
+          }));
+
+          notifications.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
+          sharedEntry.notifications = notifications;
+          notifySharedSubscribers(sharedEntry, notifications);
+        } catch {
+          sharedEntry.notifications = [];
+          notifySharedSubscribers(sharedEntry, []);
+        }
+      }, (error) => {
+        const isTransient =
+          error.name === 'AbortError' ||
+          error.code === 'cancelled' ||
+          error.code === 'unavailable' ||
+          error.message?.includes('WebChannelConnection') ||
+          error.message?.includes('transport errored') ||
+          error.message?.includes('RPC') ||
+          error.message?.includes('stream');
+
+        if (!isTransient) {
+          console.error('Error in notifications subscription:', error);
+        }
+
+        sharedEntry.notifications = [];
+        notifySharedSubscribers(sharedEntry, []);
+      });
+    } catch (error) {
+      console.error('Error subscribing to notifications:', error);
       callback([]);
-    });
-  } catch (error) {
-    console.error('Error subscribing to notifications:', error);
-    callback([]);
-    return () => {};
+      return () => {};
+    }
+
+    sharedNotificationListeners.set(userId, sharedEntry);
   }
+
+  sharedEntry.callbacks.add(callback);
+
+  if (Array.isArray(sharedEntry.notifications)) {
+    callback(sharedEntry.notifications);
+  }
+
+  return () => {
+    const entry = sharedNotificationListeners.get(userId);
+    if (!entry) return;
+
+    entry.callbacks.delete(callback);
+
+    if (entry.callbacks.size === 0) {
+      try {
+        entry.unsubscribe?.();
+      } catch {
+        // noop
+      }
+      sharedNotificationListeners.delete(userId);
+    }
+  };
 };
 
 /**

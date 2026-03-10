@@ -4,7 +4,7 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useAuth } from '@/contexts/AuthContext';
-import { markNotificationAsRead, subscribeToNotifications } from '@/services/socialService';
+import { subscribeToNotifications } from '@/services/socialService';
 import { getPushInterestPreferences, updateAppBadge } from '@/services/pushNotificationService';
 import { toast } from '@/components/ui/use-toast';
 import NotificationsPanel from './NotificationsPanel';
@@ -171,17 +171,6 @@ const NotificationBell = ({ onOpenPrivateChat }) => {
       }
     };
   }, [interestPreferences, user?.id, user?.isGuest, user?.isAnonymous]);
-
-  useEffect(() => {
-    if (!isOpen || !user?.id || user.isGuest || user.isAnonymous) return;
-
-    const unreadImportant = notifications.filter((item) => !item.read && isImportantNotification(item));
-    if (unreadImportant.length === 0) return;
-
-    unreadImportant.forEach((item) => {
-      markNotificationAsRead(user.id, item.id).catch(() => {});
-    });
-  }, [isOpen, notifications, user?.id, user?.isGuest, user?.isAnonymous]);
 
   useEffect(() => {
     if (!user?.id || user.isGuest || user.isAnonymous) return;

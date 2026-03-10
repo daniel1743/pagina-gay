@@ -786,9 +786,18 @@ const ChatInput = ({
               animate={{ opacity: 1, y: 0, scale: 1 }}
               exit={{ opacity: 0, y: isMobileEmojiSheet ? 24 : 12, scale: isMobileEmojiSheet ? 1 : 0.98 }}
               transition={{ type: 'spring', stiffness: 360, damping: 28 }}
+              drag={isMobileEmojiSheet ? 'y' : false}
+              dragDirectionLock={isMobileEmojiSheet}
+              dragElastic={isMobileEmojiSheet ? 0.16 : 0}
+              dragConstraints={isMobileEmojiSheet ? { top: 0, bottom: 140 } : undefined}
+              onDragEnd={(_, info) => {
+                if (isMobileEmojiSheet && info.offset.y > 85) {
+                  setShowEmojiPicker(false);
+                }
+              }}
               className={
                 isMobileEmojiSheet
-                  ? 'fixed inset-x-2 bottom-2 z-[80] sm:inset-x-4'
+                  ? 'absolute bottom-full left-0 right-0 mb-2 z-[80]'
                   : 'absolute bottom-full left-0 sm:left-4 mb-3 z-20 w-[min(380px,calc(100vw-1.5rem))]'
               }
             >
@@ -804,6 +813,12 @@ const ChatInput = ({
                   className="w-full overflow-hidden rounded-2xl border border-input/80 bg-card/95 backdrop-blur-xl shadow-2xl"
                   style={isMobileEmojiSheet ? { paddingBottom: 'max(0.5rem, env(safe-area-inset-bottom))' } : undefined}
                 >
+                  {isMobileEmojiSheet && (
+                    <div className="flex justify-center pt-2">
+                      <span className="h-1 w-10 rounded-full bg-muted-foreground/40" />
+                    </div>
+                  )}
+
                   <div className="px-3 pt-3 pb-2 border-b border-border/70 flex items-center justify-between">
                     <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Emojis</p>
                     <Button
@@ -834,7 +849,7 @@ const ChatInput = ({
                     </div>
                   </div>
 
-                  <div className={isMobileEmojiSheet ? 'h-[52vh] min-h-[300px] max-h-[460px]' : 'h-[380px]'}>
+                  <div className={isMobileEmojiSheet ? 'h-[40vh] min-h-[240px] max-h-[340px]' : 'h-[380px]'}>
                     <EmojiPicker
                       onEmojiClick={handleEmojiClick}
                       theme="dark"

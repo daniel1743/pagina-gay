@@ -33,6 +33,7 @@ const isBotUserId = (userId = '') =>
   userId?.startsWith('static_bot_');
 
 const ACTIVE_THRESHOLD_MS = 2 * 60 * 1000;
+const sharedRoomCountListeners = new Map();
 
 const toMillisSafe = (value) => {
   if (!value) return null;
@@ -235,48 +236,93 @@ export const subscribeToMultipleRoomCounts = (roomIds, callback) => {
     return () => {};
   }
 
-  const counts = roomIds.reduce((acc, roomId) => {
-    acc[roomId] = 0;
+  const uniqueRoomIds = [...new Set(roomIds.filter(Boolean))];
+
+  const counts = uniqueRoomIds.reduce((acc, roomId) => {
+    const existingEntry = sharedRoomCountListeners.get(roomId);
+    acc[roomId] = existingEntry?.hasValue ? existingEntry.currentCount : 0;
     return acc;
   }, {});
 
   callback({ ...counts });
 
-  const unsubscribers = roomIds.map((roomId) => {
+  const localHandlers = uniqueRoomIds.reduce((acc, roomId) => {
     const usersRef = collection(db, 'roomPresence', roomId, 'users');
+    let listenerEntry = sharedRoomCountListeners.get(roomId);
 
-    return onSnapshot(usersRef, (snapshot) => {
-      const now = Date.now();
-      const realUsersCount = snapshot.docs.reduce((count, docSnap) => {
-        const data = docSnap.data() || {};
-        const userId = data.userId || docSnap.id || '';
-        const isBot = isBotUserId(userId);
-        const lastActivityMs = getPresenceLastActivityMs(data);
-        const isActive = Number.isFinite(lastActivityMs) && (now - lastActivityMs) <= ACTIVE_THRESHOLD_MS;
+    if (!listenerEntry) {
+      listenerEntry = {
+        subscribers: new Set(),
+        currentCount: 0,
+        hasValue: false,
+        unsubscribe: null,
+      };
 
-        return (!isBot && isActive) ? count + 1 : count;
-      }, 0);
+      listenerEntry.unsubscribe = onSnapshot(usersRef, (snapshot) => {
+        const now = Date.now();
+        const realUsersCount = snapshot.docs.reduce((count, docSnap) => {
+          const data = docSnap.data() || {};
+          const userId = data.userId || docSnap.id || '';
+          const isBot = isBotUserId(userId);
+          const lastActivityMs = getPresenceLastActivityMs(data);
+          const isActive = Number.isFinite(lastActivityMs) && (now - lastActivityMs) <= ACTIVE_THRESHOLD_MS;
 
-      counts[roomId] = realUsersCount;
+          return (!isBot && isActive) ? count + 1 : count;
+        }, 0);
+
+        listenerEntry.currentCount = realUsersCount;
+        listenerEntry.hasValue = true;
+
+        listenerEntry.subscribers.forEach((subscriberCallback) => {
+          try {
+            subscriberCallback(realUsersCount);
+          } catch {
+            // noop
+          }
+        });
+      }, (error) => {
+        const isTransientError =
+          error.name === 'AbortError' ||
+          error.code === 'cancelled' ||
+          error.code === 'unavailable';
+
+        if (!isTransientError) {
+          console.error(`[PRESENCE] Error en contador de sala ${roomId}:`, error);
+        }
+      });
+
+      sharedRoomCountListeners.set(roomId, listenerEntry);
+    }
+
+    const perSubscriberHandler = (newCount) => {
+      counts[roomId] = newCount;
       callback({ ...counts });
-    }, (error) => {
-      const isTransientError =
-        error.name === 'AbortError' ||
-        error.code === 'cancelled' ||
-        error.code === 'unavailable';
+    };
 
-      if (!isTransientError) {
-        console.error(`[PRESENCE] Error en contador de sala ${roomId}:`, error);
-      }
-    });
-  });
+    listenerEntry.subscribers.add(perSubscriberHandler);
+    acc.set(roomId, perSubscriberHandler);
+
+    if (listenerEntry.hasValue) {
+      perSubscriberHandler(listenerEntry.currentCount);
+    }
+
+    return acc;
+  }, new Map());
 
   return () => {
-    unsubscribers.forEach((unsubscribe) => {
-      try {
-        unsubscribe();
-      } catch (error) {
-        // noop
+    localHandlers.forEach((handler, roomId) => {
+      const listenerEntry = sharedRoomCountListeners.get(roomId);
+      if (!listenerEntry) return;
+
+      listenerEntry.subscribers.delete(handler);
+
+      if (listenerEntry.subscribers.size === 0) {
+        try {
+          listenerEntry.unsubscribe?.();
+        } catch {
+          // noop
+        }
+        sharedRoomCountListeners.delete(roomId);
       }
     });
   };
