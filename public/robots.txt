@@ -10,6 +10,7 @@ Allow: /
 Allow: /landing
 Allow: /global
 Allow: /chat-gay-chile
+Allow: /chat-gay-santiago-centro
 Allow: /mas-30
 Allow: /santiago
 

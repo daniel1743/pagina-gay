@@ -1,4 +1,4 @@
-import { doc, getDoc, setDoc, updateDoc, serverTimestamp, collection, query, where, getDocs } from 'firebase/firestore';
+import { doc, getDoc, setDoc, updateDoc, serverTimestamp, collection, query, where, getDocs, orderBy, limit } from 'firebase/firestore';
 import { db } from '@/config/firebase';
 import { resolveProfileRole } from '@/config/profileRoles';
 
@@ -349,5 +349,142 @@ export const getPublicProfile = async (userId) => {
   } catch (error) {
     console.error('Error getting public profile:', error);
     return null;
+  }
+};
+
+const toMillisSafe = (value) => {
+  if (!value) return null;
+  if (typeof value?.toMillis === 'function') return value.toMillis();
+  if (typeof value?.seconds === 'number') return value.seconds * 1000;
+  const parsed = new Date(value).getTime();
+  return Number.isFinite(parsed) ? parsed : null;
+};
+
+const pickTarjetaPublicFields = (tarjeta = {}) => ({
+  nombre: tarjeta?.nombre || null,
+  edad: Number.isFinite(Number(tarjeta?.edad)) ? Number(tarjeta.edad) : null,
+  rol: tarjeta?.rol || null,
+  bio: tarjeta?.bio || null,
+  buscando: tarjeta?.buscando || null,
+  ubicacionTexto: tarjeta?.ubicacionTexto || null,
+  etnia: tarjeta?.etnia || null,
+  alturaCm: Number.isFinite(Number(tarjeta?.alturaCm)) ? Number(tarjeta.alturaCm) : null,
+  pesaje: Number.isFinite(Number(tarjeta?.pesaje)) ? Number(tarjeta.pesaje) : null,
+  sexo: tarjeta?.sexo || null,
+  likesRecibidos: Number(tarjeta?.likesRecibidos || 0),
+  visitasRecibidas: Number(tarjeta?.visitasRecibidas || 0),
+  impresionesRecibidas: Number(tarjeta?.impresionesRecibidas || 0),
+  huellasRecibidas: Number(tarjeta?.huellasRecibidas || 0),
+  estaOnline: Boolean(tarjeta?.estaOnline),
+  ultimaConexionMs: toMillisSafe(tarjeta?.ultimaConexion),
+});
+
+const mapFavoritePreview = (docSnap) => {
+  if (!docSnap?.exists?.()) return null;
+  const data = docSnap.data() || {};
+  return {
+    id: docSnap.id,
+    userId: docSnap.id,
+    username: data?.username || 'Usuario',
+    avatar: data?.avatar || '',
+    isPremium: Boolean(data?.isPremium || data?.isProUser),
+    verified: Boolean(data?.verified),
+    isOnline: Boolean(data?.estaOnline),
+    role: data?.profileRole || data?.role || null,
+  };
+};
+
+const fetchRecentOpinPosts = async (userId, maxItems = 6) => {
+  const postsRef = collection(db, 'opin_posts');
+  try {
+    const q = query(
+      postsRef,
+      where('userId', '==', userId),
+      orderBy('createdAt', 'desc'),
+      limit(Math.max(1, maxItems))
+    );
+    const snapshot = await getDocs(q);
+    return snapshot.docs.map((snap) => ({ id: snap.id, ...snap.data() }));
+  } catch {
+    const fallback = query(
+      postsRef,
+      where('userId', '==', userId),
+      limit(Math.max(10, maxItems * 3))
+    );
+    const snapshot = await getDocs(fallback);
+    return snapshot.docs
+      .map((snap) => ({ id: snap.id, ...snap.data() }))
+      .sort((a, b) => (toMillisSafe(b.createdAt) || 0) - (toMillisSafe(a.createdAt) || 0))
+      .slice(0, maxItems);
+  }
+};
+
+/**
+ * Perfil público enriquecido para "Ver perfil" desde chat/estados/baúl.
+ * Incluye datos base + tarjeta + amigos preview + actividad OPIN resumida.
+ * Diseñado para ser visualmente completo sin consultas masivas costosas.
+ */
+export const getPublicProfileExtended = async (userId) => {
+  try {
+    const baseProfile = await getPublicProfile(userId);
+    if (!baseProfile) return null;
+
+    const [fullUserDoc, tarjetaDoc, recentOpinRaw] = await Promise.all([
+      getDoc(doc(db, 'users', userId)),
+      getDoc(doc(db, 'tarjetas', userId)),
+      fetchRecentOpinPosts(userId, 6),
+    ]);
+
+    const fullUserData = fullUserDoc.exists() ? fullUserDoc.data() : {};
+    const tarjetaData = tarjetaDoc.exists() ? tarjetaDoc.data() : {};
+
+    const favoriteIds = Array.isArray(fullUserData?.favorites)
+      ? fullUserData.favorites.filter((id) => typeof id === 'string' && id.trim()).slice(0, 8)
+      : [];
+
+    const favoriteDocs = favoriteIds.length > 0
+      ? await Promise.all(favoriteIds.map((favId) => getDoc(doc(db, 'users', favId))))
+      : [];
+    const favoritesPreview = favoriteDocs
+      .map(mapFavoritePreview)
+      .filter(Boolean);
+
+    const recentOpinPosts = recentOpinRaw.map((post) => ({
+      id: post.id,
+      text: String(post?.text || '').trim(),
+      color: post?.color || 'purple',
+      likeCount: Number(post?.likeCount || 0),
+      commentCount: Number(post?.commentCount || 0),
+      viewCount: Number(post?.viewCount || 0),
+      createdAtMs: toMillisSafe(post?.createdAt),
+    }));
+
+    const opinStats = recentOpinPosts.reduce((acc, post) => {
+      acc.posts += 1;
+      acc.likes += Number(post.likeCount || 0);
+      acc.comments += Number(post.commentCount || 0);
+      acc.views += Number(post.viewCount || 0);
+      return acc;
+    }, { posts: 0, likes: 0, comments: 0, views: 0 });
+
+    return {
+      ...baseProfile,
+      createdAtMs: toMillisSafe(fullUserData?.createdAt),
+      friendsPreview: favoritesPreview,
+      stats: {
+        favoritesCount: Array.isArray(fullUserData?.favorites) ? fullUserData.favorites.length : favoritesPreview.length,
+        interestsCount: Array.isArray(baseProfile?.interests) ? baseProfile.interests.length : 0,
+        profileViews: Number(fullUserData?.profileViews || 0),
+        opinPostsCount: opinStats.posts,
+        opinLikes: opinStats.likes,
+        opinComments: opinStats.comments,
+        opinViews: opinStats.views,
+      },
+      baul: pickTarjetaPublicFields(tarjetaData),
+      recentOpinPosts,
+    };
+  } catch (error) {
+    console.error('Error getting public profile extended:', error);
+    return await getPublicProfile(userId);
   }
 };

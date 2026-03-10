@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Plus, X, Trash2, Clock3, User, Heart } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -18,6 +18,7 @@ import { addToFavorites } from '@/services/socialService';
 
 const REFRESH_INTERVAL_MS = 10 * 60 * 1000;
 const ROTATION_INTERVAL_MS = 10 * 60 * 1000;
+const STATES_CACHE_TTL_MS = 2 * 60 * 1000;
 const DEFAULT_AVATAR = '/avatar_por_defecto.jpeg';
 const MAX_STATE_LENGTH = 160;
 const REACTION_OPTIONS = [
@@ -52,6 +53,54 @@ const formatAge = (createdAtMs) => {
   return `Hace ${diffHours} h`;
 };
 
+const getStatesCacheKey = (roomId) => `chat_states_cache:${roomId}`;
+
+const readStatesCache = (roomId) => {
+  if (typeof window === 'undefined' || !roomId) return [];
+  try {
+    const raw = sessionStorage.getItem(getStatesCacheKey(roomId));
+    if (!raw) return [];
+    const parsed = JSON.parse(raw);
+    if (!parsed?.savedAt || !Array.isArray(parsed.states)) return [];
+    if ((Date.now() - parsed.savedAt) > STATES_CACHE_TTL_MS) return [];
+    return parsed.states;
+  } catch {
+    return [];
+  }
+};
+
+const writeStatesCache = (roomId, states) => {
+  if (typeof window === 'undefined' || !roomId || !Array.isArray(states)) return;
+  try {
+    sessionStorage.setItem(
+      getStatesCacheKey(roomId),
+      JSON.stringify({
+        savedAt: Date.now(),
+        states: states.map((item) => ({
+          ...item,
+          createdAtISO: item?.createdAtISO || null,
+        })),
+      })
+    );
+  } catch {
+    // Ignore quota/cache errors
+  }
+};
+
+const areStatesEquivalent = (prev = [], next = []) => {
+  if (prev.length !== next.length) return false;
+  for (let i = 0; i < prev.length; i += 1) {
+    const a = prev[i];
+    const b = next[i];
+    if (!a || !b) return false;
+    if (a.userId !== b.userId) return false;
+    if ((a.updatedAtMs || 0) !== (b.updatedAtMs || 0)) return false;
+    if (a.message !== b.message) return false;
+    if (a.avatar !== b.avatar) return false;
+  }
+  return true;
+};
+
 const ChatStatesStrip = ({ roomId = 'principal', user }) => {
   const navigate = useNavigate();
   const [states, setStates] = useState([]);
@@ -65,6 +114,7 @@ const ChatStatesStrip = ({ roomId = 'principal', user }) => {
   const [isReacting, setIsReacting] = useState(false);
   const [reactionBurst, setReactionBurst] = useState([]);
   const [rotationSlot, setRotationSlot] = useState(Math.floor(Date.now() / ROTATION_INTERVAL_MS));
+  const hasHydratedStatesRef = useRef(false);
 
   const isEnabled = roomId === 'principal';
   const currentUserId = user?.id || null;
@@ -95,13 +145,27 @@ const ChatStatesStrip = ({ roomId = 'principal', user }) => {
   const loadStates = useCallback(async () => {
     if (!isEnabled) return;
     try {
-      setIsLoading(true);
+      if (!hasHydratedStatesRef.current) {
+        setIsLoading(true);
+      }
       const items = await fetchRoomStates(roomId, 80);
-      setStates(items);
+      setStates((prev) => (areStatesEquivalent(prev, items) ? prev : items));
+      writeStatesCache(roomId, items);
+      hasHydratedStatesRef.current = true;
     } catch (error) {
       console.error('[STATES] Error loading states:', error);
     } finally {
       setIsLoading(false);
+    }
+  }, [isEnabled, roomId]);
+
+  useEffect(() => {
+    if (!isEnabled) return;
+    const cached = readStatesCache(roomId);
+    if (cached.length > 0) {
+      setStates(cached);
+      setIsLoading(false);
+      hasHydratedStatesRef.current = true;
     }
   }, [isEnabled, roomId]);
 
@@ -438,8 +502,8 @@ const ChatStatesStrip = ({ roomId = 'principal', user }) => {
             ownState ? 'border-cyan-400/80' : 'border-dashed border-cyan-400/50'
           } bg-secondary/70 flex items-center justify-center transition-colors group-hover:border-cyan-300`}>
             {ownState ? (
-              <Avatar className="h-12 w-12">
-                <AvatarImage src={ownState.avatar || DEFAULT_AVATAR} alt={ownState.username} />
+                <Avatar className="h-12 w-12">
+                <AvatarImage src={ownState.avatar || DEFAULT_AVATAR} alt={ownState.username} loading="lazy" decoding="async" fetchPriority="low" />
                 <AvatarFallback>{getInitial(ownState.username)}</AvatarFallback>
               </Avatar>
             ) : (
@@ -463,7 +527,7 @@ const ChatStatesStrip = ({ roomId = 'principal', user }) => {
           >
             <div className="mx-auto mb-1 h-14 w-14 rounded-full border-2 border-cyan-400/65 p-0.5 transition-colors group-hover:border-cyan-300">
               <Avatar className="h-full w-full">
-                <AvatarImage src={item.avatar || DEFAULT_AVATAR} alt={item.username} />
+                <AvatarImage src={item.avatar || DEFAULT_AVATAR} alt={item.username} loading="lazy" decoding="async" fetchPriority="low" />
                 <AvatarFallback>{getInitial(item.username)}</AvatarFallback>
               </Avatar>
             </div>
@@ -508,7 +572,7 @@ const ChatStatesStrip = ({ roomId = 'principal', user }) => {
               <DialogHeader>
                 <DialogTitle className="flex items-center gap-2">
                   <Avatar className="h-8 w-8">
-                    <AvatarImage src={selectedState.avatar || DEFAULT_AVATAR} alt={selectedState.username} />
+                    <AvatarImage src={selectedState.avatar || DEFAULT_AVATAR} alt={selectedState.username} loading="lazy" decoding="async" fetchPriority="low" />
                     <AvatarFallback>{getInitial(selectedState.username)}</AvatarFallback>
                   </Avatar>
                   <span className="truncate">{selectedState.username}</span>

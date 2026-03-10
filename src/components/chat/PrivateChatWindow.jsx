@@ -101,6 +101,15 @@ const formatMessageTime = (value) => {
   return new Date(timestampMs).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
 };
 
+const getMessagePreview = (message) => {
+  if (!message) return '';
+  if (message.type === 'image') return '📷 Foto';
+  if (message.type === 'system') return 'Mensaje del sistema';
+  const text = typeof message.content === 'string' ? message.content.trim() : '';
+  if (!text) return 'Mensaje';
+  return text.length > 120 ? `${text.slice(0, 117)}...` : text;
+};
+
 const PrivateChatWindow = ({
   user,
   partner,
@@ -115,6 +124,7 @@ const PrivateChatWindow = ({
   onViewProfile,
   onArchiveConversation,
   onDeleteConversation,
+  onChatActivity,
 }) => {
   const [messages, setMessages] = useState([]);
   const [newMessage, setNewMessage] = useState(initialMessage || '');
@@ -154,6 +164,7 @@ const PrivateChatWindow = ({
   const leaveNotifiedRef = useRef(false);
   const isMinimizedRef = useRef(false);
   const isMutedRef = useRef(false);
+  const lastActivitySignatureRef = useRef('');
 
   const partnerId = partner?.id || partner?.userId;
   const partnerName = partner?.username || 'Usuario';
@@ -366,6 +377,42 @@ const PrivateChatWindow = ({
     document.addEventListener('visibilitychange', onVisibilityChange);
     return () => document.removeEventListener('visibilitychange', onVisibilityChange);
   }, [messages, chatId, user?.id]);
+
+  useEffect(() => {
+    if (typeof onChatActivity !== 'function' || !chatId) return;
+    const latestMessage = Array.isArray(messages) && messages.length > 0
+      ? messages[messages.length - 1]
+      : null;
+    if (!latestMessage) return;
+
+    const timestampMs = getTimestampMs(latestMessage.timestamp) || Date.now();
+    const signature = `${chatId}:${latestMessage.id || 'msg'}:${timestampMs}`;
+    if (lastActivitySignatureRef.current === signature) return;
+    lastActivitySignatureRef.current = signature;
+
+    onChatActivity({
+      chatId,
+      roomId: roomId || null,
+      partner: {
+        id: partnerId,
+        userId: partnerId,
+        username: partnerName,
+        avatar: partner?.avatar || '',
+        isPremium: Boolean(partner?.isPremium),
+      },
+      lastMessagePreview: getMessagePreview(latestMessage),
+      lastMessageAt: timestampMs,
+    });
+  }, [
+    chatId,
+    messages,
+    onChatActivity,
+    partner?.avatar,
+    partner?.isPremium,
+    partnerId,
+    partnerName,
+    roomId,
+  ]);
 
   // Estado de bloqueo
   useEffect(() => {

@@ -30,7 +30,8 @@ import SEOLanding, {
   SEOLandingArgentina,
   SEOLandingMexico,
   SEOLandingEspana,
-  SEOLandingBrasil
+  SEOLandingBrasil,
+  SEOLandingSantiagoCentro
 } from '@/components/seo/SEOLanding';
 
 // ⚡ CODE SPLITTING - Lazy loading de páginas (reducción de 80% del bundle inicial)
@@ -317,6 +318,8 @@ function AppRoutes() {
         <Route path="/landing" element={<SEOLandingChile />} />
         <Route path="/chat-gay-chile" element={<SEOLandingChile />} />
         <Route path="/chat-gay-chile/" element={<SEOLandingChile />} />
+        <Route path="/chat-gay-santiago-centro" element={<SEOLandingSantiagoCentro />} />
+        <Route path="/chat-gay-santiago-centro/" element={<SEOLandingSantiagoCentro />} />
 
         {/* 🌍 RUTAS REGIONALES: SEO Landing específica → chat regional */}
         <Route path="/argentina" element={<SEOLandingArgentina />} />

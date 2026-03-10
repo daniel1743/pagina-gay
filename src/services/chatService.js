@@ -25,7 +25,7 @@ import { moderateMessage } from '@/services/moderationService';
 import { validateMessage as sanitizeMessage } from '@/services/antiSpamService';
 import { getPerformanceMonitor } from '@/services/performanceMonitor';
 import { getDeliveryService } from '@/services/messageDeliveryService';
-import { traceEvent, TRACE_EVENTS } from '@/utils/messageTrace';
+import { traceEvent, TRACE_EVENTS, isMessageTraceEnabled } from '@/utils/messageTrace';
 
 const FAST_REPLY_WINDOW_MS = 120000;
 const DEFAULT_MESSAGE_REACTIONS = {
@@ -37,6 +37,8 @@ const DEFAULT_MESSAGE_REACTIONS = {
 };
 const ALLOWED_REACTION_TYPES = new Set(['like', 'dislike', 'fire', 'heart', 'devil']);
 const MAX_BULK_DELETE_BATCH = 200;
+const MESSAGE_CACHE_TTL_MS = 60 * 1000;
+const messageSnapshotCache = new Map();
 
 const normalizeRoomScope = (roomScope = 'rooms') => {
   if (roomScope === 'secondary' || roomScope === 'secondary-rooms') {
@@ -625,6 +627,53 @@ const processSnapshotToMessages = (snapshot, roomId) => {
   return annotateFastReplyHighlights(orderedMessages);
 };
 
+const getCacheKey = (roomId, messageLimit) => `${roomId}:${messageLimit}`;
+
+const readCachedMessages = (roomId, messageLimit) => {
+  const cacheKey = getCacheKey(roomId, messageLimit);
+  const memCached = messageSnapshotCache.get(cacheKey);
+  const now = Date.now();
+  if (memCached && (now - memCached.savedAt) <= MESSAGE_CACHE_TTL_MS) {
+    return memCached.messages;
+  }
+
+  if (typeof window === 'undefined') return null;
+  try {
+    const raw = sessionStorage.getItem(`chat_snapshot_cache:${cacheKey}`);
+    if (!raw) return null;
+    const parsed = JSON.parse(raw);
+    if (!parsed?.savedAt || !Array.isArray(parsed.messages)) return null;
+    if ((now - parsed.savedAt) > MESSAGE_CACHE_TTL_MS) return null;
+    messageSnapshotCache.set(cacheKey, {
+      savedAt: parsed.savedAt,
+      messages: parsed.messages,
+    });
+    return parsed.messages;
+  } catch {
+    return null;
+  }
+};
+
+const writeCachedMessages = (roomId, messageLimit, messages) => {
+  const cacheKey = getCacheKey(roomId, messageLimit);
+  const savedAt = Date.now();
+  messageSnapshotCache.set(cacheKey, { savedAt, messages });
+
+  if (typeof window === 'undefined') return;
+  try {
+    const serializableMessages = messages.map((msg) => ({
+      ...msg,
+      timestamp: null, // evitar serializar objetos Timestamp de Firestore
+    }));
+    sessionStorage.setItem(
+      `chat_snapshot_cache:${cacheKey}`,
+      JSON.stringify({ savedAt, messages: serializableMessages })
+    );
+  } catch {
+    // Ignore cache storage issues (quota/serialization)
+  }
+};
+
 /**
  * Suscripción a mensajes en tiempo real - orden estable (nuevo->viejo en query, se invierte en cliente)
  * ⚡ Carga inicial con getDocs para mostrar mensajes de inmediato; onSnapshot para tiempo real
@@ -632,26 +681,37 @@ const processSnapshotToMessages = (snapshot, roomId) => {
 export const subscribeToRoomMessages = (roomId, callback, messageLimit = 60) => {
   const messagesRef = collection(db, 'rooms', roomId, 'messages');
   const q = query(messagesRef, orderBy('timestamp', 'desc'), limit(messageLimit));
+  const traceEnabled = isMessageTraceEnabled();
 
   // onSnapshot ya entrega datos iniciales inmediatamente — getDocs redundante eliminado
+  const cached = readCachedMessages(roomId, messageLimit);
+  if (Array.isArray(cached) && cached.length > 0) {
+    callback(cached);
+  }
 
   const perfMonitor = getPerformanceMonitor();
 
   const unsubscribe = onSnapshot(
     q,
+    {
+      includeMetadataChanges: false, // solo cambios reales
+    },
     (snapshot) => {
       const orderedMessages = processSnapshotToMessages(snapshot, roomId);
 
       perfMonitor.recordSnapshotLatency(orderedMessages);
+      writeCachedMessages(roomId, messageLimit, orderedMessages);
 
       // 🔍 TRACE: Callback ejecutado con mensajes recibidos
-      traceEvent(TRACE_EVENTS.CALLBACK_EXECUTED, {
-        roomId,
-        messageCount: orderedMessages.length,
-        messageIds: orderedMessages.slice(-5).map(m => m.id), // Últimos 5 IDs
-        fromCache: snapshot.metadata.fromCache,
-        hasPendingWrites: snapshot.metadata.hasPendingWrites,
-      });
+      if (traceEnabled) {
+        traceEvent(TRACE_EVENTS.CALLBACK_EXECUTED, {
+          roomId,
+          messageCount: orderedMessages.length,
+          messageIds: orderedMessages.slice(-5).map((m) => m.id),
+          fromCache: snapshot.metadata.fromCache,
+          hasPendingWrites: snapshot.metadata.hasPendingWrites,
+        });
+      }
 
       callback(orderedMessages);
     },
@@ -685,15 +745,11 @@ export const subscribeToRoomMessages = (roomId, callback, messageLimit = 60) => 
           timestamp: new Date().toISOString(),
           error: error
         });
-        // ⚠️ CRÍTICO: No devolver array vacío silenciosamente - esto oculta el problema
-        // callback([]);
-        throw error; // Re-lanzar para que el componente pueda manejarlo
+        // Evitar throw dentro de callback de onSnapshot para no romper el loop de render.
+        // El componente superior ya mantiene el último estado estable.
       } else {
         console.warn(`[CHAT SERVICE] ⚠️ Error transitorio ignorado para sala ${roomId}:`, error.code);
       }
-    },
-    {
-      includeMetadataChanges: false // ⚡ OPTIMIZACIÓN: false = solo cambios reales, más rápido
     }
   );
 

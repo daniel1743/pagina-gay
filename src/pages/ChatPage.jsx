@@ -72,7 +72,7 @@ import { track, getSessionId, trackPageView, trackPageExit, trackRoomJoined, tra
 import { useCanonical } from '@/hooks/useCanonical';
 import { checkUserSanctions, createSanction, SANCTION_TYPES, SANCTION_REASONS } from '@/services/sanctionsService';
 import { roomsData, canAccessRoom } from '@/config/rooms';
-import { traceEvent, TRACE_EVENTS } from '@/utils/messageTrace';
+import { traceEvent, TRACE_EVENTS, isMessageTraceEnabled } from '@/utils/messageTrace';
 import { startEngagementTracking, hasReachedOneHourLimit, getTotalEngagementTime, hasSeenEngagementModal, markEngagementModalAsShown } from '@/services/engagementService';
 import { notificationSounds, initAudioOnFirstGesture } from '@/services/notificationSounds';
 import { monitorActivityAndSendVOC, resetVOCCooldown } from '@/services/vocService';
@@ -425,7 +425,7 @@ const ChatPage = () => {
   }, [currentRoom, isAutomatedUserId]);
 
   const refreshBlockedByUsers = useCallback(async (userIds) => {
-    if (!user?.id || !Array.isArray(userIds)) return;
+    if (!user?.id || user?.isGuest || user?.isAnonymous || !Array.isArray(userIds)) return;
     const candidates = userIds.filter(id =>
       id &&
       id !== user.id &&
@@ -435,16 +435,14 @@ const ChatPage = () => {
     );
     if (candidates.length === 0) return;
 
+    const newlyBlockedIds = [];
+
     await Promise.all(candidates.map(async (id) => {
       blockedByPendingRef.current.add(id);
       try {
         const blocked = await isBlocked(id, user.id);
         if (blocked) {
-          setBlockedByUserIds(prev => {
-            const next = new Set(prev);
-            next.add(id);
-            return next;
-          });
+          newlyBlockedIds.push(id);
         }
       } catch (error) {
         console.warn('[BLOCK] Error verificando bloqueo:', error);
@@ -453,7 +451,15 @@ const ChatPage = () => {
         blockedByCacheRef.current.add(id);
       }
     }));
-  }, [user?.id, isSystemUserId]);
+
+    if (newlyBlockedIds.length > 0) {
+      setBlockedByUserIds((prev) => {
+        const next = new Set(prev);
+        newlyBlockedIds.forEach((id) => next.add(id));
+        return next;
+      });
+    }
+  }, [user?.id, user?.isGuest, user?.isAnonymous, isSystemUserId]);
 
   const filterBlockedMessages = useCallback((incomingMessages) => {
     if (!incomingMessages || incomingMessages.length === 0) return [];
@@ -469,7 +475,7 @@ const ChatPage = () => {
   }, [isSystemUserId]);
 
   useEffect(() => {
-    if (!authReady || !user?.id) {
+    if (!authReady || !user?.id || user?.isGuest || user?.isAnonymous) {
       setBlockedUserIds(new Set());
       setBlockedByUserIds(new Set());
       blockedByCacheRef.current = new Set();
@@ -480,7 +486,7 @@ const ChatPage = () => {
       setBlockedUserIds(new Set(ids));
     });
     return () => unsubscribe?.();
-  }, [authReady, user?.id]);
+  }, [authReady, user?.id, user?.isGuest, user?.isAnonymous]);
 
   useEffect(() => {
     blockedUserIdsRef.current = blockedUserIds;
@@ -1670,6 +1676,7 @@ const ChatPage = () => {
     }
     const subscriptionStartMs = performance.now();
     const unsubscribeMessages = subscribeToRoomMessages(roomId, (newMessages) => {
+      const traceEnabled = isMessageTraceEnabled();
       if (chatDebug) {
         console.log(`[CHAT PAGE] 📨 Callback ejecutado con ${newMessages.length} mensajes para sala ${roomId}`);
       }
@@ -1727,31 +1734,34 @@ const ChatPage = () => {
       const regularMessages = filterBlockedMessages(principalSafeMessages); // ✅ Solo mensajes visibles
 
       // 🔍 TRACE: Estado actualizado con mensajes recibidos
-      traceEvent(TRACE_EVENTS.STATE_UPDATED, {
-        roomId,
-        messageCount: regularMessages.length,
-        newMessageIds: regularMessages.slice(-5).map(m => m.id), // Últimos 5 IDs
-      });
+      if (traceEnabled) {
+        traceEvent(TRACE_EVENTS.STATE_UPDATED, {
+          roomId,
+          messageCount: regularMessages.length,
+          newMessageIds: regularMessages.slice(-5).map((m) => m.id),
+        });
+      }
       
       // 🔍 TRACE: Verificar si hay mensajes optimistas que deben ser reemplazados
-      regularMessages.forEach(msg => {
-        if (msg.clientId) {
-          // Buscar si hay un mensaje optimista con el mismo clientId
-          const hasOptimistic = messages.some(m => 
-            m.clientId === msg.clientId && m._optimistic
-          );
-          
-          if (hasOptimistic) {
-            traceEvent(TRACE_EVENTS.OPTIMISTIC_MESSAGE_REPLACED, {
-              traceId: msg.clientId,
-              optimisticId: messages.find(m => m.clientId === msg.clientId && m._optimistic)?.id,
-              realId: msg.id,
-              userId: msg.userId,
-              roomId,
-            });
-          }
-        }
-      });
+      if (traceEnabled && messages.length > 0) {
+        const optimisticByClientId = new Map();
+        messages.forEach((m) => {
+          if (m?._optimistic && m?.clientId) optimisticByClientId.set(m.clientId, m);
+        });
+
+        regularMessages.forEach((msg) => {
+          if (!msg?.clientId) return;
+          const optimistic = optimisticByClientId.get(msg.clientId);
+          if (!optimistic) return;
+          traceEvent(TRACE_EVENTS.OPTIMISTIC_MESSAGE_REPLACED, {
+            traceId: msg.clientId,
+            optimisticId: optimistic.id,
+            realId: msg.id,
+            userId: msg.userId,
+            roomId,
+          });
+        });
+      }
 
       // Si hay mensaje del moderador, guardarlo en estado separado (solo una vez)
       // if (moderatorMsg) {
@@ -1780,36 +1790,38 @@ const ChatPage = () => {
       setMessages(prevMessages => {
         const optimisticMessages = prevMessages.filter(m => m._optimistic);
         const mergedMessages = [...regularMessages]; // ✅ Solo mensajes regulares (sin moderador)
+        const now = Date.now();
+        const realByClientId = new Map();
+        const realIds = new Set();
+
+        for (let i = 0; i < regularMessages.length; i += 1) {
+          const realMsg = regularMessages[i];
+          if (realMsg?.id) realIds.add(realMsg.id);
+          if (realMsg?.clientId) realByClientId.set(realMsg.clientId, realMsg);
+        }
 
         // ⚡ DEDUPLICACIÓN ULTRA-OPTIMIZADA: Sin parpadeos, sin reordenamiento
         if (optimisticMessages.length > 0) {
-          // ⚡ OPTIMIZACIÓN: Construir mapas de búsqueda una sola vez (O(1) lookup)
-          const realClientIds = new Set(
-            regularMessages.map(m => m.clientId).filter(Boolean)
-          );
-          const realIds = new Set(regularMessages.map(m => m.id));
-
           // ⚡ DEDUPLICACIÓN RÁPIDA: Filtrar optimistas que ya tienen match
           const remainingOptimistic = optimisticMessages.filter(optMsg => {
             // Prioridad 1: clientId (más confiable, evita duplicados)
-            if (optMsg.clientId && realClientIds.has(optMsg.clientId)) {
+            if (optMsg.clientId && realByClientId.has(optMsg.clientId)) {
               // ✅ DETECTAR ENTREGA: Si el mensaje real llegó, marcar como 'delivered'
-              const realMessage = regularMessages.find(m => m.clientId === optMsg.clientId);
+              const realMessage = realByClientId.get(optMsg.clientId);
               if (realMessage && optMsg.userId === user?.id) {
                 // Este es nuestro mensaje que fue recibido por otro dispositivo
                 // Marcar como 'delivered' (doble check azul)
                 optMsg.status = 'delivered';
-                optMsg._deliveredAt = Date.now();
+                optMsg._deliveredAt = now;
               }
               return false; // Ya llegó el real, eliminar optimista
             }
             // Prioridad 2: _realId (compatibilidad con sistema anterior)
             if (optMsg._realId && realIds.has(optMsg._realId)) {
               // ✅ DETECTAR ENTREGA: Si el mensaje real llegó, marcar como 'delivered'
-              const realMessage = regularMessages.find(m => m.id === optMsg._realId);
-              if (realMessage && optMsg.userId === user?.id) {
+              if (optMsg.userId === user?.id) {
                 optMsg.status = 'delivered';
-                optMsg._deliveredAt = Date.now();
+                optMsg._deliveredAt = now;
               }
               return false; // Ya llegó el real
             }
@@ -1829,14 +1841,10 @@ const ChatPage = () => {
           if (msg.userId === user?.id && (msg.status === 'sent' || msg._realId) && !msg._deliveredAt) {
             // Verificar si este mensaje fue recibido (existe en regularMessages)
             // Un mensaje está "entregado" cuando aparece en regularMessages (fue recibido por otro dispositivo)
-            const wasReceived = regularMessages.some(realMsg => {
-              // Buscar por clientId (más confiable)
-              if (msg.clientId && realMsg.clientId === msg.clientId) return true;
-              // Buscar por _realId o id
-              if (msg._realId && realMsg.id === msg._realId) return true;
-              if (msg.id && realMsg.id === msg.id) return true;
-              return false;
-            });
+            const wasReceived =
+              (msg.clientId && realByClientId.has(msg.clientId)) ||
+              (msg._realId && realIds.has(msg._realId)) ||
+              (msg.id && realIds.has(msg.id));
             
             if (wasReceived) {
               // ✅ MENSAJE ENTREGADO: Marcar como 'delivered' (doble check azul)
@@ -1859,7 +1867,7 @@ const ChatPage = () => {
               return {
                 ...msg,
                 status: 'delivered',
-                _deliveredAt: Date.now()
+                _deliveredAt: now
               };
             }
           }
@@ -1888,11 +1896,12 @@ const ChatPage = () => {
         const seenIds = new Set();
         
         for (const msg of updatedMessages) {
-          if (seenIds.has(msg.id)) {
+          const dedupeKey = msg.id || msg._realId || msg.clientId;
+          if (!dedupeKey || seenIds.has(dedupeKey)) {
             continue; // Saltar duplicado
           }
           uniqueMessages.push(msg);
-          seenIds.add(msg.id);
+          seenIds.add(dedupeKey);
         }
         
         return uniqueMessages;

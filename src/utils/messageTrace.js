@@ -127,6 +127,11 @@ export const traceEvent = (event, data = {}, traceId = null) => {
 };
 
 /**
+ * Permite validar rápido si el tracing está activo sin ejecutar lógica extra.
+ */
+export const isMessageTraceEnabled = () => isTracingEnabled;
+
+/**
  * Obtener emoji para cada tipo de evento
  */
 const getEventEmoji = (event) => {
@@ -315,6 +320,7 @@ if (typeof window !== 'undefined') {
 
 export default {
   traceEvent,
+  isMessageTraceEnabled,
   TRACE_EVENTS,
   getTraceForMessage,
   getMessageFlow,

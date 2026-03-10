@@ -49,10 +49,12 @@ const app = initializeApp(firebaseConfig);
 export const auth = getAuth(app);
 export const db = (() => {
   try {
-    // Configuración robusta para redes inestables/proxys/ISP con problemas QUIC/WebChannel.
-    // Por defecto forzamos long polling para evitar "primer snapshot" muy tardío (20-40s).
-    // Se puede desactivar con VITE_FIRESTORE_FORCE_LONG_POLLING=false
-    const forceLongPolling = import.meta.env.VITE_FIRESTORE_FORCE_LONG_POLLING !== 'false';
+    // Configuración robusta con foco en performance:
+    // - Por defecto: autoDetectLongPolling (más rápido para la mayoría)
+    // - Opt-in: forzar long polling solo si una red específica lo necesita
+    const forceLongPolling =
+      import.meta.env.VITE_FIRESTORE_FORCE_LONG_POLLING === 'true' ||
+      (typeof window !== 'undefined' && new URLSearchParams(window.location.search).get('force_long_polling') === '1');
 
     const firestoreSettings = forceLongPolling
       ? {

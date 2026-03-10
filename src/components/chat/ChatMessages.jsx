@@ -7,7 +7,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import MessageQuote from './MessageQuote';
 import NewMessagesDivider from './NewMessagesDivider';
 import { getUserConnectionStatus, getStatusColor, getStatusText } from '@/utils/userStatus';
-import { traceEvent, TRACE_EVENTS } from '@/utils/messageTrace';
+import { traceEvent, TRACE_EVENTS, isMessageTraceEnabled } from '@/utils/messageTrace';
 import { getBadgeConfig } from '@/services/badgeService';
 import { getProfileRoleBadgeMeta } from '@/config/profileRoles';
 import './ChatMessages.css';
@@ -90,6 +90,7 @@ const ChatMessages = ({
 
   // 🔍 TRACE: Rastrear mensajes nuevos
   useEffect(() => {
+    if (!isMessageTraceEnabled()) return;
     if (!messages || messages.length === 0) return;
 
     const newMessages = messages.filter(msg => {
@@ -100,7 +101,7 @@ const ChatMessages = ({
       return true;
     });
 
-    newMessages.forEach(msg => {
+    newMessages.forEach((msg) => {
       const msgId = msg.id || msg._realId || msg.clientId;
       traceEvent(TRACE_EVENTS.REMOTE_UI_RENDER, {
         traceId: msg.clientId || msg.trace?.traceId || msgId,
@@ -710,6 +711,9 @@ const ChatMessages = ({
                           <AvatarImage
                             src={resolveChatAvatar(group.avatar)}
                             alt={group.username || 'Usuario'}
+                            loading="lazy"
+                            decoding="async"
+                            fetchPriority="low"
                           />
                           <AvatarFallback className="bg-gradient-to-br from-purple-500 to-pink-500 text-white text-xs">
                             {group.username?.[0]?.toUpperCase() || '?'}

@@ -12,9 +12,13 @@ import { toast } from '@/components/ui/use-toast';
 
 export default function GlobalPrivateChatWindow() {
   const { user } = useAuth();
-  const { openPrivateChats, closePrivateChat, maxOpenPrivateChats } = usePrivateChat();
+  const {
+    openPrivateChats,
+    closePrivateChat,
+    upsertRecentPrivateChat,
+  } = usePrivateChat();
 
-  if (!openPrivateChats?.length || !user?.id) return null;
+  if (!user?.id) return null;
 
   const handleClose = (chatId = null) => {
     if (chatId) return closePrivateChat(chatId);
@@ -38,6 +42,12 @@ export default function GlobalPrivateChatWindow() {
           onArchiveConversation={(chatId) => handleClose(chatId || chatWindow.chatId)}
           onDeleteConversation={(chatId) => handleClose(chatId || chatWindow.chatId)}
           onClose={(chatId) => handleClose(chatId || chatWindow.chatId)}
+          onChatActivity={(activity) => {
+            upsertRecentPrivateChat({
+              ...chatWindow,
+              ...(activity || {}),
+            });
+          }}
           onViewProfile={() => {
             toast({
               title: 'Ver perfil',

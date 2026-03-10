@@ -10,7 +10,7 @@ import { ArrowLeft, MessageSquare } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { useAuth } from '@/contexts/AuthContext';
 import { usePrivateChat } from '@/contexts/PrivateChatContext';
-import { getPublicProfile } from '@/services/userService';
+import { getPublicProfileExtended } from '@/services/userService';
 import { getOrCreatePrivateChat } from '@/services/socialService';
 import PublicProfileView from '@/components/profile/PublicProfileView';
 import { toast } from '@/components/ui/use-toast';
@@ -29,7 +29,7 @@ const ProfileViewPage = () => {
     const loadProfile = async () => {
       setIsLoading(true);
       try {
-        const data = await getPublicProfile(userId);
+        const data = await getPublicProfileExtended(userId);
         setProfile(data);
       } catch (error) {
         console.error('Error loading profile:', error);
@@ -99,7 +99,14 @@ const ProfileViewPage = () => {
           transition={{ duration: 0.4 }}
           className="glass-effect rounded-3xl p-6 md:p-8"
         >
-          <PublicProfileView profile={profile} isLoading={isLoading} />
+          <PublicProfileView
+            profile={profile}
+            isLoading={isLoading}
+            onOpenFriendProfile={(friendId) => {
+              if (!friendId) return;
+              navigate(`/profile/${friendId}`);
+            }}
+          />
 
           {!isLoading && profile && !isOwnProfile && currentUser && (
             <div className="mt-6 pt-6 border-t border-border">

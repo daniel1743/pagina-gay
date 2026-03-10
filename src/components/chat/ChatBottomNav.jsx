@@ -6,11 +6,19 @@
 
 import React, { useMemo, useRef } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
-import { Archive, Sparkles, MessageCircle, Megaphone } from 'lucide-react';
+import { Archive, Sparkles, MessageCircle, Megaphone, MessagesSquare } from 'lucide-react';
+import { usePrivateChat } from '@/contexts/PrivateChatContext';
+import { toast } from '@/components/ui/use-toast';
 
 const ChatBottomNav = ({ onOpenBaul, onOpenOpin, onOpenFeaturedChannels, onOpenEsencias }) => {
   const navigate = useNavigate();
   const location = useLocation();
+  const {
+    recentPrivateChats,
+    openPrivateChats,
+    openRecentPrivateChat,
+    maxOpenPrivateChats,
+  } = usePrivateChat();
   const isChat = location.pathname.startsWith('/chat');
   const isPrincipal = location.pathname === '/chat/principal' || location.pathname === '/chat';
   const isBaul = location.pathname.startsWith('/baul');
@@ -18,6 +26,67 @@ const ChatBottomNav = ({ onOpenBaul, onOpenOpin, onOpenFeaturedChannels, onOpenE
 
   const touchStartXRef = useRef(null);
   const touchStartYRef = useRef(null);
+
+  const getPrivateChatKey = (chat) => {
+    if (!chat) return null;
+    if (chat.chatId) return `chat:${chat.chatId}`;
+    const partnerId = chat?.partner?.userId || chat?.partner?.id;
+    if (partnerId) return `partner:${partnerId}`;
+    return null;
+  };
+
+  const mergedPrivateChats = useMemo(() => {
+    const result = [];
+    const seen = new Set();
+    const push = (chat, isOpen = false) => {
+      const key = getPrivateChatKey(chat);
+      if (!key || seen.has(key)) return;
+      seen.add(key);
+      result.push({
+        key,
+        chatId: chat?.chatId || null,
+        partner: chat?.partner || {},
+        roomId: chat?.roomId || null,
+        lastMessageAt: Number(chat?.lastMessageAt || chat?.lastActivityAt || Date.now()),
+        isOpen,
+      });
+    };
+
+    (openPrivateChats || []).forEach((chat) => push(chat, true));
+    (recentPrivateChats || []).forEach((chat) => push(chat, false));
+
+    return result.sort((a, b) => (b.lastMessageAt || 0) - (a.lastMessageAt || 0));
+  }, [openPrivateChats, recentPrivateChats]);
+
+  const openLatestPrivateChat = () => {
+    if (mergedPrivateChats.length === 0) {
+      toast({
+        title: 'Sin conversaciones privadas',
+        description: 'Cuando inicies un chat privado aparecerá aquí.',
+      });
+      navigate('/chat/principal');
+      return;
+    }
+
+    const latest = mergedPrivateChats[0];
+    const result = openRecentPrivateChat({
+      chatId: latest.chatId || null,
+      partner: latest.partner || {},
+      roomId: latest.roomId || null,
+      lastMessageAt: latest.lastMessageAt || Date.now(),
+    });
+
+    if (!result?.ok && result?.reason === 'limit_reached') {
+      toast({
+        title: 'Límite de chats privados',
+        description: `Puedes abrir hasta ${maxOpenPrivateChats || 3} privados al mismo tiempo.`,
+        variant: 'destructive',
+      });
+      return;
+    }
+
+    navigate('/chat/principal');
+  };
 
   const items = [
     {
@@ -37,6 +106,16 @@ const ChatBottomNav = ({ onOpenBaul, onOpenOpin, onOpenFeaturedChannels, onOpenE
       active: isOpin,
       path: '/opin',
       swipeEnabled: true,
+    },
+    {
+      id: 'privates',
+      icon: MessagesSquare,
+      label: 'Privados',
+      onClick: openLatestPrivateChat,
+      active: mergedPrivateChats.length > 0 && isChat,
+      path: null,
+      swipeEnabled: false,
+      badge: mergedPrivateChats.length > 0 ? Math.min(99, mergedPrivateChats.length) : null,
     },
     {
       id: 'featured',
@@ -130,7 +209,14 @@ const ChatBottomNav = ({ onOpenBaul, onOpenOpin, onOpenFeaturedChannels, onOpenE
             }`}
             aria-label={item.label}
           >
-            <Icon className="w-6 h-6 flex-shrink-0" strokeWidth={active ? 2.5 : 2} />
+            <span className="relative inline-flex">
+              <Icon className="w-6 h-6 flex-shrink-0" strokeWidth={active ? 2.5 : 2} />
+              {item.badge ? (
+                <span className="absolute -top-1.5 -right-2 min-w-[16px] h-4 px-1 rounded-full bg-emerald-500 text-[10px] text-white font-semibold leading-4 text-center">
+                  {item.badge}
+                </span>
+              ) : null}
+            </span>
             <span className="text-[10px] font-medium truncate w-full text-center">{item.label}</span>
           </button>
         );
