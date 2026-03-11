@@ -4,7 +4,7 @@
  * Solo visible en móvil (lg:hidden)
  */
 
-import React, { useMemo, useRef } from 'react';
+import React, { useEffect, useMemo, useRef } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { Archive, Sparkles, MessageCircle, Megaphone, MessagesSquare } from 'lucide-react';
 import { usePrivateChat } from '@/contexts/PrivateChatContext';
@@ -26,6 +26,8 @@ const ChatBottomNav = ({ onOpenBaul, onOpenOpin, onOpenFeaturedChannels, onOpenE
 
   const touchStartXRef = useRef(null);
   const touchStartYRef = useRef(null);
+  const isSwipeCandidateRef = useRef(true);
+  const lastSwipeAtRef = useRef(0);
 
   const getPrivateChatKey = (chat) => {
     if (!chat) return null;
@@ -162,23 +164,27 @@ const ChatBottomNav = ({ onOpenBaul, onOpenOpin, onOpenFeaturedChannels, onOpenE
   const handleTouchStart = (event) => {
     const touch = event.touches?.[0];
     if (!touch) return;
+    const target = event.target;
+    const blockedByInteractiveTarget = Boolean(
+      target?.closest?.(
+        'input, textarea, select, button, a, [contenteditable="true"], [data-no-swipe-nav], .no-swipe-nav'
+      )
+    );
+
+    isSwipeCandidateRef.current = !blockedByInteractiveTarget;
     touchStartXRef.current = touch.clientX;
     touchStartYRef.current = touch.clientY;
   };
 
-  const handleTouchEnd = (event) => {
-    const touch = event.changedTouches?.[0];
-    if (!touch) return;
-    if (touchStartXRef.current == null || touchStartYRef.current == null) return;
+  const resolveSwipeNavigation = (dx, dy) => {
+    // Solo en móvil
+    if (typeof window !== 'undefined' && window.innerWidth >= 1024) return;
 
-    const dx = touch.clientX - touchStartXRef.current;
-    const dy = touch.clientY - touchStartYRef.current;
-
-    touchStartXRef.current = null;
-    touchStartYRef.current = null;
+    // Evitar spam de navegación por swipes consecutivos
+    if (Date.now() - lastSwipeAtRef.current < 380) return;
 
     // Priorizar swipe horizontal claro para evitar conflicto con scroll vertical
-    if (Math.abs(dx) < 48) return;
+    if (Math.abs(dx) < 58) return;
     if (Math.abs(dx) <= Math.abs(dy)) return;
 
     const direction = dx < 0 ? 1 : -1; // izquierda = siguiente, derecha = anterior
@@ -187,15 +193,55 @@ const ChatBottomNav = ({ onOpenBaul, onOpenOpin, onOpenFeaturedChannels, onOpenE
 
     const target = swipeTargets[nextIndex];
     if (!target?.path) return;
+
+    lastSwipeAtRef.current = Date.now();
     navigate(target.path);
   };
+
+  const handleTouchEnd = (event) => {
+    const touch = event.changedTouches?.[0];
+    if (!touch) return;
+    if (touchStartXRef.current == null || touchStartYRef.current == null) return;
+    if (!isSwipeCandidateRef.current) {
+      touchStartXRef.current = null;
+      touchStartYRef.current = null;
+      isSwipeCandidateRef.current = true;
+      return;
+    }
+
+    const dx = touch.clientX - touchStartXRef.current;
+    const dy = touch.clientY - touchStartYRef.current;
+
+    touchStartXRef.current = null;
+    touchStartYRef.current = null;
+    isSwipeCandidateRef.current = true;
+    resolveSwipeNavigation(dx, dy);
+  };
+
+  useEffect(() => {
+    const handleWindowTouchStart = (event) => {
+      if (typeof window !== 'undefined' && window.innerWidth >= 1024) return;
+      handleTouchStart(event);
+    };
+
+    const handleWindowTouchEnd = (event) => {
+      if (typeof window !== 'undefined' && window.innerWidth >= 1024) return;
+      handleTouchEnd(event);
+    };
+
+    window.addEventListener('touchstart', handleWindowTouchStart, { passive: true });
+    window.addEventListener('touchend', handleWindowTouchEnd, { passive: true });
+
+    return () => {
+      window.removeEventListener('touchstart', handleWindowTouchStart);
+      window.removeEventListener('touchend', handleWindowTouchEnd);
+    };
+  }, [currentSwipeIndex, navigate, swipeTargets]);
 
   return (
     <nav
       className="lg:hidden fixed bottom-0 left-0 right-0 z-30 h-14 bg-card/95 backdrop-blur-xl border-t border-border flex items-center justify-around px-2 safe-area-pb"
       style={{ paddingBottom: 'max(0.5rem, env(safe-area-inset-bottom))' }}
-      onTouchStart={handleTouchStart}
-      onTouchEnd={handleTouchEnd}
     >
       {items.map((item) => {
         const Icon = item.icon;
