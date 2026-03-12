@@ -11,6 +11,7 @@ import {
   getDocs,
 } from 'firebase/firestore';
 import { db } from '@/config/firebase';
+import { trackListenerStart, trackListenerStop } from '@/utils/listenerMonitor';
 
 const sharedNotificationListeners = new Map();
 
@@ -256,6 +257,7 @@ export const subscribeToSystemNotifications = (userId, callback) => {
       callbacks: new Set(),
       notifications: [],
       unsubscribe: null,
+      listenerToken: null,
     };
 
     try {
@@ -298,6 +300,12 @@ export const subscribeToSystemNotifications = (userId, callback) => {
         sharedEntry.notifications = [];
         notifySharedSubscribers(sharedEntry, []);
       });
+      sharedEntry.listenerToken = trackListenerStart({
+        module: 'system_notifications',
+        type: 'system_notifications_shared',
+        key: `systemNotifications?userId=${userId}`,
+        shared: true,
+      });
     } catch (error) {
       console.error('Error subscribing to notifications:', error);
       callback([]);
@@ -325,6 +333,7 @@ export const subscribeToSystemNotifications = (userId, callback) => {
       } catch {
         // noop
       }
+      trackListenerStop(entry.listenerToken);
       sharedNotificationListeners.delete(userId);
     }
   };

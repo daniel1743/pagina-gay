@@ -7,12 +7,20 @@
 
 import { supabase } from '@/config/supabase';
 
+const ensureSupabaseClient = () => {
+  if (!supabase) {
+    throw new Error('SUPABASE_DISABLED_USE_FIREBASE');
+  }
+  return supabase;
+};
+
 /**
  * Enviar mensaje a una sala
  */
 export const sendMessage = async (roomId, messageData) => {
   try {
-    const { data: { user } } = await supabase.auth.getUser();
+    const client = ensureSupabaseClient();
+    const { data: { user } } = await client.auth.getUser();
     
     const message = {
       room_id: roomId,
@@ -25,7 +33,7 @@ export const sendMessage = async (roomId, messageData) => {
       sender_uid: user?.id || null,
     };
 
-    const { data, error } = await supabase
+    const { data, error } = await client
       .from('messages')
       .insert(message)
       .select()
@@ -46,8 +54,16 @@ export const sendMessage = async (roomId, messageData) => {
  * Suscribirse a mensajes de una sala en tiempo real
  */
 export const subscribeToRoomMessages = (roomId, callback) => {
+  let client = null;
+  try {
+    client = ensureSupabaseClient();
+  } catch (error) {
+    callback([]);
+    return () => {};
+  }
+
   // Primero obtener mensajes iniciales
-  supabase
+  client
     .from('messages')
     .select('*')
     .eq('room_id', roomId)
@@ -70,7 +86,7 @@ export const subscribeToRoomMessages = (roomId, callback) => {
     });
 
   // Suscribirse a cambios en tiempo real
-  const channel = supabase
+  const channel = client
     .channel(`room:${roomId}:messages`)
     .on('postgres_changes', {
       event: 'INSERT',
@@ -102,7 +118,7 @@ export const subscribeToRoomMessages = (roomId, callback) => {
 
   // Retornar función para desuscribirse
   return () => {
-    supabase.removeChannel(channel);
+    client.removeChannel(channel);
   };
 };
 
@@ -111,7 +127,8 @@ export const subscribeToRoomMessages = (roomId, callback) => {
  */
 export const getRoomMessages = async (roomId, limit = 50) => {
   try {
-    const { data, error } = await supabase
+    const client = ensureSupabaseClient();
+    const { data, error } = await client
       .from('messages')
       .select('*')
       .eq('room_id', roomId)
@@ -141,13 +158,14 @@ export const getRoomMessages = async (roomId, limit = 50) => {
  */
 export const deleteMessage = async (messageId) => {
   try {
-    const { data: { user } } = await supabase.auth.getUser();
+    const client = ensureSupabaseClient();
+    const { data: { user } } = await client.auth.getUser();
     
     if (!user) {
       throw new Error('Usuario no autenticado');
     }
 
-    const { error } = await supabase
+    const { error } = await client
       .from('messages')
       .delete()
       .eq('id', messageId)
@@ -169,13 +187,14 @@ export const deleteMessage = async (messageId) => {
  */
 export const updateMessage = async (messageId, updates) => {
   try {
-    const { data: { user } } = await supabase.auth.getUser();
+    const client = ensureSupabaseClient();
+    const { data: { user } } = await client.auth.getUser();
     
     if (!user) {
       throw new Error('Usuario no autenticado');
     }
 
-    const { data, error } = await supabase
+    const { data, error } = await client
       .from('messages')
       .update(updates)
       .eq('id', messageId)

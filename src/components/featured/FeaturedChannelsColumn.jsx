@@ -8,6 +8,7 @@ import FeaturedChannelCard from '@/components/featured/FeaturedChannelCard';
 import { subscribeFeaturedAdsPublic, trackFeaturedAdClick } from '@/services/featuredAdsService';
 
 const FeaturedChannelsColumn = ({
+  showDesktop = true,
   showMobileLauncher = true,
   mobilePanelOpen,
   onMobilePanelOpenChange,
@@ -105,42 +106,44 @@ const FeaturedChannelsColumn = ({
 
   return (
     <>
-      <aside className="hidden lg:flex w-80 2xl:w-96 h-full flex-col border-l border-border bg-card/35 backdrop-blur-sm">
-        <div className="p-4 border-b border-border/80">
-          <div className="flex items-start justify-between gap-2">
-            <div>
-              <h3 className="text-base font-bold text-foreground flex items-center gap-2">
-                <Megaphone className="w-4 h-4 text-cyan-400" />
-                Canales Destacados
-              </h3>
-              <p className="mt-1 text-xs text-muted-foreground">Promos y canales recomendados</p>
-            </div>
-            <div className="flex items-center gap-1.5">
-              <Button
-                size="icon"
-                variant="ghost"
-                className="h-8 w-8 text-muted-foreground hover:text-cyan-400"
-                onClick={onRefresh}
-                title="Actualizar"
-              >
-                <RefreshCw className="w-4 h-4" />
-              </Button>
-              {isAdminUser && (
+      {showDesktop && (
+        <aside className="hidden lg:flex w-80 2xl:w-96 h-full flex-col border-l border-border bg-card/35 backdrop-blur-sm">
+          <div className="p-4 border-b border-border/80">
+            <div className="flex items-start justify-between gap-2">
+              <div>
+                <h3 className="text-base font-bold text-foreground flex items-center gap-2">
+                  <Megaphone className="w-4 h-4 text-cyan-400" />
+                  Canales Destacados
+                </h3>
+                <p className="mt-1 text-xs text-muted-foreground">Promos y canales recomendados</p>
+              </div>
+              <div className="flex items-center gap-1.5">
                 <Button
-                  size="sm"
-                  className="h-8 px-2.5 text-xs"
-                  onClick={() => navigate('/admin')}
-                  title="Agregar anuncio (admin)"
+                  size="icon"
+                  variant="ghost"
+                  className="h-8 w-8 text-muted-foreground hover:text-cyan-400"
+                  onClick={onRefresh}
+                  title="Actualizar"
                 >
-                  <Plus className="w-3.5 h-3.5 mr-1" />
-                  Agregar
+                  <RefreshCw className="w-4 h-4" />
                 </Button>
-              )}
+                {isAdminUser && (
+                  <Button
+                    size="sm"
+                    className="h-8 px-2.5 text-xs"
+                    onClick={() => navigate('/admin')}
+                    title="Agregar anuncio (admin)"
+                  >
+                    <Plus className="w-3.5 h-3.5 mr-1" />
+                    Agregar
+                  </Button>
+                )}
+              </div>
             </div>
           </div>
-        </div>
-        {renderBody()}
-      </aside>
+          {renderBody()}
+        </aside>
+      )}
 
       <div className="lg:hidden">
         {showMobileLauncher && showMobileHint && !isMobilePanelOpen && (

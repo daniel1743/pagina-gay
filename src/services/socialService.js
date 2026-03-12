@@ -18,6 +18,7 @@ import {
 } from 'firebase/firestore';
 import { db, auth } from '@/config/firebase';
 import { isBlockedBetween } from '@/services/blockService';
+import { trackListenerStart, trackListenerStop } from '@/utils/listenerMonitor';
 
 const OPIN_PRIVATE_REQUESTS_PER_HOUR = 4;
 const OPIN_PRIVATE_REQUEST_WINDOW_MS = 60 * 60 * 1000;
@@ -553,6 +554,29 @@ export const respondToPrivateChatRequest = async (
         read: true,
         respondedAt: serverTimestamp(),
       });
+
+      // Notificar al emisor original que su invitación fue rechazada.
+      // Esto permite encadenar un nuevo intento (ej. "conectar al azar").
+      try {
+        const rejectedUserDoc = await getDoc(doc(db, 'users', userId));
+        const rejectedUserData = rejectedUserDoc.data();
+
+        await addDoc(collection(db, 'users', notificationData.from, 'notifications'), {
+          from: userId,
+          fromUsername: rejectedUserData?.username || 'Usuario',
+          fromAvatar: rejectedUserData?.avatar || '',
+          fromIsPremium: rejectedUserData?.isPremium || false,
+          to: notificationData.from,
+          type: 'private_chat_rejected',
+          source: notificationData.source || 'manual',
+          requestId: notificationId,
+          read: false,
+          timestamp: serverTimestamp(),
+        });
+      } catch (notifyError) {
+        console.error('Error notifying sender about private chat rejection:', notifyError);
+      }
+
       return { success: true };
     }
 
@@ -663,6 +687,7 @@ export const subscribeToNotifications = (userId, callback) => {
       callbacks: new Set(),
       notifications: [],
       unsubscribe: null,
+      listenerToken: null,
     };
 
     const notificationsRef = collection(db, 'users', userId, 'notifications');
@@ -698,6 +723,13 @@ export const subscribeToNotifications = (userId, callback) => {
       }
     );
 
+    sharedEntry.listenerToken = trackListenerStart({
+      module: 'social',
+      type: 'user_notifications_shared',
+      key: `users/${userId}/notifications`,
+      shared: true,
+    });
+
     sharedNotificationsListeners.set(userId, sharedEntry);
   }
 
@@ -716,6 +748,7 @@ export const subscribeToNotifications = (userId, callback) => {
     } catch {
       // noop
     }
+    trackListenerStop(entry.listenerToken);
     sharedNotificationsListeners.delete(userId);
   };
 };

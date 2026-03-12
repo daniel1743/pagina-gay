@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
-import { Menu, Home, Volume2, VolumeX, Eye } from 'lucide-react';
+import { Menu, Home, Volume2, VolumeX, Eye, Shuffle } from 'lucide-react';
 import NotificationBell from '@/components/notifications/NotificationBell';
 import NotificationInterestsMenu from '@/components/notifications/NotificationInterestsMenu';
 import { notificationSounds } from '@/services/notificationSounds';
@@ -32,6 +32,8 @@ const ChatHeader = ({
   onDismissHelpLauncher,
   activityText = '',
   activityTickerItems = [],
+  onRandomConnect = null,
+  isRandomConnectActive = false,
 }) => {
   const navigate = useNavigate();
   const { user } = useAuth();
@@ -126,6 +128,23 @@ const ChatHeader = ({
       <div className="flex items-center gap-1.5 sm:gap-2 flex-shrink-0">
         {/* Iconos elegantes junto a la campana */}
         <div className="flex items-center gap-1.5">
+          {typeof onRandomConnect === 'function' && (
+            <Button
+              variant="ghost"
+              size="icon"
+              onClick={onRandomConnect}
+              className={`min-w-[32px] min-h-[32px] w-8 h-8 p-0 ${
+                isRandomConnectActive
+                  ? 'text-cyan-300 hover:text-cyan-200'
+                  : 'text-muted-foreground hover:text-cyan-400'
+              }`}
+              aria-label={isRandomConnectActive ? 'Detener conexión al azar' : 'Conectar al azar'}
+              title={isRandomConnectActive ? 'Detener conexión al azar' : 'Conectar al azar'}
+            >
+              <Shuffle className={`w-4 h-4 ${isRandomConnectActive ? 'animate-pulse' : ''}`} />
+            </Button>
+          )}
+
           {/* Icono SIMULAR - Protector de pantalla */}
           <Button
             variant="ghost"

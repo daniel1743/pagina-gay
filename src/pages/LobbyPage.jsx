@@ -200,34 +200,24 @@ const LobbyPage = () => {
     return () => {}; // Cleanup vacío
   }, []);
 
-  // Suscribirse al ultimo mensaje de la sala principal (para todos los usuarios)
+  // ✅ P0 costo: un solo listener para ultimo mensaje + mensajes recientes
   useEffect(() => {
-    const messagesRef = collection(db, 'rooms', 'principal', 'messages');
-    const qLast = query(messagesRef, orderBy('timestamp', 'desc'), limit(1));
-
-    const unsubscribe = onSnapshot(qLast, (snapshot) => {
-      if (!snapshot.empty) {
-        const lastMsg = snapshot.docs[0].data();
-        setLastMessageTimestamp(lastMsg.timestamp);
-      }
-    });
-
-    return () => unsubscribe();
-  }, []);
-
-  // Suscribirse a mensajes recientes de la sala principal (para usuarios logueados)
-  useEffect(() => {
-    if (!showWelcomeBack) return;
-
     const messagesRef = collection(db, 'rooms', 'principal', 'messages');
     const q = query(messagesRef, orderBy('timestamp', 'desc'), limit(3));
 
     const unsubscribe = onSnapshot(q, (snapshot) => {
-      const messages = snapshot.docs.map(doc => ({
+      const messages = snapshot.docs.map((doc) => ({
         id: doc.id,
-        ...doc.data()
+        ...doc.data(),
       }));
-      setRecentMessages(messages.reverse());
+
+      setLastMessageTimestamp(messages[0]?.timestamp || null);
+
+      if (showWelcomeBack) {
+        setRecentMessages(messages.reverse());
+      } else {
+        setRecentMessages([]);
+      }
     });
 
     return () => unsubscribe();

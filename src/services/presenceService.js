@@ -26,6 +26,7 @@ import {
 import { db, auth } from '@/config/firebase';
 import { actualizarEstadoOnline } from '@/services/tarjetaService';
 import { resolveProfileRole } from '@/config/profileRoles';
+import { trackListenerStart, trackListenerStop } from '@/utils/listenerMonitor';
 
 const isBotUserId = (userId = '') =>
   userId === 'system' ||
@@ -186,6 +187,12 @@ export const updatePresenceFields = async (roomId, fields) => {
 export const subscribeToRoomUsers = (roomId, callback) => {
   const usersRef = collection(db, 'roomPresence', roomId, 'users');
   const includeBots = roomId === 'admin-testing';
+  const listenerToken = trackListenerStart({
+    module: 'presence',
+    type: 'room_users',
+    key: `roomPresence/${roomId}/users`,
+    shared: false,
+  });
 
   if (import.meta.env.DEV) {
     console.log(`📊 [PRESENCE] Listener para usuarios de ${roomId} CREADO`);
@@ -221,6 +228,7 @@ export const subscribeToRoomUsers = (roomId, callback) => {
     if (import.meta.env.DEV) {
       console.log(`📊 [PRESENCE] Listener para usuarios de ${roomId} DESTRUIDO`);
     }
+    trackListenerStop(listenerToken);
     unsubscribe();
   };
 };
@@ -256,6 +264,7 @@ export const subscribeToMultipleRoomCounts = (roomIds, callback) => {
         currentCount: 0,
         hasValue: false,
         unsubscribe: null,
+        listenerToken: null,
       };
 
       listenerEntry.unsubscribe = onSnapshot(usersRef, (snapshot) => {
@@ -290,6 +299,12 @@ export const subscribeToMultipleRoomCounts = (roomIds, callback) => {
           console.error(`[PRESENCE] Error en contador de sala ${roomId}:`, error);
         }
       });
+      listenerEntry.listenerToken = trackListenerStart({
+        module: 'presence',
+        type: 'room_counts_shared',
+        key: `roomPresence/${roomId}/users`,
+        shared: true,
+      });
 
       sharedRoomCountListeners.set(roomId, listenerEntry);
     }
@@ -322,6 +337,7 @@ export const subscribeToMultipleRoomCounts = (roomIds, callback) => {
         } catch {
           // noop
         }
+        trackListenerStop(listenerEntry.listenerToken);
         sharedRoomCountListeners.delete(roomId);
       }
     });

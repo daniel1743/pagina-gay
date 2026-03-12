@@ -9,13 +9,16 @@ import { createClient } from '@supabase/supabase-js';
 
 // ⚠️ Validar variables de entorno (OPCIONAL - no rompe la app si faltan)
 const requiredEnvVars = {
+  VITE_ENABLE_SUPABASE: import.meta.env.VITE_ENABLE_SUPABASE,
   VITE_SUPABASE_URL: import.meta.env.VITE_SUPABASE_URL,
   VITE_SUPABASE_ANON_KEY: import.meta.env.VITE_SUPABASE_ANON_KEY,
 };
 
 const missingVars = Object.entries(requiredEnvVars)
-  .filter(([key, value]) => !value)
+  .filter(([key, value]) => key !== 'VITE_ENABLE_SUPABASE' && !value)
   .map(([key]) => key);
+
+const supabaseEnabledByFlag = String(requiredEnvVars.VITE_ENABLE_SUPABASE || '').toLowerCase() === 'true';
 
 if (missingVars.length > 0) {
   const errorMessage = `⚠️ [SUPABASE] Variables faltantes: ${missingVars.join(', ')}`;
@@ -35,7 +38,9 @@ const supabaseConfig = {
 // ✅ Inicializar cliente de Supabase SOLO si las variables existen
 let supabase = null;
 
-if (supabaseConfig.url && supabaseConfig.anonKey) {
+if (!supabaseEnabledByFlag) {
+  console.warn('⚠️ [SUPABASE] Deshabilitado por flag (VITE_ENABLE_SUPABASE!=true). Firebase sigue activo.');
+} else if (supabaseConfig.url && supabaseConfig.anonKey) {
   supabase = createClient(
     supabaseConfig.url,
     supabaseConfig.anonKey,
@@ -89,8 +94,10 @@ export const storage = supabase?.storage || null;
 
 // Helper para verificar si Supabase está configurado
 export const isSupabaseConfigured = () => {
-  return !!supabase && !!supabaseConfig.url && !!supabaseConfig.anonKey;
+  return !!supabase && !!supabaseConfig.url && !!supabaseConfig.anonKey && supabaseEnabledByFlag;
 };
+
+export const isSupabaseEnabled = () => supabaseEnabledByFlag;
 
 // Helper para obtener el usuario actual
 export const getCurrentUser = async () => {

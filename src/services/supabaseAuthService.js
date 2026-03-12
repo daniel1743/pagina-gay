@@ -7,12 +7,20 @@
 
 import { supabase } from '@/config/supabase';
 
+const ensureSupabaseAuth = () => {
+  if (!supabase?.auth) {
+    throw new Error('SUPABASE_DISABLED_USE_FIREBASE');
+  }
+  return supabase.auth;
+};
+
 /**
  * Registrar nuevo usuario con email y contraseña
  */
 export const signUpWithEmail = async (email, password, userData = {}) => {
   try {
-    const { data, error } = await supabase.auth.signUp({
+    const auth = ensureSupabaseAuth();
+    const { data, error } = await auth.signUp({
       email,
       password,
       options: {
@@ -36,7 +44,8 @@ export const signUpWithEmail = async (email, password, userData = {}) => {
  */
 export const signInWithEmail = async (email, password) => {
   try {
-    const { data, error } = await supabase.auth.signInWithPassword({
+    const auth = ensureSupabaseAuth();
+    const { data, error } = await auth.signInWithPassword({
       email,
       password,
     });
@@ -57,7 +66,8 @@ export const signInWithEmail = async (email, password) => {
  */
 export const signInAnonymously = async (userData = {}) => {
   try {
-    const { data, error } = await supabase.auth.signInAnonymously({
+    const auth = ensureSupabaseAuth();
+    const { data, error } = await auth.signInAnonymously({
       options: {
         data: userData,
       },
@@ -79,7 +89,8 @@ export const signInAnonymously = async (userData = {}) => {
  */
 export const signOut = async () => {
   try {
-    const { error } = await supabase.auth.signOut();
+    const auth = ensureSupabaseAuth();
+    const { error } = await auth.signOut();
     
     if (error) {
       console.error('Error en signOut:', error);
@@ -97,7 +108,8 @@ export const signOut = async () => {
  */
 export const getCurrentUser = async () => {
   try {
-    const { data: { user }, error } = await supabase.auth.getUser();
+    const auth = ensureSupabaseAuth();
+    const { data: { user }, error } = await auth.getUser();
     
     if (error) {
       console.error('Error obteniendo usuario:', error);
@@ -116,7 +128,8 @@ export const getCurrentUser = async () => {
  */
 export const getCurrentSession = async () => {
   try {
-    const { data: { session }, error } = await supabase.auth.getSession();
+    const auth = ensureSupabaseAuth();
+    const { data: { session }, error } = await auth.getSession();
     
     if (error) {
       console.error('Error obteniendo sesión:', error);
@@ -134,9 +147,15 @@ export const getCurrentSession = async () => {
  * Escuchar cambios en el estado de autenticación
  */
 export const onAuthStateChanged = (callback) => {
-  return supabase.auth.onAuthStateChange((event, session) => {
-    callback(session?.user || null, event);
-  });
+  try {
+    const auth = ensureSupabaseAuth();
+    return auth.onAuthStateChange((event, session) => {
+      callback(session?.user || null, event);
+    });
+  } catch {
+    callback?.(null, 'SUPABASE_DISABLED_USE_FIREBASE');
+    return () => {};
+  }
 };
 
 /**
@@ -144,7 +163,8 @@ export const onAuthStateChanged = (callback) => {
  */
 export const updateUserProfile = async (updates) => {
   try {
-    const { data, error } = await supabase.auth.updateUser({
+    const auth = ensureSupabaseAuth();
+    const { data, error } = await auth.updateUser({
       data: updates,
     });
 
@@ -164,7 +184,8 @@ export const updateUserProfile = async (updates) => {
  */
 export const updatePassword = async (newPassword) => {
   try {
-    const { data, error } = await supabase.auth.updateUser({
+    const auth = ensureSupabaseAuth();
+    const { data, error } = await auth.updateUser({
       password: newPassword,
     });
 
@@ -184,7 +205,8 @@ export const updatePassword = async (newPassword) => {
  */
 export const resetPassword = async (email) => {
   try {
-    const { data, error } = await supabase.auth.resetPasswordForEmail(email, {
+    const auth = ensureSupabaseAuth();
+    const { data, error } = await auth.resetPasswordForEmail(email, {
       redirectTo: `${window.location.origin}/reset-password`,
     });
 

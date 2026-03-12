@@ -26,6 +26,7 @@ import { validateMessage as sanitizeMessage } from '@/services/antiSpamService';
 import { getPerformanceMonitor } from '@/services/performanceMonitor';
 import { getDeliveryService } from '@/services/messageDeliveryService';
 import { traceEvent, TRACE_EVENTS, isMessageTraceEnabled } from '@/utils/messageTrace';
+import { trackListenerStart, trackListenerStop } from '@/utils/listenerMonitor';
 
 const FAST_REPLY_WINDOW_MS = 120000;
 const DEFAULT_MESSAGE_REACTIONS = {
@@ -39,6 +40,7 @@ const ALLOWED_REACTION_TYPES = new Set(['like', 'dislike', 'fire', 'heart', 'dev
 const MAX_BULK_DELETE_BATCH = 200;
 const MESSAGE_CACHE_TTL_MS = 60 * 1000;
 const messageSnapshotCache = new Map();
+const sharedRealtimeMessageListeners = new Map();
 
 const normalizeRoomScope = (roomScope = 'rooms') => {
   if (roomScope === 'secondary' || roomScope === 'secondary-rooms') {
@@ -628,6 +630,18 @@ const processSnapshotToMessages = (snapshot, roomId) => {
 };
 
 const getCacheKey = (roomId, messageLimit) => `${roomId}:${messageLimit}`;
+const getRealtimeListenerKey = (roomScope, roomId, messageLimit) =>
+  `${normalizeRoomScope(roomScope)}:${roomId}:${messageLimit}`;
+
+const notifyRealtimeListeners = (entry, messages) => {
+  entry.callbacks.forEach((cb) => {
+    try {
+      cb(messages);
+    } catch {
+      // noop
+    }
+  });
+};
 
 const readCachedMessages = (roomId, messageLimit) => {
   const cacheKey = getCacheKey(roomId, messageLimit);
@@ -679,81 +693,119 @@ const writeCachedMessages = (roomId, messageLimit, messages) => {
  * ⚡ Carga inicial con getDocs para mostrar mensajes de inmediato; onSnapshot para tiempo real
  */
 export const subscribeToRoomMessages = (roomId, callback, messageLimit = 60) => {
-  const messagesRef = collection(db, 'rooms', roomId, 'messages');
-  const q = query(messagesRef, orderBy('timestamp', 'desc'), limit(messageLimit));
-  const traceEnabled = isMessageTraceEnabled();
+  if (typeof callback !== 'function') return () => {};
 
-  // onSnapshot ya entrega datos iniciales inmediatamente — getDocs redundante eliminado
-  const cached = readCachedMessages(roomId, messageLimit);
-  if (Array.isArray(cached) && cached.length > 0) {
-    callback(cached);
-  }
+  const listenerKey = getRealtimeListenerKey('rooms', roomId, messageLimit);
+  let sharedEntry = sharedRealtimeMessageListeners.get(listenerKey);
 
-  const perfMonitor = getPerformanceMonitor();
+  if (!sharedEntry) {
+    const messagesRef = collection(db, 'rooms', roomId, 'messages');
+    const q = query(messagesRef, orderBy('timestamp', 'desc'), limit(messageLimit));
+    const perfMonitor = getPerformanceMonitor();
 
-  const unsubscribe = onSnapshot(
-    q,
-    {
-      includeMetadataChanges: false, // solo cambios reales
-    },
-    (snapshot) => {
-      const orderedMessages = processSnapshotToMessages(snapshot, roomId);
+    sharedEntry = {
+      callbacks: new Set(),
+      latestMessages: [],
+      hasValue: false,
+      unsubscribe: null,
+      listenerToken: null,
+    };
 
-      perfMonitor.recordSnapshotLatency(orderedMessages);
-      writeCachedMessages(roomId, messageLimit, orderedMessages);
+    sharedEntry.unsubscribe = onSnapshot(
+      q,
+      {
+        includeMetadataChanges: false, // solo cambios reales
+      },
+      (snapshot) => {
+        const orderedMessages = processSnapshotToMessages(snapshot, roomId);
 
-      // 🔍 TRACE: Callback ejecutado con mensajes recibidos
-      if (traceEnabled) {
-        traceEvent(TRACE_EVENTS.CALLBACK_EXECUTED, {
-          roomId,
-          messageCount: orderedMessages.length,
-          messageIds: orderedMessages.slice(-5).map((m) => m.id),
-          fromCache: snapshot.metadata.fromCache,
-          hasPendingWrites: snapshot.metadata.hasPendingWrites,
-        });
-      }
+        perfMonitor.recordSnapshotLatency(orderedMessages);
+        writeCachedMessages(roomId, messageLimit, orderedMessages);
+        sharedEntry.latestMessages = orderedMessages;
+        sharedEntry.hasValue = true;
 
-      callback(orderedMessages);
-    },
-    (error) => {
-      console.error(`[CHAT SERVICE] ❌ ERROR en onSnapshot para sala ${roomId}:`, {
-        name: error.name,
-        code: error.code,
-        message: error.message,
-        stack: error.stack,
-        timestamp: new Date().toISOString()
-      });
-      
-      // ✅ Ignorar errores transitorios de Firestore WebChannel (errores 400 internos)
-      const isTransientError = 
-        error.name === 'AbortError' ||
-        error.code === 'cancelled' ||
-        error.code === 'unavailable' ||
-        error.message?.includes('WebChannelConnection') ||
-        error.message?.includes('transport errored') ||
-        error.message?.includes('RPC') ||
-        error.message?.includes('stream') ||
-        error.message?.includes('INTERNAL ASSERTION FAILED') ||
-        error.message?.includes('Unexpected state');
+        if (isMessageTraceEnabled()) {
+          traceEvent(TRACE_EVENTS.CALLBACK_EXECUTED, {
+            roomId,
+            messageCount: orderedMessages.length,
+            messageIds: orderedMessages.slice(-5).map((m) => m.id),
+            fromCache: snapshot.metadata.fromCache,
+            hasPendingWrites: snapshot.metadata.hasPendingWrites,
+          });
+        }
 
-      if (!isTransientError) {
-        console.error(`[CHAT SERVICE] 🚨 ERROR NO TRANSITORIO para sala ${roomId}:`, error.code, error.message);
-        console.error('[SUBSCRIBE] 🔍 Detalles completos:', {
+        notifyRealtimeListeners(sharedEntry, orderedMessages);
+      },
+      (error) => {
+        console.error(`[CHAT SERVICE] ❌ ERROR en onSnapshot para sala ${roomId}:`, {
+          name: error.name,
           code: error.code,
           message: error.message,
-          roomId,
+          stack: error.stack,
           timestamp: new Date().toISOString(),
-          error: error
         });
-        // Evitar throw dentro de callback de onSnapshot para no romper el loop de render.
-        // El componente superior ya mantiene el último estado estable.
-      } else {
-        console.warn(`[CHAT SERVICE] ⚠️ Error transitorio ignorado para sala ${roomId}:`, error.code);
-      }
-    }
-  );
 
-  return unsubscribe;
+        const isTransientError =
+          error.name === 'AbortError' ||
+          error.code === 'cancelled' ||
+          error.code === 'unavailable' ||
+          error.message?.includes('WebChannelConnection') ||
+          error.message?.includes('transport errored') ||
+          error.message?.includes('RPC') ||
+          error.message?.includes('stream') ||
+          error.message?.includes('INTERNAL ASSERTION FAILED') ||
+          error.message?.includes('Unexpected state');
+
+        if (!isTransientError) {
+          console.error(`[CHAT SERVICE] 🚨 ERROR NO TRANSITORIO para sala ${roomId}:`, error.code, error.message);
+          console.error('[SUBSCRIBE] 🔍 Detalles completos:', {
+            code: error.code,
+            message: error.message,
+            roomId,
+            timestamp: new Date().toISOString(),
+            error,
+          });
+        } else {
+          console.warn(`[CHAT SERVICE] ⚠️ Error transitorio ignorado para sala ${roomId}:`, error.code);
+        }
+      }
+    );
+
+    sharedEntry.listenerToken = trackListenerStart({
+      module: 'chat',
+      type: 'room_messages',
+      key: `rooms/${roomId}/messages?limit=${messageLimit}`,
+      shared: true,
+    });
+    sharedRealtimeMessageListeners.set(listenerKey, sharedEntry);
+  }
+
+  sharedEntry.callbacks.add(callback);
+
+  if (sharedEntry.hasValue) {
+    callback(sharedEntry.latestMessages);
+  } else {
+    const cached = readCachedMessages(roomId, messageLimit);
+    if (Array.isArray(cached) && cached.length > 0) {
+      callback(cached);
+    }
+  }
+
+  return () => {
+    const activeEntry = sharedRealtimeMessageListeners.get(listenerKey);
+    if (!activeEntry) return;
+
+    activeEntry.callbacks.delete(callback);
+    if (activeEntry.callbacks.size > 0) return;
+
+    try {
+      activeEntry.unsubscribe?.();
+    } catch {
+      // noop
+    }
+    trackListenerStop(activeEntry.listenerToken);
+    sharedRealtimeMessageListeners.delete(listenerKey);
+  };
 };
 
 export const addReactionToMessage = async (roomId, messageId, reactionType) => {
@@ -1207,27 +1259,68 @@ export const sendSecondaryMessage = async (roomId, messageData, isAnonymous = fa
  * Usa la colección 'secondary-rooms' en lugar de 'rooms'
  */
 export const subscribeToSecondaryRoomMessages = (roomId, callback, messageLimit = 60) => {
-  const messagesRef = collection(db, 'secondary-rooms', roomId, 'messages');
-  const q = query(messagesRef, orderBy('timestamp', 'desc'), limit(messageLimit));
+  if (typeof callback !== 'function') return () => {};
 
-  const perfMonitor = getPerformanceMonitor();
+  const listenerKey = getRealtimeListenerKey('secondary-rooms', roomId, messageLimit);
+  let sharedEntry = sharedRealtimeMessageListeners.get(listenerKey);
 
-  const unsubscribe = onSnapshot(
-    q,
-    (snapshot) => {
-      const orderedMessages = processSnapshotToMessages(snapshot, roomId);
+  if (!sharedEntry) {
+    const messagesRef = collection(db, 'secondary-rooms', roomId, 'messages');
+    const q = query(messagesRef, orderBy('timestamp', 'desc'), limit(messageLimit));
+    const perfMonitor = getPerformanceMonitor();
 
-      perfMonitor.recordSnapshotLatency(orderedMessages);
+    sharedEntry = {
+      callbacks: new Set(),
+      latestMessages: [],
+      hasValue: false,
+      unsubscribe: null,
+      listenerToken: null,
+    };
 
-      callback(orderedMessages);
-    },
-    (error) => {
-      console.error('Error en suscripción a sala secundaria:', error);
-      callback([]);
+    sharedEntry.unsubscribe = onSnapshot(
+      q,
+      (snapshot) => {
+        const orderedMessages = processSnapshotToMessages(snapshot, roomId);
+        perfMonitor.recordSnapshotLatency(orderedMessages);
+        sharedEntry.latestMessages = orderedMessages;
+        sharedEntry.hasValue = true;
+        notifyRealtimeListeners(sharedEntry, orderedMessages);
+      },
+      (error) => {
+        console.error('Error en suscripción a sala secundaria:', error);
+        notifyRealtimeListeners(sharedEntry, []);
+      }
+    );
+
+    sharedEntry.listenerToken = trackListenerStart({
+      module: 'chat',
+      type: 'secondary_room_messages',
+      key: `secondary-rooms/${roomId}/messages?limit=${messageLimit}`,
+      shared: true,
+    });
+    sharedRealtimeMessageListeners.set(listenerKey, sharedEntry);
+  }
+
+  sharedEntry.callbacks.add(callback);
+  if (sharedEntry.hasValue) {
+    callback(sharedEntry.latestMessages);
+  }
+
+  return () => {
+    const activeEntry = sharedRealtimeMessageListeners.get(listenerKey);
+    if (!activeEntry) return;
+
+    activeEntry.callbacks.delete(callback);
+    if (activeEntry.callbacks.size > 0) return;
+
+    try {
+      activeEntry.unsubscribe?.();
+    } catch {
+      // noop
     }
-  );
-
-  return unsubscribe;
+    trackListenerStop(activeEntry.listenerToken);
+    sharedRealtimeMessageListeners.delete(listenerKey);
+  };
 };
 
 /**

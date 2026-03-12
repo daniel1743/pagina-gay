@@ -92,3 +92,4 @@ Duracion estimada: 7 a 14 dias.
 - Estrategia definida: optimizar primero, migrar despues.
 - Cambios de optimizacion inicial ya aplicados en servicios de presencia y notificaciones.
 - Siguiente paso recomendado: auditoria de lecturas por modulo (48h) para priorizar P0/P1.
+- Operacion actual: Firebase sigue como base principal (writer activo) con `VITE_ENABLE_SUPABASE=false` hasta completar Fase B/C.

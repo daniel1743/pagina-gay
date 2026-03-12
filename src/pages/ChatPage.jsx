@@ -40,6 +40,7 @@ import TelegramBanner from '@/components/ui/TelegramBanner';
 import TarjetaPromoBanner from '@/components/chat/TarjetaPromoBanner';
 import ChatBottomNav from '@/components/chat/ChatBottomNav';
 import FeaturedChannelsColumn from '@/components/featured/FeaturedChannelsColumn';
+import ChatOnlineUsersColumn from '@/components/chat/ChatOnlineUsersColumn';
 import PrivateMatchSuggestionCard from '@/components/chat/PrivateMatchSuggestionCard';
 import { useEngagementNudge } from '@/hooks/useEngagementNudge';
 // ⚠️ MODERADOR ELIMINADO (06/01/2026) - A petición del usuario
@@ -115,6 +116,8 @@ const PRIVATE_MATCH_IDLE_MS = 4000;
 const PRIVATE_MATCH_REQUEST_WINDOW_MS = 30000;
 const PRIVATE_MATCH_COOLDOWN_MS = 2 * 60 * 1000;
 const PRIVATE_MATCH_QUICK_GREETINGS = ['Hola 👋', '¿Qué haces?', '¿De dónde eres?'];
+const RANDOM_CONNECT_SOURCE = 'random_connect_chain';
+const RANDOM_CONNECT_STARTERS = ['Hola 👋', '¿Qué tal?', '¿De dónde eres?', '¿Te tinca hablar?'];
 const isChatDebugEnabled = () => {
   if (typeof window === 'undefined') return false;
   const params = new URLSearchParams(window.location.search);
@@ -203,6 +206,15 @@ const resolveChatAvatar = (avatar) => {
   if (normalized.startsWith('data:image/svg+xml')) return DEFAULT_CHAT_AVATAR;
   if (normalized.startsWith('blob:')) return DEFAULT_CHAT_AVATAR;
   return avatar;
+};
+
+const shuffleArray = (items) => {
+  const next = Array.isArray(items) ? [...items] : [];
+  for (let i = next.length - 1; i > 0; i -= 1) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [next[i], next[j]] = [next[j], next[i]];
+  }
+  return next;
 };
 
 const ChatPage = () => {
@@ -579,6 +591,7 @@ const ChatPage = () => {
   const [privateChatRequest, setPrivateChatRequest] = useState(null);
   const [privateMatchSuggestion, setPrivateMatchSuggestion] = useState(null);
   const [isSendingPrivateMatchRequest, setIsSendingPrivateMatchRequest] = useState(false);
+  const [isRandomConnectActive, setIsRandomConnectActive] = useState(false);
   // Chat privado persistente: usa contexto global para mantener conversación al navegar
   const { openPrivateChats, setActivePrivateChat, dismissedChatIds, maxOpenPrivateChats } = usePrivateChat();
   // 🔔 Estado para popup de recordatorio de evento
@@ -594,6 +607,14 @@ const ChatPage = () => {
   const privateMatchLastShownAtRef = useRef(0);
   const privateMatchCooldownByTargetRef = useRef(new Map());
   const isSendingPrivateMatchRequestRef = useRef(false);
+  const randomConnectSessionRef = useRef({
+    active: false,
+    queue: [],
+    pendingRequestId: null,
+    pendingTargetId: null,
+    pendingTargetName: '',
+    pendingTimeoutId: null,
+  });
   // Mantener refs sincronizados con state/contexto
   privateChatRequestRef.current = privateChatRequest;
   privateMatchSuggestionRef.current = privateMatchSuggestion;
@@ -865,6 +886,38 @@ const ChatPage = () => {
     };
   }, [messages, isSystemUserId, isAutomatedUserId]);
 
+  const recentPresenceFallbackUsers = useMemo(() => {
+    if (!Array.isArray(messages) || messages.length === 0) return [];
+    const byUser = new Map();
+
+    for (let i = messages.length - 1; i >= 0; i -= 1) {
+      const msg = messages[i];
+      const senderId = msg?.userId || '';
+      if (!senderId || isSystemUserId(senderId) || isAutomatedUserId(senderId)) continue;
+      if (byUser.has(senderId)) continue;
+
+      const ts = msg.timestampMs ||
+        (msg.timestamp?.toMillis?.() ||
+          (typeof msg.timestamp === 'number' ? msg.timestamp :
+            (msg.timestamp ? new Date(msg.timestamp).getTime() : null))) ||
+        Date.now();
+
+      byUser.set(senderId, {
+        userId: senderId,
+        username: msg?.username || 'Usuario',
+        avatar: resolveChatAvatar(msg?.avatar),
+        roleBadge: resolveProfileRole(msg?.roleBadge, msg?.profileRole, msg?.role),
+        isPremium: Boolean(msg?.isPremium || msg?.isProUser),
+        isGuest: Boolean(msg?.isGuest || msg?.isAnonymous),
+        lastConnectedAt: ts,
+      });
+
+      if (byUser.size >= 80) break;
+    }
+
+    return Array.from(byUser.values());
+  }, [messages, isSystemUserId, isAutomatedUserId]);
+
   const latestRoleByConnectedUser = useMemo(() => {
     const roleByUser = new Map();
     if (!Array.isArray(messages) || messages.length === 0) return roleByUser;
@@ -920,18 +973,13 @@ const ChatPage = () => {
 
     const uniqueNames = Array.from(new Set(connectedNames));
 
-    const hasPresenceUsers = uniqueNames.length > 0;
-
     return {
-      activosOnline: hasPresenceUsers && activosOnline > 0
-        ? activosOnline
-        : Math.max(activosOnline, recentParticipants20m.activosOnline),
-      pasivosOnline: hasPresenceUsers && pasivosOnline > 0
-        ? pasivosOnline
-        : Math.max(pasivosOnline, recentParticipants20m.pasivosOnline),
-      connectedNames: hasPresenceUsers ? uniqueNames : recentParticipants20m.connectedNames,
+      // ✅ Solo presencia real en vivo (sin fallback histórico)
+      activosOnline,
+      pasivosOnline,
+      connectedNames: uniqueNames,
     };
-  }, [roomUsers, latestRoleByConnectedUser, isSystemUserId, isAutomatedUserId, recentParticipants20m]);
+  }, [roomUsers, latestRoleByConnectedUser, isSystemUserId, isAutomatedUserId]);
 
   const currentUserResolvedRole = useMemo(() => (
     resolveProfileRole(
@@ -994,6 +1042,201 @@ const ChatPage = () => {
     isAutomatedUserId,
   ]);
 
+  const clearRandomConnectPendingTimeout = useCallback(() => {
+    const session = randomConnectSessionRef.current;
+    if (session.pendingTimeoutId) {
+      window.clearTimeout(session.pendingTimeoutId);
+      session.pendingTimeoutId = null;
+    }
+  }, []);
+
+  const stopRandomConnect = useCallback(() => {
+    const session = randomConnectSessionRef.current;
+    session.active = false;
+    session.queue = [];
+    session.pendingRequestId = null;
+    session.pendingTargetId = null;
+    session.pendingTargetName = '';
+    if (session.pendingTimeoutId) {
+      window.clearTimeout(session.pendingTimeoutId);
+      session.pendingTimeoutId = null;
+    }
+    setIsRandomConnectActive(false);
+  }, []);
+
+  const sendNextRandomConnectInvite = useCallback(async ({ reason = 'initial' } = {}) => {
+    const session = randomConnectSessionRef.current;
+    if (!session.active || session.pendingRequestId) return;
+    if (!user?.id) {
+      stopRandomConnect();
+      return;
+    }
+
+    while (session.active && session.queue.length > 0) {
+      const nextCandidate = session.queue.shift();
+      const targetUserId = nextCandidate?.userId || nextCandidate?.id || null;
+      if (!targetUserId || targetUserId === user.id) continue;
+      if (nextCandidate?.isGuest || nextCandidate?.isAnonymous) continue;
+
+      const blockedUntil = privateMatchCooldownByTargetRef.current.get(targetUserId) || 0;
+      const now = Date.now();
+      if (blockedUntil > now) continue;
+      if (blockedUntil > 0 && blockedUntil <= now) {
+        privateMatchCooldownByTargetRef.current.delete(targetUserId);
+      }
+
+      try {
+        const blocked = await isBlockedBetween(user.id, targetUserId);
+        if (blocked) continue;
+
+        const selectedStarter = RANDOM_CONNECT_STARTERS[
+          Math.floor(Math.random() * RANDOM_CONNECT_STARTERS.length)
+        ];
+
+        const result = await sendPrivateChatRequest(user.id, targetUserId, {
+          source: RANDOM_CONNECT_SOURCE,
+          systemPrompt: 'Conexión aleatoria rápida: ambos están en línea para conversar.',
+          suggestedStarter: selectedStarter,
+          expiresAtMs: Date.now() + PRIVATE_MATCH_REQUEST_WINDOW_MS,
+        });
+
+        if (!session.active) return;
+
+        session.pendingRequestId = result?.requestId || null;
+        session.pendingTargetId = targetUserId;
+        session.pendingTargetName = nextCandidate?.username || 'este usuario';
+        privateMatchCooldownByTargetRef.current.set(
+          targetUserId,
+          Date.now() + PRIVATE_MATCH_COOLDOWN_MS
+        );
+
+        clearRandomConnectPendingTimeout();
+        session.pendingTimeoutId = window.setTimeout(() => {
+          const currentSession = randomConnectSessionRef.current;
+          if (!currentSession.active) return;
+          if (currentSession.pendingTargetId !== targetUserId) return;
+
+          const timedOutName = currentSession.pendingTargetName || 'este usuario';
+          currentSession.pendingRequestId = null;
+          currentSession.pendingTargetId = null;
+          currentSession.pendingTargetName = '';
+          currentSession.pendingTimeoutId = null;
+
+          toast({
+            title: 'Sin respuesta',
+            description: `${timedOutName} no respondió a tiempo. Probando con otro usuario...`,
+          });
+
+          void sendNextRandomConnectInvite({ reason: 'timeout' });
+        }, PRIVATE_MATCH_REQUEST_WINDOW_MS + 1200);
+
+        setPrivateMatchSuggestion(null);
+        lastInteractionAtRef.current = Date.now();
+
+        toast({
+          title: reason === 'initial' ? 'Conexión aleatoria activada' : 'Probando otro usuario',
+          description: `Invitación enviada a ${session.pendingTargetName}.`,
+        });
+        return;
+      } catch (error) {
+        const recoverable = error?.message === 'BLOCKED' || error?.message === 'SELF_REQUEST_NOT_ALLOWED';
+        if (recoverable) continue;
+
+        console.error('Error sending random connect request:', error);
+        stopRandomConnect();
+        toast({
+          title: 'No pudimos iniciar conexión al azar',
+          description: 'Intenta de nuevo en unos segundos.',
+          variant: 'destructive',
+        });
+        return;
+      }
+    }
+
+    if (session.active) {
+      stopRandomConnect();
+      toast({
+        title: 'Sin usuarios disponibles',
+        description: 'No hay más usuarios disponibles para conexión al azar en este momento.',
+      });
+    }
+  }, [clearRandomConnectPendingTimeout, stopRandomConnect, user?.id]);
+
+  const handleToggleRandomConnect = useCallback(() => {
+    if (!auth.currentUser || user?.isGuest || user?.isAnonymous || !user?.id) {
+      setRegistrationModalFeature('chat privado');
+      setShowRegistrationModal(true);
+      return;
+    }
+
+    if (isRandomConnectActive) {
+      stopRandomConnect();
+      toast({
+        title: 'Conexión al azar detenida',
+        description: 'No se enviarán más invitaciones automáticas.',
+      });
+      return;
+    }
+
+    if ((openPrivateChatsRef.current || []).length > 0) {
+      toast({
+        title: 'Ya tienes un chat privado abierto',
+        description: 'Cierra el privado actual para iniciar una conexión al azar.',
+      });
+      return;
+    }
+
+    const availableCandidates = shuffleArray(
+      (privateMatchCandidates || []).filter(
+        (candidate) => !candidate?.isGuest && !candidate?.isAnonymous
+      )
+    );
+
+    if (availableCandidates.length === 0) {
+      toast({
+        title: 'Sin usuarios disponibles',
+        description: 'Ahora mismo no hay usuarios aptos para conectar al azar.',
+      });
+      return;
+    }
+
+    const session = randomConnectSessionRef.current;
+    clearRandomConnectPendingTimeout();
+    session.active = true;
+    session.queue = availableCandidates;
+    session.pendingRequestId = null;
+    session.pendingTargetId = null;
+    session.pendingTargetName = '';
+    setIsRandomConnectActive(true);
+    setPrivateMatchSuggestion(null);
+
+    void sendNextRandomConnectInvite({ reason: 'initial' });
+  }, [
+    clearRandomConnectPendingTimeout,
+    isRandomConnectActive,
+    privateMatchCandidates,
+    sendNextRandomConnectInvite,
+    stopRandomConnect,
+    user?.id,
+    user?.isAnonymous,
+    user?.isGuest,
+  ]);
+
+  useEffect(() => () => {
+    const session = randomConnectSessionRef.current;
+    if (session.pendingTimeoutId) {
+      window.clearTimeout(session.pendingTimeoutId);
+      session.pendingTimeoutId = null;
+    }
+  }, []);
+
+  useEffect(() => {
+    if (!isRandomConnectActive) return;
+    if ((openPrivateChats?.length || 0) > 0) {
+      stopRandomConnect();
+    }
+  }, [openPrivateChats, isRandomConnectActive, stopRandomConnect]);
+
   const markChatInteraction = useCallback(() => {
     lastInteractionAtRef.current = Date.now();
   }, []);
@@ -1018,7 +1261,8 @@ const ChatPage = () => {
   useEffect(() => {
     lastInteractionAtRef.current = Date.now();
     setPrivateMatchSuggestion(null);
-  }, [currentRoom, user?.id]);
+    stopRandomConnect();
+  }, [currentRoom, user?.id, stopRandomConnect]);
 
   useEffect(() => {
     if (!user?.id || currentRoom !== 'principal') return undefined;
@@ -1147,7 +1391,8 @@ const ChatPage = () => {
   }, [filteredMessages, activeUsersCount, lastMessageMs, activityNow, formatRelativeTime, DAILY_TOPICS, user]);
 
   const headerActivitySnapshot = useMemo(() => {
-    const visibleOnlineCount = activeUsersCount > 0 ? activeUsersCount : recentParticipants20m.count;
+    // ✅ "conectados" debe reflejar solo usuarios realmente presentes ahora
+    const visibleOnlineCount = activeUsersCount;
     const roleSignal = onlineRoleStats.activosOnline + onlineRoleStats.pasivosOnline;
     const hasConnectedPeople = visibleOnlineCount > 0 || roleSignal > 0 || onlineRoleStats.connectedNames.length > 0;
 
@@ -2369,6 +2614,57 @@ const ChatPage = () => {
         });
       }
 
+      // Rechazos de chat privado (importante para encadenar "conectar al azar")
+      const rejectedChats = notifications.filter((n) => n.type === 'private_chat_rejected');
+      if (rejectedChats.length > 0) {
+        const currentRandomSession = randomConnectSessionRef.current;
+        let handledRandomRejection = null;
+
+        if (currentRandomSession.active) {
+          const relevantRejection = rejectedChats.find((item) => {
+            const sameSource = item.source === RANDOM_CONNECT_SOURCE;
+            const sameRequest = currentRandomSession.pendingRequestId && item.requestId === currentRandomSession.pendingRequestId;
+            const sameTarget = currentRandomSession.pendingTargetId && item.from === currentRandomSession.pendingTargetId;
+            return sameSource && (sameRequest || sameTarget);
+          });
+
+          if (relevantRejection) {
+            handledRandomRejection = relevantRejection;
+            markNotificationAsRead(user.id, relevantRejection.id).catch(() => {});
+            const rejectedName = relevantRejection.fromUsername || currentRandomSession.pendingTargetName || 'este usuario';
+            clearRandomConnectPendingTimeout();
+            currentRandomSession.pendingRequestId = null;
+            currentRandomSession.pendingTargetId = null;
+            currentRandomSession.pendingTargetName = '';
+
+            toast({
+              title: 'Invitación rechazada',
+              description: `${rejectedName} rechazó. Buscando otro usuario...`,
+            });
+            void sendNextRandomConnectInvite({ reason: 'rejected' });
+          }
+        }
+
+        const remainingRejections = rejectedChats.filter(
+          (item) => item.id !== handledRandomRejection?.id
+        );
+        const manualRejection = remainingRejections.find(
+          (item) => item.source !== RANDOM_CONNECT_SOURCE
+        );
+
+        if (manualRejection) {
+          toast({
+            title: 'Invitación rechazada',
+            description: `${manualRejection.fromUsername || 'Un usuario'} rechazó tu invitación.`,
+            variant: 'destructive',
+          });
+        }
+
+        remainingRejections.forEach((item) => {
+          markNotificationAsRead(user.id, item.id).catch(() => {});
+        });
+      }
+
       // Buscar notificaciones de chat aceptado
       const acceptedChats = notifications.filter(n =>
         n.type === 'private_chat_accepted' && !currentDismissed.has(n.chatId)
@@ -2390,6 +2686,11 @@ const ChatPage = () => {
           roomId
         });
 
+        const currentRandomSession = randomConnectSessionRef.current;
+        if (currentRandomSession.active && currentRandomSession.pendingTargetId === latestAccepted.from) {
+          stopRandomConnect();
+        }
+
         if (opened || currentOpenChats.some((chat) => chat.chatId === latestAccepted.chatId)) {
           markNotificationAsRead(user.id, latestAccepted.id).catch(() => {});
         }
@@ -2397,7 +2698,13 @@ const ChatPage = () => {
     });
 
     return () => unsubscribe();
-  }, [user?.id, openPrivateChatWindow]); // refs manejan el estado mutable
+  }, [
+    user?.id,
+    clearRandomConnectPendingTimeout,
+    openPrivateChatWindow,
+    sendNextRandomConnectInvite,
+    stopRandomConnect,
+  ]); // refs manejan el estado mutable
 
   // ✅ OLD SCROLL LOGIC REMOVED - Now using useChatScrollManager hook
 
@@ -3797,7 +4104,7 @@ const ChatPage = () => {
 
   return (
     <>
-      {/* ✅ Layout Chat: Sidebar + Chat + Canales Destacados (desktop) */}
+      {/* ✅ Layout Chat: Sidebar + Chat + Usuarios en línea (desktop) */}
       <div className="h-screen overflow-hidden bg-background lg:flex" style={{ height: '100dvh', maxHeight: '100dvh' }}>
         <ChatSidebar
           currentRoom={currentRoom}
@@ -3815,6 +4122,8 @@ const ChatPage = () => {
             currentRoom={currentRoom}
             onMenuClick={() => setSidebarOpen(true)}
             onOpenPrivateChat={handleOpenPrivateChatFromNotification}
+            onRandomConnect={handleToggleRandomConnect}
+            isRandomConnectActive={isRandomConnectActive}
             onSimulate={() => setShowScreenSaver(true)}
             showHelpLauncher={showHelpLauncher}
             onOpenHelpTour={handleOpenHelpTour}
@@ -3943,7 +4252,16 @@ const ChatPage = () => {
           />
         </div>
 
+        <ChatOnlineUsersColumn
+          roomUsers={roomUsers}
+          fallbackUsers={recentPresenceFallbackUsers}
+          roomId={currentRoom || 'principal'}
+          currentUserId={user?.id || null}
+          onUserClick={(targetUser) => setUserActionsTarget(targetUser)}
+        />
+
         <FeaturedChannelsColumn
+          showDesktop={false}
           showMobileLauncher={false}
           mobilePanelOpen={isFeaturedChannelsMobileOpen}
           onMobilePanelOpenChange={setIsFeaturedChannelsMobileOpen}
