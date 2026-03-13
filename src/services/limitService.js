@@ -83,7 +83,7 @@ export const getCurrentLimits = (userId) => {
  * Verifica si el usuario puede enviar una invitación a chat privado
  * ADMIN: siempre puede (ilimitado para testing)
  * PREMIUM: siempre puede
- * FREE: verifica límite de 5/día
+ * FREE/INVITADO: verifica límite de 5/día
  */
 export const canSendChatInvite = (user) => {
   // Admin: ilimitado (bypass para testing)
@@ -94,15 +94,6 @@ export const canSendChatInvite = (user) => {
   // Premium: ilimitado
   if (user.isPremium) {
     return { allowed: true, reason: 'premium' };
-  }
-
-  // Guest/Anonymous: no permitido
-  if (user.isGuest || user.isAnonymous) {
-    return {
-      allowed: false,
-      reason: 'guest',
-      message: 'Regístrate para enviar invitaciones a chat privado'
-    };
   }
 
   const limits = getCurrentLimits(user.id);

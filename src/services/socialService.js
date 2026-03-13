@@ -15,6 +15,7 @@ import {
   orderBy,
   setDoc,
   limit,
+  runTransaction,
 } from 'firebase/firestore';
 import { db, auth } from '@/config/firebase';
 import { isBlockedBetween } from '@/services/blockService';
@@ -24,6 +25,9 @@ const OPIN_PRIVATE_REQUESTS_PER_HOUR = 4;
 const OPIN_PRIVATE_REQUEST_WINDOW_MS = 60 * 60 * 1000;
 const OPIN_PRIVATE_REQUEST_RECIPIENT_COOLDOWN_MS = 15 * 60 * 1000;
 const PRIVATE_CHAT_REQUEST_LOG_COLLECTION = 'private_chat_request_logs';
+const PRIVATE_GROUP_MAX_PARTICIPANTS = 4;
+const PRIVATE_GROUP_INVITES_COLLECTION = 'private_chat_group_invites';
+const PRIVATE_GROUP_INVITE_EXPIRY_MS = 2 * 60 * 1000;
 const sharedNotificationsListeners = new Map();
 
 const toMillis = (value) => {
@@ -49,6 +53,178 @@ const notifyNotificationSubscribers = (entry, notifications) => {
       // noop
     }
   });
+};
+
+const normalizeParticipantProfile = (participant = {}) => {
+  const userId = participant?.userId || participant?.id || '';
+  return {
+    userId,
+    username: participant?.username || 'Usuario',
+    avatar: participant?.avatar || '',
+    isPremium: Boolean(participant?.isPremium),
+  };
+};
+
+const dedupeParticipantProfiles = (participants = []) => {
+  const byId = new Map();
+  (participants || []).forEach((participant) => {
+    const normalized = normalizeParticipantProfile(participant);
+    if (!normalized.userId) return;
+    byId.set(normalized.userId, normalized);
+  });
+  return Array.from(byId.values());
+};
+
+const buildPrivateGroupChatId = (participantIds = []) => {
+  const sorted = [...new Set((participantIds || []).filter(Boolean))].sort();
+  return `group_${sorted.join('__')}`;
+};
+
+const buildPrivateGroupTitle = (participantProfiles = [], currentUserId = null) => {
+  const others = (participantProfiles || []).filter((item) => item.userId !== currentUserId);
+  const names = others.map((item) => item.username).filter(Boolean);
+  if (names.length === 0) return 'Grupo privado';
+  if (names.length <= 2) return names.join(' + ');
+  return `${names.slice(0, 2).join(' + ')} +${names.length - 2}`;
+};
+
+export const getOrCreatePrivateGroupChat = async (participantProfiles = [], options = {}) => {
+  const normalizedProfiles = dedupeParticipantProfiles(participantProfiles);
+  const participantIds = normalizedProfiles.map((item) => item.userId);
+
+  if (participantIds.length < 3) {
+    throw new Error('GROUP_CHAT_REQUIRES_3_PARTICIPANTS');
+  }
+  if (participantIds.length > PRIVATE_GROUP_MAX_PARTICIPANTS) {
+    throw new Error('GROUP_CHAT_LIMIT_EXCEEDED');
+  }
+
+  const chatId = buildPrivateGroupChatId(participantIds);
+  const chatRef = doc(collection(db, 'private_chats'), chatId);
+  const existing = await getDoc(chatRef);
+
+  if (existing.exists()) {
+    return { chatId, created: false };
+  }
+
+  await setDoc(chatRef, {
+    participants: participantIds.slice().sort(),
+    participantProfiles: normalizedProfiles,
+    createdAt: serverTimestamp(),
+    lastMessage: null,
+    active: true,
+    isGroup: true,
+    title: options?.title || buildPrivateGroupTitle(normalizedProfiles),
+    sourceChatId: options?.sourceChatId || null,
+  });
+
+  return { chatId, created: true };
+};
+
+export const sendPrivateGroupInvite = async ({
+  sourceChatId,
+  inviterId,
+  existingParticipants = [],
+  invitee,
+}) => {
+  try {
+    const actorUserId = auth?.currentUser?.uid || inviterId;
+    const normalizedInvitee = normalizeParticipantProfile(invitee);
+    const normalizedParticipants = dedupeParticipantProfiles(existingParticipants);
+
+    if (!actorUserId || !normalizedInvitee.userId || !sourceChatId) {
+      throw new Error('MISSING_PARAMS');
+    }
+
+    if (normalizedInvitee.userId === actorUserId) {
+      throw new Error('SELF_REQUEST_NOT_ALLOWED');
+    }
+
+    const currentParticipants = dedupeParticipantProfiles([
+      ...normalizedParticipants,
+      { userId: actorUserId },
+    ]);
+
+    if (!currentParticipants.some((item) => item.userId === actorUserId)) {
+      throw new Error('INVITER_NOT_IN_CHAT');
+    }
+
+    const allParticipants = dedupeParticipantProfiles([
+      ...currentParticipants,
+      normalizedInvitee,
+    ]);
+
+    if (allParticipants.length <= currentParticipants.length) {
+      throw new Error('USER_ALREADY_IN_CHAT');
+    }
+    if (allParticipants.length > PRIVATE_GROUP_MAX_PARTICIPANTS) {
+      throw new Error('GROUP_CHAT_LIMIT_EXCEEDED');
+    }
+
+    const blocked = await isBlockedBetween(actorUserId, normalizedInvitee.userId);
+    if (blocked) {
+      throw new Error('BLOCKED');
+    }
+
+    const inviterDoc = await getDoc(doc(db, 'users', actorUserId));
+    const inviterData = inviterDoc.data() || {};
+    const inviterProfile = normalizeParticipantProfile({
+      userId: actorUserId,
+      username: inviterData.username || currentParticipants.find((item) => item.userId === actorUserId)?.username || 'Usuario',
+      avatar: inviterData.avatar || currentParticipants.find((item) => item.userId === actorUserId)?.avatar || '',
+      isPremium: inviterData.isPremium || false,
+    });
+
+    const participantProfiles = dedupeParticipantProfiles(
+      allParticipants.map((item) => (item.userId === actorUserId ? inviterProfile : item))
+    );
+
+    const approverUserIds = [
+      ...currentParticipants
+        .map((item) => item.userId)
+        .filter((userId) => userId && userId !== actorUserId),
+      normalizedInvitee.userId,
+    ];
+
+    const inviteRef = await addDoc(collection(db, PRIVATE_GROUP_INVITES_COLLECTION), {
+      inviterId: actorUserId,
+      sourceChatId,
+      requestedUserId: normalizedInvitee.userId,
+      allParticipantIds: participantProfiles.map((item) => item.userId).slice().sort(),
+      approverUserIds: [...new Set(approverUserIds)],
+      approvedBy: [actorUserId],
+      participantProfiles,
+      status: 'pending',
+      expiresAtMs: Date.now() + PRIVATE_GROUP_INVITE_EXPIRY_MS,
+      createdAt: serverTimestamp(),
+    });
+
+    await Promise.all(
+      approverUserIds.map((targetUserId) => addDoc(collection(db, 'users', targetUserId, 'notifications'), {
+        from: actorUserId,
+        fromUsername: inviterProfile.username,
+        fromAvatar: inviterProfile.avatar,
+        fromIsPremium: inviterProfile.isPremium,
+        to: targetUserId,
+        type: 'private_group_invite_request',
+        inviteId: inviteRef.id,
+        sourceChatId,
+        requestedUserId: normalizedInvitee.userId,
+        requestedUsername: normalizedInvitee.username,
+        participantProfiles,
+        approverUserIds: [...new Set(approverUserIds)],
+        read: false,
+        status: 'pending',
+        expiresAtMs: Date.now() + PRIVATE_GROUP_INVITE_EXPIRY_MS,
+        timestamp: serverTimestamp(),
+      }))
+    );
+
+    return { success: true, inviteId: inviteRef.id };
+  } catch (error) {
+    console.error('Error sending private group invite:', error);
+    throw error;
+  }
 };
 
 /**
@@ -224,6 +400,214 @@ export const sendMessageToPrivateChat = async (chatId, { userId, username, avata
     type: 'text',
     timestamp: serverTimestamp(),
   });
+};
+
+export const respondToPrivateGroupInvite = async (
+  userId,
+  notificationId,
+  accepted
+) => {
+  try {
+    if (!userId || !notificationId) {
+      throw new Error('MISSING_PARAMS');
+    }
+
+    const notificationRef = doc(db, 'users', userId, 'notifications', notificationId);
+    const notificationSnap = await getDoc(notificationRef);
+    const notificationData = notificationSnap.data();
+
+    if (!notificationData) {
+      throw new Error('REQUEST_NOT_FOUND');
+    }
+    if (notificationData.type !== 'private_group_invite_request') {
+      throw new Error('INVALID_REQUEST_TYPE');
+    }
+
+    const inviteId = notificationData.inviteId;
+    if (!inviteId) {
+      throw new Error('MISSING_INVITE_ID');
+    }
+
+    const inviteRef = doc(db, PRIVATE_GROUP_INVITES_COLLECTION, inviteId);
+    const inviteSnap = await getDoc(inviteRef);
+    const inviteData = inviteSnap.data();
+
+    if (!inviteData) {
+      await updateDoc(notificationRef, {
+        status: 'expired',
+        read: true,
+        respondedAt: serverTimestamp(),
+      }).catch(() => {});
+      throw new Error('REQUEST_EXPIRED');
+    }
+
+    const expiresAtMs = Number(inviteData.expiresAtMs || notificationData.expiresAtMs || 0);
+    if (
+      inviteData.status === 'pending' &&
+      Number.isFinite(expiresAtMs) &&
+      expiresAtMs > 0 &&
+      Date.now() > expiresAtMs
+    ) {
+      await updateDoc(inviteRef, {
+        status: 'expired',
+        respondedAt: serverTimestamp(),
+      }).catch(() => {});
+      await updateDoc(notificationRef, {
+        status: 'expired',
+        read: true,
+        respondedAt: serverTimestamp(),
+      }).catch(() => {});
+      throw new Error('REQUEST_EXPIRED');
+    }
+
+    if (inviteData.status && inviteData.status !== 'pending') {
+      await updateDoc(notificationRef, {
+        status: inviteData.status,
+        read: true,
+        respondedAt: serverTimestamp(),
+      }).catch(() => {});
+
+      if (inviteData.status === 'completed' && inviteData.targetChatId) {
+        return {
+          success: true,
+          chatId: inviteData.targetChatId,
+          alreadyProcessed: true,
+          participantProfiles: inviteData.participantProfiles || [],
+          title: inviteData.title || buildPrivateGroupTitle(inviteData.participantProfiles || [], userId),
+        };
+      }
+      if (inviteData.status === 'expired') throw new Error('REQUEST_EXPIRED');
+      if (inviteData.status === 'rejected') throw new Error('REQUEST_REJECTED');
+      return { success: true, alreadyProcessed: true };
+    }
+
+    if (!(Array.isArray(inviteData.approverUserIds) && inviteData.approverUserIds.includes(userId))) {
+      throw new Error('NOT_ALLOWED');
+    }
+
+    if (!accepted) {
+      await Promise.all([
+        updateDoc(notificationRef, {
+          status: 'rejected',
+          read: true,
+          respondedAt: serverTimestamp(),
+        }),
+        updateDoc(inviteRef, {
+          status: 'rejected',
+          rejectedBy: userId,
+          respondedAt: serverTimestamp(),
+        }),
+      ]);
+
+      const rejectingUserDoc = await getDoc(doc(db, 'users', userId));
+      const rejectingUserData = rejectingUserDoc.data() || {};
+      const targetUserIds = [...new Set((inviteData.allParticipantIds || []).filter((id) => id && id !== userId))];
+
+      await Promise.all(
+        targetUserIds.map((targetUserId) => addDoc(collection(db, 'users', targetUserId, 'notifications'), {
+          from: userId,
+          fromUsername: rejectingUserData.username || 'Usuario',
+          fromAvatar: rejectingUserData.avatar || '',
+          fromIsPremium: rejectingUserData.isPremium || false,
+          to: targetUserId,
+          type: 'private_group_invite_rejected',
+          inviteId,
+          requestedUserId: inviteData.requestedUserId || null,
+          requestedUsername: notificationData.requestedUsername || null,
+          participantProfiles: inviteData.participantProfiles || [],
+          read: false,
+          timestamp: serverTimestamp(),
+        }))
+      );
+
+      return { success: true, rejected: true };
+    }
+
+    const transactionResult = await runTransaction(db, async (transaction) => {
+      const freshInviteSnap = await transaction.get(inviteRef);
+      if (!freshInviteSnap.exists()) {
+        throw new Error('REQUEST_EXPIRED');
+      }
+
+      const freshInvite = freshInviteSnap.data() || {};
+      if (freshInvite.status && freshInvite.status !== 'pending') {
+        return {
+          completed: freshInvite.status === 'completed',
+          chatId: freshInvite.targetChatId || null,
+          participantProfiles: freshInvite.participantProfiles || [],
+          title: freshInvite.title || buildPrivateGroupTitle(freshInvite.participantProfiles || [], userId),
+        };
+      }
+
+      const approvedBy = Array.isArray(freshInvite.approvedBy) ? [...new Set([...freshInvite.approvedBy, userId])] : [userId];
+      const approverUserIds = Array.isArray(freshInvite.approverUserIds) ? freshInvite.approverUserIds : [];
+      const everyoneAccepted = approverUserIds.every((approverId) => approvedBy.includes(approverId));
+
+      transaction.update(inviteRef, {
+        approvedBy,
+        respondedAt: serverTimestamp(),
+        ...(everyoneAccepted ? { status: 'completed' } : {}),
+      });
+
+      return {
+        completed: everyoneAccepted,
+        participantProfiles: freshInvite.participantProfiles || [],
+        sourceChatId: freshInvite.sourceChatId || null,
+      };
+    });
+
+    await updateDoc(notificationRef, {
+      status: 'accepted',
+      read: true,
+      respondedAt: serverTimestamp(),
+    }).catch(() => {});
+
+    if (!transactionResult.completed) {
+      return { success: true, waiting: true };
+    }
+
+    const participantProfiles = dedupeParticipantProfiles(transactionResult.participantProfiles || []);
+    const groupTitle = buildPrivateGroupTitle(participantProfiles, userId);
+    const { chatId } = await getOrCreatePrivateGroupChat(participantProfiles, {
+      title: groupTitle,
+      sourceChatId: transactionResult.sourceChatId,
+    });
+
+    await updateDoc(inviteRef, {
+      status: 'completed',
+      targetChatId: chatId,
+      title: groupTitle,
+      completedAt: serverTimestamp(),
+    }).catch(() => {});
+
+    await Promise.all(
+      participantProfiles.map((participant) => addDoc(collection(db, 'users', participant.userId, 'notifications'), {
+        from: userId,
+        fromUsername: notificationData.fromUsername || 'Usuario',
+        fromAvatar: notificationData.fromAvatar || '',
+        fromIsPremium: notificationData.fromIsPremium || false,
+        to: participant.userId,
+        type: 'private_group_chat_ready',
+        inviteId,
+        chatId,
+        participantProfiles,
+        title: groupTitle,
+        read: false,
+        timestamp: serverTimestamp(),
+      }))
+    );
+
+    return {
+      success: true,
+      chatId,
+      completed: true,
+      participantProfiles,
+      title: groupTitle,
+    };
+  } catch (error) {
+    console.error('Error responding to private group invite:', error);
+    throw error;
+  }
 };
 
 /**

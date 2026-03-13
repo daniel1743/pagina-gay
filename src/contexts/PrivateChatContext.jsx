@@ -45,6 +45,13 @@ const normalizePartner = (partner = {}) => {
   };
 };
 
+const normalizeParticipants = (participants = []) => {
+  if (!Array.isArray(participants)) return [];
+  return participants
+    .map((participant) => normalizePartner(participant))
+    .filter((participant) => participant.userId);
+};
+
 const sanitizeRecentChat = (chat = {}) => {
   const key = getChatKey(chat);
   if (!key) return null;
@@ -56,6 +63,8 @@ const sanitizeRecentChat = (chat = {}) => {
     key,
     chatId: chat?.chatId || null,
     partner: normalizePartner(chat?.partner || {}),
+    participants: normalizeParticipants(chat?.participants || []),
+    title: typeof chat?.title === 'string' ? chat.title : '',
     roomId: chat?.roomId || null,
     lastMessagePreview: preview,
     lastMessageAt: timestamp,

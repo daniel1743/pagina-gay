@@ -14,49 +14,62 @@
  * Eventos semanales por sala
  * Formato de horarios: 24h formato Chile (UTC-3)
  */
-export const SCHEDULED_EVENTS = {
-  'principal': [
-    {
-      id: 'principal_lunes_presentaciones',
-      day: 1, // Lunes
-      time: '21:00',
-      title: '👋 Lunes de Presentaciones',
-      description: 'Preséntate, cuenta de dónde eres y qué te gustaría conversar hoy.',
-      emoji: '👋',
-      color: 'purple',
-      moderator: 'sistema'
-    },
-    {
-      id: 'principal_miercoles_conexion',
-      day: 3, // Miércoles
-      time: '21:30',
-      title: '💬 Miércoles de Conexión',
-      description: 'Tema libre para romper el hielo y conocer gente nueva en tiempo real.',
-      emoji: '💬',
-      color: 'pink',
-      moderator: 'sistema'
-    },
-    {
-      id: 'principal_viernes_after',
-      day: 5, // Viernes
-      time: '22:00',
-      title: '🎉 Viernes After Chat',
-      description: 'Hora pico de conversación: planes, comunidad y buena onda.',
-      emoji: '🎉',
-      color: 'blue',
-      moderator: 'sistema'
-    },
-    {
-      id: 'principal_domingo_chill',
-      day: 0, // Domingo
-      time: '20:00',
-      title: '☕ Domingo Chill',
-      description: 'Cierre de semana: charla tranquila para conectar sin presión.',
-      emoji: '☕',
-      color: 'green',
-      moderator: 'sistema'
+const DEFAULT_EVENT_DURATION_MINUTES = 30;
+const PRINCIPAL_EVENT_INTERVAL_HOURS = 3;
+const PRINCIPAL_EVENT_THEME_ROTATION = [
+  {
+    title: '⚡ Ronda Express',
+    description: 'Media hora para decir quién está, qué busca y enganchar rápido.',
+    emoji: '⚡',
+    color: 'purple',
+  },
+  {
+    title: '📍 Ronda de Zonas',
+    description: 'Ideal para decir de dónde eres y encontrar gente cerca.',
+    emoji: '📍',
+    color: 'blue',
+  },
+  {
+    title: '🔥 Ronda Hot',
+    description: 'Ventana breve para quienes buscan conversación más caliente.',
+    emoji: '🔥',
+    color: 'pink',
+  },
+  {
+    title: '💬 Ronda de Chat',
+    description: 'Para quienes quieren hablar sin tanta vuelta y ver quién responde.',
+    emoji: '💬',
+    color: 'green',
+  },
+];
+
+const buildPrincipalRollingEvents = () => {
+  const events = [];
+
+  for (let day = 0; day < 7; day += 1) {
+    for (let hour = 0; hour < 24; hour += PRINCIPAL_EVENT_INTERVAL_HOURS) {
+      const themeIndex = ((day * 24) + hour) / PRINCIPAL_EVENT_INTERVAL_HOURS % PRINCIPAL_EVENT_THEME_ROTATION.length;
+      const theme = PRINCIPAL_EVENT_THEME_ROTATION[themeIndex];
+      const time = `${String(hour).padStart(2, '0')}:00`;
+
+      events.push({
+        id: `principal_${day}_${String(hour).padStart(2, '0')}`,
+        day,
+        time,
+        title: theme.title,
+        description: theme.description,
+        emoji: theme.emoji,
+        color: theme.color,
+        moderator: 'sistema',
+      });
     }
-  ],
+  }
+
+  return events;
+};
+
+export const SCHEDULED_EVENTS = {
+  'principal': buildPrincipalRollingEvents(),
 
   // ⚠️ SALA GLOBAL - DESACTIVADA (reemplazada por 'principal')
   // 'global': [
@@ -293,7 +306,7 @@ const buildDateForEventDayAndTime = (event, now = new Date(), forceNext = false)
  * Crea un "evento virtual" listo para UI del banner/calendario sin necesidad de Firestore.
  * Se usa como fallback cuando no hay eventos creados por admin.
  */
-const buildVirtualEventOccurrence = (roomSlug, event, startDate, durationMinutes = 120) => {
+const buildVirtualEventOccurrence = (roomSlug, event, startDate, durationMinutes = DEFAULT_EVENT_DURATION_MINUTES) => {
   if (!event || !startDate) return null;
   const startMs = startDate.getTime();
   const endMs = startMs + (durationMinutes * 60 * 1000);
@@ -315,7 +328,11 @@ const buildVirtualEventOccurrence = (roomSlug, event, startDate, durationMinutes
   };
 };
 
-export const getCurrentScheduledEventOccurrence = (roomSlug, now = new Date(), windowMinutes = 120) => {
+export const getCurrentScheduledEventOccurrence = (
+  roomSlug,
+  now = new Date(),
+  windowMinutes = DEFAULT_EVENT_DURATION_MINUTES
+) => {
   const current = getCurrentEvent(roomSlug, now, windowMinutes);
   if (!current) return null;
   const startDate = new Date(now);
@@ -324,7 +341,11 @@ export const getCurrentScheduledEventOccurrence = (roomSlug, now = new Date(), w
   return buildVirtualEventOccurrence(roomSlug, current, startDate, windowMinutes);
 };
 
-export const getNextScheduledEventOccurrence = (roomSlug, now = new Date(), durationMinutes = 120) => {
+export const getNextScheduledEventOccurrence = (
+  roomSlug,
+  now = new Date(),
+  durationMinutes = DEFAULT_EVENT_DURATION_MINUTES
+) => {
   const next = getNextEvent(roomSlug, now);
   if (!next) return null;
   const startDate = buildDateForEventDayAndTime(next, now);
@@ -335,10 +356,14 @@ export const getNextScheduledEventOccurrence = (roomSlug, now = new Date(), dura
  * Verifica si hay un evento activo AHORA
  * @param {string} roomSlug - ID de la sala
  * @param {Date} now - Fecha actual
- * @param {number} windowMinutes - Ventana de tiempo del evento (default: 120 min = 2 horas)
+ * @param {number} windowMinutes - Ventana de tiempo del evento (default: 30 min)
  * @returns {Object|null} Evento activo o null
  */
-export const getCurrentEvent = (roomSlug, now = new Date(), windowMinutes = 120) => {
+export const getCurrentEvent = (
+  roomSlug,
+  now = new Date(),
+  windowMinutes = DEFAULT_EVENT_DURATION_MINUTES
+) => {
   const events = getRoomEvents(roomSlug);
   if (events.length === 0) return null;
 
@@ -398,7 +423,10 @@ export const getWeeklySchedule = (roomSlug) => {
   const dayNames = ['Domingo', 'Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado'];
 
   return events
-    .sort((a, b) => a.day - b.day)
+    .sort((a, b) => {
+      if (a.day !== b.day) return a.day - b.day;
+      return a.time.localeCompare(b.time);
+    })
     .map(event => ({
       ...event,
       dayName: dayNames[event.day],

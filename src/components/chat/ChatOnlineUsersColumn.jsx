@@ -1,8 +1,11 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Badge } from '@/components/ui/badge';
-import { Users, Circle } from 'lucide-react';
+import { Button } from '@/components/ui/button';
+import { Users, Circle, MessageCircle } from 'lucide-react';
+import ConversationAvailabilityCard from '@/components/chat/ConversationAvailabilityCard';
 import { resolveProfileRole } from '@/config/profileRoles';
+import { getPresenceActivityMs, isUserAvailableForConversation } from '@/services/presenceService';
 
 const DEFAULT_CHAT_AVATAR = '/avatar_por_defecto.jpeg';
 const MIN_VISIBLE_USERS = 10;
@@ -27,11 +30,54 @@ const isBotOrSystem = (userId = '') => (
   userId.startsWith('static_bot_')
 );
 
+const normalizeUsernameKey = (value = '') => String(value || '').trim().toLowerCase();
+
+const isCurrentUserDuplicateByUsername = (item, currentUserId, currentUsername) => {
+  if (!item?.username || !currentUserId || !currentUsername) return false;
+  if (item.userId === currentUserId) return false;
+  return normalizeUsernameKey(item.username) === normalizeUsernameKey(currentUsername);
+};
+
 const roleBadgeTone = (role) => {
   if (role === 'Activo' || role === 'Versátil Act') return 'bg-emerald-500/15 text-emerald-300 border-emerald-500/35';
   if (role === 'Pasivo' || role === 'Versátil Pasivo') return 'bg-cyan-500/15 text-cyan-300 border-cyan-500/35';
   if (role === 'Versátil') return 'bg-fuchsia-500/15 text-fuchsia-300 border-fuchsia-500/35';
   return 'bg-muted/40 text-muted-foreground border-border/70';
+};
+
+const getRoleBucket = (roleLabel) => {
+  const normalized = String(roleLabel || '').toLowerCase();
+  if (normalized.includes('activo')) return 'activo';
+  if (normalized.includes('pasivo')) return 'pasivo';
+  if (normalized.includes('versátil') || normalized.includes('versatil') || normalized.includes('inter')) return 'versatil';
+  if (normalized.includes('curioso')) return 'curioso';
+  return 'otro';
+};
+
+const getRoleCompatibilityScore = (selfRole, candidateRole) => {
+  const selfBucket = getRoleBucket(selfRole);
+  const candidateBucket = getRoleBucket(candidateRole);
+
+  if (selfBucket === 'curioso' || !selfRole) return 80;
+  if (selfBucket === 'activo') {
+    if (candidateBucket === 'pasivo') return 100;
+    if (candidateBucket === 'versatil') return 92;
+    if (candidateBucket === 'curioso') return 75;
+    return 48;
+  }
+  if (selfBucket === 'pasivo') {
+    if (candidateBucket === 'activo') return 100;
+    if (candidateBucket === 'versatil') return 90;
+    if (candidateBucket === 'curioso') return 75;
+    return 48;
+  }
+  if (selfBucket === 'versatil') {
+    if (candidateBucket === 'activo' || candidateBucket === 'pasivo') return 96;
+    if (candidateBucket === 'versatil') return 84;
+    if (candidateBucket === 'curioso') return 76;
+    return 44;
+  }
+  return 50;
 };
 
 const sortUsers = (users, currentUserId) => (
@@ -75,7 +121,10 @@ const ChatOnlineUsersColumn = ({
   fallbackUsers = [],
   roomId = 'principal',
   currentUserId = null,
+  currentUser = null,
   onUserClick,
+  onStartConversation,
+  onRequestNickname,
 }) => {
   const [knownUsers, setKnownUsers] = useState([]);
   const [isExpanded, setIsExpanded] = useState(false);
@@ -132,8 +181,10 @@ const ChatOnlineUsersColumn = ({
       deduped.set(normalized.userId, normalized);
     });
 
-    return Array.from(deduped.values());
-  }, [roomUsers]);
+    return Array.from(deduped.values()).filter(
+      (item) => !isCurrentUserDuplicateByUsername(item, currentUserId, currentUser?.username || '')
+    );
+  }, [roomUsers, currentUserId, currentUser?.username]);
 
   // Sembrar historial desde mensajes recientes (evita panel vacío en primera visita)
   useEffect(() => {
@@ -184,7 +235,9 @@ const ChatOnlineUsersColumn = ({
           ...(previous || {}),
           ...liveUser,
           isOnline: true,
-          lastConnectedAt: now,
+          lastConnectedAt: previous?.isOnline
+            ? (previous.lastConnectedAt || liveUser.lastConnectedAt || now)
+            : (liveUser.lastConnectedAt || now),
           lastDisconnectedAt: null,
         });
       });
@@ -211,7 +264,10 @@ const ChatOnlineUsersColumn = ({
   );
 
   const users = useMemo(() => {
-    const sorted = sortUsers(knownUsers, currentUserId);
+    const filteredKnownUsers = knownUsers.filter(
+      (item) => !isCurrentUserDuplicateByUsername(item, currentUserId, currentUser?.username || '')
+    );
+    const sorted = sortUsers(filteredKnownUsers, currentUserId);
     const onlineUsers = sorted.filter((item) => item.isOnline);
     const offlineUsers = sorted.filter((item) => !item.isOnline);
 
@@ -221,7 +277,7 @@ const ChatOnlineUsersColumn = ({
     // Si hay 10 o menos online, completar con los últimos desconectados.
     const needed = Math.max(0, MIN_VISIBLE_USERS - onlineUsers.length);
     return [...onlineUsers, ...offlineUsers.slice(0, needed)];
-  }, [knownUsers, currentUserId]);
+  }, [knownUsers, currentUserId, currentUser?.username]);
 
   useEffect(() => {
     if (users.length <= COMPACT_VISIBLE_LIMIT && isExpanded) {
@@ -235,6 +291,52 @@ const ChatOnlineUsersColumn = ({
   }, [users, isExpanded]);
 
   const hiddenCount = Math.max(0, users.length - visibleUsers.length);
+  const currentUserRole = resolveProfileRole(
+    currentUser?.roleBadge,
+    currentUser?.profileRole,
+    currentUser?.role
+  );
+
+  const availableNowUsers = useMemo(() => {
+    const now = Date.now();
+    const deduped = new Map();
+
+    (Array.isArray(roomUsers) ? roomUsers : [])
+      .filter((item) => isUserAvailableForConversation(item, now))
+      .forEach((item) => {
+        const normalizedRole = resolveProfileRole(
+          item?.roleBadge,
+          item?.profileRole,
+          item?.role
+        );
+
+        const normalizedItem = {
+          userId: item.userId || item.id,
+          username: item.username || 'Usuario',
+          avatar: resolveChatAvatar(item.avatar),
+          roleBadge: normalizedRole || null,
+          isPremium: Boolean(item?.isPremium || item?.isProUser),
+          isGuest: Boolean(item?.isGuest || item?.isAnonymous),
+          isAnonymous: Boolean(item?.isAnonymous),
+          availabilityExpiresAtMs: Number(item?.availableForChatExpiresAtMs || 0) || 0,
+          availabilityLastSeenMs: getPresenceActivityMs(item) || 0,
+          compatibilityScore: getRoleCompatibilityScore(currentUserRole, normalizedRole),
+        };
+        if (!normalizedItem.userId) return;
+        deduped.set(normalizedItem.userId, normalizedItem);
+      });
+
+    return Array.from(deduped.values())
+      .filter((item) => item.userId !== currentUserId)
+      .filter((item) => !isCurrentUserDuplicateByUsername(item, currentUserId, currentUser?.username || ''))
+      .sort((a, b) => {
+        if (b.compatibilityScore !== a.compatibilityScore) return b.compatibilityScore - a.compatibilityScore;
+        if (b.availabilityLastSeenMs !== a.availabilityLastSeenMs) {
+          return b.availabilityLastSeenMs - a.availabilityLastSeenMs;
+        }
+        return String(a.username || '').localeCompare(String(b.username || ''), 'es');
+      });
+  }, [roomUsers, currentUserId, currentUserRole, currentUser?.username]);
 
   return (
     <aside className="hidden lg:flex w-72 h-full flex-col border-l border-border bg-card/30 backdrop-blur-sm">
@@ -249,6 +351,92 @@ const ChatOnlineUsersColumn = ({
       </div>
 
       <div className="flex-1 min-h-0 overflow-y-auto p-3 space-y-2.5">
+        <section className="rounded-2xl border border-emerald-500/20 bg-emerald-500/5 p-3">
+          <ConversationAvailabilityCard
+            roomId={roomId}
+            roomUsers={roomUsers}
+            user={currentUser}
+            onRequestNickname={onRequestNickname}
+            variant="compact"
+          />
+
+          <div className="mt-3 flex items-center justify-between gap-2">
+            <div>
+              <h4 className="text-sm font-semibold text-foreground">Disponibles ahora</h4>
+              <p className="text-[11px] text-muted-foreground">
+                Solo gente realmente presente y abierta a conversar.
+              </p>
+            </div>
+            <span className="rounded-full border border-emerald-500/25 bg-emerald-500/10 px-2 py-1 text-[11px] font-semibold text-emerald-300">
+              {availableNowUsers.length}
+            </span>
+          </div>
+
+          <div className="mt-3 space-y-2">
+            {availableNowUsers.length === 0 ? (
+              <p className="text-[11px] text-muted-foreground">
+                Nadie más marcó disponibilidad en este momento.
+              </p>
+            ) : (
+              availableNowUsers.slice(0, 6).map((item) => {
+                return (
+                  <div
+                    key={`available_${item.userId}`}
+                    className="rounded-xl border border-emerald-500/15 bg-background/40 p-2.5"
+                  >
+                    <div className="flex items-start gap-2.5">
+                      <Avatar className="w-9 h-9 border border-emerald-400/35">
+                        <AvatarImage src={item.avatar} alt={item.username} />
+                        <AvatarFallback className="bg-muted text-foreground text-xs">
+                          {item.username.slice(0, 2).toUpperCase()}
+                        </AvatarFallback>
+                      </Avatar>
+
+                      <div className="min-w-0 flex-1">
+                        <div className="flex items-center gap-1.5">
+                          <p className="text-sm font-semibold text-foreground truncate">
+                            {item.username}
+                          </p>
+                          {item.isPremium && (
+                            <span className="text-[9px] px-1.5 py-0.5 rounded-full bg-amber-500/15 text-amber-300 border border-amber-500/35">
+                              PRO
+                            </span>
+                          )}
+                        </div>
+
+                        <div className="mt-1 flex items-center gap-1.5 flex-wrap">
+                          {item.roleBadge ? (
+                            <Badge className={`text-[10px] px-2 py-0.5 rounded-full border ${roleBadgeTone(item.roleBadge)}`}>
+                              {item.roleBadge}
+                            </Badge>
+                          ) : (
+                            <span className="text-[10px] text-muted-foreground">Sin rol</span>
+                          )}
+
+                          {item.compatibilityScore >= 90 && (
+                            <span className="text-[10px] text-emerald-300">Alta compatibilidad</span>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="outline"
+                      onClick={() => onStartConversation?.(item)}
+                      className="mt-2.5 w-full justify-center rounded-xl border-emerald-500/30 bg-emerald-500/10 text-emerald-100 hover:bg-emerald-500/15"
+                    >
+                      <MessageCircle className="w-4 h-4 mr-2" />
+                      Conversar
+                    </Button>
+                  </div>
+                );
+              })
+            )}
+          </div>
+        </section>
+
         {users.length === 0 ? (
           <div className="rounded-xl border border-border/60 bg-secondary/20 p-4 text-center">
             <p className="text-sm text-muted-foreground">Cargando personas...</p>

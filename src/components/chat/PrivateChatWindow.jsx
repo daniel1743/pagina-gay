@@ -5,7 +5,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
-import { Send, X, Shield, PhoneOff, User, MoreVertical, Smile, Minus, MessageCircle, BellOff, Bell, Flag, Archive, Trash2, UserPlus, UserMinus, Check, CheckCheck, Image } from 'lucide-react';
+import { Send, X, Shield, PhoneOff, User, MoreVertical, Smile, Minus, MessageCircle, BellOff, Bell, Flag, Archive, Trash2, UserPlus, UserMinus, Check, CheckCheck, Image, Plus } from 'lucide-react';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import { toast } from '@/components/ui/use-toast';
 import { collection, addDoc, onSnapshot, query, orderBy, serverTimestamp, doc, getDoc, writeBatch, arrayUnion, updateDoc, increment, deleteField } from 'firebase/firestore';
@@ -20,7 +20,9 @@ import {
   updatePrivateChatTypingStatus,
   addToFavorites,
   removeFromFavorites,
+  sendPrivateGroupInvite,
 } from '@/services/socialService';
+import { subscribeToRoomUsers } from '@/services/presenceService';
 import { notificationSounds } from '@/services/notificationSounds';
 
 const EmojiPicker = lazy(() => import('emoji-picker-react'));
@@ -29,7 +31,7 @@ const RECENT_EMOJIS_STORAGE_KEY = 'private_chat_recent_emojis_v1';
 const DEFAULT_RECENT_EMOJIS = ['😂', '😍', '🔥', '😘', '😉', '😈', '😏', '🥵', '❤️', '😎'];
 const DELETE_CONFIRM_TEXT = 'ELIMINAR';
 const PHOTO_MAX_SIZE_BYTES = 140 * 1024;
-const GUEST_PRIVATE_MESSAGES_LIMIT = 12;
+const GUEST_PRIVATE_MESSAGES_LIMIT = 15;
 const PRIVATE_IMAGE_REACTIONS = [
   {
     key: 'fire',
@@ -110,9 +112,46 @@ const getMessagePreview = (message) => {
   return text.length > 120 ? `${text.slice(0, 117)}...` : text;
 };
 
+const normalizeParticipant = (participant = {}) => {
+  const userId = participant?.userId || participant?.id || '';
+  return {
+    id: userId,
+    userId,
+    username: participant?.username || 'Usuario',
+    avatar: participant?.avatar || '',
+    isPremium: Boolean(participant?.isPremium),
+    role: participant?.role || participant?.rol || '',
+    isGuest: Boolean(participant?.isGuest),
+    isAnonymous: Boolean(participant?.isAnonymous),
+  };
+};
+
+const dedupeParticipants = (participants = []) => {
+  const seen = new Set();
+  return participants
+    .map((participant) => normalizeParticipant(participant))
+    .filter((participant) => {
+      if (!participant.userId || seen.has(participant.userId)) return false;
+      seen.add(participant.userId);
+      return true;
+    });
+};
+
+const buildGroupLabel = (participants = [], currentUserId = null) => {
+  const names = dedupeParticipants(participants)
+    .filter((participant) => participant.userId !== currentUserId)
+    .map((participant) => participant.username)
+    .filter(Boolean);
+
+  if (names.length === 0) return 'Chat grupal privado';
+  return names.slice(0, 3).join(', ');
+};
+
 const PrivateChatWindow = ({
   user,
   partner,
+  participants = [],
+  title = '',
   onClose,
   chatId,
   initialMessage = '',
@@ -150,6 +189,9 @@ const PrivateChatWindow = ({
   const [isActionsMenuOpen, setIsActionsMenuOpen] = useState(false);
   const [isFriend, setIsFriend] = useState(false);
   const [revealedImageIds, setRevealedImageIds] = useState(() => new Set());
+  const [connectedRoomUsers, setConnectedRoomUsers] = useState([]);
+  const [isInviteDialogOpen, setIsInviteDialogOpen] = useState(false);
+  const [isSendingGroupInvite, setIsSendingGroupInvite] = useState(false);
   const [partnerPresence, setPartnerPresence] = useState({
     isOnline: Boolean(partner?.estaOnline || partner?.isOnline),
     lastSeenMs: getTimestampMs(partner?.ultimaConexion || partner?.lastSeen),
@@ -166,8 +208,50 @@ const PrivateChatWindow = ({
   const isMutedRef = useRef(false);
   const lastActivitySignatureRef = useRef('');
 
-  const partnerId = partner?.id || partner?.userId;
-  const partnerName = partner?.username || 'Usuario';
+  const chatParticipants = useMemo(() => {
+    const fallbackParticipants = [
+      user ? {
+        userId: user.id || user.userId,
+        username: user.username,
+        avatar: user.avatar,
+        isPremium: user.isPremium,
+        role: user.role || user.rol,
+        isGuest: user.isGuest,
+        isAnonymous: user.isAnonymous,
+      } : null,
+      partner ? {
+        userId: partner.id || partner.userId,
+        username: partner.username,
+        avatar: partner.avatar,
+        isPremium: partner.isPremium,
+        role: partner.role || partner.rol,
+        isGuest: partner.isGuest,
+        isAnonymous: partner.isAnonymous,
+      } : null,
+    ].filter(Boolean);
+    const incomingParticipants = Array.isArray(participants) && participants.length > 0
+      ? participants
+      : fallbackParticipants;
+    return dedupeParticipants(incomingParticipants);
+  }, [participants, partner, user]);
+  const isGroupChat = chatParticipants.length > 2;
+  const otherParticipants = useMemo(
+    () => chatParticipants.filter((participant) => participant.userId !== user?.id),
+    [chatParticipants, user?.id]
+  );
+  const primaryParticipant = otherParticipants[0] || normalizeParticipant(partner || {});
+  const partnerId = isGroupChat ? null : (primaryParticipant.userId || null);
+  const partnerName = isGroupChat
+    ? (title?.trim() || buildGroupLabel(chatParticipants, user?.id))
+    : (primaryParticipant.username || partner?.username || 'Usuario');
+  const allOtherParticipantIds = useMemo(
+    () => otherParticipants.map((participant) => participant.userId).filter(Boolean),
+    [otherParticipants]
+  );
+  const groupSubtitle = useMemo(
+    () => otherParticipants.map((participant) => participant.username).filter(Boolean).join(', '),
+    [otherParticipants]
+  );
   const isChatBlocked = blockState.blockedByMe || blockState.blockedByOther;
   const isRegisteredUser = Boolean(user?.id && !user?.isGuest && !user?.isAnonymous);
   const canSendPhotoNow = isRegisteredUser && !isChatBlocked && Boolean(chatId);
@@ -179,6 +263,27 @@ const PrivateChatWindow = ({
     [user?.id, chatId]
   );
   const [guestPrivateSentCount, setGuestPrivateSentCount] = useState(0);
+  const inviteCandidates = useMemo(() => {
+    const excludedIds = new Set(chatParticipants.map((participant) => participant.userId).filter(Boolean));
+    return connectedRoomUsers
+      .map((roomUser) => normalizeParticipant(roomUser))
+      .filter((roomUser) => (
+        roomUser.userId
+        && !excludedIds.has(roomUser.userId)
+        && !roomUser.isGuest
+        && !roomUser.isAnonymous
+      ))
+      .sort((a, b) => a.username.localeCompare(b.username, 'es', { sensitivity: 'base' }));
+  }, [chatParticipants, connectedRoomUsers]);
+  const canInviteMorePeople = Boolean(
+    roomId
+    && user?.id
+    && isRegisteredUser
+    && chatId
+    && chatParticipants.length >= 2
+    && chatParticipants.length < 4
+    && inviteCandidates.length > 0
+  );
 
   const isMobileViewport = isMobileEmojiSheet;
   const desktopWindowWidth = 420;
@@ -199,17 +304,29 @@ const PrivateChatWindow = ({
     isMutedRef.current = isMuted;
   }, [isMuted]);
 
+  useEffect(() => {
+    if (!roomId) {
+      setConnectedRoomUsers([]);
+      return undefined;
+    }
+    const unsubscribe = subscribeToRoomUsers(roomId, (usersInRoom) => {
+      setConnectedRoomUsers(Array.isArray(usersInRoom) ? usersInRoom : []);
+    });
+    return () => unsubscribe?.();
+  }, [roomId]);
+
   // Notificar que estoy en chat privado (para que otros en la sala vean el indicador)
   useEffect(() => {
-    if (roomId && onEnterPrivate && partnerId && partnerName) {
-      onEnterPrivate(roomId, partnerId, partnerName);
+    const privateMarkerId = isGroupChat ? `group:${chatId || partnerName}` : partnerId;
+    if (roomId && onEnterPrivate && privateMarkerId && partnerName) {
+      onEnterPrivate(roomId, privateMarkerId, partnerName);
     }
     return () => {
       if (roomId && onLeavePrivate) {
         onLeavePrivate(roomId);
       }
     };
-  }, [roomId, partnerId, partnerName]); // onEnterPrivate/onLeavePrivate son estables
+  }, [roomId, onEnterPrivate, onLeavePrivate, isGroupChat, chatId, partnerId, partnerName]); // onEnterPrivate/onLeavePrivate son estables
 
   const emojiPickerCategories = useMemo(() => ([
     { name: 'Recientes', category: Categories.SUGGESTED },
@@ -224,13 +341,15 @@ const PrivateChatWindow = ({
   ]), []);
 
   const isPartnerTyping = typingUsers.length > 0;
-  const statusText = isPartnerTyping
-    ? 'Escribiendo...'
-    : partnerPresence?.isOnline
-      ? 'En línea'
-      : partnerPresence?.lastSeenMs
-        ? `Activo ${formatRelativeTime(partnerPresence.lastSeenMs)}`
-        : 'Desconectado';
+  const statusText = isGroupChat
+    ? (isPartnerTyping ? 'Alguien está escribiendo...' : `${chatParticipants.length} participantes`)
+    : (isPartnerTyping
+      ? 'Escribiendo...'
+      : partnerPresence?.isOnline
+        ? 'En línea'
+        : partnerPresence?.lastSeenMs
+          ? `Activo ${formatRelativeTime(partnerPresence.lastSeenMs)}`
+          : 'Desconectado');
 
   useEffect(() => {
     if (!chatId) return;
@@ -256,8 +375,8 @@ const PrivateChatWindow = ({
 
   const showGuestPrivateLimitToast = () => {
     toast({
-      title: 'Debes registrarte para continuar',
-      description: 'Ya usaste tus 12 mensajes privados como invitado.',
+      title: 'Límite alcanzado',
+      description: 'Has alcanzado el máximo de mensajes en personas no registradas. Regístrate para un mayor envío.',
       duration: 4500,
       action: {
         label: 'Registrarme',
@@ -282,7 +401,7 @@ const PrivateChatWindow = ({
   };
 
   useEffect(() => {
-    if (!user?.id || !partnerId) return;
+    if (!user?.id || !partnerId || isGroupChat) return;
     let active = true;
 
     const loadFriendStatus = async () => {
@@ -299,7 +418,7 @@ const PrivateChatWindow = ({
 
     loadFriendStatus();
     return () => { active = false; };
-  }, [user?.id, partnerId]);
+  }, [user?.id, partnerId, isGroupChat]);
 
   // Suscribirse a mensajes en tiempo real
   useEffect(() => {
@@ -394,21 +513,26 @@ const PrivateChatWindow = ({
       chatId,
       roomId: roomId || null,
       partner: {
-        id: partnerId,
-        userId: partnerId,
+        id: primaryParticipant.userId || chatId,
+        userId: primaryParticipant.userId || chatId,
         username: partnerName,
-        avatar: partner?.avatar || '',
-        isPremium: Boolean(partner?.isPremium),
+        avatar: primaryParticipant.avatar || '',
+        isPremium: Boolean(primaryParticipant.isPremium),
       },
+      participants: chatParticipants,
+      title: isGroupChat ? partnerName : '',
       lastMessagePreview: getMessagePreview(latestMessage),
       lastMessageAt: timestampMs,
     });
   }, [
     chatId,
+    chatParticipants,
+    isGroupChat,
     messages,
     onChatActivity,
-    partner?.avatar,
-    partner?.isPremium,
+    primaryParticipant.avatar,
+    primaryParticipant.isPremium,
+    primaryParticipant.userId,
     partnerId,
     partnerName,
     roomId,
@@ -416,7 +540,7 @@ const PrivateChatWindow = ({
 
   // Estado de bloqueo
   useEffect(() => {
-    if (!user?.id || !partnerId) return;
+    if (!user?.id || !partnerId || isGroupChat) return;
     let active = true;
 
     const checkBlockStatus = async () => {
@@ -437,11 +561,11 @@ const PrivateChatWindow = ({
     return () => {
       active = false;
     };
-  }, [user?.id, partnerId]);
+  }, [user?.id, partnerId, isGroupChat]);
 
   // Presencia del partner (dot online + estado)
   useEffect(() => {
-    if (!partnerId) return;
+    if (!partnerId || isGroupChat) return;
 
     const tarjetaRef = doc(db, 'tarjetas', partnerId);
     const unsubscribe = onSnapshot(tarjetaRef, (snapshot) => {
@@ -456,7 +580,7 @@ const PrivateChatWindow = ({
     });
 
     return () => unsubscribe();
-  }, [partnerId]);
+  }, [partnerId, isGroupChat]);
 
   // Suscripción typing
   useEffect(() => {
@@ -715,6 +839,39 @@ const PrivateChatWindow = ({
     photoInputRef.current?.click();
   };
 
+  const handleInviteParticipant = async (candidate) => {
+    if (!canInviteMorePeople || !candidate?.userId || !user?.id || !chatId) return;
+    setIsSendingGroupInvite(true);
+    try {
+      await sendPrivateGroupInvite({
+        sourceChatId: chatId,
+        inviterId: user.id,
+        existingParticipants: chatParticipants,
+        invitee: candidate,
+      });
+      toast({
+        title: 'Invitación enviada',
+        description: `Se invitó a ${candidate.username}. Deben aceptar ${candidate.username} y quienes ya están en este chat.`,
+      });
+      setIsInviteDialogOpen(false);
+    } catch (error) {
+      const description = error?.message === 'USER_ALREADY_IN_CHAT'
+        ? 'Ese usuario ya forma parte de la conversación.'
+        : error?.message === 'GROUP_CHAT_LIMIT_EXCEEDED'
+          ? 'El chat privado admite hasta 4 participantes.'
+          : error?.message === 'BLOCKED'
+            ? 'No puedes invitar a ese usuario por un bloqueo activo.'
+            : 'No se pudo enviar la invitación. Intenta nuevamente.';
+      toast({
+        title: 'No se pudo invitar',
+        description,
+        variant: 'destructive',
+      });
+    } finally {
+      setIsSendingGroupInvite(false);
+    }
+  };
+
   const togglePrivateImageBlur = (messageId) => {
     if (!messageId) return;
     setRevealedImageIds((prev) => {
@@ -839,7 +996,7 @@ const PrivateChatWindow = ({
   };
 
   const handleBlockUser = () => {
-    if (!partnerId) return;
+    if (!partnerId || isGroupChat) return;
     const doBlock = async () => {
       try {
         await blockUser(user.id, partnerId, { source: 'private_chat' });
@@ -864,13 +1021,9 @@ const PrivateChatWindow = ({
   };
 
   const handleVisitProfile = () => {
+    if (isGroupChat) return;
     if (typeof onViewProfile === 'function') {
-      onViewProfile({
-        ...partner,
-        userId: partnerId,
-        username: partnerName,
-        avatar: partner?.avatar || '',
-      });
+      onViewProfile({ ...primaryParticipant });
       return;
     }
     toast({ title: `Perfil de ${partnerName}`, description: 'Abriremos esta vista desde tu flujo actual.' });
@@ -878,7 +1031,7 @@ const PrivateChatWindow = ({
 
   const handleLeaveChat = () => {
     notifyLeaveOnce();
-    toast({ title: `Has abandonado el chat con ${partnerName}` });
+    toast({ title: isGroupChat ? 'Has salido del chat grupal privado' : `Has abandonado el chat con ${partnerName}` });
     onClose?.(chatId);
   };
 
@@ -909,8 +1062,8 @@ const PrivateChatWindow = ({
   };
 
   const handleToggleFriend = async () => {
-    if (!user?.id || !partnerId) return;
-    if (partner?.isGuest || partner?.isAnonymous) {
+    if (!user?.id || !partnerId || isGroupChat) return;
+    if (primaryParticipant?.isGuest || primaryParticipant?.isAnonymous) {
       toast({
         title: 'No disponible',
         description: 'Este usuario no puede agregarse a la lista de amigos.',
@@ -990,7 +1143,7 @@ const PrivateChatWindow = ({
   };
 
   const handleSubmitReport = async () => {
-    if (!partnerId || !user?.id) return;
+    if (!partnerId || !user?.id || isGroupChat) return;
     setIsSubmittingReport(true);
     try {
       await createReport({
@@ -1043,12 +1196,12 @@ const PrivateChatWindow = ({
         <div className="flex items-center gap-2.5">
           <div className="relative">
             <Avatar className="w-9 h-9 border border-border/70">
-              <AvatarImage src={partner?.avatar} alt={partnerName} />
+              <AvatarImage src={primaryParticipant?.avatar} alt={partnerName} />
               <AvatarFallback>{partnerName[0]?.toUpperCase?.() || 'U'}</AvatarFallback>
             </Avatar>
             <span
               className={`absolute -right-0.5 -bottom-0.5 w-2.5 h-2.5 rounded-full border-2 border-card ${
-                partnerPresence?.isOnline || isPartnerTyping ? 'bg-emerald-500' : 'bg-zinc-500'
+                isGroupChat || partnerPresence?.isOnline || isPartnerTyping ? 'bg-emerald-500' : 'bg-zinc-500'
               }`}
             />
           </div>
@@ -1060,7 +1213,7 @@ const PrivateChatWindow = ({
           >
             <p className="text-sm font-semibold text-foreground truncate">{partnerName}</p>
             <p className="text-[11px] text-muted-foreground truncate">
-              {isPartnerTyping ? 'Escribiendo...' : 'Chat privado'}
+              {isGroupChat ? `${chatParticipants.length} participantes` : (isPartnerTyping ? 'Escribiendo...' : 'Chat privado')}
             </p>
           </button>
 
@@ -1106,19 +1259,19 @@ const PrivateChatWindow = ({
         exit={{ opacity: 0, y: 20, scale: 0.98 }}
         className="fixed bottom-4 z-[130] w-[min(92vw,420px)] h-[min(84vh,640px)] flex flex-col gap-0 bg-card border rounded-2xl shadow-2xl overflow-hidden"
         style={floatingWindowStyle}
-        aria-label={`Chat privado con ${partnerName}`}
+        aria-label={isGroupChat ? `Chat grupal privado ${partnerName}` : `Chat privado con ${partnerName}`}
       >
 
         <header className="bg-secondary/95 backdrop-blur-md px-3 py-3 border-b border-border/60 flex items-center justify-between shrink-0">
           <div className="flex items-center gap-3 min-w-0">
             <div className="relative">
               <Avatar className="w-10 h-10 border border-border/70">
-                <AvatarImage src={partner?.avatar} alt={partnerName} />
+                <AvatarImage src={primaryParticipant?.avatar} alt={partnerName} />
                 <AvatarFallback>{partnerName[0]?.toUpperCase?.() || 'U'}</AvatarFallback>
               </Avatar>
               <span
                 className={`absolute -right-0.5 -bottom-0.5 w-3 h-3 rounded-full border-2 border-card ${
-                  partnerPresence?.isOnline || isPartnerTyping ? 'bg-emerald-500' : 'bg-zinc-500'
+                  isGroupChat || partnerPresence?.isOnline || isPartnerTyping ? 'bg-emerald-500' : 'bg-zinc-500'
                 }`}
               />
             </div>
@@ -1127,10 +1280,25 @@ const PrivateChatWindow = ({
               <p className={`text-xs truncate ${isPartnerTyping ? 'text-cyan-400' : 'text-muted-foreground'}`}>
                 {statusText}
               </p>
+              {isGroupChat && groupSubtitle && (
+                <p className="text-[11px] text-muted-foreground truncate">{groupSubtitle}</p>
+              )}
             </div>
           </div>
 
           <div className="flex items-center gap-1">
+            {canInviteMorePeople && (
+              <Button
+                type="button"
+                variant="ghost"
+                size="icon"
+                onClick={() => setIsInviteDialogOpen(true)}
+                className="w-8 h-8 text-muted-foreground"
+                title="Invitar participante"
+              >
+                <Plus className="w-4 h-4" />
+              </Button>
+            )}
             <DropdownMenu modal={false} open={isActionsMenuOpen} onOpenChange={setIsActionsMenuOpen}>
               <DropdownMenuTrigger asChild>
                 <Button
@@ -1148,30 +1316,38 @@ const PrivateChatWindow = ({
                 sideOffset={8}
                 className="z-[260] bg-card border text-foreground w-64 shadow-2xl"
               >
-                <DropdownMenuItem onSelect={handleBlockUser}>
-                  <Shield className="w-4 h-4 mr-2" />
-                  Bloquear usuario
-                </DropdownMenuItem>
                 <DropdownMenuItem onSelect={handleToggleMute}>
                   {isMuted ? <Bell className="w-4 h-4 mr-2" /> : <BellOff className="w-4 h-4 mr-2" />}
-                  {isMuted ? 'Activar sonido' : 'Silenciar usuario'}
+                  {isMuted ? 'Activar sonido' : (isGroupChat ? 'Silenciar chat' : 'Silenciar usuario')}
                 </DropdownMenuItem>
                 <DropdownMenuItem onSelect={handleLeaveChat}>
                   <PhoneOff className="w-4 h-4 mr-2" />
-                  Cerrar conversación
+                  {isGroupChat ? 'Salir del chat grupal' : 'Cerrar conversación'}
                 </DropdownMenuItem>
-                <DropdownMenuItem onSelect={() => setIsReportDialogOpen(true)}>
-                  <Flag className="w-4 h-4 mr-2" />
-                  Denunciar usuario
-                </DropdownMenuItem>
-                <DropdownMenuItem onSelect={handleVisitProfile}>
-                  <User className="w-4 h-4 mr-2" />
-                  Ver perfil
-                </DropdownMenuItem>
-                <DropdownMenuItem onSelect={handleToggleFriend}>
-                  {isFriend ? <UserMinus className="w-4 h-4 mr-2" /> : <UserPlus className="w-4 h-4 mr-2" />}
-                  {isFriend ? 'Quitar de mi lista de amigos' : 'Agregar a mi lista de amigos'}
-                </DropdownMenuItem>
+                {!isGroupChat && (
+                  <DropdownMenuItem onSelect={handleBlockUser}>
+                    <Shield className="w-4 h-4 mr-2" />
+                    Bloquear usuario
+                  </DropdownMenuItem>
+                )}
+                {!isGroupChat && (
+                  <DropdownMenuItem onSelect={() => setIsReportDialogOpen(true)}>
+                    <Flag className="w-4 h-4 mr-2" />
+                    Denunciar usuario
+                  </DropdownMenuItem>
+                )}
+                {!isGroupChat && (
+                  <DropdownMenuItem onSelect={handleVisitProfile}>
+                    <User className="w-4 h-4 mr-2" />
+                    Ver perfil
+                  </DropdownMenuItem>
+                )}
+                {!isGroupChat && (
+                  <DropdownMenuItem onSelect={handleToggleFriend}>
+                    {isFriend ? <UserMinus className="w-4 h-4 mr-2" /> : <UserPlus className="w-4 h-4 mr-2" />}
+                    {isFriend ? 'Quitar de mi lista de amigos' : 'Agregar a mi lista de amigos'}
+                  </DropdownMenuItem>
+                )}
                 <DropdownMenuItem onSelect={handleArchiveConversation}>
                   <Archive className="w-4 h-4 mr-2" />
                   {isArchived ? 'Archivar nuevamente' : 'Archivar conversación'}
@@ -1325,13 +1501,16 @@ const PrivateChatWindow = ({
                           {(() => {
                             const deliveredTo = Array.isArray(msg.deliveredTo) ? msg.deliveredTo : [];
                             const readBy = Array.isArray(msg.readBy) ? msg.readBy : [];
-                            const partnerRead = Boolean(partnerId && readBy.includes(partnerId));
-                            const partnerDelivered = Boolean(partnerId && (deliveredTo.includes(partnerId) || partnerRead));
+                            const recipientIds = isGroupChat ? allOtherParticipantIds : [partnerId].filter(Boolean);
+                            const everyoneRead = recipientIds.length > 0 && recipientIds.every((recipientId) => readBy.includes(recipientId));
+                            const anyoneDelivered = recipientIds.some((recipientId) => (
+                              deliveredTo.includes(recipientId) || readBy.includes(recipientId)
+                            ));
 
-                            if (partnerRead) {
+                            if (everyoneRead) {
                               return <CheckCheck className="w-3 h-3 text-cyan-300" />;
                             }
-                            if (partnerDelivered) {
+                            if (anyoneDelivered) {
                               return <CheckCheck className="w-3 h-3 text-white/70" />;
                             }
                             return <Check className="w-3 h-3 text-white/70" />;
@@ -1598,42 +1777,89 @@ const PrivateChatWindow = ({
 
       </motion.section>
 
-      <Dialog open={isReportDialogOpen} onOpenChange={setIsReportDialogOpen}>
+      {!isGroupChat && (
+        <Dialog open={isReportDialogOpen} onOpenChange={setIsReportDialogOpen}>
+          <DialogContent className="sm:max-w-md">
+            <DialogTitle>Denunciar usuario</DialogTitle>
+            <DialogDescription>
+              Reportar a {partnerName}. Esto ayuda a moderación a revisar comportamientos indebidos.
+            </DialogDescription>
+            <div className="space-y-3">
+              <label className="block text-sm text-foreground/90">
+                Motivo
+                <select
+                  value={reportReason}
+                  onChange={(e) => setReportReason(e.target.value)}
+                  className="mt-1 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+                >
+                  <option value="acoso">Acoso</option>
+                  <option value="violencia">Violencia/amenaza</option>
+                  <option value="ventas">Spam o ventas</option>
+                  <option value="otras">Otro</option>
+                </select>
+              </label>
+              <label className="block text-sm text-foreground/90">
+                Detalle (opcional)
+                <Textarea
+                  value={reportDescription}
+                  onChange={(e) => setReportDescription(e.target.value)}
+                  placeholder="Describe brevemente lo ocurrido..."
+                  className="mt-1 min-h-[90px]"
+                />
+              </label>
+            </div>
+            <DialogFooter>
+              <Button type="button" variant="outline" onClick={() => setIsReportDialogOpen(false)}>
+                Cancelar
+              </Button>
+              <Button type="button" onClick={handleSubmitReport} disabled={isSubmittingReport}>
+                {isSubmittingReport ? 'Enviando...' : 'Enviar reporte'}
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+      )}
+
+      <Dialog open={isInviteDialogOpen} onOpenChange={setIsInviteDialogOpen}>
         <DialogContent className="sm:max-w-md">
-          <DialogTitle>Denunciar usuario</DialogTitle>
+          <DialogTitle>Invitar al chat privado</DialogTitle>
           <DialogDescription>
-            Reportar a {partnerName}. Esto ayuda a moderación a revisar comportamientos indebidos.
+            El invitado y quienes ya están en este chat deben aceptar antes de sumarse.
           </DialogDescription>
-          <div className="space-y-3">
-            <label className="block text-sm text-foreground/90">
-              Motivo
-              <select
-                value={reportReason}
-                onChange={(e) => setReportReason(e.target.value)}
-                className="mt-1 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
-              >
-                <option value="acoso">Acoso</option>
-                <option value="violencia">Violencia/amenaza</option>
-                <option value="ventas">Spam o ventas</option>
-                <option value="otras">Otro</option>
-              </select>
-            </label>
-            <label className="block text-sm text-foreground/90">
-              Detalle (opcional)
-              <Textarea
-                value={reportDescription}
-                onChange={(e) => setReportDescription(e.target.value)}
-                placeholder="Describe brevemente lo ocurrido..."
-                className="mt-1 min-h-[90px]"
-              />
-            </label>
+          <div className="space-y-2 max-h-[320px] overflow-y-auto pr-1">
+            {inviteCandidates.length === 0 ? (
+              <p className="text-sm text-muted-foreground">No hay conectados disponibles para invitar ahora.</p>
+            ) : (
+              inviteCandidates.map((candidate) => (
+                <div
+                  key={candidate.userId}
+                  className="flex items-center justify-between gap-3 rounded-xl border border-border/70 bg-secondary/30 px-3 py-2"
+                >
+                  <div className="flex items-center gap-3 min-w-0">
+                    <Avatar className="w-10 h-10">
+                      <AvatarImage src={candidate.avatar} alt={candidate.username} />
+                      <AvatarFallback>{candidate.username[0]?.toUpperCase?.() || 'U'}</AvatarFallback>
+                    </Avatar>
+                    <div className="min-w-0">
+                      <p className="text-sm font-medium text-foreground truncate">{candidate.username}</p>
+                      <p className="text-xs text-muted-foreground truncate">{candidate.role || 'Disponible en sala'}</p>
+                    </div>
+                  </div>
+                  <Button
+                    type="button"
+                    size="sm"
+                    onClick={() => handleInviteParticipant(candidate)}
+                    disabled={isSendingGroupInvite}
+                  >
+                    Invitar
+                  </Button>
+                </div>
+              ))
+            )}
           </div>
           <DialogFooter>
-            <Button type="button" variant="outline" onClick={() => setIsReportDialogOpen(false)}>
-              Cancelar
-            </Button>
-            <Button type="button" onClick={handleSubmitReport} disabled={isSubmittingReport}>
-              {isSubmittingReport ? 'Enviando...' : 'Enviar reporte'}
+            <Button type="button" variant="outline" onClick={() => setIsInviteDialogOpen(false)}>
+              Cerrar
             </Button>
           </DialogFooter>
         </DialogContent>

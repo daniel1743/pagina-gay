@@ -175,18 +175,6 @@ const UserActionsModal = ({
     console.log('🎯 [DEBUG] targetUser:', targetUser);
     console.log('🔑 [DEBUG] targetUser.userId:', targetUser?.userId);
 
-    // ✅ Validar que el usuario objetivo NO sea invitado/anónimo
-    if (targetUser.isGuest || targetUser.isAnonymous) {
-      toast({
-        title: "⚠️ No se puede enviar invitación",
-        description: "Este usuario no puede recibir invitaciones de chat privado porque no está registrado. Invítalo a registrarse para poder chatear.",
-        variant: "destructive",
-        duration: 5000,
-      });
-      onClose();
-      return;
-    }
-
     // Verificar límites
     const canSend = canSendChatInvite(currentUser);
     console.log('✅ [DEBUG] canSend result:', canSend);
@@ -194,14 +182,6 @@ const UserActionsModal = ({
     if (!canSend.allowed) {
       console.warn('⚠️ [DEBUG] Solicitud bloqueada. Razón:', canSend.reason);
       console.warn('⚠️ [DEBUG] Mensaje:', canSend.message);
-      if (canSend.reason === 'guest') {
-        onClose(); // Cerrar el modal de acciones primero
-        if (onShowRegistrationModal) {
-          onShowRegistrationModal('invitar');
-        }
-        return;
-      }
-
       if (canSend.reason === 'limit_reached') {
         toast({
           title: "⏱️ Límite Alcanzado",

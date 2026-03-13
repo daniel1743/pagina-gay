@@ -483,34 +483,34 @@ const ChatStatesStrip = ({ roomId = 'principal', user }) => {
   };
 
   return (
-    <div className="px-3 pt-2 pb-2 border-b border-border/60 bg-card/40">
+    <div className="px-2.5 pt-1.5 pb-1.5 border-b border-border/60 bg-card/35">
       <div className="mb-1 flex items-center justify-between">
-        <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Estados</p>
-        <p className="text-[11px] text-muted-foreground">
+        <p className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">Estados</p>
+        <p className="text-[10px] text-muted-foreground">
           {statesHint}
         </p>
       </div>
 
-      <div className="flex gap-2 overflow-x-auto scrollbar-hide pb-1">
+      <div className="flex gap-1.5 overflow-x-auto scrollbar-hide pb-0.5">
         <button
           type="button"
           onClick={handleOpenComposer}
-          className="group min-w-[68px] max-w-[72px] shrink-0 text-center"
+          className="group min-w-[56px] max-w-[60px] shrink-0 text-center"
           aria-label={ownState ? 'Ver mi estado' : 'Publicar estado'}
         >
-          <div className={`mx-auto mb-1 h-14 w-14 rounded-full border-2 ${
+          <div className={`mx-auto mb-1 h-11 w-11 rounded-full border-2 ${
             ownState ? 'border-cyan-400/80' : 'border-dashed border-cyan-400/50'
           } bg-secondary/70 flex items-center justify-center transition-colors group-hover:border-cyan-300`}>
             {ownState ? (
-                <Avatar className="h-12 w-12">
+                <Avatar className="h-9 w-9">
                 <AvatarImage src={ownState.avatar || DEFAULT_AVATAR} alt={ownState.username} loading="lazy" decoding="async" fetchPriority="low" />
                 <AvatarFallback>{getInitial(ownState.username)}</AvatarFallback>
               </Avatar>
             ) : (
-              <Plus className="w-5 h-5 text-cyan-300" />
+              <Plus className="w-4 h-4 text-cyan-300" />
             )}
           </div>
-          <p className="text-[11px] text-muted-foreground truncate">{ownState ? 'Tu estado' : 'Agregar'}</p>
+          <p className="text-[10px] leading-tight text-muted-foreground truncate">{ownState ? 'Tu estado' : 'Agregar'}</p>
         </button>
 
         {isLoading && (
@@ -522,16 +522,16 @@ const ChatStatesStrip = ({ roomId = 'principal', user }) => {
             key={item.userId}
             type="button"
             onClick={() => setSelectedState(item)}
-            className="group min-w-[68px] max-w-[72px] shrink-0 text-center"
+            className="group min-w-[56px] max-w-[60px] shrink-0 text-center"
             aria-label={`Ver estado de ${item.username}`}
           >
-            <div className="mx-auto mb-1 h-14 w-14 rounded-full border-2 border-cyan-400/65 p-0.5 transition-colors group-hover:border-cyan-300">
+            <div className="mx-auto mb-1 h-11 w-11 rounded-full border-2 border-cyan-400/65 p-0.5 transition-colors group-hover:border-cyan-300">
               <Avatar className="h-full w-full">
                 <AvatarImage src={item.avatar || DEFAULT_AVATAR} alt={item.username} loading="lazy" decoding="async" fetchPriority="low" />
                 <AvatarFallback>{getInitial(item.username)}</AvatarFallback>
               </Avatar>
             </div>
-            <p className="text-[11px] text-muted-foreground truncate">{item.username}</p>
+            <p className="text-[10px] leading-tight text-muted-foreground truncate">{item.username}</p>
           </button>
         ))}
       </div>

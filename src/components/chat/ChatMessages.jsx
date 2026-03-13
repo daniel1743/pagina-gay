@@ -10,6 +10,7 @@ import { getUserConnectionStatus, getStatusColor, getStatusText } from '@/utils/
 import { traceEvent, TRACE_EVENTS, isMessageTraceEnabled } from '@/utils/messageTrace';
 import { getBadgeConfig } from '@/services/badgeService';
 import { getProfileRoleBadgeMeta } from '@/config/profileRoles';
+import { isUserAvailableForConversation } from '@/services/presenceService';
 import './ChatMessages.css';
 
 /**
@@ -585,6 +586,19 @@ const ChatMessages = ({
                       );
                     }
                     return null;
+                  })()}
+                  {(() => {
+                    const presence = safeRoomUsers.find(u => (u.userId || u.id) === group.userId);
+                    if (!presence || !isUserAvailableForConversation(presence)) return null;
+                    return (
+                      <span
+                        className="inline-flex items-center gap-1 rounded-full border border-emerald-500/25 bg-emerald-500/10 px-2 py-0.5 text-[10px] font-medium text-emerald-300"
+                        title={`${group.username} está disponible para conversar`}
+                      >
+                        <span>🙋</span>
+                        disponible
+                      </span>
+                    );
                   })()}
                   {(isUserPremium || userRole === 'admin') && (
                     <CheckCircle className="inline w-3 h-3 ml-1 text-yellow-500" />

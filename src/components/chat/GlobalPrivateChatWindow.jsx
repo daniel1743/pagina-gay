@@ -32,6 +32,8 @@ export default function GlobalPrivateChatWindow() {
           key={chatWindow.chatId || `${chatWindow?.partner?.userId || chatWindow?.partner?.id || 'chat'}-${index}`}
           user={chatWindow.user || user}
           partner={chatWindow.partner}
+          participants={chatWindow.participants || []}
+          title={chatWindow.title || ''}
           chatId={chatWindow.chatId}
           roomId={chatWindow.roomId ?? null}
           initialMessage={chatWindow.initialMessage ?? ''}

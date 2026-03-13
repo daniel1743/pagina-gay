@@ -30,7 +30,7 @@ const isInvalidAvatarSrc = (src) => {
   return false;
 };
 
-const AvatarImage = React.forwardRef(({ className, src, ...props }, ref) => {
+const AvatarImage = React.forwardRef(({ className, src, fetchPriority, ...props }, ref) => {
   const safeSrc = isInvalidAvatarSrc(src) ? DEFAULT_AVATAR_SRC : src;
 
   return (
@@ -38,6 +38,7 @@ const AvatarImage = React.forwardRef(({ className, src, ...props }, ref) => {
       ref={ref}
       src={safeSrc}
       className={cn('aspect-square h-full w-full rounded-full object-cover', className)}
+      {...(fetchPriority ? { fetchpriority: fetchPriority } : {})}
       {...props}
     />
   );

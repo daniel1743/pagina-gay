@@ -142,6 +142,9 @@ const isExcludedRealtimeParticipant = (userId = '', data = {}) => {
 
 const getPresenceLastActivityMs = (data = {}) => {
   return (
+    toTimestampMs(data.lastSeenMs) ??
+    toTimestampMs(data.lastActiveAtMs) ??
+    toTimestampMs(data.joinedAtMs) ??
     toTimestampMs(data.lastSeen) ??
     toTimestampMs(data.lastActiveAt) ??
     toTimestampMs(data.updatedAt) ??

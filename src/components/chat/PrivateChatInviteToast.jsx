@@ -11,6 +11,8 @@ import { X, MessageCircle } from 'lucide-react';
  * - Botones de Aceptar/Declinar
  */
 const PrivateChatInviteToast = ({ request, onAccept, onDecline, onClose }) => {
+  const isGroupInvite = request?.type === 'private_group_invite_request';
+  const requestedUsername = request?.requestedUser?.username || 'otro usuario';
   // Auto-cerrar después de 4 segundos
   useEffect(() => {
     const timer = setTimeout(() => {
@@ -62,21 +64,30 @@ const PrivateChatInviteToast = ({ request, onAccept, onDecline, onClose }) => {
               <div className="flex items-center gap-2 mb-1">
                 <MessageCircle className="w-4 h-4 text-cyan-400 flex-shrink-0" />
                 <p className="text-sm font-bold text-white truncate">
-                  Invitación de chat privado
+                  {isGroupInvite ? 'Invitación a chat grupal' : 'Invitación de chat privado'}
                 </p>
               </div>
               <p className="text-xs text-gray-300">
-                <span className="font-bold text-cyan-400">{request.from.username}</span> te invitó a hablar en privado
+                {isGroupInvite ? (
+                  <>
+                    <span className="font-bold text-cyan-400">{request.from.username}</span> quiere sumar a{' '}
+                    <span className="font-bold text-cyan-400">{requestedUsername}</span> a este privado
+                  </>
+                ) : (
+                  <>
+                    <span className="font-bold text-cyan-400">{request.from.username}</span> te invitó a hablar en privado
+                  </>
+                )}
               </p>
             </div>
 
             {/* Botón cerrar */}
             <button
               onClick={onClose}
-              className="flex-shrink-0 p-1 hover:bg-gray-700/50 rounded-full transition-colors"
-              aria-label="Cerrar"
+              className="flex-shrink-0 inline-flex h-9 w-9 items-center justify-center rounded-full border border-white/15 bg-white/10 text-white hover:bg-white/20 transition-colors"
+              aria-label="Cerrar aviso"
             >
-              <X className="w-4 h-4 text-gray-400 hover:text-white" />
+              <X className="w-4 h-4" />
             </button>
           </div>
 

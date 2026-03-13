@@ -18,6 +18,7 @@ import { getCurrentScheduledEventOccurrence, getNextScheduledEventOccurrence } f
 
 const PRE_EVENT_WINDOW_MS = 12 * 60 * 60 * 1000; // Mostrar próximos eventos hasta 12h antes
 const AUTO_EVENT_LOOKAHEAD_MS = 48 * 60 * 60 * 1000; // Fallback automático: próximos 2 días
+const AUTO_EVENT_DURATION_MINUTES = 30;
 
 export default function EventoBanner({ currentRoomId, onEventoActivoConRecordatorio }) {
   const navigate = useNavigate();
@@ -77,8 +78,16 @@ export default function EventoBanner({ currentRoomId, onEventoActivoConRecordato
     : currentRoomId;
 
   // Fallback: eventos automáticos semanales por sala (sin depender de Firestore/admin)
-  const autoEventoActivo = getCurrentScheduledEventOccurrence(normalizedRoomId, new Date(), 120);
-  const autoEventoProgramado = getNextScheduledEventOccurrence(normalizedRoomId, new Date(), 120);
+  const autoEventoActivo = getCurrentScheduledEventOccurrence(
+    normalizedRoomId,
+    new Date(),
+    AUTO_EVENT_DURATION_MINUTES
+  );
+  const autoEventoProgramado = getNextScheduledEventOccurrence(
+    normalizedRoomId,
+    new Date(),
+    AUTO_EVENT_DURATION_MINUTES
+  );
   const msHastaAutoEvento = autoEventoProgramado
     ? toMs(autoEventoProgramado.fechaInicio) - Date.now()
     : null;
@@ -134,8 +143,17 @@ export default function EventoBanner({ currentRoomId, onEventoActivoConRecordato
   // Si está en vivo y ya estás en esa misma sala, ocultar para no duplicar UI.
   if (currentRoomId === evento.roomId && esActivo) return null;
 
+  const dismissCurrentEvent = () => {
+    setDismissedEventIds((prev) => {
+      const next = new Set(prev);
+      if (evento?.id) next.add(evento.id);
+      return next;
+    });
+  };
+
   const handleEntrar = () => {
     setShowDetails(false);
+    dismissCurrentEvent();
     navigate(`/chat/${evento.roomId}`);
   };
 
@@ -154,6 +172,8 @@ export default function EventoBanner({ currentRoomId, onEventoActivoConRecordato
         unirseAEvento(evento.id, user).catch(() => {});
       }
     }
+    setShowDetails(false);
+    dismissCurrentEvent();
   };
 
   // Formatear hora de inicio y fin
@@ -248,16 +268,11 @@ export default function EventoBanner({ currentRoomId, onEventoActivoConRecordato
 
             {/* Cerrar */}
             <button
-              onClick={() => {
-                setDismissedEventIds((prev) => {
-                  const next = new Set(prev);
-                  if (evento?.id) next.add(evento.id);
-                  return next;
-                });
-              }}
-              className="flex-shrink-0 p-1 rounded text-gray-500 hover:text-gray-300 transition-colors"
+              onClick={dismissCurrentEvent}
+              className="flex-shrink-0 inline-flex h-9 w-9 items-center justify-center rounded-full border border-white/15 bg-white/10 text-white hover:bg-white/20 transition-colors"
+              aria-label="Cerrar aviso del evento"
             >
-              <X className="w-3.5 h-3.5" />
+              <X className="w-4 h-4" />
             </button>
           </div>
         </motion.div>
@@ -302,7 +317,8 @@ export default function EventoBanner({ currentRoomId, onEventoActivoConRecordato
                   </div>
                   <button
                     onClick={() => setShowDetails(false)}
-                    className="p-1.5 rounded-lg text-gray-400 hover:text-white hover:bg-gray-800 transition-colors"
+                    className="inline-flex h-9 w-9 items-center justify-center rounded-full border border-white/15 bg-white/10 text-white hover:bg-white/20 transition-colors"
+                    aria-label="Cerrar detalle del evento"
                   >
                     <X className="w-4 h-4" />
                   </button>
@@ -371,7 +387,6 @@ export default function EventoBanner({ currentRoomId, onEventoActivoConRecordato
                   <button
                     onClick={() => {
                       handleRecordarme();
-                      if (!reminded) setShowDetails(false);
                     }}
                     className={`w-full flex items-center justify-center gap-2 px-4 py-3 rounded-xl font-semibold transition-colors ${
                       reminded

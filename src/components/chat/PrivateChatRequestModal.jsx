@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useEffect } from 'react';
 import {
   Dialog,
   DialogContent,
@@ -8,17 +8,36 @@ import {
 } from '@/components/ui/dialog';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Button } from '@/components/ui/button';
+import { X } from 'lucide-react';
 
 const PrivateChatRequestModal = ({ request, currentUser, onResponse, onClose }) => {
+  const isGroupInvite = request?.type === 'private_group_invite_request';
+  const requestedUsername = request?.requestedUser?.username || 'otro usuario';
   const receiverId = request?.to?.id || request?.to?.userId || null;
   const senderId = request?.from?.id || request?.from?.userId || null;
   const isReceiver = currentUser.id === receiverId;
   const isSender = currentUser.id === senderId;
 
+  useEffect(() => {
+    if (!isSender) return undefined;
+    const timer = setTimeout(() => {
+      onClose?.();
+    }, 5000);
+    return () => clearTimeout(timer);
+  }, [isSender, onClose]);
+
   if (isSender) {
     return (
        <Dialog open={true} onOpenChange={onClose}>
         <DialogContent className="bg-card border text-foreground max-w-sm rounded-2xl">
+          <button
+            type="button"
+            onClick={onClose}
+            className="absolute right-3 top-3 inline-flex h-9 w-9 items-center justify-center rounded-full border border-white/15 bg-white/10 text-white hover:bg-white/20"
+            aria-label="Cerrar aviso"
+          >
+            <X className="h-4 w-4" />
+          </button>
           <DialogHeader className="items-center text-center">
             <Avatar className="w-20 h-20 border-4 border-cyan-400 mb-4">
               <AvatarImage src={request.to.avatar} alt={request.to.username} />
@@ -27,11 +46,20 @@ const PrivateChatRequestModal = ({ request, currentUser, onResponse, onClose }) 
               </AvatarFallback>
             </Avatar>
             <DialogTitle className="text-foreground text-2xl">
-              Solicitud Enviada
+              {isGroupInvite ? 'Invitación Grupal Enviada' : 'Solicitud Enviada'}
             </DialogTitle>
             <DialogDescription className="text-muted-foreground">
-              Esperando que <span className="font-bold text-accent">{request.to.username}</span> acepte tu invitación.
+              {isGroupInvite ? (
+                <>
+                  Esperando las aprobaciones para sumar a <span className="font-bold text-accent">{requestedUsername}</span> al privado.
+                </>
+              ) : (
+                <>
+                  Esperando que <span className="font-bold text-accent">{request.to.username}</span> acepte tu invitación.
+                </>
+              )}
             </DialogDescription>
+            <p className="text-[11px] text-muted-foreground">Este aviso se cierra solo en 5 segundos.</p>
           </DialogHeader>
           <Button
             onClick={onClose}
@@ -49,6 +77,14 @@ const PrivateChatRequestModal = ({ request, currentUser, onResponse, onClose }) 
     return (
       <Dialog open={true} onOpenChange={onClose}>
         <DialogContent className="bg-card border text-foreground max-w-sm rounded-2xl">
+          <button
+            type="button"
+            onClick={onClose}
+            className="absolute right-3 top-3 inline-flex h-9 w-9 items-center justify-center rounded-full border border-white/15 bg-white/10 text-white hover:bg-white/20"
+            aria-label="Cerrar aviso"
+          >
+            <X className="h-4 w-4" />
+          </button>
           <DialogHeader className="items-center text-center">
             <Avatar className="w-20 h-20 border-4 border-accent mb-4">
               <AvatarImage src={request.from.avatar} alt={request.from.username} />
@@ -57,10 +93,19 @@ const PrivateChatRequestModal = ({ request, currentUser, onResponse, onClose }) 
               </AvatarFallback>
             </Avatar>
             <DialogTitle className="text-foreground text-2xl">
-              ¡Chat Privado!
+              {isGroupInvite ? 'Invitación para sumar participante' : '¡Chat Privado!'}
             </DialogTitle>
             <DialogDescription className="text-muted-foreground">
-              <span className="font-bold text-cyan-400">{request.from.username}</span> te ha invitado a un chat privado.
+              {isGroupInvite ? (
+                <>
+                  <span className="font-bold text-cyan-400">{request.from.username}</span> quiere sumar a{' '}
+                  <span className="font-bold text-cyan-400">{requestedUsername}</span> al chat privado actual.
+                </>
+              ) : (
+                <>
+                  <span className="font-bold text-cyan-400">{request.from.username}</span> te ha invitado a un chat privado.
+                </>
+              )}
             </DialogDescription>
           </DialogHeader>
           <div className="flex gap-4 mt-4">

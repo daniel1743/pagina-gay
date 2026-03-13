@@ -57,12 +57,12 @@ import {
   markMessagesAsRead,
   generateUUID
 } from '@/services/chatService';
-import { joinRoom, leaveRoom, subscribeToRoomUsers, subscribeToMultipleRoomCounts, updateUserActivity, cleanInactiveUsers, filterActiveUsers, subscribeToTypingUsers, updatePresenceFields } from '@/services/presenceService';
+import { CHAT_AVAILABILITY_HEARTBEAT_MS, joinRoom, leaveRoom, subscribeToRoomUsers, subscribeToMultipleRoomCounts, updateUserActivity, cleanInactiveUsers, filterActiveUsers, subscribeToTypingUsers, updatePresenceFields, validateUserAvailabilityInRoom } from '@/services/presenceService';
 import { validateMessage } from '@/services/antiSpamService';
 import { auth, db } from '@/config/firebase'; // ✅ CRÍTICO: Necesario para obtener UID real de Firebase Auth
 import { doc, getDoc, deleteDoc } from 'firebase/firestore';
 import { evaluateMessage, checkAIMute, formatMuteRemaining } from '@/services/moderationAIService';
-import { sendPrivateChatRequest, respondToPrivateChatRequest, subscribeToNotifications, markNotificationAsRead, getOrCreatePrivateChat } from '@/services/socialService';
+import { sendPrivateChatRequest, respondToPrivateChatRequest, subscribeToNotifications, markNotificationAsRead, getOrCreatePrivateChat, respondToPrivateGroupInvite } from '@/services/socialService';
 import { subscribeToBlockedUsers, isBlocked, isBlockedBetween } from '@/services/blockService';
 import { requestNotificationPermission, canRequestPush, setupForegroundMessages } from '@/services/pushNotificationService';
 // ⚠️ MODERADOR ELIMINADO (06/01/2026) - A petición del usuario
@@ -1163,7 +1163,7 @@ const ChatPage = () => {
   }, [clearRandomConnectPendingTimeout, stopRandomConnect, user?.id]);
 
   const handleToggleRandomConnect = useCallback(() => {
-    if (!auth.currentUser || user?.isGuest || user?.isAnonymous || !user?.id) {
+    if (!auth.currentUser || !user?.id) {
       setRegistrationModalFeature('chat privado');
       setShowRegistrationModal(true);
       return;
@@ -1379,7 +1379,7 @@ const ChatPage = () => {
         result.push({
           id: '_nudge_guest_register',
           type: 'system',
-          text: 'Estás chateando como invitado · Regístrate para chat privado, más salas y favoritos',
+          text: 'Estás chateando como invitado · Prueba los privados y regístrate para más mensajes, más salas y favoritos',
           timestamp: now,
           userId: 'system',
           username: 'Sistema',
@@ -2351,7 +2351,7 @@ const ChatPage = () => {
     };
 
     pingPresence();
-    const intervalId = setInterval(pingPresence, 60000);
+    const intervalId = setInterval(pingPresence, CHAT_AVAILABILITY_HEARTBEAT_MS);
 
     const handleVisibilityChange = () => {
       if (document.visibilityState === 'visible') {
@@ -2570,6 +2570,33 @@ const ChatPage = () => {
     return Boolean(result?.ok);
   }, [setActivePrivateChat, maxOpenPrivateChats]);
 
+  const openGroupPrivateChatWindow = useCallback((chatPayload = {}) => {
+    const currentUser = userRef.current || user;
+    const participantProfiles = Array.isArray(chatPayload.participantProfiles)
+      ? chatPayload.participantProfiles
+      : [];
+    const fallbackPartner = participantProfiles.find((participant) => participant?.userId !== currentUser?.id)
+      || {
+        userId: chatPayload.chatId || 'group-private-chat',
+        username: chatPayload.title || 'Chat grupal privado',
+        avatar: '',
+      };
+
+    return openPrivateChatWindow({
+      user: currentUser,
+      partner: {
+        userId: fallbackPartner.userId || chatPayload.chatId || 'group-private-chat',
+        username: fallbackPartner.username || chatPayload.title || 'Chat grupal privado',
+        avatar: fallbackPartner.avatar || '',
+        isPremium: Boolean(fallbackPartner.isPremium),
+      },
+      participants: participantProfiles,
+      title: chatPayload.title || 'Chat grupal privado',
+      chatId: chatPayload.chatId,
+      roomId: chatPayload.roomId || currentRoomRef.current || null,
+    });
+  }, [openPrivateChatWindow, user]);
+
   // Suscribirse a notificaciones de chat privado (un solo listener por user.id)
   useEffect(() => {
     if (!user?.id) return;
@@ -2581,10 +2608,24 @@ const ChatPage = () => {
       const currentDismissed = dismissedChatIdsRef.current;
       const currentUser = userRef.current;
 
+      const completedGroupInviteIds = new Set(
+        notifications
+          .filter((n) => n.type === 'private_group_chat_ready' || n.type === 'private_group_invite_rejected')
+          .map((n) => n.inviteId)
+          .filter(Boolean)
+      );
+
       // Buscar solicitudes de chat privado pendientes
       const now = Date.now();
       const pendingRequests = notifications.filter((n) => {
         if (n.type !== 'private_chat_request' || n.status !== 'pending') return false;
+        const expiresAtMs = Number(n.expiresAtMs || 0);
+        if (!Number.isFinite(expiresAtMs) || expiresAtMs <= 0) return true;
+        return expiresAtMs >= now;
+      });
+      const pendingGroupRequests = notifications.filter((n) => {
+        if (n.type !== 'private_group_invite_request' || n.status !== 'pending') return false;
+        if (n.inviteId && completedGroupInviteIds.has(n.inviteId)) return false;
         const expiresAtMs = Number(n.expiresAtMs || 0);
         if (!Number.isFinite(expiresAtMs) || expiresAtMs <= 0) return true;
         return expiresAtMs >= now;
@@ -2610,6 +2651,41 @@ const ChatPage = () => {
           source: latestRequest.source || 'manual',
           suggestedStarter: latestRequest.suggestedStarter || '',
           systemPrompt: latestRequest.systemPrompt || '',
+          expiresAtMs: latestRequest.expiresAtMs || null,
+        });
+      } else if (pendingGroupRequests.length > 0 && !currentRequest) {
+        const latestRequest = pendingGroupRequests[0];
+        const currentUserId = currentUser?.id || currentUser?.userId || user?.id || null;
+        const participantProfiles = Array.isArray(latestRequest.participantProfiles)
+          ? latestRequest.participantProfiles
+          : [];
+        const inviteeProfile = participantProfiles.find((participant) => (
+          participant?.userId === latestRequest.requestedUserId
+        )) || {
+          userId: latestRequest.requestedUserId,
+          username: latestRequest.requestedUsername || 'Usuario',
+          avatar: '',
+        };
+
+        setPrivateChatRequest({
+          type: 'private_group_invite_request',
+          from: {
+            id: latestRequest.from,
+            userId: latestRequest.from,
+            username: latestRequest.fromUsername,
+            avatar: latestRequest.fromAvatar,
+            isPremium: latestRequest.fromIsPremium,
+          },
+          to: {
+            ...(currentUser || {}),
+            id: currentUserId,
+            userId: currentUserId,
+          },
+          requestedUser: inviteeProfile,
+          participantProfiles,
+          notificationId: latestRequest.id,
+          inviteId: latestRequest.inviteId,
+          sourceChatId: latestRequest.sourceChatId || null,
           expiresAtMs: latestRequest.expiresAtMs || null,
         });
       }
@@ -2695,12 +2771,48 @@ const ChatPage = () => {
           markNotificationAsRead(user.id, latestAccepted.id).catch(() => {});
         }
       }
+
+      const rejectedGroupInvites = notifications.filter((n) => n.type === 'private_group_invite_rejected' && !n.read);
+      rejectedGroupInvites.forEach((item) => {
+        if (currentRequest?.inviteId && currentRequest.inviteId === item.inviteId) {
+          setPrivateChatRequest(null);
+        }
+        toast({
+          title: 'Invitación grupal cancelada',
+          description: `${item.fromUsername || 'Un usuario'} rechazó sumar a ${item.requestedUsername || 'ese usuario'} al chat.`,
+          variant: 'destructive',
+        });
+        markNotificationAsRead(user.id, item.id).catch(() => {});
+      });
+
+      const readyGroupChats = notifications.filter((n) => (
+        n.type === 'private_group_chat_ready' && !n.read && !currentDismissed.has(n.chatId)
+      ));
+      if (readyGroupChats.length > 0) {
+        const latestReady = readyGroupChats.find((n) => !currentOpenChats.some((chat) => chat.chatId === n.chatId))
+          || readyGroupChats[0];
+        const opened = openGroupPrivateChatWindow({
+          chatId: latestReady.chatId,
+          title: latestReady.title || 'Chat grupal privado',
+          participantProfiles: latestReady.participantProfiles || [],
+          roomId: currentRoomRef.current || null,
+        });
+
+        if (currentRequest?.inviteId && currentRequest.inviteId === latestReady.inviteId) {
+          setPrivateChatRequest(null);
+        }
+
+        if (opened || currentOpenChats.some((chat) => chat.chatId === latestReady.chatId)) {
+          markNotificationAsRead(user.id, latestReady.id).catch(() => {});
+        }
+      }
     });
 
     return () => unsubscribe();
   }, [
     user?.id,
     clearRandomConnectPendingTimeout,
+    openGroupPrivateChatWindow,
     openPrivateChatWindow,
     sendNextRandomConnectInvite,
     stopRandomConnect,
@@ -3776,21 +3888,9 @@ const ChatPage = () => {
   }, [user, setShowRegistrationModal, setRegistrationModalFeature]);
 
   const handlePrivateChatRequest = async (targetUser) => {
-    // Guests/anónimos/sin auth → modal de registro (unificado, sin toast redundante)
-    if (!auth.currentUser || user?.isGuest || user?.isAnonymous) {
+    if (!auth.currentUser || !user?.id) {
       setShowRegistrationModal(true);
       setRegistrationModalFeature('chat privado');
-      return;
-    }
-
-    // ✅ VALIDACIÓN: Si el usuario objetivo es anónimo o guest, mostrar alerta
-    if (targetUser.isAnonymous || targetUser.isGuest) {
-      toast({
-        title: "⚠️ Usuario Anónimo",
-        description: `${targetUser.username} es un usuario anónimo y no puede participar en chats privados. Los usuarios anónimos deben registrarse para usar esta función.`,
-        variant: "default",
-        duration: 5000,
-      });
       return;
     }
 
@@ -3833,6 +3933,61 @@ const ChatPage = () => {
     }
   };
 
+  const handleStartAvailableConversation = useCallback(async (targetUser) => {
+    if (!targetUser?.userId) return;
+
+    if (!auth.currentUser || !user?.id) {
+      setShowRegistrationModal(true);
+      setRegistrationModalFeature('chat privado');
+      return;
+    }
+
+    if (targetUser.userId === user.id) return;
+
+    try {
+      const validation = await validateUserAvailabilityInRoom(currentRoom || roomId, targetUser.userId);
+      if (!validation.valid) {
+        toast({
+          title: 'Ya no está disponible',
+          description: 'Este usuario ya no figura disponible para conversar.',
+          variant: 'destructive',
+        });
+        return;
+      }
+
+      const blocked = await isBlockedBetween(user.id, targetUser.userId);
+      if (blocked) {
+        toast({
+          title: 'No disponible',
+          description: 'No puedes iniciar un chat privado con este usuario.',
+          variant: 'destructive',
+        });
+        return;
+      }
+
+      await sendPrivateChatRequest(user.id, targetUser.userId, {
+        source: 'availability_signal',
+        systemPrompt: `${targetUser.username || 'Este usuario'} marcó que está disponible para conversar.`,
+        suggestedStarter: 'Hola, vi que estás disponible para conversar 🙋',
+      });
+
+      setPrivateChatRequest({ from: user, to: targetUser, source: 'availability_signal' });
+      toast({
+        title: 'Invitación enviada',
+        description: `Le avisamos a ${targetUser.username || 'este usuario'} que quieres conversar.`,
+      });
+    } catch (error) {
+      console.error('Error iniciando conversación desde disponibilidad:', error);
+      toast({
+        title: error?.message === 'BLOCKED' ? 'No disponible' : 'No pudimos enviar la invitación',
+        description: error?.message === 'BLOCKED'
+          ? 'No puedes iniciar un chat privado con este usuario.'
+          : 'Intenta de nuevo en unos segundos.',
+        variant: 'destructive',
+      });
+    }
+  }, [currentRoom, roomId, setRegistrationModalFeature, user]);
+
   /**
    * Respuesta a solicitud de chat privado
    */
@@ -3841,16 +3996,89 @@ const ChatPage = () => {
     const currentUserId = user?.id || user?.uid || null;
     if (!currentUserId) return;
 
+    if (privateChatRequest?.type === 'private_group_invite_request' && notificationId) {
+      try {
+        const result = await respondToPrivateGroupInvite(currentUserId, notificationId, accepted);
+
+        if (!accepted) {
+          toast({
+            title: 'Invitación rechazada',
+            description: 'No se sumará ningún participante nuevo a este chat.',
+            variant: 'destructive',
+          });
+        } else if (result?.chatId) {
+          const opened = openGroupPrivateChatWindow({
+            chatId: result.chatId,
+            title: result.title || 'Chat grupal privado',
+            participantProfiles: result.participantProfiles || privateChatRequest.participantProfiles || [],
+            roomId: currentRoom,
+          });
+
+          if (opened) {
+            toast({
+              title: 'Chat grupal listo',
+              description: 'La nueva conversación privada ya está disponible.',
+            });
+          }
+        } else if (result?.waiting) {
+          toast({
+            title: 'Aprobación registrada',
+            description: 'Falta que las otras personas acepten para abrir el chat grupal.',
+          });
+        }
+      } catch (error) {
+        console.error('Error responding to private group invite:', error);
+        toast({
+          title: error?.message === 'REQUEST_EXPIRED'
+            ? 'Invitación expirada'
+            : error?.message === 'REQUEST_REJECTED'
+              ? 'Invitación cancelada'
+              : 'No pudimos procesar tu respuesta',
+          description: error?.message === 'REQUEST_EXPIRED'
+            ? 'La invitación ya no está disponible.'
+            : error?.message === 'REQUEST_REJECTED'
+              ? 'Otra persona rechazó esta invitación.'
+              : 'Intenta de nuevo en un momento.',
+          variant: 'destructive',
+        });
+      }
+
+      setPrivateChatRequest(null);
+      return;
+    }
+
     const receiverId = privateChatRequest?.to?.id || privateChatRequest?.to?.userId || null;
     const isReceiver = currentUserId === receiverId;
     const partner = notificationId
       ? privateChatRequest.from
       : (isReceiver ? privateChatRequest.from : privateChatRequest.to);
     const partnerName = partner?.username || 'Usuario';
+    const requiresAvailabilityValidation = privateChatRequest?.source === 'availability_signal';
+
+    const ensurePartnerStillAvailable = async () => {
+      if (!accepted || !requiresAvailabilityValidation) return true;
+      const partnerId = partner?.userId || partner?.id;
+      if (!partnerId) return false;
+
+      const validation = await validateUserAvailabilityInRoom(currentRoom || roomId, partnerId);
+      if (validation.valid) return true;
+
+      toast({
+        title: 'Invitación expirada',
+        description: 'La otra persona ya no figura disponible en la sala.',
+        variant: 'destructive',
+      });
+      return false;
+    };
 
     // Si existe notificationId, responder SIEMPRE vía notificación para evitar rutas ambiguas
     if (notificationId) {
       try {
+        if (!(await ensurePartnerStillAvailable())) {
+          setPrivateChatRequest(null);
+          return;
+        }
+
         const result = await respondToPrivateChatRequest(currentUserId, notificationId, accepted);
         
         if (accepted && result?.chatId) {
@@ -3876,21 +4104,20 @@ const ChatPage = () => {
       } catch (error) {
         console.error('Error responding to private chat request:', error);
         const permissionDenied = error?.code === 'permission-denied' || String(error?.message || '').includes('insufficient permissions');
-        const needsRegisterForPrivate = permissionDenied && (user?.isGuest || user?.isAnonymous);
         toast({
-          title: needsRegisterForPrivate
-            ? "Regístrate para aceptar privados"
-            : error?.message === 'REQUEST_EXPIRED'
+          title: error?.message === 'REQUEST_EXPIRED'
             ? "Invitación expirada"
             : error?.message === 'BLOCKED'
               ? "No disponible"
+              : permissionDenied
+                ? "No pudimos abrir el privado"
               : "No pudimos procesar tu respuesta",
-          description: needsRegisterForPrivate
-            ? "Como invitado puedes explorar, pero para aceptar chats privados necesitas crear cuenta."
-            : error?.message === 'REQUEST_EXPIRED'
+          description: error?.message === 'REQUEST_EXPIRED'
             ? "La otra persona no respondió a tiempo. Puedes enviar una nueva invitación."
             : error?.message === 'BLOCKED'
               ? "No puedes abrir un chat privado con este usuario."
+              : permissionDenied
+                ? "Tu sesión no pudo validar este chat privado. Intenta otra vez en unos segundos."
               : "Intenta de nuevo en un momento",
           variant: "destructive",
         });
@@ -3899,6 +4126,11 @@ const ChatPage = () => {
       // Para el emisor o cuando no hay notificationId (compatibilidad)
       if (accepted) {
         try {
+          if (!(await ensurePartnerStillAvailable())) {
+            setPrivateChatRequest(null);
+            return;
+          }
+
           const partnerId = partner?.userId || partner?.id;
           if (!partnerId) throw new Error('MISSING_PARTNER');
 
@@ -4257,7 +4489,10 @@ const ChatPage = () => {
           fallbackUsers={recentPresenceFallbackUsers}
           roomId={currentRoom || 'principal'}
           currentUserId={user?.id || null}
+          currentUser={user}
           onUserClick={(targetUser) => setUserActionsTarget(targetUser)}
+          onStartConversation={handleStartAvailableConversation}
+          onRequestNickname={() => setShowNicknameModal(true)}
         />
 
         <FeaturedChannelsColumn

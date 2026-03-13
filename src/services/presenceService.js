@@ -22,6 +22,7 @@ import {
   onSnapshot,
   collection,
   serverTimestamp,
+  getDoc,
 } from 'firebase/firestore';
 import { db, auth } from '@/config/firebase';
 import { actualizarEstadoOnline } from '@/services/tarjetaService';
@@ -34,6 +35,9 @@ const isBotUserId = (userId = '') =>
   userId?.startsWith('static_bot_');
 
 const ACTIVE_THRESHOLD_MS = 2 * 60 * 1000;
+export const CHAT_AVAILABILITY_HEARTBEAT_MS = 10 * 1000;
+export const CHAT_AVAILABILITY_TIMEOUT_MS = 25 * 1000;
+export const CHAT_AVAILABILITY_DURATION_MS = 10 * 60 * 1000;
 const sharedRoomCountListeners = new Map();
 
 const toMillisSafe = (value) => {
@@ -49,11 +53,80 @@ const toMillisSafe = (value) => {
 
 const getPresenceLastActivityMs = (user = {}) => {
   return (
+    toMillisSafe(user.lastSeenMs) ??
+    toMillisSafe(user.lastActiveAtMs) ??
+    toMillisSafe(user.joinedAtMs) ??
     toMillisSafe(user.lastSeen) ??
     toMillisSafe(user.lastActiveAt) ??
     toMillisSafe(user.updatedAt) ??
     toMillisSafe(user.joinedAt)
   );
+};
+
+export const getPresenceActivityMs = (user = {}) => getPresenceLastActivityMs(user);
+
+export const isUserAvailableForConversation = (user = {}, now = Date.now()) => {
+  const userId = user.userId || user.id || '';
+  if (!userId || isBotUserId(userId)) return false;
+  if (user.connectionStatus && user.connectionStatus !== 'connected') return false;
+  if (user.inPrivateWith) return false;
+
+  const lastActivityMs = getPresenceLastActivityMs(user);
+  if (!Number.isFinite(lastActivityMs) || (now - lastActivityMs) > CHAT_AVAILABILITY_TIMEOUT_MS) {
+    return false;
+  }
+
+  const expiresAtMs =
+    toMillisSafe(user.availableForChatExpiresAt) ??
+    toMillisSafe(user.availableForChatExpiresAtMs);
+
+  return user.availableForChat === true && Number.isFinite(expiresAtMs) && expiresAtMs > now;
+};
+
+export const setAvailabilityForConversation = async (roomId, enabled = true) => {
+  if (!auth.currentUser || !roomId) return;
+
+  const presenceRef = doc(db, 'roomPresence', roomId, 'users', auth.currentUser.uid);
+  const now = Date.now();
+
+  try {
+    await setDoc(presenceRef, {
+      availableForChat: Boolean(enabled),
+      availableForChatAt: enabled ? now : null,
+      availableForChatExpiresAtMs: enabled ? now + CHAT_AVAILABILITY_DURATION_MS : null,
+      availableForChatMode: enabled ? 'conversation' : null,
+      availabilityUpdatedAtMs: now,
+      connectionStatus: 'connected',
+      lastSeenMs: now,
+      lastSeen: serverTimestamp(),
+    }, { merge: true });
+  } catch (error) {
+    console.warn('[PRESENCE] Error actualizando disponibilidad conversacional:', error?.message);
+    throw error;
+  }
+};
+
+export const getRoomPresenceUser = async (roomId, userId) => {
+  if (!roomId || !userId) return null;
+  const presenceSnap = await getDoc(doc(db, 'roomPresence', roomId, 'users', userId));
+  if (!presenceSnap.exists()) return null;
+  return {
+    id: presenceSnap.id,
+    ...presenceSnap.data(),
+  };
+};
+
+export const validateUserAvailabilityInRoom = async (roomId, userId) => {
+  const presenceUser = await getRoomPresenceUser(roomId, userId);
+  if (!presenceUser) {
+    return { valid: false, reason: 'missing' };
+  }
+
+  if (!isUserAvailableForConversation(presenceUser)) {
+    return { valid: false, reason: 'unavailable', user: presenceUser };
+  }
+
+  return { valid: true, user: presenceUser };
 };
 
 /**
@@ -96,6 +169,13 @@ export const joinRoom = async (roomId, userData) => {
       isAnonymous: auth.currentUser.isAnonymous || userData.isAnonymous || false,
       isGuest: userData.isGuest || false,
       isBot: canJoinAsBotInTesting,
+      connectionStatus: 'connected',
+      availableForChat: false,
+      availableForChatAt: null,
+      availableForChatExpiresAtMs: null,
+      availableForChatMode: null,
+      joinedAtMs: Date.now(),
+      lastSeenMs: Date.now(),
       joinedAt: serverTimestamp(),
       lastSeen: serverTimestamp(),
     });
@@ -144,6 +224,10 @@ export const setInPrivateChat = async (roomId, partnerId, partnerUsername) => {
       inPrivateWith: partnerId,
       inPrivateWithUsername: partnerUsername || 'Usuario',
       inPrivateSince: serverTimestamp(),
+      availableForChat: false,
+      availableForChatAt: null,
+      availableForChatExpiresAtMs: null,
+      availableForChatMode: null,
     }, { merge: true });
   } catch (error) {
     console.warn('[PRESENCE] Error marcando en privado:', error?.message);
@@ -360,10 +444,13 @@ export const updateUserActivity = async (roomId) => {
   if (!auth.currentUser) return;
 
   const presenceRef = doc(db, 'roomPresence', roomId, 'users', auth.currentUser.uid);
+  const now = Date.now();
 
   try {
     await setDoc(presenceRef, {
+      lastSeenMs: now,
       lastSeen: serverTimestamp(),
+      connectionStatus: 'connected',
     }, { merge: true });
   } catch (error) {
     // Silenciar errores

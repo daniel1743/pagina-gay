@@ -11,7 +11,11 @@ const TopParticipantsSidebarCards = ({ compact = false, roomId = 'principal', is
     const unsubscribe = subscribeRealtimeTopParticipants(
       roomId || 'principal',
       (items) => {
-        setParticipants(items);
+        setParticipants((prev) => {
+          if (Array.isArray(items) && items.length > 0) return items;
+          if (prev.length > 0) return prev;
+          return Array.isArray(items) ? items : [];
+        });
         setLoading(false);
       },
       (error) => {

@@ -1062,6 +1062,30 @@ export const createWelcomeMessage = async (roomId, welcomeText) => {
   }
 };
 
+export const createSystemRoomMessage = async (roomId, content, options = {}) => {
+  try {
+    if (!roomId || !String(content || '').trim()) return null;
+
+    const messagesRef = collection(db, 'rooms', roomId, 'messages');
+    const systemMessage = {
+      userId: options.userId || 'system',
+      username: options.username || 'Chactivo',
+      avatar: options.avatar || `https://api.dicebear.com/7.x/bottts/svg?seed=Chactivo`,
+      content: String(content).trim(),
+      type: 'system',
+      timestamp: serverTimestamp(),
+      reactions: { ...DEFAULT_MESSAGE_REACTIONS },
+      source: options.source || 'system_event',
+    };
+
+    await addDoc(messagesRef, systemMessage);
+    return { success: true };
+  } catch (error) {
+    console.error('Error creating system room message:', error);
+    throw error;
+  }
+};
+
 // ========================================
 // 🆕 SALAS SECUNDARIAS: Funciones para chat secundario
 // ========================================

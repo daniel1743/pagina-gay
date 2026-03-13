@@ -448,7 +448,7 @@ service cloud.firestore {
     // ===========================
 
     // ✅ Chat privado para usuarios autenticados (incluye invitados/anónimos)
-    // El límite de 12 mensajes para invitados se controla en frontend.
+    // El límite de 15 mensajes para invitados se controla en frontend.
     match /private_chats/{chatId} {
       // Solo participantes autenticados del chat
       allow read: if isAuthenticated() &&
@@ -458,7 +458,8 @@ service cloud.firestore {
       allow create: if isAuthenticated() &&
                       request.resource.data.keys().hasAll(['participants', 'createdAt']) &&
                       request.auth.uid in request.resource.data.participants &&
-                      request.resource.data.participants.size() == 2;
+                      request.resource.data.participants.size() >= 2 &&
+                      request.resource.data.participants.size() <= 4;
 
       match /messages/{messageId} {
         allow read: if isAuthenticated() &&
@@ -512,6 +513,25 @@ service cloud.firestore {
                         request.auth.uid in get(/databases/$(database)/documents/private_chats/$(chatId)).data.participants &&
                         request.auth.uid == typingUserId;
       }
+    }
+
+    match /private_chat_group_invites/{inviteId} {
+      allow read: if isAuthenticated() &&
+                    request.auth.uid in resource.data.allParticipantIds;
+
+      allow create: if isAuthenticated() &&
+                      request.resource.data.inviterId == request.auth.uid &&
+                      request.resource.data.allParticipantIds is list &&
+                      request.resource.data.approverUserIds is list &&
+                      request.resource.data.allParticipantIds.size() >= 3 &&
+                      request.resource.data.allParticipantIds.size() <= 4 &&
+                      request.auth.uid in request.resource.data.allParticipantIds;
+
+      allow update: if isAuthenticated() &&
+                      request.auth.uid in resource.data.allParticipantIds;
+
+      allow delete: if isAuthenticated() &&
+                      request.auth.uid == resource.data.inviterId;
     }
 
     // ===========================
