@@ -4177,7 +4177,7 @@ const ChatPage = () => {
             )}
 
             {/* 📅 Banner de evento activo/próximo */}
-            <div className="hidden md:block">
+            <div className="block">
               <EventoBanner currentRoomId={roomId} onEventoActivoConRecordatorio={handleEventoActivoConRecordatorio} />
             </div>
 

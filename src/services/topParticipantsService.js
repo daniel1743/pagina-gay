@@ -16,8 +16,10 @@ import { db } from '@/config/firebase';
 
 const TOP_PARTICIPANTS_COLLECTION = 'featured_participants';
 const AUTO_TOP_LIMIT = 6;
-const REALTIME_USERS_LIMIT = 60;
 const FALLBACK_MESSAGES_LIMIT = 120;
+const ROOM_ACTIVE_THRESHOLD_MS = 2 * 60 * 1000;
+const RECENT_MESSAGE_WINDOW_MS = 30 * 60 * 1000;
+const STALE_HISTORY_MAX_AGE_MS = 30 * 24 * 60 * 60 * 1000;
 
 const toNumber = (value, fallback = 0) => {
   const parsed = Number(value);
@@ -76,13 +78,47 @@ const sortForDisplay = (participants) => {
   });
 };
 
+const sortLiveParticipantsForDisplay = (participants) => {
+  const active = participants.filter((item) => item.isActive);
+
+  const pinned = active
+    .filter((item) => [1, 2, 3].includes(item.pinnedRank))
+    .sort((a, b) => a.pinnedRank - b.pinnedRank);
+
+  const pinnedUserIds = new Set(pinned.map((item) => item.userId));
+
+  const rest = active
+    .filter((item) => !pinnedUserIds.has(item.userId))
+    .sort((a, b) => {
+      if (b.activityScore !== a.activityScore) return b.activityScore - a.activityScore;
+      if (b.messagesCount !== a.messagesCount) return b.messagesCount - a.messagesCount;
+      if ((b.lastMessageAtMs || 0) !== (a.lastMessageAtMs || 0)) {
+        return (b.lastMessageAtMs || 0) - (a.lastMessageAtMs || 0);
+      }
+      if ((b.lastPresenceAtMs || 0) !== (a.lastPresenceAtMs || 0)) {
+        return (b.lastPresenceAtMs || 0) - (a.lastPresenceAtMs || 0);
+      }
+      return String(a.username || '').localeCompare(String(b.username || ''), 'es');
+    });
+
+  return [...pinned, ...rest].map((item, index) => {
+    const rank = index + 1;
+    const fallbackBlur = rank > 3;
+    return {
+      ...item,
+      displayRank: rank,
+      effectiveBlur: typeof item.blurEnabled === 'boolean' ? item.blurEnabled : fallbackBlur,
+    };
+  });
+};
+
 const toTimestampMs = (timestamp) => {
-  if (!timestamp) return Date.now();
+  if (!timestamp) return null;
   if (typeof timestamp?.toMillis === 'function') return timestamp.toMillis();
   if (typeof timestamp === 'number') return timestamp;
   if (typeof timestamp?.seconds === 'number') return timestamp.seconds * 1000;
   const parsed = new Date(timestamp).getTime();
-  return Number.isFinite(parsed) ? parsed : Date.now();
+  return Number.isFinite(parsed) ? parsed : null;
 };
 
 const isAutomatedOrSystemUserId = (userId = '') => {
@@ -97,7 +133,99 @@ const isAutomatedOrSystemUserId = (userId = '') => {
   );
 };
 
+const isExcludedRealtimeParticipant = (userId = '', data = {}) => {
+  if (!userId || isAutomatedOrSystemUserId(userId)) return true;
+  if (data.isBot) return true;
+  if (data.isGuest || data.isAnonymous) return true;
+  return false;
+};
+
+const getPresenceLastActivityMs = (data = {}) => {
+  return (
+    toTimestampMs(data.lastSeen) ??
+    toTimestampMs(data.lastActiveAt) ??
+    toTimestampMs(data.updatedAt) ??
+    toTimestampMs(data.joinedAt)
+  );
+};
+
+const toParticipantOverrideMap = (participants = []) => (
+  new Map((participants || []).map((item) => [item.userId, item]))
+);
+
+const buildLiveTopFromRoomSnapshot = (
+  presenceSnapshot,
+  messagesSnapshot,
+  participantOverrides = []
+) => {
+  const nowMs = Date.now();
+  const overrideMap = toParticipantOverrideMap(participantOverrides);
+  const activeParticipants = new Map();
+
+  (presenceSnapshot?.docs || []).forEach((docSnap) => {
+    const data = docSnap.data() || {};
+    const userId = String(data.userId || docSnap.id || '').trim();
+    if (isExcludedRealtimeParticipant(userId, data)) return;
+
+    const lastPresenceAtMs = getPresenceLastActivityMs(data);
+    if (!Number.isFinite(lastPresenceAtMs)) return;
+    if ((nowMs - lastPresenceAtMs) > ROOM_ACTIVE_THRESHOLD_MS) return;
+
+    const override = overrideMap.get(userId);
+    if (override?.isActive === false) return;
+
+    activeParticipants.set(userId, {
+      id: userId,
+      userId,
+      username: data.username || override?.username || 'Usuario',
+      avatar: data.avatar || override?.avatar || '',
+      isActive: true,
+      sortOrder: override?.sortOrder ?? 9999,
+      pinnedRank: override?.pinnedRank ?? null,
+      blurEnabled: typeof override?.blurEnabled === 'boolean' ? override.blurEnabled : null,
+      messagesCount: 0,
+      threadsCount: 0,
+      repliesCount: 0,
+      totalActiveTime: 0,
+      activityScore: 0,
+      source: 'room_presence_realtime',
+      updatedAt: data.lastSeen || data.updatedAt || null,
+      lastMessageAtMs: null,
+      lastPresenceAtMs,
+    });
+  });
+
+  (messagesSnapshot?.docs || []).forEach((docSnap) => {
+    const data = docSnap.data() || {};
+    const userId = String(data.userId || '').trim();
+    const participant = activeParticipants.get(userId);
+    if (!participant) return;
+
+    const timestampMs = toTimestampMs(data.timestamp || data.updatedAt || data.createdAt);
+    if (!Number.isFinite(timestampMs)) return;
+    if ((nowMs - timestampMs) > RECENT_MESSAGE_WINDOW_MS) return;
+
+    participant.messagesCount += 1;
+    participant.lastMessageAtMs = Math.max(participant.lastMessageAtMs || 0, timestampMs);
+    participant.updatedAt = data.timestamp || data.updatedAt || participant.updatedAt;
+    participant.username = data.username || participant.username;
+    participant.avatar = data.avatar || participant.avatar;
+  });
+
+  return sortLiveParticipantsForDisplay(
+    Array.from(activeParticipants.values()).map((item) => {
+      const secondsUntilIdle = Math.max(0, ROOM_ACTIVE_THRESHOLD_MS - (nowMs - item.lastPresenceAtMs));
+      const presenceBonus = Math.round(secondsUntilIdle / 30_000);
+      return {
+        ...item,
+        activityScore: (item.messagesCount * 10) + presenceBonus,
+      };
+    })
+  ).slice(0, AUTO_TOP_LIMIT);
+};
+
 const buildHistoricalTopFromUsersSnapshot = (snapshot) => {
+  const nowMs = Date.now();
   const candidates = [];
 
   snapshot.docs.forEach((docSnap) => {
@@ -143,6 +271,9 @@ const buildHistoricalTopFromUsersSnapshot = (snapshot) => {
       data.metrics?.lastMessageAt ??
       data.updatedAt
     );
+
+    if (!Number.isFinite(lastMessageAtMs)) return;
+    if ((nowMs - lastMessageAtMs) > STALE_HISTORY_MAX_AGE_MS) return;
 
     const activityScore = Math.round(
       messagesCount * 1 +
@@ -348,91 +479,89 @@ export const subscribeRealtimeTopParticipants = (
   }
 
   const fallbackRoomId = options?.isSecondaryRoom ? 'principal' : roomId || 'principal';
-  let usersUnsubscribe = null;
-  let publicUnsubscribe = null;
-  let messagesUnsubscribe = null;
+  let participantsOverride = [];
+  let latestPresenceSnapshot = null;
+  let latestMessagesSnapshot = null;
 
-  const stopFallbackSubscriptions = () => {
-    if (publicUnsubscribe) {
-      publicUnsubscribe();
-      publicUnsubscribe = null;
+  const emitRanking = () => {
+    const liveRanking = buildLiveTopFromRoomSnapshot(
+      latestPresenceSnapshot,
+      latestMessagesSnapshot,
+      participantsOverride
+    );
+    if (liveRanking.length > 0) {
+      onUpdate(liveRanking);
+      return;
     }
-    if (messagesUnsubscribe) {
-      messagesUnsubscribe();
-      messagesUnsubscribe = null;
+
+    const featuredRanking = sortForDisplay(participantsOverride).slice(0, AUTO_TOP_LIMIT);
+    if (featuredRanking.length > 0) {
+      onUpdate(featuredRanking);
+      return;
     }
+
+    const messagesRanking = latestMessagesSnapshot
+      ? buildTopFromPublicMessagesSnapshot(latestMessagesSnapshot)
+      : [];
+    onUpdate(messagesRanking);
   };
 
-  const startMessagesFallback = () => {
-    if (messagesUnsubscribe) return;
-
-    const roomMessagesRef = collection(db, 'rooms', fallbackRoomId, 'messages');
-    const roomMessagesQuery = query(
-      roomMessagesRef,
-      orderBy('timestamp', 'desc'),
-      limit(FALLBACK_MESSAGES_LIMIT)
-    );
-
-    messagesUnsubscribe = onSnapshot(
-      roomMessagesQuery,
-      (snapshot) => {
-        const ranking = buildTopFromPublicMessagesSnapshot(snapshot);
-        onUpdate(ranking);
-      },
-      (messagesError) => {
-        console.error('[TOP_PARTICIPANTS] Error fallback mensajes:', messagesError);
-        if (typeof onError === 'function') onError(messagesError);
-      }
-    );
-  };
-
-  const startFallbackSubscriptions = () => {
-    if (publicUnsubscribe || messagesUnsubscribe) return;
-
-    publicUnsubscribe = subscribeTopParticipantsPublic(
-      (items) => {
-        if (Array.isArray(items) && items.length > 0) {
-          onUpdate(items.slice(0, AUTO_TOP_LIMIT));
-          return;
-        }
-        startMessagesFallback();
-      },
-      (publicError) => {
-        console.warn('[TOP_PARTICIPANTS] Fallback publico no disponible:', publicError);
-        startMessagesFallback();
-      }
-    );
-  };
-
-  const usersRef = collection(db, 'users');
-  const usersQuery = query(
-    usersRef,
-    orderBy('messageCount', 'desc'),
-    limit(REALTIME_USERS_LIMIT)
+  const participantsRef = collection(db, TOP_PARTICIPANTS_COLLECTION);
+  const participantsQuery = query(participantsRef, orderBy('sortOrder', 'asc'));
+  const roomPresenceRef = collection(db, 'roomPresence', fallbackRoomId, 'users');
+  const roomMessagesRef = collection(db, 'rooms', fallbackRoomId, 'messages');
+  const roomMessagesQuery = query(
+    roomMessagesRef,
+    orderBy('timestamp', 'desc'),
+    limit(FALLBACK_MESSAGES_LIMIT)
   );
 
-  usersUnsubscribe = onSnapshot(
-    usersQuery,
+  const participantsUnsubscribe = onSnapshot(
+    participantsQuery,
     (snapshot) => {
-      const ranking = buildHistoricalTopFromUsersSnapshot(snapshot);
-      if (ranking.length > 0) {
-        stopFallbackSubscriptions();
-        onUpdate(ranking);
-        return;
-      }
-
-      startFallbackSubscriptions();
+      participantsOverride = snapshot.docs.map(normalizeParticipant);
+      emitRanking();
     },
     (error) => {
-      console.error('[TOP_PARTICIPANTS] Error ranking realtime:', error);
-      startFallbackSubscriptions();
+      console.warn('[TOP_PARTICIPANTS] Error overrides participantes:', error);
+      participantsOverride = [];
+      emitRanking();
+      if (typeof onError === 'function') onError(error);
+    }
+  );
+
+  const presenceUnsubscribe = onSnapshot(
+    roomPresenceRef,
+    (snapshot) => {
+      latestPresenceSnapshot = snapshot;
+      emitRanking();
+    },
+    (error) => {
+      console.error('[TOP_PARTICIPANTS] Error presencia realtime:', error);
+      latestPresenceSnapshot = null;
+      emitRanking();
+      if (typeof onError === 'function') onError(error);
+    }
+  );
+
+  const messagesUnsubscribe = onSnapshot(
+    roomMessagesQuery,
+    (snapshot) => {
+      latestMessagesSnapshot = snapshot;
+      emitRanking();
+    },
+    (error) => {
+      console.error('[TOP_PARTICIPANTS] Error mensajes realtime:', error);
+      latestMessagesSnapshot = null;
+      emitRanking();
       if (typeof onError === 'function') onError(error);
     }
   );
 
   return () => {
-    usersUnsubscribe?.();
-    stopFallbackSubscriptions();
+    participantsUnsubscribe?.();
+    presenceUnsubscribe?.();
+    messagesUnsubscribe?.();
   };
 };
 
@@ -579,8 +708,8 @@ export const syncTopParticipantsFromActivity = async (topUsers = []) => {
       userId,
       username: topUser.username || existing?.username || 'Usuario',
       avatar: topUser.avatar || existing?.avatar || '',
-      isActive: existing?.isActive ?? true,
-      sortOrder: existing?.sortOrder ?? index + 1,
+      isActive: true,
+      sortOrder: index + 1,
       pinnedRank: existing?.pinnedRank ?? defaultPinnedRank,
       blurEnabled:
         typeof existing?.blurEnabled === 'boolean' ? existing.blurEnabled : defaultBlur,
@@ -597,5 +726,35 @@ export const syncTopParticipantsFromActivity = async (topUsers = []) => {
     batch.set(doc(db, TOP_PARTICIPANTS_COLLECTION, userId), payload, { merge: true });
   });
 
+  const syncedUserIds = new Set(topUsers.map((topUser) => topUser?.id).filter(Boolean));
+  existingSnapshot.docs.forEach((docSnap) => {
+    if (syncedUserIds.has(docSnap.id)) return;
+    const existing = normalizeParticipant(docSnap);
+    if (existing.source === 'manual') return;
+    batch.delete(doc(db, TOP_PARTICIPANTS_COLLECTION, docSnap.id));
+  });
+
   await batch.commit();
+};
+
+export const getTopParticipantsFromRoomActivity = async (
+  roomId = 'principal',
+  options = {}
+) => {
+  const targetRoomId = options?.isSecondaryRoom ? 'principal' : roomId || 'principal';
+  const [overridesSnapshot, presenceSnapshot, messagesSnapshot] = await Promise.all([
+    getDocs(query(collection(db, TOP_PARTICIPANTS_COLLECTION), orderBy('sortOrder', 'asc'))),
+    getDocs(collection(db, 'roomPresence', targetRoomId, 'users')),
+    getDocs(query(
+      collection(db, 'rooms', targetRoomId, 'messages'),
+      orderBy('timestamp', 'desc'),
+      limit(FALLBACK_MESSAGES_LIMIT)
+    )),
+  ]);
+
+  return buildLiveTopFromRoomSnapshot(
+    presenceSnapshot,
+    messagesSnapshot,
+    overridesSnapshot.docs.map(normalizeParticipant)
+  );
 };

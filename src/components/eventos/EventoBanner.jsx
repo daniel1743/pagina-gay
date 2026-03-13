@@ -14,8 +14,10 @@ import { suscribirseAEventos, unirseAEvento } from '@/services/eventosService';
 import { isEventoActivo, isEventoProgramado, formatCountdown, formatFechaEvento, toMs } from '@/utils/eventosUtils';
 import { setEventReminder, removeEventReminder, hasEventReminder } from '@/utils/eventReminderUtils';
 import { requestNotificationPermission } from '@/services/pushNotificationService';
+import { getCurrentScheduledEventOccurrence, getNextScheduledEventOccurrence } from '@/config/scheduledEvents';
 
-const PRE_EVENT_WINDOW_MS = 5 * 60 * 1000; // 5 minutos antes del inicio
+const PRE_EVENT_WINDOW_MS = 12 * 60 * 60 * 1000; // Mostrar próximos eventos hasta 12h antes
+const AUTO_EVENT_LOOKAHEAD_MS = 48 * 60 * 60 * 1000; // Fallback automático: próximos 2 días
 
 export default function EventoBanner({ currentRoomId, onEventoActivoConRecordatorio }) {
   const navigate = useNavigate();
@@ -61,15 +63,34 @@ export default function EventoBanner({ currentRoomId, onEventoActivoConRecordato
   }, []);
 
   // Encontrar el evento más relevante: activo > próximo más cercano
-  const eventoActivo = eventos.find(e => isEventoActivo(e));
-  const eventoProgramado = eventos.find(e => isEventoProgramado(e));
+  const eventoActivo = eventos.find((e) => isEventoActivo(e));
+  const eventoProgramado = eventos.find((e) => isEventoProgramado(e));
   const msHastaEventoProgramado = eventoProgramado
     ? toMs(eventoProgramado.fechaInicio) - Date.now()
     : null;
   const mostrarEventoProgramado = !!eventoProgramado &&
     msHastaEventoProgramado > 0 &&
     msHastaEventoProgramado <= PRE_EVENT_WINDOW_MS;
-  const evento = eventoActivo || (mostrarEventoProgramado ? eventoProgramado : null);
+
+  const normalizedRoomId = !currentRoomId || String(currentRoomId).startsWith('evento_')
+    ? 'principal'
+    : currentRoomId;
+
+  // Fallback: eventos automáticos semanales por sala (sin depender de Firestore/admin)
+  const autoEventoActivo = getCurrentScheduledEventOccurrence(normalizedRoomId, new Date(), 120);
+  const autoEventoProgramado = getNextScheduledEventOccurrence(normalizedRoomId, new Date(), 120);
+  const msHastaAutoEvento = autoEventoProgramado
+    ? toMs(autoEventoProgramado.fechaInicio) - Date.now()
+    : null;
+  const mostrarAutoEventoProgramado = !!autoEventoProgramado &&
+    msHastaAutoEvento > 0 &&
+    msHastaAutoEvento <= AUTO_EVENT_LOOKAHEAD_MS;
+
+  const evento =
+    eventoActivo ||
+    (mostrarEventoProgramado ? eventoProgramado : null) ||
+    autoEventoActivo ||
+    (mostrarAutoEventoProgramado ? autoEventoProgramado : null);
 
   // Sincronizar estado de recordatorio con localStorage
   useEffect(() => {
@@ -105,12 +126,13 @@ export default function EventoBanner({ currentRoomId, onEventoActivoConRecordato
     };
   }, [eventoProgramado, eventoActivo]);
 
-  // No mostrar si no hay evento, si fue cerrado para este evento, o si ya estamos en la sala del evento
+  // No mostrar si no hay evento o si fue cerrado para este evento
   if (!evento) return null;
   if (dismissedEventIds.has(evento.id)) return null;
-  if (currentRoomId === evento.roomId) return null;
 
   const esActivo = isEventoActivo(evento);
+  // Si está en vivo y ya estás en esa misma sala, ocultar para no duplicar UI.
+  if (currentRoomId === evento.roomId && esActivo) return null;
 
   const handleEntrar = () => {
     setShowDetails(false);
@@ -128,7 +150,7 @@ export default function EventoBanner({ currentRoomId, onEventoActivoConRecordato
       await requestNotificationPermission().catch(() => null);
       setEventReminder(evento.roomId);
       setReminded(true);
-      if (user?.id) {
+      if (user?.id && !evento.isAutoScheduled) {
         unirseAEvento(evento.id, user).catch(() => {});
       }
     }

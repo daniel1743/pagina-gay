@@ -15,6 +15,49 @@
  * Formato de horarios: 24h formato Chile (UTC-3)
  */
 export const SCHEDULED_EVENTS = {
+  'principal': [
+    {
+      id: 'principal_lunes_presentaciones',
+      day: 1, // Lunes
+      time: '21:00',
+      title: '👋 Lunes de Presentaciones',
+      description: 'Preséntate, cuenta de dónde eres y qué te gustaría conversar hoy.',
+      emoji: '👋',
+      color: 'purple',
+      moderator: 'sistema'
+    },
+    {
+      id: 'principal_miercoles_conexion',
+      day: 3, // Miércoles
+      time: '21:30',
+      title: '💬 Miércoles de Conexión',
+      description: 'Tema libre para romper el hielo y conocer gente nueva en tiempo real.',
+      emoji: '💬',
+      color: 'pink',
+      moderator: 'sistema'
+    },
+    {
+      id: 'principal_viernes_after',
+      day: 5, // Viernes
+      time: '22:00',
+      title: '🎉 Viernes After Chat',
+      description: 'Hora pico de conversación: planes, comunidad y buena onda.',
+      emoji: '🎉',
+      color: 'blue',
+      moderator: 'sistema'
+    },
+    {
+      id: 'principal_domingo_chill',
+      day: 0, // Domingo
+      time: '20:00',
+      title: '☕ Domingo Chill',
+      description: 'Cierre de semana: charla tranquila para conectar sin presión.',
+      emoji: '☕',
+      color: 'green',
+      moderator: 'sistema'
+    }
+  ],
+
   // ⚠️ SALA GLOBAL - DESACTIVADA (reemplazada por 'principal')
   // 'global': [
   //   {
@@ -210,6 +253,82 @@ export const getNextEvent = (roomSlug, now = new Date()) => {
   });
 
   return sortedEvents[0];
+};
+
+const parseTimeToParts = (timeStr = '00:00') => {
+  const [hours, minutes] = String(timeStr).split(':').map(Number);
+  return {
+    hours: Number.isFinite(hours) ? hours : 0,
+    minutes: Number.isFinite(minutes) ? minutes : 0,
+  };
+};
+
+const buildDateForEventDayAndTime = (event, now = new Date(), forceNext = false) => {
+  if (!event) return null;
+  const { hours, minutes } = parseTimeToParts(event.time);
+  const currentDay = now.getDay();
+  let daysUntil = event.day >= currentDay ? event.day - currentDay : 7 - currentDay + event.day;
+
+  if (!forceNext && daysUntil === 0) {
+    const eventMinutes = hours * 60 + minutes;
+    const nowMinutes = now.getHours() * 60 + now.getMinutes();
+    // Si la hora ya pasó hoy, la próxima ocurrencia es la próxima semana.
+    if (eventMinutes <= nowMinutes) {
+      daysUntil = 7;
+    }
+  }
+
+  if (forceNext) {
+    daysUntil += 7;
+  }
+
+  const date = new Date(now);
+  date.setSeconds(0, 0);
+  date.setDate(now.getDate() + daysUntil);
+  date.setHours(hours, minutes, 0, 0);
+  return date;
+};
+
+/**
+ * Crea un "evento virtual" listo para UI del banner/calendario sin necesidad de Firestore.
+ * Se usa como fallback cuando no hay eventos creados por admin.
+ */
+const buildVirtualEventOccurrence = (roomSlug, event, startDate, durationMinutes = 120) => {
+  if (!event || !startDate) return null;
+  const startMs = startDate.getTime();
+  const endMs = startMs + (durationMinutes * 60 * 1000);
+  return {
+    id: `auto_${event.id}_${startMs}`,
+    nombre: event.title,
+    descripcion: event.description,
+    roomId: roomSlug,
+    fechaInicio: startMs,
+    fechaFin: endMs,
+    duracionMinutos: durationMinutes,
+    asistentesCount: 0,
+    activo: true,
+    estado: 'programado',
+    isAutoScheduled: true,
+    baseEventId: event.id,
+    emoji: event.emoji,
+    color: event.color,
+  };
+};
+
+export const getCurrentScheduledEventOccurrence = (roomSlug, now = new Date(), windowMinutes = 120) => {
+  const current = getCurrentEvent(roomSlug, now, windowMinutes);
+  if (!current) return null;
+  const startDate = new Date(now);
+  const { hours, minutes } = parseTimeToParts(current.time);
+  startDate.setHours(hours, minutes, 0, 0);
+  return buildVirtualEventOccurrence(roomSlug, current, startDate, windowMinutes);
+};
+
+export const getNextScheduledEventOccurrence = (roomSlug, now = new Date(), durationMinutes = 120) => {
+  const next = getNextEvent(roomSlug, now);
+  if (!next) return null;
+  const startDate = buildDateForEventDayAndTime(next, now);
+  return buildVirtualEventOccurrence(roomSlug, next, startDate, durationMinutes);
 };
 
 /**

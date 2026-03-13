@@ -6,8 +6,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Switch } from '@/components/ui/switch';
 import { toast } from '@/components/ui/use-toast';
 import { searchUsers } from '@/services/userService';
-import { getTop20ActiveUsers } from '@/services/rewardsService';
 import {
+  getTopParticipantsFromRoomActivity,
   reorderTopParticipants,
   removeTopParticipant,
   setParticipantPinnedRank,
@@ -48,17 +48,17 @@ const AdminTopParticipantsPanel = () => {
   const handleSyncFromActivity = async () => {
     setSyncing(true);
     try {
-      const topUsers = await getTop20ActiveUsers();
+      const topUsers = await getTopParticipantsFromRoomActivity('principal');
       await syncTopParticipantsFromActivity(topUsers);
       toast({
         title: 'Top sincronizado',
-        description: 'Se actualizaron los participantes desde actividad real.',
+        description: 'Se actualizaron los participantes activos del chat principal.',
       });
     } catch (error) {
       console.error('[ADMIN_TOP_PARTICIPANTS] sync error:', error);
       toast({
         title: 'Error',
-        description: 'No se pudo sincronizar el Top de actividad.',
+        description: 'No se pudo sincronizar el Top desde la sala principal.',
         variant: 'destructive',
       });
     } finally {
@@ -153,7 +153,7 @@ const AdminTopParticipantsPanel = () => {
               Top Participantes (Sidebar)
             </h2>
             <p className="text-sm text-muted-foreground mt-1">
-              Se muestra entre Baúl e Iniciar Sesión. Top 1/2/3 sin blur; resto con blur editable.
+              Se muestra entre Baúl e Iniciar Sesión. Top 1/2/3 sin blur; resto con blur editable y sincronización desde participantes activos reales.
             </p>
           </div>
           <Button
