@@ -209,6 +209,24 @@
   margin-left: 38px !important; /* Alineado con burbuja (32px avatar + 6px margin) */
 }
 
+.message-comuna-chip {
+  display: inline-flex !important;
+  align-items: center !important;
+  padding: 2px 8px !important;
+  border-radius: 999px !important;
+  border: 1px solid rgba(34, 211, 238, 0.22) !important;
+  background: rgba(34, 211, 238, 0.08) !important;
+  color: #0f766e !important;
+  font-size: 10px !important;
+  font-weight: 600 !important;
+}
+
+.dark .message-comuna-chip {
+  border-color: rgba(34, 211, 238, 0.28) !important;
+  background: rgba(34, 211, 238, 0.12) !important;
+  color: #a5f3fc !important;
+}
+
 /* ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
    8. DELIVERY STATUS - Checks estilo WhatsApp
    ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */
@@ -216,10 +234,27 @@
 .message-status {
   font-size: 11px !important;
   opacity: 0.6 !important;
-  margin-top: 2px !important;
-  text-align: right !important;
   letter-spacing: -2px !important;
   line-height: 1 !important;
+}
+
+.message-meta {
+  display: flex !important;
+  align-items: center !important;
+  gap: 4px !important;
+  margin-top: 4px !important;
+  justify-content: flex-end !important;
+}
+
+.message-meta.other {
+  justify-content: flex-end !important;
+}
+
+.message-time {
+  font-size: 11px !important;
+  line-height: 1 !important;
+  opacity: 0.65 !important;
+  color: inherit !important;
 }
 
 .message-status.sending {

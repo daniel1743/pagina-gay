@@ -10,6 +10,7 @@ import { useAuth } from '@/contexts/AuthContext';
 const roomNames = {
   // 'global': 'Chat Global', // ⚠️ DESACTIVADA
   'principal': 'Principal', // ✅ Título limpio y profesional
+  'hetero-general': 'Principal',
   'gaming': 'Gaming',
   'mas-30': '+30',
   'amistad': 'Amistad',

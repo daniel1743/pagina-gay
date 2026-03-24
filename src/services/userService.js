@@ -1,6 +1,7 @@
 import { doc, getDoc, setDoc, updateDoc, serverTimestamp, collection, query, where, getDocs, orderBy, limit } from 'firebase/firestore';
 import { db } from '@/config/firebase';
 import { resolveProfileRole } from '@/config/profileRoles';
+import { normalizeComuna } from '@/config/comunas';
 
 /**
  * ✅ NUEVO: Verifica si un username ya existe (case-insensitive)
@@ -61,6 +62,7 @@ export const createUserProfile = async (uid, userData) => {
     */
 
     const normalizedProfileRole = resolveProfileRole(userData.profileRole, userData.role);
+    const normalizedComuna = normalizeComuna(userData.comuna);
     const userRef = doc(db, 'users', uid);
 
     const userProfile = {
@@ -70,6 +72,7 @@ export const createUserProfile = async (uid, userData) => {
       age: userData.age ? parseInt(userData.age) : null,
       phone: userData.phone || null,
       profileRole: normalizedProfileRole || null,
+      comuna: normalizedComuna || null,
       isPremium: false,
       verified: false,
       isGuest: false,
@@ -145,9 +148,14 @@ export const updateUserProfile = async (uid, updates) => {
       }
     }
 
+    const normalizedUpdates = { ...updates };
+    if (Object.prototype.hasOwnProperty.call(normalizedUpdates, 'comuna')) {
+      normalizedUpdates.comuna = normalizeComuna(normalizedUpdates.comuna) || null;
+    }
+
     const userRef = doc(db, 'users', uid);
     await updateDoc(userRef, {
-      ...updates,
+      ...normalizedUpdates,
       updatedAt: serverTimestamp(),
     });
   } catch (error) {
@@ -311,7 +319,7 @@ export const getUserById = async (userId) => {
  */
 const PUBLIC_PROFILE_FIELDS = [
   'id', 'username', 'avatar', 'description', 'estado',
-  'profileRole', 'role', 'interests', 'verified', 'isPremium',
+  'profileRole', 'role', 'interests', 'verified', 'isPremium', 'comuna',
   'isProUser', 'canUploadSecondPhoto', 'hasFeaturedCard', 'hasRainbowBorder', 'hasProBadge'
 ];
 

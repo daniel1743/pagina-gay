@@ -59,6 +59,7 @@ const TestModalPage = lazy(() => import('@/pages/TestModalPage'));
 const FAQPage = lazy(() => import('@/pages/FAQPage'));
 const BaulPage = lazy(() => import('@/pages/BaulPage'));
 const ProfileViewPage = lazy(() => import('@/pages/ProfileViewPage'));
+const HeteroLandingPage = lazy(() => import('@/pages/HeteroLandingPage'));
 
 // 🎯 OPIN - Discovery Wall
 const OpinFeedPage = lazy(() => import('@/pages/OpinFeedPage'));
@@ -315,11 +316,21 @@ function AppRoutes() {
 
         {/* ✅ RUTA PRINCIPAL: SEO Landing Chile (1 seg) → /chat/principal */}
         <Route path="/" element={<SEOLandingChile />} />
+        <Route path="/gay" element={<SEOLandingChile />} />
+        <Route path="/gay/" element={<SEOLandingChile />} />
         <Route path="/landing" element={<SEOLandingChile />} />
         <Route path="/chat-gay-chile" element={<SEOLandingChile />} />
         <Route path="/chat-gay-chile/" element={<SEOLandingChile />} />
         <Route path="/chat-gay-santiago-centro" element={<SEOLandingSantiagoCentro />} />
         <Route path="/chat-gay-santiago-centro/" element={<SEOLandingSantiagoCentro />} />
+
+        {/* 🧭 NUEVO VERTICAL HETERO: segmentación por intención sin mezclar con páginas gay */}
+        <Route path="/hetero" element={<HeteroLandingPage variant="home" />} />
+        <Route path="/hetero/" element={<HeteroLandingPage variant="home" />} />
+        <Route path="/hetero/chat" element={<HeteroLandingPage variant="chat" />} />
+        <Route path="/hetero/chat/" element={<HeteroLandingPage variant="chat" />} />
+        <Route path="/hetero/amistad" element={<HeteroLandingPage variant="amistad" />} />
+        <Route path="/hetero/amistad/" element={<HeteroLandingPage variant="amistad" />} />
 
         {/* 🌍 RUTAS REGIONALES: SEO Landing específica → chat regional */}
         <Route path="/argentina" element={<SEOLandingArgentina />} />

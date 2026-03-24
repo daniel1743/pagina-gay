@@ -51,6 +51,10 @@ const SPAM_CONFIG = {
   DUPLICATE_MUTE_MINS: 5,
   FLOOD_WINDOW_MS: 10_000,       // 10 segundos
   FLOOD_THRESHOLD: 5,            // 5 mensajes en 10s = flood
+  FLOOD_PREVENT_WINDOW_MS: 15_000,
+  FLOOD_PREVENT_WARN_AT: 6,
+  FLOOD_PREVENT_MUTE_AT: 8,
+  FLOOD_PREVENT_MUTE_MINS: 5,
 };
 
 // Cache local de historial de mensajes por usuario (para detección de spam)
@@ -216,6 +220,29 @@ export function checkDuplicateSpamBeforeSend(userId, message) {
     userMessageHistory.set(userId, []);
   }
   const history = userMessageHistory.get(userId);
+
+  const recentFloodWindow = now - SPAM_CONFIG.FLOOD_PREVENT_WINDOW_MS;
+  const rapidMessages = history.filter((m) => m.timestamp >= recentFloodWindow);
+
+  if (rapidMessages.length >= SPAM_CONFIG.FLOOD_PREVENT_MUTE_AT) {
+    history.push({ text: normalized, timestamp: now });
+    applyDuplicateSpamMute(userId, SPAM_CONFIG.FLOOD_PREVENT_MUTE_MINS).catch(() => {});
+    return {
+      block: true,
+      type: 'spam_flood_ban',
+      reason: 'Estás enviando demasiados mensajes seguidos. Usa el privado interno o deja espacio para que respondan.',
+      muteMins: SPAM_CONFIG.FLOOD_PREVENT_MUTE_MINS,
+    };
+  }
+
+  if (rapidMessages.length >= SPAM_CONFIG.FLOOD_PREVENT_WARN_AT) {
+    history.push({ text: normalized, timestamp: now });
+    return {
+      block: true,
+      type: 'spam_flood_warning',
+      reason: 'Baja el ritmo. Deja espacio a la conversación o pasa al privado interno.',
+    };
+  }
 
   const recentWindow = now - SPAM_CONFIG.DUPLICATE_WINDOW_MS;
   const duplicates = history.filter(

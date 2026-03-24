@@ -19,6 +19,7 @@ import UserActionsModal from '@/components/chat/UserActionsModal';
 import { getUserVerificationStatus } from '@/services/verificationService';
 import { getFavorites } from '@/services/socialService';
 import { useCanonical } from '@/hooks/useCanonical';
+import { normalizeComuna } from '@/config/comunas';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -46,6 +47,7 @@ const ProfilePage = () => {
   const roleValue = (user?.role || '').toString().toLowerCase();
   const isAdminRole = roleValue === 'admin' || roleValue === 'administrator' || roleValue === 'superadmin';
   const displayProfileRole = user?.profileRole || (!['admin', 'administrator', 'superadmin', 'support', 'user'].includes(roleValue) ? user?.role : '');
+  const displayComuna = normalizeComuna(user?.comuna);
   const [isEditModalOpen, setEditModalOpen] = useState(false);
   const [isAvatarSelectorOpen, setAvatarSelectorOpen] = useState(false);
   const [isPhotoUploadOpen, setPhotoUploadOpen] = useState(false);
@@ -223,6 +225,11 @@ const ProfilePage = () => {
                   <p className="text-sm font-medium text-cyan-400 mb-2">{user.estado}</p>
                 )}
                 <div className="flex flex-wrap gap-2 justify-center md:justify-start">
+                  {displayComuna && (
+                    <span className="bg-secondary text-foreground px-3 py-1 text-sm rounded-full">
+                      {displayComuna}
+                    </span>
+                  )}
                   {displayProfileRole && <span className="bg-accent text-cyan-600 dark:text-cyan-300 px-3 py-1 text-sm rounded-full font-medium">{displayProfileRole}</span>}
                   {user.interests?.map(interest => (
                     <span key={interest} className="bg-accent text-foreground px-3 py-1 text-sm rounded-full">{interest}</span>

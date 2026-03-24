@@ -52,6 +52,14 @@
 
     <!-- Canonical (ok aunque / redirija; lo importante es coherencia) -->
     <link rel="canonical" href="https://chactivo.com/" />
+    <script>
+      (function () {
+        const path = window.location.pathname === "/" ? "" : window.location.pathname.replace(/\/$/, "");
+        const canonicalHref = `https://chactivo.com${path}`;
+        const canonicalTag = document.querySelector('link[rel="canonical"]');
+        if (canonicalTag) canonicalTag.setAttribute("href", canonicalHref);
+      })();
+    </script>
     <link rel="sitemap" type="application/xml" title="Sitemap" href="/sitemap.xml" />
 
     <!-- Open Graph -->

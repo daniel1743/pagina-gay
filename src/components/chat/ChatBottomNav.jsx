@@ -21,6 +21,7 @@ const ChatBottomNav = ({ onOpenBaul, onOpenOpin, onOpenFeaturedChannels, onOpenE
   } = usePrivateChat();
   const isChat = location.pathname.startsWith('/chat');
   const isPrincipal = location.pathname === '/chat/principal' || location.pathname === '/chat';
+  const isHeteroRoom = location.pathname.startsWith('/chat/hetero-general');
   const isBaul = location.pathname.startsWith('/baul');
   const isOpin = location.pathname.startsWith('/opin');
 
@@ -90,7 +91,28 @@ const ChatBottomNav = ({ onOpenBaul, onOpenOpin, onOpenFeaturedChannels, onOpenE
     navigate('/chat/principal');
   };
 
-  const items = [
+  const items = isHeteroRoom
+    ? [
+      {
+        id: 'hetero',
+        icon: Sparkles,
+        label: 'Hetero',
+        onClick: () => navigate('/hetero'),
+        active: location.pathname.startsWith('/hetero'),
+        path: '/hetero',
+        swipeEnabled: true,
+      },
+      {
+        id: 'chat-hetero',
+        icon: MessageCircle,
+        label: 'Chat',
+        onClick: () => navigate('/chat/hetero-general'),
+        active: location.pathname.startsWith('/chat/hetero-general'),
+        path: '/chat/hetero-general',
+        swipeEnabled: true,
+      },
+    ]
+    : [
     {
       id: 'baul',
       icon: Archive,
@@ -147,19 +169,28 @@ const ChatBottomNav = ({ onOpenBaul, onOpenOpin, onOpenFeaturedChannels, onOpenE
       path: '/chat/principal',
       swipeEnabled: true,
     },
-  ];
+    ];
 
-  const swipeTargets = useMemo(() => ([
-    { id: 'chat', path: '/chat/principal' },
-    { id: 'opin', path: '/opin' },
-    { id: 'baul', path: '/baul' },
-  ]), []);
+  const swipeTargets = useMemo(() => {
+    if (isHeteroRoom) {
+      return [
+        { id: 'chat-hetero', path: '/chat/hetero-general' },
+        { id: 'hetero', path: '/hetero' },
+      ];
+    }
+    return [
+      { id: 'chat', path: '/chat/principal' },
+      { id: 'opin', path: '/opin' },
+      { id: 'baul', path: '/baul' },
+    ];
+  }, [isHeteroRoom]);
 
   const currentSwipeIndex = useMemo(() => {
+    if (isHeteroRoom) return swipeTargets.findIndex((item) => item.id === 'chat-hetero');
     if (isBaul) return swipeTargets.findIndex((item) => item.id === 'baul');
     if (isOpin) return swipeTargets.findIndex((item) => item.id === 'opin');
     return swipeTargets.findIndex((item) => item.id === 'chat');
-  }, [isBaul, isOpin, swipeTargets]);
+  }, [isBaul, isHeteroRoom, isOpin, swipeTargets]);
 
   const handleTouchStart = (event) => {
     const touch = event.touches?.[0];

@@ -27,6 +27,7 @@ import { getPerformanceMonitor } from '@/services/performanceMonitor';
 import { getDeliveryService } from '@/services/messageDeliveryService';
 import { traceEvent, TRACE_EVENTS, isMessageTraceEnabled } from '@/utils/messageTrace';
 import { trackListenerStart, trackListenerStop } from '@/utils/listenerMonitor';
+import { normalizeComuna } from '@/config/comunas';
 
 const FAST_REPLY_WINDOW_MS = 120000;
 const DEFAULT_MESSAGE_REACTIONS = {
@@ -217,7 +218,7 @@ const isAutomatedSenderId = (userId = '') => {
 /**
  * Envío directo (sin cola) - usado internamente
  */
-const doSendMessage = async (roomId, messageData, isAnonymous = false) => {
+const doSendMessage = async (roomId, messageData, isAnonymous = false, options = {}) => {
   // Diagnósticos desactivados para reducir logs
   const messageType = messageData.type || 'text';
   const isTextMessage = messageType === 'text';
@@ -234,13 +235,19 @@ const doSendMessage = async (roomId, messageData, isAnonymous = false) => {
   // (La conversión a usuario registrado se incentiva con funciones premium)
 
   // Asegurar que userId coincida con auth.currentUser.uid (excepto mensajes de sistema y usuarios no autenticados)
+  const isAdminSeededMessage = Boolean(
+    options?.allowAdminSeededInPrincipal &&
+    messageData.userId?.startsWith('seed_user_') &&
+    auth.currentUser
+  );
+
   const isSystemMessage = messageData.userId?.startsWith('system') ||
                          messageData.userId?.startsWith('bot_') ||
                          messageData.userId?.startsWith('ai_') ||
                          messageData.userId?.startsWith('seed_user_');
 
   // 🔒 Hard-block: nunca permitir bots/IA/seed en la sala principal.
-  if (roomId === 'principal' && isAutomatedSenderId(messageData.userId || '')) {
+  if (roomId === 'principal' && isAutomatedSenderId(messageData.userId || '') && !isAdminSeededMessage) {
     throw new Error('Bots bloqueados en sala principal');
   }
 
@@ -266,6 +273,7 @@ const doSendMessage = async (roomId, messageData, isAnonymous = false) => {
   // Identificar tipo de remitente
   const isBot = messageData.userId?.startsWith('bot_') ||
                 messageData.userId?.startsWith('ai_') ||
+                messageData.userId?.startsWith('seed_user_') ||
                 messageData.userId?.startsWith('static_bot_') ||
                 messageData.userId === 'system';
   const isRealUser = !isBot;
@@ -362,7 +370,7 @@ const doSendMessage = async (roomId, messageData, isAnonymous = false) => {
     canUploadSecondPhoto: messageData.canUploadSecondPhoto || false,
     badge: messageData.badge || 'Nuevo', // 🏅 Badge de participación en eventos
     roleBadge: messageData.roleBadge || null,
-    comuna: messageData.comuna || null,
+    comuna: normalizeComuna(messageData.comuna) || null,
     content: messageData.content,
     type: messageType,
     // ✅ Usar serverTimestamp() para sincronización correcta entre clientes
@@ -513,13 +521,13 @@ const doSendMessage = async (roomId, messageData, isAnonymous = false) => {
  * Envío resiliente: usa cola cuando hay fallos de red
  * 📊 Incluye monitoreo de rendimiento
  */
-export const sendMessage = async (roomId, messageData, isAnonymous = false, skipQueue = false) => {
+export const sendMessage = async (roomId, messageData, isAnonymous = false, skipQueue = false, options = {}) => {
   // 📊 Medir velocidad de envío
   const perfMonitor = getPerformanceMonitor();
 
   try {
     const { result, latency } = await perfMonitor.measureMessageSend(
-      () => doSendMessage(roomId, { ...messageData }, isAnonymous),
+      () => doSendMessage(roomId, { ...messageData }, isAnonymous, options),
       messageData
     );
     return result;
@@ -1186,6 +1194,7 @@ const doSendSecondaryMessage = async (roomId, messageData, isAnonymous = false) 
     hasProBadge: messageData.hasProBadge || false,
     hasFeaturedCard: messageData.hasFeaturedCard || false,
     canUploadSecondPhoto: messageData.canUploadSecondPhoto || false,
+    comuna: normalizeComuna(messageData.comuna) || null,
     content: messageData.content,
     type: messageData.type || 'text',
     timestamp: serverTimestamp(),

@@ -36,6 +36,7 @@ import {
 import { crearTarjetaAutomatica } from '@/services/tarjetaService';
 import { removeRewardFromUser, REWARD_TYPES } from '@/services/rewardsService';
 import { resolveProfileRole } from '@/config/profileRoles';
+import { ONBOARDING_COMUNA_KEY, normalizeComuna } from '@/config/comunas';
 
 // ⚡ Helper para agregar timeout a promesas de Firestore (evita delays de 41+ segundos)
 const withTimeout = (promise, timeoutMs = 3000) => {
@@ -150,6 +151,34 @@ const buildInvalidCredentialHint = async (email) => {
   return "Email o contraseña incorrectos. Verifica tus datos e intenta nuevamente.";
 };
 
+const persistGuestComuna = (comuna) => {
+  if (typeof window === 'undefined') return;
+  const normalizedComuna = normalizeComuna(comuna);
+  if (normalizedComuna) {
+    localStorage.setItem(ONBOARDING_COMUNA_KEY, normalizedComuna);
+    return;
+  }
+  localStorage.removeItem(ONBOARDING_COMUNA_KEY);
+};
+
+const isInvalidCredentialNetworkMask = (error) => {
+  const message = String(error?.message || '').toUpperCase();
+  const serverMessage = String(
+    error?.customData?._serverResponse ||
+    error?.customData?._tokenResponse?.error?.message ||
+    ''
+  ).toUpperCase();
+
+  return (
+    message.includes('INVALID_LOGIN_CREDENTIALS') ||
+    message.includes('INVALID_PASSWORD') ||
+    message.includes('EMAIL_NOT_FOUND') ||
+    serverMessage.includes('INVALID_LOGIN_CREDENTIALS') ||
+    serverMessage.includes('INVALID_PASSWORD') ||
+    serverMessage.includes('EMAIL_NOT_FOUND')
+  );
+};
+
 // Valor por defecto para evitar crash durante ErrorBoundary recovery o StrictMode remount
 // Cuando el Provider está desmontado brevemente, los componentes reciben este fallback
 const DEFAULT_AUTH_CONTEXT = {
@@ -236,6 +265,7 @@ export const AuthProvider = ({ children }) => {
             if (identity) {
               console.log('[AUTH] ✅ Identidad persistente detectada:', identity.guestId);
               const normalizedGuestRole = resolveProfileRole(identity.profileRole);
+              const normalizedGuestComuna = normalizeComuna(identity.comuna);
 
               guestUser = {
                 id: firebaseUser.uid,
@@ -249,11 +279,13 @@ export const AuthProvider = ({ children }) => {
                 theme: {},
                 guestId: identity.guestId, // ✅ UUID inmutable
                 profileRole: normalizedGuestRole || null,
+                comuna: normalizedGuestComuna || null,
               };
 
               if (normalizedGuestRole && typeof window !== 'undefined') {
                 localStorage.setItem('chactivo:role', normalizedGuestRole);
               }
+              persistGuestComuna(normalizedGuestComuna);
 
               // Vincular con Firebase UID si no está vinculado
               if (identity.firebaseUid !== firebaseUser.uid) {
@@ -287,6 +319,7 @@ export const AuthProvider = ({ children }) => {
               const tempAvatar = tempData.avatar || 'https://api.dicebear.com/7.x/pixel-art/svg?seed=guest';
               const existingGuestId = tempData.guestId; // UUID ya creado optimísticamente
               const normalizedGuestRole = resolveProfileRole(tempData.role);
+              const normalizedGuestComuna = normalizeComuna(tempData.comuna);
 
               // Vincular con Firebase UID real
               linkGuestToFirebase(firebaseUser.uid);
@@ -306,11 +339,13 @@ export const AuthProvider = ({ children }) => {
                 theme: {},
                 guestId: existingGuestId, // ✅ Mantener el UUID existente
                 profileRole: normalizedGuestRole || null,
+                comuna: normalizedGuestComuna || null,
               };
 
               if (normalizedGuestRole && typeof window !== 'undefined') {
                 localStorage.setItem('chactivo:role', normalizedGuestRole);
               }
+              persistGuestComuna(normalizedGuestComuna);
 
               setGuestMessageCount(0);
               setUser(guestUser); // ✅ Actualizar con ID real
@@ -323,6 +358,7 @@ export const AuthProvider = ({ children }) => {
                 avatar: tempAvatar,
                 guestId: existingGuestId, // ✅ UUID ya creado
                 profileRole: normalizedGuestRole || null,
+                comuna: normalizedGuestComuna || null,
                 createdAt: new Date().toISOString(),
                 messageCount: 0,
                 expiresAt: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString()
@@ -350,6 +386,7 @@ export const AuthProvider = ({ children }) => {
               avatar: 'https://api.dicebear.com/7.x/pixel-art/svg?seed=guest',
               quickPhrases: [],
               theme: {},
+              comuna: normalizeComuna(typeof window !== 'undefined' ? localStorage.getItem(ONBOARDING_COMUNA_KEY) : ''),
             };
             setGuestMessageCount(0);
             setUser(guestUser);
@@ -371,6 +408,7 @@ export const AuthProvider = ({ children }) => {
                       avatar: guestData.avatar || 'https://api.dicebear.com/7.x/pixel-art/svg?seed=guest',
                       quickPhrases: [],
                       theme: {},
+                      comuna: normalizeComuna(guestData.comuna),
                     });
                     setGuestMessageCount(guestData.messageCount || 0);
                   }
@@ -711,7 +749,9 @@ export const AuthProvider = ({ children }) => {
           errorMessage = "Demasiados intentos fallidos. Intenta más tarde";
           break;
         case 'auth/network-request-failed':
-          errorMessage = await buildAuthNetworkErrorMessage();
+          errorMessage = isInvalidCredentialNetworkMask(error)
+            ? await buildInvalidCredentialHint(email)
+            : await buildAuthNetworkErrorMessage();
           break;
         default:
           errorMessage = error.message;
@@ -864,7 +904,7 @@ export const AuthProvider = ({ children }) => {
    * ⚡ ULTRA OPTIMIZADO: <500ms total
    * ✅ Integrado con sistema de persistencia UUID
    */
-  const signInAsGuest = async (username = null, avatarUrl = null, keepSession = false, profileRoleRaw = null) => {
+  const signInAsGuest = async (username = null, avatarUrl = null, keepSession = false, profileRoleRaw = null, comunaRaw = null) => {
     // ✅ FIX: Prevenir múltiples llamadas simultáneas
     if (signInAsGuest.inProgress) {
       console.log('%c⚠️ [TIMING] signInAsGuest ya está en progreso, ignorando llamada duplicada', 'color: #ffaa00; font-weight: bold');
@@ -883,7 +923,9 @@ export const AuthProvider = ({ children }) => {
     let finalUsername;
     let finalAvatar;
     const requestedRole = resolveProfileRole(profileRoleRaw);
+    const requestedComuna = normalizeComuna(comunaRaw);
     let finalProfileRole = requestedRole;
+    let finalComuna = requestedComuna;
 
     if (keepSession && existingIdentity) {
       // Auto-restore: reutilizar identidad existente (mismo UUID, nombre, avatar)
@@ -891,15 +933,18 @@ export const AuthProvider = ({ children }) => {
       finalUsername = identity.nombre;
       finalAvatar = identity.avatar;
       finalProfileRole = resolveProfileRole(requestedRole, identity.profileRole);
+      finalComuna = normalizeComuna(requestedComuna || identity.comuna);
       console.log('⚡ [OPTIMISTIC] Identidad existente REUTILIZADA:', identity.guestId);
     } else {
       // Nueva entrada (modal/landing): crear identidad nueva
       const defaultUsername = username || `Guest${Math.floor(Math.random() * 10000)}`;
       const defaultAvatar = avatarUrl || `https://api.dicebear.com/7.x/avataaars/svg?seed=Guest${Math.random()}`;
+      finalComuna = normalizeComuna(requestedComuna || (typeof window !== 'undefined' ? localStorage.getItem(ONBOARDING_COMUNA_KEY) : ''));
       identity = createGuestIdentity({
         nombre: defaultUsername,
         avatar: defaultAvatar,
         profileRole: finalProfileRole || null,
+        comuna: finalComuna || null,
       });
       finalUsername = defaultUsername;
       finalAvatar = defaultAvatar;
@@ -919,11 +964,13 @@ export const AuthProvider = ({ children }) => {
       theme: {},
       guestId: identity.guestId,
       profileRole: finalProfileRole || null,
+      comuna: finalComuna || null,
     };
 
     if (finalProfileRole && typeof window !== 'undefined') {
       localStorage.setItem('chactivo:role', finalProfileRole);
     }
+    persistGuestComuna(finalComuna);
 
     // ⚡ SETEAR USUARIO INMEDIATAMENTE (sin esperar Firebase)
     setUser(optimisticUser);
@@ -936,6 +983,7 @@ export const AuthProvider = ({ children }) => {
       avatar: finalAvatar,
       guestId: identity.guestId, // Pasar el UUID para mantenerlo
       role: finalProfileRole || null,
+      comuna: finalComuna || null,
     });
 
     // ✅ FIX PERSISTENCIA: Si ya hay sesión anónima activa, no crear nueva
@@ -1066,11 +1114,18 @@ export const AuthProvider = ({ children }) => {
    * Actualizar perfil de usuario
    */
   const updateProfile = async (updates) => {
-    if (!user || user.isGuest) return;
+    if (!user || user.isGuest) return false;
 
     try {
-      await updateUserProfileService(user.id, updates);
-      setUser({ ...user, ...updates });
+      const nextUpdates = { ...updates };
+      if (Object.prototype.hasOwnProperty.call(nextUpdates, 'comuna')) {
+        nextUpdates.comuna = normalizeComuna(nextUpdates.comuna) || null;
+        persistGuestComuna(nextUpdates.comuna);
+      }
+
+      await updateUserProfileService(user.id, nextUpdates);
+      setUser({ ...user, ...nextUpdates });
+      return true;
     } catch (error) {
       console.error('Error updating profile:', error);
       toast({
@@ -1078,6 +1133,7 @@ export const AuthProvider = ({ children }) => {
         description: "No se pudo actualizar el perfil",
         variant: "destructive",
       });
+      return false;
     }
   };
 
@@ -1300,7 +1356,7 @@ export const AuthProvider = ({ children }) => {
       console.log('[AUTH] 🔄 Auto-restaurando identidad persistente...');
       const identity = getGuestIdentity();
       if (identity) {
-        signInAsGuest(identity.nombre, identity.avatar, true, identity.profileRole || null);
+        signInAsGuest(identity.nombre, identity.avatar, true, identity.profileRole || null, identity.comuna || null);
       }
     }
   }, [loading, user, guestAuthInProgress]);

@@ -46,6 +46,7 @@ import { useEngagementNudge } from '@/hooks/useEngagementNudge';
 // ⚠️ MODERADOR ELIMINADO (06/01/2026) - A petición del usuario
 // import RulesBanner from '@/components/chat/RulesBanner';
 import { toast } from '@/components/ui/use-toast';
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { RegistrationRequiredModal } from '@/components/auth/RegistrationRequiredModal';
 import {
   sendMessage,
@@ -84,6 +85,7 @@ import ProCongratsModal from '@/components/rewards/ProCongratsModal';
 import { markReminderPopupShown, wasReminderPopupShown, cleanOldReminders } from '@/utils/eventReminderUtils';
 import { registrarParticipacionEvento } from '@/services/eventosService';
 import { resolveProfileRole } from '@/config/profileRoles';
+import { COMUNA_OPTIONS, getComunaKey, normalizeComuna, ONBOARDING_COMUNA_KEY } from '@/config/comunas';
 import '@/utils/chatDiagnostics'; // 🔍 Cargar diagnóstico en consola
 import { 
   trackChatLoad, 
@@ -97,6 +99,7 @@ import {
 const roomWelcomeMessages = {
   // 'global': '¡Bienvenido a Chat Global! Habla de lo que quieras.', // ⚠️ DESACTIVADA
   'principal': '¡Bienvenido a Chat Principal! Habla de lo que quieras.',
+  'hetero-general': '¡Bienvenido al Chat Principal! Conversa, conoce gente y pásalo bien.',
   'gaming': '¡Gamers, uníos! ¿A qué están jugando?',
   'mas-30': 'Espacio para mayores de 30. ¡Comparte tus experiencias!',
   'amistad': '¿Buscas nuevos amigos? ¡Este es el lugar!',
@@ -166,6 +169,14 @@ const getRoleCompatibilityScore = (selfRole, candidateRole) => {
   return 45;
 };
 
+const getComunaMatchBoost = (selfComuna, candidateComuna) => {
+  const selfKey = getComunaKey(selfComuna);
+  const candidateKey = getComunaKey(candidateComuna);
+  if (!selfKey || !candidateKey) return 0;
+  if (selfKey === candidateKey) return 28;
+  return 0;
+};
+
 // 💬 Frases rápidas reales — rol, intención y ubicación
 const QUICK_STARTER_PHRASES = [
   'Hola, soy pasivo 👋',
@@ -196,6 +207,7 @@ const QUICK_STARTER_PHRASES = [
 
 const MAX_OPEN_PRIVATE_CHATS = 3;
 const DEFAULT_CHAT_AVATAR = '/avatar_por_defecto.jpeg';
+const HETERO_INDEXING_ENABLED = false;
 
 const resolveChatAvatar = (avatar) => {
   if (!avatar || typeof avatar !== 'string') return DEFAULT_CHAT_AVATAR;
@@ -230,6 +242,7 @@ const ChatPage = () => {
     showWelcomeTour,
     setShowWelcomeTour,
     updateAnonymousUserProfile,
+    updateProfile,
     signInAsGuest
   } = useAuth();
 
@@ -243,6 +256,13 @@ const ChatPage = () => {
   const blockedByCacheRef = useRef(new Set());
   const blockedByPendingRef = useRef(new Set());
   const pageStartRef = useRef(Date.now());
+  const isHeteroRoom = roomId === 'hetero-general';
+  const [showProfileComunaPrompt, setShowProfileComunaPrompt] = useState(false);
+  const [profileComunaValue, setProfileComunaValue] = useState('');
+  const [isSavingProfileComuna, setIsSavingProfileComuna] = useState(false);
+  const heteroRoomSessionStartRef = useRef(null);
+  const heteroRoomSentCountRef = useRef(0);
+  const heteroRoomReturningRef = useRef(false);
   // ⚠️ MODERADOR ELIMINADO (06/01/2026) - A petición del usuario
   // const [moderatorMessage, setModeratorMessage] = useState(null); // 👮 Mensaje del moderador (para RulesBanner)
   const [roomUsers, setRoomUsers] = useState([]); // 🤖 Usuarios en la sala (para sistema de bots)
@@ -258,12 +278,29 @@ const ChatPage = () => {
   });
 
   const [showPushBanner, setShowPushBanner] = useState(false);
+  const [showCercaniaBanner, setShowCercaniaBanner] = useState(false);
+  const [showHeteroRoomIntroBanner, setShowHeteroRoomIntroBanner] = useState(false);
   const [showHelpLauncher, setShowHelpLauncher] = useState(false);
   const lastForegroundPushRef = useRef({ key: '', at: 0 });
   const helpTourPromptShownRef = useRef(false);
   const pushBannerDismissKey = user?.id
     ? `push_banner_dismissed_${user.id}`
     : 'push_banner_dismissed_guest';
+  const pushBannerSeenKey = user?.id
+    ? `push_banner_seen_${user.id}`
+    : 'push_banner_seen_guest';
+  const cercaniaBannerDismissKey = user?.id
+    ? `chactivo:cercania_banner:dismissed:${user.id}`
+    : 'chactivo:cercania_banner:dismissed:guest';
+  const cercaniaBannerSeenKey = user?.id
+    ? `chactivo:cercania_banner:seen_forever:${user.id}`
+    : 'chactivo:cercania_banner:seen_forever:guest';
+  const cercaniaBannerSessionKey = user?.id
+    ? `chactivo:cercania_banner:seen:${currentRoom}:${user.id}`
+    : `chactivo:cercania_banner:seen:${currentRoom}:guest`;
+  const heteroIntroSeenKey = user?.id
+    ? `chactivo:hetero_intro:seen:${user.id}`
+    : 'chactivo:hetero_intro:seen:guest';
   const tourCompletionKey = user?.id
     ? `chactivo:welcome_tour:completed:${user.id}`
     : 'chactivo:welcome_tour:completed:guest';
@@ -303,15 +340,42 @@ const ChatPage = () => {
     if (!user || user.isAnonymous || user.isGuest) return;
     if (!canRequestPush()) return;
     if (localStorage.getItem(pushBannerDismissKey)) return;
+    if (localStorage.getItem(pushBannerSeenKey)) return;
     if (sessionStorage.getItem('push_banner_shown')) return;
 
     const timer = setTimeout(() => {
       setShowPushBanner(true);
+      localStorage.setItem(pushBannerSeenKey, Date.now().toString());
       sessionStorage.setItem('push_banner_shown', '1');
     }, 30000);
 
     return () => clearTimeout(timer);
-  }, [user, pushBannerDismissKey]);
+  }, [user, pushBannerDismissKey, pushBannerSeenKey]);
+
+  useEffect(() => {
+    if (currentRoom !== 'hetero-general') {
+      setShowHeteroRoomIntroBanner(false);
+      return;
+    }
+
+    if (localStorage.getItem(heteroIntroSeenKey)) {
+      setShowHeteroRoomIntroBanner(false);
+      return;
+    }
+
+    setShowHeteroRoomIntroBanner(true);
+    localStorage.setItem(heteroIntroSeenKey, Date.now().toString());
+  }, [currentRoom, heteroIntroSeenKey]);
+
+  useEffect(() => {
+    if (!showHeteroRoomIntroBanner) return undefined;
+
+    const timer = setTimeout(() => {
+      setShowHeteroRoomIntroBanner(false);
+    }, 9000);
+
+    return () => clearTimeout(timer);
+  }, [showHeteroRoomIntroBanner]);
 
   useEffect(() => {
     if (!user?.id) return;
@@ -942,6 +1006,24 @@ const ChatPage = () => {
     return roleByUser;
   }, [messages, isSystemUserId, isAutomatedUserId]);
 
+  const latestComunaByConnectedUser = useMemo(() => {
+    const comunaByUser = new Map();
+
+    for (let i = messages.length - 1; i >= 0; i -= 1) {
+      const msg = messages[i];
+      const userId = msg?.userId;
+      if (!userId || comunaByUser.has(userId)) continue;
+      if (isSystemUserId(userId) || isAutomatedUserId(userId)) continue;
+
+      const normalizedComuna = normalizeComuna(msg?.comuna);
+      if (normalizedComuna) {
+        comunaByUser.set(userId, normalizedComuna);
+      }
+    }
+
+    return comunaByUser;
+  }, [messages, isSystemUserId, isAutomatedUserId]);
+
   const onlineRoleStats = useMemo(() => {
     const safeUsers = Array.isArray(roomUsers) ? roomUsers : [];
     let activosOnline = 0;
@@ -990,6 +1072,189 @@ const ChatPage = () => {
     )
   ), [user?.roleBadge, user?.profileRole, user?.role, user?.id, latestRoleByConnectedUser]);
 
+  const currentUserComuna = useMemo(() => {
+    const ownPresence = (Array.isArray(roomUsers) ? roomUsers : []).find((presenceUser) => {
+      const presenceUserId = presenceUser?.userId || presenceUser?.id;
+      return presenceUserId && presenceUserId === user?.id;
+    });
+
+    return normalizeComuna(
+      ownPresence?.comuna ||
+      latestComunaByConnectedUser.get(user?.id) ||
+      user?.comuna ||
+      (typeof window !== 'undefined' ? localStorage.getItem(ONBOARDING_COMUNA_KEY) : '')
+    );
+  }, [roomUsers, user?.id, user?.comuna, latestComunaByConnectedUser]);
+
+  useEffect(() => {
+    if (!authReady || !user?.id || !roomId) return;
+    updatePresenceFields(roomId, {
+      comuna: currentUserComuna || null,
+    });
+  }, [currentUserComuna, roomId, user?.id, authReady]);
+
+  useEffect(() => {
+    if (!showCercaniaBanner) return undefined;
+
+    const timer = setTimeout(() => {
+      setShowCercaniaBanner(false);
+    }, 9000);
+
+    return () => clearTimeout(timer);
+  }, [showCercaniaBanner]);
+
+  const handleDismissCercaniaBanner = useCallback(() => {
+    setShowCercaniaBanner(false);
+    localStorage.setItem(cercaniaBannerDismissKey, String(Date.now()));
+  }, [cercaniaBannerDismissKey]);
+
+  const nearbySignals = useMemo(() => {
+    const sameComunaUsers = [];
+    const comunaCounts = new Map();
+    let knownComunaUsers = 0;
+    let availableNowCount = 0;
+
+    (Array.isArray(roomUsers) ? roomUsers : []).forEach((presenceUser) => {
+      const userId = presenceUser?.userId || presenceUser?.id || '';
+      if (!userId || userId === user?.id) return;
+      if (isSystemUserId(userId) || isAutomatedUserId(userId)) return;
+
+      if (isUserAvailableForConversation(presenceUser)) {
+        availableNowCount += 1;
+      }
+
+      const comuna = normalizeComuna(
+        presenceUser?.comuna ||
+        latestComunaByConnectedUser.get(userId)
+      );
+      if (!comuna) return;
+
+      knownComunaUsers += 1;
+      comunaCounts.set(comuna, (comunaCounts.get(comuna) || 0) + 1);
+
+      if (currentUserComuna && getComunaKey(comuna) === getComunaKey(currentUserComuna)) {
+        sameComunaUsers.push({
+          userId,
+          username: presenceUser?.username || 'Usuario',
+          comuna,
+          available: isUserAvailableForConversation(presenceUser),
+        });
+      }
+    });
+
+    const topComunas = Array.from(comunaCounts.entries())
+      .sort((a, b) => b[1] - a[1])
+      .slice(0, 3)
+      .map(([comuna, count]) => ({ comuna, count }));
+
+    return {
+      sameComunaCount: sameComunaUsers.length,
+      sameComunaAvailableCount: sameComunaUsers.filter((item) => item.available).length,
+      sameComunaNames: sameComunaUsers.slice(0, 3).map((item) => item.username),
+      knownComunaUsers,
+      topComunas,
+      availableNowCount,
+    };
+  }, [
+    roomUsers,
+    user?.id,
+    currentUserComuna,
+    latestComunaByConnectedUser,
+    isSystemUserId,
+    isAutomatedUserId,
+  ]);
+
+  useEffect(() => {
+    const isEligibleRoom = currentRoom === 'principal' || currentRoom === 'hetero-general';
+    const isActionable = !currentUserComuna || nearbySignals.sameComunaCount > 0;
+
+    if (!isEligibleRoom || !isActionable) {
+      setShowCercaniaBanner(false);
+      return;
+    }
+
+    const dismissedAt = Number(localStorage.getItem(cercaniaBannerDismissKey) || 0);
+    const dismissedRecently = dismissedAt > 0 && (Date.now() - dismissedAt) < (12 * 60 * 60 * 1000);
+    const seenForever = Boolean(localStorage.getItem(cercaniaBannerSeenKey));
+    const seenInSession = sessionStorage.getItem(cercaniaBannerSessionKey) === '1';
+
+    if (dismissedRecently || seenForever || seenInSession) {
+      setShowCercaniaBanner(false);
+      return;
+    }
+
+    setShowCercaniaBanner(true);
+    localStorage.setItem(cercaniaBannerSeenKey, Date.now().toString());
+    sessionStorage.setItem(cercaniaBannerSessionKey, '1');
+  }, [
+    currentRoom,
+    currentUserComuna,
+    nearbySignals.sameComunaCount,
+    cercaniaBannerDismissKey,
+    cercaniaBannerSeenKey,
+    cercaniaBannerSessionKey,
+  ]);
+
+  const profileComunaPromptDismissKey = user?.id
+    ? `chactivo:profile_comuna_prompt:dismissed:${user.id}`
+    : 'chactivo:profile_comuna_prompt:dismissed:guest';
+
+  useEffect(() => {
+    setProfileComunaValue(currentUserComuna || '');
+  }, [currentUserComuna]);
+
+  useEffect(() => {
+    if (!user?.id || user?.isGuest || user?.isAnonymous) return;
+    if (currentRoom !== 'principal' && currentRoom !== 'hetero-general') return;
+    if (currentUserComuna) {
+      setShowProfileComunaPrompt(false);
+      return;
+    }
+
+    const dismissedAt = Number(localStorage.getItem(profileComunaPromptDismissKey) || 0);
+    const sixHoursMs = 6 * 60 * 60 * 1000;
+    if (dismissedAt && (Date.now() - dismissedAt) < sixHoursMs) return;
+
+    const timer = window.setTimeout(() => {
+      setShowProfileComunaPrompt(true);
+    }, 5000);
+
+    return () => window.clearTimeout(timer);
+  }, [user?.id, user?.isGuest, user?.isAnonymous, currentRoom, currentUserComuna, profileComunaPromptDismissKey]);
+
+  const handleDismissProfileComunaPrompt = useCallback(() => {
+    setShowProfileComunaPrompt(false);
+    if (user?.id) {
+      localStorage.setItem(profileComunaPromptDismissKey, String(Date.now()));
+    }
+  }, [user?.id, profileComunaPromptDismissKey]);
+
+  const handleSaveProfileComuna = useCallback(async () => {
+    const normalizedComuna = normalizeComuna(profileComunaValue);
+    if (!normalizedComuna) {
+      toast({
+        title: 'Falta tu zona',
+        description: 'Selecciona tu comuna o ciudad para segmentar mejor el chat.',
+        variant: 'destructive',
+      });
+      return;
+    }
+
+    setIsSavingProfileComuna(true);
+    try {
+      const saved = await updateProfile({ comuna: normalizedComuna });
+      if (!saved) return;
+      localStorage.removeItem(profileComunaPromptDismissKey);
+      setShowProfileComunaPrompt(false);
+      toast({
+        title: 'Zona actualizada',
+        description: `${normalizedComuna} ya quedó visible para ordenar cercanía.`,
+      });
+    } finally {
+      setIsSavingProfileComuna(false);
+    }
+  }, [profileComunaValue, updateProfile, profileComunaPromptDismissKey]);
+
   const activePrivatePartnerIds = useMemo(() => {
     const ids = new Set();
     (openPrivateChats || []).forEach((chatWindow) => {
@@ -1000,7 +1265,7 @@ const ChatPage = () => {
   }, [openPrivateChats]);
 
   const privateMatchCandidates = useMemo(() => {
-    if (!user?.id || !Array.isArray(roomUsers) || roomUsers.length === 0) return [];
+    if (isHeteroRoom || !user?.id || !Array.isArray(roomUsers) || roomUsers.length === 0) return [];
 
     return roomUsers
       .map((presenceUser) => {
@@ -1015,7 +1280,12 @@ const ChatPage = () => {
           presenceUser?.profileRole,
           latestRoleByConnectedUser.get(userId)
         );
-        const score = getRoleCompatibilityScore(currentUserResolvedRole, normalizedRole);
+        const candidateComuna = normalizeComuna(
+          presenceUser?.comuna ||
+          latestComunaByConnectedUser.get(userId)
+        );
+        const score = getRoleCompatibilityScore(currentUserResolvedRole, normalizedRole)
+          + getComunaMatchBoost(currentUserComuna, candidateComuna);
 
         return {
           id: userId,
@@ -1025,6 +1295,8 @@ const ChatPage = () => {
           isPremium: Boolean(presenceUser?.isPremium || presenceUser?.isProUser),
           isGuest: Boolean(presenceUser?.isGuest || presenceUser?.isAnonymous),
           roleBadge: normalizedRole || null,
+          comuna: candidateComuna || null,
+          sameComuna: Boolean(candidateComuna && currentUserComuna && getComunaKey(candidateComuna) === getComunaKey(currentUserComuna)),
           score,
         };
       })
@@ -1037,9 +1309,12 @@ const ChatPage = () => {
     blockedByUserIds,
     activePrivatePartnerIds,
     currentUserResolvedRole,
+    currentUserComuna,
     latestRoleByConnectedUser,
+    latestComunaByConnectedUser,
     isSystemUserId,
     isAutomatedUserId,
+    isHeteroRoom,
   ]);
 
   const clearRandomConnectPendingTimeout = useCallback(() => {
@@ -1393,7 +1668,7 @@ const ChatPage = () => {
   const headerActivitySnapshot = useMemo(() => {
     // ✅ "conectados" debe reflejar solo usuarios realmente presentes ahora
     const visibleOnlineCount = activeUsersCount;
-    const roleSignal = onlineRoleStats.activosOnline + onlineRoleStats.pasivosOnline;
+    const roleSignal = isHeteroRoom ? 0 : (onlineRoleStats.activosOnline + onlineRoleStats.pasivosOnline);
     const hasConnectedPeople = visibleOnlineCount > 0 || roleSignal > 0 || onlineRoleStats.connectedNames.length > 0;
 
     let intensity = 'quiet';
@@ -1410,9 +1685,13 @@ const ChatPage = () => {
       visibleOnlineCount,
       hasConnectedPeople,
     };
-  }, [activeUsersCount, onlineRoleStats, recentMessagesCount20m, recentParticipants20m.count]);
+  }, [activeUsersCount, onlineRoleStats, recentMessagesCount20m, recentParticipants20m.count, isHeteroRoom]);
 
   const activityText = useMemo(() => {
+    if (currentUserComuna && nearbySignals.sameComunaCount > 0) {
+      return `Hay ${nearbySignals.sameComunaCount} personas por ${currentUserComuna} ahora`;
+    }
+
     let baseText = 'Se quien abre la conversacion hoy ✨';
 
     if (headerActivitySnapshot.intensity === 'high') {
@@ -1432,7 +1711,7 @@ const ChatPage = () => {
     }
 
     return baseText;
-  }, [headerActivitySnapshot.intensity, recentMessagesCount10m]);
+  }, [currentUserComuna, nearbySignals.sameComunaCount, headerActivitySnapshot.intensity, recentMessagesCount10m]);
 
   const headerTickerItems = useMemo(() => {
     const items = [];
@@ -1455,7 +1734,19 @@ const ChatPage = () => {
       items.push('Tu mensaje puede activar la sala en segundos');
     }
 
-    if (onlineRoleStats.activosOnline > 0 && onlineRoleStats.pasivosOnline > 0) {
+    if (currentUserComuna && nearbySignals.sameComunaCount > 0) {
+      items.push(`${nearbySignals.sameComunaCount} personas marcaron ${currentUserComuna}`);
+    } else if (currentUserComuna) {
+      items.push(`Tu comuna guardada: ${currentUserComuna}`);
+    } else if (nearbySignals.topComunas.length > 0) {
+      items.push(`Hoy se mueven: ${nearbySignals.topComunas.map((item) => item.comuna).join(', ')}`);
+    } else {
+      items.push('Marca tu comuna para priorizar gente cercana');
+    }
+
+    if (isHeteroRoom) {
+      items.push('Tip: saluda con contexto para recibir respuesta mas rapido');
+    } else if (onlineRoleStats.activosOnline > 0 && onlineRoleStats.pasivosOnline > 0) {
       items.push('Hay activos y pasivos en linea');
     } else if (onlineRoleStats.activosOnline > 0) {
       items.push('Hay activos en linea ahora');
@@ -1483,14 +1774,17 @@ const ChatPage = () => {
     }
 
     return items;
-  }, [headerActivitySnapshot, onlineRoleStats, recentMessagesCount20m]);
+  }, [headerActivitySnapshot, onlineRoleStats, recentMessagesCount20m, isHeteroRoom, currentUserComuna, nearbySignals]);
 
   const dailyTopic = useMemo(() => {
+    if (currentUserComuna) {
+      return `¿Quién anda por ${currentUserComuna} hoy?`;
+    }
     const now = new Date(activityNow);
     const key = now.getUTCFullYear() * 10000 + (now.getUTCMonth() + 1) * 100 + now.getUTCDate();
     const index = Math.abs(key) % DAILY_TOPICS.length;
     return DAILY_TOPICS[index];
-  }, [activityNow, DAILY_TOPICS]);
+  }, [activityNow, DAILY_TOPICS, currentUserComuna]);
 
   // 🎯 PRO SCROLL MANAGER: Discord/Slack-inspired scroll behavior
   // ✅ IMPORTANTE: Debe estar ANTES del early return para respetar reglas de hooks
@@ -1589,6 +1883,12 @@ const ChatPage = () => {
         description: 'Chat gay Chile en vivo. Entra gratis en segundos, conoce gente real y conversa sin registro obligatorio.',
         ogTitle: 'Chat Gay Chile Gratis 💬 | En Vivo Sin Registro',
         ogDescription: 'Conecta con gente real de Chile en segundos: chat en vivo, gratis y sin registro obligatorio.'
+      },
+      'hetero-general': {
+        title: 'Chat Hetero Gratis 💬 | En Vivo y Activo | Chactivo',
+        description: 'Chat hetero en vivo. Conoce gente real, conversa en tiempo real y entra sin pasos complejos.',
+        ogTitle: 'Chat Hetero Gratis 💬 | En Vivo y Activo',
+        ogDescription: 'Conecta con personas reales en una sala hetero activa, rápida y sin fricción.'
       }
     };
 
@@ -1610,6 +1910,18 @@ const ChatPage = () => {
       document.head.appendChild(metaDescription);
     }
     metaDescription.content = seoData.description;
+
+    let robotsMeta = document.querySelector('meta[name="robots"]');
+    if (!robotsMeta) {
+      robotsMeta = document.createElement('meta');
+      robotsMeta.setAttribute('name', 'robots');
+      document.head.appendChild(robotsMeta);
+    }
+    const shouldNoindexRoom = roomId === 'hetero-general' && !HETERO_INDEXING_ENABLED;
+    robotsMeta.setAttribute(
+      'content',
+      shouldNoindexRoom ? 'noindex, nofollow, noarchive, nosnippet' : 'index, follow, max-image-preview:large'
+    );
 
     // ✅ CRÍTICO: Actualizar Open Graph title
     let ogTitle = document.querySelector('meta[property="og:title"]');
@@ -1656,7 +1968,67 @@ const ChatPage = () => {
     }
     twitterDescription.setAttribute('content', seoData.ogDescription);
 
+    const heteroSchemaId = 'schema-hetero-chat-webpage';
+    const heteroBreadcrumbSchemaId = 'schema-hetero-chat-breadcrumb';
+    document.getElementById(heteroSchemaId)?.remove();
+    document.getElementById(heteroBreadcrumbSchemaId)?.remove();
+
+    if (roomId === 'hetero-general' && HETERO_INDEXING_ENABLED) {
+      const webpageSchema = {
+        '@context': 'https://schema.org',
+        '@type': 'WebPage',
+        '@id': 'https://chactivo.com/chat/hetero-general#webpage',
+        url: 'https://chactivo.com/chat/hetero-general',
+        name: seoData.title,
+        description: seoData.description,
+        inLanguage: 'es',
+        isPartOf: {
+          '@type': 'WebSite',
+          '@id': 'https://chactivo.com/#website',
+        },
+      };
+
+      const breadcrumbSchema = {
+        '@context': 'https://schema.org',
+        '@type': 'BreadcrumbList',
+        itemListElement: [
+          {
+            '@type': 'ListItem',
+            position: 1,
+            name: 'Home',
+            item: 'https://chactivo.com/',
+          },
+          {
+            '@type': 'ListItem',
+            position: 2,
+            name: 'Hetero',
+            item: 'https://chactivo.com/hetero',
+          },
+          {
+            '@type': 'ListItem',
+            position: 3,
+            name: 'Chat',
+            item: 'https://chactivo.com/chat/hetero-general',
+          },
+        ],
+      };
+
+      const webpageScript = document.createElement('script');
+      webpageScript.type = 'application/ld+json';
+      webpageScript.id = heteroSchemaId;
+      webpageScript.textContent = JSON.stringify(webpageSchema);
+      document.head.appendChild(webpageScript);
+
+      const breadcrumbScript = document.createElement('script');
+      breadcrumbScript.type = 'application/ld+json';
+      breadcrumbScript.id = heteroBreadcrumbSchemaId;
+      breadcrumbScript.textContent = JSON.stringify(breadcrumbSchema);
+      document.head.appendChild(breadcrumbScript);
+    }
+
     return () => {
+      document.getElementById(heteroSchemaId)?.remove();
+      document.getElementById(heteroBreadcrumbSchemaId)?.remove();
       // Limpiar meta description al desmontar (volver a la del index.html)
       if (metaDescription && document.head.contains(metaDescription)) {
         metaDescription.content = 'Habla y conecta en tiempo real con gente de Chile. Entra gratis en segundos, sin registro obligatorio y con cero anuncios molestos.';
@@ -1685,6 +2057,58 @@ const ChatPage = () => {
       }
     };
   }, [roomId]);
+
+  // 📊 Señales de comportamiento para vertical hetero: tiempo en chat, mensajes y retorno
+  useEffect(() => {
+    if (roomId !== 'hetero-general') return undefined;
+
+    const now = Date.now();
+    heteroRoomSessionStartRef.current = now;
+    heteroRoomSentCountRef.current = 0;
+
+    let isReturning = false;
+    let hoursSinceLastVisit = null;
+    const visitKey = 'hetero_general_last_visit_at';
+
+    if (typeof window !== 'undefined') {
+      const lastVisitRaw = localStorage.getItem(visitKey) || '0';
+      const lastVisit = Number(lastVisitRaw);
+      if (Number.isFinite(lastVisit) && lastVisit > 0) {
+        isReturning = true;
+        hoursSinceLastVisit = Math.max(0, Math.round((now - lastVisit) / 3600000));
+      }
+      localStorage.setItem(visitKey, String(now));
+    }
+
+    heteroRoomReturningRef.current = isReturning;
+
+    const entrySource = new URLSearchParams(location.search).get('entry') || 'direct';
+    track(
+      'hetero_chat_session_start',
+      {
+        roomId,
+        entry_source: entrySource,
+        is_returning: isReturning,
+        hours_since_last_visit: hoursSinceLastVisit,
+      },
+      { user }
+    ).catch(() => {});
+
+    return () => {
+      const startedAt = heteroRoomSessionStartRef.current || now;
+      const durationSeconds = Math.max(0, Math.round((Date.now() - startedAt) / 1000));
+      track(
+        'hetero_chat_session_end',
+        {
+          roomId: 'hetero-general',
+          duration_seconds: durationSeconds,
+          messages_sent: heteroRoomSentCountRef.current,
+          is_returning: heteroRoomReturningRef.current,
+        },
+        { user }
+      ).catch(() => {});
+    };
+  }, [roomId, location.search, user]);
 
   // ⏱️ ENGAGEMENT TRACKING: Sistema de 1 hora gratuita
   // ⚠️ CRITICAL: Este hook DEBE ejecutarse siempre (antes del return)
@@ -2214,14 +2638,17 @@ const ChatPage = () => {
         unsubscribeRef.current = null; // Limpiar referencia
       }
     };
-  }, [roomId, user?.id]); // ✅ F3: user?.id en vez de user (evita re-suscripciones por cambio de referencia)
+  }, [roomId, user?.id, currentUserComuna]); // ✅ F3: user?.id en vez de user (evita re-suscripciones por cambio de referencia)
 
   // 🟢 PRESENCIA: Solo iniciar con auth lista + usuario válido
   useEffect(() => {
     if (!roomId || !authReady || !user?.id) return;
 
     cleanInactiveUsers(roomId);
-    joinRoom(roomId, user);
+    joinRoom(roomId, {
+      ...user,
+      comuna: currentUserComuna || null,
+    });
     if (roomId?.startsWith('evento_')) {
       registrarParticipacionEvento(roomId, user).catch(() => {});
     }
@@ -3336,12 +3763,14 @@ const ChatPage = () => {
 
     const storedRoleRaw = localStorage.getItem('chactivo:role') || '';
     const storedComunaRaw = localStorage.getItem('chactivo:comuna') || '';
-    const roleBadge = resolveProfileRole(
-      storedRoleRaw,
-      currentUser?.profileRole,
-      currentUser?.role
-    );
-    const comuna = storedComunaRaw.trim() || null;
+    const roleBadge = isHeteroRoom
+      ? null
+      : resolveProfileRole(
+          storedRoleRaw,
+          currentUser?.profileRole,
+          currentUser?.role
+        );
+    const comuna = normalizeComuna(storedComunaRaw) || null;
     
     // ✅ GARANTIZAR AVATAR: Nunca enviar null o undefined en optimistic message
     const optimisticAvatar = resolveChatAvatar(currentUser.avatar);
@@ -3463,6 +3892,24 @@ const ChatPage = () => {
                   title: "Enlaces externos no permitidos aquí",
                   description: "OPIN es donde puedes compartir redes sociales y enlaces. Publica ahí lo que buscas.",
                 });
+              } else if (validation.type === 'private_redirect') {
+                toast({
+                  title: "Usa el privado interno",
+                  description: auth.currentUser
+                    ? "Si quieres seguir 1 a 1, toca el nombre del usuario y usa Invitar a privado dentro de Chactivo."
+                    : "Para pasar a privado dentro de Chactivo primero debes registrarte.",
+                  variant: "default",
+                  duration: 8000,
+                  action: auth.currentUser
+                    ? undefined
+                    : {
+                        label: "Registrarme",
+                        onClick: () => {
+                          setShowRegistrationModal(true);
+                          setRegistrationModalFeature('chat privado');
+                        },
+                      },
+                });
               } else if (validation.type === 'spam_duplicate_warning') {
                 toast({
                   title: "⚠️ ADVERTENCIA DE SPAM",
@@ -3475,6 +3922,21 @@ const ChatPage = () => {
                 toast({
                   title: "🔨 Silenciado por spam",
                   description: `No puedes enviar mensajes por ${mins} minutos. Si intentas enviar verás el tiempo restante.`,
+                  variant: "destructive",
+                  duration: 10000,
+                });
+              } else if (validation.type === 'spam_flood_warning') {
+                toast({
+                  title: "Baja el ritmo",
+                  description: validation.reason,
+                  variant: "default",
+                  duration: 7000,
+                });
+              } else if (validation.type === 'spam_flood_ban') {
+                const mins = validation.muteMins ?? 5;
+                toast({
+                  title: "Silenciado por saturar la sala",
+                  description: `Espera ${mins} minutos o usa el privado interno si ya encontraste a alguien.`,
                   variant: "destructive",
                   duration: 10000,
                 });
@@ -3579,6 +4041,17 @@ const ChatPage = () => {
         // ✅ Mensaje enviado exitosamente - se actualizará automáticamente vía onSnapshot
         // Track GA4 (background, no bloquea)
         trackMessageSent(currentRoom, { user: currentUser });
+        if (currentRoom === 'hetero-general') {
+          heteroRoomSentCountRef.current += 1;
+          track(
+            'hetero_chat_message_sent',
+            {
+              roomId: currentRoom,
+              session_message_count: heteroRoomSentCountRef.current,
+            },
+            { user: currentUser }
+          ).catch(() => {});
+        }
 
         try {
           const sessionId = getSessionId();
@@ -4316,10 +4789,11 @@ const ChatPage = () => {
   //   return <ChatLandingPage roomSlug={roomId} />;
   // }
 
-  // 🔒 FASE 1: RESTRICCIÓN - Invitados solo pueden acceder a /chat/principal
+  // 🔒 FASE 1: RESTRICCIÓN - Invitados solo pueden acceder a salas públicas habilitadas
   if (user && (user.isGuest || user.isAnonymous)) {
     const isEventRoom = roomId?.startsWith('evento_');
-    if (roomId !== 'principal' && !isEventRoom) {
+    const guestAllowedRooms = ['principal', 'hetero-general'];
+    if (!guestAllowedRooms.includes(roomId) && !isEventRoom) {
       // Invitado intenta acceder a otra sala → Redirigir a principal
       console.log(`[ChatPage] ⚠️ Invitado intentando acceder a /chat/${roomId} → Redirigiendo a /chat/principal`);
       navigate('/chat/principal', { replace: true });
@@ -4333,6 +4807,15 @@ const ChatPage = () => {
       );
     }
   }
+
+  const activeTopBanner = showCercaniaBanner
+    ? 'cercania'
+    : showPushBanner
+      ? 'push'
+      : showHeteroRoomIntroBanner
+        ? 'hetero_intro'
+        : null;
+  const shouldShowSecondaryChatPromos = !activeTopBanner;
 
   return (
     <>
@@ -4364,8 +4847,9 @@ const ChatPage = () => {
             activityTickerItems={headerTickerItems}
           />
 
-          {/* Banner de Push Notifications */}
-          {showPushBanner && (
+          <ChatStatesStrip roomId={currentRoom} user={user} />
+
+          {activeTopBanner === 'push' && (
             <div className="hidden md:flex px-4 py-2 bg-purple-500/10 border-b border-purple-500/20 items-center justify-between gap-3">
               <p className="text-sm text-purple-300">Activa notificaciones para mensajes, eventos y recordatorios de hora pico</p>
               <div className="flex gap-2 flex-shrink-0">
@@ -4388,18 +4872,82 @@ const ChatPage = () => {
             </div>
           )}
 
-          <ChatStatesStrip roomId={currentRoom} user={user} />
+          {activeTopBanner === 'cercania' && (currentRoom === 'principal' || currentRoom === 'hetero-general') && (
+            <section className="border-b border-border/50 bg-secondary/10 px-4 py-2.5">
+              <div className="flex items-start justify-between gap-3">
+                <div className="min-w-0">
+                  <div className="flex flex-wrap items-center gap-2">
+                    {currentUserComuna ? (
+                      <span className="rounded-full border border-cyan-500/25 bg-cyan-500/10 px-2.5 py-1 text-[11px] font-semibold text-cyan-200">
+                        {nearbySignals.sameComunaCount > 0
+                          ? `Cerca de ti: ${nearbySignals.sameComunaCount}`
+                          : `Tu comuna: ${currentUserComuna}`}
+                      </span>
+                    ) : (
+                      <span className="rounded-full border border-amber-500/25 bg-amber-500/10 px-2.5 py-1 text-[11px] font-semibold text-amber-200">
+                        Falta tu comuna
+                      </span>
+                    )}
+
+                    {nearbySignals.sameComunaCount > 0 && currentUserComuna ? (
+                      <span className="rounded-full border border-border/60 bg-background/50 px-2.5 py-1 text-[11px] text-muted-foreground">
+                        {currentUserComuna}
+                      </span>
+                    ) : null}
+                  </div>
+
+                  <p className="mt-1.5 text-sm text-foreground">
+                    {currentUserComuna && nearbySignals.sameComunaCount > 0
+                      ? `Hay movimiento por ${currentUserComuna}. Si conectas con alguien, usa el privado interno.`
+                      : 'Configura tu comuna y el sistema ordena mejor la cercania.'}
+                  </p>
+                </div>
+
+                <button
+                  type="button"
+                  onClick={handleDismissCercaniaBanner}
+                  className="shrink-0 rounded-full px-2 py-1 text-xs text-muted-foreground transition hover:bg-background/50 hover:text-foreground"
+                  aria-label="Cerrar aviso de cercania"
+                >
+                  Cerrar
+                </button>
+              </div>
+            </section>
+          )}
+
+          {activeTopBanner === 'hetero_intro' && currentRoom === 'hetero-general' && (
+            <section className="border-b border-cyan-500/20 bg-cyan-500/5 px-4 py-2.5">
+              <div className="flex items-start justify-between gap-3">
+                <div className="min-w-0">
+                  <p className="text-sm font-medium text-cyan-200">
+                    Sala activa en vivo: escribe y conversa sin salir de Chactivo.
+                  </p>
+                  <p className="mt-1 text-xs text-cyan-100/80">
+                    {Math.max(0, activeUsersCount)} conectados ahora · {Math.max(0, recentMessagesCount20m)} mensajes recientes
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setShowHeteroRoomIntroBanner(false)}
+                  className="shrink-0 rounded-full px-2 py-1 text-xs text-cyan-100/70 transition hover:bg-white/10 hover:text-cyan-100"
+                  aria-label="Cerrar aviso de sala"
+                >
+                  Cerrar
+                </button>
+              </div>
+            </section>
+          )}
 
           <div className="flex-1 overflow-hidden flex flex-col min-h-0">
             {/* 🎯 OPIN Discovery Banner - Solo para invitados */}
-            {user && (user.isGuest || user.isAnonymous) && (
+            {shouldShowSecondaryChatPromos && !isHeteroRoom && user && (user.isGuest || user.isAnonymous) && (
               <div className="hidden md:block px-4 pt-4">
                 <OpinDiscoveryBanner onOpenOpin={handleOpenOpin} />
               </div>
             )}
 
             {/* 🚀 BANNER PROMOCIONAL Baúl + OPIN - Solo para usuarios registrados */}
-            {user && !user.isGuest && !user.isAnonymous && (
+            {shouldShowSecondaryChatPromos && !isHeteroRoom && user && !user.isGuest && !user.isAnonymous && (
               <div className="hidden md:block">
                 <TarjetaPromoBanner
                   onOpenBaul={handleOpenBaul}
@@ -4409,7 +4957,7 @@ const ChatPage = () => {
             )}
 
             {/* 📅 Banner de evento activo/próximo */}
-            <div className="block">
+            <div className={shouldShowSecondaryChatPromos ? 'block' : 'hidden'}>
               <EventoBanner currentRoomId={roomId} onEventoActivoConRecordatorio={handleEventoActivoConRecordatorio} />
             </div>
 
@@ -4431,6 +4979,7 @@ const ChatPage = () => {
               onScroll={handleMessagesScroll}
               roomUsers={roomUsers}
               dailyTopic={dailyTopic}
+              hideRoleBadges={isHeteroRoom}
               newMessagesIndicator={
                 <NewMessagesIndicator
                   count={scrollManager.unreadCount}
@@ -4453,7 +5002,7 @@ const ChatPage = () => {
             count={unreadRepliesCount}
           />
 
-          {privateMatchSuggestion && (
+          {!isHeteroRoom && privateMatchSuggestion && (
             <PrivateMatchSuggestionCard
               suggestion={privateMatchSuggestion}
               quickGreetings={privateMatchSuggestion.quickGreetings}
@@ -4479,7 +5028,8 @@ const ChatPage = () => {
             onCancelReply={handleCancelReply}
             onRequestNickname={() => setShowNicknameModal(true)}
             isGuest={!user || needsNickname}
-            showOnboardingHints={!needsNickname}
+            showOnboardingHints={!needsNickname && !isHeteroRoom}
+            isHeteroContext={isHeteroRoom}
             photoUsageStats={photoUsageStats}
           />
         </div>
@@ -4493,6 +5043,7 @@ const ChatPage = () => {
           onUserClick={(targetUser) => setUserActionsTarget(targetUser)}
           onStartConversation={handleStartAvailableConversation}
           onRequestNickname={() => setShowNicknameModal(true)}
+          hideRoleBadges={isHeteroRoom}
         />
 
         <FeaturedChannelsColumn
@@ -4724,6 +5275,60 @@ const ChatPage = () => {
         <ScreenSaver onClose={() => setShowScreenSaver(false)} />
       )}
 
+      <Dialog
+        open={showProfileComunaPrompt}
+        onOpenChange={(open) => {
+          if (open) {
+            setShowProfileComunaPrompt(true);
+            return;
+          }
+          handleDismissProfileComunaPrompt();
+        }}
+      >
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Configura tu zona</DialogTitle>
+            <DialogDescription>
+              Si guardas tu comuna o ciudad, el chat puede destacar gente cercana y ordenar mejor las coincidencias.
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-4">
+            <select
+              value={profileComunaValue}
+              onChange={(event) => setProfileComunaValue(event.target.value)}
+              className="flex h-11 w-full items-center rounded-md border border-input bg-background px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-ring"
+            >
+              <option value="">Selecciona tu comuna o ciudad</option>
+              {COMUNA_OPTIONS.map((comunaOption) => (
+                <option key={comunaOption} value={comunaOption}>
+                  {comunaOption}
+                </option>
+              ))}
+            </select>
+
+            <div className="flex gap-2">
+              <button
+                type="button"
+                onClick={handleSaveProfileComuna}
+                disabled={isSavingProfileComuna}
+                className="inline-flex h-10 flex-1 items-center justify-center rounded-md bg-cyan-500 px-4 text-sm font-semibold text-slate-950 transition-colors hover:bg-cyan-400 disabled:cursor-not-allowed disabled:opacity-60"
+              >
+                {isSavingProfileComuna ? 'Guardando...' : 'Guardar zona'}
+              </button>
+              <button
+                type="button"
+                onClick={handleDismissProfileComunaPrompt}
+                disabled={isSavingProfileComuna}
+                className="inline-flex h-10 items-center justify-center rounded-md border border-input px-4 text-sm font-medium text-foreground transition-colors hover:bg-accent disabled:cursor-not-allowed disabled:opacity-60"
+              >
+                Más tarde
+              </button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+
       {/* Modal de registro requerido */}
       <RegistrationRequiredModal
         open={showRegistrationModal}
@@ -4735,7 +5340,7 @@ const ChatPage = () => {
       <GuestUsernameModal
         open={showNicknameModal}
         onClose={() => setShowNicknameModal(false)}
-        chatRoomId="principal"
+        chatRoomId={currentRoom || roomId || 'principal'}
         openSource="user"
         onGuestReady={() => {
           setShowNicknameModal(false);

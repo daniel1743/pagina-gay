@@ -9,9 +9,10 @@ import { useAuth } from '@/contexts/AuthContext';
 import { storage } from '@/config/firebase';
 import { ref as storageRef, uploadBytes, getDownloadURL } from 'firebase/storage';
 import imageCompression from 'browser-image-compression';
-import { updateTypingStatus } from '@/services/presenceService';
+import { updatePresenceFields, updateTypingStatus } from '@/services/presenceService';
 import { notificationSounds, initAudioOnFirstGesture } from '@/services/notificationSounds';
 import { track } from '@/services/eventTrackingService';
+import { COMUNA_OPTIONS, ONBOARDING_COMUNA_KEY, normalizeComuna } from '@/config/comunas';
 
 // Lazy load del EmojiPicker para mejorar rendimiento
 const EmojiPicker = lazy(() => import('emoji-picker-react'));
@@ -49,7 +50,6 @@ const PREMIUM_EMOJIS = [
 const RECENT_EMOJIS_STORAGE_KEY = 'chat_recent_emojis_v1';
 const DEFAULT_RECENT_EMOJIS = ['😂', '🤣', '😍', '🔥', '😘', '😉', '😈', '😏', '🥵', '🤤', '❤️', '😎'];
 const ONBOARDING_ROLE_KEY = 'chactivo:role';
-const ONBOARDING_COMUNA_KEY = 'chactivo:comuna';
 const ONBOARDING_DISMISSED_KEY = 'chactivo:onboarding:dismissed';
 const ONBOARDING_FIRST_MESSAGE_KEY = 'chactivo:onboarding:first_message_sent';
 const ONBOARDING_FOCUS_NUDGE_KEY = 'chactivo:onboarding:focus_nudge_shown';
@@ -59,20 +59,6 @@ const ROLE_CHIPS = [
   { value: 'activo', label: 'Soy Activo' },
   { value: 'pasivo', label: 'Soy Pasivo' },
   { value: 'versatil', label: 'Soy Versátil' },
-];
-
-const COMUNA_OPTIONS = [
-  'Santiago Centro',
-  'Providencia',
-  'Ñuñoa',
-  'La Florida',
-  'Maipú',
-  'Puente Alto',
-  'Las Condes',
-  'Independencia',
-  'Conchalí',
-  'Viña del Mar',
-  'Valparaíso',
 ];
 
 const PHOTO_MAX_SIZE_BYTES = 140 * 1024;
@@ -91,6 +77,7 @@ const ChatInput = ({
   onRequestNickname,
   isGuest = false,
   showOnboardingHints = false,
+  isHeteroContext = false,
   photoUsageStats = { hourlyCount: 0, visibleCount: 0 },
 }) => {
   const { user, guestMessageCount } = useAuth();
@@ -120,7 +107,7 @@ const ChatInput = ({
   });
   const [selectedComuna, setSelectedComuna] = useState(() => {
     if (typeof window === 'undefined') return '';
-    return localStorage.getItem(ONBOARDING_COMUNA_KEY) || '';
+    return normalizeComuna(localStorage.getItem(ONBOARDING_COMUNA_KEY) || '') || '';
   });
   const typingTimeoutRef = useRef(null);
   const focusNudgeTimeoutRef = useRef(null);
@@ -144,7 +131,7 @@ const ChatInput = ({
   const hasVisiblePhotoLimit = visiblePhotoCount >= PHOTO_VISIBLE_LIMIT;
   const canSendPhotoNow = isRegisteredUser && roomId === 'principal';
 
-  const shouldShowOnboarding = showOnboardingHints && !onboardingDismissed && !firstMessageSentInSession && !isMobileEmojiSheet;
+  const shouldShowOnboarding = !isHeteroContext && showOnboardingHints && !onboardingDismissed && !firstMessageSentInSession && !isMobileEmojiSheet;
 
   const persistSessionFlag = (key, value = '1') => {
     if (typeof window === 'undefined') return;
@@ -201,7 +188,7 @@ const ChatInput = ({
   };
 
   const maybeShowFocusNudge = () => {
-    if (!showOnboardingHints || firstMessageSentInSession) return;
+    if (isHeteroContext || !showOnboardingHints || firstMessageSentInSession) return;
     if (typeof window !== 'undefined' && sessionStorage.getItem(ONBOARDING_FOCUS_NUDGE_KEY) === '1') {
       return;
     }
@@ -224,7 +211,7 @@ const ChatInput = ({
     if (!sessionStorage.getItem(ONBOARDING_SESSION_START_KEY)) {
       sessionStorage.setItem(ONBOARDING_SESSION_START_KEY, String(Date.now()));
     }
-  }, [showOnboardingHints]);
+  }, [showOnboardingHints, isHeteroContext]);
 
   useEffect(() => {
     return () => {
@@ -285,7 +272,7 @@ const ChatInput = ({
         }
       };
     }
-  }, [onFocus, onBlur, isGuest, onRequestNickname, showOnboardingHints, firstMessageSentInSession]);
+  }, [onFocus, onBlur, isGuest, onRequestNickname, showOnboardingHints, firstMessageSentInSession, isHeteroContext]);
 
   useEffect(() => {
     function handleClickOutside(event) {
@@ -532,11 +519,17 @@ const ChatInput = ({
   };
 
   const handleComunaSelect = (comunaValue) => {
-    setSelectedComuna(comunaValue);
-    persistLocalValue(ONBOARDING_COMUNA_KEY, comunaValue);
+    const normalizedComuna = normalizeComuna(comunaValue);
+    setSelectedComuna(normalizedComuna);
+    persistLocalValue(ONBOARDING_COMUNA_KEY, normalizedComuna);
+    if (roomId && user?.id) {
+      updatePresenceFields(roomId, {
+        comuna: normalizedComuna || null,
+      }).catch(() => {});
+    }
     trackOnboardingEvent('onboarding_chip_click', {
       chip_type: 'comuna',
-      chip_value: comunaValue || 'none',
+      chip_value: normalizedComuna || 'none',
     });
   };
 

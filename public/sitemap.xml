@@ -46,6 +46,14 @@
     <priority>0.92</priority>
     <mobile:mobile/>
   </url>
+  <url>
+    <loc>https://chactivo.com/gay</loc>
+    <lastmod>2026-03-20</lastmod>
+    <changefreq>daily</changefreq>
+    <priority>0.92</priority>
+    <mobile:mobile/>
+  </url>
+  <!-- ⏸️ TEMPORAL (2026-03-24): vertical hetero oculto de sitemap mientras sigue en desarrollo -->
   <!-- ⏸️ TEMPORAL (2026-03-06): /gaming y /video-chat-gay ocultos y redirigidos a /chat/principal -->
 
   <!-- ✅ LANDING PAGES INTERNACIONALES (Expansión) -->
@@ -160,5 +168,6 @@
     <priority>0.85</priority>
     <mobile:mobile/>
   </url>
+  <!-- ⏸️ TEMPORAL (2026-03-24): /chat/hetero-general fuera de sitemap mientras no se quiere indexar -->
 
 </urlset>

@@ -7,7 +7,7 @@ import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Hash, Gamepad2, Users, Heart, User, LogIn, X, UserCheck, GitFork, UserMinus, Cake, CheckCircle, Lock, Sparkles, Archive, MessageCircle } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { subscribeToMultipleRoomCounts } from '@/services/presenceService';
-import { colorClasses, getVisibleRoomsForUser } from '@/config/rooms';
+import { colorClasses, getVisibleRoomsForUser, roomsData } from '@/config/rooms';
 import { RegistrationRequiredModal } from '@/components/auth/RegistrationRequiredModal';
 import { AuthModal } from '@/components/auth/AuthModal';
 import TopParticipantsSidebarCards from '@/components/chat/TopParticipantsSidebarCards';
@@ -62,6 +62,7 @@ const ChatSidebar = ({ currentRoom, setCurrentRoom, isOpen, onClose, onOpenBaul,
     user?.hasFeaturedCard ||
     user?.canUploadSecondPhoto
   );
+  const isHeteroRoom = currentRoom === 'hetero-general';
   
   // ✅ Detectar si estamos en una sala secundaria
   const isSecondaryRoom = location.pathname.startsWith('/chat-secondary/');
@@ -132,20 +133,33 @@ const ChatSidebar = ({ currentRoom, setCurrentRoom, isOpen, onClose, onOpenBaul,
     return () => window.removeEventListener('resize', handleResize);
   }, []);
 
-  // Suscribirse a contadores en tiempo real (solo sala principal visible)
+  // 🔒 Usuarios normales: solo sala principal. Admin: principal + admin-testing.
+  // Si el usuario está en /chat/hetero-general, mantener sidebar aislado a esa sala.
+  const visibleRooms = useMemo(() => {
+    if (currentRoom === 'hetero-general') {
+      const heteroRoom = roomsData.find((room) => room.id === 'hetero-general');
+      return heteroRoom ? [heteroRoom] : [];
+    }
+    return getVisibleRoomsForUser(user);
+  }, [currentRoom, user]);
+
+  // Suscribirse a contadores en tiempo real para las salas visibles de este contexto
   useEffect(() => {
     if (!user) {
       setRoomCounts({});
       return;
     }
 
-    // Suscribirse solo a salas visibles para este usuario (admin ve admin-testing)
-    const roomIds = getVisibleRoomsForUser(user).map(room => room.id);
+    const roomIds = visibleRooms.map(room => room.id);
+    if (roomIds.length === 0) {
+      setRoomCounts({});
+      return;
+    }
     const unsubscribe = subscribeToMultipleRoomCounts(roomIds, (counts) => {
       setRoomCounts(counts);
     });
     return () => unsubscribe();
-  }, [user]);
+  }, [user, visibleRooms]);
 
   const handleRoomChange = (roomId, isSecondary = false) => {
     setCurrentRoom(roomId);
@@ -165,9 +179,6 @@ const ChatSidebar = ({ currentRoom, setCurrentRoom, isOpen, onClose, onOpenBaul,
     logout();
     navigate('/');
   }
-
-  // 🔒 Usuarios normales: solo sala principal. Admin: principal + admin-testing.
-  const visibleRooms = getVisibleRoomsForUser(user);
 
   const handleLogoError = () => {
     setLogoIndex((prev) => Math.min(prev + 1, logoSources.length));
@@ -384,86 +395,87 @@ const ChatSidebar = ({ currentRoom, setCurrentRoom, isOpen, onClose, onOpenBaul,
             </div>
           </div>
 
-          {/* 🎯 OPIN y Baúl - Descubre */}
-          <div className="mt-4 mb-2">
-            <h3 className="text-xs font-semibold text-muted-foreground uppercase mb-2 px-2">Descubre</h3>
-            <div className="space-y-1">
-              <Button
-                variant="ghost"
-                className="w-full justify-start text-left h-auto py-2.5 px-3 hover:bg-accent/50 hover:border-l-2 hover:border-purple-500 group"
-                onClick={() => {
-                  const handled = onOpenOpin ? onOpenOpin() === true : false;
-                  if (!handled) navigate('/opin');
-                  if (typeof window !== 'undefined' && window.innerWidth < 1024) onClose();
-                }}
-              >
-                <Sparkles className="w-5 h-5 text-purple-400 flex-shrink-0 mr-3" />
-                <span className="text-sm font-medium text-foreground">Tablón</span>
-              </Button>
-              <Button
-                variant="ghost"
-                className="w-full justify-start text-left h-auto py-2.5 px-3 hover:bg-accent/50 hover:border-l-2 hover:border-cyan-500 group"
-                onClick={() => {
-                  const handled = onOpenBaul ? onOpenBaul() === true : false;
-                  if (!handled) navigate('/baul');
-                  if (typeof window !== 'undefined' && window.innerWidth < 1024) onClose();
-                }}
-              >
-                <Archive className="w-5 h-5 text-cyan-400 flex-shrink-0 mr-3" />
-                <span className="text-sm font-medium text-foreground">Baúl</span>
-              </Button>
-              <Button
-                variant="ghost"
-                className="w-full justify-start text-left h-auto py-2.5 px-3 hover:bg-accent/50 hover:border-l-2 hover:border-emerald-500 group"
-                onClick={() => {
-                  if (mergedPrivateChats.length > 0) {
-                    openPrivateChatFromShortcut(mergedPrivateChats[0]);
-                    return;
-                  }
-                  navigate('/chat/principal');
-                }}
-              >
-                <MessageCircle className="w-5 h-5 text-emerald-400 flex-shrink-0 mr-3" />
-                <span className="text-sm font-medium text-foreground">Privados</span>
+          {!isHeteroRoom && (
+            <div className="mt-4 mb-2">
+              <h3 className="text-xs font-semibold text-muted-foreground uppercase mb-2 px-2">Descubre</h3>
+              <div className="space-y-1">
+                <Button
+                  variant="ghost"
+                  className="w-full justify-start text-left h-auto py-2.5 px-3 hover:bg-accent/50 hover:border-l-2 hover:border-purple-500 group"
+                  onClick={() => {
+                    const handled = onOpenOpin ? onOpenOpin() === true : false;
+                    if (!handled) navigate('/opin');
+                    if (typeof window !== 'undefined' && window.innerWidth < 1024) onClose();
+                  }}
+                >
+                  <Sparkles className="w-5 h-5 text-purple-400 flex-shrink-0 mr-3" />
+                  <span className="text-sm font-medium text-foreground">Tablón</span>
+                </Button>
+                <Button
+                  variant="ghost"
+                  className="w-full justify-start text-left h-auto py-2.5 px-3 hover:bg-accent/50 hover:border-l-2 hover:border-cyan-500 group"
+                  onClick={() => {
+                    const handled = onOpenBaul ? onOpenBaul() === true : false;
+                    if (!handled) navigate('/baul');
+                    if (typeof window !== 'undefined' && window.innerWidth < 1024) onClose();
+                  }}
+                >
+                  <Archive className="w-5 h-5 text-cyan-400 flex-shrink-0 mr-3" />
+                  <span className="text-sm font-medium text-foreground">Baúl</span>
+                </Button>
+                <Button
+                  variant="ghost"
+                  className="w-full justify-start text-left h-auto py-2.5 px-3 hover:bg-accent/50 hover:border-l-2 hover:border-emerald-500 group"
+                  onClick={() => {
+                    if (mergedPrivateChats.length > 0) {
+                      openPrivateChatFromShortcut(mergedPrivateChats[0]);
+                      return;
+                    }
+                    navigate('/chat/principal');
+                  }}
+                >
+                  <MessageCircle className="w-5 h-5 text-emerald-400 flex-shrink-0 mr-3" />
+                  <span className="text-sm font-medium text-foreground">Privados</span>
+                  {mergedPrivateChats.length > 0 && (
+                    <span className="ml-auto text-[10px] px-1.5 py-0.5 rounded-full bg-emerald-500/15 text-emerald-300 border border-emerald-500/30">
+                      {mergedPrivateChats.length}
+                    </span>
+                  )}
+                </Button>
                 {mergedPrivateChats.length > 0 && (
-                  <span className="ml-auto text-[10px] px-1.5 py-0.5 rounded-full bg-emerald-500/15 text-emerald-300 border border-emerald-500/30">
-                    {mergedPrivateChats.length}
-                  </span>
+                  <div className="pl-3 pr-1 pb-1 pt-1.5 space-y-1">
+                    {mergedPrivateChats.map((chat) => {
+                      const partnerName = chat?.partner?.username || 'Usuario';
+                      const partnerAvatar = chat?.partner?.avatar || '';
+                      return (
+                        <button
+                          key={chat.key}
+                          type="button"
+                          onClick={() => openPrivateChatFromShortcut(chat)}
+                          className="w-full flex items-center gap-2 rounded-lg border border-border/60 bg-secondary/20 hover:bg-secondary/40 px-2 py-1.5 transition-colors text-left"
+                        >
+                          <Avatar className="w-6 h-6">
+                            <AvatarImage src={partnerAvatar} alt={partnerName} />
+                            <AvatarFallback className="text-[10px] bg-muted text-foreground">
+                              {partnerName.slice(0, 2).toUpperCase()}
+                            </AvatarFallback>
+                          </Avatar>
+                          <span className="text-xs text-foreground truncate flex-1">{partnerName}</span>
+                          {chat.isOpen && (
+                            <span className="text-[9px] px-1 py-0.5 rounded-full bg-emerald-500/15 text-emerald-300 border border-emerald-500/30">
+                              Abierto
+                            </span>
+                          )}
+                        </button>
+                      );
+                    })}
+                  </div>
                 )}
-              </Button>
-              {mergedPrivateChats.length > 0 && (
-                <div className="pl-3 pr-1 pb-1 pt-1.5 space-y-1">
-                  {mergedPrivateChats.map((chat) => {
-                    const partnerName = chat?.partner?.username || 'Usuario';
-                    const partnerAvatar = chat?.partner?.avatar || '';
-                    return (
-                      <button
-                        key={chat.key}
-                        type="button"
-                        onClick={() => openPrivateChatFromShortcut(chat)}
-                        className="w-full flex items-center gap-2 rounded-lg border border-border/60 bg-secondary/20 hover:bg-secondary/40 px-2 py-1.5 transition-colors text-left"
-                      >
-                        <Avatar className="w-6 h-6">
-                          <AvatarImage src={partnerAvatar} alt={partnerName} />
-                          <AvatarFallback className="text-[10px] bg-muted text-foreground">
-                            {partnerName.slice(0, 2).toUpperCase()}
-                          </AvatarFallback>
-                        </Avatar>
-                        <span className="text-xs text-foreground truncate flex-1">{partnerName}</span>
-                        {chat.isOpen && (
-                          <span className="text-[9px] px-1 py-0.5 rounded-full bg-emerald-500/15 text-emerald-300 border border-emerald-500/30">
-                            Abierto
-                          </span>
-                        )}
-                      </button>
-                    );
-                  })}
-                </div>
-              )}
+              </div>
             </div>
-          </div>
+          )}
 
-          {isDesktopViewport && (
+          {isDesktopViewport && !isHeteroRoom && (
             <TopParticipantsSidebarCards
               roomId={currentRoom || 'principal'}
               isSecondaryRoom={isSecondaryRoom}
@@ -731,87 +743,88 @@ const ChatSidebar = ({ currentRoom, setCurrentRoom, isOpen, onClose, onOpenBaul,
             </div>
           </div>
 
-          {/* 🎯 OPIN y Baúl - Descubre (mobile) */}
-          <div className="mt-4 mb-2">
-            <h3 className="text-xs font-semibold text-muted-foreground uppercase mb-2 px-2">Descubre</h3>
-            <div className="space-y-1">
-              <Button
-                variant="ghost"
-                className="w-full justify-start text-left h-auto py-2.5 px-3 hover:bg-accent/50 hover:border-l-2 hover:border-purple-500 group"
-                onClick={() => {
-                  const handled = onOpenOpin ? onOpenOpin() === true : false;
-                  if (!handled) navigate('/opin');
-                  onClose();
-                }}
-              >
-                <Sparkles className="w-5 h-5 text-purple-400 flex-shrink-0 mr-3" />
-                <span className="text-sm font-medium text-foreground">Tablón</span>
-              </Button>
-              <Button
-                variant="ghost"
-                className="w-full justify-start text-left h-auto py-2.5 px-3 hover:bg-accent/50 hover:border-l-2 hover:border-cyan-500 group"
-                onClick={() => {
-                  const handled = onOpenBaul ? onOpenBaul() === true : false;
-                  if (!handled) navigate('/baul');
-                  onClose();
-                }}
-              >
-                <Archive className="w-5 h-5 text-cyan-400 flex-shrink-0 mr-3" />
-                <span className="text-sm font-medium text-foreground">Baúl</span>
-              </Button>
-              <Button
-                variant="ghost"
-                className="w-full justify-start text-left h-auto py-2.5 px-3 hover:bg-accent/50 hover:border-l-2 hover:border-emerald-500 group"
-                onClick={() => {
-                  if (mergedPrivateChats.length > 0) {
-                    openPrivateChatFromShortcut(mergedPrivateChats[0]);
-                    return;
-                  }
-                  navigate('/chat/principal');
-                  onClose();
-                }}
-              >
-                <MessageCircle className="w-5 h-5 text-emerald-400 flex-shrink-0 mr-3" />
-                <span className="text-sm font-medium text-foreground">Privados</span>
+          {!isHeteroRoom && (
+            <div className="mt-4 mb-2">
+              <h3 className="text-xs font-semibold text-muted-foreground uppercase mb-2 px-2">Descubre</h3>
+              <div className="space-y-1">
+                <Button
+                  variant="ghost"
+                  className="w-full justify-start text-left h-auto py-2.5 px-3 hover:bg-accent/50 hover:border-l-2 hover:border-purple-500 group"
+                  onClick={() => {
+                    const handled = onOpenOpin ? onOpenOpin() === true : false;
+                    if (!handled) navigate('/opin');
+                    onClose();
+                  }}
+                >
+                  <Sparkles className="w-5 h-5 text-purple-400 flex-shrink-0 mr-3" />
+                  <span className="text-sm font-medium text-foreground">Tablón</span>
+                </Button>
+                <Button
+                  variant="ghost"
+                  className="w-full justify-start text-left h-auto py-2.5 px-3 hover:bg-accent/50 hover:border-l-2 hover:border-cyan-500 group"
+                  onClick={() => {
+                    const handled = onOpenBaul ? onOpenBaul() === true : false;
+                    if (!handled) navigate('/baul');
+                    onClose();
+                  }}
+                >
+                  <Archive className="w-5 h-5 text-cyan-400 flex-shrink-0 mr-3" />
+                  <span className="text-sm font-medium text-foreground">Baúl</span>
+                </Button>
+                <Button
+                  variant="ghost"
+                  className="w-full justify-start text-left h-auto py-2.5 px-3 hover:bg-accent/50 hover:border-l-2 hover:border-emerald-500 group"
+                  onClick={() => {
+                    if (mergedPrivateChats.length > 0) {
+                      openPrivateChatFromShortcut(mergedPrivateChats[0]);
+                      return;
+                    }
+                    navigate('/chat/principal');
+                    onClose();
+                  }}
+                >
+                  <MessageCircle className="w-5 h-5 text-emerald-400 flex-shrink-0 mr-3" />
+                  <span className="text-sm font-medium text-foreground">Privados</span>
+                  {mergedPrivateChats.length > 0 && (
+                    <span className="ml-auto text-[10px] px-1.5 py-0.5 rounded-full bg-emerald-500/15 text-emerald-300 border border-emerald-500/30">
+                      {mergedPrivateChats.length}
+                    </span>
+                  )}
+                </Button>
                 {mergedPrivateChats.length > 0 && (
-                  <span className="ml-auto text-[10px] px-1.5 py-0.5 rounded-full bg-emerald-500/15 text-emerald-300 border border-emerald-500/30">
-                    {mergedPrivateChats.length}
-                  </span>
+                  <div className="pl-3 pr-1 pb-1 pt-1.5 space-y-1">
+                    {mergedPrivateChats.map((chat) => {
+                      const partnerName = chat?.partner?.username || 'Usuario';
+                      const partnerAvatar = chat?.partner?.avatar || '';
+                      return (
+                        <button
+                          key={`mobile-${chat.key}`}
+                          type="button"
+                          onClick={() => openPrivateChatFromShortcut(chat)}
+                          className="w-full flex items-center gap-2 rounded-lg border border-border/60 bg-secondary/20 hover:bg-secondary/40 px-2 py-1.5 transition-colors text-left"
+                        >
+                          <Avatar className="w-6 h-6">
+                            <AvatarImage src={partnerAvatar} alt={partnerName} />
+                            <AvatarFallback className="text-[10px] bg-muted text-foreground">
+                              {partnerName.slice(0, 2).toUpperCase()}
+                            </AvatarFallback>
+                          </Avatar>
+                          <span className="text-xs text-foreground truncate flex-1">{partnerName}</span>
+                          {chat.isOpen && (
+                            <span className="text-[9px] px-1 py-0.5 rounded-full bg-emerald-500/15 text-emerald-300 border border-emerald-500/30">
+                              Abierto
+                            </span>
+                          )}
+                        </button>
+                      );
+                    })}
+                  </div>
                 )}
-              </Button>
-              {mergedPrivateChats.length > 0 && (
-                <div className="pl-3 pr-1 pb-1 pt-1.5 space-y-1">
-                  {mergedPrivateChats.map((chat) => {
-                    const partnerName = chat?.partner?.username || 'Usuario';
-                    const partnerAvatar = chat?.partner?.avatar || '';
-                    return (
-                      <button
-                        key={`mobile-${chat.key}`}
-                        type="button"
-                        onClick={() => openPrivateChatFromShortcut(chat)}
-                        className="w-full flex items-center gap-2 rounded-lg border border-border/60 bg-secondary/20 hover:bg-secondary/40 px-2 py-1.5 transition-colors text-left"
-                      >
-                        <Avatar className="w-6 h-6">
-                          <AvatarImage src={partnerAvatar} alt={partnerName} />
-                          <AvatarFallback className="text-[10px] bg-muted text-foreground">
-                            {partnerName.slice(0, 2).toUpperCase()}
-                          </AvatarFallback>
-                        </Avatar>
-                        <span className="text-xs text-foreground truncate flex-1">{partnerName}</span>
-                        {chat.isOpen && (
-                          <span className="text-[9px] px-1 py-0.5 rounded-full bg-emerald-500/15 text-emerald-300 border border-emerald-500/30">
-                            Abierto
-                          </span>
-                        )}
-                      </button>
-                    );
-                  })}
-                </div>
-              )}
+              </div>
             </div>
-          </div>
+          )}
 
-          {!isDesktopViewport && (
+          {!isDesktopViewport && !isHeteroRoom && (
             <TopParticipantsSidebarCards
               compact
               roomId={currentRoom || 'principal'}

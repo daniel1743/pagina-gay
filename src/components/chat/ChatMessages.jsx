@@ -13,6 +13,8 @@ import { getProfileRoleBadgeMeta } from '@/config/profileRoles';
 import { isUserAvailableForConversation } from '@/services/presenceService';
 import './ChatMessages.css';
 
+const isSeededUserId = (userId = '') => String(userId || '').startsWith('seed_user_');
+
 /**
  * ⚡ TELEGRAM DESKTOP STYLE - Alta Densidad
  *
@@ -41,6 +43,7 @@ const ChatMessages = ({
   roomUsers = [],
   dailyTopic = '',
   isLoadingMessages = false,
+  hideRoleBadges = false,
 }) => {
   const DEFAULT_CHAT_AVATAR = '/avatar_por_defecto.jpeg';
   const resolveChatAvatar = (avatar) => {
@@ -439,7 +442,9 @@ const ChatMessages = ({
         prevMessage.userId !== 'system' &&
         prevMessage.userId !== 'system_moderator' &&
         timeDiff <= GROUP_TIME_THRESHOLD;
-      const normalizedRoleBadge = getProfileRoleBadgeMeta(message.roleBadge)?.label || null;
+      const normalizedRoleBadge = hideRoleBadges
+        ? null
+        : (getProfileRoleBadgeMeta(message.roleBadge)?.label || null);
 
       if (shouldGroup && currentGroup) {
         currentGroup.messages.push(message);
@@ -541,7 +546,7 @@ const ChatMessages = ({
           const isUserVerified = findUserVerifiedStatus(group.userId);
           const isUserPro = findUserProStatus(group.userId) || hasProVisualFlags(group);
           const userRole = findUserRole(group.userId);
-          const roleBadgeMeta = getProfileRoleBadgeMeta(group.roleBadge);
+          const roleBadgeMeta = hideRoleBadges ? null : getProfileRoleBadgeMeta(group.roleBadge);
           const showDivider = lastReadMessageIndex >= 0 && absoluteIndex === lastReadMessageIndex + 1;
 
           return (
@@ -614,9 +619,14 @@ const ChatMessages = ({
                       </span>
                     );
                   })()}
-                  {roleBadgeMeta ? (
+                  {!hideRoleBadges && roleBadgeMeta ? (
                     <span className={`inline-block ml-1.5 text-[10px] font-bold tracking-[0.01em] px-2 py-0.5 rounded-full border ${roleBadgeMeta.badgeClassName}`}>
                       {roleBadgeMeta.label}
+                    </span>
+                  ) : null}
+                  {group.comuna ? (
+                    <span className="message-comuna-chip">
+                      {group.comuna}
                     </span>
                   ) : null}
                 </div>
@@ -641,6 +651,8 @@ const ChatMessages = ({
 
                 // Mostrar timestamp solo en último mensaje del grupo
                 const showTime = isLast;
+                const messageTimestamp = message.timestampMs || message.timestamp;
+                const formattedTime = showTime ? formatTime(messageTimestamp) : '';
 
                 // Estado de conexión del usuario
                 const userPresence = safeRoomUsers.find(u => (u.userId || u.id) === group.userId);
@@ -701,25 +713,30 @@ const ChatMessages = ({
                     {/* ✅ Avatar: Solo en primer mensaje, solo para otros */}
                     {!isOwn && isFirst && (
                       <div
-                        className={`message-avatar cursor-pointer relative ${
+                        className={`message-avatar relative ${
+                          isSeededUserId(group.userId) ? '' : 'cursor-pointer'
+                        } ${
                           roleBadgeMeta
                             ? 'avatar-role-ring'
                             : (isUserPro ? 'rainbow-avatar-ring p-[2px] rounded-full' : '')
                         }`}
                         style={roleBadgeMeta?.avatarRingColor ? { '--role-ring-color': roleBadgeMeta.avatarRingColor } : undefined}
-                        onClick={() => onUserClick({
-                          username: group.username,
-                          avatar: group.avatar,
-                          userId: group.userId,
-                          isPremium: isUserPremium,
-                          verified: isUserVerified,
-                          isProUser: isUserPro,
-                          hasRainbowBorder: group.hasRainbowBorder || false,
-                          hasProBadge: group.hasProBadge || false,
-                          hasFeaturedCard: group.hasFeaturedCard || false,
-                          canUploadSecondPhoto: group.canUploadSecondPhoto || false,
-                          role: userRole
-                        })}
+                        onClick={() => {
+                          if (isSeededUserId(group.userId)) return;
+                          onUserClick({
+                            username: group.username,
+                            avatar: group.avatar,
+                            userId: group.userId,
+                            isPremium: isUserPremium,
+                            verified: isUserVerified,
+                            isProUser: isUserPro,
+                            hasRainbowBorder: group.hasRainbowBorder || false,
+                            hasProBadge: group.hasProBadge || false,
+                            hasFeaturedCard: group.hasFeaturedCard || false,
+                            canUploadSecondPhoto: group.canUploadSecondPhoto || false,
+                            role: userRole
+                          });
+                        }}
                       >
                         <Avatar className={`w-full h-full ${isUserPro ? 'rounded-full' : ''}`}>
                           <AvatarImage
@@ -838,6 +855,19 @@ const ChatMessages = ({
                           </button>
                         </div>
                       )}
+
+                      {showTime && (
+                        <div className={`message-meta ${isOwn ? 'own' : 'other'}`}>
+                          {formattedTime && (
+                            <span className="message-time">{formattedTime}</span>
+                          )}
+                          {isOwn && (
+                            <span className={`message-status ${message.status === 'error' ? 'error' : message.status === 'delivered' ? 'delivered' : message.status === 'sent' ? 'sent' : 'sending'}`}>
+                              {message.status === 'error' ? '!' : message.status === 'delivered' ? '✓✓' : message.status === 'sent' ? '✓✓' : '✓'}
+                            </span>
+                          )}
+                        </div>
+                      )}
                     </div>
 
                     {/* ACCIONES - Solo para otros */}
@@ -906,12 +936,6 @@ const ChatMessages = ({
                       </span>
                     )}
 
-                    {/* Delivery status — solo en mensajes propios, último del grupo */}
-                    {isOwn && showTime && (
-                      <span className={`message-status ${message.status === 'error' ? 'error' : message.status === 'delivered' ? 'delivered' : message.status === 'sent' ? 'sent' : 'sending'}`}>
-                        {message.status === 'error' ? '!' : message.status === 'delivered' ? '✓✓' : message.status === 'sent' ? '✓✓' : '✓'}
-                      </span>
-                    )}
                   </div>
                 );
               })}

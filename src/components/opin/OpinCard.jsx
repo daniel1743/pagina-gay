@@ -9,8 +9,8 @@
 
 import React, { useState, useEffect, useRef, forwardRef } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Heart, MessageCircle, MoreHorizontal, Trash2, ChevronDown, ChevronUp, Lock } from 'lucide-react';
-import { getTimeRemaining, toggleLike, hasUserLiked, deleteOpinPost, OPIN_COLORS, OPIN_REACTIONS, toggleReaction, getUserReactions, getReplyPreview, incrementViewCount } from '@/services/opinService';
+import { Heart, MessageCircle, MoreHorizontal, Trash2, ChevronDown, ChevronUp, Lock, Bell, BellOff } from 'lucide-react';
+import { toggleLike, hasUserLiked, deleteOpinPost, OPIN_COLORS, OPIN_REACTIONS, toggleReaction, getUserReactions, getReplyPreview, incrementViewCount, getOpinStatusMeta } from '@/services/opinService';
 import { sendPrivateChatRequestFromOpin } from '@/services/socialService';
 import { obtenerTarjeta } from '@/services/tarjetaService';
 import MensajeTarjetaModal from '@/components/baul/MensajeTarjetaModal';
@@ -20,7 +20,15 @@ import { track, getSessionId } from '@/services/eventTrackingService';
 
 const COMMENTS_INLINE_LIMIT = 16;
 
-const OpinCard = forwardRef(({ post, onCommentsClick, onPostDeleted, isReadOnlyMode = false }, ref) => {
+const OpinCard = forwardRef(({
+  post,
+  onCommentsClick,
+  onPostDeleted,
+  isReadOnlyMode = false,
+  isFollowed = false,
+  onToggleFollow = null,
+  hasNewActivity = false,
+}, ref) => {
   const navigate = useNavigate();
   const { user, userProfile } = useAuth();
   const [likeCount, setLikeCount] = useState(post.likeCount || 0);
@@ -51,6 +59,7 @@ const OpinCard = forwardRef(({ post, onCommentsClick, onPostDeleted, isReadOnlyM
   const isLoggedIn = user && !user.isAnonymous && !user.isGuest;
   const currentUserId = user?.uid || user?.id || null;
   const totalReplies = post.commentCount || 0;
+  const statusMeta = getOpinStatusMeta(post.status);
 
   const setRefs = (node) => {
     cardRef.current = node;
@@ -87,6 +96,13 @@ const OpinCard = forwardRef(({ post, onCommentsClick, onPostDeleted, isReadOnlyM
 
     return () => observer.disconnect();
   }, [post?.id, post?.userId, user]);
+
+  useEffect(() => {
+    setLikeCount(post.likeCount || 0);
+    setLiked(hasUserLiked(post));
+    setReactionCounts(post.reactionCounts || {});
+    setMyReactions(getUserReactions(post));
+  }, [post]);
 
   // Cargar preview de respuestas al desplegar el bloque de comentarios
   useEffect(() => {
@@ -211,6 +227,13 @@ const OpinCard = forwardRef(({ post, onCommentsClick, onPostDeleted, isReadOnlyM
     if (onCommentsClick) onCommentsClick(post);
   };
 
+  const handleToggleFollow = (e) => {
+    e.stopPropagation();
+    if (typeof onToggleFollow === 'function') {
+      onToggleFollow(post);
+    }
+  };
+
   const getInviteErrorMessage = (error) => {
     switch (error?.message) {
       case 'BLOCKED':
@@ -325,6 +348,42 @@ const OpinCard = forwardRef(({ post, onCommentsClick, onPostDeleted, isReadOnlyM
 
           {/* Contenido */}
           <div className="flex-1 min-w-0">
+            <div className="flex items-start justify-between gap-2 mb-2">
+              <div className="flex flex-wrap items-center gap-2">
+                <span className={`inline-flex items-center rounded-full border px-2 py-0.5 text-[11px] font-medium ${statusMeta.badgeClassName}`}>
+                  {statusMeta.shortLabel}
+                </span>
+                {hasNewActivity && (
+                  <span className="inline-flex items-center rounded-full border border-amber-500/30 bg-amber-500/10 px-2 py-0.5 text-[11px] font-medium text-amber-300">
+                    Actividad nueva
+                  </span>
+                )}
+              </div>
+
+              {!isOwner && (
+                <button
+                  onClick={handleToggleFollow}
+                  className={`inline-flex items-center gap-1 rounded-full border px-2 py-1 text-[11px] font-medium transition-colors ${
+                    isFollowed
+                      ? 'border-cyan-500/30 bg-cyan-500/10 text-cyan-300'
+                      : 'border-white/10 bg-white/5 text-muted-foreground hover:bg-white/10'
+                  }`}
+                >
+                  {isFollowed ? (
+                    <>
+                      <BellOff className="w-3 h-3" />
+                      Siguiendo
+                    </>
+                  ) : (
+                    <>
+                      <Bell className="w-3 h-3" />
+                      Seguir
+                    </>
+                  )}
+                </button>
+              )}
+            </div>
+
             {/* Texto principal */}
             <p className="text-sm text-foreground leading-relaxed">
               {displayText}

@@ -84,6 +84,7 @@ import AdminEventosPanel from '@/components/admin/AdminEventosPanel';
 import BotControlPanel from '@/components/admin/BotControlPanel';
 import AdminFeaturedAdsPanel from '@/components/admin/AdminFeaturedAdsPanel';
 import AdminTopParticipantsPanel from '@/components/admin/AdminTopParticipantsPanel';
+import AdminSeededChatPanel from '@/components/admin/AdminSeededChatPanel';
 
 const AdminPage = () => {
   const navigate = useNavigate();
@@ -969,6 +970,7 @@ const AdminPage = () => {
             <TabsTrigger value="rewards">Recompensas</TabsTrigger>
             <TabsTrigger value="featured-ads">Canales Destacados</TabsTrigger>
             <TabsTrigger value="top-participants">Top Participantes</TabsTrigger>
+            <TabsTrigger value="seeded-chat">Sala Asistida</TabsTrigger>
             <TabsTrigger value="forum">Foro</TabsTrigger>
             <TabsTrigger value="opin">OPIN estables</TabsTrigger>
             <TabsTrigger value="opin-replies">Responder OPINs</TabsTrigger>
@@ -1976,6 +1978,10 @@ const AdminPage = () => {
 
           <TabsContent value="top-participants" className="space-y-6">
             <AdminTopParticipantsPanel />
+          </TabsContent>
+
+          <TabsContent value="seeded-chat" className="space-y-6">
+            <AdminSeededChatPanel />
           </TabsContent>
 
           {/* Foro Tab - Gestión del Foro Anónimo */}

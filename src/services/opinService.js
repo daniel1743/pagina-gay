@@ -50,6 +50,79 @@ export const OPIN_COLORS = {
   blue: { name: 'Blue', gradient: 'from-blue-500 to-blue-700', bg: 'bg-blue-500/10', border: 'border-blue-500/50' },
 };
 
+export const OPIN_STATUS_OPTIONS = [
+  {
+    value: 'buscando',
+    label: 'Buscando',
+    shortLabel: 'Buscando',
+    description: 'Disponible para nuevas respuestas',
+    badgeClassName: 'bg-emerald-500/15 text-emerald-300 border-emerald-500/30',
+  },
+  {
+    value: 'hablando',
+    label: 'Hablando con alguien',
+    shortLabel: 'Hablando',
+    description: 'Ya está conversando con alguien',
+    badgeClassName: 'bg-cyan-500/15 text-cyan-300 border-cyan-500/30',
+  },
+  {
+    value: 'quiero_mas',
+    label: 'Quiero más respuestas',
+    shortLabel: 'Quiero más',
+    description: 'Sigue abierto y quiere más gente',
+    badgeClassName: 'bg-fuchsia-500/15 text-fuchsia-300 border-fuchsia-500/30',
+  },
+  {
+    value: 'cerrado',
+    label: 'Cerrado',
+    shortLabel: 'Cerrado',
+    description: 'Ya no busca más respuestas',
+    badgeClassName: 'bg-slate-500/20 text-slate-300 border-slate-500/30',
+  },
+];
+
+const DEFAULT_OPIN_STATUS = OPIN_STATUS_OPTIONS[0].value;
+
+export const isValidOpinStatus = (status) => OPIN_STATUS_OPTIONS.some((item) => item.value === status);
+
+export const getOpinStatusMeta = (status) => (
+  OPIN_STATUS_OPTIONS.find((item) => item.value === status) || OPIN_STATUS_OPTIONS[0]
+);
+
+export const getTimestampMs = (value) => {
+  if (!value) return 0;
+  if (typeof value?.toMillis === 'function') return value.toMillis();
+  const parsed = new Date(value).getTime();
+  return Number.isFinite(parsed) ? parsed : 0;
+};
+
+export const getOpinPostActivityMs = (post) => {
+  if (!post) return 0;
+  return Math.max(
+    getTimestampMs(post.lastInteractionAt),
+    getTimestampMs(post.lastCommentAt),
+    getTimestampMs(post.createdAt)
+  );
+};
+
+export const getReactionTotalFromCounts = (reactionCounts = {}) => (
+  Object.values(reactionCounts).reduce((sum, count) => sum + (count || 0), 0)
+);
+
+export const normalizeOpinPost = (post) => ({
+  ...post,
+  status: isValidOpinStatus(post?.status) ? post.status : DEFAULT_OPIN_STATUS,
+  likeCount: Number(post?.likeCount || 0),
+  commentCount: Number(post?.commentCount || 0),
+  viewCount: Number(post?.viewCount || 0),
+  profileClickCount: Number(post?.profileClickCount || 0),
+  reactionCounts: post?.reactionCounts || {},
+  reactions: post?.reactions || {},
+  likedBy: post?.likedBy || [],
+  lastCommentAt: post?.lastCommentAt || null,
+  lastInteractionAt: post?.lastInteractionAt || post?.createdAt || null,
+});
+
 // 🔥 Reacciones eróticas/sugestivas para OPIN
 export const OPIN_REACTIONS = [
   { emoji: '🔥', label: 'Fuego' },
@@ -127,7 +200,7 @@ export const canCreatePost = async () => {
 /**
  * ✅ Crear un nuevo post de OPIN
  */
-export const createOpinPost = async ({ title = '', text, color = 'purple', userProfile }) => {
+export const createOpinPost = async ({ title = '', text, color = 'purple', userProfile, status = DEFAULT_OPIN_STATUS }) => {
   if (!auth.currentUser) {
     throw new Error('Usuario no autenticado');
   }
@@ -150,6 +223,10 @@ export const createOpinPost = async ({ title = '', text, color = 'purple', userP
     color = 'purple'; // Default
   }
 
+  if (!isValidOpinStatus(status)) {
+    status = DEFAULT_OPIN_STATUS;
+  }
+
   // Verificar cooldown (2 horas entre publicaciones)
   const canCreate = await canCreatePost();
   if (!canCreate.canCreate) {
@@ -167,10 +244,13 @@ export const createOpinPost = async ({ title = '', text, color = 'purple', userP
     title: '',
     text: text.trim(),
     color: color,
+    status,
     createdAt: serverTimestamp(),
     expiresAt: expiresAt,
     isActive: true,
     isStable: false, // Posts de usuarios: 60 días. Los estables (admin) tienen isStable: true y no expiran.
+    lastInteractionAt: serverTimestamp(),
+    lastCommentAt: null,
     viewCount: 0,
     profileClickCount: 0,
     likeCount: 0,
@@ -183,7 +263,7 @@ export const createOpinPost = async ({ title = '', text, color = 'purple', userP
 
   console.log('✅ [OPIN] Post creado:', docRef.id);
 
-  return { postId: docRef.id, ...postData };
+  return normalizeOpinPost({ postId: docRef.id, ...postData });
 };
 
 /** Mínimo de OPINs estables que siempre debe haber en el feed (panel admin) */
@@ -210,7 +290,7 @@ export const getOpinFeed = async (limitCount = 50) => {
 
   const snapshot = await getDocs(q);
 
-  const all = snapshot.docs.map(d => ({ id: d.id, ...d.data() }));
+  const all = snapshot.docs.map(d => normalizeOpinPost({ id: d.id, ...d.data() }));
 
   // Estables: isStable === true, isActive, no expiran
   const stables = all.filter((p) => {
@@ -463,12 +543,43 @@ export const getMyOpinPosts = async () => {
 
   const snapshot = await getDocs(q);
 
-  const posts = snapshot.docs.map(doc => ({
+  const posts = snapshot.docs.map(doc => normalizeOpinPost({
     id: doc.id,
     ...doc.data(),
   }));
 
   return posts;
+};
+
+export const updateOpinStatus = async (postId, status) => {
+  if (!auth.currentUser) {
+    throw new Error('Usuario no autenticado');
+  }
+
+  if (!isValidOpinStatus(status)) {
+    throw new Error('Estado no válido');
+  }
+
+  const postRef = doc(db, 'opin_posts', postId);
+  const postDoc = await getDoc(postRef);
+
+  if (!postDoc.exists()) {
+    throw new Error('Post no encontrado');
+  }
+
+  const postData = postDoc.data();
+  if (postData.userId !== auth.currentUser.uid && !postData.isStable) {
+    throw new Error('No tienes permiso para cambiar el estado');
+  }
+
+  await updateDoc(postRef, {
+    status,
+    lastInteractionAt: serverTimestamp(),
+    updatedAt: serverTimestamp(),
+  });
+
+  track('opin_status_updated', { post_id: postId, status }, { user: { id: auth.currentUser.uid } }).catch(() => {});
+  return { success: true, status };
 };
 
 /**
@@ -549,6 +660,7 @@ export const toggleLike = async (postId) => {
     await updateDoc(postRef, {
       likeCount: increment(-1),
       likedBy: arrayRemove(auth.currentUser.uid),
+      lastInteractionAt: serverTimestamp(),
     });
     console.log('💔 [OPIN] Like removido:', postId);
     return { liked: false };
@@ -557,6 +669,7 @@ export const toggleLike = async (postId) => {
     await updateDoc(postRef, {
       likeCount: increment(1),
       likedBy: arrayUnion(auth.currentUser.uid),
+      lastInteractionAt: serverTimestamp(),
     });
     track('opin_like', { post_id: postId, author_id: postData.userId }, { user: { id: auth.currentUser.uid } }).catch(() => {});
     console.log('❤️ [OPIN] Like agregado:', postId);
@@ -636,6 +749,7 @@ export const toggleReaction = async (postId, emoji) => {
     await updateDoc(postRef, {
       reactions: nextReactions,
       reactionCounts: nextReactionCounts,
+      lastInteractionAt: serverTimestamp(),
     });
 
     console.log(`😐 [OPIN] Reacción ${emoji} removida:`, postId);
@@ -648,6 +762,7 @@ export const toggleReaction = async (postId, emoji) => {
     await updateDoc(postRef, {
       reactions: nextReactions,
       reactionCounts: nextReactionCounts,
+      lastInteractionAt: serverTimestamp(),
     });
 
     track('opin_reaction', { post_id: postId, author_id: postData.userId, emoji }, { user: { id: userId } }).catch(() => {});
@@ -689,7 +804,7 @@ export const hasUserReacted = (post, emoji) => {
  */
 export const getTotalReactionCount = (post) => {
   const reactionCounts = post.reactionCounts || {};
-  return Object.values(reactionCounts).reduce((sum, count) => sum + (count || 0), 0);
+  return getReactionTotalFromCounts(reactionCounts);
 };
 
 // ============================================================
@@ -760,6 +875,8 @@ export const addComment = async (postId, commentText) => {
   const postRef = doc(db, 'opin_posts', postId);
   await updateDoc(postRef, {
     commentCount: increment(1),
+    lastCommentAt: serverTimestamp(),
+    lastInteractionAt: serverTimestamp(),
   });
 
   // Notificar al autor del OPIN cuando otra persona responde

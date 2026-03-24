@@ -33,6 +33,8 @@ const MODERATION_CONFIG = {
   weights: {
     directPlatformTerm: 5,
     invitationPhrase: 4,
+    privateRedirectTerm: 3,
+    camTerm: 2,
     urlPattern: 5,
     longNumericSequence: 5,
     suspiciousNumericFragment: 2,
@@ -54,11 +56,11 @@ const MODERATION_CONFIG = {
 const PLATFORM_TERMS = [
   'telegram', 'tg', 't.me',
   'skype',
-  'whatsapp', 'wsp', 'wpp', 'wa.me',
+  'whatsapp', 'wasap', 'wasapp', 'wsp', 'wpp', 'wa.me',
   'facebook', 'fb',
   'instagram', 'ig', 'insta',
   'discord', 'dc', 'discord.gg',
-  'snap', 'snapchat',
+  'snap', 'snapchat', 'tgram',
 ];
 
 const INVITATION_PHRASES = [
@@ -78,6 +80,30 @@ const INVITATION_PHRASES = [
   'chat latino',
   'contactame',
   'te dejo mi',
+];
+
+const PRIVATE_REDIRECT_PHRASES = [
+  'al prv',
+  'al priv',
+  'por prv',
+  'por priv',
+  'por privado',
+  'vamos al privado',
+  'te espero al privado',
+  'escribe al privado',
+  'escribe al prv',
+  'hablame al privado',
+  'manda dm',
+  'manda dm',
+  'dm',
+];
+
+const CAM_TERMS = [
+  'cam',
+  'webcam',
+  'videollamada',
+  'video llamada',
+  'llamada',
 ];
 
 const RIVAL_CHAT_TERMS = [
@@ -352,6 +378,20 @@ export function evaluateExternalContactRisk(message, recentEntries = []) {
     }
   }
 
+  for (const phrase of PRIVATE_REDIRECT_PHRASES) {
+    if (hasTokenTerm(normalized.collapsed, phrase) || hasCompactTerm(normalized.compact, phrase)) {
+      mark('private_redirect_term', MODERATION_CONFIG.weights.privateRedirectTerm, phrase, 'private_redirect');
+      break;
+    }
+  }
+
+  for (const term of CAM_TERMS) {
+    if (hasTokenTerm(normalized.collapsed, term) || hasCompactTerm(normalized.compact, term)) {
+      mark('cam_term', MODERATION_CONFIG.weights.camTerm, term, 'private_redirect');
+      break;
+    }
+  }
+
   for (const phrase of RIVAL_CHAT_TERMS) {
     if (hasTokenTerm(normalized.collapsed, phrase) || hasCompactTerm(normalized.compact, phrase)) {
       mark('rival_chat_mention', MODERATION_CONFIG.weights.rivalChatMention, phrase, 'invitation');
@@ -619,6 +659,7 @@ const applyPenaltyIfNeeded = async ({
 const deriveBlockedType = (primaryCategory) => {
   if (primaryCategory === 'email') return 'email';
   if (primaryCategory === 'phone_number') return 'phone_number';
+  if (primaryCategory === 'private_redirect') return 'private_redirect';
   return 'forbidden_word';
 };
 
@@ -831,6 +872,8 @@ export async function validateMessage(message, userId, username, roomId, options
         ? 'Correos electronicos no estan permitidos en el chat principal.'
         : risk.primaryCategory === 'phone_number'
           ? 'No se permite compartir numeros de telefono en el chat principal.'
+          : risk.primaryCategory === 'private_redirect'
+            ? 'Si quieres seguir 1 a 1, usa la invitacion de chat privado dentro de Chactivo.'
           : GENERIC_EXTERNAL_BLOCK_MESSAGE
     );
 

@@ -6,6 +6,7 @@ import { Users, Circle, MessageCircle } from 'lucide-react';
 import ConversationAvailabilityCard from '@/components/chat/ConversationAvailabilityCard';
 import { resolveProfileRole } from '@/config/profileRoles';
 import { getPresenceActivityMs, isUserAvailableForConversation } from '@/services/presenceService';
+import { getComunaKey, normalizeComuna, ONBOARDING_COMUNA_KEY } from '@/config/comunas';
 
 const DEFAULT_CHAT_AVATAR = '/avatar_por_defecto.jpeg';
 const MIN_VISIBLE_USERS = 10;
@@ -29,6 +30,8 @@ const isBotOrSystem = (userId = '') => (
   userId.startsWith('bot_') ||
   userId.startsWith('static_bot_')
 );
+
+const isSeededUser = (userId = '') => userId.startsWith('seed_user_');
 
 const normalizeUsernameKey = (value = '') => String(value || '').trim().toLowerCase();
 
@@ -107,6 +110,7 @@ const normalizeSeedUser = (item, nowMs) => {
     username: item?.username || 'Usuario',
     avatar: resolveChatAvatar(item?.avatar),
     roleBadge: normalizedRole || null,
+    comuna: normalizeComuna(item?.comuna) || null,
     isPremium: Boolean(item?.isPremium || item?.isProUser),
     isGuest: Boolean(item?.isGuest || item?.isAnonymous),
     inPrivateWith: item?.inPrivateWith || null,
@@ -125,6 +129,7 @@ const ChatOnlineUsersColumn = ({
   onUserClick,
   onStartConversation,
   onRequestNickname,
+  hideRoleBadges = false,
 }) => {
   const [knownUsers, setKnownUsers] = useState([]);
   const [isExpanded, setIsExpanded] = useState(false);
@@ -160,6 +165,7 @@ const ChatOnlineUsersColumn = ({
         username: item.username,
         avatar: item.avatar,
         roleBadge: item.roleBadge,
+        comuna: item.comuna,
         isPremium: item.isPremium,
         isGuest: item.isGuest,
         lastConnectedAt: item.lastConnectedAt || Date.now(),
@@ -296,6 +302,11 @@ const ChatOnlineUsersColumn = ({
     currentUser?.profileRole,
     currentUser?.role
   );
+  const currentUserComuna = normalizeComuna(
+    currentUser?.comuna ||
+    (typeof window !== 'undefined' ? localStorage.getItem(ONBOARDING_COMUNA_KEY) : '')
+  );
+  const currentUserComunaKey = getComunaKey(currentUserComuna);
 
   const availableNowUsers = useMemo(() => {
     const now = Date.now();
@@ -315,12 +326,14 @@ const ChatOnlineUsersColumn = ({
           username: item.username || 'Usuario',
           avatar: resolveChatAvatar(item.avatar),
           roleBadge: normalizedRole || null,
+          comuna: normalizeComuna(item?.comuna) || null,
           isPremium: Boolean(item?.isPremium || item?.isProUser),
           isGuest: Boolean(item?.isGuest || item?.isAnonymous),
           isAnonymous: Boolean(item?.isAnonymous),
           availabilityExpiresAtMs: Number(item?.availableForChatExpiresAtMs || 0) || 0,
           availabilityLastSeenMs: getPresenceActivityMs(item) || 0,
-          compatibilityScore: getRoleCompatibilityScore(currentUserRole, normalizedRole),
+          sameComuna: currentUserComunaKey && getComunaKey(item?.comuna) === currentUserComunaKey,
+          compatibilityScore: hideRoleBadges ? 70 : getRoleCompatibilityScore(currentUserRole, normalizedRole),
         };
         if (!normalizedItem.userId) return;
         deduped.set(normalizedItem.userId, normalizedItem);
@@ -330,13 +343,14 @@ const ChatOnlineUsersColumn = ({
       .filter((item) => item.userId !== currentUserId)
       .filter((item) => !isCurrentUserDuplicateByUsername(item, currentUserId, currentUser?.username || ''))
       .sort((a, b) => {
+        if (a.sameComuna !== b.sameComuna) return a.sameComuna ? -1 : 1;
         if (b.compatibilityScore !== a.compatibilityScore) return b.compatibilityScore - a.compatibilityScore;
         if (b.availabilityLastSeenMs !== a.availabilityLastSeenMs) {
           return b.availabilityLastSeenMs - a.availabilityLastSeenMs;
         }
         return String(a.username || '').localeCompare(String(b.username || ''), 'es');
       });
-  }, [roomUsers, currentUserId, currentUserRole, currentUser?.username]);
+  }, [roomUsers, currentUserId, currentUserRole, currentUser?.username, hideRoleBadges, currentUserComunaKey]);
 
   return (
     <aside className="hidden lg:flex w-72 h-full flex-col border-l border-border bg-card/30 backdrop-blur-sm">
@@ -405,15 +419,24 @@ const ChatOnlineUsersColumn = ({
                         </div>
 
                         <div className="mt-1 flex items-center gap-1.5 flex-wrap">
-                          {item.roleBadge ? (
+                          {item.comuna ? (
+                            <span className={`text-[10px] px-2 py-0.5 rounded-full border ${
+                              item.sameComuna
+                                ? 'border-cyan-400/35 bg-cyan-500/10 text-cyan-200'
+                                : 'border-border/70 bg-muted/20 text-muted-foreground'
+                            }`}>
+                              {item.sameComuna ? `Cerca: ${item.comuna}` : item.comuna}
+                            </span>
+                          ) : null}
+                          {!hideRoleBadges && item.roleBadge ? (
                             <Badge className={`text-[10px] px-2 py-0.5 rounded-full border ${roleBadgeTone(item.roleBadge)}`}>
                               {item.roleBadge}
                             </Badge>
-                          ) : (
+                          ) : !hideRoleBadges ? (
                             <span className="text-[10px] text-muted-foreground">Sin rol</span>
-                          )}
+                          ) : null}
 
-                          {item.compatibilityScore >= 90 && (
+                          {!hideRoleBadges && item.compatibilityScore >= 90 && (
                             <span className="text-[10px] text-emerald-300">Alta compatibilidad</span>
                           )}
                         </div>
@@ -444,19 +467,25 @@ const ChatOnlineUsersColumn = ({
         ) : (
           visibleUsers.map((item) => {
             const isMe = item.userId === currentUserId;
+            const canOpenProfile = !isSeededUser(item.userId);
             return (
               <button
                 key={item.userId}
                 type="button"
-                onClick={() => onUserClick?.({
-                  userId: item.userId,
-                  username: item.username,
-                  avatar: item.avatar,
-                  roleBadge: item.roleBadge,
-                  isPremium: item.isPremium,
-                  isGuest: item.isGuest,
-                })}
-                className="w-full text-left rounded-xl border border-border/60 bg-secondary/15 hover:bg-secondary/30 transition-colors p-2.5"
+                onClick={() => {
+                  if (!canOpenProfile) return;
+                  onUserClick?.({
+                    userId: item.userId,
+                    username: item.username,
+                    avatar: item.avatar,
+                    roleBadge: item.roleBadge,
+                    isPremium: item.isPremium,
+                    isGuest: item.isGuest,
+                  });
+                }}
+                className={`w-full text-left rounded-xl border border-border/60 bg-secondary/15 transition-colors p-2.5 ${
+                  canOpenProfile ? 'hover:bg-secondary/30' : 'cursor-default'
+                }`}
               >
                 <div className="flex items-start gap-2.5">
                   <div className="relative">
@@ -488,13 +517,18 @@ const ChatOnlineUsersColumn = ({
                     </div>
 
                     <div className="mt-1 flex items-center gap-1.5 flex-wrap">
-                      {item.roleBadge ? (
+                      {item.comuna ? (
+                        <span className="text-[10px] px-2 py-0.5 rounded-full border border-border/70 bg-muted/20 text-muted-foreground">
+                          {item.comuna}
+                        </span>
+                      ) : null}
+                      {!hideRoleBadges && item.roleBadge ? (
                         <Badge className={`text-[10px] px-2 py-0.5 rounded-full border ${roleBadgeTone(item.roleBadge)}`}>
                           {item.roleBadge}
                         </Badge>
-                      ) : (
+                      ) : !hideRoleBadges ? (
                         <span className="text-[10px] text-muted-foreground">Sin rol</span>
-                      )}
+                      ) : null}
                       {item.isOnline && item.inPrivateWith ? (
                         <span className="text-[10px] text-fuchsia-300">En privado</span>
                       ) : null}

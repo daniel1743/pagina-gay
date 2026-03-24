@@ -10,6 +10,7 @@ import { X, Save, Loader2, Eye, EyeOff } from 'lucide-react';
 import { Switch } from '@/components/ui/switch';
 import { toast } from '@/components/ui/use-toast';
 import { checkUsernameAvailability } from '@/services/userService';
+import { COMUNA_OPTIONS, normalizeComuna } from '@/config/comunas';
 
 const ROLES = ['Activo', 'Pasivo', 'Versátil', 'Trans', 'No Binario', 'Fluido', 'Otro'];
 const INTERESTS = [
@@ -47,6 +48,7 @@ const EditProfileModal = ({ isOpen, onClose }) => {
     username: user?.username || '',
     description: user?.description || '',
     estado: user?.estado || '',
+    comuna: normalizeComuna(user?.comuna) || '',
     profileRole: getInitialProfileRole(),
     interests: user?.interests || [],
   });
@@ -60,6 +62,7 @@ const EditProfileModal = ({ isOpen, onClose }) => {
         username: user.username || '',
         description: user.description || '',
         estado: user.estado || '',
+        comuna: normalizeComuna(user.comuna) || '',
         profileRole: getInitialProfileRole(),
         interests: user.interests || [],
         profileVisible: user.profileVisible !== false,
@@ -114,6 +117,7 @@ const EditProfileModal = ({ isOpen, onClose }) => {
         username: newUsername,
         description: formData.description,
         estado,
+        comuna: normalizeComuna(formData.comuna) || null,
         profileRole: formData.profileRole,
         interests: formData.interests,
         profileVisible: formData.profileVisible,
@@ -203,6 +207,26 @@ const EditProfileModal = ({ isOpen, onClose }) => {
             />
             <p className="text-xs text-muted-foreground mt-1">
               {(formData.estado || '').length}/100 caracteres — visible en tu perfil
+            </p>
+          </div>
+
+          <div>
+            <Label htmlFor="comuna" className="font-bold text-foreground">Tu comuna o ciudad</Label>
+            <select
+              id="comuna"
+              value={formData.comuna || ''}
+              onChange={(e) => setFormData({ ...formData, comuna: e.target.value })}
+              className="mt-1 flex h-10 w-full items-center rounded-md border-2 border-border bg-background px-3 py-2 text-sm text-foreground focus:border-primary focus:outline-none"
+            >
+              <option value="">Selecciona tu comuna o ciudad</option>
+              {COMUNA_OPTIONS.map((comunaOption) => (
+                <option key={comunaOption} value={comunaOption}>
+                  {comunaOption}
+                </option>
+              ))}
+            </select>
+            <p className="text-xs text-muted-foreground mt-1">
+              Esto ayuda a mostrarte gente de tu zona en el chat y en coincidencias cercanas.
             </p>
           </div>
 

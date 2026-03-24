@@ -1,13 +1,13 @@
 /**
- * OpinFeedPage - Tablón de notas (diseño lista compacta)
+ * OpinFeedPage - Tablón de notas con señales de retorno
  */
 
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { Plus, Sparkles, RefreshCw, Eye, UserPlus, ArrowLeft } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
-import { getOpinFeed, canCreatePost } from '@/services/opinService';
+import { getOpinFeed, canCreatePost, getOpinPostActivityMs, getReactionTotalFromCounts } from '@/services/opinService';
 import { requestNotificationPermission, canRequestPush, isPushEnabled } from '@/services/pushNotificationService';
 import OpinCard from '@/components/opin/OpinCard';
 import OpinCommentsModal from '@/components/opin/OpinCommentsModal';
@@ -15,11 +15,85 @@ import { toast } from '@/components/ui/use-toast';
 import { trackPageView, trackPageExit, track } from '@/services/eventTrackingService';
 
 const OPIN_FEED_LIMIT = 200;
+const FOLLOWED_STORAGE_PREFIX = 'opin:followed_posts:';
+const LAST_VISIT_STORAGE_PREFIX = 'opin:last_visit_at:';
+const SNAPSHOT_STORAGE_PREFIX = 'opin:own_snapshot:';
+
 const isRunningStandalone = () => {
   if (typeof window === 'undefined') return false;
   return window.matchMedia('(display-mode: standalone)').matches
     || Boolean(window.navigator?.standalone)
     || document.referrer.includes('android-app://');
+};
+
+const getStorageUserKey = (user) => user?.id || user?.uid || user?.guestId || 'anon';
+
+const shufflePosts = (postsToShuffle) => {
+  const a = [...postsToShuffle];
+  for (let i = a.length - 1; i > 0; i -= 1) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [a[i], a[j]] = [a[j], a[i]];
+  }
+  return a;
+};
+
+const hasNewActivitySince = (post, previousVisitAt) => (
+  previousVisitAt > 0 && getOpinPostActivityMs(post) > previousVisitAt
+);
+
+const buildOwnSnapshot = (posts, userId) => (
+  posts
+    .filter((post) => post.userId === userId)
+    .reduce((acc, post) => {
+      acc[post.id] = {
+        viewCount: Number(post.viewCount || 0),
+        commentCount: Number(post.commentCount || 0),
+        likeCount: Number(post.likeCount || 0),
+        reactionTotal: getReactionTotalFromCounts(post.reactionCounts || {}),
+      };
+      return acc;
+    }, {})
+);
+
+const computeActivitySummary = (posts, userId, snapshot) => {
+  if (!userId || !snapshot || Object.keys(snapshot).length === 0) return null;
+
+  const ownPosts = posts.filter((post) => post.userId === userId);
+  if (ownPosts.length === 0) return null;
+
+  const summary = ownPosts.reduce((acc, post) => {
+    const previous = snapshot[post.id] || {
+      viewCount: 0,
+      commentCount: 0,
+      likeCount: 0,
+      reactionTotal: 0,
+    };
+
+    const newViews = Math.max(0, Number(post.viewCount || 0) - previous.viewCount);
+    const newReplies = Math.max(0, Number(post.commentCount || 0) - previous.commentCount);
+    const newLikes = Math.max(0, Number(post.likeCount || 0) - previous.likeCount);
+    const newReactions = Math.max(0, getReactionTotalFromCounts(post.reactionCounts || {}) - previous.reactionTotal);
+    const newInterest = newLikes + newReactions;
+
+    if (newViews > 0 || newReplies > 0 || newInterest > 0) {
+      acc.postsWithChanges += 1;
+    }
+
+    acc.newViews += newViews;
+    acc.newReplies += newReplies;
+    acc.newInterest += newInterest;
+    return acc;
+  }, {
+    newViews: 0,
+    newReplies: 0,
+    newInterest: 0,
+    postsWithChanges: 0,
+  });
+
+  return {
+    ...summary,
+    hasAnyChange: summary.newViews > 0 || summary.newReplies > 0 || summary.newInterest > 0,
+  };
 };
 
 const OpinFeedPage = () => {
@@ -36,11 +110,24 @@ const OpinFeedPage = () => {
   const [pushEnabled, setPushEnabled] = useState(isPushEnabled());
   const [deferredInstallPrompt, setDeferredInstallPrompt] = useState(null);
   const [activatingPush, setActivatingPush] = useState(false);
+  const [activeFilter, setActiveFilter] = useState('all');
+  const [followedPostIds, setFollowedPostIds] = useState([]);
+  const [previousVisitAt, setPreviousVisitAt] = useState(0);
+  const [activitySummary, setActivitySummary] = useState(null);
   const pageStartRef = useRef(Date.now());
+  const postsRef = useRef([]);
 
   const isReadOnlyMode = !user || user.isAnonymous || user.isGuest;
   const currentUserId = user?.id || user?.uid || null;
+  const storageUserKey = useMemo(() => getStorageUserKey(user), [user?.id, user?.uid, user?.guestId]);
   const pushTokenCount = Array.isArray(user?.fcmTokens) ? user.fcmTokens.length : 0;
+  const lastVisitStorageKey = `${LAST_VISIT_STORAGE_PREFIX}${storageUserKey}`;
+  const followedStorageKey = `${FOLLOWED_STORAGE_PREFIX}${storageUserKey}`;
+  const snapshotStorageKey = `${SNAPSHOT_STORAGE_PREFIX}${storageUserKey}`;
+
+  useEffect(() => {
+    postsRef.current = posts;
+  }, [posts]);
 
   // Push "realmente activo" = permiso navegador + estado backend + token presente.
   useEffect(() => {
@@ -56,6 +143,54 @@ const OpinFeedPage = () => {
   }, [user, pushTokenCount]);
 
   useEffect(() => {
+    try {
+      const previousVisitRaw = localStorage.getItem(lastVisitStorageKey);
+      setPreviousVisitAt(previousVisitRaw ? Number(previousVisitRaw) : 0);
+    } catch {
+      setPreviousVisitAt(0);
+    }
+
+    try {
+      const rawFollowed = localStorage.getItem(followedStorageKey);
+      const parsed = rawFollowed ? JSON.parse(rawFollowed) : [];
+      setFollowedPostIds(Array.isArray(parsed) ? parsed.filter(Boolean) : []);
+    } catch {
+      setFollowedPostIds([]);
+    }
+  }, [lastVisitStorageKey, followedStorageKey]);
+
+  useEffect(() => {
+    if (!currentUserId || posts.length === 0) {
+      setActivitySummary(null);
+      return;
+    }
+
+    try {
+      const rawSnapshot = localStorage.getItem(snapshotStorageKey);
+      const parsedSnapshot = rawSnapshot ? JSON.parse(rawSnapshot) : null;
+      setActivitySummary(computeActivitySummary(posts, currentUserId, parsedSnapshot));
+    } catch {
+      setActivitySummary(null);
+    }
+  }, [posts, currentUserId, snapshotStorageKey]);
+
+  useEffect(() => {
+    return () => {
+      try {
+        localStorage.setItem(lastVisitStorageKey, String(Date.now()));
+        if (currentUserId) {
+          localStorage.setItem(
+            snapshotStorageKey,
+            JSON.stringify(buildOwnSnapshot(postsRef.current, currentUserId)),
+          );
+        }
+      } catch {
+        // noop
+      }
+    };
+  }, [currentUserId, lastVisitStorageKey, snapshotStorageKey]);
+
+  useEffect(() => {
     if (!posts.length) return;
 
     const params = new URLSearchParams(location.search);
@@ -69,6 +204,14 @@ const OpinFeedPage = () => {
     setSelectedPost(targetPost);
     setShowCommentsModal(true);
   }, [location.search, posts]);
+
+  useEffect(() => {
+    if (!selectedPost?.id) return;
+    const nextSelectedPost = posts.find((post) => post.id === selectedPost.id);
+    if (nextSelectedPost) {
+      setSelectedPost(nextSelectedPost);
+    }
+  }, [posts, selectedPost?.id]);
 
   useEffect(() => {
     const handleBeforeInstallPrompt = (event) => {
@@ -101,7 +244,6 @@ const OpinFeedPage = () => {
     const sessionPosted = sessionStorage.getItem('opin:just_posted') === '1';
     const dismissedKey = `opin:intent_cta:dismissed:${currentUserId || ''}`;
 
-    // Cada nueva publicación vuelve a habilitar el CTA.
     if (fromComposer || sessionPosted) {
       sessionStorage.removeItem(dismissedKey);
     }
@@ -117,10 +259,10 @@ const OpinFeedPage = () => {
     setShowIntentCta(true);
   }, [user, currentUserId, location.search, isInstalled, pushEnabled]);
 
-  // ✅ SEO: Meta tags para OPIN
+  // SEO
   useEffect(() => {
     const previousTitle = document.title;
-    document.title = "Tablón Gay Chile 📝 Qué Buscan Hoy | Chactivo";
+    document.title = 'Tablón Gay Chile 📝 Qué Buscan Hoy | Chactivo';
 
     let metaDescription = document.querySelector('meta[name="description"]');
     const previousDescription = metaDescription?.content || '';
@@ -130,9 +272,8 @@ const OpinFeedPage = () => {
       metaDescription.name = 'description';
       document.head.appendChild(metaDescription);
     }
-    metaDescription.content = "Tablón de notas de la comunidad gay en Chile. Mira qué buscan otros usuarios hoy. Deja tu nota anónima y conecta. Actualizado cada hora.";
+    metaDescription.content = 'Tablón de notas de la comunidad gay en Chile. Mira qué buscan otros usuarios hoy. Deja tu nota, recibe respuestas y vuelve cuando haya actividad.';
 
-    // Canonical
     let canonical = document.querySelector('link[rel="canonical"]');
     if (!canonical) {
       canonical = document.createElement('link');
@@ -163,46 +304,19 @@ const OpinFeedPage = () => {
   useEffect(() => {
     loadFeed();
     checkCanCreate();
-  }, []);
+  }, [currentUserId, user?.isAnonymous, user?.isGuest]);
 
-  // OPIN: Reacomodar tarjetas cada 10 minutos (visibilidad igual para todos)
+  // Reacomodar tarjetas cada 10 minutos
   useEffect(() => {
     const interval = setInterval(() => {
-      setPosts((prev) => {
-        if (prev.length <= 1) return prev;
-        const a = [...prev];
-        for (let i = a.length - 1; i > 0; i--) {
-          const j = Math.floor(Math.random() * (i + 1));
-          [a[i], a[j]] = [a[j], a[i]];
-        }
-        return a;
-      });
-    }, 10 * 60 * 1000); // 10 minutos
+      setPosts((prev) => (prev.length <= 1 ? prev : shufflePosts(prev)));
+    }, 10 * 60 * 1000);
     return () => clearInterval(interval);
   }, []);
 
   useEffect(() => {
-    const key = user?.id || user?.guestId || 'anon';
-    localStorage.setItem(`opin_visited:${key}`, '1');
-  }, [user]);
-
-  const shufflePosts = (postsToShuffle) => {
-    const a = [...postsToShuffle];
-    for (let i = a.length - 1; i > 0; i--) {
-      const j = Math.floor(Math.random() * (i + 1));
-      [a[i], a[j]] = [a[j], a[i]];
-    }
-    return a;
-  };
-
-  const handleRestart = () => {
-    if (posts.length === 0) {
-      loadFeed();
-      return;
-    }
-    setPosts(shufflePosts(posts));
-    toast({ description: 'Tablón reordenado', duration: 2000 });
-  };
+    localStorage.setItem(`opin_visited:${storageUserKey}`, '1');
+  }, [storageUserKey]);
 
   const loadFeed = async () => {
     setLoading(true);
@@ -305,8 +419,15 @@ const OpinFeedPage = () => {
   };
 
   const handlePostDeleted = (postId) => {
-    setPosts(prev => prev.filter(p => p.id !== postId));
+    setPosts((prev) => prev.filter((post) => post.id !== postId));
     setCanCreate(true);
+  };
+
+  const handlePostUpdated = (postId, patch) => {
+    setPosts((prev) => prev.map((post) => (
+      post.id === postId ? { ...post, ...patch } : post
+    )));
+    setSelectedPost((prev) => (prev?.id === postId ? { ...prev, ...patch } : prev));
   };
 
   const handleCreatePost = () => {
@@ -326,9 +447,99 @@ const OpinFeedPage = () => {
     navigate('/opin/new');
   };
 
+  const handleRestart = () => {
+    if (posts.length === 0) {
+      loadFeed();
+      return;
+    }
+    setPosts((prev) => shufflePosts(prev));
+    toast({ description: 'Tablón reordenado', duration: 2000 });
+  };
+
+  const handleFilterChange = (nextFilter) => {
+    setActiveFilter(nextFilter);
+    track('opin_filter_change', { filter: nextFilter }, { user }).catch(() => {});
+  };
+
+  const handleToggleFollow = (post) => {
+    const isFollowing = followedPostIds.includes(post.id);
+    const nextIds = isFollowing
+      ? followedPostIds.filter((id) => id !== post.id)
+      : [...followedPostIds, post.id];
+
+    setFollowedPostIds(nextIds);
+    try {
+      localStorage.setItem(followedStorageKey, JSON.stringify(nextIds));
+    } catch {
+      // noop
+    }
+
+    toast({
+      description: isFollowing
+        ? 'Dejaste de seguir esta nota.'
+        : 'Nota guardada en Seguidos para volver más fácil.',
+    });
+    track('opin_follow_toggle', { post_id: post.id, following: !isFollowing }, { user }).catch(() => {});
+  };
+
+  const followedPostSet = useMemo(() => new Set(followedPostIds), [followedPostIds]);
+  const ownPosts = useMemo(() => (
+    currentUserId ? posts.filter((post) => post.userId === currentUserId) : []
+  ), [posts, currentUserId]);
+  const newActivityPosts = useMemo(() => (
+    posts.filter((post) => hasNewActivitySince(post, previousVisitAt))
+  ), [posts, previousVisitAt]);
+  const followedPosts = useMemo(() => (
+    posts.filter((post) => followedPostSet.has(post.id))
+  ), [posts, followedPostSet]);
+
+  const filters = [
+    { id: 'all', label: 'Para ti', count: posts.length },
+    { id: 'new_activity', label: 'Actividad nueva', count: newActivityPosts.length },
+    { id: 'followed', label: 'Seguidos', count: followedPosts.length },
+    ...(currentUserId ? [{ id: 'mine', label: 'Mis notas', count: ownPosts.length }] : []),
+  ];
+
+  const filteredPosts = useMemo(() => {
+    switch (activeFilter) {
+      case 'new_activity':
+        return newActivityPosts;
+      case 'followed':
+        return followedPosts;
+      case 'mine':
+        return ownPosts;
+      default:
+        return posts;
+    }
+  }, [activeFilter, posts, newActivityPosts, followedPosts, ownPosts]);
+
+  const emptyStateCopy = useMemo(() => {
+    switch (activeFilter) {
+      case 'new_activity':
+        return {
+          title: 'Sin novedades desde tu última visita',
+          description: 'Cuando haya movimiento nuevo en OPIN aparecerá aquí.',
+        };
+      case 'followed':
+        return {
+          title: 'Aún no sigues notas',
+          description: 'Usa "Seguir" en una nota para reunir aquí las que quieres revisar luego.',
+        };
+      case 'mine':
+        return {
+          title: 'Todavía no publicas una nota',
+          description: 'Deja una nota para empezar a recibir respuestas y volver con un motivo claro.',
+        };
+      default:
+        return {
+          title: 'El tablón está vacío',
+          description: 'Sé el primero en dejar una nota.',
+        };
+    }
+  }, [activeFilter]);
+
   return (
     <div className="min-h-screen bg-background flex flex-col">
-      {/* Header compacto */}
       <div className="sticky top-0 z-10 bg-card/95 backdrop-blur-sm border-b border-border">
         <div className="max-w-7xl mx-auto px-4 py-3">
           <div className="flex items-center justify-between">
@@ -355,8 +566,17 @@ const OpinFeedPage = () => {
                 onClick={loadFeed}
                 disabled={loading}
                 className="p-2 hover:bg-white/10 rounded-lg transition-colors"
+                title="Recargar"
               >
                 <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
+              </button>
+
+              <button
+                onClick={handleRestart}
+                className="p-2 hover:bg-white/10 rounded-lg transition-colors"
+                title="Reordenar"
+              >
+                <Sparkles className="w-4 h-4" />
               </button>
 
               {!isReadOnlyMode && (
@@ -371,14 +591,34 @@ const OpinFeedPage = () => {
             </div>
           </div>
 
-          {/* Subtítulo */}
           <p className="text-xs text-muted-foreground mt-1">
-            {posts.length > 0 ? `${posts.length} notas activas` : 'Notas de la comunidad'}
+            {filteredPosts.length > 0 ? `${filteredPosts.length} notas en esta vista` : 'Notas de la comunidad'}
           </p>
+
+          <div className="flex flex-wrap gap-2 mt-3">
+            {filters.map((filter) => {
+              const isActive = activeFilter === filter.id;
+              return (
+                <button
+                  key={filter.id}
+                  onClick={() => handleFilterChange(filter.id)}
+                  className={`px-3 py-1.5 rounded-full text-xs font-medium transition-colors ${
+                    isActive
+                      ? 'bg-white text-black'
+                      : 'bg-white/5 text-muted-foreground hover:bg-white/10'
+                  }`}
+                >
+                  {filter.label}
+                  <span className={`ml-1 ${isActive ? 'text-black/70' : 'text-muted-foreground'}`}>
+                    {filter.count}
+                  </span>
+                </button>
+              );
+            })}
+          </div>
         </div>
       </div>
 
-      {/* Banner para invitados */}
       {isReadOnlyMode && (
         <div className="bg-gradient-to-r from-purple-600/90 to-pink-600/90 px-4 py-2">
           <div className="max-w-7xl mx-auto flex items-center justify-between gap-3">
@@ -397,22 +637,54 @@ const OpinFeedPage = () => {
         </div>
       )}
 
-      {/* Lista de notas */}
       <div className="flex-1 overflow-y-auto">
-        <div className="max-w-7xl mx-auto">
+        <div className="max-w-7xl mx-auto p-3">
+          {!isReadOnlyMode && previousVisitAt > 0 && currentUserId && ownPosts.length > 0 && (
+            <div className="mb-3 rounded-2xl border border-cyan-500/30 bg-cyan-500/10 p-4">
+              <p className="text-sm font-semibold text-foreground">
+                Desde tu última visita
+              </p>
+              {activitySummary?.hasAnyChange ? (
+                <div className="flex flex-wrap gap-2 mt-2">
+                  {activitySummary.newReplies > 0 && (
+                    <span className="px-3 py-1 rounded-full bg-white/10 text-xs text-foreground">
+                      {activitySummary.newReplies} respuestas nuevas
+                    </span>
+                  )}
+                  {activitySummary.newViews > 0 && (
+                    <span className="px-3 py-1 rounded-full bg-white/10 text-xs text-foreground">
+                      {activitySummary.newViews} vistas nuevas
+                    </span>
+                  )}
+                  {activitySummary.newInterest > 0 && (
+                    <span className="px-3 py-1 rounded-full bg-white/10 text-xs text-foreground">
+                      {activitySummary.newInterest} señales de interés
+                    </span>
+                  )}
+                  <span className="px-3 py-1 rounded-full bg-cyan-500/20 text-xs text-cyan-300">
+                    {activitySummary.postsWithChanges} notas con movimiento
+                  </span>
+                </div>
+              ) : (
+                <p className="text-xs text-muted-foreground mt-2">
+                  No hubo novedades en tus notas todavía. Si sigues publicaciones ajenas, revisa la pestaña `Seguidos`.
+                </p>
+              )}
+            </div>
+          )}
+
           {loading ? (
             <div className="flex items-center justify-center py-20">
               <div className="animate-spin rounded-full h-8 w-8 border-2 border-purple-500 border-t-transparent" />
             </div>
-          ) : posts.length === 0 ? (
-            /* Empty state compacto */
+          ) : filteredPosts.length === 0 ? (
             <div className="text-center py-16 px-4">
               <Sparkles className="w-12 h-12 mx-auto text-purple-400/50 mb-4" />
-              <p className="text-lg font-medium mb-2">El tablón está vacío</p>
+              <p className="text-lg font-medium mb-2">{emptyStateCopy.title}</p>
               <p className="text-sm text-muted-foreground mb-6">
-                Sé el primero en dejar una nota
+                {emptyStateCopy.description}
               </p>
-              {!isReadOnlyMode && canCreate && (
+              {!isReadOnlyMode && canCreate && activeFilter !== 'followed' && (
                 <button
                   onClick={handleCreatePost}
                   className="px-6 py-2.5 rounded-full bg-gradient-to-r from-purple-500 to-pink-500 text-white font-medium"
@@ -422,15 +694,17 @@ const OpinFeedPage = () => {
               )}
             </div>
           ) : (
-            /* Lista de notas */
-            <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3 p-3">
-              {posts.map((post) => (
+            <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3">
+              {filteredPosts.map((post) => (
                 <OpinCard
                   key={post.id}
                   post={post}
                   onCommentsClick={handleCommentsClick}
                   onPostDeleted={handlePostDeleted}
                   isReadOnlyMode={isReadOnlyMode}
+                  isFollowed={followedPostSet.has(post.id)}
+                  onToggleFollow={handleToggleFollow}
+                  hasNewActivity={hasNewActivitySince(post, previousVisitAt)}
                 />
               ))}
             </div>
@@ -438,7 +712,6 @@ const OpinFeedPage = () => {
         </div>
       </div>
 
-      {/* Botón flotante móvil (solo usuarios logueados) */}
       {!isReadOnlyMode && (
         <motion.button
           initial={{ scale: 0 }}
@@ -450,12 +723,12 @@ const OpinFeedPage = () => {
         </motion.button>
       )}
 
-      {/* Modal de respuestas */}
       {showCommentsModal && selectedPost && (
         <OpinCommentsModal
           post={selectedPost}
           open={showCommentsModal}
           onClose={handleCloseCommentsModal}
+          onPostUpdated={handlePostUpdated}
         />
       )}
 
@@ -466,22 +739,15 @@ const OpinFeedPage = () => {
               Tu nota ya está en el tablón. Activa avisos para volver cuando te respondan.
             </p>
             <div className="flex flex-wrap gap-2 mt-2">
-              {!pushEnabled && canRequestPush() && (
+              {!pushEnabled && (
                 <button
                   onClick={handleEnablePushForOpin}
                   disabled={activatingPush}
                   className="px-3 py-1.5 rounded-full bg-cyan-500 text-black text-xs font-semibold disabled:opacity-60"
                 >
-                  {activatingPush ? 'Activando...' : 'Activar avisos'}
-                </button>
-              )}
-              {!pushEnabled && !canRequestPush() && (
-                <button
-                  onClick={handleEnablePushForOpin}
-                  disabled={activatingPush}
-                  className="px-3 py-1.5 rounded-full bg-cyan-500 text-black text-xs font-semibold disabled:opacity-60"
-                >
-                  {activatingPush ? 'Sincronizando...' : 'Activar avisos'}
+                  {activatingPush
+                    ? (canRequestPush() ? 'Activando...' : 'Sincronizando...')
+                    : 'Activar avisos'}
                 </button>
               )}
               {!isInstalled && (

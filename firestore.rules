@@ -343,6 +343,11 @@ service cloud.firestore {
                                           isAdmin() &&
                                           roomId == 'admin-testing' &&
                                           userId.matches('^bot_.*')
+                                        ) ||
+                                        (
+                                          isAdmin() &&
+                                          roomId == 'principal' &&
+                                          userId.matches('^seed_user_.*')
                                         )
                                       );
     }
@@ -384,6 +389,7 @@ service cloud.firestore {
           isValidUnauthenticatedMessage() &&
           hasNoExternalContactIntent(request.resource.data.content)
         ) ||
+        isValidAdminSeededMessage(roomId) ||
         isValidSystemMessage() ||
         isValidRegisteredImageMessage(roomId);
 
@@ -408,6 +414,14 @@ service cloud.firestore {
 
       allow delete: if isAuthenticated() &&
                       (resource.data.userId == request.auth.uid || isAdmin());
+    }
+
+    // ===========================
+    // ADMIN SEEDED CHAT
+    // ===========================
+
+    match /admin_seeded_rooms/{roomId}/identities/{identityId} {
+      allow read, create, update, delete: if isAdmin();
     }
 
     // ===========================
@@ -878,6 +892,8 @@ service cloud.firestore {
                             'likeCount',
                             'likedBy',
                             'commentCount',
+                            'lastCommentAt',
+                            'lastInteractionAt',
                             'reactions',
                             'reactionCounts'
                           ]) &&

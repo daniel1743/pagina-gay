@@ -8,6 +8,7 @@ import { Users, Hash, Gamepad2, Heart, UserCheck, GitFork, UserMinus, Cake, Shie
 export const ROOM_ACCESS_CONFIG = {
   // Sala única activa para todos
   MAIN_ROOM: 'principal',
+  HETERO_ROOM: 'hetero-general',
 
   // Salas internacionales (solo accesibles desde sus landing pages)
   INTERNATIONAL_ROOMS: ['es-main', 'br-main', 'mx-main', 'ar-main'],
@@ -39,6 +40,16 @@ export const roomsData = [
     color: 'red',
     enabled: true,
     adminOnly: true,
+  },
+  {
+    id: 'hetero-general',
+    name: 'Chat Principal 💬',
+    description: 'Sala principal para conversación, amistad y citas',
+    icon: Hash,
+    color: 'blue',
+    enabled: true,
+    adminOnly: false,
+    isHetero: true
   },
 
   // 🔒 SALAS BLOQUEADAS - Se desbloquean con más tráfico

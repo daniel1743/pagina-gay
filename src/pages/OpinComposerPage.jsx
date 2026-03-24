@@ -6,7 +6,7 @@ import React, { useState, useEffect, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { ArrowLeft, Send } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
-import { createOpinPost, canCreatePost, OPIN_COLORS } from '@/services/opinService';
+import { createOpinPost, canCreatePost, OPIN_COLORS, OPIN_STATUS_OPTIONS, getOpinStatusMeta } from '@/services/opinService';
 import { toast } from '@/components/ui/use-toast';
 
 const OpinComposerPage = () => {
@@ -15,6 +15,7 @@ const OpinComposerPage = () => {
   const [text, setText] = useState('');
   const [loading, setLoading] = useState(false);
   const [canCreate, setCanCreate] = useState(true);
+  const [status, setStatus] = useState(OPIN_STATUS_OPTIONS[0].value);
 
   // Color automático random
   const selectedColor = useMemo(() => {
@@ -49,6 +50,7 @@ const OpinComposerPage = () => {
       await createOpinPost({
         text: text.trim(),
         color: selectedColor,
+        status,
         userProfile: {
           username: userProfile?.username || user?.displayName || 'Anónimo',
           avatar: userProfile?.avatar || user?.photoURL || '',
@@ -70,6 +72,7 @@ const OpinComposerPage = () => {
   };
 
   const colorConfig = OPIN_COLORS[selectedColor];
+  const selectedStatusMeta = getOpinStatusMeta(status);
 
   return (
     <div className="min-h-screen bg-background flex flex-col">
@@ -126,6 +129,29 @@ const OpinComposerPage = () => {
             <div className={`absolute left-0 top-0 bottom-0 w-1 rounded-full bg-gradient-to-b ${colorConfig.gradient}`} />
           </div>
 
+          <div className="px-4">
+            <p className="text-xs text-muted-foreground mb-2">Estado de tu nota</p>
+            <div className="flex flex-wrap gap-2">
+              {OPIN_STATUS_OPTIONS.map((option) => {
+                const isActive = status === option.value;
+                return (
+                  <button
+                    key={option.value}
+                    type="button"
+                    onClick={() => setStatus(option.value)}
+                    className={`px-3 py-1.5 rounded-full border text-xs font-medium transition-colors ${
+                      isActive
+                        ? option.badgeClassName
+                        : 'border-white/10 bg-white/5 text-muted-foreground hover:bg-white/10'
+                    }`}
+                  >
+                    {option.shortLabel}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+
           {/* Contador */}
           <div className="flex items-center justify-between px-4">
             <span className="text-xs text-muted-foreground">
@@ -142,6 +168,11 @@ const OpinComposerPage = () => {
               <p className="text-xs text-muted-foreground mb-2">Vista previa:</p>
               <div className="border-l-2 border-purple-500 pl-3 py-2 bg-white/5 rounded-r">
                 <p className="text-sm text-foreground">{text}</p>
+                <div className="mt-2">
+                  <span className={`inline-flex items-center rounded-full border px-2 py-0.5 text-[11px] font-medium ${selectedStatusMeta.badgeClassName}`}>
+                    {selectedStatusMeta.shortLabel}
+                  </span>
+                </div>
                 <p className="text-xs text-muted-foreground mt-1">
                   {userProfile?.username || user?.displayName || 'Tú'} · ahora
                 </p>
@@ -152,8 +183,9 @@ const OpinComposerPage = () => {
 
         {/* Tips */}
         <div className="mt-8 px-4 space-y-2 text-xs text-muted-foreground">
-          <p>Tu nota estará visible por 24 horas</p>
-          <p>Otros pueden responder y ver tu perfil</p>
+          <p>Tu nota quedará visible en OPIN y podrá recibir respuestas.</p>
+          <p>Podrás cambiar su estado después para indicar si sigues buscando o ya cerraste.</p>
+          <p>Otros pueden responder y ver tu perfil.</p>
         </div>
       </div>
     </div>

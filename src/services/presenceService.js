@@ -28,6 +28,7 @@ import { db, auth } from '@/config/firebase';
 import { actualizarEstadoOnline } from '@/services/tarjetaService';
 import { resolveProfileRole } from '@/config/profileRoles';
 import { trackListenerStart, trackListenerStop } from '@/utils/listenerMonitor';
+import { getComunaKey, normalizeComuna } from '@/config/comunas';
 
 const isBotUserId = (userId = '') =>
   userId === 'system' ||
@@ -160,6 +161,8 @@ export const joinRoom = async (roomId, userData) => {
       avatar: userData.avatar,
       roleBadge: normalizedRole || null,
       profileRole: normalizedRole || null,
+      comuna: normalizeComuna(userData?.comuna) || null,
+      comunaKey: getComunaKey(userData?.comuna) || null,
       isPremium: userData.isPremium || false,
       isProUser: userData.isProUser || false,
       hasRainbowBorder: userData.hasRainbowBorder || false,
@@ -258,7 +261,12 @@ export const updatePresenceFields = async (roomId, fields) => {
   if (!auth.currentUser || !roomId) return;
   const presenceRef = doc(db, 'roomPresence', roomId, 'users', auth.currentUser.uid);
   try {
-    await setDoc(presenceRef, fields, { merge: true });
+    const nextFields = { ...(fields || {}) };
+    if (Object.prototype.hasOwnProperty.call(nextFields, 'comuna')) {
+      nextFields.comuna = normalizeComuna(nextFields.comuna) || null;
+      nextFields.comunaKey = getComunaKey(nextFields.comuna) || null;
+    }
+    await setDoc(presenceRef, nextFields, { merge: true });
   } catch (error) {
     console.warn('[PRESENCE] Error actualizando campos:', error?.message);
   }

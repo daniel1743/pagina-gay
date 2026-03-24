@@ -17,14 +17,14 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { X, Send, Trash2, MessageCircle, Lock, UserPlus } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
-import { getPostComments, addComment, deleteComment } from '@/services/opinService';
+import { getPostComments, addComment, deleteComment, OPIN_STATUS_OPTIONS, getOpinStatusMeta, updateOpinStatus } from '@/services/opinService';
 import { sendPrivateChatRequestFromOpin } from '@/services/socialService';
 import { toast } from '@/components/ui/use-toast';
 
 const QUICK_REPLIES = ['Me interesa', 'Yo también busco', 'Escríbeme', 'Suena bien'];
 const PREVIEW_LIMIT = 3; // Respuestas visibles para visitantes
 
-const OpinCommentsModal = ({ post, open, onClose }) => {
+const OpinCommentsModal = ({ post, open, onClose, onPostUpdated }) => {
   const navigate = useNavigate();
   const { user } = useAuth();
   const [comments, setComments] = useState([]);
@@ -32,18 +32,26 @@ const OpinCommentsModal = ({ post, open, onClose }) => {
   const [commentText, setCommentText] = useState('');
   const [submitting, setSubmitting] = useState(false);
   const [invitingTargetId, setInvitingTargetId] = useState(null);
+  const [statusValue, setStatusValue] = useState(post?.status || OPIN_STATUS_OPTIONS[0].value);
+  const [updatingStatus, setUpdatingStatus] = useState(false);
   const commentsEndRef = useRef(null);
 
   // Detectar si es visitante (no logueado o guest)
   const isGuest = !user || user.isAnonymous || user.isGuest;
   const canInteract = !isGuest;
   const currentUserId = user?.uid || user?.id || null;
+  const isOwner = currentUserId && post?.userId === currentUserId;
+  const statusMeta = getOpinStatusMeta(statusValue);
 
   useEffect(() => {
     if (open && post) {
       loadComments();
     }
   }, [open, post]);
+
+  useEffect(() => {
+    setStatusValue(post?.status || OPIN_STATUS_OPTIONS[0].value);
+  }, [post?.status, post?.id]);
 
   const loadComments = async () => {
     setLoading(true);
@@ -102,7 +110,15 @@ const OpinCommentsModal = ({ post, open, onClose }) => {
     try {
       const newComment = await addComment(post.id, text);
 
-      setComments(prev => [...prev, newComment]);
+      setComments((prev) => {
+        const next = [...prev, newComment];
+        onPostUpdated?.(post.id, {
+          commentCount: next.length,
+          lastCommentAt: new Date(),
+          lastInteractionAt: new Date(),
+        });
+        return next;
+      });
       setCommentText('');
 
       toast({
@@ -140,7 +156,14 @@ const OpinCommentsModal = ({ post, open, onClose }) => {
 
     try {
       await deleteComment(commentId);
-      setComments(prev => prev.filter(c => c.id !== commentId));
+      setComments((prev) => {
+        const next = prev.filter((comment) => comment.id !== commentId);
+        onPostUpdated?.(post.id, {
+          commentCount: next.length,
+          lastInteractionAt: new Date(),
+        });
+        return next;
+      });
 
       toast({
         title: 'Respuesta eliminada',
@@ -204,6 +227,29 @@ const OpinCommentsModal = ({ post, open, onClose }) => {
     }
   };
 
+  const handleStatusChange = async (nextStatus) => {
+    if (!isOwner || updatingStatus || nextStatus === statusValue) return;
+
+    setUpdatingStatus(true);
+    try {
+      await updateOpinStatus(post.id, nextStatus);
+      setStatusValue(nextStatus);
+      onPostUpdated?.(post.id, {
+        status: nextStatus,
+        lastInteractionAt: new Date(),
+      });
+      toast({ title: 'Estado actualizado', description: `Tu nota quedó como "${getOpinStatusMeta(nextStatus).label}".` });
+    } catch (error) {
+      toast({
+        title: 'No se pudo actualizar',
+        description: error?.message || 'Intenta nuevamente.',
+        variant: 'destructive',
+      });
+    } finally {
+      setUpdatingStatus(false);
+    }
+  };
+
   if (!open) return null;
 
   return (
@@ -255,6 +301,11 @@ const OpinCommentsModal = ({ post, open, onClose }) => {
               )}
               <div className="flex-1 min-w-0">
                 <p className="font-semibold text-foreground">{post.username}</p>
+                <div className="mt-1">
+                  <span className={`inline-flex items-center rounded-full border px-2 py-0.5 text-[11px] font-medium ${statusMeta.badgeClassName}`}>
+                    {statusMeta.label}
+                  </span>
+                </div>
                 <p className="text-sm text-foreground/80 mt-1 line-clamp-2">
                   {post.text}
                 </p>
@@ -273,6 +324,34 @@ const OpinCommentsModal = ({ post, open, onClose }) => {
                 )}
               </div>
             </div>
+
+            {isOwner && (
+              <div className="mt-3">
+                <p className="text-[11px] uppercase tracking-wide text-muted-foreground mb-2">
+                  Estado de tu nota
+                </p>
+                <div className="flex flex-wrap gap-2">
+                  {OPIN_STATUS_OPTIONS.map((option) => {
+                    const isActive = statusValue === option.value;
+                    return (
+                      <button
+                        key={option.value}
+                        type="button"
+                        onClick={() => handleStatusChange(option.value)}
+                        disabled={updatingStatus}
+                        className={`px-3 py-1.5 rounded-full border text-xs font-medium transition-colors ${
+                          isActive
+                            ? option.badgeClassName
+                            : 'border-white/10 bg-white/5 text-muted-foreground hover:bg-white/10'
+                        } ${updatingStatus ? 'opacity-60' : ''}`}
+                      >
+                        {option.shortLabel}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
           </div>
 
           {/* Respuestas */}

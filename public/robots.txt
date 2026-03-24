@@ -7,6 +7,7 @@ User-agent: *
 
 # ✅ PERMITIR landing pages y páginas públicas
 Allow: /
+Allow: /gay
 Allow: /landing
 Allow: /global
 Allow: /chat-gay-chile
@@ -49,6 +50,13 @@ Disallow: /anonymous-forum
 Disallow: /chat/gaming
 Disallow: /eventos
 
+# ⏸️ BLOQUEO TEMPORAL (2026-03-24): vertical hetero en trabajo, no indexar todavía
+# Rehabilitar estas rutas cuando el vertical esté listo para producción SEO.
+Disallow: /hetero
+Disallow: /hetero/chat
+Disallow: /hetero/amistad
+Disallow: /chat/hetero-general
+
 # ❌ BLOQUEAR panel de administración y herramientas
 Disallow: /admin/
 Disallow: /seed-conversaciones
@@ -68,3 +76,4 @@ Disallow: /*?*session=
 
 # Sitemap principal
 Sitemap: https://chactivo.com/sitemap.xml
+Sitemap: https://chactivo.com/sitemap-index.xml

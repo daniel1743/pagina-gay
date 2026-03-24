@@ -11,6 +11,7 @@
  */
 
 import { v4 as uuidv4 } from 'uuid';
+import { normalizeComuna } from '@/config/comunas';
 
 const STORAGE_KEY = 'chactivo_guest_identity';
 const TEMP_STORAGE_KEY = 'chactivo_guest_temp'; // Temporal del modal
@@ -67,16 +68,17 @@ export function getGuestIdentity() {
 
 /**
  * Crea y guarda una nueva identidad de invitado
- * @param {Object} data - { nombre, avatar?, profileRole? }
+ * @param {Object} data - { nombre, avatar?, profileRole?, comuna? }
  * @returns {Object} - Identidad creada
  */
-export function createGuestIdentity({ nombre, avatar = null, profileRole = null }) {
+export function createGuestIdentity({ nombre, avatar = null, profileRole = null, comuna = null }) {
   const guestId = uuidv4();
   const identity = {
     guestId,
     nombre: nombre || 'Invitado',
     avatar: avatar || generateAvatar(guestId),
     profileRole: profileRole || null,
+    comuna: normalizeComuna(comuna) || null,
     createdAt: Date.now(),
     lastSeen: Date.now(),
     firebaseUid: null, // Se actualizará cuando se autentique con Firebase
@@ -195,12 +197,14 @@ export function hasGuestIdentity() {
 /**
  * Guarda datos temporales del modal (antes de crear la identidad permanente)
  * Útil para cuando el usuario llena el modal pero aún no se autentica
- * @param {Object} data - { nombre, avatar, role? }
+ * @param {Object} data - { nombre, avatar, role?, comuna? }
  */
 export function saveTempGuestData(data) {
   try {
+    const normalizedComuna = normalizeComuna(data?.comuna);
     localStorage.setItem(TEMP_STORAGE_KEY, JSON.stringify({
       ...data,
+      comuna: normalizedComuna || null,
       timestamp: Date.now()
     }));
   } catch (error) {
