@@ -36,6 +36,8 @@ const AVATAR_OPTIONS = [
   'https://api.dicebear.com/7.x/avataaars/svg?seed=avatar10',
 ];
 
+const HETERO_SEX_OPTIONS = ['Hombre', 'Mujer'];
+
 /**
  * ✅ FASE 1.1: MODAL ÚNICO PARA INVITADOS - FIX CRÍTICO
  * Modal canónico y único punto de entrada para usuarios invitados
@@ -67,10 +69,19 @@ export const GuestUsernameModal = ({
     if (typeof window === 'undefined') return '';
     return normalizeComuna(localStorage.getItem(ONBOARDING_COMUNA_KEY) || '') || '';
   });
+  const [selectedSexo, setSelectedSexo] = useState(() => {
+    if (typeof window === 'undefined') return '';
+    return localStorage.getItem('chactivo:hetero_sex') || '';
+  });
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState('');
   const [ageConfirmed, setAgeConfirmed] = useState(true); // ✅ PRE-MARCADO: Menos fricción para el usuario
   const modalOpenTimeRef = useRef(null); // 📊 Timestamp cuando se abre el modal
+  const canSubmit = Boolean(
+    nickname.trim() &&
+    selectedComuna &&
+    (isHeteroRoom ? selectedSexo : selectedRole)
+  );
 
   // ⚡ FIX CRÍTICO: Auto-skip SOLO si openSource === 'auto'
   // Si es 'user' (click manual), el modal DEBE mostrarse incluso con identidad existente
@@ -138,6 +149,12 @@ export const GuestUsernameModal = ({
       setAgeConfirmed(false);
       return;
     }
+    const normalizedSexo = isHeteroRoom ? String(selectedSexo || '').trim() : null;
+    if (isHeteroRoom && !normalizedSexo) {
+      setError('Selecciona si entras como hombre o mujer');
+      setAgeConfirmed(false);
+      return;
+    }
     const normalizedComuna = normalizeComuna(selectedComuna);
     if (!normalizedComuna) {
       setError('Selecciona tu comuna o ciudad para conectar gente cerca');
@@ -163,12 +180,16 @@ export const GuestUsernameModal = ({
         avatar: randomAvatar,
         role: normalizedRole,
         comuna: normalizedComuna,
+        sexo: normalizedSexo,
       });
       console.log('[GuestModal] ✅ Datos guardados para persistencia automática');
 
       if (typeof window !== 'undefined') {
         if (normalizedRole) {
           localStorage.setItem('chactivo:role', normalizedRole);
+        }
+        if (normalizedSexo) {
+          localStorage.setItem('chactivo:hetero_sex', normalizedSexo);
         }
         localStorage.setItem(ONBOARDING_COMUNA_KEY, normalizedComuna);
       }
@@ -207,6 +228,7 @@ export const GuestUsernameModal = ({
           avatar: randomAvatar,
           role: normalizedRole,
           comuna: normalizedComuna,
+          sexo: normalizedSexo,
           authenticated: false,
           optimistic: true
         });
@@ -342,6 +364,46 @@ export const GuestUsernameModal = ({
                   ✨ Avatar asignado automáticamente • Presiona ENTER para entrar
                 </p>
 
+                {isHeteroRoom && (
+                  <>
+                    <label style={{ display: 'block', fontSize: '15px', fontWeight: '600', color: '#333', marginBottom: '10px' }}>
+                      Entras como:
+                    </label>
+                    <select
+                      value={selectedSexo}
+                      onChange={(e) => {
+                        setSelectedSexo(e.target.value);
+                        if (error) setError('');
+                      }}
+                      required
+                      disabled={isLoading}
+                      style={{
+                        width: '100%',
+                        padding: '14px',
+                        fontSize: '16px',
+                        border: '2px solid #667eea',
+                        borderRadius: '12px',
+                        outline: 'none',
+                        boxSizing: 'border-box',
+                        backgroundColor: 'white',
+                        color: '#333',
+                        fontWeight: '500',
+                        marginBottom: '16px'
+                      }}
+                    >
+                      <option value="">Selecciona hombre o mujer</option>
+                      {HETERO_SEX_OPTIONS.map((sexoOption) => (
+                        <option key={sexoOption} value={sexoOption}>
+                          {sexoOption}
+                        </option>
+                      ))}
+                    </select>
+                    <p style={{ fontSize: '11px', color: '#888', marginBottom: '16px' }}>
+                      Lo usamos solo para ordenar mejor la entrada a esta sala.
+                    </p>
+                  </>
+                )}
+
                 {!isHeteroRoom && (
                   <>
                     <label style={{ display: 'block', fontSize: '15px', fontWeight: '600', color: '#333', marginBottom: '10px' }}>
@@ -458,20 +520,20 @@ export const GuestUsernameModal = ({
                 <button
                   type="submit"
                   onClick={() => setAgeConfirmed(true)} // ✅ Auto-marcar checkbox al hacer click
-                  disabled={isLoading || !nickname.trim() || !selectedRole || !selectedComuna}
+                  disabled={isLoading || !canSubmit}
                   style={{
                     width: '100%',
                     padding: '16px 24px',
                     fontSize: '18px',
                     fontWeight: 'bold',
                     color: 'white',
-                    background: isLoading || !nickname.trim() || !selectedRole || !selectedComuna
+                    background: isLoading || !canSubmit
                       ? 'linear-gradient(135deg, #999 0%, #888 100%)'
                       : 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
                     border: 'none',
                     borderRadius: '12px',
-                    cursor: isLoading || !nickname.trim() || !selectedRole || !selectedComuna ? 'not-allowed' : 'pointer',
-                    opacity: isLoading || !nickname.trim() || !selectedRole || !selectedComuna ? '0.6' : '1',
+                    cursor: isLoading || !canSubmit ? 'not-allowed' : 'pointer',
+                    opacity: isLoading || !canSubmit ? '0.6' : '1',
                     boxShadow: '0 6px 20px rgba(102, 126, 234, 0.4)',
                     transition: 'all 0.2s',
                     display: 'flex',

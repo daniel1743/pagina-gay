@@ -19,7 +19,10 @@ const SEOLanding = ({
   subtitle = 'Conecta con gente real ahora mismo',
   redirectDelay = 100, // ⚡ 100ms - casi instantáneo pero Google aún indexa
   canonicalPath = null,
-  previewable = true
+  previewable = true,
+  autoRedirect = true,
+  ctaLabel = 'Entrar al chat ahora',
+  supportingPoints = []
 }) => {
   const navigate = useNavigate();
   const pageStartRef = useRef(Date.now());
@@ -31,10 +34,21 @@ const SEOLanding = ({
   const isPreviewMode =
     previewable &&
     (searchParams.get('preview') === '1' || searchParams.get('noredirect') === '1');
+  const shouldAutoRedirect = autoRedirect && !isPreviewMode;
   const delayFromQuery = Number.parseInt(searchParams.get('delay') || '', 10);
   const effectiveRedirectDelay = Number.isFinite(delayFromQuery)
     ? Math.max(0, Math.min(delayFromQuery, 15000))
     : redirectDelay;
+
+  const goToChat = (method = 'landing_cta') => {
+    track('entry_to_chat', {
+      method,
+      from_path: window.location.pathname,
+      room_id: chatRoom,
+      delay_ms: shouldAutoRedirect ? effectiveRedirectDelay : 0,
+    }).catch(() => {});
+    navigate(`/chat/${chatRoom}`);
+  };
 
   // 🔍 SEO - Actualizar meta tags dinámicamente
   useEffect(() => {
@@ -91,10 +105,11 @@ const SEOLanding = ({
       landing_variant: chatRoom,
       seo_landing: true,
       preview_mode: isPreviewMode,
+      auto_redirect_enabled: autoRedirect,
       redirect_delay_ms: effectiveRedirectDelay,
     }).catch(() => {});
 
-    if (isPreviewMode) {
+    if (!shouldAutoRedirect) {
       return () => {
         const timeOnPage = Math.max(0, Math.round((Date.now() - pageStartRef.current) / 1000));
         trackPageExit(window.location.pathname, timeOnPage).catch(() => {});
@@ -116,7 +131,7 @@ const SEOLanding = ({
       const timeOnPage = Math.max(0, Math.round((Date.now() - pageStartRef.current) / 1000));
       trackPageExit(window.location.pathname, timeOnPage).catch(() => {});
     };
-  }, [navigate, chatRoom, title, isPreviewMode, effectiveRedirectDelay]);
+  }, [navigate, chatRoom, title, shouldAutoRedirect, effectiveRedirectDelay]);
 
   return (
     <>
@@ -137,25 +152,45 @@ const SEOLanding = ({
             {subtitle}
           </p>
 
-          {/* Spinner de carga */}
-          <div className="flex justify-center mb-6">
-            <div
-              className="w-12 h-12 border-4 border-white border-t-transparent rounded-full animate-spin"
-            />
-          </div>
+          {shouldAutoRedirect ? (
+            <>
+              <div className="flex justify-center mb-6">
+                <div
+                  className="w-12 h-12 border-4 border-white border-t-transparent rounded-full animate-spin"
+                />
+              </div>
+              <p className="text-sm opacity-70">
+                {`Entrando al chat en ${Math.ceil(effectiveRedirectDelay / 1000)}s...`}
+              </p>
+            </>
+          ) : (
+            <>
+              <button
+                type="button"
+                onClick={() => goToChat(isPreviewMode ? 'preview_cta' : 'landing_cta')}
+                className="rounded-xl bg-white px-6 py-3 text-base font-semibold text-slate-900 transition hover:bg-slate-100"
+              >
+                {ctaLabel}
+              </button>
+              <p className="mt-3 text-sm opacity-75">
+                {isPreviewMode
+                  ? 'Modo preview activo. Puedes revisar la landing o entrar al chat ahora.'
+                  : 'Sin redirección automática. Entra cuando quieras al chat.'}
+              </p>
+            </>
+          )}
 
-          <p className="text-sm opacity-70">
-            {isPreviewMode ? 'Modo preview activo' : `Entrando al chat en ${Math.ceil(effectiveRedirectDelay / 1000)}s...`}
-          </p>
-
-          {isPreviewMode && (
-            <button
-              type="button"
-              onClick={() => navigate(`/chat/${chatRoom}`)}
-              className="mt-4 rounded-lg bg-white/20 px-4 py-2 text-sm font-semibold text-white transition hover:bg-white/30"
-            >
-              Entrar al chat ahora
-            </button>
+          {supportingPoints.length > 0 && (
+            <div className="mt-8 grid gap-3 text-left sm:grid-cols-3">
+              {supportingPoints.map((point) => (
+                <div
+                  key={point}
+                  className="rounded-xl border border-white/20 bg-white/10 px-4 py-3 text-sm text-white/90 backdrop-blur-sm"
+                >
+                  {point}
+                </div>
+              ))}
+            </div>
           )}
         </div>
 
@@ -185,12 +220,31 @@ const SEOLanding = ({
 export const SEOLandingChile = () => (
   <SEOLanding
     chatRoom="principal"
-    title="Chat Gay Chile Gratis | Chat Gay en Vivo Sin Registro - Chactivo"
-    description="Chat gay Chile en vivo y gratis. Conecta con hombres de Santiago y todo Chile en segundos, sin registro obligatorio."
+    title="Chat Gay Chile | Entra Gratis y Conversa Ahora | Chactivo"
+    description="Una entrada rápida para hablar con gente real de Chile. Sin registro obligatorio, sin descargas y con acceso inmediato al chat."
     keywords="chat gay chile, chat gay en vivo, chat gay gratis chile, chat gay santiago, chatgay chile"
     h1="Chat Gay Chile En Vivo"
     subtitle="Conecta con hombres reales de Chile"
     canonicalPath="/chat-gay-chile"
+  />
+);
+
+export const SEOLandingHome = () => (
+  <SEOLanding
+    chatRoom="principal"
+    title="Chat Gay Chile En Vivo | Entra Gratis y Habla al Instante | Chactivo"
+    description="Conecta con gente real de Chile en segundos. Entra gratis, sin registro obligatorio y conversa al instante desde tu navegador."
+    keywords="chat gay chile, chat gay en vivo, chat gay gratis chile, chat gay sin registro, chat gay chile gratis"
+    h1="Chat Gay Chile En Vivo"
+    subtitle="Conecta con gente real sin perder tiempo"
+    canonicalPath="/"
+    autoRedirect={false}
+    ctaLabel="Entrar al chat principal"
+    supportingPoints={[
+      'Entrada directa al chat principal desde tu navegador.',
+      'Sin descargas y con acceso rápido para conversar al instante.',
+      'Pensado para captar la intención global de Chile en una sola URL fuerte.',
+    ]}
   />
 );
 
@@ -245,13 +299,19 @@ export const SEOLandingBrasil = () => (
 export const SEOLandingSantiagoCentro = () => (
   <SEOLanding
     chatRoom="principal"
-    title="Chat Gay Santiago Centro | Conoce Gente de la RM en Vivo - Chactivo"
-    description="Chat gay en Santiago Centro y Región Metropolitana. Conversa en vivo con gente real cerca de ti. Sin registro obligatorio."
+    title="Chat Gay Santiago Centro | Gente De La RM Conectada | Chactivo"
+    description="Habla con gente de Santiago Centro y la Región Metropolitana. Entrada rápida, sin registro obligatorio y desde tu navegador."
     keywords="chat gay santiago centro, chat gay santiago, chat gay region metropolitana, chat gay chile en vivo"
     h1="Chat Gay Santiago Centro"
-    subtitle="Personas de la RM conectadas ahora"
-    redirectDelay={4500}
+    subtitle="Una entrada local para quienes buscan gente de Santiago y la RM"
     canonicalPath="/chat-gay-santiago-centro"
+    autoRedirect={false}
+    ctaLabel="Entrar al chat de Chile"
+    supportingPoints={[
+      'Pensada para búsquedas locales de Santiago Centro y Región Metropolitana.',
+      'Mejor alineación entre snippet local y experiencia de entrada.',
+      'Se mantiene viva como landing defendible, no como salto automático.',
+    ]}
   />
 );
 

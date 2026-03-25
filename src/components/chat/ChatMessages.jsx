@@ -43,6 +43,7 @@ const ChatMessages = ({
   roomUsers = [],
   dailyTopic = '',
   isLoadingMessages = false,
+  messagesLoadingStage = 'initial',
   hideRoleBadges = false,
 }) => {
   const DEFAULT_CHAT_AVATAR = '/avatar_por_defecto.jpeg';
@@ -481,6 +482,23 @@ const ChatMessages = ({
   };
 
   const messageGroups = groupMessages(messages);
+  const loadingCopy = {
+    initial: {
+      title: 'Cargando conversaciones...',
+      hint: 'Estamos trayendo los mensajes recientes de la sala.',
+    },
+    delayed: {
+      title: 'Sincronizando la sala...',
+      hint: 'Si ves gente conectada, la sala no está vacía. Firestore está tardando más de lo normal.',
+    },
+    extended: {
+      title: 'La carga viene lenta, pero la sala sigue activa.',
+      hint: 'Espera un momento más antes de salir. A veces el primer snapshot tarda bastante en llegar.',
+    },
+  }[messagesLoadingStage] || {
+    title: 'Cargando conversaciones...',
+    hint: 'Estamos trayendo los mensajes recientes de la sala.',
+  };
 
   return (
     <div
@@ -503,18 +521,35 @@ const ChatMessages = ({
       ) : null}
 
       {messageGroups.length === 0 ? (
-        <div className="flex items-center justify-center py-8">
-          <div className="text-center">
+        <div className="px-4 py-8">
+          <div className="mx-auto max-w-2xl">
             {isLoadingMessages ? (
-              <>
-                <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-purple-500 mx-auto mb-2"></div>
-                <p className="text-sm text-gray-500">Cargando mensajes...</p>
-              </>
+              <div className="space-y-5">
+                <div className="text-center">
+                  <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-purple-500 mx-auto mb-2"></div>
+                  <p className="text-sm text-gray-500">{loadingCopy.title}</p>
+                  <p className="text-xs text-gray-400 mt-1">{loadingCopy.hint}</p>
+                </div>
+
+                <div className="space-y-3 opacity-80">
+                  <div className="flex items-end gap-2">
+                    <div className="h-8 w-8 rounded-full bg-white/10 animate-pulse"></div>
+                    <div className="h-14 w-[68%] rounded-2xl rounded-bl-md bg-white/10 animate-pulse"></div>
+                  </div>
+                  <div className="flex justify-end">
+                    <div className="h-12 w-[48%] rounded-2xl rounded-br-md bg-cyan-500/10 animate-pulse"></div>
+                  </div>
+                  <div className="flex items-end gap-2">
+                    <div className="h-8 w-8 rounded-full bg-white/10 animate-pulse"></div>
+                    <div className="h-16 w-[74%] rounded-2xl rounded-bl-md bg-white/10 animate-pulse"></div>
+                  </div>
+                </div>
+              </div>
             ) : (
-              <>
+              <div className="text-center">
                 <p className="text-sm text-gray-500">Aún no hay mensajes en esta sala.</p>
                 <p className="text-xs text-gray-400 mt-1">Sé el primero en escribir.</p>
-              </>
+              </div>
             )}
           </div>
         </div>

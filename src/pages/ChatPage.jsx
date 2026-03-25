@@ -58,7 +58,7 @@ import {
   markMessagesAsRead,
   generateUUID
 } from '@/services/chatService';
-import { CHAT_AVAILABILITY_HEARTBEAT_MS, joinRoom, leaveRoom, subscribeToRoomUsers, subscribeToMultipleRoomCounts, updateUserActivity, cleanInactiveUsers, filterActiveUsers, subscribeToTypingUsers, updatePresenceFields, validateUserAvailabilityInRoom } from '@/services/presenceService';
+import { CHAT_AVAILABILITY_HEARTBEAT_MS, joinRoom, leaveRoom, subscribeToRoomUsers, subscribeToMultipleRoomCounts, updateUserActivity, cleanInactiveUsers, filterActiveUsers, subscribeToTypingUsers, updatePresenceFields, validateUserAvailabilityInRoom, isUserAvailableForConversation } from '@/services/presenceService';
 import { validateMessage } from '@/services/antiSpamService';
 import { auth, db } from '@/config/firebase'; // ✅ CRÍTICO: Necesario para obtener UID real de Firebase Auth
 import { doc, getDoc, deleteDoc } from 'firebase/firestore';
@@ -726,7 +726,6 @@ const ChatPage = () => {
   }, [user, needsNickname]);
   // ⚠️ MODAL INVITADO ELIMINADO - Solo registro normal
   // const [showGuestNicknameModal, setShowGuestNicknameModal] = useState(false);
-  const loadingTimeoutRef = useRef(null); // 🚀 Ref para timeout de loading
   const [isAgeVerified, setIsAgeVerified] = useState(false); // ✅ Flag mayor de edad
   // ⚠️ MODAL COMENTADO - El bot moderador ya informa las reglas al ingresar
   // const [hasAcceptedRules, setHasAcceptedRules] = useState(false);
@@ -740,6 +739,7 @@ const ChatPage = () => {
   const [replyTo, setReplyTo] = useState(null); // 💬 Mensaje al que se está respondiendo { messageId, username, content }
   const [isFeaturedChannelsMobileOpen, setIsFeaturedChannelsMobileOpen] = useState(false); // ✨ Panel de canales destacados en móvil
   const [isLoadingMessages, setIsLoadingMessages] = useState(true); // ⏳ Estado de carga de mensajes
+  const [messagesLoadingStage, setMessagesLoadingStage] = useState('initial'); // initial | delayed | extended
   const [unreadRepliesCount, setUnreadRepliesCount] = useState(0); // 💬 Contador de respuestas no leídas
   const lastReadMessageIdRef = useRef(null); // Para rastrear último mensaje leído
   const unsubscribeRef = useRef(null);
@@ -760,7 +760,8 @@ const ChatPage = () => {
   const chatLoadTrackedRef = useRef(false); // 📊 PERFORMANCE: Flag para evitar tracking duplicado
   const firstNonEmptySnapshotRef = useRef(false); // Evita flicker "vacío" cuando Firestore responde tarde
   const firstSnapshotReceivedRef = useRef(false); // Marca llegada del primer snapshot (aunque venga vacío)
-  const loadingFallbackTimeoutRef = useRef(null); // Fallback de carga inicial
+  const loadingFallbackTimeoutRef = useRef(null); // Cambio a carga lenta
+  const loadingExtendedTimeoutRef = useRef(null); // Carga anormalmente lenta
   const nicoWelcomedUsersRef = useRef(new Set()); // 🤖 NICO: Usuarios ya bienvenidos esta sesion
   const nicoQuestionIntervalRef = useRef(null); // 🤖 NICO: Intervalo de preguntas cada 30min
   const nicoPreviousRoomUsersRef = useRef(null); // 🤖 NICO: null = primer render (no enviar bienvenidas)
@@ -2043,20 +2044,28 @@ const ChatPage = () => {
   // Track page view and room join
   // ⚠️ CRITICAL: Este hook DEBE ejecutarse siempre (antes del return)
   useEffect(() => {
+    const runTrackingSafely = (fn) => {
+      queueMicrotask(() => {
+        Promise.resolve()
+          .then(fn)
+          .catch(() => {});
+      });
+    };
+
     if (roomId) {
       pageStartRef.current = Date.now();
-      trackPageView(`/chat/${roomId}`, `Chat - ${roomId}`, { user });
-      trackRoomJoined(roomId, { user });
-      track('chat_room_view', { roomId, roomName: roomId }, { user }).catch(() => {});
+      runTrackingSafely(() => trackPageView(`/chat/${roomId}`, `Chat - ${roomId}`, { user }));
+      runTrackingSafely(() => trackRoomJoined(roomId, { user }));
+      runTrackingSafely(() => track('chat_room_view', { roomId, roomName: roomId }, { user }));
     }
 
     return () => {
       if (roomId) {
         const timeOnPage = Math.round((Date.now() - pageStartRef.current) / 1000);
-        trackPageExit(`/chat/${roomId}`, timeOnPage, { user });
+        runTrackingSafely(() => trackPageExit(`/chat/${roomId}`, timeOnPage, { user }));
       }
     };
-  }, [roomId]);
+  }, [roomId, user]);
 
   // 📊 Señales de comportamiento para vertical hetero: tiempo en chat, mensajes y retorno
   useEffect(() => {
@@ -2283,8 +2292,11 @@ const ChatPage = () => {
   // Evitar flicker de "chat vacío": mantener loading hasta que llegue snapshot real o timeout largo controlado.
   useEffect(() => {
     return () => {
-      if (loadingTimeoutRef.current) {
-        clearTimeout(loadingTimeoutRef.current);
+      if (loadingFallbackTimeoutRef.current) {
+        clearTimeout(loadingFallbackTimeoutRef.current);
+      }
+      if (loadingExtendedTimeoutRef.current) {
+        clearTimeout(loadingExtendedTimeoutRef.current);
       }
     };
   }, []);
@@ -2295,11 +2307,16 @@ const ChatPage = () => {
   useEffect(() => {
     setCurrentRoom(roomId);
     setIsLoadingMessages(true); // ⏳ Marcar como cargando al cambiar de sala
+    setMessagesLoadingStage('initial');
     firstNonEmptySnapshotRef.current = false;
     firstSnapshotReceivedRef.current = false;
     if (loadingFallbackTimeoutRef.current) {
       clearTimeout(loadingFallbackTimeoutRef.current);
       loadingFallbackTimeoutRef.current = null;
+    }
+    if (loadingExtendedTimeoutRef.current) {
+      clearTimeout(loadingExtendedTimeoutRef.current);
+      loadingExtendedTimeoutRef.current = null;
     }
     aiActivatedRef.current = false; // Resetear flag de IA cuando cambia de sala
     nicoWelcomedUsersRef.current = new Set(); // 🤖 NICO: Resetear bienvenidas al cambiar de sala
@@ -2331,14 +2348,26 @@ const ChatPage = () => {
     // console.log('📡 [CHAT] Suscribiéndose a mensajes INMEDIATAMENTE para sala:', roomId);
     setIsLoadingMessages(true); // ⏳ Marcar como cargando al iniciar suscripción
 
-    // ⚡ TIMEOUT DE SEGURIDAD: mantiene spinner y evita mostrar estado vacío prematuro
+    // ⚡ TIMEOUTS DE SEGURIDAD: nunca mostrar "chat vacío" antes del primer snapshot real
     loadingFallbackTimeoutRef.current = setTimeout(() => {
       if (chatDebug) {
-        console.warn('⏰ [CHAT] Timeout de carga inicial alcanzado (4.5s) - finalizando estado de carga');
+        console.warn('⏰ [CHAT] La carga inicial superó 4.5s - pasando a estado de sincronización lenta');
       }
-      setIsLoadingMessages(false);
+      if (!firstSnapshotReceivedRef.current) {
+        setMessagesLoadingStage('delayed');
+      }
       loadingFallbackTimeoutRef.current = null;
     }, 4500);
+
+    loadingExtendedTimeoutRef.current = setTimeout(() => {
+      if (!firstSnapshotReceivedRef.current) {
+        setMessagesLoadingStage('extended');
+        if (chatDebug) {
+          console.warn('⏰ [CHAT] La carga inicial superó 15s - manteniendo sala en sincronización extendida');
+        }
+      }
+      loadingExtendedTimeoutRef.current = null;
+    }, 15000);
 
     if (chatDebug) {
       console.log(`[CHAT PAGE] 🚀 Llamando a subscribeToRoomMessages para sala ${roomId} con límite ${messageLimit}`);
@@ -2369,6 +2398,11 @@ const ChatPage = () => {
         clearTimeout(loadingFallbackTimeoutRef.current);
         loadingFallbackTimeoutRef.current = null;
       }
+      if (loadingExtendedTimeoutRef.current) {
+        clearTimeout(loadingExtendedTimeoutRef.current);
+        loadingExtendedTimeoutRef.current = null;
+      }
+      setMessagesLoadingStage('ready');
       setIsLoadingMessages(false);
       
       // 🔍 DEBUG: Loguear siempre en desarrollo para diagnóstico
@@ -2584,6 +2618,10 @@ const ChatPage = () => {
       if (loadingFallbackTimeoutRef.current) {
         clearTimeout(loadingFallbackTimeoutRef.current);
         loadingFallbackTimeoutRef.current = null;
+      }
+      if (loadingExtendedTimeoutRef.current) {
+        clearTimeout(loadingExtendedTimeoutRef.current);
+        loadingExtendedTimeoutRef.current = null;
       }
 
       try {
@@ -4360,62 +4398,93 @@ const ChatPage = () => {
     }
   }, [user, setShowRegistrationModal, setRegistrationModalFeature]);
 
-  const handlePrivateChatRequest = async (targetUser) => {
+  const openOrCreatePrivateChatWithTarget = useCallback(async (targetUser, options = {}) => {
+    const targetUserId = targetUser?.userId || targetUser?.id || null;
     if (!auth.currentUser || !user?.id) {
       setShowRegistrationModal(true);
       setRegistrationModalFeature('chat privado');
-      return;
+      return { ok: false, reason: 'auth_required' };
     }
 
-    if (targetUser.userId === user.id) return;
+    if (!targetUserId || targetUserId === user.id) {
+      return { ok: false, reason: 'invalid_target' };
+    }
 
+    if (
+      targetUser?.isGuest ||
+      targetUser?.isAnonymous ||
+      String(targetUserId).startsWith('unauthenticated_')
+    ) {
+      toast({
+        title: 'No disponible',
+        description: 'Este usuario no puede abrir chat privado porque no está registrado.',
+        variant: 'destructive',
+      });
+      return { ok: false, reason: 'target_unavailable' };
+    }
+
+    const blocked = await isBlockedBetween(user.id, targetUserId);
+    if (blocked) {
+      toast({
+        title: 'No disponible',
+        description: 'No puedes iniciar un chat privado con este usuario.',
+        variant: 'destructive',
+      });
+      return { ok: false, reason: 'blocked' };
+    }
+
+    const { chatId } = await getOrCreatePrivateChat(user.id, targetUserId);
+    const opened = openPrivateChatWindow({
+      user,
+      partner: {
+        ...targetUser,
+        id: targetUserId,
+        userId: targetUserId,
+      },
+      roomId: options.roomId ?? currentRoom,
+      chatId,
+      initialMessage: options.initialMessage || '',
+    });
+
+    if (!opened) {
+      return { ok: false, reason: 'limit_reached' };
+    }
+
+    return { ok: true, chatId, targetUserId };
+  }, [
+    currentRoom,
+    openPrivateChatWindow,
+    setRegistrationModalFeature,
+    user,
+  ]);
+
+  const handlePrivateChatRequest = async (targetUser) => {
     if (targetUser.userId === 'demo-user-123') {
       openPrivateChatWindow({ user, partner: targetUser, roomId: currentRoom });
       return;
     }
 
     try {
-      const blocked = await isBlockedBetween(user.id, targetUser.userId);
-      if (blocked) {
-        toast({
-          title: "No disponible",
-          description: "No puedes iniciar un chat privado con este usuario.",
-          variant: "destructive",
-        });
-        return;
-      }
-      // ✅ Usar el servicio para enviar la solicitud a Firestore
-      await sendPrivateChatRequest(user.id, targetUser.userId);
-      
-      // Mostrar estado local para el emisor (solicitud enviada)
-      setPrivateChatRequest({ from: user, to: targetUser });
-      
+      const opened = await openOrCreatePrivateChatWithTarget(targetUser);
+      if (!opened?.ok) return;
       toast({
-        title: "Solicitud enviada",
-        description: `Has invitado a ${targetUser.username} a un chat privado.`,
+        title: 'Chat privado abierto',
+        description: `Ya puedes conversar con ${targetUser.username || 'este usuario'}.`,
       });
     } catch (error) {
-      console.error('Error sending private chat request:', error);
+      console.error('Error opening private chat:', error);
       toast({
-        title: error?.message === 'BLOCKED' ? "No disponible" : "No pudimos enviar la invitación",
+        title: error?.message === 'BLOCKED' ? 'No disponible' : 'No pudimos abrir el chat privado',
         description: error?.message === 'BLOCKED'
-          ? "No puedes iniciar un chat privado con este usuario."
-          : "Intenta de nuevo en un momento",
-        variant: "destructive",
+          ? 'No puedes iniciar un chat privado con este usuario.'
+          : 'Intenta de nuevo en un momento',
+        variant: 'destructive',
       });
     }
   };
 
   const handleStartAvailableConversation = useCallback(async (targetUser) => {
     if (!targetUser?.userId) return;
-
-    if (!auth.currentUser || !user?.id) {
-      setShowRegistrationModal(true);
-      setRegistrationModalFeature('chat privado');
-      return;
-    }
-
-    if (targetUser.userId === user.id) return;
 
     try {
       const validation = await validateUserAvailabilityInRoom(currentRoom || roomId, targetUser.userId);
@@ -4428,26 +4497,13 @@ const ChatPage = () => {
         return;
       }
 
-      const blocked = await isBlockedBetween(user.id, targetUser.userId);
-      if (blocked) {
-        toast({
-          title: 'No disponible',
-          description: 'No puedes iniciar un chat privado con este usuario.',
-          variant: 'destructive',
-        });
-        return;
-      }
-
-      await sendPrivateChatRequest(user.id, targetUser.userId, {
-        source: 'availability_signal',
-        systemPrompt: `${targetUser.username || 'Este usuario'} marcó que está disponible para conversar.`,
-        suggestedStarter: 'Hola, vi que estás disponible para conversar 🙋',
+      const opened = await openOrCreatePrivateChatWithTarget(targetUser, {
+        initialMessage: 'Hola, vi que estás disponible para conversar 🙋',
       });
-
-      setPrivateChatRequest({ from: user, to: targetUser, source: 'availability_signal' });
+      if (!opened?.ok) return;
       toast({
-        title: 'Invitación enviada',
-        description: `Le avisamos a ${targetUser.username || 'este usuario'} que quieres conversar.`,
+        title: 'Chat privado abierto',
+        description: `Ya puedes conversar con ${targetUser.username || 'este usuario'}.`,
       });
     } catch (error) {
       console.error('Error iniciando conversación desde disponibilidad:', error);
@@ -4459,7 +4515,7 @@ const ChatPage = () => {
         variant: 'destructive',
       });
     }
-  }, [currentRoom, roomId, setRegistrationModalFeature, user]);
+  }, [currentRoom, openOrCreatePrivateChatWithTarget, roomId]);
 
   /**
    * Respuesta a solicitud de chat privado
@@ -4965,6 +5021,7 @@ const ChatPage = () => {
             <ChatMessages
               messages={visibleMessages}
               isLoadingMessages={isLoadingMessages}
+              messagesLoadingStage={messagesLoadingStage}
               currentUserId={user?.id || null}
               onUserClick={setUserActionsTarget}
               onReport={setReportTarget}

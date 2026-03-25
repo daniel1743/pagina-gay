@@ -8,7 +8,8 @@ import { User, MessageSquare, Video, Heart, Send, X, CheckCircle, Crown, Shield,
 import { motion, AnimatePresence } from 'framer-motion';
 import { toast } from '@/components/ui/use-toast';
 import { useAuth } from '@/contexts/AuthContext';
-import { sendDirectMessage, sendPrivateChatRequest, addToFavorites, removeFromFavorites, sendProfileComment } from '@/services/socialService';
+import { usePrivateChat } from '@/contexts/PrivateChatContext';
+import { getOrCreatePrivateChat, sendMessageToPrivateChat, addToFavorites, removeFromFavorites, sendProfileComment } from '@/services/socialService';
 import { blockUser } from '@/services/blockService';
 import {
   canSendChatInvite,
@@ -27,19 +28,21 @@ const UserActionsModal = ({
   onAdminDeleteRoomMessages,
 }) => {
   const { user: currentUser } = useAuth();
+  const { setActivePrivateChat } = usePrivateChat();
   const navigate = useNavigate();
   const adminRoles = new Set(['admin', 'administrator', 'superadmin']);
   const isCurrentUserAdmin = adminRoles.has(String(currentUser?.role || '').toLowerCase());
   const isGuestOrAnonymous = !currentUser?.id || currentUser?.isGuest || currentUser?.isAnonymous;
   const isPremiumOrAdmin = currentUser?.isPremium || isCurrentUserAdmin;
   const favoritesCount = currentUser?.favorites?.length || 0;
+  const targetUserId = targetUser?.userId || targetUser?.id || null;
   const [showMessageInput, setShowMessageInput] = useState(false);
   const [composeMode, setComposeMode] = useState('direct'); // direct | comment
   const [message, setMessage] = useState('');
   const [isSending, setIsSending] = useState(false);
   const [isAdminProcessing, setIsAdminProcessing] = useState(false);
   const [isFavorite, setIsFavorite] = useState(
-    currentUser?.favorites?.includes(targetUser.userId) || false
+    (targetUserId && currentUser?.favorites?.includes(targetUserId)) || false
   );
   const [limits, setLimits] = useState({
     chatInvites: { used: 0, remaining: 5, limit: 5 },
@@ -53,6 +56,59 @@ const UserActionsModal = ({
       setLimits(currentLimits);
     }
   }, [currentUser?.id, isPremiumOrAdmin]);
+
+  const openPrivateChatWithTarget = async ({ initialMessage = '', showOpenedToast = true } = {}) => {
+    if (!currentUser?.id) {
+      onClose();
+      if (onShowRegistrationModal) {
+        onShowRegistrationModal('chat privado');
+      }
+      return { ok: false, reason: 'auth_required' };
+    }
+
+    if (targetUser.isGuest || targetUser.isAnonymous) {
+      toast({
+        title: "⚠️ No disponible",
+        description: "Este usuario no puede abrir chat privado porque no está registrado.",
+        variant: "destructive",
+        duration: 5000,
+      });
+      onClose();
+      return { ok: false, reason: 'target_unavailable' };
+    }
+
+    if (!targetUserId || targetUserId === currentUser.id) {
+      return { ok: false, reason: 'invalid_target' };
+    }
+
+    const { chatId } = await getOrCreatePrivateChat(currentUser.id, targetUserId);
+    const partner = {
+      id: targetUserId,
+      userId: targetUserId,
+      username: targetUser.username,
+      avatar: targetUser.avatar,
+      isPremium: targetUser.isPremium,
+      role: targetUser.role,
+      isGuest: targetUser.isGuest,
+      isAnonymous: targetUser.isAnonymous,
+    };
+
+    setActivePrivateChat({
+      chatId,
+      partner,
+      roomId: null,
+      initialMessage: initialMessage || '',
+    });
+
+    if (showOpenedToast) {
+      toast({
+        title: 'Chat privado abierto',
+        description: `Ya puedes conversar con ${targetUser.username}.`,
+      });
+    }
+
+    return { ok: true, chatId, partner };
+  };
 
   const handleSendMessage = async () => {
     if (!message.trim()) return;
@@ -112,9 +168,22 @@ const UserActionsModal = ({
     setIsSending(true);
     try {
       if (composeMode === 'comment') {
-        await sendProfileComment(currentUser.id, targetUser.userId, message.trim());
+        await sendProfileComment(currentUser.id, targetUserId, message.trim());
       } else {
-        await sendDirectMessage(currentUser.id, targetUser.userId, message.trim());
+        const opened = await openPrivateChatWithTarget({
+          initialMessage: '',
+          showOpenedToast: false,
+        });
+        if (!opened?.ok || !opened.chatId) {
+          throw new Error(opened?.reason || 'CHAT_OPEN_FAILED');
+        }
+
+        await sendMessageToPrivateChat(opened.chatId, {
+          userId: currentUser.id,
+          username: currentUser.username || 'Usuario',
+          avatar: currentUser.avatar || '',
+          content: message.trim(),
+        });
 
         // Incrementar contador solo si no es Premium ni Admin
         if (!isPremiumOrAdmin) {
@@ -128,7 +197,7 @@ const UserActionsModal = ({
         title: composeMode === 'comment' ? "💬 Comentario enviado" : "✉️ Mensaje enviado",
         description: composeMode === 'comment'
           ? `Tu comentario fue enviado al perfil de ${targetUser.username}`
-          : `Tu mensaje fue enviado a ${targetUser.username}`,
+          : `Tu mensaje fue enviado en el chat privado con ${targetUser.username}`,
       });
 
       setMessage('');
@@ -169,19 +238,17 @@ const UserActionsModal = ({
   };
 
   const handlePrivateChatRequest = async () => {
-    console.log('🔍 [DEBUG] === INICIANDO SOLICITUD DE CHAT PRIVADO ===');
-    console.log('👤 [DEBUG] currentUser:', currentUser);
-    console.log('🔑 [DEBUG] currentUser.id:', currentUser?.id);
-    console.log('🎯 [DEBUG] targetUser:', targetUser);
-    console.log('🔑 [DEBUG] targetUser.userId:', targetUser?.userId);
+    if (!currentUser?.id) {
+      onClose();
+      if (onShowRegistrationModal) {
+        onShowRegistrationModal('chat privado');
+      }
+      return;
+    }
 
-    // Verificar límites
     const canSend = canSendChatInvite(currentUser);
-    console.log('✅ [DEBUG] canSend result:', canSend);
 
     if (!canSend.allowed) {
-      console.warn('⚠️ [DEBUG] Solicitud bloqueada. Razón:', canSend.reason);
-      console.warn('⚠️ [DEBUG] Mensaje:', canSend.message);
       if (canSend.reason === 'limit_reached') {
         toast({
           title: "⏱️ Límite Alcanzado",
@@ -197,41 +264,23 @@ const UserActionsModal = ({
     }
 
     try {
-      console.log('📤 [DEBUG] Enviando solicitud a Firestore...');
-      console.log('📤 [DEBUG] Parámetros: fromUserId =', currentUser.id, ', toUserId =', targetUser.userId);
-
-      await sendPrivateChatRequest(currentUser.id, targetUser.userId);
-
-      console.log('✅ [DEBUG] Solicitud enviada exitosamente a Firestore');
+      const opened = await openPrivateChatWithTarget({ initialMessage: '' });
+      if (!opened?.ok) {
+        throw new Error(opened?.reason || 'CHAT_OPEN_FAILED');
+      }
 
       // Incrementar contador solo si no es Premium ni Admin
       if (!isPremiumOrAdmin) {
-        console.log('📊 [DEBUG] Incrementando contador de invitaciones...');
         await incrementChatInvites(currentUser.id);
         const newLimits = getCurrentLimits(currentUser.id);
         setLimits(newLimits);
-        console.log('📊 [DEBUG] Nuevos límites:', newLimits);
-      } else {
-        console.log('👑 [DEBUG] Usuario Premium/Admin - No incrementar límites');
       }
-
-      console.log('🎉 [DEBUG] Mostrando toast de éxito');
-      toast({
-        title: "📞 Solicitud enviada",
-        description: `Esperando que ${targetUser.username} acepte el chat privado`,
-      });
-
-      console.log('🔍 [DEBUG] Cerrando modal');
       onClose();
     } catch (error) {
-      console.error('❌ [DEBUG] === ERROR AL ENVIAR SOLICITUD ===');
-      console.error('❌ [DEBUG] Error completo:', error);
-      console.error('❌ [DEBUG] Error message:', error.message);
-      console.error('❌ [DEBUG] Error stack:', error.stack);
-      console.error('❌ [DEBUG] Error code:', error.code);
+      console.error('Error opening private chat from actions modal:', error);
 
       toast({
-        title: error?.message === 'BLOCKED' ? "No disponible" : "No pudimos enviar la solicitud",
+        title: error?.message === 'BLOCKED' ? "No disponible" : "No pudimos abrir el chat privado",
         description: error?.message === 'BLOCKED'
           ? "No puedes iniciar un chat privado con este usuario."
           : "Intenta de nuevo en un momento",
@@ -264,7 +313,7 @@ const UserActionsModal = ({
 
     try {
       if (isFavorite) {
-        await removeFromFavorites(currentUser.id, targetUser.userId);
+        await removeFromFavorites(currentUser.id, targetUserId);
         setIsFavorite(false);
         toast({
           title: "💔 Eliminado de tu lista",
@@ -281,7 +330,7 @@ const UserActionsModal = ({
           return;
         }
 
-        await addToFavorites(currentUser.id, targetUser.userId);
+        await addToFavorites(currentUser.id, targetUserId);
         setIsFavorite(true);
         toast({
           title: "💖 Agregado a tu lista",
@@ -301,20 +350,20 @@ const UserActionsModal = ({
   };
 
   const handleBlockUser = async () => {
-    if (!currentUser?.id || !targetUser?.userId) {
+    if (!currentUser?.id || !targetUserId) {
       onClose();
       if (onShowRegistrationModal) {
         onShowRegistrationModal('bloquear');
       }
       return;
     }
-    if (targetUser.userId === currentUser.id) return;
+    if (targetUserId === currentUser.id) return;
 
     const confirmed = window.confirm(`¿Bloquear a ${targetUser.username}? No podrán interactuar entre ustedes.`);
     if (!confirmed) return;
 
     try {
-      await blockUser(currentUser.id, targetUser.userId, { source: 'chat_actions' });
+      await blockUser(currentUser.id, targetUserId, { source: 'chat_actions' });
       toast({
         title: "Usuario bloqueado",
         description: `Has bloqueado a ${targetUser.username}.`,

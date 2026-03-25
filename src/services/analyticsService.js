@@ -38,6 +38,14 @@ const STORED_ANALYTICS_EVENT_TYPES = new Set([
   'onboarding_time_to_first_message',
 ]);
 
+const isIgnorableFirestoreInternalError = (error) => {
+  const message = String(error?.message || '');
+  return (
+    message.includes('INTERNAL ASSERTION FAILED') ||
+    message.includes('Unexpected state')
+  );
+};
+
 /**
  * Registra un evento de analytics con segmentación avanzada
  * OPTIMIZADO: Actualiza agregaciones diarias + guarda eventos clave para análisis de usuarios únicos
@@ -132,7 +140,7 @@ export const trackEvent = async (eventType, eventData = {}) => {
 
     // Actualizar estadísticas diarias (merge para no sobrescribir)
     await setDoc(statsRef, updates, { merge: true }).catch(err => {
-      if (err.code !== 'permission-denied') {
+      if (err.code !== 'permission-denied' && !isIgnorableFirestoreInternalError(err)) {
         console.error('Error tracking event:', err);
       }
     });
@@ -166,11 +174,15 @@ export const trackEvent = async (eventType, eventData = {}) => {
 
       await setDoc(eventRef, {
         ...payload,
-      }).catch(() => {}); // Silenciar errores, no es crítico
+      }).catch((err) => {
+        if (!isIgnorableFirestoreInternalError(err)) {
+          console.error('Error storing analytics event:', err);
+        }
+      });
     }
 
   } catch (error) {
-    if (error.code !== 'permission-denied') {
+    if (error.code !== 'permission-denied' && !isIgnorableFirestoreInternalError(error)) {
       console.error('Error tracking event:', error);
     }
   }

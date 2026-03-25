@@ -26,6 +26,7 @@ import ChatBottomNav from '@/components/chat/ChatBottomNav';
 
 // 🚀 SEO LANDING MINIMALISTA - 1 segundo y redirige al chat
 import SEOLanding, {
+  SEOLandingHome,
   SEOLandingChile,
   SEOLandingArgentina,
   SEOLandingMexico,
@@ -314,11 +315,12 @@ function AppRoutes() {
         
         {/* 🚀 SEO LANDING MINIMALISTA - Google indexa, usuario ve 1 segundo y entra al chat */}
 
-        {/* ✅ RUTA PRINCIPAL: SEO Landing Chile (1 seg) → /chat/principal */}
-        <Route path="/" element={<SEOLandingChile />} />
-        <Route path="/gay" element={<SEOLandingChile />} />
-        <Route path="/gay/" element={<SEOLandingChile />} />
-        <Route path="/landing" element={<SEOLandingChile />} />
+        {/* ✅ CONSOLIDACIÓN SEO: / como superficie principal; aliases se consolidan hacia / */}
+        <Route path="/" element={<SEOLandingHome />} />
+        <Route path="/gay" element={<Navigate to="/" replace />} />
+        <Route path="/gay/" element={<Navigate to="/" replace />} />
+        <Route path="/landing" element={<Navigate to="/" replace />} />
+        <Route path="/landing/" element={<Navigate to="/" replace />} />
         <Route path="/chat-gay-chile" element={<SEOLandingChile />} />
         <Route path="/chat-gay-chile/" element={<SEOLandingChile />} />
         <Route path="/chat-gay-santiago-centro" element={<SEOLandingSantiagoCentro />} />

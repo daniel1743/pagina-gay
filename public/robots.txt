@@ -7,8 +7,6 @@ User-agent: *
 
 # ✅ PERMITIR landing pages y páginas públicas
 Allow: /
-Allow: /gay
-Allow: /landing
 Allow: /global
 Allow: /chat-gay-chile
 Allow: /chat-gay-santiago-centro

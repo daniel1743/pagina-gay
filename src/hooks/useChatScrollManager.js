@@ -87,8 +87,8 @@ export const useChatScrollManager = ({ messages, currentUserId, isInputFocused }
   // ========================================
   const handleScrollToBottomClick = useCallback(() => {
     scrollToBottom('smooth');
-    setUnreadCount(0);
-    setScrollState('AUTO_FOLLOW');
+    setUnreadCount((prev) => (prev === 0 ? prev : 0));
+    setScrollState((prev) => (prev === 'AUTO_FOLLOW' ? prev : 'AUTO_FOLLOW'));
     recordInteraction();
   }, [scrollToBottom, recordInteraction]);
 
@@ -186,13 +186,13 @@ export const useChatScrollManager = ({ messages, currentUserId, isInputFocused }
         if (currentlyAtBottom) {
           // At bottom - resume auto-follow inmediatamente
           // ✅ User scrolled back to bottom - safe to resume
-          setScrollState('AUTO_FOLLOW');
-          setUnreadCount(0);
+          setScrollState((prev) => (prev === 'AUTO_FOLLOW' ? prev : 'AUTO_FOLLOW'));
+          setUnreadCount((prev) => (prev === 0 ? prev : 0));
         } else {
           // Scrolled up - MANDATORY pause (UI/UX best practice)
           // 🚫 If user is reading history, auto-scroll MUST be disabled
           // No exceptions, no auto-resume, user must manually scroll to bottom
-          setScrollState('PAUSED_USER');
+          setScrollState((prev) => (prev === 'PAUSED_USER' ? prev : 'PAUSED_USER'));
           // Keep unread count (user is reading old messages)
         }
       }, DEBOUNCE_SCROLL);
@@ -233,10 +233,10 @@ export const useChatScrollManager = ({ messages, currentUserId, isInputFocused }
     // ⚠️ IMPORTANTE: NO cambiar estado si el usuario está leyendo historial (PAUSED_USER)
     // Solo pausar si estaba en AUTO_FOLLOW
     if (isInputFocused && scrollState === 'AUTO_FOLLOW') {
-      setScrollState('PAUSED_INPUT');
+      setScrollState((prev) => (prev === 'PAUSED_INPUT' ? prev : 'PAUSED_INPUT'));
     } else if (!isInputFocused && scrollState === 'PAUSED_INPUT') {
       // Input unfocused - transition to user pause (don't auto-resume yet)
-      setScrollState('PAUSED_USER');
+      setScrollState((prev) => (prev === 'PAUSED_USER' ? prev : 'PAUSED_USER'));
     }
     // Si scrollState es PAUSED_USER o PAUSED_SELECTION, NO hacer nada
   }, [isInputFocused, scrollState]);
@@ -264,8 +264,8 @@ export const useChatScrollManager = ({ messages, currentUserId, isInputFocused }
         requestAnimationFrame(() => {
           // Doble RAF para asegurar que el DOM está renderizado
           scrollToBottom('auto');
-          setScrollState('AUTO_FOLLOW');
-          setUnreadCount(0);
+          setScrollState((prev) => (prev === 'AUTO_FOLLOW' ? prev : 'AUTO_FOLLOW'));
+          setUnreadCount((prev) => (prev === 0 ? prev : 0));
           didInitialScrollRef.current = true;
         });
       });
@@ -280,8 +280,8 @@ export const useChatScrollManager = ({ messages, currentUserId, isInputFocused }
       if (userIsAtBottom) {
         requestAnimationFrame(() => {
           scrollToBottom('auto');
-          setScrollState('AUTO_FOLLOW');
-          setUnreadCount(0);
+          setScrollState((prev) => (prev === 'AUTO_FOLLOW' ? prev : 'AUTO_FOLLOW'));
+          setUnreadCount((prev) => (prev === 0 ? prev : 0));
         });
       }
       // Si esta arriba: no hacer nada, el navegador preserva la posicion
@@ -299,7 +299,7 @@ export const useChatScrollManager = ({ messages, currentUserId, isInputFocused }
       // cuando los mensajes se agregan al final del contenedor
       setUnreadCount((prev) => prev + 1);
     }
-  }, [messages, currentUserId, scrollState, scrollToBottom, captureTopAnchor, restoreTopAnchor, isAtBottom]);
+  }, [messages, currentUserId, scrollState, scrollToBottom, isAtBottom]);
 
   // ========================================
   // OBSERVE: Container resize (handle keyboard, etc.)
