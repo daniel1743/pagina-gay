@@ -47,23 +47,18 @@ const NotificationsPanel = ({ isOpen, onClose, notifications, onOpenPrivateChat 
         });
       }
     } catch (error) {
-      const isExpired = error?.message === 'REQUEST_EXPIRED';
       const isBlocked = error?.message === 'BLOCKED';
       const isPermissionDenied = error?.code === 'permission-denied' || String(error?.message || '').includes('insufficient permissions');
 
       toast({
-        title: isExpired
-          ? "Invitación expirada"
-          : isBlocked
-            ? "No disponible"
-            : "Error al aceptar",
-        description: isExpired
-          ? "La invitación venció. Pide que te envíen una nueva."
-          : isBlocked
-            ? "No puedes abrir chat privado con este usuario."
-            : isPermissionDenied
-              ? "Tu cuenta no tiene permisos para abrir privados todavía."
-              : "No se pudo aceptar la solicitud",
+        title: isBlocked
+          ? "No disponible"
+          : "Error al aceptar",
+        description: isBlocked
+          ? "No puedes abrir chat privado con este usuario."
+          : isPermissionDenied
+            ? "Tu cuenta no tiene permisos para abrir privados todavía."
+            : "No se pudo aceptar la solicitud",
         variant: "destructive",
       });
     }
@@ -94,6 +89,26 @@ const NotificationsPanel = ({ isOpen, onClose, notifications, onOpenPrivateChat 
     } catch (error) {
       console.error('Error marking as read:', error);
     }
+  };
+
+  const handleOpenDirectMessage = async (notification) => {
+    if (!notification?.chatId || !onOpenPrivateChat) {
+      handleMarkAsRead(notification.id);
+      return;
+    }
+
+    onOpenPrivateChat({
+      chatId: notification.chatId,
+      partner: {
+        userId: notification.from,
+        username: notification.fromUsername || 'Usuario',
+        avatar: notification.fromAvatar || '',
+        isPremium: notification.fromIsPremium,
+      },
+    });
+
+    await handleMarkAsRead(notification.id);
+    onClose?.();
   };
 
   /**
@@ -317,7 +332,14 @@ const NotificationsPanel = ({ isOpen, onClose, notifications, onOpenPrivateChat 
                       <div onClick={() => handleMarkAsRead(notification.id)}>
                       {/* Mensaje Directo */}
                       {notification.type === 'direct_message' && (
-                        <div className="flex gap-3">
+                        <div
+                          className={`flex gap-3 ${notification.chatId ? 'cursor-pointer' : ''}`}
+                          onClick={() => {
+                            if (notification.chatId) {
+                              handleOpenDirectMessage(notification);
+                            }
+                          }}
+                        >
                           <MessageSquare className="w-5 h-5 text-green-400 flex-shrink-0 mt-1" />
                           <div className="flex-1 min-w-0">
                             <p className="font-semibold text-sm text-foreground">
@@ -329,6 +351,12 @@ const NotificationsPanel = ({ isOpen, onClose, notifications, onOpenPrivateChat 
                             <p className="text-xs font-medium text-muted-foreground mt-2">
                               {getContextualTimestamp(notification.timestamp)}
                             </p>
+                            {notification.chatId && (
+                              <p className="text-xs text-green-400 mt-1 flex items-center gap-1">
+                                <ExternalLink className="w-3 h-3" />
+                                Abrir chat privado
+                              </p>
+                            )}
                           </div>
                         </div>
                       )}

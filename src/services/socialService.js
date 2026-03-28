@@ -6,6 +6,7 @@ import {
   deleteDoc,
   arrayUnion,
   arrayRemove,
+  increment,
   serverTimestamp,
   getDoc,
   getDocs,
@@ -29,6 +30,45 @@ const PRIVATE_GROUP_MAX_PARTICIPANTS = 4;
 const PRIVATE_GROUP_INVITES_COLLECTION = 'private_chat_group_invites';
 const PRIVATE_GROUP_INVITE_EXPIRY_MS = 2 * 60 * 1000;
 const sharedNotificationsListeners = new Map();
+
+const buildPrivateChatDebugError = (error) => ({
+  code: error?.code || null,
+  message: error?.message || String(error || 'Unknown error'),
+  name: error?.name || null,
+});
+
+const emitPrivateChatDebug = (label, context = {}, error = null) => {
+  const payload = {
+    label,
+    at: new Date().toISOString(),
+    authUid: auth?.currentUser?.uid || null,
+    authProvider: auth?.currentUser?.providerData?.[0]?.providerId || (auth?.currentUser?.isAnonymous ? 'anonymous' : null),
+    authAnonymous: Boolean(auth?.currentUser?.isAnonymous),
+    ...context,
+    ...(error ? { error: buildPrivateChatDebugError(error) } : {}),
+  };
+
+  if (typeof window !== 'undefined') {
+    window.__lastPrivateChatDebug = payload;
+    const history = Array.isArray(window.__privateChatDebugHistory)
+      ? window.__privateChatDebugHistory
+      : [];
+    history.unshift(payload);
+    window.__privateChatDebugHistory = history.slice(0, 25);
+    window.printPrivateChatDebug = () => {
+      const latest = window.__lastPrivateChatDebug || null;
+      console.group('[PRIVATE_CHAT_DEBUG] latest');
+      console.log(latest);
+      console.groupEnd();
+      console.table(window.__privateChatDebugHistory || []);
+      return latest;
+    };
+  }
+
+  const consoleMethod = error ? console.error : console.info;
+  consoleMethod('[PRIVATE_CHAT_DEBUG]', payload);
+  return payload;
+};
 
 const toMillis = (value) => {
   if (value?.toMillis) return value.toMillis();
@@ -88,6 +128,265 @@ const buildPrivateGroupTitle = (participantProfiles = [], currentUserId = null) 
   return `${names.slice(0, 2).join(' + ')} +${names.length - 2}`;
 };
 
+const buildPrivateChatMessagePreview = ({ content, type }) => {
+  if (type === 'image') return '📷 Foto';
+  const normalized = typeof content === 'string' ? content.trim() : '';
+  if (!normalized) return 'Nuevo mensaje';
+  return normalized.length > 180 ? `${normalized.slice(0, 177)}...` : normalized;
+};
+
+const buildParticipantMapValue = (participantIds = [], value = null) => Object.fromEntries(
+  [...new Set((participantIds || []).filter(Boolean))]
+    .sort()
+    .map((participantId) => [participantId, value])
+);
+
+const buildPrivateChatCompatibilityPatch = (participantIds = [], overrides = {}) => ({
+  status: 'active',
+  updatedAt: serverTimestamp(),
+  acceptedBy: buildParticipantMapValue(participantIds, true),
+  blockedBy: buildParticipantMapValue(participantIds, false),
+  lastSeenMessageId: buildParticipantMapValue(participantIds, null),
+  ...overrides,
+});
+
+const ensurePrivateChatCompatibilityMetadata = async (chatRef, participantIds = [], overrides = {}) => {
+  const normalizedIds = [...new Set((participantIds || []).filter(Boolean))].sort();
+  if (normalizedIds.length < 2) return;
+
+  await setDoc(
+    chatRef,
+    buildPrivateChatCompatibilityPatch(normalizedIds, overrides),
+    { merge: true }
+  );
+};
+
+const fetchPrivateChatParticipantProfiles = async (participantIds = []) => {
+  const normalizedIds = [...new Set((participantIds || []).filter(Boolean))].sort();
+  if (normalizedIds.length === 0) return [];
+
+  const profiles = await Promise.all(
+    normalizedIds.map(async (participantId) => {
+      try {
+        const userSnap = await getDoc(doc(db, 'users', participantId));
+        const data = userSnap.data() || {};
+        return normalizeParticipantProfile({
+          userId: participantId,
+          username: data.username || 'Usuario',
+          avatar: data.avatar || '',
+          isPremium: Boolean(data.isPremium),
+        });
+      } catch {
+        return normalizeParticipantProfile({
+          userId: participantId,
+          username: 'Usuario',
+          avatar: '',
+          isPremium: false,
+        });
+      }
+    })
+  );
+
+  return dedupeParticipantProfiles(profiles);
+};
+
+const buildPrivateInboxEntry = ({
+  ownerUserId,
+  chatId,
+  participantProfiles = [],
+  title = '',
+  conversationState = 'active',
+  lastMessagePreview = '',
+  unreadDelta = 0,
+  resetUnread = false,
+}) => {
+  const normalizedProfiles = dedupeParticipantProfiles(participantProfiles);
+  const isGroup = normalizedProfiles.length > 2;
+  const otherParticipants = normalizedProfiles.filter((participant) => participant.userId !== ownerUserId);
+  const primaryOther = otherParticipants[0] || {};
+
+  const payload = {
+    conversationId: chatId,
+    chatId,
+    participants: normalizedProfiles.map((participant) => participant.userId),
+    participantProfiles: normalizedProfiles,
+    isGroup: isGroup,
+    otherUserId: isGroup ? null : (primaryOther.userId || null),
+    otherUserDisplayName: isGroup
+      ? (title || buildPrivateGroupTitle(normalizedProfiles, ownerUserId))
+      : (primaryOther.username || 'Usuario'),
+    otherUserAvatar: isGroup ? '' : (primaryOther.avatar || ''),
+    title: isGroup ? (title || buildPrivateGroupTitle(normalizedProfiles, ownerUserId)) : '',
+    lastMessagePreview: lastMessagePreview || 'Sin mensajes todavía',
+    lastMessageAt: serverTimestamp(),
+    isPinned: false,
+    isMinimized: true,
+    isOpen: false,
+    isTyping: false,
+    presence: 'offline',
+    conversationState,
+    updatedAt: serverTimestamp(),
+  };
+
+  if (resetUnread) {
+    payload.unreadCount = 0;
+  } else if (unreadDelta > 0) {
+    payload.unreadCount = increment(unreadDelta);
+  }
+
+  return payload;
+};
+
+const syncPrivateInboxEntries = async ({
+  chatId,
+  participantProfiles = [],
+  title = '',
+  conversationState = 'active',
+  lastMessagePreview = '',
+  unreadRecipientIds = [],
+  resetUnreadForUserIds = [],
+}) => {
+  const normalizedProfiles = dedupeParticipantProfiles(participantProfiles);
+  const participantIds = normalizedProfiles.map((participant) => participant.userId).filter(Boolean);
+  if (!chatId || participantIds.length < 2) return;
+
+  const unreadSet = new Set((unreadRecipientIds || []).filter(Boolean));
+  const resetSet = new Set((resetUnreadForUserIds || []).filter(Boolean));
+
+  await Promise.all(
+    participantIds.map((ownerUserId) => {
+      const inboxRef = doc(db, 'users', ownerUserId, 'private_inbox', chatId);
+      return setDoc(
+        inboxRef,
+        buildPrivateInboxEntry({
+          ownerUserId,
+          chatId,
+          participantProfiles: normalizedProfiles,
+          title,
+          conversationState,
+          lastMessagePreview,
+          unreadDelta: unreadSet.has(ownerUserId) ? 1 : 0,
+          resetUnread: resetSet.has(ownerUserId),
+        }),
+        { merge: true }
+      );
+    })
+  );
+};
+
+const notifyPrivateChatRecipients = async ({
+  chatId,
+  sender,
+  recipientIds = [],
+  content,
+  type = 'text',
+}) => {
+  const validRecipients = [...new Set((recipientIds || []).filter(Boolean))].filter((id) => id !== sender?.userId);
+  if (validRecipients.length === 0) return;
+
+  const preview = buildPrivateChatMessagePreview({ content, type });
+
+  await Promise.all(
+    validRecipients.map((recipientId) => addDoc(collection(db, 'users', recipientId, 'notifications'), {
+      from: sender?.userId || null,
+      fromUsername: sender?.username || 'Usuario',
+      fromAvatar: sender?.avatar || '',
+      fromIsPremium: Boolean(sender?.isPremium),
+      to: recipientId,
+      type: 'direct_message',
+      chatId,
+      content: preview,
+      read: false,
+      source: 'private_chat_direct',
+      timestamp: serverTimestamp(),
+    }))
+  );
+};
+
+export const signalPrivateChatOpen = async ({
+  chatId,
+  fromUserId,
+  toUserId,
+  title = '',
+  created = false,
+}) => {
+  let stage = 'validate_input';
+  try {
+    if (!chatId || !fromUserId || !toUserId) {
+      throw new Error('MISSING_PARAMS');
+    }
+    if (fromUserId === toUserId) {
+      throw new Error('INVALID_TARGET');
+    }
+
+    stage = 'read_sender';
+    const senderSnap = await getDoc(doc(db, 'users', fromUserId));
+    const senderData = senderSnap.data() || {};
+
+    stage = 'read_chat';
+    const chatSnap = await getDoc(doc(db, 'private_chats', chatId));
+    const chatData = chatSnap.data() || {};
+    const participants = Array.isArray(chatData?.participants) ? chatData.participants : [fromUserId, toUserId];
+    const participantProfiles = Array.isArray(chatData?.participantProfiles) && chatData.participantProfiles.length > 0
+      ? dedupeParticipantProfiles(chatData.participantProfiles)
+      : await fetchPrivateChatParticipantProfiles(participants);
+    const conversationTitle = typeof chatData?.title === 'string' && chatData.title.trim()
+      ? chatData.title
+      : title;
+
+    stage = 'sync_inbox';
+    await syncPrivateInboxEntries({
+      chatId,
+      participantProfiles,
+      title: conversationTitle,
+      conversationState: 'active',
+      lastMessagePreview: created
+        ? `${senderData.username || 'Usuario'} abrió un chat privado`
+        : `${senderData.username || 'Usuario'} volvió al chat privado`,
+      resetUnreadForUserIds: [fromUserId],
+    }).catch(() => {});
+
+    stage = 'write_notification';
+    await addDoc(collection(db, 'users', toUserId, 'notifications'), {
+      from: fromUserId,
+      fromUsername: senderData.username || 'Usuario',
+      fromAvatar: senderData.avatar || '',
+      fromIsPremium: Boolean(senderData.isPremium),
+      to: toUserId,
+      type: 'private_chat_reopened',
+      chatId,
+      title: conversationTitle || '',
+      participantProfiles,
+      created,
+      content: created
+        ? `${senderData.username || 'Usuario'} abrió un chat privado contigo`
+        : `${senderData.username || 'Usuario'} volvió a abrir el chat privado`,
+      read: false,
+      timestamp: serverTimestamp(),
+    });
+
+    emitPrivateChatDebug('private_chat_open_signal_sent', {
+      stage: 'done',
+      chatId,
+      fromUserId,
+      toUserId,
+      created,
+      participants,
+    });
+
+    return { success: true };
+  } catch (error) {
+    emitPrivateChatDebug('private_chat_open_signal_failed', {
+      stage,
+      chatId,
+      fromUserId,
+      toUserId,
+      created,
+    }, error);
+    throw error;
+  }
+};
+
 export const getOrCreatePrivateGroupChat = async (participantProfiles = [], options = {}) => {
   const normalizedProfiles = dedupeParticipantProfiles(participantProfiles);
   const participantIds = normalizedProfiles.map((item) => item.userId);
@@ -104,6 +403,19 @@ export const getOrCreatePrivateGroupChat = async (participantProfiles = [], opti
   const existing = await getDoc(chatRef);
 
   if (existing.exists()) {
+    await ensurePrivateChatCompatibilityMetadata(chatRef, participantIds, {
+      active: true,
+      title: options?.title || buildPrivateGroupTitle(normalizedProfiles),
+      sourceChatId: options?.sourceChatId || null,
+    }).catch(() => {});
+    await syncPrivateInboxEntries({
+      chatId,
+      participantProfiles: normalizedProfiles,
+      title: options?.title || buildPrivateGroupTitle(normalizedProfiles),
+      conversationState: 'active',
+      lastMessagePreview: existing.data()?.lastMessage || 'Sin mensajes todavía',
+      resetUnreadForUserIds: participantIds,
+    }).catch(() => {});
     return { chatId, created: false };
   }
 
@@ -111,12 +423,28 @@ export const getOrCreatePrivateGroupChat = async (participantProfiles = [], opti
     participants: participantIds.slice().sort(),
     participantProfiles: normalizedProfiles,
     createdAt: serverTimestamp(),
+    updatedAt: serverTimestamp(),
     lastMessage: null,
+    lastMessageAt: null,
+    lastMessageType: null,
     active: true,
+    status: 'active',
+    acceptedBy: buildParticipantMapValue(participantIds, true),
+    blockedBy: buildParticipantMapValue(participantIds, false),
+    lastSeenMessageId: buildParticipantMapValue(participantIds, null),
     isGroup: true,
     title: options?.title || buildPrivateGroupTitle(normalizedProfiles),
     sourceChatId: options?.sourceChatId || null,
   });
+
+  await syncPrivateInboxEntries({
+    chatId,
+    participantProfiles: normalizedProfiles,
+    title: options?.title || buildPrivateGroupTitle(normalizedProfiles),
+    conversationState: 'active',
+    lastMessagePreview: 'Sin mensajes todavía',
+    resetUnreadForUserIds: participantIds,
+  }).catch(() => {});
 
   return { chatId, created: true };
 };
@@ -275,6 +603,7 @@ export const sendDirectMessage = async (fromUserId, toUserId, content) => {
  * La solicitud aparece en las notificaciones del destinatario con opciones Aceptar/Rechazar
  */
 export const sendPrivateChatRequest = async (fromUserId, toUserId, options = {}) => {
+  let stage = 'validate_input';
   try {
     const senderUserId = auth?.currentUser?.uid || fromUserId;
     if (!senderUserId || !toUserId) {
@@ -284,19 +613,17 @@ export const sendPrivateChatRequest = async (fromUserId, toUserId, options = {})
       throw new Error('SELF_REQUEST_NOT_ALLOWED');
     }
 
+    stage = 'check_block';
     const blocked = await isBlockedBetween(senderUserId, toUserId);
     if (blocked) {
       throw new Error('BLOCKED');
     }
 
+    stage = 'read_sender_profile';
     // Obtener datos del remitente
     const fromUserDoc = await getDoc(doc(db, 'users', senderUserId));
     const fromUserData = fromUserDoc.data();
 
-    const expiresAtMs = Number(options?.expiresAtMs);
-    const safeExpiresAtMs = Number.isFinite(expiresAtMs) && expiresAtMs > Date.now()
-      ? Math.floor(expiresAtMs)
-      : null;
     const source = typeof options?.source === 'string' && options.source.trim()
       ? options.source.trim()
       : 'manual';
@@ -321,17 +648,31 @@ export const sendPrivateChatRequest = async (fromUserId, toUserId, options = {})
       source,
       ...(systemPrompt ? { systemPrompt } : {}),
       ...(suggestedStarter ? { suggestedStarter } : {}),
-      ...(safeExpiresAtMs ? { expiresAtMs: safeExpiresAtMs } : {}),
     };
 
     // Guardar en notificaciones del destinatario
+    stage = 'write_notification';
     const notificationRef = await addDoc(
       collection(db, 'users', toUserId, 'notifications'),
       requestData
     );
 
+    emitPrivateChatDebug('private_chat_request_success', {
+      stage: 'done',
+      senderUserId,
+      toUserId,
+      requestId: notificationRef.id,
+      source,
+    });
+
     return { success: true, requestId: notificationRef.id };
   } catch (error) {
+    emitPrivateChatDebug('private_chat_request_failed', {
+      stage,
+      fromUserId,
+      toUserId,
+      source: options?.source || 'manual',
+    }, error);
     console.error('Error sending private chat request:', error);
     throw error;
   }
@@ -342,64 +683,427 @@ export const sendPrivateChatRequest = async (fromUserId, toUserId, options = {})
  * Sin solicitud previa (flujo rápido desde Baúl)
  */
 export const getOrCreatePrivateChat = async (userAId, userBId) => {
+  let stage = 'validate_input';
   if (!userAId || !userBId) {
     throw new Error('Missing user ids');
   }
   if (userAId === userBId) {
     throw new Error('Cannot create chat with self');
   }
-  const blocked = await isBlockedBetween(userAId, userBId);
-  if (blocked) {
-    throw new Error('BLOCKED');
+  try {
+    stage = 'check_block';
+    const blocked = await isBlockedBetween(userAId, userBId);
+    if (blocked) {
+      throw new Error('BLOCKED');
+    }
+
+    const chatsRef = collection(db, 'private_chats');
+    const sortedIds = [userAId, userBId].sort();
+    const deterministicChatId = `${sortedIds[0]}_${sortedIds[1]}`;
+    const deterministicChatRef = doc(chatsRef, deterministicChatId);
+
+    stage = 'read_deterministic_chat';
+    const deterministicSnap = await getDoc(deterministicChatRef);
+    if (deterministicSnap.exists()) {
+      const existingParticipants = Array.isArray(deterministicSnap.data()?.participants)
+        ? deterministicSnap.data().participants
+        : sortedIds;
+      const participantProfiles = Array.isArray(deterministicSnap.data()?.participantProfiles) && deterministicSnap.data()?.participantProfiles?.length > 0
+        ? dedupeParticipantProfiles(deterministicSnap.data().participantProfiles)
+        : await fetchPrivateChatParticipantProfiles(existingParticipants);
+      void ensurePrivateChatCompatibilityMetadata(deterministicChatRef, existingParticipants, {
+        active: true,
+      }).catch(() => {});
+      void syncPrivateInboxEntries({
+        chatId: deterministicSnap.id,
+        participantProfiles,
+        conversationState: 'active',
+        lastMessagePreview: deterministicSnap.data()?.lastMessage || 'Sin mensajes todavía',
+        resetUnreadForUserIds: existingParticipants,
+      }).catch(() => {});
+
+      emitPrivateChatDebug('private_chat_open_existing', {
+        stage: 'done',
+        userAId,
+        userBId,
+        chatId: deterministicSnap.id,
+        created: false,
+        source: 'deterministic_doc',
+      });
+      return { chatId: deterministicSnap.id, created: false };
+    }
+
+    const q = query(
+      chatsRef,
+      where('participants', 'array-contains', userAId),
+      limit(50)
+    );
+
+    stage = 'query_existing_chats';
+    const snapshot = await getDocs(q);
+    const existing = snapshot.docs.find((docSnap) => {
+      const data = docSnap.data();
+      return Array.isArray(data.participants) && data.participants.includes(userBId);
+    });
+
+    if (existing) {
+      const existingParticipants = Array.isArray(existing.data()?.participants)
+        ? existing.data().participants
+        : [userAId, userBId];
+      const participantProfiles = Array.isArray(existing.data()?.participantProfiles) && existing.data()?.participantProfiles?.length > 0
+        ? dedupeParticipantProfiles(existing.data().participantProfiles)
+        : await fetchPrivateChatParticipantProfiles(existingParticipants);
+      void ensurePrivateChatCompatibilityMetadata(existing.ref, existingParticipants, {
+        active: true,
+      }).catch(() => {});
+      void syncPrivateInboxEntries({
+        chatId: existing.id,
+        participantProfiles,
+        conversationState: 'active',
+        lastMessagePreview: existing.data()?.lastMessage || 'Sin mensajes todavía',
+        resetUnreadForUserIds: existingParticipants,
+      }).catch(() => {});
+
+      emitPrivateChatDebug('private_chat_open_existing', {
+        stage: 'done',
+        userAId,
+        userBId,
+        chatId: existing.id,
+        created: false,
+      });
+      return { chatId: existing.id, created: false };
+    }
+
+    const chatId = deterministicChatId;
+    const chatRef = deterministicChatRef;
+    const participantProfiles = await fetchPrivateChatParticipantProfiles(sortedIds);
+
+    stage = 'create_chat_doc';
+    await setDoc(chatRef, {
+      participants: sortedIds,
+      participantProfiles,
+      createdAt: serverTimestamp(),
+      updatedAt: serverTimestamp(),
+      lastMessage: null,
+      lastMessageAt: null,
+      lastMessageType: null,
+      active: true,
+      status: 'active',
+      acceptedBy: buildParticipantMapValue(sortedIds, true),
+      blockedBy: buildParticipantMapValue(sortedIds, false),
+      lastSeenMessageId: buildParticipantMapValue(sortedIds, null),
+    });
+
+    void syncPrivateInboxEntries({
+      chatId,
+      participantProfiles,
+      conversationState: 'active',
+      lastMessagePreview: 'Sin mensajes todavía',
+      resetUnreadForUserIds: sortedIds,
+    }).catch(() => {});
+
+    emitPrivateChatDebug('private_chat_created', {
+      stage: 'done',
+      userAId,
+      userBId,
+      chatId,
+      participants: sortedIds,
+      created: true,
+    });
+
+    return { chatId, created: true };
+  } catch (error) {
+    emitPrivateChatDebug('private_chat_get_or_create_failed', {
+      stage,
+      userAId,
+      userBId,
+    }, error);
+    throw error;
   }
-
-  const chatsRef = collection(db, 'private_chats');
-  const q = query(
-    chatsRef,
-    where('participants', 'array-contains', userAId),
-    limit(50)
-  );
-
-  const snapshot = await getDocs(q);
-  const existing = snapshot.docs.find((docSnap) => {
-    const data = docSnap.data();
-    return Array.isArray(data.participants) && data.participants.includes(userBId);
-  });
-
-  if (existing) {
-    return { chatId: existing.id, created: false };
-  }
-
-  const sortedIds = [userAId, userBId].sort();
-  const chatId = `${sortedIds[0]}_${sortedIds[1]}`;
-  const chatRef = doc(chatsRef, chatId);
-
-  await setDoc(chatRef, {
-    participants: sortedIds,
-    createdAt: serverTimestamp(),
-    lastMessage: null,
-    active: true,
-  });
-
-  return { chatId, created: true };
 };
 
 /**
  * Envía un mensaje dentro de un chat privado existente
  */
 export const sendMessageToPrivateChat = async (chatId, { userId, username, avatar, content }) => {
+  let stage = 'validate_input';
   if (!chatId || !userId || !content?.trim()) {
     throw new Error('Missing chatId, userId or content');
   }
-  const messagesRef = collection(db, 'private_chats', chatId, 'messages');
-  await addDoc(messagesRef, {
+  try {
+    const authUid = auth?.currentUser?.uid || null;
+    if (authUid && authUid !== userId) {
+      throw new Error('AUTH_USER_MISMATCH');
+    }
+
+    const chatRef = doc(db, 'private_chats', chatId);
+    stage = 'read_chat_doc';
+    const chatSnap = await getDoc(chatRef);
+    if (!chatSnap.exists()) {
+      throw new Error('CHAT_NOT_FOUND');
+    }
+    const participants = Array.isArray(chatSnap.data()?.participants) ? chatSnap.data().participants : [];
+    if (!participants.includes(userId)) {
+      throw new Error('USER_NOT_CHAT_PARTICIPANT');
+    }
+    const participantProfiles = Array.isArray(chatSnap.data()?.participantProfiles) && chatSnap.data()?.participantProfiles?.length > 0
+      ? dedupeParticipantProfiles(chatSnap.data().participantProfiles)
+      : await fetchPrivateChatParticipantProfiles(participants);
+    const recipientIds = participants.filter((participantId) => participantId !== userId);
+    const normalizedContent = content.trim();
+    const messagesRef = collection(db, 'private_chats', chatId, 'messages');
+
+    stage = 'write_message';
+    const messageRef = await addDoc(messagesRef, {
+      userId,
+      username: username || 'Usuario',
+      avatar: avatar || '',
+      content: normalizedContent,
+      type: 'text',
+      status: 'sent',
+      deliveredTo: [userId],
+      readBy: [userId],
+      deliveredAt: serverTimestamp(),
+      readAt: serverTimestamp(),
+      timestamp: serverTimestamp(),
+    });
+
+    stage = 'update_chat_meta';
+    try {
+      await setDoc(chatRef, {
+        lastMessage: normalizedContent,
+        lastMessageType: 'text',
+        lastMessageAt: serverTimestamp(),
+        updatedAt: serverTimestamp(),
+        active: true,
+        status: 'active',
+        lastSeenMessageId: {
+          [userId]: messageRef.id,
+        },
+      }, { merge: true });
+    } catch (secondaryError) {
+      emitPrivateChatDebug('private_chat_message_meta_update_failed', {
+        stage: 'update_chat_meta',
+        chatId,
+        userId,
+        messageId: messageRef.id,
+      }, secondaryError);
+    }
+
+    stage = 'sync_inbox';
+    void syncPrivateInboxEntries({
+      chatId,
+      participantProfiles,
+      title: chatSnap.data()?.title || '',
+      conversationState: 'active',
+      lastMessagePreview: normalizedContent,
+      unreadRecipientIds: recipientIds,
+      resetUnreadForUserIds: [userId],
+    }).catch((secondaryError) => {
+      emitPrivateChatDebug('private_chat_message_secondary_sync_failed', {
+        stage: 'sync_inbox',
+        chatId,
+        userId,
+      }, secondaryError);
+    });
+
+    stage = 'notify_recipient';
+    void notifyPrivateChatRecipients({
+      chatId,
+      sender: { userId, username, avatar },
+      recipientIds,
+      content: normalizedContent,
+      type: 'text',
+    }).catch((secondaryError) => {
+      emitPrivateChatDebug('private_chat_message_secondary_notify_failed', {
+        stage: 'notify_recipient',
+        chatId,
+        userId,
+      }, secondaryError);
+    });
+
+    emitPrivateChatDebug('private_chat_message_sent', {
+      stage: 'done',
+      chatId,
+      userId,
+      participants,
+      recipientIds,
+      messageType: 'text',
+    });
+  } catch (error) {
+    let participants = [];
+    try {
+      const fallbackSnap = await getDoc(doc(db, 'private_chats', chatId));
+      participants = Array.isArray(fallbackSnap.data()?.participants) ? fallbackSnap.data().participants : [];
+    } catch {
+      // noop
+    }
+    emitPrivateChatDebug('private_chat_message_failed', {
+      stage,
+      chatId,
+      userId,
+      participants,
+      username: username || 'Usuario',
+      contentPreview: typeof content === 'string' ? content.trim().slice(0, 80) : '',
+    }, error);
+    throw error;
+  }
+};
+
+export const sendRichPrivateChatMessage = async (
+  chatId,
+  {
     userId,
-    username: username || 'Usuario',
-    avatar: avatar || '',
-    content: content.trim(),
-    type: 'text',
-    timestamp: serverTimestamp(),
-  });
+    username,
+    avatar,
+    content,
+    type = 'text',
+    media = [],
+    senderIsPremium = false,
+    replyTo = null,
+  }
+) => {
+  let stage = 'validate_input';
+  if (!chatId || !userId || !content) {
+    throw new Error('Missing chatId, userId or content');
+  }
+  try {
+    const authUid = auth?.currentUser?.uid || null;
+    if (authUid && authUid !== userId) {
+      throw new Error('AUTH_USER_MISMATCH');
+    }
+
+    const chatRef = doc(db, 'private_chats', chatId);
+    stage = 'read_chat_doc';
+    const chatSnap = await getDoc(chatRef);
+    if (!chatSnap.exists()) {
+      throw new Error('CHAT_NOT_FOUND');
+    }
+    const participants = Array.isArray(chatSnap.data()?.participants) ? chatSnap.data().participants : [];
+    if (!participants.includes(userId)) {
+      throw new Error('USER_NOT_CHAT_PARTICIPANT');
+    }
+    const participantProfiles = Array.isArray(chatSnap.data()?.participantProfiles) && chatSnap.data()?.participantProfiles?.length > 0
+      ? dedupeParticipantProfiles(chatSnap.data().participantProfiles)
+      : await fetchPrivateChatParticipantProfiles(participants);
+    const recipientIds = participants.filter((participantId) => participantId !== userId);
+    const normalizedContent = typeof content === 'string' ? content.trim() : content;
+    if (type === 'text' && !normalizedContent) {
+      throw new Error('EMPTY_TEXT_MESSAGE');
+    }
+
+    const messagesRef = collection(db, 'private_chats', chatId, 'messages');
+    stage = 'write_message';
+    const messageRef = await addDoc(messagesRef, {
+      userId,
+      username: username || 'Usuario',
+      avatar: avatar || '',
+      content: normalizedContent,
+      type,
+      ...(replyTo && typeof replyTo === 'object' ? { replyTo } : {}),
+      ...(Array.isArray(media) && media.length > 0 ? { media } : {}),
+      status: 'sent',
+      deliveredTo: [userId],
+      readBy: [userId],
+      deliveredAt: serverTimestamp(),
+      readAt: serverTimestamp(),
+      timestamp: serverTimestamp(),
+    });
+
+    stage = 'update_chat_meta';
+    try {
+      await setDoc(chatRef, {
+        lastMessage: buildPrivateChatMessagePreview({ content: normalizedContent, type }),
+        lastMessageType: type,
+        lastMessageAt: serverTimestamp(),
+        updatedAt: serverTimestamp(),
+        active: true,
+        status: 'active',
+        lastSeenMessageId: {
+          [userId]: messageRef.id,
+        },
+      }, { merge: true });
+    } catch (secondaryError) {
+      emitPrivateChatDebug('private_chat_rich_message_meta_update_failed', {
+        stage: 'update_chat_meta',
+        chatId,
+        userId,
+        messageId: messageRef.id,
+        messageType: type,
+      }, secondaryError);
+    }
+
+    const preview = buildPrivateChatMessagePreview({ content: normalizedContent, type });
+
+    stage = 'sync_inbox';
+    void syncPrivateInboxEntries({
+      chatId,
+      participantProfiles,
+      title: chatSnap.data()?.title || '',
+      conversationState: 'active',
+      lastMessagePreview: preview,
+      unreadRecipientIds: recipientIds,
+      resetUnreadForUserIds: [userId],
+    }).catch((secondaryError) => {
+      emitPrivateChatDebug('private_chat_rich_message_secondary_sync_failed', {
+        stage: 'sync_inbox',
+        chatId,
+        userId,
+        messageType: type,
+      }, secondaryError);
+    });
+
+    stage = 'notify_recipient';
+    void notifyPrivateChatRecipients({
+      chatId,
+      sender: {
+        userId,
+        username,
+        avatar,
+        isPremium: senderIsPremium,
+      },
+      recipientIds,
+      content: normalizedContent,
+      type,
+    }).catch((secondaryError) => {
+      emitPrivateChatDebug('private_chat_rich_message_secondary_notify_failed', {
+        stage: 'notify_recipient',
+        chatId,
+        userId,
+        messageType: type,
+      }, secondaryError);
+    });
+
+    emitPrivateChatDebug('private_chat_rich_message_sent', {
+      stage: 'done',
+      chatId,
+      userId,
+      participants,
+      recipientIds,
+      messageType: type,
+      mediaCount: Array.isArray(media) ? media.length : 0,
+      preview,
+    });
+  } catch (error) {
+    let participants = [];
+    try {
+      const fallbackSnap = await getDoc(doc(db, 'private_chats', chatId));
+      participants = Array.isArray(fallbackSnap.data()?.participants) ? fallbackSnap.data().participants : [];
+    } catch {
+      // noop
+    }
+    emitPrivateChatDebug('private_chat_rich_message_failed', {
+      stage,
+      chatId,
+      userId,
+      participants,
+      username: username || 'Usuario',
+      messageType: type,
+      mediaCount: Array.isArray(media) ? media.length : 0,
+      contentPreview: typeof content === 'string' ? content.trim().slice(0, 80) : '[non-text]',
+    }, error);
+    throw error;
+  }
 };
 
 export const respondToPrivateGroupInvite = async (
@@ -887,11 +1591,14 @@ export const respondToPrivateChatRequest = async (
   notificationId,
   accepted
 ) => {
+  let stage = 'validate_input';
+  const startedAt = Date.now();
   try {
     if (!userId || !notificationId) {
       throw new Error('MISSING_PARAMS');
     }
 
+    stage = 'read_notification';
     const notificationRef = doc(db, 'users', userId, 'notifications', notificationId);
     const notificationDoc = await getDoc(notificationRef);
     const notificationData = notificationDoc.data();
@@ -904,21 +1611,6 @@ export const respondToPrivateChatRequest = async (
       throw new Error('INVALID_REQUEST_TYPE');
     }
 
-    const expiresAtMs = Number(notificationData.expiresAtMs || 0);
-    if (
-      notificationData.status === 'pending' &&
-      Number.isFinite(expiresAtMs) &&
-      expiresAtMs > 0 &&
-      Date.now() > expiresAtMs
-    ) {
-      await updateDoc(notificationRef, {
-        status: 'expired',
-        read: true,
-        respondedAt: serverTimestamp(),
-      });
-      throw new Error('REQUEST_EXPIRED');
-    }
-
     // Idempotencia: si ya fue procesada, devolver estado sin romper UX
     if (notificationData.status && notificationData.status !== 'pending') {
       if (notificationData.status === 'accepted' && notificationData.from) {
@@ -926,13 +1618,11 @@ export const respondToPrivateChatRequest = async (
         const { chatId } = await getOrCreatePrivateChat(userId, notificationData.from);
         return { success: true, chatId, alreadyProcessed: true };
       }
-      if (notificationData.status === 'expired') {
-        throw new Error('REQUEST_EXPIRED');
-      }
       return { success: true, alreadyProcessed: true };
     }
 
     if (!accepted) {
+      stage = 'reject_request';
       await updateDoc(notificationRef, {
         status: 'rejected',
         read: true,
@@ -965,6 +1655,7 @@ export const respondToPrivateChatRequest = async (
     }
 
     // Si fue aceptada, crear la sala de chat privado
+    stage = 'check_block';
     const blocked = await isBlockedBetween(notificationData.from, userId);
     if (blocked) {
       throw new Error('BLOCKED');
@@ -973,9 +1664,31 @@ export const respondToPrivateChatRequest = async (
     // ✅ IMPORTANTE: Reutilizar SIEMPRE el mismo chat entre ambos usuarios
     // para mantener historial (evita crear un chat nuevo por cada invitación).
     // userId primero para que la query sea compatible con reglas Firestore
+    stage = 'get_or_create_chat';
     const { chatId } = await getOrCreatePrivateChat(userId, notificationData.from);
+    stage = 'ensure_metadata';
+    void ensurePrivateChatCompatibilityMetadata(
+      doc(db, 'private_chats', chatId),
+      [userId, notificationData.from],
+      {
+        status: 'active',
+        active: true,
+        acceptedBy: {
+          [userId]: true,
+          [notificationData.from]: true,
+        },
+      }
+    ).catch((secondaryError) => {
+      emitPrivateChatDebug('private_chat_accept_meta_update_failed', {
+        stage: 'ensure_metadata',
+        userId,
+        notificationId,
+        chatId,
+      }, secondaryError);
+    });
 
     // Marcar la solicitud como aceptada solo después de crear/activar el chat
+    stage = 'mark_notification_accepted';
     await updateDoc(notificationRef, {
       status: 'accepted',
       read: true,
@@ -983,32 +1696,54 @@ export const respondToPrivateChatRequest = async (
       chatId,
     });
 
-    // Obtener datos del usuario que aceptó
-    const acceptedUserDoc = await getDoc(doc(db, 'users', userId));
-    const acceptedUserData = acceptedUserDoc.data();
+    void (async () => {
+      try {
+        const participantProfiles = await fetchPrivateChatParticipantProfiles([userId, notificationData.from]);
+        await syncPrivateInboxEntries({
+          chatId,
+          participantProfiles,
+          conversationState: 'active',
+          lastMessagePreview: 'Conversación lista para continuar',
+          resetUnreadForUserIds: [userId, notificationData.from],
+        }).catch(() => {});
 
-    // Enviar notificación al usuario que envió la solicitud original
-    // para que se le abra automáticamente la ventana de chat
-    try {
-      await addDoc(collection(db, 'users', notificationData.from, 'notifications'), {
-        from: userId,
-        fromUsername: acceptedUserData?.username || 'Usuario',
-        fromAvatar: acceptedUserData?.avatar || '',
-        fromIsPremium: acceptedUserData?.isPremium || false,
-        to: notificationData.from,
-        type: 'private_chat_accepted',
-        chatId,
-        read: false,
-        timestamp: serverTimestamp(),
-      });
-    } catch (notifyError) {
-      // El chat ya quedó abierto para el receptor; no bloquear por fallo secundario.
-      console.error('Error notifying sender about private chat acceptance:', notifyError);
-    }
+        const acceptedUserDoc = await getDoc(doc(db, 'users', userId));
+        const acceptedUserData = acceptedUserDoc.data();
+
+        await addDoc(collection(db, 'users', notificationData.from, 'notifications'), {
+          from: userId,
+          fromUsername: acceptedUserData?.username || 'Usuario',
+          fromAvatar: acceptedUserData?.avatar || '',
+          fromIsPremium: acceptedUserData?.isPremium || false,
+          to: notificationData.from,
+          type: 'private_chat_accepted',
+          chatId,
+          read: false,
+          timestamp: serverTimestamp(),
+        });
+      } catch (notifyError) {
+        console.error('Error notifying sender about private chat acceptance:', notifyError);
+      }
+    })();
+
+    emitPrivateChatDebug('private_chat_request_accepted', {
+      stage: 'done',
+      userId,
+      notificationId,
+      chatId,
+      elapsedMs: Date.now() - startedAt,
+    });
 
     return { success: true, chatId };
   } catch (error) {
-    console.error('Error responding to private chat request:', error);
+    emitPrivateChatDebug('private_chat_request_response_failed', {
+      stage,
+      userId,
+      notificationId,
+      accepted,
+      elapsedMs: Date.now() - startedAt,
+    }, error);
+    console.error('Error responding to private chat request:', { stage, error });
     throw error;
   }
 };
@@ -1135,6 +1870,53 @@ export const subscribeToNotifications = (userId, callback) => {
     trackListenerStop(entry.listenerToken);
     sharedNotificationsListeners.delete(userId);
   };
+};
+
+export const subscribeToPrivateInbox = (userId, callback) => {
+  if (!userId || typeof callback !== 'function') {
+    callback?.([]);
+    return () => {};
+  }
+
+  const inboxRef = collection(db, 'users', userId, 'private_inbox');
+  return onSnapshot(
+    inboxRef,
+    (snapshot) => {
+      const items = snapshot.docs
+        .map((docSnap) => ({
+          id: docSnap.id,
+          ...docSnap.data(),
+        }))
+        .sort((a, b) => {
+          const aMs = toMillis(a?.lastMessageAt || a?.updatedAt || 0);
+          const bMs = toMillis(b?.lastMessageAt || b?.updatedAt || 0);
+          return bMs - aMs;
+        });
+
+      callback(items);
+    },
+    (error) => {
+      console.error('Error subscribing to private inbox:', error);
+      callback([]);
+    }
+  );
+};
+
+export const markPrivateInboxConversationRead = async (userId, conversationId) => {
+  if (!userId || !conversationId) return;
+
+  await setDoc(
+    doc(db, 'users', userId, 'private_inbox', conversationId),
+    {
+      conversationId,
+      chatId: conversationId,
+      unreadCount: 0,
+      isOpen: true,
+      isMinimized: false,
+      updatedAt: serverTimestamp(),
+    },
+    { merge: true }
+  );
 };
 
 /**

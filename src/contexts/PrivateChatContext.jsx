@@ -68,6 +68,7 @@ const sanitizeRecentChat = (chat = {}) => {
     roomId: chat?.roomId || null,
     lastMessagePreview: preview,
     lastMessageAt: timestamp,
+    isMinimized: Boolean(chat?.isMinimized),
   };
 };
 
@@ -96,6 +97,8 @@ export const usePrivateChat = () => {
     openPrivateChats: [],
     recentPrivateChats: [],
     setActivePrivateChat: () => {},
+    minimizePrivateChat: () => {},
+    restorePrivateChat: () => ({ ok: false }),
     closePrivateChat: () => {},
     canOpenMoreChats: () => false,
     openRecentPrivateChat: () => ({ ok: false }),
@@ -171,11 +174,15 @@ export const PrivateChatProvider = ({ children }) => {
     setOpenPrivateChats((prev) => {
       const idx = prev.findIndex((item) => getChatKey(item) === key);
       if (idx >= 0) {
-        const merged = { ...prev[idx], ...chat };
+        const merged = {
+          ...prev[idx],
+          ...chat,
+          isMinimized: Boolean(chat?.isMinimized),
+        };
         const withoutCurrent = prev.filter((_, index) => index !== idx);
         return [...withoutCurrent, merged];
       }
-      return [...prev, chat];
+      return [...prev, { ...chat, isMinimized: Boolean(chat?.isMinimized) }];
     });
 
     upsertRecentPrivateChat({
@@ -195,6 +202,29 @@ export const PrivateChatProvider = ({ children }) => {
     }
 
     return { ok: true };
+  };
+
+  const minimizePrivateChat = (chatIdToMinimize) => {
+    if (!chatIdToMinimize) return;
+    setOpenPrivateChats((prev) => prev.map((chat) => (
+      chat?.chatId === chatIdToMinimize
+        ? { ...chat, isMinimized: true }
+        : chat
+    )));
+  };
+
+  const restorePrivateChat = (chatIdToRestore) => {
+    if (!chatIdToRestore) return { ok: false, reason: 'missing_chat_id' };
+    let restored = false;
+    setOpenPrivateChats((prev) => {
+      const idx = prev.findIndex((chat) => chat?.chatId === chatIdToRestore);
+      if (idx === -1) return prev;
+      restored = true;
+      const restoredChat = { ...prev[idx], isMinimized: false };
+      const withoutCurrent = prev.filter((_, index) => index !== idx);
+      return [...withoutCurrent, restoredChat];
+    });
+    return { ok: restored };
   };
 
   const closePrivateChat = (chatIdToDismiss = null) => {
@@ -225,6 +255,8 @@ export const PrivateChatProvider = ({ children }) => {
     openPrivateChats,
     recentPrivateChats,
     setActivePrivateChat,
+    minimizePrivateChat,
+    restorePrivateChat,
     closePrivateChat,
     canOpenMoreChats,
     openRecentPrivateChat,

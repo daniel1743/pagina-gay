@@ -109,6 +109,17 @@ const NotificationBell = ({ onOpenPrivateChat }) => {
           const latestNotification = filteredNotifications[0];
 
           if (latestNotification.type === 'direct_message') {
+            if (onOpenPrivateChatRef.current && latestNotification.chatId) {
+              onOpenPrivateChatRef.current({
+                chatId: latestNotification.chatId,
+                partner: {
+                  userId: latestNotification.from,
+                  username: latestNotification.fromUsername,
+                  avatar: latestNotification.fromAvatar,
+                  isPremium: latestNotification.fromIsPremium,
+                }
+              });
+            }
             toast({
               title: `💬 Nuevo mensaje de ${latestNotification.fromUsername || 'un usuario'}`,
               description: latestNotification.content?.substring(0, 100) || '',

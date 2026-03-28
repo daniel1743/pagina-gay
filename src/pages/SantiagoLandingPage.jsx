@@ -27,20 +27,33 @@ const SantiagoLandingPage = () => {
   }, [user, navigate]);
 
   React.useEffect(() => {
-    // ✅ SEO: Title y meta description optimizados para CTR
-    document.title = 'Chat Gay Santiago: Gente Real Ahora | Chactivo';
+    // ✅ SEO: intención local clara, sin sonar inflado
+    const previousTitle = document.title;
 
-    let metaDescription = document.querySelector('meta[name="description"]');
+    const existingMetaDescription = document.querySelector('meta[name="description"]');
+    const hadMetaDescription = Boolean(existingMetaDescription);
+    const previousDescription = existingMetaDescription?.getAttribute('content') ?? '';
+
+    document.title = 'Chat Gay Santiago | Conoce Gente De Santiago En Vivo | Chactivo';
+
+    let metaDescription = existingMetaDescription;
     if (!metaDescription) {
       metaDescription = document.createElement('meta');
       metaDescription.name = 'description';
       document.head.appendChild(metaDescription);
     }
-    metaDescription.content = 'Conecta con gente de Santiago en segundos. Sin crear cuenta. Entra, saluda y queda.';
+    metaDescription.content = 'Chat gay en Santiago para hablar con gente de la ciudad y la Región Metropolitana. Entra gratis y conversa en vivo desde tu navegador.';
 
     return () => {
-      if (metaDescription && document.head.contains(metaDescription)) {
-        metaDescription.content = 'La comunidad más libre. Conversación real en una sola sala principal. Sin perfiles, sin emails, solo entra y chatea.';
+      document.title = previousTitle;
+
+      const currentMeta = document.querySelector('meta[name="description"]');
+      if (!currentMeta) return;
+
+      if (hadMetaDescription) {
+        currentMeta.setAttribute('content', previousDescription);
+      } else if (document.head.contains(currentMeta)) {
+        currentMeta.remove();
       }
     };
   }, []);
@@ -84,7 +97,7 @@ const SantiagoLandingPage = () => {
             <div className="bg-gradient-to-r from-blue-500/20 to-cyan-500/20 border border-blue-500/30 rounded-full px-4 sm:px-6 py-2 sm:py-3">
               <p className="text-xs sm:text-sm font-semibold text-blue-300 flex items-center gap-2">
                 <MapPin className="w-4 h-4" />
-                <span>La comunidad gay más activa de la capital</span>
+                <span>Entrada local para quienes buscan hablar con gente de Santiago</span>
               </p>
             </div>
           </motion.div>
@@ -99,7 +112,7 @@ const SantiagoLandingPage = () => {
 
           {/* Subtitle */}
           <p className="text-lg sm:text-xl md:text-2xl text-muted-foreground mb-8 max-w-3xl mx-auto">
-            Conoce gays de Providencia, Las Condes, Ñuñoa, Bellavista y toda la RM. Chat en tiempo real, eventos, amistad y más.
+            Habla con gente de Providencia, Las Condes, Ñuñoa, Bellavista y toda la RM desde una entrada local pensada para Santiago.
           </p>
 
           {/* Trust Badges */}
@@ -121,14 +134,14 @@ const SantiagoLandingPage = () => {
           {/* CTA Principal - Mejorado */}
           <div className="flex flex-col sm:flex-row gap-4 items-center justify-center">
             <motion.div whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }}>
-              <Button
-                onClick={handleChatearAhora}
-                size="lg"
-                className="magenta-gradient text-white font-extrabold text-xl sm:text-2xl px-10 sm:px-16 py-7 sm:py-8 rounded-2xl shadow-2xl hover:shadow-[#E4007C]/60 w-full sm:w-auto"
-              >
-                <Sparkles className="w-7 h-7 mr-3" />
-                ¡Chatear Gratis!
-              </Button>
+                <Button
+                  onClick={handleChatearAhora}
+                  size="lg"
+                  className="magenta-gradient text-white font-extrabold text-xl sm:text-2xl px-10 sm:px-16 py-7 sm:py-8 rounded-2xl shadow-2xl hover:shadow-[#E4007C]/60 w-full sm:w-auto"
+                >
+                  <Sparkles className="w-7 h-7 mr-3" />
+                  Entrar al chat de Santiago
+                </Button>
             </motion.div>
 
             <motion.div whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }}>
@@ -146,7 +159,7 @@ const SantiagoLandingPage = () => {
 
           {/* Micro CTA copy */}
           <p className="text-sm text-muted-foreground mt-4">
-            ⚡ Sin registro: Chatea gratis 1 mes • 💎 Con registro: Chats privados, likes y más
+            Entrada local, conversación en vivo y acceso rápido desde tu navegador.
           </p>
         </motion.div>
 

@@ -1,15 +1,15 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
-import { User, MessageSquare, Video, Heart, Send, X, CheckCircle, Crown, Shield, AlertTriangle, VolumeX, Ban, Trash2 } from 'lucide-react';
+import { User, MessageSquare, MessageCircle, Heart, Send, X, CheckCircle, Crown, Shield, AlertTriangle, VolumeX, Ban, Trash2 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { toast } from '@/components/ui/use-toast';
 import { useAuth } from '@/contexts/AuthContext';
 import { usePrivateChat } from '@/contexts/PrivateChatContext';
-import { getOrCreatePrivateChat, sendMessageToPrivateChat, addToFavorites, removeFromFavorites, sendProfileComment } from '@/services/socialService';
+import { getOrCreatePrivateChat, sendMessageToPrivateChat, addToFavorites, removeFromFavorites, sendProfileComment, signalPrivateChatOpen } from '@/services/socialService';
 import { blockUser } from '@/services/blockService';
 import {
   canSendChatInvite,
@@ -81,7 +81,7 @@ const UserActionsModal = ({
       return { ok: false, reason: 'invalid_target' };
     }
 
-    const { chatId } = await getOrCreatePrivateChat(currentUser.id, targetUserId);
+    const { chatId, created } = await getOrCreatePrivateChat(currentUser.id, targetUserId);
     const partner = {
       id: targetUserId,
       userId: targetUserId,
@@ -106,6 +106,19 @@ const UserActionsModal = ({
         description: `Ya puedes conversar con ${targetUser.username}.`,
       });
     }
+
+    void signalPrivateChatOpen({
+      chatId,
+      fromUserId: currentUser.id,
+      toUserId: targetUserId,
+      created: Boolean(created),
+    }).catch((error) => {
+      console.info('[PRIVATE_CHAT_SYNC] No se pudo emitir señal remota desde acciones de usuario', {
+        chatId,
+        targetUserId,
+        message: error?.message || String(error),
+      });
+    });
 
     return { ok: true, chatId, partner };
   };
@@ -205,6 +218,8 @@ const UserActionsModal = ({
       setComposeMode('direct');
       onClose();
     } catch (error) {
+      console.error('Error enviando mensaje directo desde acciones de usuario:', error);
+      console.info('[PRIVATE_CHAT_DEBUG] Ejecuta window.printPrivateChatDebug?.() o inspecciona window.__lastPrivateChatDebug');
       toast({
         title: error?.message === 'BLOCKED'
           ? "No disponible"
@@ -491,6 +506,9 @@ const UserActionsModal = ({
     <Dialog open={true} onOpenChange={onClose}>
       <DialogContent className="bg-card border text-foreground max-w-md rounded-2xl p-0 max-h-[90dvh] overflow-hidden">
         <DialogHeader className="p-6 pb-4">
+          <DialogDescription className="sr-only">
+            Acciones disponibles para interactuar con {targetUser?.username || 'este usuario'} y abrir una conversación privada.
+          </DialogDescription>
           <div className="flex items-center gap-4">
             <div className={`${
               targetUser.role === 'admin'
@@ -533,18 +551,24 @@ const UserActionsModal = ({
                 exit={{ opacity: 0, y: -10 }}
                 className="space-y-2"
               >
-                {/* Ver Perfil */}
+                {/* Chat Privado */}
                 <motion.div whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }}>
                   <Button
-                    onClick={handleViewProfile}
-                    variant="outline"
-                    className="w-full justify-start h-auto py-3 text-left"
+                    onClick={handlePrivateChatRequest}
+                    className="w-full justify-start h-auto py-3 text-left bg-cyan-500 hover:bg-cyan-500/90 text-white border border-cyan-400/40 shadow-sm"
                   >
-                    <User className="w-5 h-5 mr-3 text-cyan-400" />
-                    <div>
-                      <p className="font-semibold">Ver Perfil Completo</p>
-                      <p className="text-xs text-muted-foreground">
-                        Información, intereses y más
+                    <MessageCircle className="w-5 h-5 mr-3 text-white" />
+                    <div className="flex-1">
+                      <p className="font-semibold">Chat privado</p>
+                      <p className="text-xs text-cyan-50/90">
+                        {isPremiumOrAdmin ? (
+                          <span className="flex items-center gap-1">
+                            <Crown className="w-3 h-3 text-amber-200" />
+                            Abrir conversación directa al instante
+                          </span>
+                        ) : (
+                          `💬 Te quedan ${limits.chatInvites.remaining}/${limits.chatInvites.limit} aperturas hoy`
+                        )}
                       </p>
                     </div>
                   </Button>
@@ -555,11 +579,11 @@ const UserActionsModal = ({
                   <Button
                     onClick={handleOpenMessageInput}
                     variant="outline"
-                    className="w-full justify-start h-auto py-3 text-left"
+                    className="w-full justify-start h-auto py-3 text-left border-green-500/30 hover:bg-green-500/5"
                   >
                     <MessageSquare className="w-5 h-5 mr-3 text-green-400" />
                     <div className="flex-1">
-                      <p className="font-semibold">Enviar Mensaje Directo</p>
+                      <p className="font-semibold">Mensaje directo</p>
                       <p className="text-xs text-muted-foreground">
                         {isPremiumOrAdmin ? (
                           <span className="flex items-center gap-1">
@@ -567,49 +591,25 @@ const UserActionsModal = ({
                             Mensajes ilimitados
                           </span>
                         ) : (
-                          `💬 Te quedan ${limits.directMessages.remaining}/${limits.directMessages.limit} mensajes hoy`
+                          `✉️ Te quedan ${limits.directMessages.remaining}/${limits.directMessages.limit} mensajes hoy`
                         )}
                       </p>
                     </div>
                   </Button>
                 </motion.div>
 
-                {/* Invitar a Chat Privado */}
+                {/* Ver Perfil */}
                 <motion.div whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }}>
                   <Button
-                    onClick={handlePrivateChatRequest}
+                    onClick={handleViewProfile}
                     variant="outline"
                     className="w-full justify-start h-auto py-3 text-left"
                   >
-                    <Video className="w-5 h-5 mr-3 text-purple-400" />
-                    <div className="flex-1">
-                      <p className="font-semibold">Invitar a Chat Privado</p>
-                      <p className="text-xs text-muted-foreground">
-                        {isPremiumOrAdmin ? (
-                          <span className="flex items-center gap-1">
-                            <Crown className="w-3 h-3 text-amber-400" />
-                            Invitaciones ilimitadas
-                          </span>
-                        ) : (
-                          `📞 Te quedan ${limits.chatInvites.remaining}/${limits.chatInvites.limit} invitaciones hoy`
-                        )}
-                      </p>
-                    </div>
-                  </Button>
-                </motion.div>
-
-                {/* Dejar Comentario */}
-                <motion.div whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }}>
-                  <Button
-                    onClick={handleOpenCommentInput}
-                    variant="outline"
-                    className="w-full justify-start h-auto py-3 text-left"
-                  >
-                    <MessageSquare className="w-5 h-5 mr-3 text-cyan-400" />
+                    <User className="w-5 h-5 mr-3 text-cyan-400" />
                     <div>
-                      <p className="font-semibold">Dejar Comentario</p>
+                      <p className="font-semibold">Ver perfil</p>
                       <p className="text-xs text-muted-foreground">
-                        Envía un comentario breve para su perfil
+                        Información, intereses y más
                       </p>
                     </div>
                   </Button>
@@ -631,10 +631,27 @@ const UserActionsModal = ({
                       <p className="font-semibold">
                         {isFavorite ? 'Quitar de mi lista de amigos' : 'Agregar a mi lista de amigos'}
                       </p>
-                          <p className="text-xs text-muted-foreground">
+                      <p className="text-xs text-muted-foreground">
                         {isFavorite
                           ? 'Este usuario está en tu lista'
                           : `Máximo 15 amigos (${favoritesCount}/15)`}
+                      </p>
+                    </div>
+                  </Button>
+                </motion.div>
+
+                {/* Dejar Comentario */}
+                <motion.div whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }}>
+                  <Button
+                    onClick={handleOpenCommentInput}
+                    variant="outline"
+                    className="w-full justify-start h-auto py-3 text-left"
+                  >
+                    <MessageSquare className="w-5 h-5 mr-3 text-cyan-400" />
+                    <div>
+                      <p className="font-semibold">Dejar comentario</p>
+                      <p className="text-xs text-muted-foreground">
+                        Envía un comentario breve para su perfil
                       </p>
                     </div>
                   </Button>

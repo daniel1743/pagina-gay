@@ -2,11 +2,11 @@
 <sitemapindex xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
   <sitemap>
     <loc>https://chactivo.com/sitemap-gay.xml</loc>
-    <lastmod>2026-03-20</lastmod>
+    <lastmod>2026-03-26</lastmod>
   </sitemap>
   <!-- ⏸️ TEMPORAL (2026-03-24): sitemap-hetero.xml removido del índice mientras no se quiere indexar -->
   <sitemap>
     <loc>https://chactivo.com/sitemap.xml</loc>
-    <lastmod>2026-03-20</lastmod>
+    <lastmod>2026-03-26</lastmod>
   </sitemap>
 </sitemapindex>

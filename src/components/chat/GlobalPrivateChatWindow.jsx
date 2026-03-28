@@ -6,7 +6,7 @@
 import React from 'react';
 import { useAuth } from '@/contexts/AuthContext';
 import { usePrivateChat } from '@/contexts/PrivateChatContext';
-import PrivateChatWindow from './PrivateChatWindow';
+import PrivateChatWindow from './PrivateChatWindowV2';
 import { setInPrivateChat, clearInPrivateChat } from '@/services/presenceService';
 import { toast } from '@/components/ui/use-toast';
 
@@ -14,6 +14,8 @@ export default function GlobalPrivateChatWindow() {
   const { user } = useAuth();
   const {
     openPrivateChats,
+    minimizePrivateChat,
+    restorePrivateChat,
     closePrivateChat,
     upsertRecentPrivateChat,
   } = usePrivateChat();
@@ -39,6 +41,10 @@ export default function GlobalPrivateChatWindow() {
           initialMessage={chatWindow.initialMessage ?? ''}
           autoFocus={index === openPrivateChats.length - 1}
           windowIndex={index}
+          minimizedIndex={openPrivateChats.filter((item) => item?.isMinimized).findIndex((item) => item?.chatId === chatWindow?.chatId)}
+          isMinimized={Boolean(chatWindow?.isMinimized)}
+          onMinimize={(chatId) => minimizePrivateChat(chatId || chatWindow.chatId)}
+          onRestore={(chatId) => restorePrivateChat(chatId || chatWindow.chatId)}
           onEnterPrivate={setInPrivateChat}
           onLeavePrivate={clearInPrivateChat}
           onArchiveConversation={(chatId) => handleClose(chatId || chatWindow.chatId)}

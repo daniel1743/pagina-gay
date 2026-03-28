@@ -15,6 +15,7 @@ const SEOLanding = ({
   title = 'Chat Gay Gratis - Chatea Ahora Sin Registro',
   description = 'Chat gay gratis y anónimo. Conoce gente nueva, haz amigos y chatea en tiempo real. Sin registro, sin descargas. ¡Entra ahora!',
   keywords = 'chat gay, chat gay gratis, chat gay sin registro, chat gay anonimo, gay chat',
+  ogImage = 'https://chactivo.com/og-preview.png',
   h1 = 'Chat Gay Gratis',
   subtitle = 'Conecta con gente real ahora mismo',
   redirectDelay = 100, // ⚡ 100ms - casi instantáneo pero Google aún indexa
@@ -52,6 +53,16 @@ const SEOLanding = ({
 
   // 🔍 SEO - Actualizar meta tags dinámicamente
   useEffect(() => {
+    const upsertMeta = (selector, attribute, value, factory) => {
+      let tag = document.querySelector(selector);
+      if (!tag) {
+        tag = factory();
+        document.head.appendChild(tag);
+      }
+      tag.setAttribute(attribute, value);
+      return tag;
+    };
+
     // Title
     document.title = title;
 
@@ -95,7 +106,58 @@ const SEOLanding = ({
       document.head.appendChild(canonical);
     }
     canonical.href = canonicalHref;
-  }, [title, description, keywords, canonicalPath]);
+
+    upsertMeta('meta[property="og:title"]', 'content', title, () => {
+      const tag = document.createElement('meta');
+      tag.setAttribute('property', 'og:title');
+      return tag;
+    });
+    upsertMeta('meta[property="og:description"]', 'content', description, () => {
+      const tag = document.createElement('meta');
+      tag.setAttribute('property', 'og:description');
+      return tag;
+    });
+    upsertMeta('meta[property="og:url"]', 'content', canonicalHref, () => {
+      const tag = document.createElement('meta');
+      tag.setAttribute('property', 'og:url');
+      return tag;
+    });
+    upsertMeta('meta[property="og:image"]', 'content', ogImage, () => {
+      const tag = document.createElement('meta');
+      tag.setAttribute('property', 'og:image');
+      return tag;
+    });
+    upsertMeta('meta[property="og:image:alt"]', 'content', `${title} | Chactivo`, () => {
+      const tag = document.createElement('meta');
+      tag.setAttribute('property', 'og:image:alt');
+      return tag;
+    });
+    upsertMeta('meta[name="twitter:card"]', 'content', 'summary_large_image', () => {
+      const tag = document.createElement('meta');
+      tag.setAttribute('name', 'twitter:card');
+      return tag;
+    });
+    upsertMeta('meta[name="twitter:title"]', 'content', title, () => {
+      const tag = document.createElement('meta');
+      tag.setAttribute('name', 'twitter:title');
+      return tag;
+    });
+    upsertMeta('meta[name="twitter:description"]', 'content', description, () => {
+      const tag = document.createElement('meta');
+      tag.setAttribute('name', 'twitter:description');
+      return tag;
+    });
+    upsertMeta('meta[name="twitter:image"]', 'content', ogImage, () => {
+      const tag = document.createElement('meta');
+      tag.setAttribute('name', 'twitter:image');
+      return tag;
+    });
+    upsertMeta('meta[name="twitter:image:alt"]', 'content', `${title} | Chactivo`, () => {
+      const tag = document.createElement('meta');
+      tag.setAttribute('name', 'twitter:image:alt');
+      return tag;
+    });
+  }, [title, description, keywords, canonicalPath, ogImage]);
 
   // ⚡ Auto-redirect después de 1 segundo
   useEffect(() => {
@@ -220,12 +282,19 @@ const SEOLanding = ({
 export const SEOLandingChile = () => (
   <SEOLanding
     chatRoom="principal"
-    title="Chat Gay Chile | Entra Gratis y Conversa Ahora | Chactivo"
-    description="Una entrada rápida para hablar con gente real de Chile. Sin registro obligatorio, sin descargas y con acceso inmediato al chat."
-    keywords="chat gay chile, chat gay en vivo, chat gay gratis chile, chat gay santiago, chatgay chile"
+    title="Chat Gay Chile | Entrada Rápida Al Chat Principal | Chactivo"
+    description="Una landing de apoyo para entrar al chat gay de Chile. Habla en vivo, entra gratis y accede al chat principal desde tu navegador."
+    keywords="chat gay chile, chat gay en vivo chile, entrar al chat gay chile, chat principal chile"
     h1="Chat Gay Chile En Vivo"
-    subtitle="Conecta con hombres reales de Chile"
-    canonicalPath="/chat-gay-chile"
+    subtitle="Una entrada de apoyo al chat principal de Chile"
+    canonicalPath="/"
+    autoRedirect={false}
+    ctaLabel="Entrar al chat principal"
+    supportingPoints={[
+      'Sirve como puerta de entrada complementaria para búsquedas de Chile.',
+      'Refuerza la URL principal en lugar de competir con ella.',
+      'Mantiene el foco en hablar en vivo sin exagerar la promesa.',
+    ]}
   />
 );
 
@@ -299,18 +368,18 @@ export const SEOLandingBrasil = () => (
 export const SEOLandingSantiagoCentro = () => (
   <SEOLanding
     chatRoom="principal"
-    title="Chat Gay Santiago Centro | Gente De La RM Conectada | Chactivo"
-    description="Habla con gente de Santiago Centro y la Región Metropolitana. Entrada rápida, sin registro obligatorio y desde tu navegador."
-    keywords="chat gay santiago centro, chat gay santiago, chat gay region metropolitana, chat gay chile en vivo"
+    title="Chat Gay Santiago Centro | Entrada Local Al Chat De Santiago | Chactivo"
+    description="Una landing de apoyo para quienes buscan chat gay en Santiago Centro y la Región Metropolitana. Entra gratis y accede al chat local de Chactivo."
+    keywords="chat gay santiago centro, chat gay santiago, chat gay region metropolitana, entrar al chat gay santiago"
     h1="Chat Gay Santiago Centro"
-    subtitle="Una entrada local para quienes buscan gente de Santiago y la RM"
-    canonicalPath="/chat-gay-santiago-centro"
+    subtitle="Una entrada local de apoyo para búsquedas de Santiago y la RM"
+    canonicalPath="/santiago"
     autoRedirect={false}
     ctaLabel="Entrar al chat de Chile"
     supportingPoints={[
-      'Pensada para búsquedas locales de Santiago Centro y Región Metropolitana.',
-      'Mejor alineación entre snippet local y experiencia de entrada.',
-      'Se mantiene viva como landing defendible, no como salto automático.',
+      'Pensada para apoyar búsquedas locales de Santiago Centro y la Región Metropolitana.',
+      'Refuerza la landing local dueña en vez de competir con ella.',
+      'Mantiene una promesa local clara y sobria.',
     ]}
   />
 );

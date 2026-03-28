@@ -35,7 +35,7 @@ const getRoomActivityStatus = (realUserCount) => {
   }
 };
 
-const ChatSidebar = ({ currentRoom, setCurrentRoom, isOpen, onClose, onOpenBaul, onOpenOpin }) => {
+const ChatSidebar = ({ currentRoom, setCurrentRoom, isOpen, onClose, onOpenBaul, onOpenOpin, privateInboxItems = [] }) => {
   const logoSources = ["/transparente_logo.png"];
   const navigate = useNavigate();
   const location = useLocation();
@@ -75,6 +75,31 @@ const ChatSidebar = ({ currentRoom, setCurrentRoom, isOpen, onClose, onOpenBaul,
     return null;
   };
 
+  const normalizeInboxChat = (item = {}) => {
+    const chatId = item?.chatId || item?.conversationId || null;
+    if (!chatId) return null;
+    const isGroup = Boolean(item?.isGroup);
+    return {
+      chatId,
+      partner: isGroup
+        ? {
+          userId: chatId,
+          username: item?.title || item?.otherUserDisplayName || 'Chat privado',
+          avatar: '',
+        }
+        : {
+          userId: item?.otherUserId || chatId,
+          username: item?.otherUserDisplayName || 'Usuario',
+          avatar: item?.otherUserAvatar || '',
+        },
+      participants: Array.isArray(item?.participantProfiles) ? item.participantProfiles : [],
+      title: item?.title || '',
+      roomId: item?.roomId || null,
+      lastMessageAt: Number(item?.lastMessageAt?.toMillis?.() || item?.updatedAt?.toMillis?.() || item?.lastMessageAt || item?.updatedAt || Date.now()),
+      isOpen: Boolean(item?.isOpen),
+    };
+  };
+
   const mergedPrivateChats = useMemo(() => {
     const result = [];
     const seen = new Set();
@@ -86,6 +111,8 @@ const ChatSidebar = ({ currentRoom, setCurrentRoom, isOpen, onClose, onOpenBaul,
         key,
         chatId: chat?.chatId || null,
         partner: chat?.partner || {},
+        participants: chat?.participants || [],
+        title: chat?.title || '',
         roomId: chat?.roomId || null,
         lastMessageAt: Number(chat?.lastMessageAt || chat?.lastActivityAt || Date.now()),
         isOpen,
@@ -93,18 +120,24 @@ const ChatSidebar = ({ currentRoom, setCurrentRoom, isOpen, onClose, onOpenBaul,
     };
 
     (openPrivateChats || []).forEach((chat) => push(chat, true));
+    (Array.isArray(privateInboxItems) ? privateInboxItems : [])
+      .map((item) => normalizeInboxChat(item))
+      .filter(Boolean)
+      .forEach((chat) => push(chat, Boolean(chat?.isOpen)));
     (recentPrivateChats || []).forEach((chat) => push(chat, false));
 
     return result
       .sort((a, b) => (b.lastMessageAt || 0) - (a.lastMessageAt || 0))
       .slice(0, 5);
-  }, [openPrivateChats, recentPrivateChats]);
+  }, [openPrivateChats, privateInboxItems, recentPrivateChats]);
 
   const openPrivateChatFromShortcut = (chat) => {
     if (!chat) return;
     const result = openRecentPrivateChat({
       chatId: chat.chatId || null,
       partner: chat.partner || {},
+      participants: chat.participants || [],
+      title: chat.title || '',
       roomId: chat.roomId || null,
       lastMessageAt: chat.lastMessageAt || Date.now(),
     });

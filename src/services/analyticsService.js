@@ -146,7 +146,9 @@ export const trackEvent = async (eventType, eventData = {}) => {
     });
 
     // Guardar eventos individuales para análisis de embudo/usuarios únicos
-    if (STORED_ANALYTICS_EVENT_TYPES.has(eventType)) {
+    const canPersistDetailedEvent = Boolean(auth.currentUser?.uid);
+
+    if (STORED_ANALYTICS_EVENT_TYPES.has(eventType) && canPersistDetailedEvent) {
       const sanitizeIdPart = (value = '') => String(value).replace(/[^a-zA-Z0-9_-]/g, '').slice(0, 80);
       const sessionPart = sanitizeIdPart(eventData.sessionId || 'nosession');
       const userPart = sanitizeIdPart(eventData.userId || 'nouser');
@@ -175,7 +177,7 @@ export const trackEvent = async (eventType, eventData = {}) => {
       await setDoc(eventRef, {
         ...payload,
       }).catch((err) => {
-        if (!isIgnorableFirestoreInternalError(err)) {
+        if (err.code !== 'permission-denied' && !isIgnorableFirestoreInternalError(err)) {
           console.error('Error storing analytics event:', err);
         }
       });

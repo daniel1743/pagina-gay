@@ -64,6 +64,13 @@ const MensajeTarjetaModal = ({
   }, [isOpen, tarjeta?.odIdUsuari, tarjeta?.id]);
 
   useEffect(() => {
+    if (isOpen) return;
+    setMensaje('');
+    setMostrarMensaje(false);
+    setChatSolicitado(false);
+  }, [isOpen]);
+
+  useEffect(() => {
     if (!isPhotoViewerOpen) return;
     const handleEscape = (event) => {
       if (event.key === 'Escape') {
@@ -125,6 +132,7 @@ const MensajeTarjetaModal = ({
       });
     } catch (error) {
       console.error('Error solicitando chat:', error);
+      console.info('[PRIVATE_CHAT_DEBUG] Ejecuta window.printPrivateChatDebug?.() o inspecciona window.__lastPrivateChatDebug');
       if (error?.message === 'BLOCKED') {
         toast({
           title: 'No disponible',
@@ -163,6 +171,8 @@ const MensajeTarjetaModal = ({
         description: 'Conversación abierta — podrás seguir chateando aquí',
       });
 
+      setMensaje('');
+      setMostrarMensaje(false);
       onClose();
 
       if (onAbrirChat) {
@@ -176,6 +186,8 @@ const MensajeTarjetaModal = ({
         });
       }
     } catch (error) {
+      console.error('Error enviando mensaje desde tarjeta:', error);
+      console.info('[PRIVATE_CHAT_DEBUG] Ejecuta window.printPrivateChatDebug?.() o inspecciona window.__lastPrivateChatDebug');
       if (error?.message === 'BLOCKED') {
         toast({
           title: 'No disponible',

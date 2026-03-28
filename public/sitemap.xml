@@ -32,20 +32,8 @@
     <priority>0.9</priority>
     <mobile:mobile/>
   </url>
-  <url>
-    <loc>https://chactivo.com/chat-gay-chile</loc>
-    <lastmod>2026-03-06</lastmod>
-    <changefreq>daily</changefreq>
-    <priority>0.95</priority>
-    <mobile:mobile/>
-  </url>
-  <url>
-    <loc>https://chactivo.com/chat-gay-santiago-centro</loc>
-    <lastmod>2026-03-10</lastmod>
-    <changefreq>daily</changefreq>
-    <priority>0.92</priority>
-    <mobile:mobile/>
-  </url>
+  <!-- ⏸️ TEMPORAL (2026-03-26): /chat-gay-chile y /chat-gay-santiago-centro salen del sitemap
+       mientras sigan usando patrón de landing con redirect y no sean destinos SEO plenamente autónomos -->
   <!-- ✅ CONSOLIDACIÓN (2026-03-24): /gay sale de sitemap para concentrar intención global en / -->
   <!-- ⏸️ TEMPORAL (2026-03-24): vertical hetero oculto de sitemap mientras sigue en desarrollo -->
   <!-- ⏸️ TEMPORAL (2026-03-06): /gaming y /video-chat-gay ocultos y redirigidos a /chat/principal -->
@@ -117,51 +105,8 @@
     <priority>0.9</priority>
     <mobile:mobile/>
   </url>
-  <!-- ⏸️ TEMPORAL (2026-03-06): /chat/gaming oculto y redirigido a /chat/principal -->
-  <url>
-    <loc>https://chactivo.com/chat/santiago</loc>
-    <lastmod>2026-01-02</lastmod>
-    <changefreq>hourly</changefreq>
-    <priority>0.85</priority>
-    <mobile:mobile/>
-  </url>
-  <url>
-    <loc>https://chactivo.com/chat/mas-30</loc>
-    <lastmod>2026-01-02</lastmod>
-    <changefreq>hourly</changefreq>
-    <priority>0.8</priority>
-    <mobile:mobile/>
-  </url>
-
-  <!-- ✅ SALAS DE CHAT INTERNACIONALES -->
-  <url>
-    <loc>https://chactivo.com/chat/es-main</loc>
-    <lastmod>2026-01-02</lastmod>
-    <changefreq>hourly</changefreq>
-    <priority>0.85</priority>
-    <mobile:mobile/>
-  </url>
-  <url>
-    <loc>https://chactivo.com/chat/br-main</loc>
-    <lastmod>2026-01-02</lastmod>
-    <changefreq>hourly</changefreq>
-    <priority>0.85</priority>
-    <mobile:mobile/>
-  </url>
-  <url>
-    <loc>https://chactivo.com/chat/mx-main</loc>
-    <lastmod>2026-01-02</lastmod>
-    <changefreq>hourly</changefreq>
-    <priority>0.85</priority>
-    <mobile:mobile/>
-  </url>
-  <url>
-    <loc>https://chactivo.com/chat/ar-main</loc>
-    <lastmod>2026-01-02</lastmod>
-    <changefreq>hourly</changefreq>
-    <priority>0.85</priority>
-    <mobile:mobile/>
-  </url>
+  <!-- ⏸️ TEMPORAL (2026-03-26): /chat/santiago, /chat/mas-30 y salas /chat/* internacionales
+       salen del sitemap mientras no sean destinos públicos indexables autónomos -->
   <!-- ⏸️ TEMPORAL (2026-03-24): /chat/hetero-general fuera de sitemap mientras no se quiere indexar -->
 
 </urlset>

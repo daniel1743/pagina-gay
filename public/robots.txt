@@ -19,14 +19,11 @@ Allow: /br
 Allow: /mx
 Allow: /ar
 
-# ✅ PERMITIR salas de chat públicas
+# ✅ PERMITIR sala pública principal
 Allow: /chat/principal
-Allow: /chat/santiago
-Allow: /chat/mas-30
-Allow: /chat/es-main
-Allow: /chat/br-main
-Allow: /chat/mx-main
-Allow: /chat/ar-main
+
+# ⏸️ TEMPORAL (2026-03-26): no enumerar /chat/* residuales o dependientes de landing
+# mientras no sean destinos indexables autónomos estables
 
 # ✅ PERMITIR chat anónimo
 Allow: /anonymous-chat

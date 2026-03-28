@@ -21,6 +21,7 @@ import {
   addToFavorites,
   removeFromFavorites,
   sendPrivateGroupInvite,
+  sendRichPrivateChatMessage,
 } from '@/services/socialService';
 import { subscribeToRoomUsers } from '@/services/presenceService';
 import { notificationSounds } from '@/services/notificationSounds';
@@ -786,8 +787,7 @@ const PrivateChatWindow = ({
 
       const downloadURL = await getDownloadURL(fileRef);
 
-      const messagesRef = collection(db, 'private_chats', chatId, 'messages');
-      await addDoc(messagesRef, {
+      await sendRichPrivateChatMessage(chatId, {
         userId: user.id,
         username: user.username,
         avatar: user.avatar,
@@ -801,12 +801,7 @@ const PrivateChatWindow = ({
             sizeBytes: optimizedFile.size,
           },
         ],
-        status: 'sent',
-        deliveredTo: [user.id],
-        readBy: [user.id],
-        deliveredAt: serverTimestamp(),
-        readAt: serverTimestamp(),
-        timestamp: serverTimestamp(),
+        senderIsPremium: Boolean(user?.isPremium),
       });
 
       notificationSounds.playMessageSentSound();
@@ -965,19 +960,13 @@ const PrivateChatWindow = ({
     }
 
     try {
-      const messagesRef = collection(db, 'private_chats', chatId, 'messages');
-      await addDoc(messagesRef, {
+      await sendRichPrivateChatMessage(chatId, {
         userId: user.id,
         username: user.username,
         avatar: user.avatar,
         content: contentToSend,
         type: 'text',
-        status: 'sent',
-        deliveredTo: [user.id],
-        readBy: [user.id],
-        deliveredAt: serverTimestamp(),
-        readAt: serverTimestamp(),
-        timestamp: serverTimestamp(),
+        senderIsPremium: Boolean(user?.isPremium),
       });
 
       notificationSounds.playMessageSentSound();
@@ -987,6 +976,7 @@ const PrivateChatWindow = ({
       updatePrivateChatTypingStatus(chatId, user.id, false, user.username).catch(() => {});
     } catch (error) {
       console.error('Error sending private message:', error);
+      console.info('[PRIVATE_CHAT_DEBUG] Ejecuta window.printPrivateChatDebug?.() o inspecciona window.__lastPrivateChatDebug');
       toast({
         title: 'No pudimos enviar el mensaje',
         description: 'Intenta de nuevo en un momento',

@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Button } from '@/components/ui/button';
-import { ThumbsUp, ThumbsDown, CheckCircle, Reply, Lock, Trash2 } from 'lucide-react';
+import { ThumbsUp, ThumbsDown, CheckCircle, Reply, MessageCircle, Trash2, X } from 'lucide-react';
 import { motion } from 'framer-motion';
 import { useAuth } from '@/contexts/AuthContext';
 import MessageQuote from './MessageQuote';
@@ -10,7 +10,6 @@ import { getUserConnectionStatus, getStatusColor, getStatusText } from '@/utils/
 import { traceEvent, TRACE_EVENTS, isMessageTraceEnabled } from '@/utils/messageTrace';
 import { getBadgeConfig } from '@/services/badgeService';
 import { getProfileRoleBadgeMeta } from '@/config/profileRoles';
-import { isUserAvailableForConversation } from '@/services/presenceService';
 import './ChatMessages.css';
 
 const isSeededUserId = (userId = '') => String(userId || '').startsWith('seed_user_');
@@ -70,10 +69,12 @@ const ChatMessages = ({
   const [reactionBursts, setReactionBursts] = useState([]);
   const [swipeReplyMessageId, setSwipeReplyMessageId] = useState(null);
   const [swipeReplyOffset, setSwipeReplyOffset] = useState(0);
+  const [showPrivateHint, setShowPrivateHint] = useState(false);
   const renderedMessageIdsRef = useRef(new Set());
   const shownQuickReplyBadgesRef = useRef(new Set());
   const quickReplyHideTimeoutRef = useRef(null);
   const imageActionsHideTimeoutRef = useRef(null);
+  const privateHintTimeoutRef = useRef(null);
   const swipeStateRef = useRef({
     tracking: false,
     messageKey: null,
@@ -180,6 +181,9 @@ const ChatMessages = ({
       if (imageActionsHideTimeoutRef.current) {
         clearTimeout(imageActionsHideTimeoutRef.current);
       }
+      if (privateHintTimeoutRef.current) {
+        clearTimeout(privateHintTimeoutRef.current);
+      }
     };
   }, []);
 
@@ -199,6 +203,39 @@ const ChatMessages = ({
       return changed ? next : prev;
     });
   }, [messages]);
+
+  useEffect(() => {
+    if (typeof window === 'undefined' || !currentUserId) return;
+    const hasOtherVisibleMessages = Array.isArray(messages)
+      && messages.some((message) => message?.userId && message.userId !== currentUserId && message.userId !== 'system');
+
+    if (!hasOtherVisibleMessages) return;
+
+    const storageKey = `chactivo:private-chat-discovery-hint:${currentUserId}`;
+    if (window.localStorage.getItem(storageKey) === 'seen') return;
+
+    setShowPrivateHint(true);
+
+    if (privateHintTimeoutRef.current) {
+      clearTimeout(privateHintTimeoutRef.current);
+    }
+
+    privateHintTimeoutRef.current = window.setTimeout(() => {
+      window.localStorage.setItem(storageKey, 'seen');
+      setShowPrivateHint(false);
+    }, 12000);
+  }, [currentUserId, messages]);
+
+  const dismissPrivateHint = () => {
+    if (typeof window !== 'undefined' && currentUserId) {
+      window.localStorage.setItem(`chactivo:private-chat-discovery-hint:${currentUserId}`, 'seen');
+    }
+    if (privateHintTimeoutRef.current) {
+      clearTimeout(privateHintTimeoutRef.current);
+      privateHintTimeoutRef.current = null;
+    }
+    setShowPrivateHint(false);
+  };
 
   const triggerReply = (message) => {
     onReply?.({
@@ -392,6 +429,17 @@ const ChatMessages = ({
     }
   };
 
+  const openPrivateChatFromGroup = (group) => {
+    if (!group || isSeededUserId(group.userId)) return;
+    onPrivateChat?.({
+      username: group.username,
+      avatar: resolveChatAvatar(group.avatar),
+      userId: group.userId,
+      isPremium: findUserPremiumStatus(group.userId),
+    });
+    dismissPrivateHint();
+  };
+
   // ⚡ AGRUPACIÓN: Mensajes consecutivos del mismo usuario
   const groupMessages = (messages) => {
     if (!messages || messages.length === 0) return [];
@@ -520,6 +568,20 @@ const ChatMessages = ({
         </div>
       ) : null}
 
+      {showPrivateHint ? (
+        <div className="message-discovery-hint" role="note" aria-live="polite">
+          <span className="message-discovery-hint-copy">Toca el icono del usuario para hablar en privado</span>
+          <button
+            type="button"
+            className="message-discovery-hint-close"
+            onClick={dismissPrivateHint}
+            aria-label="Cerrar sugerencia"
+          >
+            <X className="w-3.5 h-3.5" />
+          </button>
+        </div>
+      ) : null}
+
       {messageGroups.length === 0 ? (
         <div className="px-4 py-8">
           <div className="mx-auto max-w-2xl">
@@ -595,75 +657,49 @@ const ChatMessages = ({
 
               {/* ✅ Nombre: Solo una vez, solo para otros */}
               {!isOwn && (
-                <div className="message-username flex items-center gap-1.5 flex-wrap">
-                  <span>{group.username}</span>
-                  {(() => {
-                    const presence = safeRoomUsers.find(u => (u.userId || u.id) === group.userId);
-                    if (presence?.inPrivateWith) {
-                      return (
-                        <motion.span
-                          key="private"
-                          initial={{ opacity: 0 }}
-                          animate={{ opacity: [0.6, 1, 0.6] }}
-                          transition={{ duration: 2, repeat: Infinity }}
-                          className="inline-flex items-center gap-1 text-[10px] text-muted-foreground"
-                          title={`${group.username} está en chat privado`}
-                        >
-                          <Lock className="w-3 h-3" />
-                          <span className="font-medium">en privado</span>
-                          <span className="inline-flex gap-0.5">
-                            {[0, 1, 2].map(i => (
-                              <motion.span
-                                key={i}
-                                animate={{ opacity: [0.3, 1, 0.3] }}
-                                transition={{ duration: 0.8, repeat: Infinity, delay: i * 0.2 }}
-                              >
-                                ·
-                              </motion.span>
-                            ))}
-                          </span>
-                        </motion.span>
-                      );
-                    }
-                    return null;
-                  })()}
-                  {(() => {
-                    const presence = safeRoomUsers.find(u => (u.userId || u.id) === group.userId);
-                    if (!presence || !isUserAvailableForConversation(presence)) return null;
-                    return (
-                      <span
-                        className="inline-flex items-center gap-1 rounded-full border border-emerald-500/25 bg-emerald-500/10 px-2 py-0.5 text-[10px] font-medium text-emerald-300"
-                        title={`${group.username} está disponible para conversar`}
+                <div className="message-username">
+                  <div className="message-identity">
+                    <div className="message-identity-main">
+                      <span className="message-identity-name">{group.username}</span>
+                      <span className="message-user-flags">
+                        {(isUserPremium || userRole === 'admin') && (
+                          <CheckCircle className="w-3 h-3 text-yellow-500" title="Miembro destacado" />
+                        )}
+                        {isUserVerified && !isUserPremium && userRole !== 'admin' && (
+                          <CheckCircle className="w-3 h-3 text-blue-500" title="Usuario verificado" />
+                        )}
+                      </span>
+                      {roleBadgeMeta ? (
+                        <span className={`message-primary-chip ${roleBadgeMeta.badgeClassName}`}>
+                          {roleBadgeMeta.label}
+                        </span>
+                      ) : group.badge && group.badge !== 'Nuevo' ? (
+                        (() => {
+                          const badgeConfig = getBadgeConfig(group.badge);
+                          return (
+                            <span className={`message-primary-chip ${badgeConfig.bg} ${badgeConfig.color} ${badgeConfig.border} border`}>
+                              {group.badge}
+                            </span>
+                          );
+                        })()
+                      ) : null}
+                    </div>
+
+                    {!isSeededUserId(group.userId) && (
+                      <button
+                        type="button"
+                        className="message-private-trigger"
+                        onClick={(event) => {
+                          event.stopPropagation();
+                          openPrivateChatFromGroup(group);
+                        }}
+                        aria-label={`Abrir chat privado con ${group.username}`}
+                        title={`Hablar en privado con ${group.username}`}
                       >
-                        <span>🙋</span>
-                        disponible
-                      </span>
-                    );
-                  })()}
-                  {(isUserPremium || userRole === 'admin') && (
-                    <CheckCircle className="inline w-3 h-3 ml-1 text-yellow-500" />
-                  )}
-                  {isUserVerified && !isUserPremium && userRole !== 'admin' && (
-                    <CheckCircle className="inline w-3 h-3 ml-1 text-blue-500" />
-                  )}
-                  {group.badge && group.badge !== 'Nuevo' && (() => {
-                    const badgeConfig = getBadgeConfig(group.badge);
-                    return (
-                      <span className={`inline-block ml-1.5 text-[9px] font-semibold px-1.5 py-0.5 rounded-full ${badgeConfig.bg} ${badgeConfig.color} ${badgeConfig.border} border`}>
-                        {group.badge}
-                      </span>
-                    );
-                  })()}
-                  {!hideRoleBadges && roleBadgeMeta ? (
-                    <span className={`inline-block ml-1.5 text-[10px] font-bold tracking-[0.01em] px-2 py-0.5 rounded-full border ${roleBadgeMeta.badgeClassName}`}>
-                      {roleBadgeMeta.label}
-                    </span>
-                  ) : null}
-                  {group.comuna ? (
-                    <span className="message-comuna-chip">
-                      {group.comuna}
-                    </span>
-                  ) : null}
+                        <MessageCircle className="w-3.5 h-3.5" />
+                      </button>
+                    )}
+                  </div>
                 </div>
               )}
 
@@ -800,25 +836,16 @@ const ChatMessages = ({
 
                     {/* ⚡ BURBUJA */}
                     <div
-                      className={`message-bubble ${isOwn ? 'own' : 'other'} ${positionClass} ${hasImageReactions ? 'has-image-reactions' : ''}`}
-                      onClick={() => {
-                        if (isImageMessage) {
-                          if (!isImageRevealed) {
-                            revealImage(messageKey);
-                            return;
-                          }
-                          if (!isOwn && isMobileViewport) {
-                            toggleImageActions(messageKey);
-                          }
+                      className={`message-bubble ${isOwn ? 'own' : 'other'} ${positionClass} ${hasImageReactions ? 'has-image-reactions' : ''} ${isImageMessage ? 'is-interactive-media' : ''}`}
+                      onClick={isImageMessage ? () => {
+                        if (!isImageRevealed) {
+                          revealImage(messageKey);
                           return;
                         }
-                        onPrivateChat({
-                          username: message.username,
-                          avatar: resolveChatAvatar(message.avatar || group.avatar),
-                          userId: message.userId,
-                          isPremium: isUserPremium
-                        });
-                      }}
+                        if (!isOwn && isMobileViewport) {
+                          toggleImageActions(messageKey);
+                        }
+                      } : undefined}
                     >
                       {message.replyTo && (
                         <MessageQuote
@@ -826,7 +853,25 @@ const ChatMessages = ({
                           onJumpToMessage={handleJumpToMessage}
                         />
                       )}
-                      {message.type === 'text' && message.content}
+                      {message.type === 'text' && (
+                        <div className="message-text-inline">
+                          <span className="message-text-copy">
+                            {message.content}
+                          </span>
+                          {showTime && (
+                            <span className={`message-meta-inline ${isOwn ? 'own' : 'other'}`}>
+                              {formattedTime && (
+                                <span className="message-time">{formattedTime}</span>
+                              )}
+                              {isOwn && (
+                                <span className={`message-status ${message.status === 'error' ? 'error' : message.status === 'delivered' ? 'delivered' : message.status === 'sent' ? 'sent' : 'sending'}`}>
+                                  {message.status === 'error' ? '!' : message.status === 'delivered' ? '✓✓' : message.status === 'sent' ? '✓✓' : '✓'}
+                                </span>
+                              )}
+                            </span>
+                          )}
+                        </div>
+                      )}
                       {message.type === 'gif' && (
                         <img src={message.content} alt="GIF" className="rounded max-w-full" />
                       )}
@@ -891,7 +936,7 @@ const ChatMessages = ({
                         </div>
                       )}
 
-                      {showTime && (
+                      {showTime && message.type !== 'text' && (
                         <div className={`message-meta ${isOwn ? 'own' : 'other'}`}>
                           {formattedTime && (
                             <span className="message-time">{formattedTime}</span>
@@ -912,8 +957,12 @@ const ChatMessages = ({
                           message.type === 'image'
                             ? (
                               isMobileViewport
-                                ? 'opacity-100 pointer-events-auto rounded-full bg-black/20 px-1.5 py-0.5'
-                                : 'opacity-100'
+                                ? (
+                                  activeImageActionsMessageId === messageKey
+                                    ? 'opacity-100 pointer-events-auto rounded-full bg-black/20 px-1.5 py-0.5'
+                                    : 'opacity-0 pointer-events-none'
+                                )
+                                : 'opacity-0 group-hover:opacity-100'
                             )
                             : 'opacity-0 group-hover:opacity-100'
                         }`}

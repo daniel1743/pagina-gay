@@ -37,7 +37,7 @@
     <link rel="icon" type="image/png" sizes="16x16" href="/favicon-16x16.png" />
     <link rel="icon" type="image/png" sizes="32x32" href="/favicon-32x32.png" />
     <link rel="icon" type="image/png" sizes="48x48" href="/icon-48.png" />
-    <link rel="shortcut icon" href="/favicon_chativo.svg" />
+    <link rel="shortcut icon" href="/favicon.ico" />
 
     <meta name="google-site-verification" content="m4Wrv1KeHpGhpLDkbmTpQerXSbWIjF7_a02YdmQp0rM" />
 
@@ -49,9 +49,11 @@
     />
     <meta name="author" content="Chactivo" />
     <meta name="robots" content="index, follow, max-snippet:-1, max-image-preview:large, max-video-preview:-1" />
+    <meta name="application-name" content="Chactivo" />
 
     <!-- Canonical base: / es la superficie principal -->
     <link rel="canonical" href="https://chactivo.com/" />
+    <link rel="image_src" href="https://chactivo.com/og-preview.png" />
     <script>
       (function () {
         const rawPath = window.location.pathname.replace(/\/$/, "") || "/";
@@ -74,8 +76,11 @@
     <meta property="og:description" content="Conecta con gente real de Chile en segundos. Entra gratis, sin registro obligatorio y conversa al instante desde tu navegador." />
     <meta property="og:url" content="https://chactivo.com/" />
     <meta property="og:image" content="https://chactivo.com/og-preview.png" />
+    <meta property="og:image:secure_url" content="https://chactivo.com/og-preview.png" />
     <meta property="og:image:width" content="1200" />
     <meta property="og:image:height" content="630" />
+    <meta property="og:image:type" content="image/png" />
+    <meta property="og:image:alt" content="Chactivo, chat gay Chile en vivo y sin registro" />
     <meta property="og:locale" content="es_CL" />
 
     <!-- Twitter -->
@@ -84,6 +89,7 @@
     <meta name="twitter:title" content="Chat Gay Chile En Vivo | Entra Gratis y Habla al Instante | Chactivo" />
     <meta name="twitter:description" content="Conecta con gente real de Chile en segundos. Entra gratis, sin registro obligatorio y conversa al instante desde tu navegador." />
     <meta name="twitter:image" content="https://chactivo.com/og-preview.png" />
+    <meta name="twitter:image:alt" content="Chactivo, chat gay Chile en vivo y sin registro" />
 
     <!-- PWA -->
     <meta name="theme-color" content="#E4007C" />
@@ -91,6 +97,7 @@
     <meta name="apple-mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-title" content="Chactivo" />
     <link rel="manifest" href="/manifest.json" />
+    <link rel="apple-touch-icon" sizes="180x180" href="/icon-192.png" />
     <link rel="apple-touch-icon" sizes="192x192" href="/icon-192.png" />
 
     <!-- Performance hints -->
@@ -135,7 +142,36 @@
         "@id": "https://chactivo.com/#organization",
         "name": "Chactivo",
         "url": "https://chactivo.com/",
-        "logo": "https://chactivo.com/transparente_logo.png"
+        "description": "Plataforma de chat gay en vivo para Chile con acceso rápido desde navegador.",
+        "logo": {
+          "@type": "ImageObject",
+          "url": "https://chactivo.com/icon-512.png",
+          "width": 512,
+          "height": 512
+        },
+        "image": [
+          "https://chactivo.com/icon-512.png",
+          "https://chactivo.com/og-preview.png"
+        ]
+      }
+    </script>
+
+    <script type="application/ld+json">
+      {
+        "@context": "https://schema.org",
+        "@type": "WebPage",
+        "@id": "https://chactivo.com/#webpage",
+        "url": "https://chactivo.com/",
+        "name": "Chat Gay Chile En Vivo | Chactivo",
+        "description": "Conecta con gente real de Chile en segundos. Entra gratis, sin registro obligatorio y conversa al instante desde tu navegador.",
+        "isPartOf": { "@id": "https://chactivo.com/#website" },
+        "about": { "@id": "https://chactivo.com/#organization" },
+        "primaryImageOfPage": {
+          "@type": "ImageObject",
+          "url": "https://chactivo.com/og-preview.png",
+          "width": 1200,
+          "height": 630
+        }
       }
     </script>
 
@@ -147,6 +183,8 @@
         "name": "Chactivo - Chat Gay Chile",
         "description": "Chat gay en Chile 100% gratis. Entra sin registro y conversa en salas activas.",
         "url": "https://chactivo.com/",
+        "publisher": { "@id": "https://chactivo.com/#organization" },
+        "image": "https://chactivo.com/og-preview.png",
         "applicationCategory": "SocialNetworkingApplication",
         "operatingSystem": "Web, iOS, Android",
         "aggregateRating": {

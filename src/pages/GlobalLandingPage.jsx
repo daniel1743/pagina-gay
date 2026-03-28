@@ -282,14 +282,14 @@ const GlobalLandingPage = () => {
   // }, [user, navigate]);
 
   React.useEffect(() => {
-    // ✅ SEO: Title y meta description optimizados - Keywords: chat gay chile, chat gay gratis, chat gay sin registro
+    // ✅ SEO: /global deja de competir por Chile y pasa a una promesa más amplia
     const previousTitle = document.title;
     
     const metaDescription = document.querySelector('meta[name="description"]');
     const hadMetaDescription = !!metaDescription;
     const previousDescription = metaDescription?.getAttribute('content') ?? '';
 
-    document.title = 'chat gay chile | hombres gays chat gratis sin anuncios';
+    document.title = 'Chat Gay Online | Habla En Vivo y Entra Gratis | Chactivo';
     
     let ensuredMeta = metaDescription;
     if (!ensuredMeta) {
@@ -298,7 +298,7 @@ const GlobalLandingPage = () => {
       document.head.appendChild(ensuredMeta);
     }
     
-    ensuredMeta.content = 'Chat gay Chile sin registro. Conocer hombres reales, chat gay activo, chatear gratis sin cuenta. Gente real de trabajo conversando ahora.';
+    ensuredMeta.content = 'Chat gay online para hablar en vivo, entrar gratis y conocer gente desde tu navegador. Sin registro obligatorio y con acceso rápido al chat principal.';
 
     return () => {
       // Restore title
@@ -339,10 +339,10 @@ const GlobalLandingPage = () => {
         },
         {
           "@type": "Question",
-          "name": "¿Dónde encuentro foro gay y video chat gay?",
+          "name": "¿Qué ofrece la landing /global de Chactivo?",
           "acceptedAnswer": {
             "@type": "Answer",
-            "text": "Puedes acceder a /foro-gay para discusiones anónimas y a /video-chat-gay para entrar a conversación en vivo."
+            "text": "La landing /global sirve como una entrada amplia al chat principal de Chactivo, con acceso rápido, conversación en vivo y una promesa más general que la home local de Chile."
           }
         }
       ]
@@ -435,7 +435,7 @@ const GlobalLandingPage = () => {
                 {/* Imagen contextual (no protagonista) */}
                 <img 
                   src={encodeURI(modelImages[currentImageIndex])}
-                  alt="Chat activo en Chile"
+                  alt="Chat gay online en Chactivo"
                   className="absolute inset-0 w-full h-full object-cover object-center"
                   width="1080"
                   height="1440"
@@ -473,7 +473,7 @@ const GlobalLandingPage = () => {
                 className="text-3xl sm:text-4xl md:text-5xl lg:text-6xl font-black mb-4 sm:mb-5 drop-shadow-2xl leading-tight px-2"
               >
                 <span className="bg-gradient-to-r from-purple-400 via-purple-500 to-cyan-400 bg-clip-text text-transparent">
-                  🏳️‍🌈 Chat Gay Chile
+                  🏳️‍🌈 Chat Gay Online
                 </span>
               </motion.h1>
               
@@ -484,7 +484,7 @@ const GlobalLandingPage = () => {
                 transition={{ duration: 0.4, delay: 0.1 }}
                 className="text-xl sm:text-2xl md:text-3xl text-white font-bold drop-shadow-lg mb-3 sm:mb-4 leading-tight px-2"
               >
-                Entra y chatea con gente real. Sin registro, sin vueltas.
+                Habla en vivo, entra gratis y empieza a conversar sin vueltas.
               </motion.h2>
               
               {/* H3 - MENSAJE ADICIONAL CLARO */}
@@ -494,7 +494,7 @@ const GlobalLandingPage = () => {
                 transition={{ duration: 0.4, delay: 0.2 }}
                 className="text-base sm:text-lg md:text-xl text-white/90 font-medium drop-shadow-md mb-5 sm:mb-6 px-2"
               >
-                Gente real de trabajo conversando ahora. 100% gratis y anónimo.
+                Una entrada amplia para conocer gente, conversar en tiempo real y entrar al chat principal de Chactivo.
               </motion.p>
               
               {/* CTA - Directo y urgente */}
@@ -508,7 +508,7 @@ const GlobalLandingPage = () => {
                   className="bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-500 hover:to-pink-500 text-white font-black px-6 sm:px-10 py-3 sm:py-4 text-base sm:text-lg rounded-xl shadow-2xl hover:shadow-purple-500/50 transition-all hover:scale-105 w-full sm:w-auto uppercase tracking-wide"
                   style={{ minHeight: '48px' }}
                 >
-                  ¡ENTRAR AL CHAT YA!
+                  Entrar al chat principal
                 </Button>
               </motion.div>
               
@@ -520,24 +520,8 @@ const GlobalLandingPage = () => {
                 className="mt-4 sm:mt-5 space-y-2"
               >
                 <p className="text-base sm:text-lg text-white font-bold">
-                  ⚡ Entra en 1 clic • 💬 Chatea con gente real • 🔒 100% Anónimo
+                  💬 Conversación en vivo • 🔒 Privacidad clara • 🌎 Entrada amplia a Chactivo
                 </p>
-                <div className="flex flex-wrap justify-center gap-2 pt-1">
-                  <button
-                    type="button"
-                    onClick={() => navigate('/video-chat-gay')}
-                    className="rounded-full border border-cyan-300/50 bg-black/25 px-3 py-1 text-xs font-semibold text-cyan-100 hover:bg-black/35 transition-colors"
-                  >
-                    Video chat gay
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => navigate('/foro-gay')}
-                    className="rounded-full border border-fuchsia-300/50 bg-black/25 px-3 py-1 text-xs font-semibold text-fuchsia-100 hover:bg-black/35 transition-colors"
-                  >
-                    Foro gay
-                  </button>
-                </div>
                 {loadTime && loadTime < 2000 && (
                   <p className="text-sm text-green-300 font-semibold animate-pulse">
                     ⚡ Carga ultra-rápida: {loadTime.toFixed(0)}ms
