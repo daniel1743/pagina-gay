@@ -8,7 +8,6 @@ import ChatSidebar from '@/components/chat/ChatSidebar';
 import ChatHeader from '@/components/chat/ChatHeader';
 import ChatMessages from '@/components/chat/ChatMessages';
 import ChatInput from '@/components/chat/ChatInput';
-import ChatStatesStrip from '@/components/chat/ChatStatesStrip';
 import NewMessagesIndicator from '@/components/chat/NewMessagesIndicator';
 import ScreenSaver from '@/components/chat/ScreenSaver';
 
@@ -91,7 +90,6 @@ import { notificationSounds, initAudioOnFirstGesture } from '@/services/notifica
 import { monitorActivityAndSendVOC, resetVOCCooldown } from '@/services/vocService';
 import { generateNicoWelcome, sendNicoQuestion, getLastNicoMessageAge, NICO, QUESTION_INTERVAL_MS } from '@/services/nicoBot';
 import EventoBanner from '@/components/eventos/EventoBanner';
-import EventReminderPopup from '@/components/eventos/EventReminderPopup';
 import ProCongratsModal from '@/components/rewards/ProCongratsModal';
 import { markReminderPopupShown, wasReminderPopupShown, cleanOldReminders } from '@/utils/eventReminderUtils';
 import { registrarParticipacionEvento } from '@/services/eventosService';
@@ -249,6 +247,25 @@ const formatRelativePulse = (timestampMs, nowMs = Date.now()) => {
 
   const diffDays = Math.round(diffHours / 24);
   return `hace ${diffDays} d`;
+};
+
+const getBoostedMetricsMessagesCount = (rawCount) => {
+  const safeCount = Math.max(0, Number(rawCount) || 0);
+  if (safeCount >= 40) return safeCount + 50;
+  if (safeCount >= 30) return safeCount + 30;
+  if (safeCount >= 20) return safeCount + 15;
+  if (safeCount >= 10) return safeCount + 10;
+  return safeCount;
+};
+
+const formatMetricsLastMessage = (timestampMs, nowMs = Date.now()) => {
+  if (!timestampMs) return 'sin actividad reciente';
+  const diffMs = Math.max(0, nowMs - timestampMs);
+  const diffMinutes = Math.max(0, Math.round(diffMs / (60 * 1000)));
+
+  if (diffMinutes <= 0) return 'hace segundos';
+  if (diffMinutes >= 4) return 'hace 4 min';
+  return `hace ${diffMinutes} min`;
 };
 
 const shuffleArray = (items) => {
@@ -692,7 +709,7 @@ const ChatPage = () => {
   const [isSendingPrivateMatchRequest, setIsSendingPrivateMatchRequest] = useState(false);
   const [isRandomConnectActive, setIsRandomConnectActive] = useState(false);
   // Chat privado persistente: usa contexto global para mantener conversación al navegar
-  const { openPrivateChats, setActivePrivateChat, closePrivateChat, dismissedChatIds, maxOpenPrivateChats } = usePrivateChat();
+  const { openPrivateChats, setActivePrivateChat, closePrivateChat, discardPrivateChat, dismissedChatIds, maxOpenPrivateChats } = usePrivateChat();
   // 🔔 Estado para popup de recordatorio de evento
   const [reminderEvento, setReminderEvento] = useState(null);
   // Refs para leer estado actual dentro del callback del listener sin re-crear el listener
@@ -746,17 +763,14 @@ const ChatPage = () => {
   const [showRegistrationModal, setShowRegistrationModal] = useState(false);
   const [registrationModalFeature, setRegistrationModalFeature] = useState(null);
   const [needsNickname, setNeedsNickname] = useState(false); // ✅ Exigir nickname después de primer mensaje rápido
+  const [pendingPrivateTarget, setPendingPrivateTarget] = useState(null);
+  const [pendingPrivateOptions, setPendingPrivateOptions] = useState(null);
 
   // 🔔 Limpiar recordatorios de eventos viejos al montar
   useEffect(() => { cleanOldReminders(); }, []);
 
-  // 🔔 Manejar evento activo con recordatorio → mostrar popup
-  const handleEventoActivoConRecordatorio = useCallback((evento) => {
-    if (evento && !wasReminderPopupShown(evento.roomId)) {
-      setReminderEvento(evento);
-      markReminderPopupShown(evento.roomId);
-    }
-  }, []);
+  // 🔕 Deshabilitado por ahora: si vuelve, mejor llevarlo a campana y no a popup.
+  const handleEventoActivoConRecordatorio = useCallback(() => {}, []);
 
   const handleDismissReminderPopup = useCallback(() => {
     setReminderEvento(null);
@@ -2052,64 +2066,48 @@ const ChatPage = () => {
     return DAILY_TOPICS[index];
   }, [activityNow, DAILY_TOPICS, currentUserComuna]);
 
+  const inPrivateUsersCount = useMemo(() => {
+    if (!Array.isArray(roomUsers) || roomUsers.length === 0) return 0;
+    const uniqueUsers = new Set();
+
+    roomUsers.forEach((roomUser) => {
+      const roomUserId = roomUser?.userId || roomUser?.id;
+      if (!roomUserId || !roomUser?.inPrivateWith) return;
+      uniqueUsers.add(roomUserId);
+    });
+
+    return uniqueUsers.size;
+  }, [roomUsers]);
+
   const activityPulseBadges = useMemo(() => {
+    const boostedMessagesCount60m = getBoostedMetricsMessagesCount(recentMessagesCount60m);
     const badges = [
       {
-        id: 'online_now',
-        label: `${Math.max(0, activeUsersCount)} conectados ahora`,
-        tone: 'cyan',
-      },
-      {
         id: 'messages_60m',
-        label: `${Math.max(0, recentMessagesCount60m)} mensajes en 60 min`,
-        tone: recentMessagesCount60m >= 12 ? 'emerald' : 'slate',
+        label: `${boostedMessagesCount60m} mensajes en 60 min`,
+        tone: boostedMessagesCount60m >= 20 ? 'emerald' : 'slate',
       },
       {
         id: 'last_message',
-        label: `Último mensaje ${formatRelativePulse(lastMessageMs, activityNow)}`,
+        label: `Último mensaje ${formatMetricsLastMessage(lastMessageMs, activityNow)}`,
         tone: lastMessageMs && (activityNow - lastMessageMs) < (2 * 60 * 1000) ? 'violet' : 'slate',
       },
     ];
 
-    if (recentMessagesCount10m > previousMessagesCount10m && recentMessagesCount10m >= 3) {
+    if (inPrivateUsersCount > 0) {
       badges.push({
-        id: 'trend_up',
-        label: 'Más actividad que hace 10 min',
+        id: 'in_private_now',
+        label: `${inPrivateUsersCount} están en privado`,
         tone: 'amber',
-      });
-    } else if (recentMessagesCount10m >= 6) {
-      badges.push({
-        id: 'high_activity_now',
-        label: 'Alta actividad ahora',
-        tone: 'amber',
-      });
-    }
-
-    if (currentUserComuna && nearbySignals.sameComunaAvailableCount > 0) {
-      badges.push({
-        id: 'nearby_available',
-        label: `${nearbySignals.sameComunaAvailableCount} disponibles por ${currentUserComuna}`,
-        tone: 'emerald',
-      });
-    } else if (recentParticipants20m.count > 0) {
-      badges.push({
-        id: 'active_participants',
-        label: `${recentParticipants20m.count} personas participaron en 20 min`,
-        tone: 'slate',
       });
     }
 
     return badges;
   }, [
-    activeUsersCount,
     recentMessagesCount60m,
     lastMessageMs,
     activityNow,
-    recentMessagesCount10m,
-    previousMessagesCount10m,
-    currentUserComuna,
-    nearbySignals.sameComunaAvailableCount,
-    recentParticipants20m.count,
+    inPrivateUsersCount,
   ]);
 
   // 🎯 PRO SCROLL MANAGER: Discord/Slack-inspired scroll behavior
@@ -3156,32 +3154,6 @@ const ChatPage = () => {
     };
   }, [roomId, authReady, user?.id]);
 
-  // 🔒 Toast cuando alguien entra en chat privado (para que otros se enteren)
-  const inPrivateToastShownRef = useRef(new Set());
-  useEffect(() => {
-    if (!user?.id || !roomUsers?.length) return;
-    const toRemove = [];
-    for (const k of inPrivateToastShownRef.current) {
-      const uId = k.split('_')[0];
-      const still = roomUsers.find(r => (r.userId || r.id) === uId && r.inPrivateWith);
-      if (!still) toRemove.push(k);
-    }
-    toRemove.forEach(k => inPrivateToastShownRef.current.delete(k));
-    for (const u of roomUsers) {
-      const uid = u.userId || u.id;
-      if (!uid || uid === user.id || !u.inPrivateWith) continue;
-      const key = `${uid}_${u.inPrivateWith}`;
-      if (inPrivateToastShownRef.current.has(key)) continue;
-      inPrivateToastShownRef.current.add(key);
-      const name = u.username || 'Alguien';
-      toast({
-        title: `${name} está en privado`,
-        description: 'En una conversación privada ahora',
-        duration: 4000,
-      });
-    }
-  }, [roomUsers, user?.id]);
-
   // 💓 Heartbeat: Actualizar presencia cada 10 segundos + Limpiar inactivos cada 30s
   useEffect(() => {
     // ? CRÍTICO: Validar que el usuario existe antes de continuar
@@ -3780,7 +3752,7 @@ const ChatPage = () => {
   }, [user?.id]); // refs manejan el estado mutable
 
   useEffect(() => {
-    if (!user?.id) {
+    if (!authReady || !user?.id || auth.currentUser?.uid !== user.id) {
       setPrivateInboxItems([]);
       return;
     }
@@ -3790,7 +3762,7 @@ const ChatPage = () => {
     });
 
     return () => unsubscribe();
-  }, [user?.id]);
+  }, [authReady, user?.id]);
 
   useEffect(() => {
     if (!user?.id) return;
@@ -4969,41 +4941,32 @@ const ChatPage = () => {
 
   const openOrCreatePrivateChatWithTarget = useCallback(async (targetUser, options = {}) => {
     const targetUserId = targetUser?.userId || targetUser?.id || null;
+    const hasRealAuthenticatedUid = Boolean(
+      auth.currentUser?.uid &&
+      user?.id &&
+      auth.currentUser.uid === user.id &&
+      !String(user.id).startsWith('temp_')
+    );
+
     if (!auth.currentUser || !user?.id) {
-      setShowRegistrationModal(true);
-      setRegistrationModalFeature('chat privado');
-      return { ok: false, reason: 'auth_required' };
+      setPendingPrivateTarget(targetUser || null);
+      setPendingPrivateOptions(options || null);
+      setShowNicknameModal(true);
+      return { ok: false, reason: 'guest_setup_required' };
+    }
+
+    if (!hasRealAuthenticatedUid) {
+      setPendingPrivateTarget(targetUser || null);
+      setPendingPrivateOptions(options || null);
+      return { ok: false, reason: 'auth_sync_pending' };
     }
 
     if (!targetUserId || targetUserId === user.id) {
       return { ok: false, reason: 'invalid_target' };
     }
 
-    if (
-      targetUser?.isGuest ||
-      targetUser?.isAnonymous ||
-      String(targetUserId).startsWith('unauthenticated_')
-    ) {
-      toast({
-        title: 'No disponible',
-        description: 'Este usuario no puede abrir chat privado porque no está registrado.',
-        variant: 'destructive',
-      });
-      return { ok: false, reason: 'target_unavailable' };
-    }
-
-    const blocked = await isBlockedBetween(user.id, targetUserId);
-    if (blocked) {
-      toast({
-        title: 'No disponible',
-        description: 'No puedes iniciar un chat privado con este usuario.',
-        variant: 'destructive',
-      });
-      return { ok: false, reason: 'blocked' };
-    }
-
-    const { chatId, created } = await getOrCreatePrivateChat(user.id, targetUserId);
-    const opened = openPrivateChatWindow({
+    const optimisticChatId = [user.id, targetUserId].sort().join('_');
+    const optimisticPayload = {
       user,
       partner: {
         ...targetUser,
@@ -5011,34 +4974,84 @@ const ChatPage = () => {
         userId: targetUserId,
       },
       roomId: options.roomId ?? currentRoom,
-      chatId,
+      chatId: optimisticChatId,
       initialMessage: options.initialMessage || '',
-    });
+      isPending: true,
+    };
+
+    const opened = openPrivateChatWindow(optimisticPayload);
 
     if (!opened) {
       return { ok: false, reason: 'limit_reached' };
     }
 
-    void signalPrivateChatOpen({
-      chatId,
-      fromUserId: user.id,
-      toUserId: targetUserId,
-      created: Boolean(created),
-    }).catch((error) => {
-      console.info('[PRIVATE_CHAT_SYNC] No se pudo emitir señal remota de apertura', {
-        chatId,
-        targetUserId,
-        message: error?.message || String(error),
-      });
-    });
+    try {
+      const blocked = await isBlockedBetween(user.id, targetUserId);
+      if (blocked) {
+        discardPrivateChat(optimisticChatId);
+        toast({
+          title: 'No disponible',
+          description: 'No puedes iniciar un chat privado con este usuario.',
+          variant: 'destructive',
+        });
+        return { ok: false, reason: 'blocked' };
+      }
 
-    return { ok: true, chatId, targetUserId };
+      const { chatId, created } = await getOrCreatePrivateChat(user.id, targetUserId);
+
+      if (chatId !== optimisticChatId) {
+        discardPrivateChat(optimisticChatId);
+      }
+
+      openPrivateChatWindow({
+        ...optimisticPayload,
+        chatId,
+        isPending: false,
+      });
+
+      void signalPrivateChatOpen({
+        chatId,
+        fromUserId: user.id,
+        toUserId: targetUserId,
+        created: Boolean(created),
+      }).catch((error) => {
+        console.info('[PRIVATE_CHAT_SYNC] No se pudo emitir señal remota de apertura', {
+          chatId,
+          targetUserId,
+          message: error?.message || String(error),
+        });
+      });
+
+      return { ok: true, chatId, targetUserId };
+    } catch (error) {
+      discardPrivateChat(optimisticChatId);
+      throw error;
+    }
   }, [
     currentRoom,
+    discardPrivateChat,
     openPrivateChatWindow,
-    setRegistrationModalFeature,
     user,
   ]);
+
+  useEffect(() => {
+    if (!user?.id || !pendingPrivateTarget) return;
+    if (!authReady || auth.currentUser?.uid !== user.id || String(user.id).startsWith('temp_')) return;
+
+    const targetToOpen = pendingPrivateTarget;
+    const optionsToUse = pendingPrivateOptions || {};
+    setPendingPrivateTarget(null);
+    setPendingPrivateOptions(null);
+
+    Promise.resolve().then(() => openOrCreatePrivateChatWithTarget(targetToOpen, optionsToUse)).catch((error) => {
+      console.error('Error opening pending private chat after guest setup:', error);
+      toast({
+        title: 'No pudimos abrir el chat privado',
+        description: 'Intenta de nuevo en un momento.',
+        variant: 'destructive',
+      });
+    });
+  }, [authReady, openOrCreatePrivateChatWithTarget, pendingPrivateOptions, pendingPrivateTarget, user?.id]);
 
   const handlePrivateChatRequest = async (targetUser) => {
     if (targetUser.userId === 'demo-user-123') {
@@ -5550,6 +5563,7 @@ const ChatPage = () => {
           onOpenBaul={handleOpenBaul}
           onOpenOpin={handleOpenOpin}
           privateInboxItems={privateInboxItems}
+          unreadPrivateMessages={unreadPrivateMessages}
         />
 
         {/* ✅ FIX: Contenedor del chat - Asegurar que esté visible en móvil cuando sidebar está cerrado */}
@@ -5568,8 +5582,6 @@ const ChatPage = () => {
             activityText={activityText}
             activityTickerItems={headerTickerItems}
           />
-
-          <ChatStatesStrip roomId={currentRoom} user={user} />
 
           <section className="border-b border-border/50 bg-secondary/10 px-3 py-2">
             <div className="flex gap-2 overflow-x-auto scrollbar-hide">
@@ -5705,7 +5717,7 @@ const ChatPage = () => {
 
             {/* 📅 Banner de evento activo/próximo */}
             <div className={shouldShowSecondaryChatPromos ? 'block' : 'hidden'}>
-              <EventoBanner currentRoomId={roomId} onEventoActivoConRecordatorio={handleEventoActivoConRecordatorio} />
+              <EventoBanner currentRoomId={roomId} />
             </div>
 
             {/* ⏳ Siempre renderizar ChatMessages; él decide si mostrar loading o contenido */}
@@ -5788,6 +5800,8 @@ const ChatPage = () => {
           roomId={currentRoom || 'principal'}
           currentUserId={user?.id || null}
           currentUser={user}
+          privateInboxItems={privateInboxItems}
+          unreadPrivateMessages={unreadPrivateMessages}
           onUserClick={(targetUser) => setUserActionsTarget(targetUser)}
           onStartConversation={handleStartAvailableConversation}
           onRequestNickname={() => setShowNicknameModal(true)}
@@ -5824,7 +5838,13 @@ const ChatPage = () => {
             }}
             onClose={() => setUserActionsTarget(null)}
             onViewProfile={() => setSelectedUser(userActionsTarget)}
-            onShowRegistrationModal={(feature) => {
+            onShowRegistrationModal={(feature, targetUserForPrivate = null) => {
+              if (feature === 'chat privado' && !user?.id) {
+                setPendingPrivateTarget(targetUserForPrivate || userActionsTarget || null);
+                setPendingPrivateOptions(null);
+                setShowNicknameModal(true);
+                return;
+              }
               setRegistrationModalFeature(feature);
               setShowRegistrationModal(true);
             }}
@@ -5929,13 +5949,8 @@ const ChatPage = () => {
           }} />
         )}
 
-        {/* 🔔 Popup de recordatorio de evento activo */}
-        {reminderEvento && (
-          <EventReminderPopup
-            evento={reminderEvento}
-            onDismiss={handleDismissReminderPopup}
-          />
-        )}
+        {/* 🔔 Popup de recordatorio de evento deshabilitado.
+            Si vuelve más adelante, mejor llevarlo a campana/notificaciones y no a popup. */}
 
         {/* ⚠️ MODAL COMENTADO - No está en uso hasta que se repare */}
         {/* 🎁 Modal de Bienvenida Premium */}

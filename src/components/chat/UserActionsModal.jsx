@@ -27,7 +27,7 @@ const UserActionsModal = ({
   onAdminDeleteUserMessages,
   onAdminDeleteRoomMessages,
 }) => {
-  const { user: currentUser } = useAuth();
+  const { user: currentUser, authReady } = useAuth();
   const { setActivePrivateChat } = usePrivateChat();
   const navigate = useNavigate();
   const adminRoles = new Set(['admin', 'administrator', 'superadmin']);
@@ -61,20 +61,17 @@ const UserActionsModal = ({
     if (!currentUser?.id) {
       onClose();
       if (onShowRegistrationModal) {
-        onShowRegistrationModal('chat privado');
+        onShowRegistrationModal('chat privado', targetUser);
       }
       return { ok: false, reason: 'auth_required' };
     }
 
-    if (targetUser.isGuest || targetUser.isAnonymous) {
+    if (String(currentUser.id).startsWith('temp_') || !authReady) {
       toast({
-        title: "⚠️ No disponible",
-        description: "Este usuario no puede abrir chat privado porque no está registrado.",
-        variant: "destructive",
-        duration: 5000,
+        title: 'Preparando modo invitado',
+        description: 'Espera un momento mientras terminamos de conectar tu sesión.',
       });
-      onClose();
-      return { ok: false, reason: 'target_unavailable' };
+      return { ok: false, reason: 'auth_sync_pending' };
     }
 
     if (!targetUserId || targetUserId === currentUser.id) {
@@ -256,7 +253,7 @@ const UserActionsModal = ({
     if (!currentUser?.id) {
       onClose();
       if (onShowRegistrationModal) {
-        onShowRegistrationModal('chat privado');
+        onShowRegistrationModal('chat privado', targetUser);
       }
       return;
     }

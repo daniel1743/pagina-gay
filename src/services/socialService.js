@@ -703,8 +703,17 @@ export const getOrCreatePrivateChat = async (userAId, userBId) => {
     const deterministicChatRef = doc(chatsRef, deterministicChatId);
 
     stage = 'read_deterministic_chat';
-    const deterministicSnap = await getDoc(deterministicChatRef);
-    if (deterministicSnap.exists()) {
+    let deterministicSnap = null;
+    try {
+      deterministicSnap = await getDoc(deterministicChatRef);
+    } catch (error) {
+      // En chats optimistas el doc determinista puede no existir todavía y en
+      // algunos entornos Firestore responde permission-denied al get directo.
+      if (error?.code !== 'permission-denied') {
+        throw error;
+      }
+    }
+    if (deterministicSnap?.exists()) {
       const existingParticipants = Array.isArray(deterministicSnap.data()?.participants)
         ? deterministicSnap.data().participants
         : sortedIds;
@@ -961,6 +970,7 @@ export const sendRichPrivateChatMessage = async (
     media = [],
     senderIsPremium = false,
     replyTo = null,
+    clientId = null,
   }
 ) => {
   let stage = 'validate_input';
@@ -999,6 +1009,7 @@ export const sendRichPrivateChatMessage = async (
       username: username || 'Usuario',
       avatar: avatar || '',
       content: normalizedContent,
+      ...(clientId ? { clientId } : {}),
       type,
       ...(replyTo && typeof replyTo === 'object' ? { replyTo } : {}),
       ...(Array.isArray(media) && media.length > 0 ? { media } : {}),
@@ -1084,6 +1095,11 @@ export const sendRichPrivateChatMessage = async (
       mediaCount: Array.isArray(media) ? media.length : 0,
       preview,
     });
+
+    return {
+      id: messageRef.id,
+      clientId: clientId || null,
+    };
   } catch (error) {
     let participants = [];
     try {

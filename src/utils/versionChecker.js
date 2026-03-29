@@ -6,6 +6,63 @@
 const VERSION_STORAGE_KEY = 'app_version';
 const VERSION_CHECK_INTERVAL = 60000; // Verificar cada 60 segundos
 const VERSION_FILE = '/version.json';
+const VERSION_BROADCAST_CHANNEL = 'chactivo_version_updates';
+const VERSION_BROADCAST_STORAGE_KEY = 'chactivo_version_broadcast';
+const VERSION_RELOAD_LOCK_KEY = 'chactivo_version_reload_lock';
+
+let updateBroadcastChannel = null;
+
+const getReloadLock = () => {
+  try {
+    return sessionStorage.getItem(VERSION_RELOAD_LOCK_KEY);
+  } catch {
+    return null;
+  }
+};
+
+const setReloadLock = (version) => {
+  try {
+    sessionStorage.setItem(VERSION_RELOAD_LOCK_KEY, version);
+  } catch {
+    // noop
+  }
+};
+
+const clearReloadLock = () => {
+  try {
+    sessionStorage.removeItem(VERSION_RELOAD_LOCK_KEY);
+  } catch {
+    // noop
+  }
+};
+
+const buildCacheBustedUrl = (version) => {
+  const url = new URL(window.location.href);
+  url.searchParams.set('appv', String(version || Date.now()));
+  return url.toString();
+};
+
+const broadcastVersionUpdate = (version) => {
+  const payload = {
+    version,
+    at: Date.now(),
+  };
+
+  try {
+    if (!updateBroadcastChannel && 'BroadcastChannel' in window) {
+      updateBroadcastChannel = new BroadcastChannel(VERSION_BROADCAST_CHANNEL);
+    }
+    updateBroadcastChannel?.postMessage(payload);
+  } catch {
+    // noop
+  }
+
+  try {
+    localStorage.setItem(VERSION_BROADCAST_STORAGE_KEY, JSON.stringify(payload));
+  } catch {
+    // noop
+  }
+};
 
 /**
  * Obtiene la versión del servidor
@@ -169,6 +226,29 @@ export const clearAllCache = async () => {
   }
 };
 
+const forceServiceWorkerUpdate = async () => {
+  if (!('serviceWorker' in navigator)) return;
+
+  try {
+    const registrations = await navigator.serviceWorker.getRegistrations();
+    await Promise.all(
+      registrations.map(async (registration) => {
+        try {
+          await registration.update();
+        } catch {
+          // noop
+        }
+
+        if (registration.waiting) {
+          registration.waiting.postMessage({ type: 'SKIP_WAITING' });
+        }
+      })
+    );
+  } catch (error) {
+    console.warn('[VERSION] Error forzando update del Service Worker:', error);
+  }
+};
+
 /**
  * Verifica si hay una nueva versión disponible
  */
@@ -203,13 +283,33 @@ export const checkForUpdates = async () => {
 /**
  * Recarga la aplicación después de limpiar cache
  */
-export const reloadApplication = () => {
-  console.log('🔄 [VERSION] Recargando aplicación...');
-  
-  // Pequeño delay para asegurar que los logs se vean
+export const reloadApplication = (version = null) => {
+  const targetVersion = version || getStoredVersion() || Date.now();
+  const reloadLock = getReloadLock();
+
+  if (reloadLock === String(targetVersion)) {
+    console.log('[VERSION] Reload ya en curso, omitiendo duplicado');
+    return;
+  }
+
+  setReloadLock(String(targetVersion));
+  console.log(`🔄 [VERSION] Recargando aplicación a versión ${targetVersion}...`);
+
   setTimeout(() => {
-    window.location.reload();
-  }, 500);
+    window.location.replace(buildCacheBustedUrl(targetVersion));
+  }, 250);
+};
+
+const applyImmediateUpdate = async (version, { source = 'unknown' } = {}) => {
+  const nextVersion = version || await fetchServerVersion();
+  if (!nextVersion) return;
+
+  console.log(`[VERSION] Aplicando actualización inmediata (${source}) → ${nextVersion}`);
+  broadcastVersionUpdate(nextVersion);
+  await forceServiceWorkerUpdate();
+  await clearAllCache();
+  storeVersion(nextVersion);
+  reloadApplication(nextVersion);
 };
 
 /**
@@ -223,45 +323,130 @@ export const initVersionChecker = (options = {}) => {
   } = options;
 
   let intervalId = null;
+  let destroyed = false;
+  let isChecking = false;
+  let focusTimeoutId = null;
 
-  const performCheck = async () => {
-    const hasUpdate = await checkForUpdates();
-    
-    if (hasUpdate) {
-      // Notificar callback si existe
+  const performCheck = async ({ source = 'interval' } = {}) => {
+    if (destroyed || isChecking) return;
+    isChecking = true;
+
+    try {
+      const serverVersion = await fetchServerVersion();
+      if (!serverVersion) return;
+
+      const storedVersion = getStoredVersion();
+
+      if (!storedVersion) {
+        storeVersion(serverVersion);
+        clearReloadLock();
+        return;
+      }
+
+      if (storedVersion === serverVersion) {
+        clearReloadLock();
+        return;
+      }
+
+      console.log(`🔄 [VERSION] Nueva versión detectada (${source}): ${storedVersion} → ${serverVersion}`);
+
       if (onUpdateAvailable) {
-        onUpdateAvailable();
+        onUpdateAvailable(serverVersion);
       }
 
       if (autoReload) {
-        // Limpiar cache y recargar
-        await clearAllCache();
-        
-        // Guardar nueva versión antes de recargar
-        const newVersion = await fetchServerVersion();
-        if (newVersion) {
-          storeVersion(newVersion);
-        }
-        
-        reloadApplication();
+        await applyImmediateUpdate(serverVersion, { source });
       }
+    } catch (error) {
+      console.error('[VERSION] Error verificando actualizaciones:', error);
+    } finally {
+      isChecking = false;
+    }
+  };
+
+  const scheduleForegroundCheck = (source) => {
+    if (destroyed) return;
+    if (focusTimeoutId) clearTimeout(focusTimeoutId);
+    focusTimeoutId = setTimeout(() => {
+      performCheck({ source });
+    }, 350);
+  };
+
+  const handleVisibilityChange = () => {
+    if (!document.hidden) {
+      scheduleForegroundCheck('visibility');
+    }
+  };
+
+  const handleFocus = () => scheduleForegroundCheck('focus');
+  const handleOnline = () => scheduleForegroundCheck('online');
+  const handlePageShow = () => scheduleForegroundCheck('pageshow');
+
+  const handleStorage = (event) => {
+    if (event.key !== VERSION_BROADCAST_STORAGE_KEY || !event.newValue) return;
+    try {
+      const payload = JSON.parse(event.newValue);
+      if (!payload?.version) return;
+      const currentVersion = getStoredVersion();
+      if (currentVersion !== payload.version) {
+        applyImmediateUpdate(payload.version, { source: 'storage_broadcast' });
+      }
+    } catch {
+      // noop
+    }
+  };
+
+  const ensureBroadcastChannel = () => {
+    try {
+      if (!updateBroadcastChannel && 'BroadcastChannel' in window) {
+        updateBroadcastChannel = new BroadcastChannel(VERSION_BROADCAST_CHANNEL);
+      }
+      if (updateBroadcastChannel) {
+        updateBroadcastChannel.onmessage = (event) => {
+          const payload = event?.data;
+          if (!payload?.version) return;
+          const currentVersion = getStoredVersion();
+          if (currentVersion !== payload.version) {
+            applyImmediateUpdate(payload.version, { source: 'broadcast_channel' });
+          }
+        };
+      }
+    } catch {
+      // noop
     }
   };
 
   // Verificar inmediatamente al cargar
-  performCheck();
+  ensureBroadcastChannel();
+  performCheck({ source: 'startup' });
 
   // Configurar verificación periódica
   if (checkInterval > 0) {
-    intervalId = setInterval(performCheck, checkInterval);
+    intervalId = setInterval(() => performCheck({ source: 'interval' }), checkInterval);
   }
+
+  window.addEventListener('focus', handleFocus);
+  window.addEventListener('online', handleOnline);
+  window.addEventListener('pageshow', handlePageShow);
+  document.addEventListener('visibilitychange', handleVisibilityChange);
+  window.addEventListener('storage', handleStorage);
 
   // Retornar función para detener el checker
   return () => {
+    destroyed = true;
     if (intervalId) {
       clearInterval(intervalId);
       intervalId = null;
     }
+    if (focusTimeoutId) {
+      clearTimeout(focusTimeoutId);
+      focusTimeoutId = null;
+    }
+    window.removeEventListener('focus', handleFocus);
+    window.removeEventListener('online', handleOnline);
+    window.removeEventListener('pageshow', handlePageShow);
+    document.removeEventListener('visibilitychange', handleVisibilityChange);
+    window.removeEventListener('storage', handleStorage);
   };
 };
 

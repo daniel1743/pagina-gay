@@ -13,10 +13,17 @@ import {
   doc,
   arrayUnion,
   serverTimestamp,
+  endBefore,
+  getDocs,
+  getDoc,
+  limitToLast,
+  increment,
+  setDoc,
+  updateDoc,
 } from 'firebase/firestore';
 import { ref as storageRef, uploadBytes, getDownloadURL } from 'firebase/storage';
 import imageCompression from 'browser-image-compression';
-import { Check, CheckCheck, CornerUpLeft, ImagePlus, Minus, Send, Smile, X } from 'lucide-react';
+import { Check, CheckCheck, Clock, CornerUpLeft, ImagePlus, Minus, Send, Smile, X } from 'lucide-react';
 import { EmojiStyle, Categories } from 'emoji-picker-react';
 import {
   sendRichPrivateChatMessage,
@@ -29,6 +36,11 @@ const EmojiPicker = lazy(() => import('emoji-picker-react'));
 
 const PHOTO_MAX_SIZE_BYTES = 140 * 1024;
 const RECENT_EMOJIS_STORAGE_KEY = 'private_chat_v2_recent_emojis';
+const INITIAL_PRIVATE_MESSAGES_LIMIT = 40;
+const PRIVATE_HISTORY_PAGE_SIZE = 40;
+const GUEST_PRIVATE_MESSAGES_LIMIT = 10;
+const GUEST_PRIVATE_COUNTER_STORAGE_PREFIX = 'chactivo:private_chat_guest_counter:v2:';
+const GUEST_EMOJI_REGEX = /\p{Extended_Pictographic}/u;
 
 const getTimestampMs = (value) => {
   if (!value) return null;
@@ -136,13 +148,19 @@ export default function PrivateChatWindowV2({
   windowIndex = 0,
   minimizedIndex = 0,
   isMinimized = false,
+  isPending = false,
   onChatActivity,
 }) {
-  const [messages, setMessages] = useState([]);
+  const [recentMessages, setRecentMessages] = useState([]);
+  const [olderMessages, setOlderMessages] = useState([]);
+  const [optimisticMessages, setOptimisticMessages] = useState([]);
   const [newMessage, setNewMessage] = useState(initialMessage || '');
   const [typingUsers, setTypingUsers] = useState([]);
   const [showEmojiPicker, setShowEmojiPicker] = useState(false);
   const [isUploadingPhoto, setIsUploadingPhoto] = useState(false);
+  const [isInitialMessagesLoading, setIsInitialMessagesLoading] = useState(true);
+  const [isLoadingOlderHistory, setIsLoadingOlderHistory] = useState(false);
+  const [hasMoreHistory, setHasMoreHistory] = useState(false);
   const [recentEmojis, setRecentEmojis] = useState(['😂', '😍', '🔥', '😘', '😉', '❤️']);
   const [replyTo, setReplyTo] = useState(null);
   const [swipeReplyMessageId, setSwipeReplyMessageId] = useState(null);
@@ -154,6 +172,7 @@ export default function PrivateChatWindowV2({
     isOnline: Boolean(partner?.estaOnline || partner?.isOnline),
     lastSeenMs: getTimestampMs(partner?.ultimaConexion || partner?.lastSeen),
   });
+  const [guestPrivateSentCount, setGuestPrivateSentCount] = useState(0);
 
   const inputRef = useRef(null);
   const fileInputRef = useRef(null);
@@ -161,9 +180,14 @@ export default function PrivateChatWindowV2({
   const messagesScrollRef = useRef(null);
   const typingTimeoutRef = useRef(null);
   const hasLoadedSnapshotRef = useRef(false);
+  const olderMessagesRef = useRef([]);
+  const historyCursorRef = useRef(null);
+  const isPrependingHistoryRef = useRef(false);
   const isWindowFocusedRef = useRef(true);
   const savedScrollTopRef = useRef(0);
   const shouldRestoreScrollRef = useRef(false);
+  const onChatActivityRef = useRef(onChatActivity);
+  const lastReportedActivityKeyRef = useRef('');
   const swipeStateRef = useRef({
     tracking: false,
     messageKey: null,
@@ -192,6 +216,8 @@ export default function PrivateChatWindowV2({
   }, [participants, partner, user]);
 
   const isGroupChat = chatParticipants.length > 2;
+  const isGuestMode = Boolean(user?.isGuest || user?.isAnonymous);
+  const isRegisteredUser = Boolean(user?.id && !isGuestMode);
   const otherParticipants = useMemo(
     () => chatParticipants.filter((participantItem) => participantItem.userId !== user?.id),
     [chatParticipants, user?.id]
@@ -206,6 +232,89 @@ export default function PrivateChatWindowV2({
   );
   const isPartnerTyping = typingUsers.length > 0;
   const privateMarkerId = isGroupChat ? chatId : (primaryParticipant.userId || null);
+  const guestPrivateCounterStorageKey = useMemo(
+    () => `${GUEST_PRIVATE_COUNTER_STORAGE_PREFIX}${user?.id || 'anon'}`,
+    [user?.id]
+  );
+  const messages = useMemo(() => {
+    const byId = new Map();
+    [...optimisticMessages, ...olderMessages, ...recentMessages].forEach((message) => {
+      const messageId = message?.clientId
+        ? `client:${message.clientId}`
+        : (message?._realId || message?.id);
+      if (!messageId) return;
+      byId.set(messageId, message);
+    });
+
+    return Array.from(byId.values()).sort((a, b) => {
+      const aMs = getTimestampMs(a?.timestamp) || 0;
+      const bMs = getTimestampMs(b?.timestamp) || 0;
+      if (aMs !== bMs) return aMs - bMs;
+      return String(a?._realId || a?.id || '').localeCompare(String(b?._realId || b?.id || ''));
+    });
+  }, [olderMessages, optimisticMessages, recentMessages]);
+
+  useEffect(() => {
+    onChatActivityRef.current = onChatActivity;
+  }, [onChatActivity]);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    if (!isGuestMode || !user?.id) {
+      setGuestPrivateSentCount(0);
+      return undefined;
+    }
+
+    const syncGuestPrivateCounter = async () => {
+      let localCount = 0;
+
+      try {
+        const raw = localStorage.getItem(guestPrivateCounterStorageKey);
+        const parsed = Number(raw || 0);
+        localCount = Number.isFinite(parsed) ? Math.max(0, parsed) : 0;
+      } catch {
+        localCount = 0;
+      }
+
+      if (!cancelled) {
+        setGuestPrivateSentCount(localCount);
+      }
+
+      try {
+        const guestRef = doc(db, 'guests', user.id);
+        const guestSnap = await getDoc(guestRef);
+        const remoteCount = Number(guestSnap.data()?.privateMessageCount || 0);
+        const normalizedRemote = Number.isFinite(remoteCount) ? Math.max(0, remoteCount) : 0;
+        const mergedCount = Math.max(localCount, normalizedRemote);
+
+        if (!cancelled) {
+          setGuestPrivateSentCount(mergedCount);
+        }
+
+        try {
+          localStorage.setItem(guestPrivateCounterStorageKey, String(mergedCount));
+        } catch {
+          // noop
+        }
+      } catch {
+        // noop
+      }
+    };
+
+    syncGuestPrivateCounter();
+    return () => {
+      cancelled = true;
+    };
+  }, [guestPrivateCounterStorageKey, isGuestMode, user?.id]);
+
+  useEffect(() => {
+    olderMessagesRef.current = olderMessages;
+  }, [olderMessages]);
+
+  useEffect(() => {
+    setOptimisticMessages([]);
+  }, [chatId]);
 
   useEffect(() => {
     const handleResize = () => setIsMobile(window.innerWidth < 768);
@@ -227,12 +336,18 @@ export default function PrivateChatWindowV2({
   }, [chatId, conversationTitle, onEnterPrivate, onLeavePrivate, privateMarkerId, roomId, user?.id]);
 
   useEffect(() => {
-    if (!chatId) return undefined;
+    if (!chatId || isPending) return undefined;
     hasLoadedSnapshotRef.current = false;
+    setIsInitialMessagesLoading(true);
+    setOlderMessages([]);
+    setRecentMessages([]);
+    setHasMoreHistory(false);
+    historyCursorRef.current = null;
 
     const q = query(
       collection(db, 'private_chats', chatId, 'messages'),
-      orderBy('timestamp', 'asc')
+      orderBy('timestamp', 'asc'),
+      limitToLast(INITIAL_PRIVATE_MESSAGES_LIMIT)
     );
 
     const unsubscribe = onSnapshot(q, (snapshot) => {
@@ -240,7 +355,13 @@ export default function PrivateChatWindowV2({
         id: docSnap.id,
         ...docSnap.data(),
       }));
-      setMessages(nextMessages);
+      setRecentMessages(nextMessages);
+
+      if (olderMessagesRef.current.length === 0) {
+        historyCursorRef.current = snapshot.docs[0] || null;
+        setHasMoreHistory(snapshot.docs.length >= INITIAL_PRIVATE_MESSAGES_LIMIT);
+      }
+      setIsInitialMessagesLoading(false);
 
       const markRead = isWindowFocusedRef.current && !document.hidden;
       markIncomingMessagesStatus(nextMessages, { markRead });
@@ -258,10 +379,24 @@ export default function PrivateChatWindowV2({
       });
     }, (error) => {
       console.error('[PRIVATE_CHAT_V2] Error subscribing messages:', error);
+      setIsInitialMessagesLoading(false);
     });
 
     return () => unsubscribe();
-  }, [chatId, user?.id]);
+  }, [chatId, isPending, user?.id]);
+
+  useEffect(() => {
+    if (optimisticMessages.length === 0) return;
+    const persistedClientIds = new Set(
+      [...olderMessages, ...recentMessages]
+        .map((message) => message?.clientId)
+        .filter(Boolean)
+    );
+
+    if (persistedClientIds.size === 0) return;
+
+    setOptimisticMessages((prev) => prev.filter((message) => !persistedClientIds.has(message?.clientId)));
+  }, [olderMessages, optimisticMessages.length, recentMessages]);
 
   useEffect(() => {
     if (!partner?.id && !partner?.userId) return undefined;
@@ -281,12 +416,12 @@ export default function PrivateChatWindowV2({
   }, [isGroupChat, partner?.id, partner?.userId, primaryParticipant.userId]);
 
   useEffect(() => {
-    if (!chatId || !user?.id) return undefined;
+    if (!chatId || !user?.id || isPending) return undefined;
     return subscribeToPrivateChatTyping(chatId, user.id, setTypingUsers);
-  }, [chatId, user?.id]);
+  }, [chatId, isPending, user?.id]);
 
   useEffect(() => {
-    if (!chatId || !user?.id) return undefined;
+    if (!chatId || !user?.id || isPending) return undefined;
     if (typingTimeoutRef.current) clearTimeout(typingTimeoutRef.current);
 
     if (!newMessage.trim()) {
@@ -302,7 +437,7 @@ export default function PrivateChatWindowV2({
     return () => {
       if (typingTimeoutRef.current) clearTimeout(typingTimeoutRef.current);
     };
-  }, [chatId, newMessage, user?.id, user?.username]);
+  }, [chatId, isPending, newMessage, user?.id, user?.username]);
 
   useEffect(() => () => {
     if (chatId && user?.id) {
@@ -311,6 +446,7 @@ export default function PrivateChatWindowV2({
   }, [chatId, user?.id, user?.username]);
 
   useEffect(() => {
+    if (isPrependingHistoryRef.current) return;
     bottomRef.current?.scrollIntoView({ behavior: 'smooth', block: 'end' });
   }, [messages, isPartnerTyping, showEmojiPicker]);
 
@@ -347,7 +483,7 @@ export default function PrivateChatWindowV2({
   useEffect(() => {
     if (typeof onChatActivity !== 'function' || !chatId || messages.length === 0) return;
     const latest = messages[messages.length - 1];
-    onChatActivity({
+    const activity = {
       chatId,
       roomId: roomId || null,
       partner: {
@@ -361,14 +497,23 @@ export default function PrivateChatWindowV2({
       title: isGroupChat ? conversationTitle : '',
       lastMessagePreview: buildPreview(latest),
       lastMessageAt: getTimestampMs(latest.timestamp) || Date.now(),
-    });
+    };
+    const activityKey = [
+      activity.chatId,
+      activity.partner.userId || '',
+      activity.lastMessageAt || '',
+      activity.lastMessagePreview || '',
+    ].join('|');
+
+    if (lastReportedActivityKeyRef.current === activityKey) return;
+    lastReportedActivityKeyRef.current = activityKey;
+    onChatActivityRef.current?.(activity);
   }, [
     chatId,
     chatParticipants,
     conversationTitle,
     isGroupChat,
     messages,
-    onChatActivity,
     primaryParticipant.avatar,
     primaryParticipant.isPremium,
     primaryParticipant.userId,
@@ -387,6 +532,65 @@ export default function PrivateChatWindowV2({
       }
       return next;
     });
+  };
+
+  const showGuestRegistrationPrompt = (featureLabel = 'seguir chateando en privado') => {
+    toast({
+      title: 'Regístrate para continuar',
+      description: `Como invitado tienes 10 mensajes privados gratis. Para ${featureLabel}, crea tu cuenta.`,
+      duration: 5000,
+      action: {
+        label: 'Registrarme',
+        onClick: () => {
+          if (typeof window !== 'undefined') {
+            window.location.assign('/auth');
+          }
+        },
+      },
+    });
+  };
+
+  const showGuestTextOnlyToast = (featureLabel = 'usar esta función') => {
+    toast({
+      title: 'Solo texto en modo invitado',
+      description: `Los invitados pueden enviar solo conversación normal. Regístrate para ${featureLabel}.`,
+      duration: 4200,
+      action: {
+        label: 'Registrarme',
+        onClick: () => {
+          if (typeof window !== 'undefined') {
+            window.location.assign('/auth');
+          }
+        },
+      },
+    });
+  };
+
+  const persistGuestPrivateMessageCount = async (nextCount) => {
+    setGuestPrivateSentCount(nextCount);
+    try {
+      localStorage.setItem(guestPrivateCounterStorageKey, String(nextCount));
+    } catch {
+      // noop
+    }
+
+    if (!user?.id) return;
+
+    try {
+      const guestRef = doc(db, 'guests', user.id);
+      await setDoc(guestRef, {
+        privateMessageCount: nextCount,
+        lastPrivateMessageAt: serverTimestamp(),
+      }, { merge: true });
+    } catch {
+      // noop
+    }
+  };
+
+  const registerGuestPrivateMessage = async () => {
+    if (!isGuestMode) return;
+    const nextCount = guestPrivateSentCount + 1;
+    await persistGuestPrivateMessageCount(nextCount);
   };
 
   const markIncomingMessagesStatus = async (messageList, { markRead = false } = {}) => {
@@ -427,6 +631,10 @@ export default function PrivateChatWindowV2({
   };
 
   const messageStatus = (message) => {
+    if (message?._optimistic && message?.status === 'sending') {
+      return 'sending';
+    }
+
     const deliveredTo = Array.isArray(message?.deliveredTo) ? message.deliveredTo : [];
     const readBy = Array.isArray(message?.readBy) ? message.readBy : [];
     const everyoneRead = recipientIds.length > 0 && recipientIds.every((recipientId) => readBy.includes(recipientId));
@@ -440,24 +648,123 @@ export default function PrivateChatWindowV2({
   };
 
   const renderStatusIcon = (status, className = 'h-3.5 w-3.5') => {
+    if (status === 'sending') {
+      return <Clock strokeWidth={2.6} className={`${className} text-zinc-950/90`} />;
+    }
     if (status === 'read') {
-      return <CheckCheck className={`${className} text-sky-500`} />;
+      return <CheckCheck strokeWidth={2.8} className={`${className} text-blue-700 drop-shadow-[0_0_1px_rgba(255,255,255,0.55)]`} />;
     }
     if (status === 'delivered') {
-      return <CheckCheck className={className} />;
+      return <CheckCheck strokeWidth={2.8} className={`${className} text-fuchsia-800 drop-shadow-[0_0_1px_rgba(255,255,255,0.35)]`} />;
     }
-    return <Check className={className} />;
+    return <Check strokeWidth={2.8} className={`${className} text-zinc-950`} />;
+  };
+
+  const loadOlderMessages = async () => {
+    if (!chatId || isLoadingOlderHistory || !historyCursorRef.current) return;
+
+    const container = messagesScrollRef.current;
+    const previousScrollHeight = container?.scrollHeight || 0;
+    const previousScrollTop = container?.scrollTop || 0;
+
+    setIsLoadingOlderHistory(true);
+
+    try {
+      const olderQuery = query(
+        collection(db, 'private_chats', chatId, 'messages'),
+        orderBy('timestamp', 'asc'),
+        endBefore(historyCursorRef.current),
+        limitToLast(PRIVATE_HISTORY_PAGE_SIZE)
+      );
+
+      const snapshot = await getDocs(olderQuery);
+      if (snapshot.empty) {
+        historyCursorRef.current = null;
+        setHasMoreHistory(false);
+        return;
+      }
+
+      const nextOlderMessages = snapshot.docs.map((docSnap) => ({
+        id: docSnap.id,
+        ...docSnap.data(),
+      }));
+
+      historyCursorRef.current = snapshot.docs[0] || null;
+      setHasMoreHistory(snapshot.docs.length >= PRIVATE_HISTORY_PAGE_SIZE);
+      isPrependingHistoryRef.current = true;
+      setOlderMessages((prev) => [...nextOlderMessages, ...prev]);
+
+      requestAnimationFrame(() => {
+        requestAnimationFrame(() => {
+          const currentContainer = messagesScrollRef.current;
+          if (currentContainer) {
+            const currentScrollHeight = currentContainer.scrollHeight || 0;
+            currentContainer.scrollTop = previousScrollTop + (currentScrollHeight - previousScrollHeight);
+          }
+          isPrependingHistoryRef.current = false;
+        });
+      });
+    } catch (error) {
+      console.error('[PRIVATE_CHAT_V2] Error loading older history:', error);
+      toast({
+        title: 'No pudimos cargar mensajes anteriores',
+        description: 'Intenta de nuevo en unos segundos.',
+        variant: 'destructive',
+      });
+      isPrependingHistoryRef.current = false;
+    } finally {
+      setIsLoadingOlderHistory(false);
+    }
   };
 
   const handleSendMessage = async (event) => {
     event.preventDefault();
     const contentToSend = newMessage.trim();
     if (!contentToSend || !chatId || !user?.id) return;
+    if (isPending || String(user.id).startsWith('temp_')) {
+      toast({
+        title: 'Preparando chat privado',
+        description: 'Espera un momento antes de enviar tu primer mensaje.',
+      });
+      return;
+    }
     const replyToSend = replyTo;
+
+    if (isGuestMode && guestPrivateSentCount >= GUEST_PRIVATE_MESSAGES_LIMIT) {
+      showGuestRegistrationPrompt('seguir enviando mensajes privados');
+      return;
+    }
+
+    if (isGuestMode && GUEST_EMOJI_REGEX.test(contentToSend)) {
+      showGuestTextOnlyToast('usar emojis en privado');
+      return;
+    }
+
+    const clientId = typeof crypto !== 'undefined' && crypto.randomUUID
+      ? crypto.randomUUID()
+      : `private_client_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+    const optimisticId = `optimistic_${clientId}`;
+    const optimisticTimestamp = new Date();
+    const optimisticMessage = {
+      id: optimisticId,
+      clientId,
+      userId: user.id,
+      username: user.username || 'Usuario',
+      avatar: user.avatar || '',
+      content: contentToSend,
+      type: 'text',
+      replyTo: replyToSend || null,
+      timestamp: optimisticTimestamp,
+      status: 'sending',
+      deliveredTo: [user.id],
+      readBy: [user.id],
+      _optimistic: true,
+    };
 
     setNewMessage('');
     setShowEmojiPicker(false);
     setReplyTo(null);
+    setOptimisticMessages((prev) => [...prev, optimisticMessage]);
 
     try {
       await sendRichPrivateChatMessage(chatId, {
@@ -468,12 +775,20 @@ export default function PrivateChatWindowV2({
         type: 'text',
         senderIsPremium: Boolean(user?.isPremium),
         replyTo: replyToSend,
+        clientId,
       });
 
+      setOptimisticMessages((prev) => prev.map((message) => (
+        message.clientId === clientId
+          ? { ...message, status: 'sent' }
+          : message
+      )));
       updatePrivateChatTypingStatus(chatId, user.id, false, user.username).catch(() => {});
       notificationSounds.playMessageSentSound();
+      await registerGuestPrivateMessage();
       inputRef.current?.focus();
     } catch (error) {
+      setOptimisticMessages((prev) => prev.filter((message) => message.clientId !== clientId));
       setNewMessage(contentToSend);
       setReplyTo(replyToSend);
       console.error('[PRIVATE_CHAT_V2] Error sending private message:', error);
@@ -487,6 +802,10 @@ export default function PrivateChatWindowV2({
   };
 
   const handleEmojiClick = (emojiObject) => {
+    if (isGuestMode) {
+      showGuestTextOnlyToast('usar emojis en privado');
+      return;
+    }
     const emoji = emojiObject?.emoji;
     if (!emoji) return;
     setNewMessage((prev) => prev + emoji);
@@ -512,6 +831,18 @@ export default function PrivateChatWindowV2({
     const selectedFile = event.target.files?.[0];
     event.target.value = '';
     if (!selectedFile || !chatId || !user?.id) return;
+    if (isPending || String(user.id).startsWith('temp_')) {
+      toast({
+        title: 'Preparando chat privado',
+        description: 'Espera un momento antes de enviar archivos.',
+      });
+      return;
+    }
+
+    if (isGuestMode) {
+      showGuestTextOnlyToast('enviar fotos en privado');
+      return;
+    }
 
     if (!selectedFile.type?.startsWith('image/')) {
       toast({
@@ -795,6 +1126,29 @@ export default function PrivateChatWindowV2({
 
       <div ref={messagesScrollRef} className="flex-1 overflow-y-auto bg-gradient-to-b from-zinc-950 via-zinc-950 to-zinc-900 px-2.5 py-3">
         <div className="mx-auto flex max-w-3xl flex-col gap-2">
+          {isInitialMessagesLoading ? (
+            <div className="space-y-2 px-1 pb-1">
+              <div className="ml-auto h-14 w-[58%] animate-pulse rounded-[22px] rounded-br-md bg-white/6" />
+              <div className="h-14 w-[66%] animate-pulse rounded-[22px] rounded-bl-md bg-white/6" />
+              <div className="ml-auto h-12 w-[44%] animate-pulse rounded-[22px] rounded-br-md bg-white/6" />
+            </div>
+          ) : null}
+
+          {!isInitialMessagesLoading && hasMoreHistory ? (
+            <div className="flex justify-center pb-1">
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                onClick={loadOlderMessages}
+                disabled={isLoadingOlderHistory}
+                className="rounded-full border border-white/10 bg-white/5 px-4 text-xs text-zinc-300 hover:bg-white/10 hover:text-white"
+              >
+                {isLoadingOlderHistory ? 'Cargando mensajes anteriores...' : 'Cargar mensajes anteriores'}
+              </Button>
+            </div>
+          ) : null}
+
           {messages.map((message) => {
             const isOwn = message.userId === user?.id;
             const isSystem = message.type === 'system';
@@ -820,10 +1174,11 @@ export default function PrivateChatWindowV2({
                 ) : null}
                 <div
                   className={[
-                    'max-w-[90%] sm:max-w-[88%] rounded-[22px] px-3 py-1.5 shadow-lg',
+                    'max-w-[90%] sm:max-w-[88%] rounded-[22px] px-3 py-1.5 shadow-lg transition-opacity',
                     isOwn
                       ? 'rounded-br-md bg-emerald-500 text-zinc-950'
                       : 'rounded-bl-md bg-zinc-800 text-white',
+                    message?._optimistic ? 'opacity-90' : '',
                   ].join(' ')}
                   style={
                     isMobile && swipeReplyMessageId === (message._realId || message.id)
@@ -847,16 +1202,16 @@ export default function PrivateChatWindowV2({
                   {message.replyTo ? (
                     <div
                       className={[
-                        'mb-1 rounded-2xl border px-2.5 py-1.5 text-[11px] leading-tight',
+                        'mb-1 rounded-2xl border px-2.5 py-1.5 text-[11px] leading-tight shadow-sm',
                         isOwn
-                          ? 'border-zinc-900/15 bg-zinc-950/10 text-zinc-900/80'
-                          : 'border-white/10 bg-white/5 text-zinc-300',
+                          ? 'border-white/30 bg-black/20 text-white'
+                          : 'border-white/15 bg-black/25 text-zinc-100',
                       ].join(' ')}
                     >
-                      <div className="font-medium">
+                      <div className="font-semibold">
                         {message.replyTo.username || 'Usuario'}
                       </div>
-                      <div className="truncate opacity-80">
+                      <div className="truncate text-[11px] opacity-95">
                         {message.replyTo.content || 'Mensaje'}
                       </div>
                     </div>
@@ -876,7 +1231,7 @@ export default function PrivateChatWindowV2({
                       <span className="whitespace-pre-wrap break-words">
                         {message.content}
                       </span>
-                      <span className={['ml-2 inline-flex items-center gap-1 align-bottom whitespace-nowrap text-[10px]', isOwn ? 'text-zinc-900/70' : 'text-zinc-400'].join(' ')}>
+                      <span className={['ml-2 inline-flex items-center gap-1 align-bottom whitespace-nowrap text-[10px] font-medium', isOwn ? 'text-zinc-950/90' : 'text-zinc-300'].join(' ')}>
                         <span>{formatMessageTime(message.timestamp)}</span>
                         {isOwn ? renderStatusIcon(status, 'h-3 w-3') : null}
                       </span>
@@ -884,7 +1239,7 @@ export default function PrivateChatWindowV2({
                   )}
 
                   {message.type === 'image' ? (
-                    <div className={['mt-1 flex items-center gap-1 text-[10px]', isOwn ? 'justify-end text-zinc-900/75' : 'justify-end text-zinc-400'].join(' ')}>
+                    <div className={['mt-1 flex items-center gap-1 text-[10px] font-medium', isOwn ? 'justify-end text-zinc-950/90' : 'justify-end text-zinc-300'].join(' ')}>
                       <span>{formatMessageTime(message.timestamp)}</span>
                       {isOwn ? renderStatusIcon(status, 'h-3 w-3') : null}
                     </div>
@@ -962,15 +1317,15 @@ export default function PrivateChatWindowV2({
 
       <form onSubmit={handleSendMessage} className="border-t border-white/10 bg-zinc-950/95 px-3 py-3">
         {replyTo ? (
-          <div className="mb-2 flex items-start gap-2 rounded-2xl border border-white/10 bg-white/5 px-3 py-2 text-white">
-            <div className="mt-0.5 text-emerald-400">
+          <div className="mb-2 flex items-start gap-2 rounded-2xl border border-fuchsia-400/30 bg-gradient-to-r from-fuchsia-500/14 via-violet-500/10 to-cyan-500/12 px-3 py-2 text-white shadow-[0_10px_30px_rgba(0,0,0,0.22)]">
+            <div className="mt-0.5 text-fuchsia-300">
               <CornerUpLeft className="h-4 w-4" />
             </div>
             <div className="min-w-0 flex-1">
-              <div className="text-[11px] font-medium text-emerald-300">
+              <div className="text-[11px] font-semibold text-fuchsia-200">
                 Respondiendo a {replyTo.username || 'Usuario'}
               </div>
-              <div className="truncate text-xs text-zinc-400">
+              <div className="truncate text-xs text-white/90">
                 {replyTo.content || 'Mensaje'}
               </div>
             </div>
@@ -978,11 +1333,28 @@ export default function PrivateChatWindowV2({
               type="button"
               variant="ghost"
               size="icon"
-              className="h-7 w-7 shrink-0 rounded-full text-zinc-400 hover:bg-white/10 hover:text-white"
+              className="h-7 w-7 shrink-0 rounded-full text-white/70 hover:bg-white/10 hover:text-white"
               onClick={() => setReplyTo(null)}
             >
               <X className="h-3.5 w-3.5" />
             </Button>
+          </div>
+        ) : null}
+        {isGuestMode ? (
+          <div className="mb-2 flex items-center justify-between rounded-2xl border border-amber-400/20 bg-amber-500/10 px-3 py-2 text-[11px] text-amber-100">
+            <span>
+              Invitado: {Math.min(guestPrivateSentCount, GUEST_PRIVATE_MESSAGES_LIMIT)}/{GUEST_PRIVATE_MESSAGES_LIMIT} mensajes privados.
+              Sin fotos ni emojis.
+            </span>
+            {guestPrivateSentCount >= GUEST_PRIVATE_MESSAGES_LIMIT ? (
+              <button
+                type="button"
+                className="shrink-0 font-semibold text-amber-200 hover:text-white"
+                onClick={() => showGuestRegistrationPrompt('seguir enviando mensajes privados')}
+              >
+                Registrarme
+              </button>
+            ) : null}
           </div>
         ) : null}
         <div className="flex items-end gap-2">
@@ -998,8 +1370,19 @@ export default function PrivateChatWindowV2({
             type="button"
             variant="ghost"
             size="icon"
-            className="h-11 w-11 shrink-0 rounded-full border border-white/10 bg-white/5 text-zinc-300 hover:bg-white/10 hover:text-white"
-            onClick={() => setShowEmojiPicker((prev) => !prev)}
+            className={[
+              'h-11 w-11 shrink-0 rounded-full border border-white/10 bg-white/5',
+              isGuestMode
+                ? 'text-zinc-500 hover:bg-white/5 hover:text-zinc-400'
+                : 'text-zinc-300 hover:bg-white/10 hover:text-white',
+            ].join(' ')}
+            onClick={() => {
+              if (isGuestMode) {
+                showGuestTextOnlyToast('usar emojis en privado');
+                return;
+              }
+              setShowEmojiPicker((prev) => !prev);
+            }}
           >
             <Smile className="h-5 w-5" />
           </Button>
@@ -1008,8 +1391,19 @@ export default function PrivateChatWindowV2({
             type="button"
             variant="ghost"
             size="icon"
-            className="h-11 w-11 shrink-0 rounded-full border border-white/10 bg-white/5 text-zinc-300 hover:bg-white/10 hover:text-white"
-            onClick={() => fileInputRef.current?.click()}
+            className={[
+              'h-11 w-11 shrink-0 rounded-full border border-white/10 bg-white/5',
+              isGuestMode
+                ? 'text-zinc-500 hover:bg-white/5 hover:text-zinc-400'
+                : 'text-zinc-300 hover:bg-white/10 hover:text-white',
+            ].join(' ')}
+            onClick={() => {
+              if (isGuestMode) {
+                showGuestTextOnlyToast('enviar fotos en privado');
+                return;
+              }
+              fileInputRef.current?.click();
+            }}
             disabled={isUploadingPhoto}
           >
             <ImagePlus className="h-5 w-5" />
@@ -1020,7 +1414,13 @@ export default function PrivateChatWindowV2({
               ref={inputRef}
               value={newMessage}
               onChange={(event) => setNewMessage(event.target.value)}
-              placeholder={replyTo ? 'Escribe tu respuesta' : (isPartnerTyping ? 'Responder...' : 'Escribe un mensaje')}
+              placeholder={
+                replyTo
+                  ? 'Escribe tu respuesta'
+                  : isGuestMode
+                    ? 'Escribe un mensaje privado'
+                    : (isPartnerTyping ? 'Responder...' : 'Escribe un mensaje')
+              }
               className="h-11 rounded-full border-white/10 bg-white/5 px-4 text-white placeholder:text-zinc-500 focus-visible:ring-emerald-500"
             />
           </div>

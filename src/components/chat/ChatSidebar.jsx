@@ -35,7 +35,16 @@ const getRoomActivityStatus = (realUserCount) => {
   }
 };
 
-const ChatSidebar = ({ currentRoom, setCurrentRoom, isOpen, onClose, onOpenBaul, onOpenOpin, privateInboxItems = [] }) => {
+const ChatSidebar = ({
+  currentRoom,
+  setCurrentRoom,
+  isOpen,
+  onClose,
+  onOpenBaul,
+  onOpenOpin,
+  privateInboxItems = [],
+  unreadPrivateMessages = {},
+}) => {
   const logoSources = ["/transparente_logo.png"];
   const navigate = useNavigate();
   const location = useLocation();
@@ -95,7 +104,9 @@ const ChatSidebar = ({ currentRoom, setCurrentRoom, isOpen, onClose, onOpenBaul,
       participants: Array.isArray(item?.participantProfiles) ? item.participantProfiles : [],
       title: item?.title || '',
       roomId: item?.roomId || null,
+      lastMessagePreview: item?.lastMessagePreview || '',
       lastMessageAt: Number(item?.lastMessageAt?.toMillis?.() || item?.updatedAt?.toMillis?.() || item?.lastMessageAt || item?.updatedAt || Date.now()),
+      unreadCount: Number(item?.unreadCount || 0),
       isOpen: Boolean(item?.isOpen),
     };
   };
@@ -114,7 +125,9 @@ const ChatSidebar = ({ currentRoom, setCurrentRoom, isOpen, onClose, onOpenBaul,
         participants: chat?.participants || [],
         title: chat?.title || '',
         roomId: chat?.roomId || null,
+        lastMessagePreview: chat?.lastMessagePreview || '',
         lastMessageAt: Number(chat?.lastMessageAt || chat?.lastActivityAt || Date.now()),
+        unreadCount: Number(chat?.unreadCount || 0),
         isOpen,
       });
     };
@@ -130,6 +143,12 @@ const ChatSidebar = ({ currentRoom, setCurrentRoom, isOpen, onClose, onOpenBaul,
       .sort((a, b) => (b.lastMessageAt || 0) - (a.lastMessageAt || 0))
       .slice(0, 5);
   }, [openPrivateChats, privateInboxItems, recentPrivateChats]);
+
+  const totalUnreadPrivateMessages = useMemo(() => {
+    const inboxTotal = mergedPrivateChats.reduce((sum, item) => sum + Number(item?.unreadCount || 0), 0);
+    if (inboxTotal > 0) return inboxTotal;
+    return Object.values(unreadPrivateMessages || {}).reduce((sum, item) => sum + Number(item?.count || 0), 0);
+  }, [mergedPrivateChats, unreadPrivateMessages]);
 
   const openPrivateChatFromShortcut = (chat) => {
     if (!chat) return;
@@ -469,31 +488,50 @@ const ChatSidebar = ({ currentRoom, setCurrentRoom, isOpen, onClose, onOpenBaul,
                 >
                   <MessageCircle className="w-5 h-5 text-emerald-400 flex-shrink-0 mr-3" />
                   <span className="text-sm font-medium text-foreground">Privados</span>
-                  {mergedPrivateChats.length > 0 && (
+                  {totalUnreadPrivateMessages > 0 ? (
+                    <span className="ml-auto text-[10px] px-1.5 py-0.5 rounded-full bg-emerald-500 text-white border border-emerald-400/40">
+                      {totalUnreadPrivateMessages > 99 ? '99+' : totalUnreadPrivateMessages}
+                    </span>
+                  ) : mergedPrivateChats.length > 0 ? (
                     <span className="ml-auto text-[10px] px-1.5 py-0.5 rounded-full bg-emerald-500/15 text-emerald-300 border border-emerald-500/30">
                       {mergedPrivateChats.length}
                     </span>
-                  )}
+                  ) : null}
                 </Button>
                 {mergedPrivateChats.length > 0 && (
                   <div className="pl-3 pr-1 pb-1 pt-1.5 space-y-1">
                     {mergedPrivateChats.map((chat) => {
                       const partnerName = chat?.partner?.username || 'Usuario';
                       const partnerAvatar = chat?.partner?.avatar || '';
+                      const unreadMeta = chat?.chatId ? unreadPrivateMessages?.[chat.chatId] : null;
+                      const unreadCount = Number(chat?.unreadCount || unreadMeta?.count || 0);
                       return (
                         <button
                           key={chat.key}
                           type="button"
                           onClick={() => openPrivateChatFromShortcut(chat)}
-                          className="w-full flex items-center gap-2 rounded-lg border border-border/60 bg-secondary/20 hover:bg-secondary/40 px-2 py-1.5 transition-colors text-left"
+                          className={`w-full flex items-center gap-2 rounded-lg border px-2 py-1.5 transition-colors text-left ${
+                            unreadCount > 0
+                              ? 'border-emerald-500/25 bg-emerald-500/8 hover:bg-emerald-500/12'
+                              : 'border-border/60 bg-secondary/20 hover:bg-secondary/40'
+                          }`}
                         >
-                          <Avatar className="w-6 h-6">
-                            <AvatarImage src={partnerAvatar} alt={partnerName} />
-                            <AvatarFallback className="text-[10px] bg-muted text-foreground">
-                              {partnerName.slice(0, 2).toUpperCase()}
-                            </AvatarFallback>
-                          </Avatar>
-                          <span className="text-xs text-foreground truncate flex-1">{partnerName}</span>
+                          <div className="relative">
+                            <Avatar className="w-6 h-6">
+                              <AvatarImage src={partnerAvatar} alt={partnerName} />
+                              <AvatarFallback className="text-[10px] bg-muted text-foreground">
+                                {partnerName.slice(0, 2).toUpperCase()}
+                              </AvatarFallback>
+                            </Avatar>
+                            {unreadCount > 0 ? (
+                              <span className="absolute -top-1.5 -right-1.5 inline-flex min-w-[16px] h-4 items-center justify-center rounded-full bg-emerald-500 px-1 text-[9px] font-bold text-white shadow">
+                                {unreadCount > 99 ? '99+' : unreadCount}
+                              </span>
+                            ) : null}
+                          </div>
+                          <span className={`text-xs truncate flex-1 ${unreadCount > 0 ? 'font-semibold text-white' : 'text-foreground'}`}>
+                            {partnerName}
+                          </span>
                           {chat.isOpen && (
                             <span className="text-[9px] px-1 py-0.5 rounded-full bg-emerald-500/15 text-emerald-300 border border-emerald-500/30">
                               Abierto
@@ -818,31 +856,50 @@ const ChatSidebar = ({ currentRoom, setCurrentRoom, isOpen, onClose, onOpenBaul,
                 >
                   <MessageCircle className="w-5 h-5 text-emerald-400 flex-shrink-0 mr-3" />
                   <span className="text-sm font-medium text-foreground">Privados</span>
-                  {mergedPrivateChats.length > 0 && (
+                  {totalUnreadPrivateMessages > 0 ? (
+                    <span className="ml-auto text-[10px] px-1.5 py-0.5 rounded-full bg-emerald-500 text-white border border-emerald-400/40">
+                      {totalUnreadPrivateMessages > 99 ? '99+' : totalUnreadPrivateMessages}
+                    </span>
+                  ) : mergedPrivateChats.length > 0 ? (
                     <span className="ml-auto text-[10px] px-1.5 py-0.5 rounded-full bg-emerald-500/15 text-emerald-300 border border-emerald-500/30">
                       {mergedPrivateChats.length}
                     </span>
-                  )}
+                  ) : null}
                 </Button>
                 {mergedPrivateChats.length > 0 && (
                   <div className="pl-3 pr-1 pb-1 pt-1.5 space-y-1">
                     {mergedPrivateChats.map((chat) => {
                       const partnerName = chat?.partner?.username || 'Usuario';
                       const partnerAvatar = chat?.partner?.avatar || '';
+                      const unreadMeta = chat?.chatId ? unreadPrivateMessages?.[chat.chatId] : null;
+                      const unreadCount = Number(chat?.unreadCount || unreadMeta?.count || 0);
                       return (
                         <button
                           key={`mobile-${chat.key}`}
                           type="button"
                           onClick={() => openPrivateChatFromShortcut(chat)}
-                          className="w-full flex items-center gap-2 rounded-lg border border-border/60 bg-secondary/20 hover:bg-secondary/40 px-2 py-1.5 transition-colors text-left"
+                          className={`w-full flex items-center gap-2 rounded-lg border px-2 py-1.5 transition-colors text-left ${
+                            unreadCount > 0
+                              ? 'border-emerald-500/25 bg-emerald-500/8 hover:bg-emerald-500/12'
+                              : 'border-border/60 bg-secondary/20 hover:bg-secondary/40'
+                          }`}
                         >
-                          <Avatar className="w-6 h-6">
-                            <AvatarImage src={partnerAvatar} alt={partnerName} />
-                            <AvatarFallback className="text-[10px] bg-muted text-foreground">
-                              {partnerName.slice(0, 2).toUpperCase()}
-                            </AvatarFallback>
-                          </Avatar>
-                          <span className="text-xs text-foreground truncate flex-1">{partnerName}</span>
+                          <div className="relative">
+                            <Avatar className="w-6 h-6">
+                              <AvatarImage src={partnerAvatar} alt={partnerName} />
+                              <AvatarFallback className="text-[10px] bg-muted text-foreground">
+                                {partnerName.slice(0, 2).toUpperCase()}
+                              </AvatarFallback>
+                            </Avatar>
+                            {unreadCount > 0 ? (
+                              <span className="absolute -top-1.5 -right-1.5 inline-flex min-w-[16px] h-4 items-center justify-center rounded-full bg-emerald-500 px-1 text-[9px] font-bold text-white shadow">
+                                {unreadCount > 99 ? '99+' : unreadCount}
+                              </span>
+                            ) : null}
+                          </div>
+                          <span className={`text-xs truncate flex-1 ${unreadCount > 0 ? 'font-semibold text-white' : 'text-foreground'}`}>
+                            {partnerName}
+                          </span>
                           {chat.isOpen && (
                             <span className="text-[9px] px-1 py-0.5 rounded-full bg-emerald-500/15 text-emerald-300 border border-emerald-500/30">
                               Abierto

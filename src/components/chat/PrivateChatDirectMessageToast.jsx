@@ -4,6 +4,8 @@ import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Button } from '@/components/ui/button';
 import { MessageCircle, X } from 'lucide-react';
 
+const PRIVATE_DM_TOAST_DURATION_SECONDS = 2.8;
+
 const PrivateChatDirectMessageToast = ({ message, onOpen, onClose }) => {
   const fromUsername = message?.fromUsername || 'Alguien';
   const preview = typeof message?.content === 'string' && message.content.trim()
@@ -13,7 +15,7 @@ const PrivateChatDirectMessageToast = ({ message, onOpen, onClose }) => {
   useEffect(() => {
     const timer = setTimeout(() => {
       onClose?.();
-    }, 10000);
+    }, PRIVATE_DM_TOAST_DURATION_SECONDS * 1000);
 
     return () => clearTimeout(timer);
   }, [onClose, message?.notificationId]);
@@ -31,7 +33,7 @@ const PrivateChatDirectMessageToast = ({ message, onOpen, onClose }) => {
           <motion.div
             initial={{ width: '100%' }}
             animate={{ width: '0%' }}
-            transition={{ duration: 10, ease: 'linear' }}
+            transition={{ duration: PRIVATE_DM_TOAST_DURATION_SECONDS, ease: 'linear' }}
             className="h-1 bg-gradient-to-r from-emerald-400 to-cyan-400"
           />
 

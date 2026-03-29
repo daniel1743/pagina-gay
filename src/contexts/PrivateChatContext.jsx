@@ -100,6 +100,7 @@ export const usePrivateChat = () => {
     minimizePrivateChat: () => {},
     restorePrivateChat: () => ({ ok: false }),
     closePrivateChat: () => {},
+    discardPrivateChat: () => {},
     canOpenMoreChats: () => false,
     openRecentPrivateChat: () => ({ ok: false }),
     removeRecentPrivateChat: () => {},
@@ -238,6 +239,14 @@ export const PrivateChatProvider = ({ children }) => {
     });
   };
 
+  const discardPrivateChat = (chatIdToDiscard = null) => {
+    setOpenPrivateChats((prev) => {
+      if (!prev.length) return prev;
+      if (!chatIdToDiscard) return prev.slice(0, -1);
+      return prev.filter((chat) => chat.chatId !== chatIdToDiscard);
+    });
+  };
+
   const addDismissedChat = (chatId) => {
     setDismissedChatIds((prev) => new Set([...prev, chatId]));
   };
@@ -258,6 +267,7 @@ export const PrivateChatProvider = ({ children }) => {
     minimizePrivateChat,
     restorePrivateChat,
     closePrivateChat,
+    discardPrivateChat,
     canOpenMoreChats,
     openRecentPrivateChat,
     removeRecentPrivateChat,

@@ -1,5 +1,5 @@
 import { doc, getDoc, setDoc, updateDoc, serverTimestamp } from 'firebase/firestore';
-import { db } from '@/config/firebase';
+import { auth, db } from '@/config/firebase';
 
 /**
  * Sistema de límites diarios para usuarios FREE
@@ -21,6 +21,12 @@ const STORAGE_KEYS = {
   CHAT_INVITES: 'chactivo_chat_invites',
   DIRECT_MESSAGES: 'chactivo_direct_messages',
   LAST_RESET: 'chactivo_last_reset',
+};
+
+const shouldSkipFirestoreLimitSync = (userId) => {
+  if (!userId || typeof userId !== 'string') return true;
+  if (userId.startsWith('temp_')) return true;
+  return Boolean(auth?.currentUser?.isAnonymous);
 };
 
 /**
@@ -175,6 +181,10 @@ export const incrementChatInvites = async (userId) => {
   const newCount = current + 1;
   localStorage.setItem(STORAGE_KEYS.CHAT_INVITES, newCount.toString());
 
+  if (shouldSkipFirestoreLimitSync(userId)) {
+    return newCount;
+  }
+
   // Sincronizar con Firestore (persistencia entre dispositivos)
   try {
     const userLimitsRef = doc(db, 'users', userId, 'limits', getTodayDate());
@@ -216,6 +226,10 @@ export const incrementDirectMessages = async (userId) => {
   const current = parseInt(localStorage.getItem(STORAGE_KEYS.DIRECT_MESSAGES) || '0');
   const newCount = current + 1;
   localStorage.setItem(STORAGE_KEYS.DIRECT_MESSAGES, newCount.toString());
+
+  if (shouldSkipFirestoreLimitSync(userId)) {
+    return newCount;
+  }
 
   // Sincronizar con Firestore (persistencia entre dispositivos)
   try {

@@ -126,6 +126,8 @@ const ChatOnlineUsersColumn = ({
   roomId = 'principal',
   currentUserId = null,
   currentUser = null,
+  privateInboxItems = [],
+  unreadPrivateMessages = {},
   onUserClick,
   onStartConversation,
   onRequestNickname,
@@ -352,6 +354,26 @@ const ChatOnlineUsersColumn = ({
       });
   }, [roomUsers, currentUserId, currentUserRole, currentUser?.username, hideRoleBadges, currentUserComunaKey]);
 
+  const unreadCountByUserId = useMemo(() => {
+    const next = new Map();
+
+    (Array.isArray(privateInboxItems) ? privateInboxItems : []).forEach((item) => {
+      const otherUserId = item?.otherUserId || null;
+      const unreadCount = Number(item?.unreadCount || 0);
+      if (!otherUserId || unreadCount <= 0) return;
+      next.set(otherUserId, Math.max(unreadCount, Number(next.get(otherUserId) || 0)));
+    });
+
+    Object.values(unreadPrivateMessages || {}).forEach((entry) => {
+      const partnerUserId = entry?.partner?.userId || null;
+      const unreadCount = Number(entry?.count || 0);
+      if (!partnerUserId || unreadCount <= 0) return;
+      next.set(partnerUserId, Math.max(unreadCount, Number(next.get(partnerUserId) || 0)));
+    });
+
+    return next;
+  }, [privateInboxItems, unreadPrivateMessages]);
+
   return (
     <aside className="hidden lg:flex w-72 h-full flex-col border-l border-border bg-card/30 backdrop-blur-sm">
       <div className="p-4 border-b border-border/80">
@@ -393,22 +415,34 @@ const ChatOnlineUsersColumn = ({
               </p>
             ) : (
               availableNowUsers.slice(0, 6).map((item) => {
+                const unreadCount = Number(unreadCountByUserId.get(item.userId) || 0);
                 return (
                   <div
                     key={`available_${item.userId}`}
-                    className="rounded-xl border border-emerald-500/15 bg-background/40 p-2.5"
+                    className={`rounded-xl border p-2.5 ${
+                      unreadCount > 0
+                        ? 'border-emerald-500/30 bg-emerald-500/8'
+                        : 'border-emerald-500/15 bg-background/40'
+                    }`}
                   >
                     <div className="flex items-start gap-2.5">
-                      <Avatar className="w-9 h-9 border border-emerald-400/35">
-                        <AvatarImage src={item.avatar} alt={item.username} />
-                        <AvatarFallback className="bg-muted text-foreground text-xs">
-                          {item.username.slice(0, 2).toUpperCase()}
-                        </AvatarFallback>
-                      </Avatar>
+                      <div className="relative">
+                        <Avatar className="w-9 h-9 border border-emerald-400/35">
+                          <AvatarImage src={item.avatar} alt={item.username} />
+                          <AvatarFallback className="bg-muted text-foreground text-xs">
+                            {item.username.slice(0, 2).toUpperCase()}
+                          </AvatarFallback>
+                        </Avatar>
+                        {unreadCount > 0 ? (
+                          <span className="absolute -top-1.5 -right-1.5 inline-flex min-w-[18px] h-[18px] items-center justify-center rounded-full bg-emerald-500 px-1 text-[10px] font-bold text-white shadow-lg">
+                            {unreadCount > 99 ? '99+' : unreadCount}
+                          </span>
+                        ) : null}
+                      </div>
 
                       <div className="min-w-0 flex-1">
                         <div className="flex items-center gap-1.5">
-                          <p className="text-sm font-semibold text-foreground truncate">
+                          <p className={`text-sm truncate ${unreadCount > 0 ? 'font-bold text-white' : 'font-semibold text-foreground'}`}>
                             {item.username}
                           </p>
                           {item.isPremium && (
@@ -468,6 +502,7 @@ const ChatOnlineUsersColumn = ({
           visibleUsers.map((item) => {
             const isMe = item.userId === currentUserId;
             const canOpenProfile = !isSeededUser(item.userId);
+            const unreadCount = Number(unreadCountByUserId.get(item.userId) || 0);
             return (
               <button
                 key={item.userId}
@@ -483,7 +518,11 @@ const ChatOnlineUsersColumn = ({
                     isGuest: item.isGuest,
                   });
                 }}
-                className={`w-full text-left rounded-xl border border-border/60 bg-secondary/15 transition-colors p-2.5 ${
+                className={`w-full text-left rounded-xl border transition-colors p-2.5 ${
+                  unreadCount > 0
+                    ? 'border-emerald-500/25 bg-emerald-500/8'
+                    : 'border-border/60 bg-secondary/15'
+                } ${
                   canOpenProfile ? 'hover:bg-secondary/30' : 'cursor-default'
                 }`}
               >
@@ -502,11 +541,16 @@ const ChatOnlineUsersColumn = ({
                           : 'fill-orange-400 text-orange-400'
                       }`}
                     />
+                    {unreadCount > 0 ? (
+                      <span className="absolute -top-1.5 -right-1.5 inline-flex min-w-[18px] h-[18px] items-center justify-center rounded-full bg-emerald-500 px-1 text-[10px] font-bold text-white shadow-lg">
+                        {unreadCount > 99 ? '99+' : unreadCount}
+                      </span>
+                    ) : null}
                   </div>
 
                   <div className="min-w-0 flex-1">
                     <div className="flex items-center gap-1.5">
-                      <p className="text-sm font-semibold text-foreground truncate">
+                      <p className={`text-sm truncate ${unreadCount > 0 ? 'font-bold text-white' : 'font-semibold text-foreground'}`}>
                         {isMe ? `${item.username} (Tú)` : item.username}
                       </p>
                       {item.isPremium && (
@@ -531,6 +575,11 @@ const ChatOnlineUsersColumn = ({
                       ) : null}
                       {item.isOnline && item.inPrivateWith ? (
                         <span className="text-[10px] text-fuchsia-300">En privado</span>
+                      ) : null}
+                      {unreadCount > 0 ? (
+                        <span className="text-[10px] font-semibold text-emerald-300">
+                          {unreadCount === 1 ? '1 mensaje nuevo' : `${unreadCount} mensajes nuevos`}
+                        </span>
                       ) : null}
                     </div>
                   </div>

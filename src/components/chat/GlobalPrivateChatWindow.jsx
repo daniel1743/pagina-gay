@@ -39,6 +39,7 @@ export default function GlobalPrivateChatWindow() {
           chatId={chatWindow.chatId}
           roomId={chatWindow.roomId ?? null}
           initialMessage={chatWindow.initialMessage ?? ''}
+          isPending={Boolean(chatWindow?.isPending)}
           autoFocus={index === openPrivateChats.length - 1}
           windowIndex={index}
           minimizedIndex={openPrivateChats.filter((item) => item?.isMinimized).findIndex((item) => item?.chatId === chatWindow?.chatId)}

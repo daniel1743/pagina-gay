@@ -609,6 +609,7 @@ const ChatBottomNav = ({
         {items.map((item) => {
           const Icon = item.icon;
           const active = item.active;
+          const shouldPulsePrivates = item.id === 'privates' && Number(item.badge || 0) > 0 && !active;
           return (
             <button
               key={item.id}
@@ -618,7 +619,10 @@ const ChatBottomNav = ({
               }`}
               aria-label={item.label}
             >
-              <span className="relative inline-flex">
+              <span className={`relative inline-flex ${shouldPulsePrivates ? 'animate-pulse' : ''}`}>
+                {shouldPulsePrivates ? (
+                  <span className="absolute inset-[-5px] rounded-full bg-emerald-500/15 blur-sm" />
+                ) : null}
                 <Icon className="w-6 h-6 flex-shrink-0" strokeWidth={active ? 2.5 : 2} />
                 {item.badge ? (
                   <span className={`absolute -top-1.5 -right-2 min-w-[16px] h-4 px-1 rounded-full text-[10px] text-white font-semibold leading-4 text-center ${
@@ -628,7 +632,7 @@ const ChatBottomNav = ({
                   </span>
                 ) : null}
               </span>
-              <span className="text-[10px] font-medium truncate w-full text-center">{item.label}</span>
+              <span className={`text-[10px] font-medium truncate w-full text-center ${shouldPulsePrivates ? 'text-emerald-300' : ''}`}>{item.label}</span>
             </button>
           );
         })}
