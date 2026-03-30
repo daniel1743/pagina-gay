@@ -339,6 +339,11 @@ service cloud.firestore {
 
         allow delete: if isOwner(userId);
       }
+
+      match /private_match_state/{targetUserId} {
+        allow read, create, update, delete: if isOwner(userId) &&
+                                              request.auth.uid == userId;
+      }
     }
 
     // ===========================

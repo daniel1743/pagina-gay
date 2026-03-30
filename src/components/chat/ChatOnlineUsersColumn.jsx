@@ -1,12 +1,9 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Badge } from '@/components/ui/badge';
-import { Button } from '@/components/ui/button';
-import { Users, Circle, MessageCircle } from 'lucide-react';
-import ConversationAvailabilityCard from '@/components/chat/ConversationAvailabilityCard';
+import { Users, Circle } from 'lucide-react';
 import { resolveProfileRole } from '@/config/profileRoles';
-import { getPresenceActivityMs, isUserAvailableForConversation } from '@/services/presenceService';
-import { getComunaKey, normalizeComuna, ONBOARDING_COMUNA_KEY } from '@/config/comunas';
+import { normalizeComuna, ONBOARDING_COMUNA_KEY } from '@/config/comunas';
 
 const DEFAULT_CHAT_AVATAR = '/avatar_por_defecto.jpeg';
 const MIN_VISIBLE_USERS = 10;
@@ -55,32 +52,6 @@ const getRoleBucket = (roleLabel) => {
   if (normalized.includes('versátil') || normalized.includes('versatil') || normalized.includes('inter')) return 'versatil';
   if (normalized.includes('curioso')) return 'curioso';
   return 'otro';
-};
-
-const getRoleCompatibilityScore = (selfRole, candidateRole) => {
-  const selfBucket = getRoleBucket(selfRole);
-  const candidateBucket = getRoleBucket(candidateRole);
-
-  if (selfBucket === 'curioso' || !selfRole) return 80;
-  if (selfBucket === 'activo') {
-    if (candidateBucket === 'pasivo') return 100;
-    if (candidateBucket === 'versatil') return 92;
-    if (candidateBucket === 'curioso') return 75;
-    return 48;
-  }
-  if (selfBucket === 'pasivo') {
-    if (candidateBucket === 'activo') return 100;
-    if (candidateBucket === 'versatil') return 90;
-    if (candidateBucket === 'curioso') return 75;
-    return 48;
-  }
-  if (selfBucket === 'versatil') {
-    if (candidateBucket === 'activo' || candidateBucket === 'pasivo') return 96;
-    if (candidateBucket === 'versatil') return 84;
-    if (candidateBucket === 'curioso') return 76;
-    return 44;
-  }
-  return 50;
 };
 
 const sortUsers = (users, currentUserId) => (
@@ -299,61 +270,6 @@ const ChatOnlineUsersColumn = ({
   }, [users, isExpanded]);
 
   const hiddenCount = Math.max(0, users.length - visibleUsers.length);
-  const currentUserRole = resolveProfileRole(
-    currentUser?.roleBadge,
-    currentUser?.profileRole,
-    currentUser?.role
-  );
-  const currentUserComuna = normalizeComuna(
-    currentUser?.comuna ||
-    (typeof window !== 'undefined' ? localStorage.getItem(ONBOARDING_COMUNA_KEY) : '')
-  );
-  const currentUserComunaKey = getComunaKey(currentUserComuna);
-
-  const availableNowUsers = useMemo(() => {
-    const now = Date.now();
-    const deduped = new Map();
-
-    (Array.isArray(roomUsers) ? roomUsers : [])
-      .filter((item) => isUserAvailableForConversation(item, now))
-      .forEach((item) => {
-        const normalizedRole = resolveProfileRole(
-          item?.roleBadge,
-          item?.profileRole,
-          item?.role
-        );
-
-        const normalizedItem = {
-          userId: item.userId || item.id,
-          username: item.username || 'Usuario',
-          avatar: resolveChatAvatar(item.avatar),
-          roleBadge: normalizedRole || null,
-          comuna: normalizeComuna(item?.comuna) || null,
-          isPremium: Boolean(item?.isPremium || item?.isProUser),
-          isGuest: Boolean(item?.isGuest || item?.isAnonymous),
-          isAnonymous: Boolean(item?.isAnonymous),
-          availabilityExpiresAtMs: Number(item?.availableForChatExpiresAtMs || 0) || 0,
-          availabilityLastSeenMs: getPresenceActivityMs(item) || 0,
-          sameComuna: currentUserComunaKey && getComunaKey(item?.comuna) === currentUserComunaKey,
-          compatibilityScore: hideRoleBadges ? 70 : getRoleCompatibilityScore(currentUserRole, normalizedRole),
-        };
-        if (!normalizedItem.userId) return;
-        deduped.set(normalizedItem.userId, normalizedItem);
-      });
-
-    return Array.from(deduped.values())
-      .filter((item) => item.userId !== currentUserId)
-      .filter((item) => !isCurrentUserDuplicateByUsername(item, currentUserId, currentUser?.username || ''))
-      .sort((a, b) => {
-        if (a.sameComuna !== b.sameComuna) return a.sameComuna ? -1 : 1;
-        if (b.compatibilityScore !== a.compatibilityScore) return b.compatibilityScore - a.compatibilityScore;
-        if (b.availabilityLastSeenMs !== a.availabilityLastSeenMs) {
-          return b.availabilityLastSeenMs - a.availabilityLastSeenMs;
-        }
-        return String(a.username || '').localeCompare(String(b.username || ''), 'es');
-      });
-  }, [roomUsers, currentUserId, currentUserRole, currentUser?.username, hideRoleBadges, currentUserComunaKey]);
-
   const unreadCountByUserId = useMemo(() => {
     const next = new Map();
 
@@ -387,113 +303,6 @@ const ChatOnlineUsersColumn = ({
       </div>
 
       <div className="flex-1 min-h-0 overflow-y-auto p-3 space-y-2.5">
-        <section className="rounded-2xl border border-emerald-500/20 bg-emerald-500/5 p-3">
-          <ConversationAvailabilityCard
-            roomId={roomId}
-            roomUsers={roomUsers}
-            user={currentUser}
-            onRequestNickname={onRequestNickname}
-            variant="compact"
-          />
-
-          <div className="mt-3 flex items-center justify-between gap-2">
-            <div>
-              <h4 className="text-sm font-semibold text-foreground">Disponibles ahora</h4>
-              <p className="text-[11px] text-muted-foreground">
-                Solo gente realmente presente y abierta a conversar.
-              </p>
-            </div>
-            <span className="rounded-full border border-emerald-500/25 bg-emerald-500/10 px-2 py-1 text-[11px] font-semibold text-emerald-300">
-              {availableNowUsers.length}
-            </span>
-          </div>
-
-          <div className="mt-3 space-y-2">
-            {availableNowUsers.length === 0 ? (
-              <p className="text-[11px] text-muted-foreground">
-                Nadie más marcó disponibilidad en este momento.
-              </p>
-            ) : (
-              availableNowUsers.slice(0, 6).map((item) => {
-                const unreadCount = Number(unreadCountByUserId.get(item.userId) || 0);
-                return (
-                  <div
-                    key={`available_${item.userId}`}
-                    className={`rounded-xl border p-2.5 ${
-                      unreadCount > 0
-                        ? 'border-emerald-500/30 bg-emerald-500/8'
-                        : 'border-emerald-500/15 bg-background/40'
-                    }`}
-                  >
-                    <div className="flex items-start gap-2.5">
-                      <div className="relative">
-                        <Avatar className="w-9 h-9 border border-emerald-400/35">
-                          <AvatarImage src={item.avatar} alt={item.username} />
-                          <AvatarFallback className="bg-muted text-foreground text-xs">
-                            {item.username.slice(0, 2).toUpperCase()}
-                          </AvatarFallback>
-                        </Avatar>
-                        {unreadCount > 0 ? (
-                          <span className="absolute -top-1.5 -right-1.5 inline-flex min-w-[18px] h-[18px] items-center justify-center rounded-full bg-emerald-500 px-1 text-[10px] font-bold text-white shadow-lg">
-                            {unreadCount > 99 ? '99+' : unreadCount}
-                          </span>
-                        ) : null}
-                      </div>
-
-                      <div className="min-w-0 flex-1">
-                        <div className="flex items-center gap-1.5">
-                          <p className={`text-sm truncate ${unreadCount > 0 ? 'font-bold text-white' : 'font-semibold text-foreground'}`}>
-                            {item.username}
-                          </p>
-                          {item.isPremium && (
-                            <span className="text-[9px] px-1.5 py-0.5 rounded-full bg-amber-500/15 text-amber-300 border border-amber-500/35">
-                              PRO
-                            </span>
-                          )}
-                        </div>
-
-                        <div className="mt-1 flex items-center gap-1.5 flex-wrap">
-                          {item.comuna ? (
-                            <span className={`text-[10px] px-2 py-0.5 rounded-full border ${
-                              item.sameComuna
-                                ? 'border-cyan-400/35 bg-cyan-500/10 text-cyan-200'
-                                : 'border-border/70 bg-muted/20 text-muted-foreground'
-                            }`}>
-                              {item.sameComuna ? `Cerca: ${item.comuna}` : item.comuna}
-                            </span>
-                          ) : null}
-                          {!hideRoleBadges && item.roleBadge ? (
-                            <Badge className={`text-[10px] px-2 py-0.5 rounded-full border ${roleBadgeTone(item.roleBadge)}`}>
-                              {item.roleBadge}
-                            </Badge>
-                          ) : !hideRoleBadges ? (
-                            <span className="text-[10px] text-muted-foreground">Sin rol</span>
-                          ) : null}
-
-                          {!hideRoleBadges && item.compatibilityScore >= 90 && (
-                            <span className="text-[10px] text-emerald-300">Alta compatibilidad</span>
-                          )}
-                        </div>
-                      </div>
-                    </div>
-
-                    <Button
-                      type="button"
-                      size="sm"
-                      variant="outline"
-                      onClick={() => onStartConversation?.(item)}
-                      className="mt-2.5 w-full justify-center rounded-xl border-emerald-500/30 bg-emerald-500/10 text-emerald-100 hover:bg-emerald-500/15"
-                    >
-                      <MessageCircle className="w-4 h-4 mr-2" />
-                      Conversar
-                    </Button>
-                  </div>
-                );
-              })
-            )}
-          </div>
-        </section>
-
         {users.length === 0 ? (
           <div className="rounded-xl border border-border/60 bg-secondary/20 p-4 text-center">
             <p className="text-sm text-muted-foreground">Cargando personas...</p>

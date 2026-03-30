@@ -197,6 +197,8 @@ const buildPrivateInboxEntry = ({
   title = '',
   conversationState = 'active',
   lastMessagePreview = '',
+  lastMessageSenderId = null,
+  lastMessageType = null,
   unreadDelta = 0,
   resetUnread = false,
 }) => {
@@ -218,6 +220,8 @@ const buildPrivateInboxEntry = ({
     otherUserAvatar: isGroup ? '' : (primaryOther.avatar || ''),
     title: isGroup ? (title || buildPrivateGroupTitle(normalizedProfiles, ownerUserId)) : '',
     lastMessagePreview: lastMessagePreview || 'Sin mensajes todavía',
+    lastMessageSenderId: lastMessageSenderId || null,
+    lastMessageType: lastMessageType || null,
     lastMessageAt: serverTimestamp(),
     isPinned: false,
     isMinimized: true,
@@ -243,6 +247,8 @@ const syncPrivateInboxEntries = async ({
   title = '',
   conversationState = 'active',
   lastMessagePreview = '',
+  lastMessageSenderId = null,
+  lastMessageType = null,
   unreadRecipientIds = [],
   resetUnreadForUserIds = [],
 }) => {
@@ -265,6 +271,8 @@ const syncPrivateInboxEntries = async ({
           title,
           conversationState,
           lastMessagePreview,
+          lastMessageSenderId,
+          lastMessageType,
           unreadDelta: unreadSet.has(ownerUserId) ? 1 : 0,
           resetUnread: resetSet.has(ownerUserId),
         }),
@@ -333,18 +341,6 @@ export const signalPrivateChatOpen = async ({
     const conversationTitle = typeof chatData?.title === 'string' && chatData.title.trim()
       ? chatData.title
       : title;
-
-    stage = 'sync_inbox';
-    await syncPrivateInboxEntries({
-      chatId,
-      participantProfiles,
-      title: conversationTitle,
-      conversationState: 'active',
-      lastMessagePreview: created
-        ? `${senderData.username || 'Usuario'} abrió un chat privado`
-        : `${senderData.username || 'Usuario'} volvió al chat privado`,
-      resetUnreadForUserIds: [fromUserId],
-    }).catch(() => {});
 
     stage = 'write_notification';
     await addDoc(collection(db, 'users', toUserId, 'notifications'), {
@@ -728,6 +724,8 @@ export const getOrCreatePrivateChat = async (userAId, userBId) => {
         participantProfiles,
         conversationState: 'active',
         lastMessagePreview: deterministicSnap.data()?.lastMessage || 'Sin mensajes todavía',
+        lastMessageSenderId: deterministicSnap.data()?.lastMessageSenderId || null,
+        lastMessageType: deterministicSnap.data()?.lastMessageType || null,
         resetUnreadForUserIds: existingParticipants,
       }).catch(() => {});
 
@@ -770,6 +768,8 @@ export const getOrCreatePrivateChat = async (userAId, userBId) => {
         participantProfiles,
         conversationState: 'active',
         lastMessagePreview: existing.data()?.lastMessage || 'Sin mensajes todavía',
+        lastMessageSenderId: existing.data()?.lastMessageSenderId || null,
+        lastMessageType: existing.data()?.lastMessageType || null,
         resetUnreadForUserIds: existingParticipants,
       }).catch(() => {});
 
@@ -808,6 +808,8 @@ export const getOrCreatePrivateChat = async (userAId, userBId) => {
       participantProfiles,
       conversationState: 'active',
       lastMessagePreview: 'Sin mensajes todavía',
+      lastMessageSenderId: null,
+      lastMessageType: null,
       resetUnreadForUserIds: sortedIds,
     }).catch(() => {});
 
@@ -882,6 +884,7 @@ export const sendMessageToPrivateChat = async (chatId, { userId, username, avata
       await setDoc(chatRef, {
         lastMessage: normalizedContent,
         lastMessageType: 'text',
+        lastMessageSenderId: userId,
         lastMessageAt: serverTimestamp(),
         updatedAt: serverTimestamp(),
         active: true,
@@ -906,6 +909,8 @@ export const sendMessageToPrivateChat = async (chatId, { userId, username, avata
       title: chatSnap.data()?.title || '',
       conversationState: 'active',
       lastMessagePreview: normalizedContent,
+      lastMessageSenderId: userId,
+      lastMessageType: 'text',
       unreadRecipientIds: recipientIds,
       resetUnreadForUserIds: [userId],
     }).catch((secondaryError) => {
@@ -1026,6 +1031,7 @@ export const sendRichPrivateChatMessage = async (
       await setDoc(chatRef, {
         lastMessage: buildPrivateChatMessagePreview({ content: normalizedContent, type }),
         lastMessageType: type,
+        lastMessageSenderId: userId,
         lastMessageAt: serverTimestamp(),
         updatedAt: serverTimestamp(),
         active: true,
@@ -1053,6 +1059,8 @@ export const sendRichPrivateChatMessage = async (
       title: chatSnap.data()?.title || '',
       conversationState: 'active',
       lastMessagePreview: preview,
+      lastMessageSenderId: userId,
+      lastMessageType: type,
       unreadRecipientIds: recipientIds,
       resetUnreadForUserIds: [userId],
     }).catch((secondaryError) => {
@@ -1915,6 +1923,51 @@ export const subscribeToPrivateInbox = (userId, callback) => {
       console.error('Error subscribing to private inbox:', error);
       callback([]);
     }
+  );
+};
+
+export const subscribeToPrivateMatchState = (userId, callback) => {
+  if (!userId || typeof callback !== 'function') {
+    callback?.([]);
+    return () => {};
+  }
+
+  const stateRef = collection(db, 'users', userId, 'private_match_state');
+  return onSnapshot(
+    stateRef,
+    (snapshot) => {
+      const items = snapshot.docs
+        .map((docSnap) => ({
+          id: docSnap.id,
+          ...docSnap.data(),
+        }))
+        .sort((a, b) => {
+          const aMs = Number(a?.updatedAtMs || 0);
+          const bMs = Number(b?.updatedAtMs || 0);
+          return bMs - aMs;
+        });
+
+      callback(items);
+    },
+    (error) => {
+      console.error('Error subscribing to private match state:', error);
+      callback([]);
+    }
+  );
+};
+
+export const upsertPrivateMatchState = async (userId, targetUserId, patch = {}) => {
+  if (!userId || !targetUserId) return;
+
+  await setDoc(
+    doc(db, 'users', userId, 'private_match_state', targetUserId),
+    {
+      targetUserId,
+      updatedAt: serverTimestamp(),
+      updatedAtMs: Date.now(),
+      ...patch,
+    },
+    { merge: true }
   );
 };
 

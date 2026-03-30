@@ -68,10 +68,12 @@ import {
   respondToPrivateChatRequest,
   subscribeToNotifications,
   subscribeToPrivateInbox,
+  subscribeToPrivateMatchState,
   markPrivateInboxConversationRead,
   markNotificationAsRead,
   getOrCreatePrivateChat,
   signalPrivateChatOpen,
+  upsertPrivateMatchState,
   respondToPrivateGroupInvite
 } from '@/services/socialService';
 import { subscribeToBlockedUsers, isBlocked, isBlockedBetween } from '@/services/blockService';
@@ -89,12 +91,12 @@ import { startEngagementTracking, hasReachedOneHourLimit, getTotalEngagementTime
 import { notificationSounds, initAudioOnFirstGesture } from '@/services/notificationSounds';
 import { monitorActivityAndSendVOC, resetVOCCooldown } from '@/services/vocService';
 import { generateNicoWelcome, sendNicoQuestion, getLastNicoMessageAge, NICO, QUESTION_INTERVAL_MS } from '@/services/nicoBot';
-import EventoBanner from '@/components/eventos/EventoBanner';
 import ProCongratsModal from '@/components/rewards/ProCongratsModal';
 import { markReminderPopupShown, wasReminderPopupShown, cleanOldReminders } from '@/utils/eventReminderUtils';
 import { registrarParticipacionEvento } from '@/services/eventosService';
 import { resolveProfileRole } from '@/config/profileRoles';
 import { COMUNA_OPTIONS, getComunaKey, normalizeComuna, ONBOARDING_COMUNA_KEY } from '@/config/comunas';
+import { MessageCircle } from 'lucide-react';
 import '@/utils/chatDiagnostics'; // 🔍 Cargar diagnóstico en consola
 import { 
   trackChatLoad, 
@@ -129,6 +131,8 @@ const PRIVATE_MATCH_NO_RESPONSE_MS = 12000;
 const PRIVATE_MATCH_FRUSTRATION_MS = 6000;
 const PRIVATE_MATCH_REQUEST_WINDOW_MS = 30000;
 const PRIVATE_MATCH_COOLDOWN_MS = 2 * 60 * 1000;
+const IN_PRIVATE_STRIP_INTERVAL_MS = 45 * 1000;
+const IN_PRIVATE_STRIP_VISIBLE_MS = 7 * 1000;
 const PRIVATE_MATCH_QUICK_GREETINGS = ['Hola 👋', '¿Qué haces?', '¿De dónde eres?'];
 const RANDOM_CONNECT_SOURCE = 'random_connect_chain';
 const RANDOM_CONNECT_STARTERS = ['Hola 👋', '¿Qué tal?', '¿De dónde eres?', '¿Te tinca hablar?'];
@@ -186,6 +190,419 @@ const getComunaMatchBoost = (selfComuna, candidateComuna) => {
   if (!selfKey || !candidateKey) return 0;
   if (selfKey === candidateKey) return 28;
   return 0;
+};
+
+const normalizeIntentText = (value) => String(value || '')
+  .normalize('NFD')
+  .replace(/[\u0300-\u036f]/g, '')
+  .toLowerCase()
+  .replace(/[^\p{L}\p{N}\s]/gu, ' ')
+  .replace(/\s+/g, ' ')
+  .trim();
+
+const hasIntentPhrase = (text, phrases = []) => phrases.some((phrase) => text.includes(phrase));
+
+const getImplicitSeekingBuckets = (offeredRole) => {
+  const roleBucket = getRoleBucket(offeredRole);
+  if (roleBucket === 'activo') return ['pasivo', 'versatil'];
+  if (roleBucket === 'pasivo') return ['activo', 'versatil'];
+  if (roleBucket === 'versatil') return ['activo', 'pasivo', 'versatil'];
+  return [];
+};
+
+const extractPublicMatchIntent = ({ content, fallbackRole = null }) => {
+  const text = normalizeIntentText(content);
+  const normalizedRole = resolveProfileRole(fallbackRole);
+  const offeredBuckets = new Set();
+  const seekingBuckets = new Set();
+  let confidence = 0;
+
+  if (!text) {
+    return {
+      text,
+      confidence: 0,
+      offeredRole: normalizedRole,
+      offeredBucket: getRoleBucket(normalizedRole),
+      seekingBuckets: [],
+      hasExplicitSeek: false,
+      isContextual: false,
+    };
+  }
+
+  const passivePhrases = ['soy pasivo', 'aca pasivo', 'hola soy pasivo', 'pasivo aqui', 'pasivo por aca', 'pasivo disponible'];
+  const activePhrases = ['soy activo', 'aca activo', 'hola soy activo', 'activo aqui', 'activo por aca', 'activo disponible'];
+  const versatilPhrases = ['soy versatil', 'soy vers', 'versatil por aca', 'versatil aqui', 'vers por aca', 'vers aqui'];
+
+  if (hasIntentPhrase(text, passivePhrases)) {
+    offeredBuckets.add('pasivo');
+    confidence += 30;
+  }
+  if (hasIntentPhrase(text, activePhrases)) {
+    offeredBuckets.add('activo');
+    confidence += 30;
+  }
+  if (hasIntentPhrase(text, versatilPhrases) || text.includes('versatil') || text.includes(' vers ')) {
+    offeredBuckets.add('versatil');
+    confidence += 24;
+  }
+
+  if (hasIntentPhrase(text, ['busco activo', 'algun activo', 'alguno activo', 'activos?', 'activo?'])) {
+    seekingBuckets.add('activo');
+    confidence += 34;
+  }
+  if (hasIntentPhrase(text, ['busco pasivo', 'algun pasivo', 'alguno pasivo', 'pasivos?', 'pasivo?'])) {
+    seekingBuckets.add('pasivo');
+    confidence += 34;
+  }
+  if (hasIntentPhrase(text, ['busco versatil', 'algun versatil', 'alguno versatil', 'versatiles?', 'versatil?'])) {
+    seekingBuckets.add('versatil');
+    confidence += 28;
+  }
+
+  if (offeredBuckets.size === 0 && normalizedRole) {
+    const fallbackBucket = getRoleBucket(normalizedRole);
+    if (fallbackBucket !== 'otro') {
+      offeredBuckets.add(fallbackBucket);
+      confidence += 18;
+    }
+  }
+
+  const hasExplicitSeek = seekingBuckets.size > 0;
+  if (!hasExplicitSeek && offeredBuckets.size > 0) {
+    getImplicitSeekingBuckets(normalizedRole || Array.from(offeredBuckets)[0]).forEach((bucket) => {
+      seekingBuckets.add(bucket);
+    });
+    confidence += 12;
+  }
+
+  const hasLocationContext = /(providencia|vitacura|santiago|vina|viña|concepcion|conce|maipu|maipu|curico|curico|puerto montt|las condes|penalolen|peñalolen|villa alemana)/.test(text);
+  if (hasLocationContext) confidence += 10;
+
+  const hasIntentVerb = /(busco|ando|quiero|conocer|hablar|charlar|disponible|por aca|por aqui|de donde)/.test(text);
+  if (hasIntentVerb) confidence += 8;
+
+  const offeredBucket = Array.from(offeredBuckets)[0] || getRoleBucket(normalizedRole);
+  return {
+    text,
+    confidence,
+    offeredRole: normalizedRole,
+    offeredBucket,
+    seekingBuckets: Array.from(seekingBuckets),
+    hasExplicitSeek,
+    hasLocationContext,
+    hasIntentVerb,
+    isContextual: Boolean(hasIntentVerb || hasLocationContext || hasExplicitSeek || offeredBuckets.size > 0),
+  };
+};
+
+const getIntentMatchCopy = ({ username, offeredRole, seekingBucket, isOnline = true }) => {
+  const fallbackName = username || 'Este usuario';
+  const roleLabel = offeredRole ? offeredRole.toLowerCase() : 'compatible contigo';
+  const targetText = seekingBucket === 'activo'
+    ? 'busca un activo'
+    : seekingBucket === 'pasivo'
+      ? 'busca un pasivo'
+      : seekingBucket === 'versatil'
+        ? 'busca alguien versátil'
+        : `es ${roleLabel}`;
+
+  return {
+    title: `${fallbackName} ${targetText}`,
+    description: isOnline
+      ? 'Escríbele en privado ahora.'
+      : 'Déjale un mensaje para cuando se conecte.',
+  };
+};
+
+const getIntentDrivenGreeting = ({ username, seekingBucket, offeredRole }) => {
+  const fallbackName = username || 'hola';
+  const roleLabel = offeredRole ? offeredRole.toLowerCase() : null;
+
+  if (seekingBucket === 'activo') {
+    return `Hola ${fallbackName}, vi que buscas un activo 👋`;
+  }
+
+  if (seekingBucket === 'pasivo') {
+    return `Hola ${fallbackName}, vi que buscas un pasivo 👋`;
+  }
+
+  if (seekingBucket === 'versatil') {
+    return roleLabel
+      ? `Hola ${fallbackName}, vi tu mensaje de ${roleLabel} en la sala 👋`
+      : `Hola ${fallbackName}, vi tu mensaje en la sala 👋`;
+  }
+
+  return roleLabel
+    ? `Hola ${fallbackName}, vi tu mensaje de ${roleLabel} en la sala 👋`
+    : `Hola ${fallbackName}, vi tu mensaje en la sala 👋`;
+};
+
+const LOW_SIGNAL_PUBLIC_PATTERNS = new Set([
+  'hola',
+  'holaa',
+  'holaa',
+  'ola',
+  'buenas',
+  'buenas noches',
+  'hey',
+  'hi',
+  'alguien',
+  'alguno',
+  'alguna',
+  'q tal',
+  'que tal',
+  'activo',
+  'pasivo',
+  'versatil',
+  'activo?',
+  'pasivo?',
+  'versatil?',
+]);
+
+const PRIVATE_SUGGESTION_SCORE_STORAGE_KEY = 'chactivo:private-suggestion-scores:v1';
+const PRIVATE_MATCH_STATE_TTL_MS = 21 * 24 * 60 * 60 * 1000;
+
+const getPrivateMatchDayKey = (value = Date.now()) => {
+  try {
+    return new Intl.DateTimeFormat('sv-SE').format(new Date(value));
+  } catch {
+    return new Date(value).toISOString().slice(0, 10);
+  }
+};
+
+const normalizePrivateSuggestionEntry = (entry = {}) => {
+  const normalized = {
+    score: Math.max(0, Number(entry?.score || 0)),
+    updatedAt: Math.max(0, Number(entry?.updatedAt || entry?.updatedAtMs || 0)),
+    lastSuggestedAtMs: Math.max(0, Number(entry?.lastSuggestedAtMs || 0)),
+    lastOpenedAtMs: Math.max(0, Number(entry?.lastOpenedAtMs || 0)),
+    lastSuccessAtMs: Math.max(0, Number(entry?.lastSuccessAtMs || 0)),
+    lastDismissedAtMs: Math.max(0, Number(entry?.lastDismissedAtMs || 0)),
+    shownCount: Math.max(0, Number(entry?.shownCount || 0)),
+    openedCount: Math.max(0, Number(entry?.openedCount || 0)),
+    successCount: Math.max(0, Number(entry?.successCount || 0)),
+    dismissedCount: Math.max(0, Number(entry?.dismissedCount || 0)),
+    suggestedDayKey: typeof entry?.suggestedDayKey === 'string' ? entry.suggestedDayKey : '',
+  };
+
+  if (!normalized.updatedAt) {
+    normalized.updatedAt = Math.max(
+      normalized.lastSuggestedAtMs,
+      normalized.lastOpenedAtMs,
+      normalized.lastSuccessAtMs,
+      normalized.lastDismissedAtMs,
+      0
+    );
+  }
+
+  return normalized;
+};
+
+const mergePrivateSuggestionEntries = (...entries) => entries
+  .filter(Boolean)
+  .map((entry) => normalizePrivateSuggestionEntry(entry))
+  .reduce((acc, entry) => ({
+    score: Math.max(acc.score, entry.score),
+    updatedAt: Math.max(acc.updatedAt, entry.updatedAt),
+    lastSuggestedAtMs: Math.max(acc.lastSuggestedAtMs, entry.lastSuggestedAtMs),
+    lastOpenedAtMs: Math.max(acc.lastOpenedAtMs, entry.lastOpenedAtMs),
+    lastSuccessAtMs: Math.max(acc.lastSuccessAtMs, entry.lastSuccessAtMs),
+    lastDismissedAtMs: Math.max(acc.lastDismissedAtMs, entry.lastDismissedAtMs),
+    shownCount: Math.max(acc.shownCount, entry.shownCount),
+    openedCount: Math.max(acc.openedCount, entry.openedCount),
+    successCount: Math.max(acc.successCount, entry.successCount),
+    dismissedCount: Math.max(acc.dismissedCount, entry.dismissedCount),
+    suggestedDayKey: acc.suggestedDayKey || entry.suggestedDayKey,
+  }), normalizePrivateSuggestionEntry());
+
+const getAgePenalty = (timestampMs, nowMs, levels = []) => {
+  if (!timestampMs) return 0;
+  const ageMs = Math.max(0, nowMs - timestampMs);
+  const level = levels.find((item) => ageMs <= item.untilMs);
+  return level ? level.penalty : 0;
+};
+
+const getPrivateSuggestionPenalty = (entry, nowMs = Date.now()) => {
+  const normalized = normalizePrivateSuggestionEntry(entry);
+  if (!normalized.updatedAt) return 0;
+
+  const ageMs = Math.max(0, nowMs - normalized.updatedAt);
+  let basePenaltyFactor = 1;
+  if (ageMs > (7 * 24 * 60 * 60 * 1000)) basePenaltyFactor = 0.12;
+  else if (ageMs > (3 * 24 * 60 * 60 * 1000)) basePenaltyFactor = 0.25;
+  else if (ageMs > (24 * 60 * 60 * 1000)) basePenaltyFactor = 0.45;
+  else if (ageMs > (6 * 60 * 60 * 1000)) basePenaltyFactor = 0.7;
+  else if (ageMs > (60 * 60 * 1000)) basePenaltyFactor = 0.88;
+
+  const basePenalty = normalized.score * 4.2 * basePenaltyFactor;
+  const suggestedTodayPenalty = normalized.suggestedDayKey === getPrivateMatchDayKey(nowMs) ? 20 : 0;
+  const shownPenalty = getAgePenalty(normalized.lastSuggestedAtMs, nowMs, [
+    { untilMs: 60 * 60 * 1000, penalty: 12 },
+    { untilMs: 6 * 60 * 60 * 1000, penalty: 8 },
+    { untilMs: 24 * 60 * 60 * 1000, penalty: 5 },
+    { untilMs: 72 * 60 * 60 * 1000, penalty: 2 },
+  ]);
+  const openedPenalty = getAgePenalty(normalized.lastOpenedAtMs, nowMs, [
+    { untilMs: 6 * 60 * 60 * 1000, penalty: 16 },
+    { untilMs: 24 * 60 * 60 * 1000, penalty: 10 },
+    { untilMs: 72 * 60 * 60 * 1000, penalty: 4 },
+  ]);
+  const successPenalty = getAgePenalty(normalized.lastSuccessAtMs, nowMs, [
+    { untilMs: 24 * 60 * 60 * 1000, penalty: 18 },
+    { untilMs: 3 * 24 * 60 * 60 * 1000, penalty: 10 },
+    { untilMs: 7 * 24 * 60 * 60 * 1000, penalty: 5 },
+  ]);
+  const dismissedPenalty = getAgePenalty(normalized.lastDismissedAtMs, nowMs, [
+    { untilMs: 2 * 60 * 60 * 1000, penalty: 12 },
+    { untilMs: 24 * 60 * 60 * 1000, penalty: 6 },
+    { untilMs: 72 * 60 * 60 * 1000, penalty: 3 },
+  ]);
+
+  return Math.round(
+    basePenalty
+    + suggestedTodayPenalty
+    + shownPenalty
+    + openedPenalty
+    + successPenalty
+    + dismissedPenalty
+  );
+};
+
+const getPublicMessageSignalMeta = ({ content, fallbackRole = null }) => {
+  const text = normalizeIntentText(content);
+  const intent = extractPublicMatchIntent({ content, fallbackRole });
+  const words = text ? text.split(' ').filter(Boolean) : [];
+  const roleLabel = intent.offeredRole ? intent.offeredRole.toLowerCase() : null;
+  const firstSeekingBucket = intent.seekingBuckets?.[0] || null;
+
+  const isGenericLowSignal = Boolean(
+    text
+    && !intent.hasExplicitSeek
+    && !intent.hasLocationContext
+    && !intent.hasIntentVerb
+    && (
+      LOW_SIGNAL_PUBLIC_PATTERNS.has(text)
+      || (words.length <= 2 && LOW_SIGNAL_PUBLIC_PATTERNS.has(words.join(' ')))
+    )
+  );
+
+  const isContextualHighSignal = Boolean(
+    text
+    && !isGenericLowSignal
+    && (
+      intent.confidence >= 34
+      || intent.hasExplicitSeek
+      || intent.hasLocationContext
+      || (intent.hasIntentVerb && Boolean(roleLabel))
+    )
+  );
+
+  let accentLabel = null;
+  if (firstSeekingBucket === 'activo') accentLabel = 'Busca activo';
+  else if (firstSeekingBucket === 'pasivo') accentLabel = 'Busca pasivo';
+  else if (firstSeekingBucket === 'versatil') accentLabel = 'Busca versátil';
+  else if (roleLabel) accentLabel = roleLabel.charAt(0).toUpperCase() + roleLabel.slice(1);
+  else if (intent.hasLocationContext) accentLabel = 'Con contexto';
+
+  return {
+    isGenericLowSignal,
+    isContextualHighSignal,
+    confidence: intent.confidence,
+    accentLabel,
+  };
+};
+
+const getIntentTokens = (value) => normalizeIntentText(value)
+  .split(' ')
+  .map((token) => token.trim())
+  .filter((token) => token && token.length > 1);
+
+const getTokenOverlapRatio = (sourceTokens = [], targetTokens = []) => {
+  if (!sourceTokens.length || !targetTokens.length) return 0;
+  const sourceSet = new Set(sourceTokens);
+  const targetSet = new Set(targetTokens);
+  let shared = 0;
+  sourceSet.forEach((token) => {
+    if (targetSet.has(token)) shared += 1;
+  });
+  return shared / Math.max(sourceSet.size, targetSet.size, 1);
+};
+
+const getRepeatedPublicMessageMeta = ({ content, userId, messages = [], nowMs = Date.now() }) => {
+  const normalizedIncoming = normalizeIntentText(content);
+  if (!normalizedIncoming || !userId || !Array.isArray(messages) || messages.length === 0) {
+    return null;
+  }
+
+  const incomingTokens = getIntentTokens(content);
+  const incomingSignal = getPublicMessageSignalMeta({ content });
+  const incomingIntent = extractPublicMatchIntent({ content });
+  const repeatWindowMs = 4 * 60 * 1000;
+
+  for (let i = messages.length - 1; i >= 0; i -= 1) {
+    const msg = messages[i];
+    if (!msg || msg.userId !== userId || msg.type !== 'text') continue;
+
+    const timestampMs = msg.timestampMs ||
+      (msg.timestamp?.toMillis?.() ||
+        (typeof msg.timestamp === 'number'
+          ? msg.timestamp
+          : (msg.timestamp ? new Date(msg.timestamp).getTime() : null)));
+    if (!timestampMs || (nowMs - timestampMs) > repeatWindowMs) continue;
+
+    const normalizedExisting = normalizeIntentText(msg.content || '');
+    if (!normalizedExisting) continue;
+
+    if (normalizedExisting === normalizedIncoming) {
+      return { reason: 'exact', previousMessage: msg };
+    }
+
+    const existingTokens = getIntentTokens(msg.content || '');
+    const overlapRatio = getTokenOverlapRatio(incomingTokens, existingTokens);
+    const minTokenCount = Math.min(incomingTokens.length, existingTokens.length);
+    const isNearDuplicate = overlapRatio >= 0.82 && minTokenCount >= 3;
+    const isContainedVariant = minTokenCount >= 3 && (
+      normalizedExisting.includes(normalizedIncoming) || normalizedIncoming.includes(normalizedExisting)
+    );
+
+    if (isNearDuplicate || isContainedVariant) {
+      return { reason: 'semantic', previousMessage: msg };
+    }
+
+    const existingSignal = getPublicMessageSignalMeta({ content: msg.content || '' });
+    const existingIntent = extractPublicMatchIntent({ content: msg.content || '' });
+    const sameOfferedBucket = incomingIntent?.offeredBucket
+      && incomingIntent.offeredBucket !== 'otro'
+      && incomingIntent.offeredBucket === existingIntent?.offeredBucket;
+    const incomingSeekingKey = (incomingIntent?.seekingBuckets || []).slice().sort().join('|');
+    const existingSeekingKey = (existingIntent?.seekingBuckets || []).slice().sort().join('|');
+    const sameSeekingIntent = Boolean(incomingSeekingKey && incomingSeekingKey === existingSeekingKey);
+    const hasRepeatedStructuredIntent = (
+      incomingIntent?.confidence >= 28
+      && existingIntent?.confidence >= 28
+      && (sameOfferedBucket || sameSeekingIntent)
+      && (
+        incomingIntent.hasExplicitSeek
+        || existingIntent.hasExplicitSeek
+        || incomingSignal?.isContextualHighSignal
+        || existingSignal?.isContextualHighSignal
+      )
+    );
+
+    if (hasRepeatedStructuredIntent) {
+      return { reason: 'intent_repeat', previousMessage: msg };
+    }
+
+    if (
+      incomingSignal?.isGenericLowSignal
+      && existingSignal?.isGenericLowSignal
+      && minTokenCount <= 2
+    ) {
+      return { reason: 'generic_repeat', previousMessage: msg };
+    }
+  }
+
+  return null;
 };
 
 // 💬 Frases rápidas reales — rol, intención y ubicación
@@ -704,7 +1121,10 @@ const ChatPage = () => {
   const [pendingPrivateRequests, setPendingPrivateRequests] = useState([]);
   const [unreadPrivateMessages, setUnreadPrivateMessages] = useState({});
   const [privateInboxItems, setPrivateInboxItems] = useState([]);
+  const [privateMatchStateItems, setPrivateMatchStateItems] = useState([]);
   const [privateDirectMessageToast, setPrivateDirectMessageToast] = useState(null);
+  const [showInPrivateUsersStrip, setShowInPrivateUsersStrip] = useState(false);
+  const [isInPrivateUsersStripPinned, setIsInPrivateUsersStripPinned] = useState(false);
   const [privateMatchSuggestion, setPrivateMatchSuggestion] = useState(null);
   const [isSendingPrivateMatchRequest, setIsSendingPrivateMatchRequest] = useState(false);
   const [isRandomConnectActive, setIsRandomConnectActive] = useState(false);
@@ -728,6 +1148,12 @@ const ChatPage = () => {
   const lastInteractionAtRef = useRef(Date.now());
   const privateMatchLastShownAtRef = useRef(0);
   const privateMatchCooldownByTargetRef = useRef(new Map());
+  const intentMatchShownKeysRef = useRef(new Set());
+  const privateInboxReturnToastKeysRef = useRef(new Set());
+  const inPrivateUsersAutoHideTimeoutRef = useRef(null);
+  const inPrivateUsersIntervalRef = useRef(null);
+  const lastInPrivateUsersSignatureRef = useRef('');
+  const genericMessageNudgeAtRef = useRef(0);
   const isSendingPrivateMatchRequestRef = useRef(false);
   const responseRescueShownKeysRef = useRef(new Set());
   const loadingRescueShownRef = useRef(false);
@@ -1071,6 +1497,7 @@ const ChatPage = () => {
         username: msg?.username || 'Usuario',
         avatar: resolveChatAvatar(msg?.avatar),
         roleBadge: resolveProfileRole(msg?.roleBadge, msg?.profileRole, msg?.role),
+        comuna: normalizeComuna(msg?.comuna || msg?.profileComuna || msg?.userComuna || '') || null,
         isPremium: Boolean(msg?.isPremium || msg?.isProUser),
         isGuest: Boolean(msg?.isGuest || msg?.isAnonymous),
         lastConnectedAt: ts,
@@ -1364,6 +1791,108 @@ const ChatPage = () => {
     return ids;
   }, [openPrivateChats]);
 
+  const [privateSuggestionScoreVersion, setPrivateSuggestionScoreVersion] = useState(0);
+  const privateSuggestionScoreMapRef = useRef(new Map());
+  const privateMatchStateByTarget = useMemo(() => {
+    const nextMap = new Map();
+    (privateMatchStateItems || []).forEach((item) => {
+      const targetUserId = item?.targetUserId || item?.id;
+      if (!targetUserId) return;
+      nextMap.set(targetUserId, normalizePrivateSuggestionEntry(item));
+    });
+    return nextMap;
+  }, [privateMatchStateItems]);
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+
+    try {
+      const raw = localStorage.getItem(PRIVATE_SUGGESTION_SCORE_STORAGE_KEY);
+      if (!raw) {
+        privateSuggestionScoreMapRef.current = new Map();
+        setPrivateSuggestionScoreVersion((prev) => prev + 1);
+        return;
+      }
+
+      const parsed = JSON.parse(raw);
+      const nextMap = new Map();
+      const now = Date.now();
+
+      Object.entries(parsed || {}).forEach(([targetUserId, entry]) => {
+        if (!targetUserId || !entry || typeof entry !== 'object') return;
+        const normalizedEntry = normalizePrivateSuggestionEntry(entry);
+        if (normalizedEntry.score <= 0 && !normalizedEntry.lastSuggestedAtMs && !normalizedEntry.lastOpenedAtMs && !normalizedEntry.lastDismissedAtMs) {
+          return;
+        }
+        if (!normalizedEntry.updatedAt) return;
+        if ((now - normalizedEntry.updatedAt) > PRIVATE_MATCH_STATE_TTL_MS) return;
+        nextMap.set(targetUserId, normalizedEntry);
+      });
+
+      privateSuggestionScoreMapRef.current = nextMap;
+      setPrivateSuggestionScoreVersion((prev) => prev + 1);
+    } catch {
+      privateSuggestionScoreMapRef.current = new Map();
+      setPrivateSuggestionScoreVersion((prev) => prev + 1);
+    }
+  }, [user?.id]);
+
+  const bumpPrivateSuggestionScore = useCallback((targetUserId, delta = 1, eventType = 'shown') => {
+    if (!targetUserId || typeof window === 'undefined') return;
+
+    const now = Date.now();
+    const dayKey = getPrivateMatchDayKey(now);
+    const nextMap = new Map(privateSuggestionScoreMapRef.current);
+    const currentEntry = normalizePrivateSuggestionEntry(nextMap.get(targetUserId) || {});
+    const nextEntry = {
+      ...currentEntry,
+      score: Math.max(0, Math.min(24, Number(currentEntry.score || 0) + delta)),
+      updatedAt: now,
+    };
+
+    if (eventType === 'shown') {
+      nextEntry.lastSuggestedAtMs = now;
+      nextEntry.shownCount = Number(nextEntry.shownCount || 0) + 1;
+      nextEntry.suggestedDayKey = dayKey;
+    } else if (eventType === 'opened') {
+      nextEntry.lastOpenedAtMs = now;
+      nextEntry.openedCount = Number(nextEntry.openedCount || 0) + 1;
+    } else if (eventType === 'success') {
+      nextEntry.lastSuccessAtMs = now;
+      nextEntry.successCount = Number(nextEntry.successCount || 0) + 1;
+    } else if (eventType === 'dismissed') {
+      nextEntry.lastDismissedAtMs = now;
+      nextEntry.dismissedCount = Number(nextEntry.dismissedCount || 0) + 1;
+    }
+
+    nextMap.set(targetUserId, nextEntry);
+
+    privateSuggestionScoreMapRef.current = nextMap;
+
+    const serializable = {};
+    nextMap.forEach((entry, key) => {
+      serializable[key] = entry;
+    });
+    localStorage.setItem(PRIVATE_SUGGESTION_SCORE_STORAGE_KEY, JSON.stringify(serializable));
+    setPrivateSuggestionScoreVersion((prev) => prev + 1);
+    if (user?.id) {
+      const remotePatch = {
+        score: nextEntry.score,
+        shownCount: nextEntry.shownCount,
+        openedCount: nextEntry.openedCount,
+        successCount: nextEntry.successCount,
+        dismissedCount: nextEntry.dismissedCount,
+        suggestedDayKey: nextEntry.suggestedDayKey || '',
+      };
+      if (nextEntry.lastSuggestedAtMs) remotePatch.lastSuggestedAtMs = nextEntry.lastSuggestedAtMs;
+      if (nextEntry.lastOpenedAtMs) remotePatch.lastOpenedAtMs = nextEntry.lastOpenedAtMs;
+      if (nextEntry.lastSuccessAtMs) remotePatch.lastSuccessAtMs = nextEntry.lastSuccessAtMs;
+      if (nextEntry.lastDismissedAtMs) remotePatch.lastDismissedAtMs = nextEntry.lastDismissedAtMs;
+
+      void upsertPrivateMatchState(user.id, targetUserId, remotePatch).catch(() => {});
+    }
+  }, [user?.id]);
+
   const privateMatchCandidates = useMemo(() => {
     if (isHeteroRoom || !user?.id || !Array.isArray(roomUsers) || roomUsers.length === 0) return [];
 
@@ -1384,8 +1913,14 @@ const ChatPage = () => {
           presenceUser?.comuna ||
           latestComunaByConnectedUser.get(userId)
         );
-        const score = getRoleCompatibilityScore(currentUserResolvedRole, normalizedRole)
+        const rawScore = getRoleCompatibilityScore(currentUserResolvedRole, normalizedRole)
           + getComunaMatchBoost(currentUserComuna, candidateComuna);
+        const persistedState = mergePrivateSuggestionEntries(
+          privateSuggestionScoreMapRef.current.get(userId),
+          privateMatchStateByTarget.get(userId)
+        );
+        const persistedPenalty = getPrivateSuggestionPenalty(persistedState);
+        const score = rawScore - persistedPenalty;
 
         return {
           id: userId,
@@ -1397,6 +1932,7 @@ const ChatPage = () => {
           roleBadge: normalizedRole || null,
           comuna: candidateComuna || null,
           sameComuna: Boolean(candidateComuna && currentUserComuna && getComunaKey(candidateComuna) === getComunaKey(currentUserComuna)),
+          suggestionState: persistedState,
           score,
         };
       })
@@ -1415,6 +1951,238 @@ const ChatPage = () => {
     isSystemUserId,
     isAutomatedUserId,
     isHeteroRoom,
+    privateMatchStateByTarget,
+    privateSuggestionScoreVersion,
+  ]);
+
+  const intentDrivenPrivateMatchSignal = useMemo(() => {
+    if (isHeteroRoom || !user?.id || !currentUserResolvedRole) return null;
+    if (!Array.isArray(filteredMessages) || filteredMessages.length === 0) return null;
+    if (!Array.isArray(privateMatchCandidates) || privateMatchCandidates.length === 0) return null;
+
+    const candidateByUserId = new Map(
+      privateMatchCandidates.map((candidate) => [candidate.userId || candidate.id, candidate])
+    );
+    const currentRoleBucket = getRoleBucket(currentUserResolvedRole);
+    if (currentRoleBucket === 'otro') return null;
+
+    for (let i = filteredMessages.length - 1; i >= 0; i -= 1) {
+      const msg = filteredMessages[i];
+      const senderId = msg?.userId || '';
+      if (!senderId || senderId === user.id) continue;
+      if (isSystemUserId(senderId) || isAutomatedUserId(senderId)) continue;
+
+      const candidate = candidateByUserId.get(senderId);
+      if (!candidate) continue;
+
+      const timestampMs = msg.timestampMs ||
+        (msg.timestamp?.toMillis?.() ||
+          (typeof msg.timestamp === 'number'
+            ? msg.timestamp
+            : (msg.timestamp ? new Date(msg.timestamp).getTime() : null)));
+      if (!timestampMs || (Date.now() - timestampMs) > 45000) continue;
+
+      const fallbackRole = candidate.roleBadge || msg?.roleBadge || msg?.profileRole || msg?.role;
+      const intent = extractPublicMatchIntent({
+        content: msg?.content || '',
+        fallbackRole,
+      });
+      if (!intent.isContextual || intent.confidence < 34) continue;
+
+      const seekingBuckets = intent.seekingBuckets || [];
+      if (!seekingBuckets.includes(currentRoleBucket) && !seekingBuckets.includes('versatil')) continue;
+
+      const boostedScore = candidate.score + intent.confidence + (intent.hasExplicitSeek ? 24 : 0);
+      return {
+        key: `${senderId}:${timestampMs}:${String(msg?.content || '').slice(0, 40)}`,
+        partner: candidate,
+        confidence: intent.confidence,
+        score: boostedScore,
+        offeredRole: candidate.roleBadge || fallbackRole || null,
+        seekingBucket: currentRoleBucket,
+        messageId: msg?.id || null,
+        messageTimestampMs: timestampMs,
+      };
+    }
+
+    return null;
+  }, [
+    currentUserResolvedRole,
+    filteredMessages,
+    isAutomatedUserId,
+    isHeteroRoom,
+    isSystemUserId,
+    privateMatchCandidates,
+    user?.id,
+  ]);
+
+  const offlineIntentDrivenPrivateMatchSignal = useMemo(() => {
+    if (isHeteroRoom || !user?.id || !currentUserResolvedRole) return null;
+    if (!Array.isArray(filteredMessages) || filteredMessages.length === 0) return null;
+    if (!Array.isArray(recentPresenceFallbackUsers) || recentPresenceFallbackUsers.length === 0) return null;
+
+    const activeCandidateIds = new Set(
+      (privateMatchCandidates || []).map((candidate) => candidate.userId || candidate.id).filter(Boolean)
+    );
+    const offlineCandidateByUserId = new Map(
+      recentPresenceFallbackUsers
+        .filter((candidate) => {
+          const candidateId = candidate?.userId || candidate?.id;
+          if (!candidateId || candidateId === user.id) return false;
+          if (activeCandidateIds.has(candidateId)) return false;
+          if (candidate?.isGuest || candidate?.isAnonymous) return false;
+          const lastConnectedAt = Number(candidate?.lastConnectedAt || 0);
+          return lastConnectedAt > 0 && (Date.now() - lastConnectedAt) <= (3 * 60 * 60 * 1000);
+        })
+        .map((candidate) => [candidate.userId || candidate.id, candidate])
+    );
+
+    if (offlineCandidateByUserId.size === 0) return null;
+
+    const currentRoleBucket = getRoleBucket(currentUserResolvedRole);
+    if (currentRoleBucket === 'otro') return null;
+
+    for (let i = filteredMessages.length - 1; i >= 0; i -= 1) {
+      const msg = filteredMessages[i];
+      const senderId = msg?.userId || '';
+      if (!senderId || senderId === user.id) continue;
+      if (isSystemUserId(senderId) || isAutomatedUserId(senderId)) continue;
+
+      const candidate = offlineCandidateByUserId.get(senderId);
+      if (!candidate) continue;
+
+      const timestampMs = msg.timestampMs ||
+        (msg.timestamp?.toMillis?.() ||
+          (typeof msg.timestamp === 'number'
+            ? msg.timestamp
+            : (msg.timestamp ? new Date(msg.timestamp).getTime() : null)));
+      if (!timestampMs || (Date.now() - timestampMs) > (3 * 60 * 60 * 1000)) continue;
+
+      const fallbackRole = candidate.roleBadge || msg?.roleBadge || msg?.profileRole || msg?.role;
+      const intent = extractPublicMatchIntent({
+        content: msg?.content || '',
+        fallbackRole,
+      });
+      if (!intent.isContextual || intent.confidence < 34) continue;
+
+      const seekingBuckets = intent.seekingBuckets || [];
+      if (!seekingBuckets.includes(currentRoleBucket) && !seekingBuckets.includes('versatil')) continue;
+
+      return {
+        key: `offline:${senderId}:${timestampMs}:${String(msg?.content || '').slice(0, 40)}`,
+        partner: {
+          ...candidate,
+          score: (
+            getRoleCompatibilityScore(currentUserResolvedRole, candidate.roleBadge)
+            + getComunaMatchBoost(currentUserComuna, candidate.comuna)
+          ) - getPrivateSuggestionPenalty(mergePrivateSuggestionEntries(
+            privateSuggestionScoreMapRef.current.get(senderId),
+            privateMatchStateByTarget.get(senderId)
+          )),
+        },
+        confidence: intent.confidence,
+        offeredRole: candidate.roleBadge || fallbackRole || null,
+        seekingBucket: currentRoleBucket,
+        messageId: msg?.id || null,
+        messageTimestampMs: timestampMs,
+        isOnline: false,
+      };
+    }
+
+    return null;
+  }, [
+    currentUserComuna,
+    currentUserResolvedRole,
+    filteredMessages,
+    isAutomatedUserId,
+    isHeteroRoom,
+    isSystemUserId,
+    privateMatchCandidates,
+    privateMatchStateByTarget,
+    recentPresenceFallbackUsers,
+    user?.id,
+  ]);
+
+  const compatibleNowStripUsers = useMemo(() => {
+    if (isHeteroRoom) return [];
+    const todayKey = getPrivateMatchDayKey();
+    return (privateMatchCandidates || [])
+      .filter((candidate) => (
+        !candidate?.isGuest
+        && !candidate?.isAnonymous
+        && candidate?.suggestionState?.suggestedDayKey !== todayKey
+      ))
+      .slice(0, 4);
+  }, [isHeteroRoom, privateMatchCandidates]);
+
+  const pendingPrivateInboxReturnSignal = useMemo(() => {
+    if (!user?.id || !Array.isArray(privateInboxItems) || privateInboxItems.length === 0) return null;
+    if (!Array.isArray(roomUsers) || roomUsers.length === 0) return null;
+
+    const onlineUsersById = new Map(
+      roomUsers
+        .map((presenceUser) => {
+          const candidateId = presenceUser?.userId || presenceUser?.id || '';
+          if (!candidateId || candidateId === user.id) return null;
+          if (isSystemUserId(candidateId) || isAutomatedUserId(candidateId)) return null;
+          return [candidateId, presenceUser];
+        })
+        .filter(Boolean)
+    );
+    if (onlineUsersById.size === 0) return null;
+
+    const openPartnerIds = new Set(
+      (openPrivateChats || [])
+        .map((chatWindow) => chatWindow?.partner?.userId || chatWindow?.partner?.id)
+        .filter(Boolean)
+    );
+
+    for (const item of privateInboxItems) {
+      const targetUserId = item?.otherUserId || null;
+      if (!targetUserId || targetUserId === user.id) continue;
+      if (openPartnerIds.has(targetUserId)) continue;
+      if (item?.lastMessageSenderId !== user.id) continue;
+      if (!onlineUsersById.has(targetUserId)) continue;
+
+      const lastMessageAtMs = Number(
+        item?.lastMessageAt?.toMillis?.()
+        || item?.updatedAt?.toMillis?.()
+        || item?.lastMessageAt
+        || item?.updatedAt
+        || 0
+      );
+      if (!lastMessageAtMs || (Date.now() - lastMessageAtMs) > (2 * 24 * 60 * 60 * 1000)) continue;
+
+      const onlineProfile = onlineUsersById.get(targetUserId) || {};
+      return {
+        key: `${item?.chatId || item?.conversationId || 'private'}:${targetUserId}:${lastMessageAtMs}`,
+        chatId: item?.chatId || item?.conversationId || null,
+        targetUserId,
+        username: onlineProfile?.username || item?.otherUserDisplayName || 'Usuario',
+        avatar: resolveChatAvatar(onlineProfile?.avatar || item?.otherUserAvatar || ''),
+        roleBadge: resolveProfileRole(
+          onlineProfile?.roleBadge,
+          onlineProfile?.profileRole,
+          latestRoleByConnectedUser.get(targetUserId)
+        ),
+        comuna: normalizeComuna(
+          onlineProfile?.comuna ||
+          latestComunaByConnectedUser.get(targetUserId) ||
+          ''
+        ),
+      };
+    }
+
+    return null;
+  }, [
+    user?.id,
+    privateInboxItems,
+    roomUsers,
+    openPrivateChats,
+    latestRoleByConnectedUser,
+    latestComunaByConnectedUser,
+    isSystemUserId,
+    isAutomatedUserId,
   ]);
 
   const clearRandomConnectPendingTimeout = useCallback(() => {
@@ -1667,12 +2435,14 @@ const ChatPage = () => {
     if (!Array.isArray(privateMatchCandidates) || privateMatchCandidates.length === 0) return null;
 
     const now = Date.now();
+    const todayKey = getPrivateMatchDayKey(now);
     const cooldownMap = privateMatchCooldownByTargetRef.current;
 
     return privateMatchCandidates.find((item) => {
       const candidateId = item?.userId || item?.id;
       if (!candidateId) return false;
       if (item?.isGuest || item?.isAnonymous) return false;
+      if (item?.suggestionState?.suggestedDayKey === todayKey) return false;
 
       const blockedUntil = cooldownMap.get(candidateId) || 0;
       if (blockedUntil > now) return false;
@@ -1765,6 +2535,7 @@ const ChatPage = () => {
 
       if (!candidate) return;
 
+      bumpPrivateSuggestionScore(candidate.userId, 1);
       setPrivateMatchSuggestion({
         partner: candidate,
         systemText: 'Chactivo los conectó porque ambos están en línea ahora.',
@@ -1774,7 +2545,7 @@ const ChatPage = () => {
     }, 1000);
 
     return () => clearInterval(interval);
-  }, [currentRoom, privateMatchCandidates, user?.id, isInputFocused]);
+  }, [bumpPrivateSuggestionScore, currentRoom, privateMatchCandidates, user?.id, isInputFocused]);
 
   useEffect(() => {
     if (!user?.id || currentRoom !== 'principal' || isHeteroRoom) return;
@@ -1789,6 +2560,7 @@ const ChatPage = () => {
 
     loadingRescueShownRef.current = true;
     privateMatchLastShownAtRef.current = Date.now();
+    bumpPrivateSuggestionScore(candidate.userId, 1);
 
     setPrivateMatchSuggestion({
       partner: candidate,
@@ -1808,6 +2580,7 @@ const ChatPage = () => {
     isHeteroRoom,
     isLoadingMessages,
     messagesLoadingStage,
+    bumpPrivateSuggestionScore,
     getNextPrivateMatchCandidate,
   ]);
 
@@ -1825,6 +2598,7 @@ const ChatPage = () => {
 
     responseRescueShownKeysRef.current.add(signalKey);
     privateMatchLastShownAtRef.current = Date.now();
+    bumpPrivateSuggestionScore(candidate.userId, 1);
 
     const isFrustration = privateResponseRescueSignal.type === 'frustration';
     setPrivateMatchSuggestion({
@@ -1851,6 +2625,7 @@ const ChatPage = () => {
     user,
     isHeteroRoom,
     privateResponseRescueSignal,
+    bumpPrivateSuggestionScore,
     getNextPrivateMatchCandidate,
   ]);
 
@@ -1871,7 +2646,19 @@ const ChatPage = () => {
     const now = new Date();
     const chileHour = (now.getUTCHours() - 3 + 24) % 24;
     const isPeakHour = chileHour >= 21 || chileHour < 1;
-    const result = [...filteredMessages];
+    const result = filteredMessages.map((message) => {
+      if (!message || message.type !== 'text' || message.userId === 'system') {
+        return message;
+      }
+
+      return {
+        ...message,
+        _signalMeta: getPublicMessageSignalMeta({
+          content: message.content || '',
+          fallbackRole: message.roleBadge || message.profileRole || message.role,
+        }),
+      };
+    });
     let isPeakHourShown = false;
     let idleNudgeShown = false;
 
@@ -2078,6 +2865,106 @@ const ChatPage = () => {
 
     return uniqueUsers.size;
   }, [roomUsers]);
+
+  const inPrivateUsersPreview = useMemo(() => {
+    const byUserId = new Map();
+
+    (Array.isArray(recentPresenceFallbackUsers) ? recentPresenceFallbackUsers : []).forEach((item) => {
+      const userId = item?.userId || item?.id;
+      if (!userId) return;
+      byUserId.set(userId, {
+        userId,
+        username: item?.username || 'Usuario',
+        avatar: resolveChatAvatar(item?.avatar),
+        roleBadge: resolveProfileRole(item?.roleBadge, item?.profileRole, item?.role),
+        comuna: normalizeComuna(item?.comuna || item?.profileComuna || item?.userComuna || '') || null,
+        inPrivateWith: null,
+      });
+    });
+
+    (Array.isArray(roomUsers) ? roomUsers : []).forEach((item) => {
+      const userId = item?.userId || item?.id;
+      if (!userId || isSystemUserId(userId) || isAutomatedUserId(userId)) return;
+
+      const previous = byUserId.get(userId) || {};
+      byUserId.set(userId, {
+        ...previous,
+        userId,
+        username: item?.username || previous.username || 'Usuario',
+        avatar: resolveChatAvatar(item?.avatar || previous.avatar),
+        roleBadge: resolveProfileRole(
+          item?.roleBadge,
+          item?.profileRole,
+          previous.roleBadge
+        ) || previous.roleBadge || null,
+        comuna: normalizeComuna(item?.comuna || previous.comuna || '') || previous.comuna || null,
+        inPrivateWith: item?.inPrivateWith || null,
+      });
+    });
+
+    return Array.from(byUserId.values())
+      .filter((item) => item?.inPrivateWith && item.userId !== user?.id)
+      .slice(0, 8);
+  }, [recentPresenceFallbackUsers, roomUsers, isSystemUserId, isAutomatedUserId, user?.id]);
+
+  const inPrivateUsersSignature = useMemo(
+    () => inPrivateUsersPreview.map((item) => `${item.userId}:${item.inPrivateWith || 'private'}`).join('|'),
+    [inPrivateUsersPreview]
+  );
+
+  useEffect(() => {
+    const clearAutoHide = () => {
+      if (inPrivateUsersAutoHideTimeoutRef.current) {
+        window.clearTimeout(inPrivateUsersAutoHideTimeoutRef.current);
+        inPrivateUsersAutoHideTimeoutRef.current = null;
+      }
+    };
+
+    const clearPulseInterval = () => {
+      if (inPrivateUsersIntervalRef.current) {
+        window.clearInterval(inPrivateUsersIntervalRef.current);
+        inPrivateUsersIntervalRef.current = null;
+      }
+    };
+
+    if (isHeteroRoom || inPrivateUsersPreview.length === 0) {
+      clearAutoHide();
+      clearPulseInterval();
+      setShowInPrivateUsersStrip(false);
+      setIsInPrivateUsersStripPinned(false);
+      lastInPrivateUsersSignatureRef.current = '';
+      return undefined;
+    }
+
+    const scheduleAutoVisibleStrip = () => {
+      setShowInPrivateUsersStrip(true);
+      clearAutoHide();
+      if (!isInPrivateUsersStripPinned) {
+        inPrivateUsersAutoHideTimeoutRef.current = window.setTimeout(() => {
+          setShowInPrivateUsersStrip(false);
+        }, IN_PRIVATE_STRIP_VISIBLE_MS);
+      }
+    };
+
+    if (lastInPrivateUsersSignatureRef.current !== inPrivateUsersSignature) {
+      lastInPrivateUsersSignatureRef.current = inPrivateUsersSignature;
+      scheduleAutoVisibleStrip();
+    } else if (isInPrivateUsersStripPinned) {
+      setShowInPrivateUsersStrip(true);
+    }
+
+    clearPulseInterval();
+    if (!isInPrivateUsersStripPinned) {
+      inPrivateUsersIntervalRef.current = window.setInterval(() => {
+        scheduleAutoVisibleStrip();
+      }, IN_PRIVATE_STRIP_INTERVAL_MS);
+    }
+
+    return () => {
+      clearAutoHide();
+      clearPulseInterval();
+    };
+  }, [inPrivateUsersPreview.length, inPrivateUsersSignature, isHeteroRoom, isInPrivateUsersStripPinned]);
 
   const activityPulseBadges = useMemo(() => {
     const boostedMessagesCount60m = getBoostedMetricsMessagesCount(recentMessagesCount60m);
@@ -3765,6 +4652,19 @@ const ChatPage = () => {
   }, [authReady, user?.id]);
 
   useEffect(() => {
+    if (!authReady || !user?.id || auth.currentUser?.uid !== user.id) {
+      setPrivateMatchStateItems([]);
+      return;
+    }
+
+    const unsubscribe = subscribeToPrivateMatchState(user.id, (items) => {
+      setPrivateMatchStateItems(Array.isArray(items) ? items : []);
+    });
+
+    return () => unsubscribe();
+  }, [authReady, user?.id]);
+
+  useEffect(() => {
     if (!user?.id) return;
     const openChatIds = new Set((openPrivateChats || []).map((chat) => chat?.chatId).filter(Boolean));
     if (openChatIds.size === 0) return;
@@ -4142,6 +5042,12 @@ const ChatPage = () => {
     const messageMedia = Array.isArray(options?.media)
       ? options.media.filter((item) => item && typeof item.path === 'string' && item.path.trim())
       : [];
+    const publicMessageSignalMeta = isTextMessage
+      ? getPublicMessageSignalMeta({
+          content: trimmedContent,
+          fallbackRole: user?.profileRole || user?.role || localStorage.getItem('chactivo:role') || null,
+        })
+      : null;
 
     // 🔒 Si ya exigimos nickname (después del primer mensaje rápido), bloquear cualquier envío
     if (needsNickname && !(allowGuestAutoStart && isQuickStarter)) {
@@ -4320,6 +5226,30 @@ const ChatPage = () => {
       roomId: currentRoom,
     });
 
+    if (isTextMessage) {
+      const repeatedMessageMeta = getRepeatedPublicMessageMeta({
+        content: trimmedContent,
+        userId: currentUser.id,
+        messages: filteredMessages,
+        nowMs: Date.now(),
+      });
+
+      if (repeatedMessageMeta) {
+        const repeatDescription = repeatedMessageMeta.reason === 'generic_repeat'
+          ? 'Ya enviaste algo muy parecido hace poco. Agrega comuna, rol o lo que buscas antes de repetir.'
+          : repeatedMessageMeta.reason === 'intent_repeat'
+            ? 'Ya dijiste prácticamente la misma intención hace poco. Cambia el enfoque o responde a alguien concreto antes de repetir.'
+            : 'Ese mensaje es demasiado parecido a uno que acabas de enviar. Cámbialo un poco antes de repetirlo.';
+
+        toast({
+          title: 'Evita repetir lo mismo',
+          description: repeatDescription,
+          duration: 3200,
+        });
+        return;
+      }
+    }
+
     // 🚀 OPTIMISTIC UI: Mostrar mensaje INSTANTÁNEAMENTE (Zero Latency - como WhatsApp/Telegram)
     // ⚡ CRÍTICO: Mostrar primero, validar después (experiencia instantánea)
     const optimisticId = `temp_${Date.now()}_${Math.random()}`;
@@ -4363,6 +5293,7 @@ const ChatPage = () => {
       _optimistic: true, // Marca para saber que es temporal
       status: 'sending', // ⚡ Estado: 'sending' -> 'sent' -> 'error' (para indicadores visuales)
       _retryCount: 0, // Contador de reintentos
+      ...(publicMessageSignalMeta ? { _signalMeta: publicMessageSignalMeta } : {}),
       ...(messageMedia.length > 0 ? { media: messageMedia } : {}),
     };
 
@@ -4371,6 +5302,20 @@ const ChatPage = () => {
 
     // 🔔 NUDGE: interacción en chat (no bloqueante)
     handleChatInteraction?.();
+
+    if (
+      isTextMessage
+      && currentRoom === 'principal'
+      && publicMessageSignalMeta?.isGenericLowSignal
+      && (Date.now() - genericMessageNudgeAtRef.current) > 120000
+    ) {
+      genericMessageNudgeAtRef.current = Date.now();
+      toast({
+        title: 'Mejor con contexto',
+        description: 'Prueba agregar comuna, rol o lo que buscas. Esos mensajes reciben más respuesta.',
+        duration: 2600,
+      });
+    }
     
     // 🔍 TRACE: Mensaje optimista renderizado localmente
     traceEvent(TRACE_EVENTS.UI_LOCAL_RENDER, {
@@ -4836,6 +5781,7 @@ const ChatPage = () => {
   const handleDismissPrivateMatchSuggestion = useCallback(() => {
     const activeSuggestion = privateMatchSuggestionRef.current;
     if (activeSuggestion?.partner?.userId) {
+      bumpPrivateSuggestionScore(activeSuggestion.partner.userId, 2, 'dismissed');
       privateMatchCooldownByTargetRef.current.set(
         activeSuggestion.partner.userId,
         Date.now() + PRIVATE_MATCH_COOLDOWN_MS
@@ -4843,7 +5789,7 @@ const ChatPage = () => {
     }
     setPrivateMatchSuggestion(null);
     lastInteractionAtRef.current = Date.now();
-  }, []);
+  }, [bumpPrivateSuggestionScore]);
 
   useEffect(() => {
     if (!privateMatchSuggestion) return undefined;
@@ -4892,6 +5838,7 @@ const ChatPage = () => {
       });
 
       setPrivateMatchSuggestion(null);
+      bumpPrivateSuggestionScore(targetUserId, 4, 'success');
       setPrivateChatRequest({
         from: user,
         to: {
@@ -4937,7 +5884,7 @@ const ChatPage = () => {
     } finally {
       setIsSendingPrivateMatchRequest(false);
     }
-  }, [currentRoom, user, setShowRegistrationModal, setRegistrationModalFeature]);
+  }, [bumpPrivateSuggestionScore, currentRoom, user, setShowRegistrationModal, setRegistrationModalFeature]);
 
   const openOrCreatePrivateChatWithTarget = useCallback(async (targetUser, options = {}) => {
     const targetUserId = targetUser?.userId || targetUser?.id || null;
@@ -5008,6 +5955,7 @@ const ChatPage = () => {
         chatId,
         isPending: false,
       });
+      bumpPrivateSuggestionScore(targetUserId, 4, 'opened');
 
       void signalPrivateChatOpen({
         chatId,
@@ -5028,6 +5976,7 @@ const ChatPage = () => {
       throw error;
     }
   }, [
+    bumpPrivateSuggestionScore,
     currentRoom,
     discardPrivateChat,
     openPrivateChatWindow,
@@ -5052,6 +6001,154 @@ const ChatPage = () => {
       });
     });
   }, [authReady, openOrCreatePrivateChatWithTarget, pendingPrivateOptions, pendingPrivateTarget, user?.id]);
+
+  useEffect(() => {
+    if (!user?.id || !pendingPrivateInboxReturnSignal?.targetUserId) return;
+    const signalKey = pendingPrivateInboxReturnSignal.key;
+    if (!signalKey || privateInboxReturnToastKeysRef.current.has(signalKey)) return;
+
+    privateInboxReturnToastKeysRef.current.add(signalKey);
+    if (privateInboxReturnToastKeysRef.current.size > 120) {
+      privateInboxReturnToastKeysRef.current = new Set(
+        Array.from(privateInboxReturnToastKeysRef.current).slice(-60)
+      );
+    }
+
+    toast({
+      title: `${pendingPrivateInboxReturnSignal.username} volvió a conectarse`,
+      description: 'Tu último mensaje privado sigue pendiente en su inbox. Si quieres, retoma la conversación ahora.',
+      duration: 4200,
+      action: {
+        label: 'Abrir privado',
+        onClick: () => {
+          Promise.resolve()
+            .then(() => openOrCreatePrivateChatWithTarget({
+              userId: pendingPrivateInboxReturnSignal.targetUserId,
+              id: pendingPrivateInboxReturnSignal.targetUserId,
+              username: pendingPrivateInboxReturnSignal.username,
+              avatar: pendingPrivateInboxReturnSignal.avatar,
+              roleBadge: pendingPrivateInboxReturnSignal.roleBadge,
+              comuna: pendingPrivateInboxReturnSignal.comuna,
+            }, {
+              roomId: currentRoom,
+              source: 'pending_inbox_return',
+            }))
+            .catch((error) => {
+              console.error('Error reopening pending private inbox chat:', error);
+            });
+        },
+      },
+    });
+  }, [
+    currentRoom,
+    openOrCreatePrivateChatWithTarget,
+    pendingPrivateInboxReturnSignal,
+    user?.id,
+  ]);
+
+  useEffect(() => {
+    if (!user?.id || currentRoom !== 'principal' || isHeteroRoom) return;
+    const signal = intentDrivenPrivateMatchSignal?.partner
+      ? intentDrivenPrivateMatchSignal
+      : offlineIntentDrivenPrivateMatchSignal;
+    if (!signal?.partner) return;
+    if (privateChatRequestRef.current || privateMatchSuggestionRef.current) return;
+    if (isSendingPrivateMatchRequestRef.current) return;
+    if ((openPrivateChatsRef.current || []).length > 0) return;
+
+    const targetPartner = signal.partner;
+    const targetUserId = targetPartner?.userId || targetPartner?.id || null;
+    if (!targetUserId || targetUserId === user.id) return;
+    if (Array.isArray(activePrivatePartnerIds) && activePrivatePartnerIds.includes(targetUserId)) return;
+
+    const now = Date.now();
+    const targetSuggestionState = mergePrivateSuggestionEntries(
+      targetPartner?.suggestionState,
+      privateSuggestionScoreMapRef.current.get(targetUserId),
+      privateMatchStateByTarget.get(targetUserId)
+    );
+    const blockedUntil = privateMatchCooldownByTargetRef.current.get(targetUserId) || 0;
+    if (blockedUntil > now) return;
+    if (blockedUntil > 0 && blockedUntil <= now) {
+      privateMatchCooldownByTargetRef.current.delete(targetUserId);
+    }
+
+    if (intentMatchShownKeysRef.current.has(signal.key)) return;
+    if (targetSuggestionState?.suggestedDayKey === getPrivateMatchDayKey(now)) return;
+
+    intentMatchShownKeysRef.current.add(signal.key);
+    if (intentMatchShownKeysRef.current.size > 250) {
+      intentMatchShownKeysRef.current = new Set(Array.from(intentMatchShownKeysRef.current).slice(-120));
+    }
+
+    privateMatchLastShownAtRef.current = now;
+    bumpPrivateSuggestionScore(targetUserId, 1, 'shown');
+    privateMatchCooldownByTargetRef.current.set(
+      targetUserId,
+      now + PRIVATE_MATCH_COOLDOWN_MS
+    );
+
+    const copy = getIntentMatchCopy({
+      username: targetPartner?.username,
+      offeredRole: signal.offeredRole,
+      seekingBucket: signal.seekingBucket,
+      isOnline: signal.isOnline !== false,
+    });
+
+    const greetingText = getIntentDrivenGreeting({
+      username: targetPartner?.username,
+      seekingBucket: signal.seekingBucket,
+      offeredRole: signal.offeredRole,
+    });
+
+    toast({
+      title: copy.title,
+      description: copy.description,
+      duration: 3400,
+      action: {
+        label: signal.isOnline === false ? 'Dejar mensaje' : 'Abrir privado',
+        onClick: () => {
+          lastInteractionAtRef.current = Date.now();
+          Promise.resolve()
+            .then(() => openOrCreatePrivateChatWithTarget(targetPartner, {
+              initialMessage: greetingText,
+              roomId: currentRoom,
+              source: 'intent_match_toast',
+            }))
+            .then((result) => {
+              if (result?.ok) {
+                bumpPrivateSuggestionScore(targetUserId, 3, 'opened');
+                if (signal.isOnline === false) {
+                  toast({
+                    title: 'Privado listo para dejar mensaje',
+                    description: 'Escríbele ahora. Quedará en su inbox y lo verá cuando vuelva a conectarse.',
+                    duration: 3600,
+                  });
+                }
+              }
+            })
+            .catch((error) => {
+              console.error('Error opening intent-driven private chat:', error);
+              toast({
+                title: 'No pudimos abrir el privado',
+                description: 'Intenta de nuevo en unos segundos.',
+                variant: 'destructive',
+              });
+            });
+        },
+      },
+    });
+  }, [
+    activePrivatePartnerIds,
+    currentRoom,
+    offlineIntentDrivenPrivateMatchSignal,
+    intentDrivenPrivateMatchSignal,
+    isHeteroRoom,
+    privateMatchStateByTarget,
+    openOrCreatePrivateChatWithTarget,
+    bumpPrivateSuggestionScore,
+    user?.id,
+  ]);
 
   const handlePrivateChatRequest = async (targetUser) => {
     if (targetUser.userId === 'demo-user-123') {
@@ -5564,6 +6661,7 @@ const ChatPage = () => {
           onOpenOpin={handleOpenOpin}
           privateInboxItems={privateInboxItems}
           unreadPrivateMessages={unreadPrivateMessages}
+          currentRoomUserCount={roomUsers.length}
         />
 
         {/* ✅ FIX: Contenedor del chat - Asegurar que esté visible en móvil cuando sidebar está cerrado */}
@@ -5607,6 +6705,108 @@ const ChatPage = () => {
               })}
             </div>
           </section>
+
+          {!isHeteroRoom && inPrivateUsersPreview.length > 0 && (
+            <>
+              <div className="border-b border-border/30 bg-secondary/5 px-3 py-2">
+                <div className="flex items-center justify-end">
+                  <button
+                    type="button"
+                    className={[
+                      'inline-flex items-center gap-2 rounded-full border px-3 py-1.5 text-[11px] font-semibold transition-colors',
+                      showInPrivateUsersStrip || isInPrivateUsersStripPinned
+                        ? 'border-amber-400/40 bg-amber-500/12 text-amber-200'
+                        : 'border-fuchsia-500/22 bg-background/60 text-fuchsia-200 hover:border-fuchsia-400/40 hover:bg-background/80',
+                    ].join(' ')}
+                    onClick={() => {
+                      const nextPinned = !isInPrivateUsersStripPinned;
+                      setIsInPrivateUsersStripPinned(nextPinned);
+                      setShowInPrivateUsersStrip(nextPinned ? true : false);
+                    }}
+                    aria-label="Mostrar conversaciones privadas activas"
+                  >
+                    <MessageCircle className="h-3.5 w-3.5" />
+                    <span>{inPrivateUsersCount}</span>
+                    <span className="hidden sm:inline">
+                      {isInPrivateUsersStripPinned ? 'Ocultar privados' : 'Privados activos'}
+                    </span>
+                  </button>
+                </div>
+              </div>
+
+              {showInPrivateUsersStrip && (
+                <section className="border-b border-border/40 bg-secondary/5 px-3 py-2">
+                  <div className="flex items-center justify-between gap-3">
+                    <div className="min-w-0">
+                      <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-amber-300">
+                        En privado ahora
+                      </p>
+                      <p className="text-[11px] text-muted-foreground">
+                        Se muestra unos segundos y puedes desplegarlo cuando quieras.
+                      </p>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <div className="shrink-0 rounded-full border border-amber-500/25 bg-amber-500/10 px-2.5 py-1 text-[11px] font-semibold text-amber-200">
+                        {inPrivateUsersCount}
+                      </div>
+                      {!isInPrivateUsersStripPinned && (
+                        <button
+                          type="button"
+                          className="rounded-full px-2 py-1 text-[11px] text-muted-foreground transition hover:bg-background/50 hover:text-foreground"
+                          onClick={() => setShowInPrivateUsersStrip(false)}
+                        >
+                          Cerrar
+                        </button>
+                      )}
+                    </div>
+                  </div>
+
+                  <div className="mt-2 flex gap-2 overflow-x-auto scrollbar-hide">
+                    {inPrivateUsersPreview.map((item) => (
+                      <button
+                        key={item.userId}
+                        type="button"
+                        className="shrink-0 rounded-2xl border border-amber-500/18 bg-background/60 px-3 py-2 text-left transition-colors hover:border-amber-400/40 hover:bg-background/80"
+                        onClick={() => setUserActionsTarget(item)}
+                      >
+                        <div className="flex items-center gap-2">
+                          <div className="relative h-10 w-10 overflow-hidden rounded-full border border-white/10">
+                            <img
+                              src={item.avatar}
+                              alt={item.username}
+                              className="h-full w-full object-cover"
+                              loading="lazy"
+                            />
+                            <span className="absolute bottom-0 right-0 h-2.5 w-2.5 rounded-full border-2 border-slate-900 bg-emerald-400" />
+                          </div>
+                          <div className="min-w-0">
+                            <p className="max-w-[120px] truncate text-sm font-semibold text-foreground">
+                              {item.username}
+                            </p>
+                            <div className="flex flex-wrap items-center gap-1">
+                              {item.roleBadge ? (
+                                <span className="rounded-full border border-cyan-500/25 bg-cyan-500/10 px-2 py-0.5 text-[10px] font-medium text-cyan-200">
+                                  {item.roleBadge}
+                                </span>
+                              ) : null}
+                              <span className="rounded-full border border-fuchsia-500/25 bg-fuchsia-500/10 px-2 py-0.5 text-[10px] font-medium text-fuchsia-200">
+                                En privado
+                              </span>
+                            </div>
+                            {item.comuna ? (
+                              <p className="mt-1 max-w-[140px] truncate text-[10px] text-muted-foreground">
+                                {item.comuna}
+                              </p>
+                            ) : null}
+                          </div>
+                        </div>
+                      </button>
+                    ))}
+                  </div>
+                </section>
+              )}
+            </>
+          )}
 
           {activeTopBanner === 'push' && (
             <div className="hidden md:flex px-4 py-2 bg-purple-500/10 border-b border-purple-500/20 items-center justify-between gap-3">
@@ -5715,10 +6915,66 @@ const ChatPage = () => {
               </div>
             )}
 
-            {/* 📅 Banner de evento activo/próximo */}
-            <div className={shouldShowSecondaryChatPromos ? 'block' : 'hidden'}>
-              <EventoBanner currentRoomId={roomId} />
-            </div>
+            {!isHeteroRoom && compatibleNowStripUsers.length > 0 && (
+              <div className="px-2 pb-2">
+                <div className="flex items-center gap-2 overflow-x-auto rounded-2xl border border-white/8 bg-slate-950/40 px-3 py-3 backdrop-blur">
+                  <div className="shrink-0">
+                    <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-cyan-300">
+                      Gente compatible ahora
+                    </p>
+                    <p className="text-[11px] text-slate-400">
+                      Abre privado más rápido con quienes ya calzan contigo.
+                    </p>
+                  </div>
+                  {compatibleNowStripUsers.map((candidate) => (
+                    <button
+                      key={candidate.userId || candidate.id}
+                      type="button"
+                      className="shrink-0 rounded-2xl border border-cyan-400/18 bg-slate-900/75 px-3 py-2 text-left transition-colors hover:border-cyan-300/40 hover:bg-slate-900"
+                      onClick={() => {
+                        Promise.resolve()
+                          .then(() => openOrCreatePrivateChatWithTarget(candidate, {
+                            initialMessage: getIntentDrivenGreeting({
+                              username: candidate.username,
+                              seekingBucket: getRoleBucket(currentUserResolvedRole),
+                              offeredRole: candidate.roleBadge,
+                            }),
+                            roomId: currentRoom,
+                              source: 'compatible_now_strip',
+                            }))
+                          .then((result) => {
+                            if (result?.ok) {
+                              bumpPrivateSuggestionScore(candidate.userId || candidate.id, 3, 'opened');
+                            }
+                          })
+                          .catch((error) => {
+                            console.error('Error opening compatible-now private chat:', error);
+                            toast({
+                              title: 'No pudimos abrir el privado',
+                              description: 'Intenta de nuevo en unos segundos.',
+                              variant: 'destructive',
+                            });
+                          });
+                      }}
+                    >
+                      <div className="flex items-center gap-2">
+                        <div className="flex h-9 w-9 items-center justify-center rounded-full bg-gradient-to-br from-cyan-400 to-emerald-400 text-xs font-bold text-slate-950">
+                          {(candidate.username || '?').slice(0, 2).toUpperCase()}
+                        </div>
+                        <div className="min-w-0">
+                          <p className="truncate text-sm font-semibold text-white">
+                            {candidate.username || 'Usuario'}
+                          </p>
+                          <p className="truncate text-[11px] text-cyan-200/85">
+                            {[candidate.roleBadge, candidate.comuna].filter(Boolean).join(' · ') || 'Disponible ahora'}
+                          </p>
+                        </div>
+                      </div>
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
 
             {/* ⏳ Siempre renderizar ChatMessages; él decide si mostrar loading o contenido */}
             <ChatMessages

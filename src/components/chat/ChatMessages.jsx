@@ -711,6 +711,9 @@ const ChatMessages = ({
                 const messageKey = message._realId || message.id;
                 const isImageMessage = message.type === 'image';
                 const isImageRevealed = !isImageMessage || revealedImageIds.has(messageKey);
+                const signalMeta = message?._signalMeta || null;
+                const hasContextSignal = Boolean(signalMeta?.isContextualHighSignal);
+                const hasLowSignal = Boolean(signalMeta?.isGenericLowSignal);
 
                 // Determinar posición para border-radius
                 let positionClass = 'single';
@@ -836,7 +839,7 @@ const ChatMessages = ({
 
                     {/* ⚡ BURBUJA */}
                     <div
-                      className={`message-bubble ${isOwn ? 'own' : 'other'} ${positionClass} ${hasImageReactions ? 'has-image-reactions' : ''} ${isImageMessage ? 'is-interactive-media' : ''}`}
+                      className={`message-bubble ${isOwn ? 'own' : 'other'} ${positionClass} ${hasImageReactions ? 'has-image-reactions' : ''} ${isImageMessage ? 'is-interactive-media' : ''} ${hasContextSignal ? 'contextual' : ''} ${hasLowSignal ? 'low-signal' : ''}`}
                       onClick={isImageMessage ? () => {
                         if (!isImageRevealed) {
                           revealImage(messageKey);
@@ -847,6 +850,11 @@ const ChatMessages = ({
                         }
                       } : undefined}
                     >
+                      {hasContextSignal && signalMeta?.accentLabel && (
+                        <div className={`message-context-pill ${isOwn ? 'own' : 'other'}`}>
+                          {signalMeta.accentLabel}
+                        </div>
+                      )}
                       {message.replyTo && (
                         <MessageQuote
                           replyTo={message.replyTo}

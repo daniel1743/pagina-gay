@@ -179,6 +179,7 @@ export default function PrivateChatWindowV2({
   const bottomRef = useRef(null);
   const messagesScrollRef = useRef(null);
   const typingTimeoutRef = useRef(null);
+  const typingPublishedRef = useRef(false);
   const hasLoadedSnapshotRef = useRef(false);
   const olderMessagesRef = useRef([]);
   const historyCursorRef = useRef(null);
@@ -253,6 +254,26 @@ export default function PrivateChatWindowV2({
       return String(a?._realId || a?.id || '').localeCompare(String(b?._realId || b?.id || ''));
     });
   }, [olderMessages, optimisticMessages, recentMessages]);
+
+  const latestPartnerPrivateActivityMs = useMemo(() => {
+    const partnerId = primaryParticipant.userId;
+    if (!partnerId || isGroupChat || !Array.isArray(messages) || messages.length === 0) return 0;
+
+    for (let i = messages.length - 1; i >= 0; i -= 1) {
+      const message = messages[i];
+      if (message?.userId !== partnerId) continue;
+      return getTimestampMs(message?.timestamp) || 0;
+    }
+
+    return 0;
+  }, [isGroupChat, messages, primaryParticipant.userId]);
+
+  const isPartnerRecentlyActiveInPrivate = useMemo(() => {
+    if (isGroupChat) return false;
+    if (isPartnerTyping) return true;
+    if (!latestPartnerPrivateActivityMs) return false;
+    return (Date.now() - latestPartnerPrivateActivityMs) <= (3 * 60 * 1000);
+  }, [isGroupChat, isPartnerTyping, latestPartnerPrivateActivityMs]);
 
   useEffect(() => {
     onChatActivityRef.current = onChatActivity;
@@ -425,12 +446,20 @@ export default function PrivateChatWindowV2({
     if (typingTimeoutRef.current) clearTimeout(typingTimeoutRef.current);
 
     if (!newMessage.trim()) {
-      updatePrivateChatTypingStatus(chatId, user.id, false, user.username).catch(() => {});
+      if (typingPublishedRef.current) {
+        typingPublishedRef.current = false;
+        updatePrivateChatTypingStatus(chatId, user.id, false, user.username).catch(() => {});
+      }
       return undefined;
     }
 
-    updatePrivateChatTypingStatus(chatId, user.id, true, user.username).catch(() => {});
+    if (!typingPublishedRef.current) {
+      typingPublishedRef.current = true;
+      updatePrivateChatTypingStatus(chatId, user.id, true, user.username).catch(() => {});
+    }
     typingTimeoutRef.current = setTimeout(() => {
+      if (!typingPublishedRef.current) return;
+      typingPublishedRef.current = false;
       updatePrivateChatTypingStatus(chatId, user.id, false, user.username).catch(() => {});
     }, 1800);
 
@@ -440,7 +469,8 @@ export default function PrivateChatWindowV2({
   }, [chatId, isPending, newMessage, user?.id, user?.username]);
 
   useEffect(() => () => {
-    if (chatId && user?.id) {
+    if (chatId && user?.id && typingPublishedRef.current) {
+      typingPublishedRef.current = false;
       updatePrivateChatTypingStatus(chatId, user.id, false, user.username).catch(() => {});
     }
   }, [chatId, user?.id, user?.username]);
@@ -916,9 +946,15 @@ export default function PrivateChatWindowV2({
     ? 'escribiendo...'
     : isGroupChat
       ? `${otherParticipants.length} personas`
-      : partnerPresence.isOnline
-        ? 'en línea'
-        : formatLastSeen(partnerPresence.lastSeenMs);
+      : isPartnerRecentlyActiveInPrivate
+        ? 'activo en privado'
+        : partnerPresence.isOnline
+          ? 'en línea'
+          : formatLastSeen(partnerPresence.lastSeenMs);
+
+  const shouldShowPartnerActiveDot = isGroupChat
+    ? false
+    : (isPartnerTyping || isPartnerRecentlyActiveInPrivate || partnerPresence.isOnline);
 
   const desktopStyle = isMobile ? {} : {
     right: `${16 + windowIndex * 392}px`,
@@ -1045,7 +1081,7 @@ export default function PrivateChatWindowV2({
               <span
                 className={[
                   'absolute -bottom-0.5 -right-0.5 h-3 w-3 rounded-full border-2 border-zinc-950',
-                  partnerPresence.isOnline ? 'bg-emerald-400' : 'bg-zinc-500',
+                  shouldShowPartnerActiveDot ? 'bg-emerald-400' : 'bg-zinc-500',
                 ].join(' ')}
               />
             ) : null}
@@ -1089,7 +1125,7 @@ export default function PrivateChatWindowV2({
             <span
               className={[
                 'absolute -bottom-0.5 -right-0.5 h-3.5 w-3.5 rounded-full border-2 border-zinc-950',
-                partnerPresence.isOnline ? 'bg-emerald-400' : 'bg-zinc-500',
+                shouldShowPartnerActiveDot ? 'bg-emerald-400' : 'bg-zinc-500',
               ].join(' ')}
             />
           ) : null}

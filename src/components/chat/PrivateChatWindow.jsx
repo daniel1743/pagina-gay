@@ -203,6 +203,7 @@ const PrivateChatWindow = ({
   const photoInputRef = useRef(null);
   const wrapperRef = useRef(null);
   const typingTimeoutRef = useRef(null);
+  const typingPublishedRef = useRef(false);
   const hasLoadedSnapshotRef = useRef(false);
   const leaveNotifiedRef = useRef(false);
   const isMinimizedRef = useRef(false);
@@ -599,12 +600,20 @@ const PrivateChatWindow = ({
 
     const trimmed = newMessage.trim();
     if (!trimmed) {
-      updatePrivateChatTypingStatus(chatId, user.id, false, user.username).catch(() => {});
+      if (typingPublishedRef.current) {
+        typingPublishedRef.current = false;
+        updatePrivateChatTypingStatus(chatId, user.id, false, user.username).catch(() => {});
+      }
       return undefined;
     }
 
-    updatePrivateChatTypingStatus(chatId, user.id, true, user.username).catch(() => {});
+    if (!typingPublishedRef.current) {
+      typingPublishedRef.current = true;
+      updatePrivateChatTypingStatus(chatId, user.id, true, user.username).catch(() => {});
+    }
     typingTimeoutRef.current = setTimeout(() => {
+      if (!typingPublishedRef.current) return;
+      typingPublishedRef.current = false;
       updatePrivateChatTypingStatus(chatId, user.id, false, user.username).catch(() => {});
     }, 1800);
 
@@ -615,7 +624,8 @@ const PrivateChatWindow = ({
 
   // Limpiar typing al desmontar
   useEffect(() => () => {
-    if (chatId && user?.id) {
+    if (chatId && user?.id && typingPublishedRef.current) {
+      typingPublishedRef.current = false;
       updatePrivateChatTypingStatus(chatId, user.id, false, user.username).catch(() => {});
     }
   }, [chatId, user?.id, user?.username]);

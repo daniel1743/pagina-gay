@@ -36,8 +36,10 @@ const isBotUserId = (userId = '') =>
   userId?.startsWith('static_bot_');
 
 const ACTIVE_THRESHOLD_MS = 2 * 60 * 1000;
-export const CHAT_AVAILABILITY_HEARTBEAT_MS = 10 * 1000;
-export const CHAT_AVAILABILITY_TIMEOUT_MS = 25 * 1000;
+// Reducimos el heartbeat para bajar escrituras y fan-out de lecturas sin perder
+// por completo la sensación de presencia en tiempo real.
+export const CHAT_AVAILABILITY_HEARTBEAT_MS = 20 * 1000;
+export const CHAT_AVAILABILITY_TIMEOUT_MS = 55 * 1000;
 export const CHAT_AVAILABILITY_DURATION_MS = 10 * 60 * 1000;
 const sharedRoomCountListeners = new Map();
 

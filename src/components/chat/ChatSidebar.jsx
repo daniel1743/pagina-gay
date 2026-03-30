@@ -44,6 +44,7 @@ const ChatSidebar = ({
   onOpenOpin,
   privateInboxItems = [],
   unreadPrivateMessages = {},
+  currentRoomUserCount = null,
 }) => {
   const logoSources = ["/transparente_logo.png"];
   const navigate = useNavigate();
@@ -202,7 +203,9 @@ const ChatSidebar = ({
       return;
     }
 
-    const roomIds = visibleRooms.map(room => room.id);
+    const roomIds = visibleRooms
+      .map(room => room.id)
+      .filter((roomId) => roomId && roomId !== currentRoom);
     if (roomIds.length === 0) {
       setRoomCounts({});
       return;
@@ -211,7 +214,7 @@ const ChatSidebar = ({
       setRoomCounts(counts);
     });
     return () => unsubscribe();
-  }, [user, visibleRooms]);
+  }, [user, visibleRooms, currentRoom]);
 
   const handleRoomChange = (roomId, isSecondary = false) => {
     setCurrentRoom(roomId);
@@ -312,7 +315,9 @@ const ChatSidebar = ({
             <div className="space-y-1">
               {visibleRooms.map((room, index) => {
                 const IconComponent = room.icon;
-                const realUserCount = roomCounts[room.id] || 0;
+                const realUserCount = room.id === currentRoom
+                  ? Math.max(0, Number(currentRoomUserCount || 0))
+                  : (roomCounts[room.id] || 0);
                 
                 // ✅ Obtener estado de actividad
                 const activityStatus = getRoomActivityStatus(realUserCount);

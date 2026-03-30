@@ -738,6 +738,7 @@ const ChatSecondaryPage = () => {
           setCurrentRoom={setCurrentRoom}
           isOpen={sidebarOpen}
           onClose={() => setSidebarOpen(false)}
+          currentRoomUserCount={roomUsers.length}
         />
 
         <div className="w-full lg:flex-1 flex flex-col overflow-hidden min-w-0 h-full">

@@ -140,6 +140,48 @@
   color: #0f172a !important;
 }
 
+.message-bubble.contextual.other {
+  border: 1px solid rgba(56, 189, 248, 0.42) !important;
+  box-shadow:
+    0 14px 34px rgba(15, 23, 42, 0.2),
+    0 0 0 1px rgba(56, 189, 248, 0.18) !important;
+}
+
+.message-bubble.contextual.own {
+  box-shadow:
+    0 14px 34px rgba(5, 150, 105, 0.22),
+    0 0 0 1px rgba(255, 255, 255, 0.18) !important;
+}
+
+.message-bubble.low-signal.other {
+  border-color: rgba(255, 255, 255, 0.04) !important;
+  opacity: 0.92 !important;
+}
+
+.message-context-pill {
+  display: inline-flex !important;
+  align-items: center !important;
+  margin-bottom: 6px !important;
+  padding: 2px 8px !important;
+  border-radius: 999px !important;
+  font-size: 10px !important;
+  font-weight: 700 !important;
+  line-height: 1.1 !important;
+  letter-spacing: 0.01em !important;
+}
+
+.message-context-pill.other {
+  background: rgba(56, 189, 248, 0.16) !important;
+  color: #7dd3fc !important;
+  border: 1px solid rgba(56, 189, 248, 0.22) !important;
+}
+
+.message-context-pill.own {
+  background: rgba(15, 23, 42, 0.12) !important;
+  color: #064e3b !important;
+  border: 1px solid rgba(6, 78, 59, 0.12) !important;
+}
+
 /* Dark mode */
 @media (prefers-color-scheme: dark) {
   .message-bubble.other {
@@ -151,6 +193,18 @@
   .message-bubble.own {
     background: linear-gradient(180deg, #34d399 0%, #10b981 100%) !important;
     color: #052e16 !important;
+  }
+
+  .message-context-pill.other {
+    background: rgba(56, 189, 248, 0.18) !important;
+    color: #bae6fd !important;
+    border-color: rgba(56, 189, 248, 0.28) !important;
+  }
+
+  .message-context-pill.own {
+    background: rgba(6, 78, 59, 0.16) !important;
+    color: #052e16 !important;
+    border-color: rgba(6, 78, 59, 0.14) !important;
   }
 }
 
@@ -164,6 +218,18 @@
 .dark .message-bubble.own {
   background: linear-gradient(180deg, #34d399 0%, #10b981 100%) !important;
   color: #052e16 !important;
+}
+
+.dark .message-context-pill.other {
+  background: rgba(56, 189, 248, 0.18) !important;
+  color: #bae6fd !important;
+  border-color: rgba(56, 189, 248, 0.28) !important;
+}
+
+.dark .message-context-pill.own {
+  background: rgba(6, 78, 59, 0.16) !important;
+  color: #052e16 !important;
+  border-color: rgba(6, 78, 59, 0.14) !important;
 }
 
 /* ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
