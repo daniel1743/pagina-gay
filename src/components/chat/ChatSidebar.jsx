@@ -10,8 +10,9 @@ import { subscribeToMultipleRoomCounts } from '@/services/presenceService';
 import { colorClasses, getVisibleRoomsForUser, roomsData } from '@/config/rooms';
 import { RegistrationRequiredModal } from '@/components/auth/RegistrationRequiredModal';
 import { AuthModal } from '@/components/auth/AuthModal';
-import TopParticipantsSidebarCards from '@/components/chat/TopParticipantsSidebarCards';
 import { toast } from '@/components/ui/use-toast';
+import PresenceSidebarStatusPanel from '@/components/chat/PresenceSidebarStatusPanel';
+import { resolveProfileRole } from '@/config/profileRoles';
 
 /**
  * ✅ SISTEMA DE ESTADOS DE ACTIVIDAD
@@ -35,6 +36,40 @@ const getRoomActivityStatus = (realUserCount) => {
   }
 };
 
+const DEFAULT_CHAT_AVATAR = '/avatar_por_defecto.jpeg';
+
+const resolveChatAvatar = (avatar) => {
+  if (!avatar || typeof avatar !== 'string') return DEFAULT_CHAT_AVATAR;
+  const normalized = avatar.trim().toLowerCase();
+  if (!normalized || normalized === 'undefined' || normalized === 'null') return DEFAULT_CHAT_AVATAR;
+  if (normalized.includes('api.dicebear.com')) return DEFAULT_CHAT_AVATAR;
+  if (normalized.startsWith('data:image/svg+xml') || normalized.startsWith('blob:')) return DEFAULT_CHAT_AVATAR;
+  return avatar;
+};
+
+const isBotOrSystemUser = (userId = '') => (
+  userId === 'system' ||
+  userId.startsWith('bot_') ||
+  userId.startsWith('static_bot_')
+);
+
+const normalizeMobileConnectionUser = (item, nowMs) => {
+  const userId = item?.userId || item?.id || '';
+  if (!userId || isBotOrSystemUser(userId)) return null;
+
+  return {
+    userId,
+    username: item?.username || 'Usuario',
+    avatar: resolveChatAvatar(item?.avatar),
+    roleBadge: resolveProfileRole(item?.roleBadge, item?.profileRole, item?.role) || null,
+    comuna: item?.comuna || null,
+    isPremium: Boolean(item?.isPremium || item?.isProUser),
+    isOnline: Boolean(item?.isOnline),
+    lastConnectedAt: Number(item?.lastConnectedAt || item?.lastSeenMs || item?.joinedAtMs || item?.timestampMs || nowMs) || nowMs,
+    lastDisconnectedAt: Number(item?.lastDisconnectedAt || item?.timestampMs || nowMs) || nowMs,
+  };
+};
+
 const ChatSidebar = ({
   currentRoom,
   setCurrentRoom,
@@ -45,6 +80,10 @@ const ChatSidebar = ({
   privateInboxItems = [],
   unreadPrivateMessages = {},
   currentRoomUserCount = null,
+  roomUsers = [],
+  fallbackUsers = [],
+  onUserClick,
+  onRequestNickname,
 }) => {
   const logoSources = ["/transparente_logo.png"];
   const navigate = useNavigate();
@@ -150,6 +189,144 @@ const ChatSidebar = ({
     if (inboxTotal > 0) return inboxTotal;
     return Object.values(unreadPrivateMessages || {}).reduce((sum, item) => sum + Number(item?.count || 0), 0);
   }, [mergedPrivateChats, unreadPrivateMessages]);
+
+  const activeUsersInRoom = Number.isFinite(currentRoomUserCount) ? currentRoomUserCount : null;
+  const activeUsersLabel = activeUsersInRoom === 1
+    ? '1 persona activa ahora'
+    : activeUsersInRoom != null
+      ? `${activeUsersInRoom} personas activas ahora`
+      : 'Muévete sin fricción entre chat, perfiles y privados';
+
+  const closeSidebarIfMobile = () => {
+    if (typeof window !== 'undefined' && window.innerWidth < 1024) onClose();
+  };
+
+  const latestConnectionUsers = useMemo(() => {
+    const now = Date.now();
+    const byId = new Map();
+
+    (Array.isArray(fallbackUsers) ? fallbackUsers : []).forEach((rawUser) => {
+      const item = normalizeMobileConnectionUser({ ...rawUser, isOnline: false }, now);
+      if (!item || item.userId === user?.id) return;
+      byId.set(item.userId, item);
+    });
+
+    (Array.isArray(roomUsers) ? roomUsers : []).forEach((rawUser) => {
+      const item = normalizeMobileConnectionUser({ ...rawUser, isOnline: true }, now);
+      if (!item || item.userId === user?.id) return;
+      byId.set(item.userId, {
+        ...(byId.get(item.userId) || {}),
+        ...item,
+      });
+    });
+
+    return Array.from(byId.values())
+      .sort((a, b) => {
+        if (a.isOnline !== b.isOnline) return a.isOnline ? -1 : 1;
+        const aTs = a.isOnline ? a.lastConnectedAt : a.lastDisconnectedAt;
+        const bTs = b.isOnline ? b.lastConnectedAt : b.lastDisconnectedAt;
+        return (bTs || 0) - (aTs || 0);
+      })
+      .slice(0, 10);
+  }, [fallbackUsers, roomUsers, user?.id]);
+
+  const handleOpenOpinShortcut = () => {
+    const handled = onOpenOpin ? onOpenOpin() === true : false;
+    if (!handled) navigate('/opin');
+    closeSidebarIfMobile();
+  };
+
+  const handleOpenBaulShortcut = () => {
+    const handled = onOpenBaul ? onOpenBaul() === true : false;
+    if (!handled) navigate('/baul');
+    closeSidebarIfMobile();
+  };
+
+  const handleOpenPrivatesShortcut = () => {
+    if (mergedPrivateChats.length > 0) {
+      openPrivateChatFromShortcut(mergedPrivateChats[0]);
+      return;
+    }
+    navigate('/chat/principal');
+    closeSidebarIfMobile();
+  };
+
+  const renderActionModule = ({ mobile = false } = {}) => (
+    <div className={`mb-2 rounded-2xl border border-border/60 bg-card/50 ${mobile ? 'mt-4 p-3' : 'mt-4 p-3.5'}`}>
+      <div className="flex items-start gap-3">
+        <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl border border-emerald-500/20 bg-emerald-500/10">
+          <Users className="h-5 w-5 text-emerald-300" />
+        </div>
+        <div className="min-w-0 flex-1">
+          <div className="flex items-center gap-2">
+            <h3 className="text-sm font-semibold text-foreground">
+              {mobile ? 'Activos ahora' : 'Empieza ahora'}
+            </h3>
+            {activeUsersInRoom != null && (
+              <span className="inline-flex items-center gap-1 rounded-full border border-emerald-500/20 bg-emerald-500/10 px-2 py-0.5 text-[10px] font-semibold text-emerald-300">
+                <span className="h-1.5 w-1.5 rounded-full bg-emerald-400" />
+                En sala
+              </span>
+            )}
+          </div>
+          <p className="mt-1 text-xs leading-relaxed text-muted-foreground">
+            {mobile
+              ? activeUsersLabel
+              : 'Aquí van acciones rápidas. Los conectados en tiempo real ya están a la derecha.'}
+          </p>
+        </div>
+      </div>
+
+      <div className="mt-3 space-y-2">
+        <button
+          type="button"
+          onClick={handleOpenPrivatesShortcut}
+          className="group flex min-h-[52px] items-center gap-3 rounded-xl border border-emerald-500/25 bg-emerald-500/10 px-3 py-2.5 text-left transition-colors hover:bg-emerald-500/14"
+        >
+          <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-emerald-500/15 text-emerald-300">
+            <MessageCircle className="h-4 w-4" />
+          </div>
+          <div className="min-w-0 flex-1">
+            <div className="text-sm font-semibold text-foreground">Privados</div>
+            <div className="text-[11px] leading-snug text-muted-foreground">
+              {mergedPrivateChats.length > 0 ? 'Abre el último privado activo' : 'Entra directo al chat principal'}
+            </div>
+          </div>
+          {totalUnreadPrivateMessages > 0 ? (
+            <span className="inline-flex min-w-[20px] items-center justify-center rounded-full bg-emerald-500 px-1.5 py-0.5 text-[10px] font-bold text-white">
+              {totalUnreadPrivateMessages > 99 ? '99+' : totalUnreadPrivateMessages}
+            </span>
+          ) : null}
+        </button>
+
+        <button
+          type="button"
+          onClick={handleOpenBaulShortcut}
+          className="group flex min-h-[52px] items-center gap-3 rounded-xl border border-cyan-500/20 bg-cyan-500/10 px-3 py-2.5 text-left transition-colors hover:bg-cyan-500/14"
+        >
+          <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-cyan-500/15 text-cyan-300">
+            <Archive className="h-4 w-4" />
+          </div>
+          <div className="min-w-0 flex-1">
+            <div className="text-sm font-semibold text-foreground">Ver perfiles</div>
+            <div className="text-[11px] leading-snug text-muted-foreground">Explora perfiles sin perder el foco del chat</div>
+          </div>
+        </button>
+      </div>
+
+      <button
+        type="button"
+        onClick={handleOpenOpinShortcut}
+        className="mt-2 flex w-full items-center justify-between rounded-xl border border-purple-500/15 bg-purple-500/8 px-3 py-2 text-left transition-colors hover:bg-purple-500/12"
+      >
+        <span className="inline-flex items-center gap-2 text-xs font-medium text-foreground">
+          <Sparkles className="h-4 w-4 text-purple-300" />
+          Ir al tablón
+        </span>
+        <span className="text-[11px] text-muted-foreground">Descubrir más</span>
+      </button>
+    </div>
+  );
 
   const openPrivateChatFromShortcut = (chat) => {
     if (!chat) return;
@@ -452,110 +629,8 @@ const ChatSidebar = ({
             </div>
           </div>
 
-          {!isHeteroRoom && (
-            <div className="mt-4 mb-2">
-              <h3 className="text-xs font-semibold text-muted-foreground uppercase mb-2 px-2">Descubre</h3>
-              <div className="space-y-1">
-                <Button
-                  variant="ghost"
-                  className="w-full justify-start text-left h-auto py-2.5 px-3 hover:bg-accent/50 hover:border-l-2 hover:border-purple-500 group"
-                  onClick={() => {
-                    const handled = onOpenOpin ? onOpenOpin() === true : false;
-                    if (!handled) navigate('/opin');
-                    if (typeof window !== 'undefined' && window.innerWidth < 1024) onClose();
-                  }}
-                >
-                  <Sparkles className="w-5 h-5 text-purple-400 flex-shrink-0 mr-3" />
-                  <span className="text-sm font-medium text-foreground">Tablón</span>
-                </Button>
-                <Button
-                  variant="ghost"
-                  className="w-full justify-start text-left h-auto py-2.5 px-3 hover:bg-accent/50 hover:border-l-2 hover:border-cyan-500 group"
-                  onClick={() => {
-                    const handled = onOpenBaul ? onOpenBaul() === true : false;
-                    if (!handled) navigate('/baul');
-                    if (typeof window !== 'undefined' && window.innerWidth < 1024) onClose();
-                  }}
-                >
-                  <Archive className="w-5 h-5 text-cyan-400 flex-shrink-0 mr-3" />
-                  <span className="text-sm font-medium text-foreground">Baúl</span>
-                </Button>
-                <Button
-                  variant="ghost"
-                  className="w-full justify-start text-left h-auto py-2.5 px-3 hover:bg-accent/50 hover:border-l-2 hover:border-emerald-500 group"
-                  onClick={() => {
-                    if (mergedPrivateChats.length > 0) {
-                      openPrivateChatFromShortcut(mergedPrivateChats[0]);
-                      return;
-                    }
-                    navigate('/chat/principal');
-                  }}
-                >
-                  <MessageCircle className="w-5 h-5 text-emerald-400 flex-shrink-0 mr-3" />
-                  <span className="text-sm font-medium text-foreground">Privados</span>
-                  {totalUnreadPrivateMessages > 0 ? (
-                    <span className="ml-auto text-[10px] px-1.5 py-0.5 rounded-full bg-emerald-500 text-white border border-emerald-400/40">
-                      {totalUnreadPrivateMessages > 99 ? '99+' : totalUnreadPrivateMessages}
-                    </span>
-                  ) : mergedPrivateChats.length > 0 ? (
-                    <span className="ml-auto text-[10px] px-1.5 py-0.5 rounded-full bg-emerald-500/15 text-emerald-300 border border-emerald-500/30">
-                      {mergedPrivateChats.length}
-                    </span>
-                  ) : null}
-                </Button>
-                {mergedPrivateChats.length > 0 && (
-                  <div className="pl-3 pr-1 pb-1 pt-1.5 space-y-1">
-                    {mergedPrivateChats.map((chat) => {
-                      const partnerName = chat?.partner?.username || 'Usuario';
-                      const partnerAvatar = chat?.partner?.avatar || '';
-                      const unreadMeta = chat?.chatId ? unreadPrivateMessages?.[chat.chatId] : null;
-                      const unreadCount = Number(chat?.unreadCount || unreadMeta?.count || 0);
-                      return (
-                        <button
-                          key={chat.key}
-                          type="button"
-                          onClick={() => openPrivateChatFromShortcut(chat)}
-                          className={`w-full flex items-center gap-2 rounded-lg border px-2 py-1.5 transition-colors text-left ${
-                            unreadCount > 0
-                              ? 'border-emerald-500/25 bg-emerald-500/8 hover:bg-emerald-500/12'
-                              : 'border-border/60 bg-secondary/20 hover:bg-secondary/40'
-                          }`}
-                        >
-                          <div className="relative">
-                            <Avatar className="w-6 h-6">
-                              <AvatarImage src={partnerAvatar} alt={partnerName} />
-                              <AvatarFallback className="text-[10px] bg-muted text-foreground">
-                                {partnerName.slice(0, 2).toUpperCase()}
-                              </AvatarFallback>
-                            </Avatar>
-                            {unreadCount > 0 ? (
-                              <span className="absolute -top-1.5 -right-1.5 inline-flex min-w-[16px] h-4 items-center justify-center rounded-full bg-emerald-500 px-1 text-[9px] font-bold text-white shadow">
-                                {unreadCount > 99 ? '99+' : unreadCount}
-                              </span>
-                            ) : null}
-                          </div>
-                          <span className={`text-xs truncate flex-1 ${unreadCount > 0 ? 'font-semibold text-white' : 'text-foreground'}`}>
-                            {partnerName}
-                          </span>
-                          {chat.isOpen && (
-                            <span className="text-[9px] px-1 py-0.5 rounded-full bg-emerald-500/15 text-emerald-300 border border-emerald-500/30">
-                              Abierto
-                            </span>
-                          )}
-                        </button>
-                      );
-                    })}
-                  </div>
-                )}
-              </div>
-            </div>
-          )}
-
           {isDesktopViewport && !isHeteroRoom && (
-            <TopParticipantsSidebarCards
-              roomId={currentRoom || 'principal'}
-              isSecondaryRoom={isSecondaryRoom}
-            />
+            renderActionModule()
           )}
         </div>
 
@@ -821,16 +896,22 @@ const ChatSidebar = ({
 
           {!isHeteroRoom && (
             <div className="mt-4 mb-2">
-              <h3 className="text-xs font-semibold text-muted-foreground uppercase mb-2 px-2">Descubre</h3>
+              <PresenceSidebarStatusPanel
+                roomId={currentRoom}
+                roomUsers={roomUsers}
+                user={user}
+                onRequestNickname={onRequestNickname || (() => setShowAuthModal(true))}
+                variant="mobile"
+              />
+
+              <div className="mt-4">
+                <h3 className="text-xs font-semibold text-muted-foreground uppercase mb-2 px-2">Herramientas principales</h3>
+              </div>
               <div className="space-y-1">
                 <Button
                   variant="ghost"
                   className="w-full justify-start text-left h-auto py-2.5 px-3 hover:bg-accent/50 hover:border-l-2 hover:border-purple-500 group"
-                  onClick={() => {
-                    const handled = onOpenOpin ? onOpenOpin() === true : false;
-                    if (!handled) navigate('/opin');
-                    onClose();
-                  }}
+                  onClick={handleOpenOpinShortcut}
                 >
                   <Sparkles className="w-5 h-5 text-purple-400 flex-shrink-0 mr-3" />
                   <span className="text-sm font-medium text-foreground">Tablón</span>
@@ -838,11 +919,7 @@ const ChatSidebar = ({
                 <Button
                   variant="ghost"
                   className="w-full justify-start text-left h-auto py-2.5 px-3 hover:bg-accent/50 hover:border-l-2 hover:border-cyan-500 group"
-                  onClick={() => {
-                    const handled = onOpenBaul ? onOpenBaul() === true : false;
-                    if (!handled) navigate('/baul');
-                    onClose();
-                  }}
+                  onClick={handleOpenBaulShortcut}
                 >
                   <Archive className="w-5 h-5 text-cyan-400 flex-shrink-0 mr-3" />
                   <span className="text-sm font-medium text-foreground">Baúl</span>
@@ -850,14 +927,7 @@ const ChatSidebar = ({
                 <Button
                   variant="ghost"
                   className="w-full justify-start text-left h-auto py-2.5 px-3 hover:bg-accent/50 hover:border-l-2 hover:border-emerald-500 group"
-                  onClick={() => {
-                    if (mergedPrivateChats.length > 0) {
-                      openPrivateChatFromShortcut(mergedPrivateChats[0]);
-                      return;
-                    }
-                    navigate('/chat/principal');
-                    onClose();
-                  }}
+                  onClick={handleOpenPrivatesShortcut}
                 >
                   <MessageCircle className="w-5 h-5 text-emerald-400 flex-shrink-0 mr-3" />
                   <span className="text-sm font-medium text-foreground">Privados</span>
@@ -916,15 +986,70 @@ const ChatSidebar = ({
                   </div>
                 )}
               </div>
+
+              <div className="mt-4">
+                <h3 className="text-xs font-semibold text-muted-foreground uppercase mb-2 px-2">Últimas conexiones</h3>
+                <div className="max-h-72 overflow-y-auto pr-1 space-y-1.5">
+                  {latestConnectionUsers.length === 0 ? (
+                    <div className="rounded-xl border border-border/60 bg-secondary/20 px-3 py-3 text-xs text-muted-foreground">
+                      Se irán mostrando aquí las últimas personas activas de la sala.
+                    </div>
+                  ) : (
+                    latestConnectionUsers.map((item) => (
+                      <button
+                        key={`mobile-connection-${item.userId}`}
+                        type="button"
+                        onClick={() => {
+                          onUserClick?.(item);
+                          onClose();
+                        }}
+                        className="w-full flex items-start gap-2 rounded-xl border border-border/60 bg-secondary/20 px-2.5 py-2 text-left transition-colors hover:bg-secondary/35"
+                      >
+                        <div className="relative">
+                          <Avatar className={`w-8 h-8 border ${item.isOnline ? 'border-emerald-400/60' : 'border-border/80'}`}>
+                            <AvatarImage src={item.avatar} alt={item.username} />
+                            <AvatarFallback className="bg-muted text-foreground text-[10px]">
+                              {item.username.slice(0, 2).toUpperCase()}
+                            </AvatarFallback>
+                          </Avatar>
+                          <span className={`absolute -bottom-0.5 -right-0.5 h-2.5 w-2.5 rounded-full border-2 border-card ${item.isOnline ? 'bg-emerald-400' : 'bg-orange-400'}`} />
+                        </div>
+
+                        <div className="min-w-0 flex-1">
+                          <div className="flex items-center gap-1.5">
+                            <span className="truncate text-sm font-medium text-foreground">{item.username}</span>
+                            {item.isPremium ? (
+                              <span className="text-[9px] px-1.5 py-0.5 rounded-full bg-amber-500/15 text-amber-300 border border-amber-500/35">
+                                PRO
+                              </span>
+                            ) : null}
+                          </div>
+                          <div className="mt-1 flex flex-wrap items-center gap-1.5">
+                            {item.roleBadge ? (
+                              <span className="rounded-full border border-border/70 bg-background/60 px-2 py-0.5 text-[10px] text-foreground/80">
+                                {item.roleBadge}
+                              </span>
+                            ) : null}
+                            {item.comuna ? (
+                              <span className="rounded-full border border-cyan-500/20 bg-cyan-500/10 px-2 py-0.5 text-[10px] text-cyan-200">
+                                {item.comuna}
+                              </span>
+                            ) : null}
+                            <span className="text-[10px] text-muted-foreground">
+                              {item.isOnline ? 'Activo ahora' : 'Reciente'}
+                            </span>
+                          </div>
+                        </div>
+                      </button>
+                    ))
+                  )}
+                </div>
+              </div>
             </div>
           )}
 
           {!isDesktopViewport && !isHeteroRoom && (
-            <TopParticipantsSidebarCards
-              compact
-              roomId={currentRoom || 'principal'}
-              isSecondaryRoom={isSecondaryRoom}
-            />
+            renderActionModule({ mobile: true })
           )}
         </div>
 

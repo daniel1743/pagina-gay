@@ -6,6 +6,8 @@ import {
   signInAnonymously,
   signOut,
   onAuthStateChanged,
+  EmailAuthProvider,
+  linkWithCredential,
 } from 'firebase/auth';
 import { auth } from '@/config/firebase';
 import {
@@ -825,20 +827,32 @@ export const AuthProvider = ({ children }) => {
       const sanitized = base.replace(/[^a-zA-Z0-9_]/g, '_').slice(0, 18) || `Usuario_${Math.random().toString(36).slice(2, 8)}`;
       const username = userData.username?.trim() || sanitized;
 
-      // Firebase crea el usuario con contraseña hasheada automáticamente
-      const userCredential = await createUserWithEmailAndPassword(
-        auth,
-        userData.email,
-        userData.password
-      );
+      const existingGuestUser = auth.currentUser?.isAnonymous ? auth.currentUser : null;
+      const guestSnapshot = existingGuestUser && user?.id === existingGuestUser.uid
+        ? user
+        : null;
+
+      let userCredential;
+      if (existingGuestUser) {
+        const credential = EmailAuthProvider.credential(userData.email, userData.password);
+        userCredential = await linkWithCredential(existingGuestUser, credential);
+      } else {
+        userCredential = await createUserWithEmailAndPassword(
+          auth,
+          userData.email,
+          userData.password
+        );
+      }
 
       // Crear perfil en Firestore
       const userProfile = await createUserProfile(userCredential.user.uid, {
-        username,
+        username: guestSnapshot?.username || username,
         email: userData.email,
         age: userData.age,
         phone: userData.phone || null,
         profileRole: normalizedProfileRole,
+        comuna: guestSnapshot?.comuna || null,
+        avatar: guestSnapshot?.avatar || null,
       });
 
       setUser(userProfile);

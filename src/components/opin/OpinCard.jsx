@@ -353,6 +353,11 @@ const OpinCard = forwardRef(({
                 <span className={`inline-flex items-center rounded-full border px-2 py-0.5 text-[11px] font-medium ${statusMeta.badgeClassName}`}>
                   {statusMeta.shortLabel}
                 </span>
+                {post.isStable && (
+                  <span className="inline-flex items-center rounded-full border border-purple-500/30 bg-purple-500/10 px-2 py-0.5 text-[11px] font-medium text-purple-200">
+                    Editorial
+                  </span>
+                )}
                 {hasNewActivity && (
                   <span className="inline-flex items-center rounded-full border border-amber-500/30 bg-amber-500/10 px-2 py-0.5 text-[11px] font-medium text-amber-300">
                     Actividad nueva

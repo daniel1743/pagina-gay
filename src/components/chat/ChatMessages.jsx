@@ -13,6 +13,25 @@ import { getProfileRoleBadgeMeta } from '@/config/profileRoles';
 import './ChatMessages.css';
 
 const isSeededUserId = (userId = '') => String(userId || '').startsWith('seed_user_');
+const QUICK_REPLY_ACTIONS = [
+  {
+    key: 'interest',
+    label: 'Me interesa',
+    buildText: (group) => `Me interesa${group?.comuna ? `, ${group.comuna}` : ''}. ¿Qué buscas ahora?`,
+  },
+  {
+    key: 'dm',
+    label: 'Te escribo',
+    buildText: () => 'Te escribo. ¿Qué buscas ahora?',
+  },
+  {
+    key: 'nearby',
+    label: '¿Estás cerca?',
+    buildText: (group) => group?.comuna
+      ? `¿Estás cerca de ${group.comuna}?`
+      : '¿Estás cerca?',
+  },
+];
 
 /**
  * ⚡ TELEGRAM DESKTOP STYLE - Alta Densidad
@@ -44,6 +63,9 @@ const ChatMessages = ({
   isLoadingMessages = false,
   messagesLoadingStage = 'initial',
   hideRoleBadges = false,
+  contextualHighlight = null,
+  onOpenContextualHighlight,
+  onSuggestReply,
 }) => {
   const DEFAULT_CHAT_AVATAR = '/avatar_por_defecto.jpeg';
   const resolveChatAvatar = (avatar) => {
@@ -440,6 +462,35 @@ const ChatMessages = ({
     dismissPrivateHint();
   };
 
+  const getGroupIntentMeta = (group, presenceUser) => {
+    const quickIntentLabel = String(presenceUser?.quickIntentLabel || '').trim();
+    if (quickIntentLabel) {
+      return {
+        label: presenceUser?.availableForChat ? `${quickIntentLabel} • disponible` : quickIntentLabel,
+        tone: 'intent',
+      };
+    }
+
+    if (presenceUser?.availableForChat) {
+      return {
+        label: 'Disponible ahora',
+        tone: 'available',
+      };
+    }
+
+    for (let i = group.messages.length - 1; i >= 0; i -= 1) {
+      const accentLabel = group.messages[i]?._signalMeta?.accentLabel;
+      if (accentLabel) {
+        return {
+          label: accentLabel,
+          tone: 'derived',
+        };
+      }
+    }
+
+    return null;
+  };
+
   // ⚡ AGRUPACIÓN: Mensajes consecutivos del mismo usuario
   const groupMessages = (messages) => {
     if (!messages || messages.length === 0) return [];
@@ -530,6 +581,11 @@ const ChatMessages = ({
   };
 
   const messageGroups = groupMessages(messages);
+  const shouldShowContextualHighlight = Boolean(
+    contextualHighlight?.candidate
+    && Array.isArray(messages)
+    && messages.slice(-8).some((message) => message?._signalMeta?.isGenericLowSignal)
+  );
   const loadingCopy = {
     initial: {
       title: 'Cargando conversaciones...',
@@ -578,6 +634,25 @@ const ChatMessages = ({
             aria-label="Cerrar sugerencia"
           >
             <X className="w-3.5 h-3.5" />
+          </button>
+        </div>
+      ) : null}
+
+      {shouldShowContextualHighlight ? (
+        <div className="message-opportunity-banner" role="note" aria-live="polite">
+          <div className="message-opportunity-banner-copy">
+            <span className="message-opportunity-banner-kicker">Disponible ahora</span>
+            <p className="message-opportunity-banner-title">{contextualHighlight.title}</p>
+            {contextualHighlight.subtitle ? (
+              <p className="message-opportunity-banner-subtitle">{contextualHighlight.subtitle}</p>
+            ) : null}
+          </div>
+          <button
+            type="button"
+            className="message-opportunity-banner-action"
+            onClick={() => onOpenContextualHighlight?.(contextualHighlight.candidate)}
+          >
+            {contextualHighlight.ctaLabel || 'Ver'}
           </button>
         </div>
       ) : null}
@@ -643,6 +718,8 @@ const ChatMessages = ({
           const isUserVerified = findUserVerifiedStatus(group.userId);
           const isUserPro = findUserProStatus(group.userId) || hasProVisualFlags(group);
           const userRole = findUserRole(group.userId);
+          const groupPresenceUser = safeRoomUsers.find(u => (u.userId || u.id) === group.userId) || null;
+          const groupIntentMeta = getGroupIntentMeta(group, groupPresenceUser);
           const roleBadgeMeta = hideRoleBadges ? null : getProfileRoleBadgeMeta(group.roleBadge);
           const showDivider = lastReadMessageIndex >= 0 && absoluteIndex === lastReadMessageIndex + 1;
 
@@ -682,6 +759,16 @@ const ChatMessages = ({
                             </span>
                           );
                         })()
+                      ) : null}
+                      {groupIntentMeta ? (
+                        <span className={`message-intent-chip ${groupIntentMeta.tone}`}>
+                          {groupIntentMeta.label}
+                        </span>
+                      ) : null}
+                      {group.comuna ? (
+                        <span className="message-comuna-chip">
+                          {group.comuna}
+                        </span>
                       ) : null}
                     </div>
 
@@ -729,8 +816,7 @@ const ChatMessages = ({
                 const formattedTime = showTime ? formatTime(messageTimestamp) : '';
 
                 // Estado de conexión del usuario
-                const userPresence = safeRoomUsers.find(u => (u.userId || u.id) === group.userId);
-                const status = getUserConnectionStatus(userPresence);
+                const status = getUserConnectionStatus(groupPresenceUser);
                 const statusColor = getStatusColor(status);
                 const reactionSummary = [
                   {
@@ -765,6 +851,11 @@ const ChatMessages = ({
                   },
                 ].filter((item) => item.count > 0);
                 const hasImageReactions = message.type === 'image' && reactionSummary.length > 0;
+                const showAntiHolaActions = !isOwn
+                  && isLast
+                  && message.type === 'text'
+                  && hasLowSignal
+                  && !message._optimistic;
 
                 return (
                   <div
@@ -904,33 +995,13 @@ const ChatMessages = ({
                           )
                           : <span className="text-xs text-muted-foreground">Imagen</span>
                       )}
-                      {message.type !== 'image' && reactionSummary.length > 0 && (
-                        <div className="mt-1.5 flex items-center gap-1 text-[10px]">
-                          {reactionSummary.map((item) => (
-                            <span key={item.key} className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full ${item.className}`}>
-                              <span>{item.emoji}</span>
-                              {item.count}
-                            </span>
-                          ))}
-                        </div>
-                      )}
-                      {hasImageReactions && (
-                        <div className="image-reactions-dock" aria-label="Reacciones de la imagen">
-                          {reactionSummary.map((item) => (
-                            <span key={item.key} className={`image-reaction-pill ${item.className}`}>
-                              <span>{item.emoji}</span>
-                              {item.count}
-                            </span>
-                          ))}
-                        </div>
-                      )}
                       {((isOwn && message.type === 'image') || (canModerateMessages && !isOwn)) &&
                         !message._optimistic &&
                         typeof onDeleteMessage === 'function' && (
                         <div className="mt-2 flex justify-end">
                           <button
                             type="button"
-                            className="inline-flex items-center gap-1 rounded-full px-2 py-1 text-[10px] bg-black/20 hover:bg-black/30 text-white/90 transition-colors"
+                            className="message-delete-action"
                             onClick={(e) => {
                               e.stopPropagation();
                               onDeleteMessage(message);
@@ -939,7 +1010,7 @@ const ChatMessages = ({
                             aria-label={canModerateMessages && !isOwn ? 'Eliminar mensaje (admin)' : 'Eliminar foto'}
                           >
                             <Trash2 className="w-3 h-3" />
-                            Eliminar
+                            <span>Eliminar</span>
                           </button>
                         </div>
                       )}
@@ -1027,6 +1098,34 @@ const ChatMessages = ({
                         )}
                       </span>
                     )}
+
+                    {showAntiHolaActions ? (
+                      <div className="message-quick-actions" role="group" aria-label="Acciones rápidas con contexto">
+                        {QUICK_REPLY_ACTIONS.map((action) => (
+                          <button
+                            key={`${messageKey}_${action.key}`}
+                            type="button"
+                            className="message-quick-action"
+                            onClick={(event) => {
+                              event.stopPropagation();
+                              onSuggestReply?.(action.buildText(group), message);
+                            }}
+                          >
+                            {action.label}
+                          </button>
+                        ))}
+                        <button
+                          type="button"
+                          className="message-quick-action primary"
+                          onClick={(event) => {
+                            event.stopPropagation();
+                            openPrivateChatFromGroup(group);
+                          }}
+                        >
+                          Privado
+                        </button>
+                      </div>
+                    ) : null}
 
                   </div>
                 );

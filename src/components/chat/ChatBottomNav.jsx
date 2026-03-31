@@ -603,7 +603,7 @@ const ChatBottomNav = ({
       )}
 
       <nav
-        className="lg:hidden fixed bottom-0 left-0 right-0 z-30 h-14 bg-card/95 backdrop-blur-xl border-t border-border flex items-center justify-around px-2 safe-area-pb"
+        className="lg:hidden fixed bottom-0 left-0 right-0 z-30 h-[62px] bg-[var(--chat-bottom-surface)] backdrop-blur-xl border-t border-[var(--chat-divider)] flex items-center justify-around px-2 safe-area-pb"
         style={{ paddingBottom: 'max(0.5rem, env(safe-area-inset-bottom))' }}
       >
         {items.map((item) => {
@@ -619,7 +619,7 @@ const ChatBottomNav = ({
               }`}
               aria-label={item.label}
             >
-              <span className={`relative inline-flex ${shouldPulsePrivates ? 'animate-pulse' : ''}`}>
+              <span className={`relative inline-flex items-center justify-center rounded-full p-2 transition-colors ${shouldPulsePrivates ? 'animate-pulse' : ''} ${active ? 'bg-primary/10' : 'bg-transparent'}`}>
                 {shouldPulsePrivates ? (
                   <span className="absolute inset-[-5px] rounded-full bg-emerald-500/15 blur-sm" />
                 ) : null}

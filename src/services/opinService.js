@@ -20,6 +20,7 @@ import {
   where,
   orderBy,
   limit,
+  setDoc,
   deleteDoc,
   updateDoc,
   increment,
@@ -73,6 +74,13 @@ export const OPIN_STATUS_OPTIONS = [
     badgeClassName: 'bg-fuchsia-500/15 text-fuchsia-300 border-fuchsia-500/30',
   },
   {
+    value: 'pausado',
+    label: 'Pausado',
+    shortLabel: 'Pausado',
+    description: 'La intención sigue guardada pero ya no empuja respuestas nuevas',
+    badgeClassName: 'bg-amber-500/15 text-amber-300 border-amber-500/30',
+  },
+  {
     value: 'cerrado',
     label: 'Cerrado',
     shortLabel: 'Cerrado',
@@ -82,8 +90,13 @@ export const OPIN_STATUS_OPTIONS = [
 ];
 
 const DEFAULT_OPIN_STATUS = OPIN_STATUS_OPTIONS[0].value;
+const OPEN_OPIN_STATUSES = new Set(['buscando', 'hablando', 'quiero_mas']);
+const OPIN_ACTIVE_WINDOW_MS = 60 * 24 * 60 * 60 * 1000;
+const OPIN_FEED_QUERY_CAP = 80;
+const OPIN_FEED_DEFAULT_LIMIT = 24;
 
 export const isValidOpinStatus = (status) => OPIN_STATUS_OPTIONS.some((item) => item.value === status);
+export const isOpenOpinIntentStatus = (status) => OPEN_OPIN_STATUSES.has(status || DEFAULT_OPIN_STATUS);
 
 export const getOpinStatusMeta = (status) => (
   OPIN_STATUS_OPTIONS.find((item) => item.value === status) || OPIN_STATUS_OPTIONS[0]
@@ -122,6 +135,28 @@ export const normalizeOpinPost = (post) => ({
   lastCommentAt: post?.lastCommentAt || null,
   lastInteractionAt: post?.lastInteractionAt || post?.createdAt || null,
 });
+
+const diversifyOpinPosts = (posts, limitCount) => {
+  const selected = [];
+  const perUserCounts = new Map();
+  const caps = [1, 2, Number.POSITIVE_INFINITY];
+
+  for (const cap of caps) {
+    for (const post of posts) {
+      if (selected.length >= limitCount) return selected;
+      if (selected.some((item) => item.id === post.id)) continue;
+
+      const userKey = post.userId || post.id;
+      const currentCount = perUserCounts.get(userKey) || 0;
+      if (currentCount >= cap) continue;
+
+      selected.push(post);
+      perUserCounts.set(userKey, currentCount + 1);
+    }
+  }
+
+  return selected;
+};
 
 // 🔥 Reacciones eróticas/sugestivas para OPIN
 export const OPIN_REACTIONS = [
@@ -164,6 +199,24 @@ export const canCreatePost = async () => {
 
   if (snapshot.empty) {
     return { canCreate: true, message: 'Primera nota' };
+  }
+
+  const hasOpenIntent = snapshot.docs.some((docSnap) => {
+    const data = docSnap.data();
+    if (!data || data.isStable === true || data.isActive === false) return false;
+
+    const createdMs = getTimestampMs(data.createdAt);
+    if (createdMs > 0 && (Date.now() - createdMs) > OPIN_ACTIVE_WINDOW_MS) return false;
+
+    return isOpenOpinIntentStatus(data.status);
+  });
+
+  if (hasOpenIntent) {
+    return {
+      canCreate: false,
+      reason: 'active_intent',
+      message: 'Ya tienes una intención activa. Actualízala o ciérrala antes de abrir otra.',
+    };
   }
 
   // Encontrar el más reciente manualmente
@@ -277,15 +330,17 @@ export const OPIN_MIN_STABLE = 20;
  *   para evitar mostrar un panel vacío.
  * Query sin índice extra: orderBy createdAt, filtrado en cliente.
  */
-export const getOpinFeed = async (limitCount = 50) => {
+export const getOpinFeed = async (limitCount = OPIN_FEED_DEFAULT_LIMIT) => {
   const postsRef = collection(db, 'opin_posts');
   const now = Timestamp.now();
   const nowMs = now.toMillis();
+  const safeLimit = Math.min(Math.max(limitCount || OPIN_FEED_DEFAULT_LIMIT, 12), OPIN_FEED_DEFAULT_LIMIT);
+  const queryCap = Math.min(Math.max(safeLimit * 3, 36), OPIN_FEED_QUERY_CAP);
 
   const q = query(
     postsRef,
     orderBy('createdAt', 'desc'),
-    limit(200)
+    limit(queryCap)
   );
 
   const snapshot = await getDocs(q);
@@ -308,31 +363,32 @@ export const getOpinFeed = async (limitCount = 50) => {
 
   // Filtrar posts con más de 60 días de antigüedad (basado en createdAt, no expiresAt)
   // Esto permite que posts antiguos con expiresAt de 24h (versión anterior) sigan visibles
-  const EXPIRACION_MS = 60 * 24 * 60 * 60 * 1000; // 60 días en ms
+  const EXPIRACION_MS = OPIN_ACTIVE_WINDOW_MS;
   const vigentes = normalsAll.filter((p) => {
     const createdMs = p.createdAt?.toMillis ? p.createdAt.toMillis() : nowMs;
     return (nowMs - createdMs) < EXPIRACION_MS;
   });
 
-  // Usar todos los vigentes (dentro de 60 días)
-  const normals = vigentes;
+  const rankedNormals = [...vigentes].sort((a, b) => {
+    const aOpen = isOpenOpinIntentStatus(a.status) ? 1 : 0;
+    const bOpen = isOpenOpinIntentStatus(b.status) ? 1 : 0;
+    if (aOpen !== bOpen) return bOpen - aOpen;
 
-  // Combinar todos los posts activos
-  const allActive = [...normals, ...stables];
+    const activityDiff = getOpinPostActivityMs(b) - getOpinPostActivityMs(a);
+    if (activityDiff !== 0) return activityDiff;
 
-  // OPIN: Sin jerarquía. Todas las tarjetas tienen igual visibilidad.
-  // Shuffle puro (Fisher-Yates): cualquier posición puede ser primera, última, media.
-  const shuffleArray = (arr) => {
-    const a = [...arr];
-    for (let i = a.length - 1; i > 0; i--) {
-      const j = Math.floor(Math.random() * (i + 1));
-      [a[i], a[j]] = [a[j], a[i]];
-    }
-    return a;
-  };
-  const posts = shuffleArray(allActive).slice(0, limitCount);
+    const engagementA = Number(a.commentCount || 0) + Number(a.likeCount || 0) + getReactionTotalFromCounts(a.reactionCounts || {});
+    const engagementB = Number(b.commentCount || 0) + Number(b.likeCount || 0) + getReactionTotalFromCounts(b.reactionCounts || {});
+    if (engagementA !== engagementB) return engagementB - engagementA;
 
-  console.log(`📥 [OPIN] Feed aleatorio: ${normals.length} reales, ${stables.length} estables, ${posts.length} total`);
+    return Number(b.viewCount || 0) - Number(a.viewCount || 0);
+  });
+
+  const rankedStables = [...stables].sort((a, b) => getOpinPostActivityMs(b) - getOpinPostActivityMs(a));
+  const diversifiedNormals = diversifyOpinPosts(rankedNormals, safeLimit);
+  const posts = [...diversifiedNormals, ...rankedStables].slice(0, safeLimit);
+
+  console.log(`📥 [OPIN] Feed priorizado y diverso: ${rankedNormals.length} reales, ${rankedStables.length} estables, ${posts.length} total`);
 
   return posts;
 };
@@ -436,7 +492,7 @@ const logAction = async (actionType, postId) => {
 /**
  * ✅ Editar post del usuario
  */
-export const editOpinPost = async (postId, { title, text, color }) => {
+export const editOpinPost = async (postId, { title, text, color, status }) => {
   if (!auth.currentUser) {
     throw new Error('Usuario no autenticado');
   }
@@ -476,6 +532,8 @@ export const editOpinPost = async (postId, { title, text, color }) => {
     ...(title !== undefined && { title: title.trim() }),
     ...(text && { text: text.trim() }),
     ...(color && OPIN_COLORS[color] && { color }),
+    ...(status && isValidOpinStatus(status) && { status }),
+    lastInteractionAt: serverTimestamp(),
     editedAt: serverTimestamp(),
   };
 
@@ -528,7 +586,7 @@ export const deleteOpinPost = async (postId) => {
 /**
  * ✅ Obtener posts del usuario actual
  */
-export const getMyOpinPosts = async () => {
+export const getMyOpinPosts = async (limitCount = 10) => {
   if (!auth.currentUser) {
     return [];
   }
@@ -538,7 +596,7 @@ export const getMyOpinPosts = async () => {
     postsRef,
     where('userId', '==', auth.currentUser.uid),
     orderBy('createdAt', 'desc'),
-    limit(10)
+    limit(limitCount)
   );
 
   const snapshot = await getDocs(q);
@@ -549,6 +607,102 @@ export const getMyOpinPosts = async () => {
   }));
 
   return posts;
+};
+
+export const getMyActiveOpinIntent = async () => {
+  const posts = await getMyOpinPosts(12);
+  return posts.find((post) => (
+    post.isStable !== true
+    && post.isActive !== false
+    && isOpenOpinIntentStatus(post.status)
+  )) || null;
+};
+
+const chunkArray = (items = [], size = 10) => {
+  const safeItems = Array.isArray(items) ? items : [];
+  const chunkSize = Math.max(1, size);
+  const chunks = [];
+
+  for (let index = 0; index < safeItems.length; index += chunkSize) {
+    chunks.push(safeItems.slice(index, index + chunkSize));
+  }
+
+  return chunks;
+};
+
+export const getOpenOpinIntentsByUserIds = async (userIds = []) => {
+  const uniqueUserIds = Array.from(new Set(
+    (Array.isArray(userIds) ? userIds : [])
+      .map((value) => String(value || '').trim())
+      .filter(Boolean)
+  ));
+
+  if (uniqueUserIds.length === 0) return [];
+
+  const nowMs = Date.now();
+  const queries = chunkArray(uniqueUserIds, 10).map(async (idsChunk) => {
+    const postsRef = collection(db, 'opin_posts');
+    const snapshot = await getDocs(query(postsRef, where('userId', 'in', idsChunk)));
+
+    return snapshot.docs
+      .map((docSnap) => normalizeOpinPost({ id: docSnap.id, ...docSnap.data() }))
+      .filter((post) => (
+        post.isStable !== true
+        && post.isActive !== false
+        && isOpenOpinIntentStatus(post.status)
+        && (nowMs - getTimestampMs(post.createdAt)) <= OPIN_ACTIVE_WINDOW_MS
+      ));
+  });
+
+  const rows = (await Promise.all(queries)).flat();
+  const latestByUser = new Map();
+
+  rows.forEach((post) => {
+    const userId = post?.userId || '';
+    if (!userId) return;
+
+    const current = latestByUser.get(userId);
+    if (!current || getOpinPostActivityMs(post) > getOpinPostActivityMs(current)) {
+      latestByUser.set(userId, post);
+    }
+  });
+
+  return Array.from(latestByUser.values())
+    .sort((a, b) => getOpinPostActivityMs(b) - getOpinPostActivityMs(a));
+};
+
+export const getOpinPostById = async (postId) => {
+  if (!postId) return null;
+  const postRef = doc(db, 'opin_posts', postId);
+  const postDoc = await getDoc(postRef);
+  if (!postDoc.exists()) return null;
+  return normalizeOpinPost({ id: postDoc.id, ...postDoc.data() });
+};
+
+export const getPersistedFollowedOpinPostIds = async () => {
+  if (!auth.currentUser || auth.currentUser.isAnonymous) return [];
+
+  const userRef = doc(db, 'users', auth.currentUser.uid);
+  const userSnap = await getDoc(userRef);
+  if (!userSnap.exists()) return [];
+
+  const raw = userSnap.data()?.opinFollowedPostIds;
+  return Array.isArray(raw) ? raw.filter((id) => typeof id === 'string' && id.trim()) : [];
+};
+
+export const savePersistedFollowedOpinPostIds = async (postIds = []) => {
+  if (!auth.currentUser || auth.currentUser.isAnonymous) return;
+
+  const sanitized = Array.from(new Set(
+    (Array.isArray(postIds) ? postIds : [])
+      .filter((id) => typeof id === 'string' && id.trim())
+      .slice(0, 100)
+  ));
+
+  await setDoc(doc(db, 'users', auth.currentUser.uid), {
+    opinFollowedPostIds: sanitized,
+    opinFollowedUpdatedAt: serverTimestamp(),
+  }, { merge: true });
 };
 
 export const updateOpinStatus = async (postId, status) => {
@@ -1239,6 +1393,35 @@ export const getReplyPreview = async (postId, previewLimit = 3) => {
   }));
 
   return replies;
+};
+
+export const getRecentReplyPreview = async (postId, previewLimit = 6) => {
+  const commentsRef = collection(db, 'opin_comments');
+
+  let snapshot;
+  try {
+    const q = query(
+      commentsRef,
+      where('postId', '==', postId),
+      orderBy('createdAt', 'desc'),
+      limit(previewLimit)
+    );
+    snapshot = await getDocs(q);
+  } catch (indexError) {
+    const qSimple = query(
+      commentsRef,
+      where('postId', '==', postId),
+      limit(previewLimit)
+    );
+    snapshot = await getDocs(qSimple);
+  }
+
+  const replies = snapshot.docs.map((doc) => ({
+    id: doc.id,
+    ...doc.data(),
+  }));
+
+  return replies.sort((a, b) => getTimestampMs(b.createdAt) - getTimestampMs(a.createdAt));
 };
 
 /**

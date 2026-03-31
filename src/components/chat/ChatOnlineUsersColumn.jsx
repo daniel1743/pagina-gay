@@ -4,6 +4,8 @@ import { Badge } from '@/components/ui/badge';
 import { Users, Circle } from 'lucide-react';
 import { resolveProfileRole } from '@/config/profileRoles';
 import { normalizeComuna, ONBOARDING_COMUNA_KEY } from '@/config/comunas';
+import ContextualOpportunitiesPanel from '@/components/chat/ContextualOpportunitiesPanel';
+import PresenceSidebarStatusPanel from '@/components/chat/PresenceSidebarStatusPanel';
 
 const DEFAULT_CHAT_AVATAR = '/avatar_por_defecto.jpeg';
 const MIN_VISIBLE_USERS = 10;
@@ -39,10 +41,10 @@ const isCurrentUserDuplicateByUsername = (item, currentUserId, currentUsername) 
 };
 
 const roleBadgeTone = (role) => {
-  if (role === 'Activo' || role === 'Versátil Act') return 'bg-emerald-500/15 text-emerald-300 border-emerald-500/35';
-  if (role === 'Pasivo' || role === 'Versátil Pasivo') return 'bg-cyan-500/15 text-cyan-300 border-cyan-500/35';
-  if (role === 'Versátil') return 'bg-fuchsia-500/15 text-fuchsia-300 border-fuchsia-500/35';
-  return 'bg-muted/40 text-muted-foreground border-border/70';
+  if (role === 'Activo' || role === 'Versátil Act') return 'bg-emerald-500/12 text-emerald-700 dark:text-emerald-300 border-emerald-500/35';
+  if (role === 'Pasivo' || role === 'Versátil Pasivo') return 'bg-cyan-500/12 text-cyan-700 dark:text-cyan-300 border-cyan-500/35';
+  if (role === 'Versátil') return 'bg-fuchsia-500/12 text-fuchsia-700 dark:text-fuchsia-300 border-fuchsia-500/35';
+  return 'bg-muted/50 text-foreground/80 dark:text-muted-foreground border-border/70';
 };
 
 const getRoleBucket = (roleLabel) => {
@@ -103,6 +105,13 @@ const ChatOnlineUsersColumn = ({
   onStartConversation,
   onRequestNickname,
   hideRoleBadges = false,
+  contextualOpportunities = [],
+  contextualTitle = 'Disponible ahora',
+  contextualSubtitle = '',
+  contextualBadgeLabel = null,
+  onOpenContextualOpportunity,
+  onDismissContextualOpportunities,
+  isContextualSending = false,
 }) => {
   const [knownUsers, setKnownUsers] = useState([]);
   const [isExpanded, setIsExpanded] = useState(false);
@@ -291,21 +300,44 @@ const ChatOnlineUsersColumn = ({
   }, [privateInboxItems, unreadPrivateMessages]);
 
   return (
-    <aside className="hidden lg:flex w-72 h-full flex-col border-l border-border bg-card/30 backdrop-blur-sm">
+    <aside className="hidden lg:flex w-72 h-full flex-col border-l border-border bg-card/72 backdrop-blur-sm">
       <div className="p-4 border-b border-border/80">
         <h3 className="text-base font-bold text-foreground flex items-center gap-2">
           <Users className="w-4 h-4 text-cyan-400" />
           Usuarios conectados
         </h3>
-        <p className="mt-1 text-xs text-muted-foreground">
+        <p className="mt-1 text-xs font-medium text-muted-foreground">
           {users.length} personas
         </p>
       </div>
 
+      <div className="px-3 pt-3">
+        <PresenceSidebarStatusPanel
+          roomId={roomId}
+          roomUsers={roomUsers}
+          user={currentUser}
+          onRequestNickname={onRequestNickname}
+          variant="desktop"
+        />
+      </div>
+
+      {contextualOpportunities.length > 0 ? (
+        <ContextualOpportunitiesPanel
+          items={contextualOpportunities}
+          variant="desktop"
+          title={contextualTitle}
+          subtitle={contextualSubtitle}
+          badgeLabel={contextualBadgeLabel}
+          onOpenMatch={onOpenContextualOpportunity}
+          onDismiss={onDismissContextualOpportunities}
+          isSending={isContextualSending}
+        />
+      ) : null}
+
       <div className="flex-1 min-h-0 overflow-y-auto p-3 space-y-2.5">
         {users.length === 0 ? (
-          <div className="rounded-xl border border-border/60 bg-secondary/20 p-4 text-center">
-            <p className="text-sm text-muted-foreground">Cargando personas...</p>
+          <div className="rounded-xl border border-border/70 bg-secondary/35 p-4 text-center">
+            <p className="text-sm font-medium text-foreground/80">Cargando personas...</p>
           </div>
         ) : (
           visibleUsers.map((item) => {
@@ -329,10 +361,10 @@ const ChatOnlineUsersColumn = ({
                 }}
                 className={`w-full text-left rounded-xl border transition-colors p-2.5 ${
                   unreadCount > 0
-                    ? 'border-emerald-500/25 bg-emerald-500/8'
+                    ? 'border-emerald-500/30 bg-emerald-500/10'
                     : 'border-border/60 bg-secondary/15'
                 } ${
-                  canOpenProfile ? 'hover:bg-secondary/30' : 'cursor-default'
+                  canOpenProfile ? 'hover:bg-secondary/32' : 'cursor-default'
                 }`}
               >
                 <div className="flex items-start gap-2.5">
@@ -359,7 +391,7 @@ const ChatOnlineUsersColumn = ({
 
                   <div className="min-w-0 flex-1">
                     <div className="flex items-center gap-1.5">
-                      <p className={`text-sm truncate ${unreadCount > 0 ? 'font-bold text-white' : 'font-semibold text-foreground'}`}>
+                      <p className={`text-sm truncate ${unreadCount > 0 ? 'font-bold text-foreground' : 'font-semibold text-foreground'}`}>
                         {isMe ? `${item.username} (Tú)` : item.username}
                       </p>
                       {item.isPremium && (
@@ -371,7 +403,7 @@ const ChatOnlineUsersColumn = ({
 
                     <div className="mt-1 flex items-center gap-1.5 flex-wrap">
                       {item.comuna ? (
-                        <span className="text-[10px] px-2 py-0.5 rounded-full border border-border/70 bg-muted/20 text-muted-foreground">
+                        <span className="text-[10px] font-medium px-2 py-0.5 rounded-full border border-border/80 bg-background/70 dark:bg-muted/20 text-foreground/78 dark:text-muted-foreground">
                           {item.comuna}
                         </span>
                       ) : null}
@@ -380,13 +412,13 @@ const ChatOnlineUsersColumn = ({
                           {item.roleBadge}
                         </Badge>
                       ) : !hideRoleBadges ? (
-                        <span className="text-[10px] text-muted-foreground">Sin rol</span>
+                        <span className="text-[10px] font-medium text-foreground/70 dark:text-muted-foreground">Sin rol</span>
                       ) : null}
                       {item.isOnline && item.inPrivateWith ? (
-                        <span className="text-[10px] text-fuchsia-300">En privado</span>
+                        <span className="text-[10px] font-semibold text-fuchsia-700 dark:text-fuchsia-300">En privado</span>
                       ) : null}
                       {unreadCount > 0 ? (
-                        <span className="text-[10px] font-semibold text-emerald-300">
+                        <span className="text-[10px] font-semibold text-emerald-700 dark:text-emerald-300">
                           {unreadCount === 1 ? '1 mensaje nuevo' : `${unreadCount} mensajes nuevos`}
                         </span>
                       ) : null}
@@ -402,7 +434,7 @@ const ChatOnlineUsersColumn = ({
           <button
             type="button"
             onClick={() => setIsExpanded((prev) => !prev)}
-            className="w-full rounded-xl border border-border/70 bg-secondary/20 hover:bg-secondary/35 transition-colors py-2.5 px-3 text-xs font-semibold text-cyan-300"
+            className="w-full rounded-xl border border-border/70 bg-secondary/25 hover:bg-secondary/40 transition-colors py-2.5 px-3 text-xs font-semibold text-cyan-700 dark:text-cyan-300"
           >
             {isExpanded
               ? 'Ver menos'

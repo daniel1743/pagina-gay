@@ -6,8 +6,11 @@
 import React, { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { Users, ChevronRight, Sparkles, MapPin } from 'lucide-react';
-import { collection, query, where, getDocs, orderBy, limit } from 'firebase/firestore';
+import { collection, query, where, getDocs, limit } from 'firebase/firestore';
 import { db } from '@/config/firebase';
+
+const BAUL_PROMO_QUERY_CAP = 100;
+const BAUL_PROMO_REFRESH_MS = 3 * 60 * 1000;
 
 /**
  * Obtener conteo de usuarios online/recientes
@@ -17,7 +20,11 @@ const obtenerConteoUsuarios = async () => {
     const tarjetasRef = collection(db, 'tarjetas');
 
     // Usuarios online
-    const qOnline = query(tarjetasRef, where('estaOnline', '==', true));
+    const qOnline = query(
+      tarjetasRef,
+      where('estaOnline', '==', true),
+      limit(BAUL_PROMO_QUERY_CAP)
+    );
     const snapshotOnline = await getDocs(qOnline);
     const online = snapshotOnline.size;
 
@@ -26,7 +33,7 @@ const obtenerConteoUsuarios = async () => {
     const qRecientes = query(
       tarjetasRef,
       where('ultimaConexion', '>=', dosHorasAtras),
-      limit(50)
+      limit(BAUL_PROMO_QUERY_CAP)
     );
     const snapshotRecientes = await getDocs(qRecientes);
     const recientes = snapshotRecientes.size;
@@ -47,10 +54,10 @@ export const BaulPromoCompact = ({ onClick }) => {
   useEffect(() => {
     obtenerConteoUsuarios().then(setConteo);
 
-    // Actualizar cada 30 segundos
+    // Actualizar con baja frecuencia; es una pieza promocional, no tiempo real crítico.
     const interval = setInterval(() => {
       obtenerConteoUsuarios().then(setConteo);
-    }, 30000);
+    }, BAUL_PROMO_REFRESH_MS);
 
     return () => clearInterval(interval);
   }, []);

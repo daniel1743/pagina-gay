@@ -1,9 +1,9 @@
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { Flame, MapPin, MessageCircle, Search, Users, Video } from 'lucide-react';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Button } from '@/components/ui/button';
 import { toast } from '@/components/ui/use-toast';
-import { updatePresenceFields } from '@/services/presenceService';
+import { getPresenceActivityMs, updatePresenceFields } from '@/services/presenceService';
 
 const ACTIVE_THRESHOLD_MS = 2 * 60 * 1000;
 const DEFAULT_CHAT_AVATAR = '/avatar_por_defecto.jpeg';
@@ -57,22 +57,6 @@ const isBotOrSystemUser = (userId = '') => (
   userId.startsWith('static_bot_')
 );
 
-const toTimestampMs = (value) => {
-  if (!value) return null;
-  if (typeof value?.toMillis === 'function') return value.toMillis();
-  if (typeof value === 'number' && Number.isFinite(value)) return value;
-  if (typeof value?.seconds === 'number') return value.seconds * 1000;
-  const parsed = new Date(value).getTime();
-  return Number.isFinite(parsed) ? parsed : null;
-};
-
-const getPresenceLastActivityMs = (item = {}) => (
-  toTimestampMs(item.lastSeen) ??
-  toTimestampMs(item.lastActiveAt) ??
-  toTimestampMs(item.updatedAt) ??
-  toTimestampMs(item.joinedAt)
-);
-
 const resolveChatAvatar = (avatar) => {
   if (!avatar || typeof avatar !== 'string') return DEFAULT_CHAT_AVATAR;
   const normalized = avatar.trim().toLowerCase();
@@ -92,8 +76,10 @@ const QuickIntentPanel = ({
   roomUsers = [],
   user = null,
   onRequestNickname,
+  onStartConversation,
 }) => {
   const [savingKey, setSavingKey] = useState(null);
+  const [showExpandedPanel, setShowExpandedPanel] = useState(false);
 
   const activeUsers = useMemo(() => {
     const now = Date.now();
@@ -101,15 +87,19 @@ const QuickIntentPanel = ({
       const userId = item?.userId || item?.id || '';
       if (!userId || isBotOrSystemUser(userId)) return false;
       if (item?.isGuest && !item?.username) return false;
-      const lastActivityMs = getPresenceLastActivityMs(item);
+      const lastActivityMs = getPresenceActivityMs(item);
       return Number.isFinite(lastActivityMs) && (now - lastActivityMs) <= ACTIVE_THRESHOLD_MS;
     });
   }, [roomUsers]);
 
   const currentUserId = user?.id || null;
   const currentPresence = useMemo(
-    () => activeUsers.find((item) => (item.userId || item.id) === currentUserId) || null,
-    [activeUsers, currentUserId]
+    () => (
+      activeUsers.find((item) => (item.userId || item.id) === currentUserId)
+      || (Array.isArray(roomUsers) ? roomUsers : []).find((item) => (item.userId || item.id) === currentUserId)
+      || null
+    ),
+    [activeUsers, currentUserId, roomUsers]
   );
 
   const summary = useMemo(() => {
@@ -122,6 +112,12 @@ const QuickIntentPanel = ({
         userId: item.userId || item.id,
         username: item.username || 'Usuario',
         avatar: resolveChatAvatar(item.avatar),
+        roleBadge: item.roleBadge || item.profileRole || item.role || null,
+        comuna: item.comuna || null,
+        isPremium: Boolean(item.isPremium || item.isProUser),
+        isGuest: Boolean(item.isGuest || item.isAnonymous),
+        quickIntentKey: intentKey,
+        quickIntentLabel: item?.quickIntentLabel || null,
       });
     });
 
@@ -135,6 +131,23 @@ const QuickIntentPanel = ({
     () => summary.reduce((acc, option) => acc + option.users.length, 0),
     [summary]
   );
+
+  const selectedIntentKey = String(currentPresence?.quickIntentKey || '').trim();
+  const selectedIntent = useMemo(
+    () => INTENT_OPTIONS.find((option) => option.key === selectedIntentKey) || null,
+    [selectedIntentKey]
+  );
+
+  const selectedIntentUsersCount = useMemo(
+    () => summary.find((option) => option.key === selectedIntentKey)?.users.length || 0,
+    [selectedIntentKey, summary]
+  );
+
+  useEffect(() => {
+    if (!selectedIntentKey) {
+      setShowExpandedPanel(false);
+    }
+  }, [selectedIntentKey]);
 
   const handlePickIntent = async (option) => {
     if (!user?.id) {
@@ -160,6 +173,7 @@ const QuickIntentPanel = ({
         quickIntentLabel: nextLabel,
         quickIntentUpdatedAt: Date.now(),
       });
+      setShowExpandedPanel(false);
     } catch (error) {
       console.error('[QUICK_INTENT] Error actualizando estado:', error);
       toast({
@@ -173,6 +187,40 @@ const QuickIntentPanel = ({
   };
 
   if (roomId !== 'principal') return null;
+
+  if (selectedIntent && !showExpandedPanel) {
+    const SelectedIcon = selectedIntent.icon;
+
+    return (
+      <section className="px-3 pt-3 md:px-4 md:pt-4">
+        <div className="rounded-2xl border border-white/10 bg-[linear-gradient(135deg,rgba(27,32,58,0.96),rgba(53,36,74,0.92))] px-4 py-3 shadow-[0_18px_50px_rgba(8,10,26,0.32)]">
+          <div className="flex items-center justify-between gap-3">
+            <div className="min-w-0">
+              <p className="text-[11px] uppercase tracking-[0.24em] text-cyan-200/70">Radar express activo</p>
+              <div className="mt-1 flex flex-wrap items-center gap-2">
+                <span className={`inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-[11px] font-semibold ${selectedIntent.chipClassName}`}>
+                  <SelectedIcon className="w-3.5 h-3.5" />
+                  {selectedIntent.label}
+                </span>
+                <span className="text-[11px] text-slate-300">
+                  {selectedIntentUsersCount} en esto
+                </span>
+              </div>
+            </div>
+
+            <Button
+              type="button"
+              size="sm"
+              onClick={() => setShowExpandedPanel(true)}
+              className="h-8 rounded-xl bg-white text-slate-950 hover:bg-slate-100 px-3 text-xs font-semibold"
+            >
+              Cambiar
+            </Button>
+          </div>
+        </div>
+      </section>
+    );
+  }
 
   return (
     <section className="px-3 pt-3 md:px-4 md:pt-4">
@@ -226,7 +274,7 @@ const QuickIntentPanel = ({
           </div>
         </div>
 
-        <div className="grid gap-2 border-t border-white/10 bg-black/10 px-4 py-3 md:grid-cols-2 xl:grid-cols-3">
+        <div className="grid max-h-[240px] gap-2 overflow-y-auto overscroll-contain border-t border-white/10 bg-black/10 px-4 py-3 pr-2 md:max-h-none md:grid-cols-2 md:pr-4 xl:grid-cols-3">
           {summary.map((option) => (
             <div
               key={option.key}
@@ -243,9 +291,19 @@ const QuickIntentPanel = ({
               {option.users.length > 0 ? (
                 <div className="mt-3 flex flex-wrap gap-2">
                   {option.users.slice(0, 6).map((person) => (
-                    <div
+                    <button
                       key={`${option.key}_${person.userId}`}
-                      className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/5 pr-2 pl-1 py-1"
+                      type="button"
+                      onClick={() => {
+                        if (person.userId === currentUserId) return;
+                        onStartConversation?.(person);
+                      }}
+                      disabled={person.userId === currentUserId || !onStartConversation}
+                      className={`inline-flex items-center gap-2 rounded-full border pr-2 pl-1 py-1 transition-colors ${
+                        person.userId === currentUserId || !onStartConversation
+                          ? 'cursor-default border-white/10 bg-white/5'
+                          : 'border-cyan-400/20 bg-cyan-500/10 hover:border-cyan-300/40 hover:bg-cyan-500/16'
+                      }`}
                     >
                       <Avatar className="w-6 h-6 border border-white/10">
                         <AvatarImage src={person.avatar} alt={person.username} />
@@ -254,7 +312,7 @@ const QuickIntentPanel = ({
                       <span className="max-w-[90px] truncate text-[11px] text-white">
                         {person.userId === currentUserId ? 'Tú' : person.username}
                       </span>
-                    </div>
+                    </button>
                   ))}
                   {option.users.length > 6 && (
                     <span className="inline-flex items-center rounded-full border border-white/10 bg-white/5 px-2 py-1 text-[11px] text-slate-200">
@@ -265,6 +323,12 @@ const QuickIntentPanel = ({
               ) : (
                 <p className="mt-3 text-[11px] text-slate-400">Todavía nadie se marcó aquí.</p>
               )}
+
+              {option.users.some((person) => person.userId !== currentUserId) && onStartConversation ? (
+                <p className="mt-3 text-[11px] text-cyan-200/80">
+                  Toca un perfil para abrir conversación privada.
+                </p>
+              ) : null}
             </div>
           ))}
         </div>

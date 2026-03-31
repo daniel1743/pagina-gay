@@ -23,7 +23,7 @@ import {
   Sparkles,
   Footprints
 } from 'lucide-react';
-import { obtenerMiActividad, marcarActividadLeida, obtenerTarjeta, darLike, yaLeDiLike } from '@/services/tarjetaService';
+import { obtenerMiActividad, marcarActividadLeida, obtenerTarjeta, darLike } from '@/services/tarjetaService';
 import MensajeTarjetaModal from './MensajeTarjetaModal';
 import { useAuth } from '@/contexts/AuthContext';
 import { toast } from '@/components/ui/use-toast';
@@ -295,7 +295,7 @@ const ActividadFeed = ({ isOpen, onClose, miUserId }) => {
               // Si es un like, verificar si ya le devolví
               let yaDevolviLike = false;
               if (act.tipo === 'like' && act.deUserId) {
-                yaDevolviLike = await yaLeDiLike(act.deUserId, miUserId);
+                yaDevolviLike = Array.isArray(tarjeta?.likesDe) ? tarjeta.likesDe.includes(miUserId) : false;
               }
 
               return {

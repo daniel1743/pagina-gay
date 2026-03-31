@@ -58,7 +58,7 @@ const ContextualMessages = ({
     // CASO 1: Sala vacía (0 usuarios además del actual)
     if (userCount === 0 || userCount === 1) {
       return {
-        text: `Eres ${userCount === 0 ? 'el primero' : 'el único'} aquí ahora. ¿De qué tienes ganas de hablar? 💬`,
+        text: `Eres ${userCount === 0 ? 'el primero' : 'el único'} aquí ahora. Di qué buscas y destacas más rápido.`,
         icon: MessageSquare,
         color: 'text-cyan-400',
         bgColor: 'bg-cyan-500/10',
@@ -69,7 +69,7 @@ const ContextualMessages = ({
     // CASO 2: Poca gente en la sala (2-3 usuarios)
     if (userCount <= 3) {
       return {
-        text: `Hay ${userCount} personas aquí. ¡Di hola! 👋`,
+        text: `Hay ${userCount} personas aquí. Mejor entra con intención, no con un hola vacío.`,
         icon: Users,
         color: 'text-green-400',
         bgColor: 'bg-green-500/10',
@@ -82,7 +82,7 @@ const ContextualMessages = ({
       const mostActiveRoom = getMostActiveRoom();
       if (mostActiveRoom && mostActiveRoom.id !== roomId) {
         return {
-          text: `💡 La sala "${mostActiveRoom.name}" tiene ${mostActiveRoom.count} personas activas. ¿Pruebas ahí?`,
+          text: `💡 La sala "${mostActiveRoom.name}" tiene ${mostActiveRoom.count} personas activas. Entra con contexto y prueba ahí.`,
           icon: TrendingUp,
           color: 'text-purple-400',
           bgColor: 'bg-purple-500/10',
@@ -92,7 +92,7 @@ const ContextualMessages = ({
       }
 
       return {
-        text: '💬 Mientras esperas, ¿qué tal tu día?',
+        text: '💬 Mientras esperas, prueba decir tu rol, tu comuna o lo que buscas.',
         icon: Sparkles,
         color: 'text-pink-400',
         bgColor: 'bg-pink-500/10',
@@ -103,7 +103,7 @@ const ContextualMessages = ({
     // CASO 4: Sin mensajes pero hay gente (>5 minutos silencio con 4+ usuarios)
     if (minutesSinceLastMessage >= 5 && userCount >= 4) {
       return {
-        text: '¿Nadie dice nada? ¡Rompe el hielo! 🔥',
+        text: 'Hay gente conectada. Un mensaje con intención funciona mejor que un hola.',
         icon: MessageSquare,
         color: 'text-orange-400',
         bgColor: 'bg-orange-500/10',

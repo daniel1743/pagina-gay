@@ -379,7 +379,8 @@ export async function actualizarEstadoOnline(odIdUsuari, estaOnline) {
 
 // ⚙️ CONFIGURACIÓN DEL BAÚL
 const BAUL_CONFIG = {
-  TARJETAS_MINIMAS: 100,        // Siempre mostrar 100 tarjetas
+  TARJETAS_MINIMAS: 60,         // Reducido para contener reads sin vaciar el Baul
+  QUERY_CAP: 120,               // Tope duro de documentos a leer por consulta de Baul
 };
 
 /**
@@ -393,6 +394,7 @@ export async function obtenerTarjetasCercanas(miUbicacion, miUserId, limite = 10
     console.log('[TARJETA] Buscando tarjetas cercanas para:', miUserId);
 
     const cantidadAObtener = Math.max(limite, BAUL_CONFIG.TARJETAS_MINIMAS);
+    const queryCap = Math.min(Math.max(cantidadAObtener, BAUL_CONFIG.TARJETAS_MINIMAS), BAUL_CONFIG.QUERY_CAP);
     const tarjetasRef = collection(db, 'tarjetas');
 
     // 🔧 FIX: Obtener TODAS las tarjetas sin depender de orderBy
@@ -406,7 +408,7 @@ export async function obtenerTarjetasCercanas(miUbicacion, miUserId, limite = 10
       const qOrdered = query(
         tarjetasRef,
         orderBy('ultimaConexion', 'desc'),
-        limit(cantidadAObtener)
+        limit(queryCap)
       );
       const snapshotOrdered = await getDocs(qOrdered);
       snapshotOrdered.forEach(docSnap => {
@@ -417,19 +419,20 @@ export async function obtenerTarjetasCercanas(miUbicacion, miUserId, limite = 10
       console.warn('[TARJETA] Index no disponible para query ordenada:', indexError.message);
     }
 
-    // Query 2: SIEMPRE ejecutar query sin orderBy para capturar TODOS los perfiles
-    // limit(500) asegura que no se excluyan perfiles con fotos reales por cap de 150
-    // Firestore sin orderBy retorna docs en orden arbitrario; un limit bajo puede omitir perfiles válidos
-    try {
-      const LIMITE_COMPLETO = 2000; // Margen amplio para no perder perfiles configurados
-      const qAll = query(tarjetasRef, limit(LIMITE_COMPLETO));
-      const snapshotAll = await getDocs(qAll);
-      snapshotAll.forEach(docSnap => {
-        tarjetasMap.set(docSnap.id, { id: docSnap.id, ...docSnap.data() });
-      });
-      console.log('[TARJETA] Query completa retornó:', snapshotAll.size, 'tarjetas (total únicos:', tarjetasMap.size, ')');
-    } catch (error) {
-      console.error('[TARJETA] Error en query completa:', error.message);
+    // Query 2: solo completar faltantes si la query ordenada no alcanza.
+    const faltantes = Math.max(0, cantidadAObtener - tarjetasMap.size);
+    if (faltantes > 0) {
+      try {
+        const fallbackLimit = Math.min(Math.max(faltantes * 2, 40), queryCap);
+        const qAll = query(tarjetasRef, limit(fallbackLimit));
+        const snapshotAll = await getDocs(qAll);
+        snapshotAll.forEach(docSnap => {
+          tarjetasMap.set(docSnap.id, { id: docSnap.id, ...docSnap.data() });
+        });
+        console.log('[TARJETA] Query fallback retornó:', snapshotAll.size, 'tarjetas (total únicos:', tarjetasMap.size, ')');
+      } catch (error) {
+        console.error('[TARJETA] Error en query fallback:', error.message);
+      }
     }
 
     let tarjetas = Array.from(tarjetasMap.values());
@@ -533,6 +536,7 @@ export async function obtenerTarjetasRecientes(miUserId, limite = 100) {
     console.log('[TARJETA] Buscando tarjetas recientes para usuario:', miUserId);
 
     const cantidadAObtener = Math.max(limite, BAUL_CONFIG.TARJETAS_MINIMAS);
+    const queryCap = Math.min(Math.max(cantidadAObtener, BAUL_CONFIG.TARJETAS_MINIMAS), BAUL_CONFIG.QUERY_CAP);
     const tarjetasRef = collection(db, 'tarjetas');
 
     // 🔧 FIX: Obtener TODAS las tarjetas sin depender de orderBy
@@ -544,7 +548,7 @@ export async function obtenerTarjetasRecientes(miUserId, limite = 100) {
       const qOrdered = query(
         tarjetasRef,
         orderBy('ultimaConexion', 'desc'),
-        limit(cantidadAObtener)
+        limit(queryCap)
       );
       const snapshotOrdered = await getDocs(qOrdered);
       snapshotOrdered.forEach(docSnap => {
@@ -555,18 +559,20 @@ export async function obtenerTarjetasRecientes(miUserId, limite = 100) {
       console.warn('[TARJETA] Index no disponible:', indexError.message);
     }
 
-    // Query 2: SIEMPRE ejecutar query sin orderBy para capturar TODOS los perfiles
-    // limit(500) evita excluir perfiles con fotos reales (bug: limit 150 omitía perfiles válidos)
-    try {
-      const LIMITE_COMPLETO = 2000;
-      const qAll = query(tarjetasRef, limit(LIMITE_COMPLETO));
-      const snapshotAll = await getDocs(qAll);
-      snapshotAll.forEach(docSnap => {
-        tarjetasMap.set(docSnap.id, { id: docSnap.id, ...docSnap.data() });
-      });
-      console.log('[TARJETA] Query completa capturó:', snapshotAll.size, 'tarjetas');
-    } catch (error) {
-      console.error('[TARJETA] Error en query completa:', error.message);
+    // Query 2: solo completar faltantes si la query ordenada no alcanza.
+    const faltantes = Math.max(0, cantidadAObtener - tarjetasMap.size);
+    if (faltantes > 0) {
+      try {
+        const fallbackLimit = Math.min(Math.max(faltantes * 2, 40), queryCap);
+        const qAll = query(tarjetasRef, limit(fallbackLimit));
+        const snapshotAll = await getDocs(qAll);
+        snapshotAll.forEach(docSnap => {
+          tarjetasMap.set(docSnap.id, { id: docSnap.id, ...docSnap.data() });
+        });
+        console.log('[TARJETA] Query fallback capturó:', snapshotAll.size, 'tarjetas');
+      } catch (error) {
+        console.error('[TARJETA] Error en query fallback:', error.message);
+      }
     }
 
     console.log('[TARJETA] Total tarjetas combinadas:', tarjetasMap.size);
@@ -1083,17 +1089,14 @@ export async function registrarVisita(tarjetaId, miUserId, miUsername) {
  * Cuenta como "visualización" - alguien vio la tarjeta en el Baúl
  * Rate limit: 1 por usuario por tarjeta por día (no spam al hacer scroll)
  */
-export async function registrarImpresion(tarjetaId, miUserId) {
+export async function registrarImpresion(tarjetaId, miUserId, tarjetaData = null) {
   try {
     if (!tarjetaId || !miUserId) return;
     if (tarjetaId === miUserId) return;
 
     const today = new Date().toISOString().slice(0, 10);
     const impresionKey = `${miUserId}_${today}`;
-
-    const tarjetaSnap = await getDoc(doc(db, 'tarjetas', tarjetaId));
-    const data = tarjetaSnap.data() || {};
-    const impresionesDe = data.impresionesDe || [];
+    const impresionesDe = tarjetaData?.impresionesDe || [];
     if (impresionesDe.includes(impresionKey)) return; // Ya contó hoy
 
     await updateDoc(doc(db, 'tarjetas', tarjetaId), {

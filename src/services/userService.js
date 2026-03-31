@@ -76,7 +76,7 @@ export const createUserProfile = async (uid, userData) => {
       isPremium: false,
       verified: false,
       isGuest: false,
-      avatar: `https://api.dicebear.com/7.x/avataaars/svg?seed=${userData.username}`,
+      avatar: userData.avatar || `https://api.dicebear.com/7.x/avataaars/svg?seed=${userData.username}`,
       quickPhrases: [],
       theme: {},
       createdAt: serverTimestamp(),

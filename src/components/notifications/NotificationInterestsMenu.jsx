@@ -134,14 +134,17 @@ const NotificationInterestsMenu = () => {
         <Button
           variant="ghost"
           size="icon"
-          className="relative text-muted-foreground hover:text-foreground min-w-[44px] min-h-[44px] sm:min-w-0 sm:min-h-0"
+          className="relative rounded-2xl text-muted-foreground hover:text-foreground hover:bg-black/5 dark:hover:bg-white/5 min-w-[44px] min-h-[44px] sm:min-w-0 sm:min-h-0"
           aria-label="Configurar avisos por intereses"
           title="Avisos por intereses"
         >
           <SlidersHorizontal className="w-5 h-5" />
         </Button>
       </DropdownMenuTrigger>
-      <DropdownMenuContent align="end" className="w-72 bg-card border text-foreground">
+      <DropdownMenuContent
+        align="end"
+        className="w-72 rounded-2xl border border-border/90 bg-popover/98 text-popover-foreground shadow-[0_18px_48px_rgba(15,23,42,0.18)] backdrop-blur-xl"
+      >
         <DropdownMenuLabel>Avisarme cuando...</DropdownMenuLabel>
         <DropdownMenuItem
           disabled={isRequestingPush}

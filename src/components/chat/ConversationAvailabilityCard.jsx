@@ -50,6 +50,7 @@ const ConversationAvailabilityCard = ({
   const [isSaving, setIsSaving] = useState(false);
   const [clockNow, setClockNow] = useState(Date.now());
   const [hideWhileAvailable, setHideWhileAvailable] = useState(false);
+  const [showExpandedCompact, setShowExpandedCompact] = useState(false);
 
   useEffect(() => {
     const timer = setInterval(() => {
@@ -77,10 +78,12 @@ const ConversationAvailabilityCard = ({
   const currentUserAvailable = Boolean(currentPresence && isUserAvailableForConversation(currentPresence, clockNow));
   const expiresAtMs = currentPresence?.availableForChatExpiresAtMs || null;
   const remaining = currentUserAvailable ? formatRemaining(expiresAtMs, clockNow) : null;
+  const shouldCollapseCompact = variant === 'compact' && currentUserAvailable && !showExpandedCompact;
 
   useEffect(() => {
     if (!currentUserAvailable) {
       setHideWhileAvailable(false);
+      setShowExpandedCompact(false);
     }
   }, [currentUserAvailable]);
 
@@ -95,6 +98,7 @@ const ConversationAvailabilityCard = ({
       if (currentUserAvailable) {
         await setAvailabilityForConversation(roomId, false);
         setHideWhileAvailable(false);
+        setShowExpandedCompact(false);
         toast({
           title: 'Disponibilidad desactivada',
           description: 'Ya no apareces en disponibles ahora.',
@@ -102,6 +106,7 @@ const ConversationAvailabilityCard = ({
       } else {
         await setAvailabilityForConversation(roomId, true);
         setHideWhileAvailable(true);
+        setShowExpandedCompact(false);
         toast({
           title: 'Ya apareces como disponible',
           description: `Estarás visible durante ${Math.round(CHAT_AVAILABILITY_DURATION_MS / 60000)} minutos si sigues en sala.`,
@@ -123,6 +128,41 @@ const ConversationAvailabilityCard = ({
   if (variant !== 'compact' && currentUserAvailable && hideWhileAvailable) return null;
 
   if (variant === 'compact') {
+    if (shouldCollapseCompact) {
+      return (
+        <div className="rounded-xl border border-emerald-500/20 bg-emerald-500/5 px-3 py-2">
+          <div className="flex items-center justify-between gap-2">
+            <div className="min-w-0">
+              <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-emerald-200/80">
+                Tu disponibilidad activa
+              </p>
+              <div className="mt-1 flex flex-wrap items-center gap-1.5 text-[11px] text-slate-200">
+                {remaining ? (
+                  <span className="inline-flex items-center gap-1 rounded-full border border-emerald-400/20 bg-emerald-500/10 px-2 py-1 text-emerald-100">
+                    <Timer className="w-3 h-3" />
+                    {remaining}
+                  </span>
+                ) : null}
+                <span className="inline-flex items-center gap-1 rounded-full border border-white/10 bg-white/5 px-2 py-1">
+                  <Users className="w-3 h-3 text-emerald-300" />
+                  {availableUsers.filter((item) => (item.userId || item.id) !== user?.id).length}
+                </span>
+              </div>
+            </div>
+
+            <Button
+              type="button"
+              size="sm"
+              onClick={() => setShowExpandedCompact(true)}
+              className="h-8 rounded-xl bg-white text-slate-950 hover:bg-slate-100 px-3 text-xs font-semibold"
+            >
+              Cambiar
+            </Button>
+          </div>
+        </div>
+      );
+    }
+
     return (
       <div className="rounded-xl border border-emerald-500/20 bg-emerald-500/5 p-2.5">
         <div className="flex items-center justify-between gap-2">

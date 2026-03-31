@@ -31,33 +31,66 @@ import {
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { Switch } from '@/components/ui/switch';
 import { useAuth } from '@/contexts/AuthContext';
 import { updateGuestName } from '@/utils/guestIdentity';
 import { toast } from '@/components/ui/use-toast';
 import { doc, getDoc } from 'firebase/firestore';
 import { db } from '@/config/firebase';
+import AvatarSelector from '@/components/profile/AvatarSelector';
+import {
+  canRequestPush,
+  getPushInterestPreferences,
+  isPushEnabled,
+  requestNotificationPermission,
+  savePushInterestPreferences,
+} from '@/services/pushNotificationService';
 import {
   User,
   Edit3,
   Flag,
   LogIn,
   LogOut,
-  Settings,
   Shield,
+  Home,
+  Bell,
+  Camera,
 } from 'lucide-react';
 
+const INTEREST_OPTIONS = [
+  { key: 'more_people_connected', label: 'Más personas conectadas' },
+  { key: 'more_room_activity', label: 'Más actividad en sala' },
+  { key: 'direct_messages', label: 'Cuando me escriban' },
+  { key: 'profile_views', label: 'Cuando vean mi perfil' },
+  { key: 'opin_comments', label: 'Cuando comenten mi OPIN' },
+  { key: 'baul_card_views', label: 'Cuando vean mi tarjeta Baúl' },
+];
+
 export function AvatarMenu() {
-  const { user, logout } = useAuth();
+  const { user, logout, updateProfile } = useAuth();
   const navigate = useNavigate();
 
   const [showChangeNameModal, setShowChangeNameModal] = useState(false);
+  const [showAvatarSelector, setShowAvatarSelector] = useState(false);
+  const [showNotificationSettings, setShowNotificationSettings] = useState(false);
   const [newName, setNewName] = useState('');
   const [isChangingName, setIsChangingName] = useState(false);
   const [isAdmin, setIsAdmin] = useState(false);
+  const [preferences, setPreferences] = useState(() => getPushInterestPreferences(user?.id || null));
+  const [isRequestingPush, setIsRequestingPush] = useState(false);
+  const [pushGranted, setPushGranted] = useState(() => isPushEnabled());
 
-  if (!user) return null;
+  const isGuest = Boolean(user?.isGuest || user?.isAnonymous);
+  const userId = user?.id || null;
 
-  const isGuest = user.isGuest || user.isAnonymous;
+  useEffect(() => {
+    const merged = {
+      ...getPushInterestPreferences(userId),
+      ...(user?.pushInterestPreferences || {}),
+    };
+    setPreferences(merged);
+    setPushGranted(isPushEnabled());
+  }, [userId, user?.pushInterestPreferences]);
 
   // Verificar si el usuario es admin
   useEffect(() => {
@@ -152,13 +185,116 @@ export function AvatarMenu() {
     navigate('/auth');
   };
 
+  const handleGoHome = () => {
+    navigate(isGuest ? '/landing' : '/home');
+  };
+
+  const handleOpenProfile = () => {
+    if (isGuest) {
+      toast({
+        title: 'Crea tu perfil para verlo completo',
+        description: 'Regístrate para acceder a tu perfil, foto y edición completa.',
+      });
+      navigate('/auth');
+      return;
+    }
+    navigate('/profile');
+  };
+
+  const handleEditProfile = () => {
+    if (isGuest) {
+      handleGoToAuth();
+      return;
+    }
+    navigate('/profile');
+  };
+
+  const handleChangePhoto = () => {
+    if (isGuest) {
+      toast({
+        title: 'Crea tu cuenta para personalizar tu perfil',
+        description: 'Necesitas registrarte para cambiar tu foto.',
+      });
+      navigate('/auth');
+      return;
+    }
+    setShowAvatarSelector(true);
+  };
+
+  const requireRegisteredUser = () => {
+    if (!isGuest) return true;
+    toast({
+      title: 'Regístrate para personalizar avisos',
+      description: 'Los avisos por intereses se guardan en tu cuenta.',
+      duration: 4500,
+      action: {
+        label: 'Crear cuenta',
+        onClick: () => navigate('/auth'),
+      },
+    });
+    return false;
+  };
+
+  const ensurePushPermission = async () => {
+    if (isPushEnabled()) {
+      setPushGranted(true);
+      return true;
+    }
+    if (!canRequestPush()) {
+      toast({
+        title: 'Activa notificaciones en tu navegador',
+        description: 'El permiso está bloqueado. Debes habilitarlo en configuración del sitio.',
+        variant: 'destructive',
+      });
+      return false;
+    }
+
+    setIsRequestingPush(true);
+    try {
+      const token = await requestNotificationPermission();
+      const granted = Boolean(token) || isPushEnabled();
+      setPushGranted(granted);
+      if (!granted) {
+        toast({
+          title: 'Notificaciones no activadas',
+          description: 'Acepta el permiso para recibir avisos en teléfono y desktop.',
+          variant: 'destructive',
+        });
+      } else {
+        toast({
+          title: 'Notificaciones activadas',
+          description: 'Ahora puedes elegir exactamente qué avisos quieres recibir.',
+        });
+      }
+      return granted;
+    } finally {
+      setIsRequestingPush(false);
+    }
+  };
+
+  const updatePreference = async (key, checked) => {
+    if (!requireRegisteredUser()) return;
+    const nextEnabled = checked === true;
+
+    if (nextEnabled) {
+      const canUsePush = await ensurePushPermission();
+      if (!canUsePush) return;
+    }
+
+    const next = { ...preferences, [key]: nextEnabled };
+    setPreferences(next);
+    await savePushInterestPreferences(next, userId);
+  };
+
   const handleReport = () => {
     // TODO: Implementar sistema de denuncias
     toast({
       title: 'Denuncias',
       description: 'Sistema de denuncias próximamente disponible',
-    });
+      });
   };
+
+  if (!user) return null;
 
   return (
     <>
@@ -181,7 +317,10 @@ export function AvatarMenu() {
           </button>
         </DropdownMenuTrigger>
 
-        <DropdownMenuContent align="end" className="w-56">
+        <DropdownMenuContent
+          align="end"
+          className="w-64 rounded-2xl border border-border/90 bg-popover/98 p-1.5 text-popover-foreground shadow-[0_18px_48px_rgba(15,23,42,0.18)] backdrop-blur-xl"
+        >
           {/* Nombre de perfil */}
           <DropdownMenuLabel className="font-normal">
             <div className="flex flex-col space-y-1">
@@ -193,6 +332,16 @@ export function AvatarMenu() {
           </DropdownMenuLabel>
 
           <DropdownMenuSeparator />
+
+          <DropdownMenuItem onClick={handleGoHome}>
+            <Home className="mr-2 h-4 w-4" />
+            <span>Ir a inicio</span>
+          </DropdownMenuItem>
+
+          <DropdownMenuItem onClick={handleOpenProfile}>
+            <User className="mr-2 h-4 w-4" />
+            <span>{isGuest ? 'Crear perfil' : 'Mi perfil'}</span>
+          </DropdownMenuItem>
 
           {/* ⚡ OPCIONES PARA INVITADOS */}
           {isGuest && (
@@ -222,10 +371,19 @@ export function AvatarMenu() {
           {/* ⚡ OPCIONES PARA USUARIOS REGISTRADOS */}
           {!isGuest && (
             <>
-              {/* Mi perfil */}
-              <DropdownMenuItem onClick={() => navigate('/profile')}>
-                <User className="mr-2 h-4 w-4" />
-                <span>Mi perfil</span>
+              <DropdownMenuItem onClick={handleEditProfile}>
+                <Edit3 className="mr-2 h-4 w-4" />
+                <span>Editar perfil</span>
+              </DropdownMenuItem>
+
+              <DropdownMenuItem onClick={handleChangePhoto}>
+                <Camera className="mr-2 h-4 w-4" />
+                <span>Cambiar foto</span>
+              </DropdownMenuItem>
+
+              <DropdownMenuItem onClick={() => setShowNotificationSettings(true)}>
+                <Bell className="mr-2 h-4 w-4" />
+                <span>Ajustes de notificaciones</span>
               </DropdownMenuItem>
 
               {/* Panel de Admin (solo para admins) */}
@@ -290,6 +448,78 @@ export function AvatarMenu() {
               {isChangingName ? 'Cambiando...' : 'Guardar'}
             </Button>
           </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {!isGuest && (
+        <AvatarSelector
+          isOpen={showAvatarSelector}
+          onClose={() => setShowAvatarSelector(false)}
+          currentAvatar={user.avatar}
+          onSelect={async (newAvatar) => {
+            await updateProfile({ avatar: newAvatar });
+            setShowAvatarSelector(false);
+          }}
+        />
+      )}
+
+      <Dialog open={showNotificationSettings} onOpenChange={setShowNotificationSettings}>
+        <DialogContent className="sm:max-w-[460px] rounded-3xl border border-border/90 bg-popover text-popover-foreground shadow-[0_24px_64px_rgba(15,23,42,0.24)]">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Bell className="h-5 w-5 text-primary" />
+              Ajustes de notificaciones
+            </DialogTitle>
+            <DialogDescription className="text-muted-foreground">
+              Elige qué avisos quieres recibir. Este panel ahora usa una superficie opaca y legible.
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-3">
+            <div className="rounded-2xl border border-border/80 bg-card px-4 py-3">
+              <div className="flex items-center justify-between gap-3">
+                <div>
+                  <p className="text-sm font-semibold text-foreground">
+                    {pushGranted ? 'Push activo en este dispositivo' : 'Activar notificaciones push'}
+                  </p>
+                  <p className="text-xs text-muted-foreground">
+                    Permite recibir avisos en mobile y desktop.
+                  </p>
+                </div>
+                <Button
+                  type="button"
+                  size="sm"
+                  disabled={isRequestingPush}
+                  onClick={() => {
+                    if (!requireRegisteredUser()) return;
+                    ensurePushPermission().catch(() => {});
+                  }}
+                  className="magenta-gradient text-white"
+                >
+                  {pushGranted ? 'Activo' : isRequestingPush ? 'Activando...' : 'Activar'}
+                </Button>
+              </div>
+            </div>
+
+            <div className="space-y-2">
+              {INTEREST_OPTIONS.map((option) => (
+                <div
+                  key={option.key}
+                  className="flex items-center justify-between rounded-2xl border border-border/80 bg-card px-4 py-3"
+                >
+                  <div className="pr-3">
+                    <p className="text-sm font-medium text-foreground">{option.label}</p>
+                  </div>
+                  <Switch
+                    checked={preferences[option.key] !== false}
+                    onCheckedChange={(checked) => {
+                      updatePreference(option.key, checked).catch(() => {});
+                    }}
+                  />
+                </div>
+              ))}
+            </div>
+          </div>
         </DialogContent>
       </Dialog>
     </>

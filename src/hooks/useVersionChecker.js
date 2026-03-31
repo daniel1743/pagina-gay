@@ -13,6 +13,10 @@ export const useVersionChecker = (options = {}) => {
   const cleanupRef = useRef(null);
 
   useEffect(() => {
+    if (import.meta.env.DEV) {
+      return undefined;
+    }
+
     // Inicializar el checker de versiones
     cleanupRef.current = initVersionChecker(options);
 

@@ -31,6 +31,7 @@ import {
   updatePrivateChatTypingStatus,
 } from '@/services/socialService';
 import { notificationSounds } from '@/services/notificationSounds';
+import { savePendingPrivateChatRestore } from '@/utils/privateChatRestore';
 
 const EmojiPicker = lazy(() => import('emoji-picker-react'));
 
@@ -573,7 +574,17 @@ export default function PrivateChatWindowV2({
         label: 'Registrarme',
         onClick: () => {
           if (typeof window !== 'undefined') {
-            window.location.assign('/auth');
+            const redirectTo = `${window.location.pathname}${window.location.search}${window.location.hash}` || '/chat/principal';
+            savePendingPrivateChatRestore({
+              chatId,
+              roomId,
+              title: isGroupChat ? conversationTitle : '',
+              partner: primaryParticipant,
+              participants: chatParticipants,
+              initialMessage: newMessage,
+              redirectTo,
+            });
+            window.location.assign(`/auth?redirect=${encodeURIComponent(redirectTo)}`);
           }
         },
       },
@@ -589,7 +600,17 @@ export default function PrivateChatWindowV2({
         label: 'Registrarme',
         onClick: () => {
           if (typeof window !== 'undefined') {
-            window.location.assign('/auth');
+            const redirectTo = `${window.location.pathname}${window.location.search}${window.location.hash}` || '/chat/principal';
+            savePendingPrivateChatRestore({
+              chatId,
+              roomId,
+              title: isGroupChat ? conversationTitle : '',
+              partner: primaryParticipant,
+              participants: chatParticipants,
+              initialMessage: newMessage,
+              redirectTo,
+            });
+            window.location.assign(`/auth?redirect=${encodeURIComponent(redirectTo)}`);
           }
         },
       },

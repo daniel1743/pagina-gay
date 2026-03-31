@@ -297,11 +297,19 @@ export default defineConfig({
 		'import.meta.env.MODE': JSON.stringify(isDev ? 'development' : 'production'),
 	},
 	server: {
+		host: '127.0.0.1',
+		port: 3000,
+		strictPort: true,
 		cors: true,
 		headers: {
 			'Cross-Origin-Embedder-Policy': 'credentialless',
 		},
 		allowedHosts: true,
+		hmr: {
+			host: '127.0.0.1',
+			port: 3000,
+			protocol: 'ws',
+		},
 	},
 	resolve: {
 		extensions: ['.jsx', '.js', '.tsx', '.ts', '.json', ],

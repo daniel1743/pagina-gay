@@ -1688,48 +1688,48 @@ const LobbyPage = () => {
                       <span className="absolute inline-flex h-3 w-3 rounded-full bg-green-400 opacity-75 animate-ping"></span>
                       <span className="relative inline-flex h-3 w-3 rounded-full bg-green-500"></span>
                     </div>
-                    <p className="text-xs sm:text-sm text-gray-400 font-medium">En línea ahora</p>
+                    <p className="text-xs sm:text-sm text-foreground/72 dark:text-gray-300 font-semibold">En línea ahora</p>
                   </div>
                   <p className="text-2xl sm:text-3xl font-bold bg-gradient-to-r from-green-400 to-emerald-400 bg-clip-text text-transparent">
                     {calculateTotalUsers()}
                   </p>
-                  <p className="text-xs text-gray-500">usuarios activos</p>
+                  <p className="text-xs font-medium text-foreground/62 dark:text-gray-400">usuarios activos</p>
                 </div>
 
                 {/* Mensajes hoy */}
                 <div className="glass-effect p-5 rounded-xl border border-cyan-500/30 hover:border-cyan-500/60 transition-all">
                   <div className="flex items-center gap-2 mb-2">
                     <MessageSquare className="w-4 h-4 text-cyan-400" />
-                    <p className="text-xs sm:text-sm text-gray-400 font-medium">Mensajes hoy</p>
+                    <p className="text-xs sm:text-sm text-foreground/72 dark:text-gray-300 font-semibold">Mensajes hoy</p>
                   </div>
                   <p className="text-2xl sm:text-3xl font-bold bg-gradient-to-r from-cyan-400 to-blue-400 bg-clip-text text-transparent">
                     847
                   </p>
-                  <p className="text-xs text-gray-500">conversaciones</p>
+                  <p className="text-xs font-medium text-foreground/62 dark:text-gray-400">conversaciones</p>
                 </div>
 
                 {/* Sala más activa */}
                 <div className="glass-effect p-5 rounded-xl border border-purple-500/30 hover:border-purple-500/60 transition-all cursor-pointer" onClick={() => navigate('/chat/principal')}>
                   <div className="flex items-center gap-2 mb-2">
                     <Zap className="w-4 h-4 text-purple-400" />
-                    <p className="text-xs sm:text-sm text-gray-400 font-medium">Más activa</p>
+                    <p className="text-xs sm:text-sm text-foreground/72 dark:text-gray-300 font-semibold">Más activa</p>
                   </div>
                   <p className="text-2xl sm:text-3xl font-bold bg-gradient-to-r from-purple-400 to-pink-400 bg-clip-text text-transparent">
                     Principal
                   </p>
-                  <p className="text-xs text-purple-400 font-semibold">Click para unirte →</p>
+                  <p className="text-xs text-purple-700 dark:text-purple-300 font-bold">Click para unirte →</p>
                 </div>
 
                 {/* Moderación 24/7 */}
                 <div className="glass-effect p-5 rounded-xl border border-orange-500/30 hover:border-orange-500/60 transition-all">
                   <div className="flex items-center gap-2 mb-2">
                     <Shield className="w-4 h-4 text-orange-400" />
-                    <p className="text-xs sm:text-sm text-gray-400 font-medium">Seguridad</p>
+                    <p className="text-xs sm:text-sm text-foreground/72 dark:text-gray-300 font-semibold">Seguridad</p>
                   </div>
                   <p className="text-2xl sm:text-3xl font-bold bg-gradient-to-r from-orange-400 to-red-400 bg-clip-text text-transparent">
                     24/7
                   </p>
-                  <p className="text-xs text-gray-500">moderación activa</p>
+                  <p className="text-xs font-medium text-foreground/62 dark:text-gray-400">moderación activa</p>
                 </div>
               </motion.div>
             )}
@@ -1753,17 +1753,17 @@ const LobbyPage = () => {
                       <div>
                         <h3 className="text-xl sm:text-2xl font-bold text-green-400 flex items-center gap-2">
                           🔥 Sala Principal
-                          <span className="text-sm font-normal text-gray-400">- Ahora</span>
+                          <span className="text-sm font-medium text-foreground/68 dark:text-gray-300">- Ahora</span>
                         </h3>
-                        <p className="text-sm text-gray-400">
+                        <p className="text-sm font-medium text-foreground/72 dark:text-gray-300">
                           {roomCounts['principal'] || 0} usuarios conectados en este momento
                         </p>
                       </div>
                     </div>
 
                     {/* Preview de mensajes */}
-                    <div className="space-y-2 bg-gray-900/50 rounded-lg p-4 border border-gray-700/50">
-                      <p className="text-xs text-gray-500 font-semibold mb-2">Últimas conversaciones:</p>
+                    <div className="space-y-2 bg-secondary/75 dark:bg-black/25 rounded-xl p-4 border border-border/80">
+                      <p className="text-xs text-foreground/62 dark:text-gray-400 font-semibold mb-2">Últimas conversaciones:</p>
                       {recentMessages.map((msg, index) => (
                         <motion.div
                           key={msg.id}
@@ -1772,10 +1772,10 @@ const LobbyPage = () => {
                           transition={{ delay: index * 0.1 }}
                           className="flex items-start gap-2"
                         >
-                          <span className="text-sm font-semibold text-cyan-400 flex-shrink-0">
+                          <span className="text-sm font-semibold text-cyan-700 dark:text-cyan-300 flex-shrink-0">
                             {msg.username}:
                           </span>
-                          <span className="text-sm text-gray-300 line-clamp-1">
+                          <span className="text-sm text-foreground/84 dark:text-gray-200 line-clamp-1">
                             {msg.content?.substring(0, 60)}{msg.content?.length > 60 ? '...' : ''}
                           </span>
                         </motion.div>
@@ -1793,7 +1793,7 @@ const LobbyPage = () => {
                       Unirse Ahora
                       <ArrowRight className="w-5 h-5" />
                     </Button>
-                    <p className="text-xs text-center text-gray-400 mt-2">
+                    <p className="text-xs text-center font-medium text-foreground/68 dark:text-gray-300 mt-2">
                       Únete a la conversación en vivo
                     </p>
                   </div>
@@ -1810,7 +1810,7 @@ const LobbyPage = () => {
                 className="mb-10 sm:mb-12"
               >
                 <div className="text-center mb-6">
-                  <h3 className="text-lg sm:text-xl font-bold text-gray-300 flex items-center justify-center gap-2">
+                  <h3 className="text-lg sm:text-xl font-bold text-foreground flex items-center justify-center gap-2">
                     📊 Tu Actividad
                   </h3>
                 </div>
@@ -1821,7 +1821,7 @@ const LobbyPage = () => {
                     <p className="text-2xl sm:text-3xl font-bold text-cyan-400">
                       {user.stats?.messagesSent || 0}
                     </p>
-                    <p className="text-xs text-gray-400 mt-1">Mensajes enviados</p>
+                    <p className="text-xs font-medium text-foreground/68 dark:text-gray-300 mt-1">Mensajes enviados</p>
                   </div>
 
                   {/* Salas visitadas */}
@@ -1830,7 +1830,7 @@ const LobbyPage = () => {
                     <p className="text-2xl sm:text-3xl font-bold text-purple-400">
                       {user.stats?.roomsVisited || 0}
                     </p>
-                    <p className="text-xs text-gray-400 mt-1">Salas visitadas</p>
+                    <p className="text-xs font-medium text-foreground/68 dark:text-gray-300 mt-1">Salas visitadas</p>
                   </div>
 
                   {/* Días activo */}
@@ -1839,7 +1839,7 @@ const LobbyPage = () => {
                     <p className="text-2xl sm:text-3xl font-bold text-green-400">
                       {calculateActiveDays(user.createdAt)}
                     </p>
-                    <p className="text-xs text-gray-400 mt-1">Días activo</p>
+                    <p className="text-xs font-medium text-foreground/68 dark:text-gray-300 mt-1">Días activo</p>
                   </div>
 
                   {/* Nivel */}

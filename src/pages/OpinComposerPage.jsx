@@ -2,26 +2,36 @@
  * OpinComposerPage - Compositor simple para el tablón
  */
 
-import React, { useState, useEffect, useMemo } from 'react';
-import { useNavigate } from 'react-router-dom';
+import React, { useState, useEffect } from 'react';
+import { useNavigate, useLocation } from 'react-router-dom';
 import { ArrowLeft, Send } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
-import { createOpinPost, canCreatePost, OPIN_COLORS, OPIN_STATUS_OPTIONS, getOpinStatusMeta } from '@/services/opinService';
+import {
+  createOpinPost,
+  canCreatePost,
+  OPIN_COLORS,
+  OPIN_STATUS_OPTIONS,
+  getOpinStatusMeta,
+  getOpinPostById,
+  editOpinPost,
+} from '@/services/opinService';
 import { toast } from '@/components/ui/use-toast';
 
 const OpinComposerPage = () => {
   const navigate = useNavigate();
+  const location = useLocation();
   const { user, userProfile } = useAuth();
   const [text, setText] = useState('');
   const [loading, setLoading] = useState(false);
   const [canCreate, setCanCreate] = useState(true);
   const [status, setStatus] = useState(OPIN_STATUS_OPTIONS[0].value);
-
-  // Color automático random
-  const selectedColor = useMemo(() => {
+  const [selectedColor, setSelectedColor] = useState(() => {
     const colorKeys = Object.keys(OPIN_COLORS);
     return colorKeys[Math.floor(Math.random() * colorKeys.length)];
-  }, []);
+  });
+  const [editingPostId, setEditingPostId] = useState(null);
+  const [loadingExisting, setLoadingExisting] = useState(false);
+  const isEditing = Boolean(editingPostId);
 
   const charCount = text.length;
   const minChars = 10;
@@ -29,15 +39,61 @@ const OpinComposerPage = () => {
   const isValid = charCount >= minChars && charCount <= maxChars;
 
   useEffect(() => {
+    if (location.search.includes('edit=') && !user) return;
     checkCanCreate();
-  }, []);
+    loadExistingIntent();
+  }, [location.search, user?.id, user?.uid]);
 
   const checkCanCreate = async () => {
+    const params = new URLSearchParams(location.search);
+    const editId = params.get('edit');
+    if (editId) {
+      setCanCreate(true);
+      return;
+    }
+
     const result = await canCreatePost();
     if (!result.canCreate) {
       toast({ description: result.message || 'No puedes crear más notas', variant: 'destructive' });
       navigate('/opin');
       setCanCreate(false);
+    }
+  };
+
+  const loadExistingIntent = async () => {
+    const params = new URLSearchParams(location.search);
+    const editId = params.get('edit');
+
+    if (!editId) {
+      setEditingPostId(null);
+      return;
+    }
+
+    setLoadingExisting(true);
+    try {
+      const post = await getOpinPostById(editId);
+      if (!post) {
+        toast({ description: 'No se encontró la intención a editar.', variant: 'destructive' });
+        navigate('/opin');
+        return;
+      }
+
+      const currentUserId = user?.id || user?.uid;
+      if (!currentUserId || post.userId !== currentUserId) {
+        toast({ description: 'No puedes editar esta intención.', variant: 'destructive' });
+        navigate('/opin');
+        return;
+      }
+
+      setEditingPostId(post.id);
+      setText(post.text || '');
+      setStatus(post.status || OPIN_STATUS_OPTIONS[0].value);
+      setSelectedColor(post.color && OPIN_COLORS[post.color] ? post.color : 'purple');
+    } catch (error) {
+      toast({ description: error?.message || 'No se pudo cargar la intención.', variant: 'destructive' });
+      navigate('/opin');
+    } finally {
+      setLoadingExisting(false);
     }
   };
 
@@ -47,17 +103,26 @@ const OpinComposerPage = () => {
 
     setLoading(true);
     try {
-      await createOpinPost({
-        text: text.trim(),
-        color: selectedColor,
-        status,
-        userProfile: {
-          username: userProfile?.username || user?.displayName || 'Anónimo',
-          avatar: userProfile?.avatar || user?.photoURL || '',
-        },
-      });
+      if (isEditing) {
+        await editOpinPost(editingPostId, {
+          text: text.trim(),
+          color: selectedColor,
+          status,
+        });
+        toast({ description: 'Intención actualizada' });
+      } else {
+        await createOpinPost({
+          text: text.trim(),
+          color: selectedColor,
+          status,
+          userProfile: {
+            username: userProfile?.username || user?.displayName || 'Anónimo',
+            avatar: userProfile?.avatar || user?.photoURL || '',
+          },
+        });
+        toast({ description: 'Intención abierta' });
+      }
 
-      toast({ description: 'Nota publicada' });
       const currentUserId = user?.id || user?.uid || null;
       if (currentUserId) {
         sessionStorage.removeItem(`opin:intent_cta:dismissed:${currentUserId}`);
@@ -87,12 +152,12 @@ const OpinComposerPage = () => {
               >
                 <ArrowLeft className="w-5 h-5" />
               </button>
-              <h1 className="text-lg font-bold">Nueva nota</h1>
+              <h1 className="text-lg font-bold">{isEditing ? 'Editar intención' : 'Nueva intención'}</h1>
             </div>
 
             <button
               onClick={handleSubmit}
-              disabled={!isValid || loading || !canCreate}
+              disabled={!isValid || loading || !canCreate || loadingExisting}
               className={`flex items-center gap-2 px-4 py-2 rounded-full text-sm font-medium transition-all
                 ${isValid && !loading
                   ? `bg-gradient-to-r ${colorConfig.gradient} text-white`
@@ -104,7 +169,7 @@ const OpinComposerPage = () => {
               ) : (
                 <Send className="w-4 h-4" />
               )}
-              <span>Publicar</span>
+              <span>{isEditing ? 'Guardar' : 'Publicar'}</span>
             </button>
           </div>
         </div>
@@ -112,13 +177,18 @@ const OpinComposerPage = () => {
 
       {/* Formulario */}
       <div className="flex-1 max-w-2xl mx-auto w-full px-4 py-6">
+        {loadingExisting ? (
+          <div className="flex items-center justify-center py-20">
+            <div className="animate-spin rounded-full h-8 w-8 border-2 border-purple-500 border-t-transparent" />
+          </div>
+        ) : (
         <form onSubmit={handleSubmit} className="space-y-4">
           {/* Textarea */}
           <div className="relative">
             <textarea
               value={text}
               onChange={(e) => setText(e.target.value)}
-              placeholder="¿Qué buscas? Cuéntalo brevemente..."
+              placeholder="¿Qué buscas ahora? Escríbelo claro y directo..."
               rows={4}
               maxLength={maxChars}
               autoFocus
@@ -174,18 +244,19 @@ const OpinComposerPage = () => {
                   </span>
                 </div>
                 <p className="text-xs text-muted-foreground mt-1">
-                  {userProfile?.username || user?.displayName || 'Tú'} · ahora
+                  {userProfile?.username || user?.displayName || 'Tú'} · {isEditing ? 'actualizada ahora' : 'ahora'}
                 </p>
               </div>
             </div>
           )}
         </form>
+        )}
 
         {/* Tips */}
         <div className="mt-8 px-4 space-y-2 text-xs text-muted-foreground">
-          <p>Tu nota quedará visible en OPIN y podrá recibir respuestas.</p>
+          <p>Tu intención quedará visible en OPIN y podrá recibir respuestas.</p>
+          <p>Solo puedes tener una intención activa al mismo tiempo.</p>
           <p>Podrás cambiar su estado después para indicar si sigues buscando o ya cerraste.</p>
-          <p>Otros pueden responder y ver tu perfil.</p>
         </div>
       </div>
     </div>

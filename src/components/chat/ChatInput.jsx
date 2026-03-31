@@ -132,6 +132,28 @@ const ChatInput = ({
   const canSendPhotoNow = isRegisteredUser && roomId === 'principal';
 
   const shouldShowOnboarding = !isHeteroContext && showOnboardingHints && !onboardingDismissed && !firstMessageSentInSession && !isMobileEmojiSheet;
+  const composerPlaceholder = useMemo(() => {
+    if (isGuest) return 'Toca aquí para elegir tu nickname y chatear...';
+    if (replyTo?.username) return `Responde con contexto a ${replyTo.username}...`;
+    if (!isHeteroContext && showOnboardingHints && !firstMessageSentInSession) {
+      if (selectedRole && selectedComuna) {
+        return `Di qué buscas. Ej: ${selectedRole} en ${selectedComuna}, disponible ahora`;
+      }
+      if (selectedRole) {
+        return `Di qué buscas. Ej: ${selectedRole} buscando ahora`;
+      }
+      return 'Di qué buscas y alguien te responderá más rápido';
+    }
+    return 'Di qué buscas, tu rol o tu comuna...';
+  }, [
+    firstMessageSentInSession,
+    isGuest,
+    isHeteroContext,
+    replyTo?.username,
+    selectedComuna,
+    selectedRole,
+    showOnboardingHints,
+  ]);
 
   const persistSessionFlag = (key, value = '1') => {
     if (typeof window === 'undefined') return;
@@ -735,7 +757,7 @@ const ChatInput = ({
 
   return (
     <div
-      className="bg-card border-t p-3 sm:p-4 shrink-0 relative z-40"
+      className="bg-[var(--chat-bottom-surface)] backdrop-blur-xl border-t border-[var(--chat-divider)] px-3 py-2 sm:px-4 sm:py-2.5 shrink-0 relative z-40"
       ref={wrapperRef}
       style={{
         position: 'sticky',
@@ -864,65 +886,6 @@ const ChatInput = ({
         )}
       </AnimatePresence>
 
-      {shouldShowOnboarding && (
-        <div className="mb-3 space-y-2">
-          <div className="rounded-xl border border-input/70 bg-secondary/35 px-3 py-2">
-            <div className="flex flex-wrap items-center gap-2">
-              {ROLE_CHIPS.map((chip) => (
-                <button
-                  key={chip.value}
-                  type="button"
-                  onClick={() => handleRoleSelect(chip.value)}
-                  className={`rounded-full border px-2.5 py-1 text-xs font-medium transition-colors ${
-                    selectedRole === chip.value
-                      ? 'border-cyan-400/80 bg-cyan-500/15 text-cyan-200'
-                      : 'border-gray-600/60 bg-gray-700/40 text-gray-200 hover:border-gray-500/80 hover:bg-gray-700/60'
-                  }`}
-                >
-                  {chip.label}
-                </button>
-              ))}
-              <button
-                type="button"
-                onClick={() => setShowComunaSelector((prev) => !prev)}
-                className={`rounded-full border px-2.5 py-1 text-xs font-medium transition-colors ${
-                  showComunaSelector || selectedComuna
-                    ? 'border-purple-400/80 bg-purple-500/15 text-purple-200'
-                    : 'border-gray-600/60 bg-gray-700/40 text-gray-200 hover:border-gray-500/80 hover:bg-gray-700/60'
-                }`}
-              >
-                Agregar comuna
-              </button>
-              <button
-                type="button"
-                onClick={dismissOnboardingForSession}
-                className="ml-auto rounded-full border border-transparent px-2 py-1 text-[11px] text-muted-foreground hover:border-input hover:text-foreground transition-colors"
-              >
-                Omitir
-              </button>
-            </div>
-
-            {showComunaSelector && (
-              <div className="mt-2">
-                <select
-                  value={selectedComuna}
-                  onChange={(event) => handleComunaSelect(event.target.value)}
-                  className="w-full rounded-lg border border-input bg-card px-3 py-2 text-sm text-foreground outline-none focus:border-accent"
-                >
-                  <option value="">Selecciona comuna</option>
-                  {COMUNA_OPTIONS.map((comuna) => (
-                    <option key={comuna} value={comuna}>
-                      {comuna}
-                    </option>
-                  ))}
-                </select>
-              </div>
-            )}
-          </div>
-
-        </div>
-      )}
-
       {/* 💬 REPLY PREVIEW: Mostrar cuando se está respondiendo a un mensaje */}
       <AnimatePresence>
         {replyTo && (
@@ -964,14 +927,17 @@ const ChatInput = ({
             initial={{ opacity: 0, y: 8 }}
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, y: -6 }}
-            className="mb-2 rounded-lg border border-cyan-500/25 bg-cyan-500/10 px-3 py-2 text-xs text-cyan-100"
+            className="mb-2 rounded-2xl border border-cyan-500/20 bg-cyan-500/10 px-3 py-2 text-xs text-cyan-700 dark:text-cyan-100"
           >
-            Tip: Si indicas tu comuna o rol, te responden más rápido.
+            Tip: Di qué buscas. Los mensajes con rol, comuna o intención reciben más respuesta.
           </motion.div>
         )}
       </AnimatePresence>
 
-      <form onSubmit={handleSubmit} className="flex items-end gap-1.5 sm:gap-2 flex-nowrap">
+      <form
+        onSubmit={handleSubmit}
+        className="flex min-h-[54px] items-end gap-1.5 sm:gap-2 flex-nowrap rounded-[24px] border border-[var(--chat-divider)] bg-[var(--chat-composer-surface)] px-2.5 py-1.5"
+      >
         {/* ✅ Iconos comentados - Más espacio para el input */}
         {/* <Button
           type="button"
@@ -991,10 +957,10 @@ const ChatInput = ({
           variant="ghost"
           size="icon"
           onClick={() => { setShowEmojiPicker(prev => !prev); setShowQuickPhrases(false);}}
-          className={`min-w-[44px] min-h-[44px] sm:min-w-0 sm:min-h-0 transition-colors ${
+          className={`min-w-[42px] min-h-[42px] h-[42px] w-[42px] rounded-full border border-transparent sm:min-w-0 sm:min-h-0 transition-colors ${
             showEmojiPicker
-              ? 'text-cyan-300 bg-cyan-500/10 hover:text-cyan-200 hover:bg-cyan-500/15'
-              : 'text-muted-foreground hover:text-cyan-400'
+              ? 'text-cyan-300 border-cyan-500/20 bg-cyan-500/10 hover:text-cyan-200 hover:bg-cyan-500/15'
+              : 'text-muted-foreground hover:text-cyan-400 hover:bg-black/5 dark:hover:bg-white/5'
           }`}
           title="Selector de Emojis"
           aria-label={showEmojiPicker ? "Cerrar selector de emojis" : "Abrir selector de emojis"}
@@ -1014,9 +980,9 @@ const ChatInput = ({
             onMouseLeave={() => setShowPhotoTooltip(false)}
             onFocus={() => setShowPhotoTooltip(true)}
             onBlur={() => setShowPhotoTooltip(false)}
-            className={`min-w-[44px] min-h-[44px] sm:min-w-0 sm:min-h-0 transition-colors ${
+            className={`min-w-[42px] min-h-[42px] h-[42px] w-[42px] rounded-full border border-transparent sm:min-w-0 sm:min-h-0 transition-colors ${
               canSendPhotoNow && !reachedPhotoHourlyLimit
-                ? 'text-muted-foreground hover:text-cyan-400'
+                ? 'text-muted-foreground hover:text-cyan-400 hover:bg-black/5 dark:hover:bg-white/5'
                 : 'text-muted-foreground/80 hover:text-cyan-300'
             } ${isUploadingPhoto ? 'opacity-70' : ''}`}
             title={getPhotoTooltipText()}
@@ -1070,8 +1036,8 @@ const ChatInput = ({
               handleSubmit(e);
             }
           }}
-          placeholder={isGuest ? "Toca aquí para elegir tu nickname y chatear..." : "Escribe un mensaje..."}
-          className="flex-1 bg-secondary border-2 border-input rounded-lg px-3 sm:px-4 py-2.5 sm:py-2 text-sm sm:text-base text-foreground placeholder:text-muted-foreground focus:border-accent transition-all min-h-[48px] max-h-[150px] resize-none overflow-y-auto scrollbar-hide"
+          placeholder={composerPlaceholder}
+          className="flex-1 bg-transparent border-none rounded-[24px] px-1.5 sm:px-2 py-2 text-base font-medium leading-[1.38] text-foreground placeholder:text-muted-foreground focus:outline-none transition-all min-h-[42px] max-h-[150px] resize-none overflow-y-auto scrollbar-hide"
           aria-label="Campo de texto para escribir mensaje"
           maxLength={500}
           autoComplete="off"
@@ -1084,9 +1050,9 @@ const ChatInput = ({
           readOnly={false}
           disabled={false}
           style={{
-            lineHeight: '1.5',
-            paddingTop: '0.625rem',
-            paddingBottom: '0.625rem',
+            lineHeight: '1.38',
+            paddingTop: '0.5rem',
+            paddingBottom: '0.5rem',
             WebkitUserSelect: 'text',
             userSelect: 'text',
             WebkitTouchCallout: 'default',
@@ -1103,7 +1069,7 @@ const ChatInput = ({
           <Button
             type="submit"
             disabled={!message.trim() || isSending}
-            className="magenta-gradient text-white rounded-lg relative overflow-hidden min-w-[44px] min-h-[44px] w-[44px] h-[44px] sm:min-w-[48px] sm:min-h-[48px] sm:w-auto sm:h-auto p-0 sm:p-2"
+            className="magenta-gradient text-white rounded-full relative overflow-hidden min-w-[42px] min-h-[42px] w-[42px] h-[42px] p-0"
             style={{ transition: 'none' }}
             size="icon"
             aria-label={isSending ? "Enviando mensaje..." : "Enviar mensaje"}

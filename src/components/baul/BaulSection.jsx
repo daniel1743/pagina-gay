@@ -41,9 +41,7 @@ import {
   crearTarjetaAutomatica,
   darLike,
   quitarLike,
-  yaLeDiLike,
   dejarHuella,
-  yaDejeHuella,
   registrarVisita,
   registrarImpresion,
   suscribirseAMiTarjeta,
@@ -189,6 +187,7 @@ const BaulSection = ({ isOpen = true, onClose, variant = 'modal' }) => {
   const [likesData, setLikesData] = useState({}); // { odIdUsuari: boolean }
   const [huellasData, setHuellasData] = useState({}); // { odIdUsuari: boolean }
   const [loadingHuella, setLoadingHuella] = useState(null); // odIdUsuari en progreso
+  const impresionesEnviadasRef = React.useRef(new Set());
 
   // Modales
   const [tarjetaSeleccionada, setTarjetaSeleccionada] = useState(null);
@@ -247,38 +246,32 @@ const BaulSection = ({ isOpen = true, onClose, variant = 'modal' }) => {
 
       setTarjetas(tarjetasCargadas || []);
 
-      // Verificar likes (solo registrados) y huellas (cualquier autenticado) en paralelo
+      // Resolver estados usando la data ya cargada en las tarjetas, sin lecturas N+1.
       if (tarjetasCargadas.length > 0 && odIdUsuari) {
+        const today = new Date().toISOString().slice(0, 10);
+        const huellaKey = `${odIdUsuari}_${today}`;
         const primeras20 = tarjetasCargadas.slice(0, 20);
-        const promises = [];
-        if (canInteract) {
-          promises.push(
-            Promise.all(
-              primeras20.map(async (t) => {
-                if (t.odIdUsuari === odIdUsuari) return [t.odIdUsuari, false];
-                return [t.odIdUsuari, await yaLeDiLike(t.odIdUsuari, odIdUsuari)];
-              })
-            ).then(r => ({ likes: Object.fromEntries(r) }))
-          );
-        } else {
-          promises.push(Promise.resolve({ likes: {} }));
-        }
-        if (canDejarHuella) {
-          promises.push(
-            Promise.all(
-              primeras20.map(async (t) => {
-                if (t.odIdUsuari === odIdUsuari) return [t.odIdUsuari, false];
-                return [t.odIdUsuari, await yaDejeHuella(t.odIdUsuari, odIdUsuari)];
-              })
-            ).then(r => ({ huellas: Object.fromEntries(r) }))
-          );
-        } else {
-          promises.push(Promise.resolve({ huellas: {} }));
-        }
-        const results = await Promise.all(promises);
-        const combined = results.reduce((acc, r) => ({ ...acc, ...r }), {});
-        if (combined.likes) setLikesData(combined.likes);
-        if (combined.huellas) setHuellasData(combined.huellas);
+
+        const likesMap = canInteract
+          ? Object.fromEntries(
+            primeras20.map((t) => [
+              t.odIdUsuari,
+              t.odIdUsuari !== odIdUsuari && Array.isArray(t.likesDe) ? t.likesDe.includes(odIdUsuari) : false,
+            ])
+          )
+          : {};
+
+        const huellasMap = canDejarHuella
+          ? Object.fromEntries(
+            primeras20.map((t) => [
+              t.odIdUsuari,
+              t.odIdUsuari !== odIdUsuari && Array.isArray(t.huellasDe) ? t.huellasDe.includes(huellaKey) : false,
+            ])
+          )
+          : {};
+
+        setLikesData(likesMap);
+        setHuellasData(huellasMap);
       } else {
         setLikesData({});
         setHuellasData({});
@@ -552,7 +545,24 @@ const BaulSection = ({ isOpen = true, onClose, variant = 'modal' }) => {
     const odIdUsuari = user?.id;
     const tarjetaId = tarjeta?.odIdUsuari || tarjeta?.id;
     if (!odIdUsuari || !tarjetaId || tarjetaId === odIdUsuari) return;
-    registrarImpresion(tarjetaId, odIdUsuari);
+    const today = new Date().toISOString().slice(0, 10);
+    const impresionKey = `${tarjetaId}:${odIdUsuari}:${today}`;
+    if (impresionesEnviadasRef.current.has(impresionKey)) return;
+    if (Array.isArray(tarjeta?.impresionesDe) && tarjeta.impresionesDe.includes(`${odIdUsuari}_${today}`)) return;
+
+    impresionesEnviadasRef.current.add(impresionKey);
+    setTarjetas((prev) => prev.map((item) => {
+      const itemId = item?.odIdUsuari || item?.id;
+      if (itemId !== tarjetaId) return item;
+      return {
+        ...item,
+        impresionesRecibidas: Number(item?.impresionesRecibidas || 0) + 1,
+        impresionesDe: Array.isArray(item?.impresionesDe)
+          ? [...item.impresionesDe, `${odIdUsuari}_${today}`]
+          : [`${odIdUsuari}_${today}`],
+      };
+    }));
+    registrarImpresion(tarjetaId, odIdUsuari, tarjeta);
   }, [user?.id]);
 
   const handleVerPerfil = async (tarjeta) => {
