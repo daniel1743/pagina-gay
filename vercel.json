@@ -15,6 +15,106 @@
       ],
       "destination": "https://chactivo.com/:path*",
       "permanent": true
+    },
+    {
+      "source": "/chat/hablar-primero",
+      "destination": "/chat/principal",
+      "permanent": true
+    },
+    {
+      "source": "/chat/hablar-primero/",
+      "destination": "/chat/principal",
+      "permanent": true
+    },
+    {
+      "source": "/chat/mas-30",
+      "destination": "/mas-30",
+      "permanent": true
+    },
+    {
+      "source": "/chat/mas-30/",
+      "destination": "/mas-30",
+      "permanent": true
+    },
+    {
+      "source": "/chat/santiago",
+      "destination": "/santiago",
+      "permanent": true
+    },
+    {
+      "source": "/chat/santiago/",
+      "destination": "/santiago",
+      "permanent": true
+    },
+    {
+      "source": "/chat/es-main",
+      "destination": "/es",
+      "permanent": true
+    },
+    {
+      "source": "/chat/es-main/",
+      "destination": "/es",
+      "permanent": true
+    },
+    {
+      "source": "/chat/br-main",
+      "destination": "/br",
+      "permanent": true
+    },
+    {
+      "source": "/chat/br-main/",
+      "destination": "/br",
+      "permanent": true
+    },
+    {
+      "source": "/chat/mx-main",
+      "destination": "/mx",
+      "permanent": true
+    },
+    {
+      "source": "/chat/mx-main/",
+      "destination": "/mx",
+      "permanent": true
+    },
+    {
+      "source": "/chat/ar-main",
+      "destination": "/ar",
+      "permanent": true
+    },
+    {
+      "source": "/chat/ar-main/",
+      "destination": "/ar",
+      "permanent": true
+    },
+    {
+      "source": "/chat-gay-santiago-centro",
+      "destination": "/santiago",
+      "permanent": true
+    },
+    {
+      "source": "/chat-gay-santiago-centro/",
+      "destination": "/santiago",
+      "permanent": true
+    },
+    {
+      "source": "/anonymous-forum",
+      "destination": "/chat/principal",
+      "permanent": true
+    },
+    {
+      "source": "/anonymous-forum/",
+      "destination": "/chat/principal",
+      "permanent": true
+    },
+    {
+      "source": "/foro-gay",
+      "destination": "/chat/principal",
+      "permanent": true
+    },
+    {
+      "source": "/foro-gay/",
+      "destination": "/chat/principal",
+      "permanent": true
     }
   ],
   "rewrites": [
@@ -54,6 +154,24 @@
         {
           "key": "Referrer-Policy",
           "value": "strict-origin-when-cross-origin"
+        }
+      ]
+    },
+    {
+      "source": "/anonymous-chat",
+      "headers": [
+        {
+          "key": "X-Robots-Tag",
+          "value": "noindex, follow"
+        }
+      ]
+    },
+    {
+      "source": "/anonymous-chat/",
+      "headers": [
+        {
+          "key": "X-Robots-Tag",
+          "value": "noindex, follow"
         }
       ]
     },

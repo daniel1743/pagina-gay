@@ -25,6 +25,7 @@ const roomNames = {
 const ChatHeader = ({
   currentRoom,
   onMenuClick,
+  showMenuBadge = false,
   onOpenPrivateChat,
   onSimulate,
   showHelpLauncher = false,
@@ -81,10 +82,16 @@ const ChatHeader = ({
           variant="ghost"
           size="icon"
           onClick={onMenuClick}
-          className="lg:hidden rounded-2xl text-muted-foreground hover:text-foreground hover:bg-black/5 dark:hover:bg-white/5 min-w-[40px] min-h-[40px] sm:min-w-0 sm:min-h-0 flex-shrink-0"
-          aria-label="Abrir menú"
+          className="lg:hidden relative rounded-2xl text-muted-foreground hover:text-foreground hover:bg-black/5 dark:hover:bg-white/5 min-w-[40px] min-h-[40px] sm:min-w-0 sm:min-h-0 flex-shrink-0"
+          aria-label={showMenuBadge ? 'Abrir menú con novedades' : 'Abrir menú'}
+          title="Abrir menú"
         >
           <Menu className="w-6 h-6" />
+          {showMenuBadge && (
+            <span className="pointer-events-none absolute -right-1 -top-1 inline-flex min-h-[18px] min-w-[18px] items-center justify-center rounded-full border border-white/10 bg-gradient-to-br from-fuchsia-500 to-pink-500 px-1 text-[10px] font-semibold leading-none text-white shadow-[0_0_18px_rgba(236,72,153,0.45)]">
+              1
+            </span>
+          )}
         </Button>
         <div className="min-w-0 flex-1">
           <h2 className="font-semibold tracking-tight text-foreground text-[20px] leading-6 truncate">

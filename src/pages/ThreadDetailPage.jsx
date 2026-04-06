@@ -129,7 +129,7 @@ const ThreadDetailPage = () => {
     <div className="min-h-screen px-4 py-8">
       <div className="max-w-4xl mx-auto">
         <div className="flex items-center gap-4 mb-6">
-          <Button variant="ghost" onClick={() => navigate('/anonymous-forum')} className="text-muted-foreground">
+          <Button variant="ghost" onClick={() => navigate('/anonymous-chat')} className="text-muted-foreground">
             <ArrowLeft className="w-4 h-4 mr-2" /> Volver
           </Button>
         </div>

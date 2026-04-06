@@ -227,6 +227,15 @@ const OpinCard = forwardRef(({
     if (onCommentsClick) onCommentsClick(post);
   };
 
+  const handleViewIntentClick = (e) => {
+    e.stopPropagation();
+    if (onCommentsClick) {
+      onCommentsClick(post);
+      return;
+    }
+    setCommentsExpanded((prev) => !prev);
+  };
+
   const handleToggleFollow = (e) => {
     e.stopPropagation();
     if (typeof onToggleFollow === 'function') {
@@ -408,6 +417,15 @@ const OpinCard = forwardRef(({
                 )}
               </button>
             )}
+
+            <div className="mt-3 flex flex-wrap gap-2">
+              <button
+                onClick={handleViewIntentClick}
+                className="rounded-full border border-cyan-500/30 bg-cyan-500/10 px-3 py-1.5 text-xs font-medium text-cyan-200 hover:bg-cyan-500/15 transition-colors"
+              >
+                Ver intención
+              </button>
+            </div>
 
             {/* Metadata + Acciones */}
             <div className="flex items-center gap-3 mt-2 text-xs text-muted-foreground flex-wrap">

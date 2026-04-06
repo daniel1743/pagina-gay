@@ -13,6 +13,12 @@ import { getProfileRoleBadgeMeta } from '@/config/profileRoles';
 import './ChatMessages.css';
 
 const isSeededUserId = (userId = '') => String(userId || '').startsWith('seed_user_');
+const normalizeMetaText = (value = '') => String(value || '')
+  .normalize('NFD')
+  .replace(/[\u0300-\u036f]/g, '')
+  .toLowerCase()
+  .trim();
+
 const QUICK_REPLY_ACTIONS = [
   {
     key: 'interest',
@@ -491,6 +497,41 @@ const ChatMessages = ({
     return null;
   };
 
+  const shouldHideIntentMeta = (group, intentLabel) => {
+    const normalizedLabel = normalizeMetaText(intentLabel);
+    if (!normalizedLabel) return true;
+
+    const combinedContent = normalizeMetaText(
+      (group?.messages || [])
+        .filter((item) => item?.type === 'text')
+        .map((item) => item?.content || '')
+        .join(' ')
+    );
+
+    if (!combinedContent) return false;
+
+    if (normalizedLabel.includes('busca activo')) return combinedContent.includes('activo');
+    if (normalizedLabel.includes('busca pasivo')) return combinedContent.includes('pasivo');
+    if (normalizedLabel.includes('busca versatil')) return combinedContent.includes('versatil');
+    if (normalizedLabel.includes('disponible ahora')) return combinedContent.includes('disponible');
+
+    return combinedContent.includes(normalizedLabel);
+  };
+
+  const shouldHideComunaMeta = (group, comuna) => {
+    const normalizedComuna = normalizeMetaText(comuna);
+    if (!normalizedComuna) return true;
+
+    const combinedContent = normalizeMetaText(
+      (group?.messages || [])
+        .filter((item) => item?.type === 'text')
+        .map((item) => item?.content || '')
+        .join(' ')
+    );
+
+    return combinedContent.includes(normalizedComuna);
+  };
+
   // ⚡ AGRUPACIÓN: Mensajes consecutivos del mismo usuario
   const groupMessages = (messages) => {
     if (!messages || messages.length === 0) return [];
@@ -760,16 +801,6 @@ const ChatMessages = ({
                           );
                         })()
                       ) : null}
-                      {groupIntentMeta ? (
-                        <span className={`message-intent-chip ${groupIntentMeta.tone}`}>
-                          {groupIntentMeta.label}
-                        </span>
-                      ) : null}
-                      {group.comuna ? (
-                        <span className="message-comuna-chip">
-                          {group.comuna}
-                        </span>
-                      ) : null}
                     </div>
 
                     {!isSeededUserId(group.userId) && (
@@ -856,6 +887,14 @@ const ChatMessages = ({
                   && message.type === 'text'
                   && hasLowSignal
                   && !message._optimistic;
+                const showBubbleIntentMeta = !isOwn
+                  && isFirst
+                  && groupIntentMeta
+                  && !shouldHideIntentMeta(group, groupIntentMeta.label);
+                const showBubbleComunaMeta = !isOwn
+                  && isFirst
+                  && group.comuna
+                  && !shouldHideComunaMeta(group, group.comuna);
 
                 return (
                   <div
@@ -928,105 +967,126 @@ const ChatMessages = ({
                       <div className="message-avatar-placeholder" />
                     )}
 
-                    {/* ⚡ BURBUJA */}
-                    <div
-                      className={`message-bubble ${isOwn ? 'own' : 'other'} ${positionClass} ${hasImageReactions ? 'has-image-reactions' : ''} ${isImageMessage ? 'is-interactive-media' : ''} ${hasContextSignal ? 'contextual' : ''} ${hasLowSignal ? 'low-signal' : ''}`}
-                      onClick={isImageMessage ? () => {
-                        if (!isImageRevealed) {
-                          revealImage(messageKey);
-                          return;
-                        }
-                        if (!isOwn && isMobileViewport) {
-                          toggleImageActions(messageKey);
-                        }
-                      } : undefined}
-                    >
-                      {hasContextSignal && signalMeta?.accentLabel && (
-                        <div className={`message-context-pill ${isOwn ? 'own' : 'other'}`}>
-                          {signalMeta.accentLabel}
-                        </div>
-                      )}
-                      {message.replyTo && (
-                        <MessageQuote
-                          replyTo={message.replyTo}
-                          onJumpToMessage={handleJumpToMessage}
-                        />
-                      )}
-                      {message.type === 'text' && (
-                        <div className="message-text-inline">
-                          <span className="message-text-copy">
-                            {message.content}
-                          </span>
-                          {showTime && (
-                            <span className={`message-meta-inline ${isOwn ? 'own' : 'other'}`}>
-                              {formattedTime && (
-                                <span className="message-time">{formattedTime}</span>
-                              )}
-                              {isOwn && (
-                                <span className={`message-status ${message.status === 'error' ? 'error' : message.status === 'delivered' ? 'delivered' : message.status === 'sent' ? 'sent' : 'sending'}`}>
-                                  {message.status === 'error' ? '!' : message.status === 'delivered' ? '✓✓' : message.status === 'sent' ? '✓✓' : '✓'}
-                                </span>
-                              )}
-                            </span>
-                          )}
-                        </div>
-                      )}
-                      {message.type === 'gif' && (
-                        <img src={message.content} alt="GIF" className="rounded max-w-full" />
-                      )}
-                      {message.type === 'image' && (
-                        message.content
-                          ? (
-                            <div className="chat-image-shell">
-                              <img
-                                src={message.content}
-                                alt="Imagen del chat"
-                                className={`chat-message-image block rounded-lg w-auto h-auto max-w-[150px] sm:max-w-[200px] lg:max-w-[220px] max-h-[240px] object-cover ${
-                                  isImageRevealed ? '' : 'is-sensitive-blurred'
-                                }`}
-                                loading="lazy"
-                              />
-                              {!isImageRevealed && (
-                                <div className="chat-image-reveal-overlay" aria-hidden="true">
-                                  <span className="chat-image-reveal-pill">Toca para ver</span>
-                                </div>
-                              )}
+                    <div className={`message-stack ${isOwn ? 'own' : 'other'}`}>
+                      {(hasContextSignal && signalMeta?.accentLabel) || showBubbleIntentMeta || showBubbleComunaMeta ? (
+                        <div className={`message-prelude ${isOwn ? 'own' : 'other'}`}>
+                          {hasContextSignal && signalMeta?.accentLabel ? (
+                            <div className={`message-context-pill ${isOwn ? 'own' : 'other'}`}>
+                              {signalMeta.accentLabel}
                             </div>
-                          )
-                          : <span className="text-xs text-muted-foreground">Imagen</span>
-                      )}
-                      {((isOwn && message.type === 'image') || (canModerateMessages && !isOwn)) &&
-                        !message._optimistic &&
-                        typeof onDeleteMessage === 'function' && (
-                        <div className="mt-2 flex justify-end">
-                          <button
-                            type="button"
-                            className="message-delete-action"
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              onDeleteMessage(message);
-                            }}
-                            title={canModerateMessages && !isOwn ? 'Eliminar mensaje (admin)' : 'Eliminar foto'}
-                            aria-label={canModerateMessages && !isOwn ? 'Eliminar mensaje (admin)' : 'Eliminar foto'}
-                          >
-                            <Trash2 className="w-3 h-3" />
-                            <span>Eliminar</span>
-                          </button>
+                          ) : null}
+                          {(showBubbleIntentMeta || showBubbleComunaMeta) ? (
+                            <div className={`message-bubble-meta ${isOwn ? 'own' : 'other'}`}>
+                              {showBubbleIntentMeta ? (
+                                <span className={`message-bubble-meta-pill ${groupIntentMeta.tone}`}>
+                                  {groupIntentMeta.label}
+                                </span>
+                              ) : null}
+                              {showBubbleComunaMeta ? (
+                                <span className="message-bubble-meta-text">
+                                  {group.comuna}
+                                </span>
+                              ) : null}
+                            </div>
+                          ) : null}
                         </div>
-                      )}
+                      ) : null}
 
-                      {showTime && message.type !== 'text' && (
-                        <div className={`message-meta ${isOwn ? 'own' : 'other'}`}>
-                          {formattedTime && (
-                            <span className="message-time">{formattedTime}</span>
-                          )}
-                          {isOwn && (
-                            <span className={`message-status ${message.status === 'error' ? 'error' : message.status === 'delivered' ? 'delivered' : message.status === 'sent' ? 'sent' : 'sending'}`}>
-                              {message.status === 'error' ? '!' : message.status === 'delivered' ? '✓✓' : message.status === 'sent' ? '✓✓' : '✓'}
+                      {/* ⚡ BURBUJA */}
+                      <div
+                        className={`message-bubble ${isOwn ? 'own' : 'other'} ${positionClass} ${hasImageReactions ? 'has-image-reactions' : ''} ${isImageMessage ? 'is-interactive-media' : ''} ${hasContextSignal ? 'contextual' : ''} ${hasLowSignal ? 'low-signal' : ''}`}
+                        onClick={isImageMessage ? () => {
+                          if (!isImageRevealed) {
+                            revealImage(messageKey);
+                            return;
+                          }
+                          if (!isOwn && isMobileViewport) {
+                            toggleImageActions(messageKey);
+                          }
+                        } : undefined}
+                      >
+                        {message.replyTo && (
+                          <MessageQuote
+                            replyTo={message.replyTo}
+                            onJumpToMessage={handleJumpToMessage}
+                          />
+                        )}
+                        {message.type === 'text' && (
+                          <div className="message-text-inline">
+                            <span className="message-text-copy">
+                              {message.content}
                             </span>
-                          )}
-                        </div>
-                      )}
+                            {showTime && (
+                              <span className={`message-meta-inline ${isOwn ? 'own' : 'other'}`}>
+                                {formattedTime && (
+                                  <span className="message-time">{formattedTime}</span>
+                                )}
+                                {isOwn && (
+                                  <span className={`message-status ${message.status === 'error' ? 'error' : message.status === 'delivered' ? 'delivered' : message.status === 'sent' ? 'sent' : 'sending'}`}>
+                                    {message.status === 'error' ? '!' : message.status === 'delivered' ? '✓✓' : message.status === 'sent' ? '✓✓' : '✓'}
+                                  </span>
+                                )}
+                              </span>
+                            )}
+                          </div>
+                        )}
+                        {message.type === 'gif' && (
+                          <img src={message.content} alt="GIF" className="rounded max-w-full" />
+                        )}
+                        {message.type === 'image' && (
+                          message.content
+                            ? (
+                              <div className="chat-image-shell">
+                                <img
+                                  src={message.content}
+                                  alt="Imagen del chat"
+                                  className={`chat-message-image block rounded-lg w-auto h-auto max-w-[150px] sm:max-w-[200px] lg:max-w-[220px] max-h-[240px] object-cover ${
+                                    isImageRevealed ? '' : 'is-sensitive-blurred'
+                                  }`}
+                                  loading="lazy"
+                                />
+                                {!isImageRevealed && (
+                                  <div className="chat-image-reveal-overlay" aria-hidden="true">
+                                    <span className="chat-image-reveal-pill">Toca para ver</span>
+                                  </div>
+                                )}
+                              </div>
+                            )
+                            : <span className="text-xs text-muted-foreground">Imagen</span>
+                        )}
+                        {((isOwn && message.type === 'image') || (canModerateMessages && !isOwn)) &&
+                          !message._optimistic &&
+                          typeof onDeleteMessage === 'function' && (
+                          <div className="mt-2 flex justify-end">
+                            <button
+                              type="button"
+                              className="message-delete-action"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                onDeleteMessage(message);
+                              }}
+                              title={canModerateMessages && !isOwn ? 'Eliminar mensaje (admin)' : 'Eliminar foto'}
+                              aria-label={canModerateMessages && !isOwn ? 'Eliminar mensaje (admin)' : 'Eliminar foto'}
+                            >
+                              <Trash2 className="w-3 h-3" />
+                              <span>Eliminar</span>
+                            </button>
+                          </div>
+                        )}
+
+                        {showTime && message.type !== 'text' && (
+                          <div className={`message-meta ${isOwn ? 'own' : 'other'}`}>
+                            {formattedTime && (
+                              <span className="message-time">{formattedTime}</span>
+                            )}
+                            {isOwn && (
+                              <span className={`message-status ${message.status === 'error' ? 'error' : message.status === 'delivered' ? 'delivered' : message.status === 'sent' ? 'sent' : 'sending'}`}>
+                                {message.status === 'error' ? '!' : message.status === 'delivered' ? '✓✓' : message.status === 'sent' ? '✓✓' : '✓'}
+                              </span>
+                            )}
+                          </div>
+                        )}
+                      </div>
                     </div>
 
                     {/* ACCIONES - Solo para otros */}

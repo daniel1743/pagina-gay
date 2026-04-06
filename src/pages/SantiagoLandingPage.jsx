@@ -42,7 +42,7 @@ const SantiagoLandingPage = () => {
       metaDescription.name = 'description';
       document.head.appendChild(metaDescription);
     }
-    metaDescription.content = 'Chat gay en Santiago para hablar con gente de la ciudad y la Región Metropolitana. Entra gratis y conversa en vivo desde tu navegador.';
+    metaDescription.content = 'Chat gay en Santiago con hombres de Providencia, Las Condes, Nunoa y toda la RM. Entra gratis y habla en vivo desde tu navegador en Chactivo.';
 
     return () => {
       document.title = previousTitle;

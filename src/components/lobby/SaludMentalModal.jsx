@@ -42,7 +42,7 @@ const SaludMentalModal = ({ isOpen, onClose }) => {
         handleNavigation('/anonymous-chat');
         break;
       case 'forum':
-        handleNavigation('/anonymous-forum');
+        handleNavigation('/anonymous-chat');
         break;
       default:
         break;

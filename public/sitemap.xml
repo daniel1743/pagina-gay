@@ -4,7 +4,7 @@
   <!-- ✅ PÁGINA PRINCIPAL (Landing Global) -->
   <url>
     <loc>https://chactivo.com/</loc>
-    <lastmod>2026-02-09</lastmod>
+    <lastmod>2026-04-02</lastmod>
     <changefreq>daily</changefreq>
     <priority>1.0</priority>
     <mobile:mobile/>
@@ -13,21 +13,21 @@
   <!-- ✅ LANDING PAGES TEMÁTICAS (Contenido único) -->
   <url>
     <loc>https://chactivo.com/global</loc>
-    <lastmod>2026-02-09</lastmod>
+    <lastmod>2026-04-02</lastmod>
     <changefreq>daily</changefreq>
     <priority>0.9</priority>
     <mobile:mobile/>
   </url>
   <url>
     <loc>https://chactivo.com/santiago</loc>
-    <lastmod>2026-02-09</lastmod>
+    <lastmod>2026-04-02</lastmod>
     <changefreq>daily</changefreq>
     <priority>0.9</priority>
     <mobile:mobile/>
   </url>
   <url>
     <loc>https://chactivo.com/mas-30</loc>
-    <lastmod>2026-02-09</lastmod>
+    <lastmod>2026-04-02</lastmod>
     <changefreq>daily</changefreq>
     <priority>0.9</priority>
     <mobile:mobile/>
@@ -41,28 +41,28 @@
   <!-- ✅ LANDING PAGES INTERNACIONALES (Expansión) -->
   <url>
     <loc>https://chactivo.com/es</loc>
-    <lastmod>2026-01-02</lastmod>
+    <lastmod>2026-04-02</lastmod>
     <changefreq>daily</changefreq>
     <priority>0.9</priority>
     <mobile:mobile/>
   </url>
   <url>
     <loc>https://chactivo.com/br</loc>
-    <lastmod>2026-01-02</lastmod>
+    <lastmod>2026-04-02</lastmod>
     <changefreq>daily</changefreq>
     <priority>0.9</priority>
     <mobile:mobile/>
   </url>
   <url>
     <loc>https://chactivo.com/mx</loc>
-    <lastmod>2026-01-02</lastmod>
+    <lastmod>2026-04-02</lastmod>
     <changefreq>daily</changefreq>
     <priority>0.9</priority>
     <mobile:mobile/>
   </url>
   <url>
     <loc>https://chactivo.com/ar</loc>
-    <lastmod>2026-01-02</lastmod>
+    <lastmod>2026-04-02</lastmod>
     <changefreq>daily</changefreq>
     <priority>0.9</priority>
     <mobile:mobile/>
@@ -71,7 +71,7 @@
   <!-- ✅ PREGUNTAS FRECUENTES (FAQ - Pública) -->
   <url>
     <loc>https://chactivo.com/faq</loc>
-    <lastmod>2026-01-11</lastmod>
+    <lastmod>2026-04-02</lastmod>
     <changefreq>weekly</changefreq>
     <priority>0.7</priority>
     <mobile:mobile/>
@@ -82,25 +82,23 @@
   <!-- ✅ OPIN - Tablón de Notas (Discovery Wall) -->
   <url>
     <loc>https://chactivo.com/opin</loc>
-    <lastmod>2026-02-09</lastmod>
+    <lastmod>2026-04-02</lastmod>
     <changefreq>hourly</changefreq>
     <priority>0.85</priority>
     <mobile:mobile/>
   </url>
 
-  <!-- ✅ CHAT ANÓNIMO -->
-  <url>
-    <loc>https://chactivo.com/anonymous-chat</loc>
-    <lastmod>2026-02-09</lastmod>
-    <changefreq>daily</changefreq>
-    <priority>0.8</priority>
-    <mobile:mobile/>
-  </url>
+  <!-- ⏸️ TEMPORAL (2026-04-01): /anonymous-chat fuera del sitemap mientras se mantiene como
+       superficie funcional para usuarios pero no como destino SEO indexable -->
+  <!-- ⏸️ TEMPORAL (2026-04-02): /premium queda fuera del sitemap porque la compra pública
+       todavía no está operativa en producción y la ruta ahora se sirve como superficie noindex -->
+  <!-- ⏸️ TEMPORAL (2026-04-02): /chat, /chat/global, /chat/amistad, /chat/quedar-ya y
+       /chat/conversas-libres quedan fuera del sitemap; se conservan solo como rutas legacy noindex -->
 
   <!-- ✅ SALAS DE CHAT ACTIVAS (Chile) -->
   <url>
     <loc>https://chactivo.com/chat/principal</loc>
-    <lastmod>2026-01-02</lastmod>
+    <lastmod>2026-04-02</lastmod>
     <changefreq>hourly</changefreq>
     <priority>0.9</priority>
     <mobile:mobile/>

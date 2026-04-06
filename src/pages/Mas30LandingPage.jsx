@@ -36,7 +36,7 @@ const Mas30LandingPage = () => {
       metaDescription.name = 'description';
       document.head.appendChild(metaDescription);
     }
-    metaDescription.content = '💪 Chat gay para mayores de 30 años en Chile. Conversaciones maduras, sin drama ni presión. Conoce gays de tu edad en Santiago, Viña, Conce y todo Chile. ¡Sin registro, 100% gratis!';
+    metaDescription.content = 'Chat gay para mayores de 30 en Chile con conversaciones maduras y gente real. Entra gratis, sin registro obligatorio, y conecta en Chactivo.';
 
     return () => {
       if (metaDescription && document.head.contains(metaDescription)) {

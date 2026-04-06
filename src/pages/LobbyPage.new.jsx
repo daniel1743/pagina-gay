@@ -383,10 +383,10 @@ const LobbyPage = () => {
           </div>
 
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-            {/* Foro */}
+            {/* Apoyo Anónimo */}
             <motion.div
               whileHover={{ scale: 1.02, y: -5 }}
-              onClick={() => navigate('/anonymous-forum')}
+              onClick={() => navigate('/anonymous-chat')}
               className="glassmorphism-card p-6 sm:p-8 rounded-2xl cursor-pointer border border-green-500/30 hover:border-green-500/60 transition-all"
             >
               <div className="flex items-start gap-4">
@@ -395,15 +395,15 @@ const LobbyPage = () => {
                 </div>
                 <div className="flex-1">
                   <h3 className="text-xl font-bold mb-2 text-green-400">
-                    Foro Gay Chile Anónimo
+                    Sala de Apoyo Anónima
                   </h3>
                   <p className="text-sm sm:text-base text-muted-foreground mb-3 leading-relaxed">
-                    Comparte experiencias, pide consejos, encuentra apoyo. 100% anónimo y seguro.
+                    Espacio confidencial para conversar, pedir apoyo y conectar sin exponer tu identidad.
                   </p>
                   <div className="flex items-center gap-2 text-sm font-semibold text-green-400">
                     <span>🔒 100% anónimo</span>
                     <span>•</span>
-                    <span>💬 Comunidad activa</span>
+                    <span>💬 Espacio seguro</span>
                     <span>→</span>
                   </div>
                 </div>

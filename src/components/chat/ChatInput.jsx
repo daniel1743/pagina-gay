@@ -934,9 +934,16 @@ const ChatInput = ({
         )}
       </AnimatePresence>
 
+      <style>{`
+        @keyframes composer-marquee {
+          0%, 12% { transform: translateX(0); }
+          88%, 100% { transform: translateX(calc(-50% - 0.75rem)); }
+        }
+      `}</style>
+
       <form
         onSubmit={handleSubmit}
-        className="flex min-h-[54px] items-end gap-1.5 sm:gap-2 flex-nowrap rounded-[24px] border border-[var(--chat-divider)] bg-[var(--chat-composer-surface)] px-2.5 py-1.5"
+        className="flex min-h-[48px] items-end gap-1.5 sm:gap-2 flex-nowrap rounded-[26px] border border-[var(--chat-divider)] bg-[var(--chat-composer-surface)] px-2 py-1"
       >
         {/* ✅ Iconos comentados - Más espacio para el input */}
         {/* <Button
@@ -957,7 +964,7 @@ const ChatInput = ({
           variant="ghost"
           size="icon"
           onClick={() => { setShowEmojiPicker(prev => !prev); setShowQuickPhrases(false);}}
-          className={`min-w-[42px] min-h-[42px] h-[42px] w-[42px] rounded-full border border-transparent sm:min-w-0 sm:min-h-0 transition-colors ${
+          className={`min-w-[40px] min-h-[40px] h-[40px] w-[40px] rounded-full border border-transparent sm:min-w-0 sm:min-h-0 transition-colors ${
             showEmojiPicker
               ? 'text-cyan-300 border-cyan-500/20 bg-cyan-500/10 hover:text-cyan-200 hover:bg-cyan-500/15'
               : 'text-muted-foreground hover:text-cyan-400 hover:bg-black/5 dark:hover:bg-white/5'
@@ -980,7 +987,7 @@ const ChatInput = ({
             onMouseLeave={() => setShowPhotoTooltip(false)}
             onFocus={() => setShowPhotoTooltip(true)}
             onBlur={() => setShowPhotoTooltip(false)}
-            className={`min-w-[42px] min-h-[42px] h-[42px] w-[42px] rounded-full border border-transparent sm:min-w-0 sm:min-h-0 transition-colors ${
+            className={`min-w-[40px] min-h-[40px] h-[40px] w-[40px] rounded-full border border-transparent sm:min-w-0 sm:min-h-0 transition-colors ${
               canSendPhotoNow && !reachedPhotoHourlyLimit
                 ? 'text-muted-foreground hover:text-cyan-400 hover:bg-black/5 dark:hover:bg-white/5'
                 : 'text-muted-foreground/80 hover:text-cyan-300'
@@ -1019,46 +1026,57 @@ const ChatInput = ({
           <Mic className="w-5 h-5" />
         </Button> */}
 
-        <textarea
-          ref={textareaRef}
-          value={message}
-          onChange={handleMessageChange}
-          onKeyDown={(e) => {
-            // ✅ Si es invitado sin nickname, mostrar modal al intentar escribir
-            if (isGuest && onRequestNickname) {
-              onRequestNickname();
-              e.preventDefault();
-              return;
-            }
-            // En móvil, Enter envía el mensaje (no hace salto de línea)
-            if (e.key === 'Enter' && !e.shiftKey) {
-              e.preventDefault();
-              handleSubmit(e);
-            }
-          }}
-          placeholder={composerPlaceholder}
-          className="flex-1 bg-transparent border-none rounded-[24px] px-1.5 sm:px-2 py-2 text-base font-medium leading-[1.38] text-foreground placeholder:text-muted-foreground focus:outline-none transition-all min-h-[42px] max-h-[150px] resize-none overflow-y-auto scrollbar-hide"
-          aria-label="Campo de texto para escribir mensaje"
-          maxLength={500}
-          autoComplete="off"
-          autoCorrect="on"
-          autoCapitalize="sentences"
-          spellCheck="true"
-          inputMode="text"
-          enterKeyHint="send"
-          rows={1}
-          readOnly={false}
-          disabled={false}
-          style={{
-            lineHeight: '1.38',
-            paddingTop: '0.5rem',
-            paddingBottom: '0.5rem',
-            WebkitUserSelect: 'text',
-            userSelect: 'text',
-            WebkitTouchCallout: 'default',
-            touchAction: 'manipulation'
-          }}
-        />
+        <div className="relative flex-1 min-w-0 self-center">
+          {!message.trim() && (
+            <div className="pointer-events-none absolute inset-y-0 left-0 right-0 flex items-center overflow-hidden px-1.5 sm:px-2">
+              <div className="inline-flex min-w-max items-center gap-3 text-[15px] font-medium leading-5 text-muted-foreground/90 animate-[composer-marquee_18s_linear_infinite]">
+                <span className="whitespace-nowrap">{composerPlaceholder}</span>
+                <span className="whitespace-nowrap" aria-hidden="true">{composerPlaceholder}</span>
+              </div>
+            </div>
+          )}
+
+          <textarea
+            ref={textareaRef}
+            value={message}
+            onChange={handleMessageChange}
+            onKeyDown={(e) => {
+              // ✅ Si es invitado sin nickname, mostrar modal al intentar escribir
+              if (isGuest && onRequestNickname) {
+                onRequestNickname();
+                e.preventDefault();
+                return;
+              }
+              // En móvil, Enter envía el mensaje (no hace salto de línea)
+              if (e.key === 'Enter' && !e.shiftKey) {
+                e.preventDefault();
+                handleSubmit(e);
+              }
+            }}
+            placeholder=""
+            className="flex-1 w-full bg-transparent border-none rounded-[24px] px-1.5 sm:px-2 py-[10px] text-[15px] font-medium leading-5 text-foreground focus:outline-none transition-all min-h-[24px] max-h-[140px] resize-none overflow-y-auto scrollbar-hide"
+            aria-label="Campo de texto para escribir mensaje"
+            maxLength={500}
+            autoComplete="off"
+            autoCorrect="on"
+            autoCapitalize="sentences"
+            spellCheck="true"
+            inputMode="text"
+            enterKeyHint="send"
+            rows={1}
+            readOnly={false}
+            disabled={false}
+            style={{
+              lineHeight: '1.25rem',
+              paddingTop: '0.625rem',
+              paddingBottom: '0.625rem',
+              WebkitUserSelect: 'text',
+              userSelect: 'text',
+              WebkitTouchCallout: 'default',
+              touchAction: 'manipulation'
+            }}
+          />
+        </div>
 
         <motion.div
           whileHover={{ scale: 1.05 }}
@@ -1069,7 +1087,7 @@ const ChatInput = ({
           <Button
             type="submit"
             disabled={!message.trim() || isSending}
-            className="magenta-gradient text-white rounded-full relative overflow-hidden min-w-[42px] min-h-[42px] w-[42px] h-[42px] p-0"
+            className="magenta-gradient text-white rounded-full relative overflow-hidden min-w-[40px] min-h-[40px] w-[40px] h-[40px] p-0"
             style={{ transition: 'none' }}
             size="icon"
             aria-label={isSending ? "Enviando mensaje..." : "Enviar mensaje"}

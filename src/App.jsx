@@ -34,6 +34,7 @@ import SEOLanding, {
   SEOLandingBrasil,
   SEOLandingSantiagoCentro
 } from '@/components/seo/SEOLanding';
+import NoindexRouteNotice from '@/components/seo/NoindexRouteNotice';
 
 // ⚡ CODE SPLITTING - Lazy loading de páginas (reducción de 80% del bundle inicial)
 // Estas páginas se cargan solo cuando el usuario navega a ellas
@@ -111,6 +112,36 @@ function MainLayout({ children }) {
       <Footer />
       <ChatBottomNav />
     </div>
+  );
+}
+
+function PremiumAccessRoute() {
+  const { user } = useAuth();
+  const isRegisteredUser = user && !user.isGuest && !user.isAnonymous;
+
+  if (isRegisteredUser) {
+    return (
+      <MainLayout>
+        <PremiumPage />
+      </MainLayout>
+    );
+  }
+
+  return (
+    <MainLayout>
+      <NoindexRouteNotice
+        title="Premium en revisión | Chactivo"
+        description="Página informativa no indexable para Premium mientras la compra pública sigue en preparación."
+        badge="No indexable"
+        heading="Premium todavía no está operativo como compra pública"
+        body="La ruta se mantiene visible para compatibilidad interna, pero hoy no se trabaja como destino SEO ni como checkout público estable. Si quieres usar Chactivo ahora, entra al chat principal."
+        footnote="Temporalmente /premium queda fuera del sitemap porque la compra aún no está habilitada en producción y no conviene indexar una promesa incompleta."
+        primaryLabel="Entrar al chat principal"
+        primaryHref="/chat/principal"
+        secondaryLabel="Ir a acceso"
+        secondaryHref="/auth?redirect=/premium"
+      />
+    </MainLayout>
   );
 }
 
@@ -386,13 +417,160 @@ function AppRoutes() {
         {/* ✅ REDIRECCIÓN: conversas-libres → principal (sala limpia sin spam) */}
         <Route
           path="/chat/conversas-libres"
-          element={<Navigate to="/chat/principal" replace />}
+          element={
+            <MainLayout>
+              <NoindexRouteNotice
+                title="Conversas Libres migró a la sala principal | Chactivo"
+                description="Ruta legacy no indexable conservada para compatibilidad tras la consolidación de salas."
+                badge="Ruta legacy"
+                heading="Esta conversación ya se consolidó en la sala principal"
+                body="La antigua ruta de conversas libres ya no funciona como sala separada. Se mantiene solo para no romper enlaces viejos, pero no se indexa ni se promociona por separado."
+              />
+            </MainLayout>
+          }
+        />
+        <Route
+          path="/chat/conversas-libres/"
+          element={
+            <MainLayout>
+              <NoindexRouteNotice
+                title="Conversas Libres migró a la sala principal | Chactivo"
+                description="Ruta legacy no indexable conservada para compatibilidad tras la consolidación de salas."
+                badge="Ruta legacy"
+                heading="Esta conversación ya se consolidó en la sala principal"
+                body="La antigua ruta de conversas libres ya no funciona como sala separada. Se mantiene solo para no romper enlaces viejos, pero no se indexa ni se promociona por separado."
+              />
+            </MainLayout>
+          }
+        />
+
+        <Route
+          path="/chat"
+          element={
+            <MainLayout>
+              <NoindexRouteNotice
+                title="Entrada general al chat | Chactivo"
+                description="Página informativa no indexable para la ruta genérica /chat."
+                badge="Ruta genérica"
+                heading="La entrada genérica /chat no es un destino SEO independiente"
+                body="La superficie pública y estable del producto es la sala principal. Esta ruta se conserva para compatibilidad y navegación interna, pero no debe indexarse como página propia."
+              />
+            </MainLayout>
+          }
+        />
+        <Route
+          path="/chat/"
+          element={
+            <MainLayout>
+              <NoindexRouteNotice
+                title="Entrada general al chat | Chactivo"
+                description="Página informativa no indexable para la ruta genérica /chat."
+                badge="Ruta genérica"
+                heading="La entrada genérica /chat no es un destino SEO independiente"
+                body="La superficie pública y estable del producto es la sala principal. Esta ruta se conserva para compatibilidad y navegación interna, pero no debe indexarse como página propia."
+              />
+            </MainLayout>
+          }
         />
 
         {/* ✅ SEO: Mantener compatibilidad con URLs indexadas - global → principal */}
         <Route
           path="/chat/global"
-          element={<Navigate to="/chat/principal" replace />}
+          element={
+            <MainLayout>
+              <NoindexRouteNotice
+                title="Chat global consolidado | Chactivo"
+                description="Ruta histórica no indexable. El chat global fue consolidado en la sala principal."
+                badge="Ruta histórica"
+                heading="El antiguo chat global ya no vive como sala separada"
+                body="Esta URL se conserva para enlaces históricos, pero la conversación fue consolidada en la sala principal para concentrar actividad real y evitar fragmentación."
+              />
+            </MainLayout>
+          }
+        />
+        <Route
+          path="/chat/global/"
+          element={
+            <MainLayout>
+              <NoindexRouteNotice
+                title="Chat global consolidado | Chactivo"
+                description="Ruta histórica no indexable. El chat global fue consolidado en la sala principal."
+                badge="Ruta histórica"
+                heading="El antiguo chat global ya no vive como sala separada"
+                body="Esta URL se conserva para enlaces históricos, pero la conversación fue consolidada en la sala principal para concentrar actividad real y evitar fragmentación."
+              />
+            </MainLayout>
+          }
+        />
+        <Route path="/chat/hablar-primero" element={<Navigate to="/chat/principal" replace />} />
+        <Route path="/chat/hablar-primero/" element={<Navigate to="/chat/principal" replace />} />
+        <Route path="/chat/mas-30" element={<Navigate to="/mas-30" replace />} />
+        <Route path="/chat/mas-30/" element={<Navigate to="/mas-30" replace />} />
+        <Route path="/chat/santiago" element={<Navigate to="/santiago" replace />} />
+        <Route path="/chat/santiago/" element={<Navigate to="/santiago" replace />} />
+        <Route path="/chat/es-main" element={<Navigate to="/es" replace />} />
+        <Route path="/chat/es-main/" element={<Navigate to="/es" replace />} />
+        <Route path="/chat/br-main" element={<Navigate to="/br" replace />} />
+        <Route path="/chat/br-main/" element={<Navigate to="/br" replace />} />
+        <Route path="/chat/mx-main" element={<Navigate to="/mx" replace />} />
+        <Route path="/chat/mx-main/" element={<Navigate to="/mx" replace />} />
+        <Route path="/chat/ar-main" element={<Navigate to="/ar" replace />} />
+        <Route path="/chat/ar-main/" element={<Navigate to="/ar" replace />} />
+        <Route
+          path="/chat/amistad"
+          element={
+            <MainLayout>
+              <NoindexRouteNotice
+                title="Sala amistad archivada | Chactivo"
+                description="Ruta legacy no indexable. La antigua sala amistad ya no existe como superficie independiente."
+                badge="Sala archivada"
+                heading="La sala amistad ya no se trabaja como destino separado"
+                body="Esta URL quedó como residuo de una arquitectura anterior. Hoy la actividad útil se concentra en la sala principal y por eso esta ruta se mantiene solo como compatibilidad legacy."
+              />
+            </MainLayout>
+          }
+        />
+        <Route
+          path="/chat/amistad/"
+          element={
+            <MainLayout>
+              <NoindexRouteNotice
+                title="Sala amistad archivada | Chactivo"
+                description="Ruta legacy no indexable. La antigua sala amistad ya no existe como superficie independiente."
+                badge="Sala archivada"
+                heading="La sala amistad ya no se trabaja como destino separado"
+                body="Esta URL quedó como residuo de una arquitectura anterior. Hoy la actividad útil se concentra en la sala principal y por eso esta ruta se mantiene solo como compatibilidad legacy."
+              />
+            </MainLayout>
+          }
+        />
+        <Route
+          path="/chat/quedar-ya"
+          element={
+            <MainLayout>
+              <NoindexRouteNotice
+                title="Sala quedar ya archivada | Chactivo"
+                description="Ruta legacy no indexable. La antigua sala quedar ya ya no existe como destino independiente."
+                badge="Sala archivada"
+                heading="La sala quedar ya ya no está activa como superficie propia"
+                body="La ruta se conserva para no romper enlaces antiguos, pero ya no se indexa ni se promueve. La conversación activa está consolidada en la sala principal."
+              />
+            </MainLayout>
+          }
+        />
+        <Route
+          path="/chat/quedar-ya/"
+          element={
+            <MainLayout>
+              <NoindexRouteNotice
+                title="Sala quedar ya archivada | Chactivo"
+                description="Ruta legacy no indexable. La antigua sala quedar ya ya no existe como destino independiente."
+                badge="Sala archivada"
+                heading="La sala quedar ya ya no está activa como superficie propia"
+                body="La ruta se conserva para no romper enlaces antiguos, pero ya no se indexa ni se promueve. La conversación activa está consolidada en la sala principal."
+              />
+            </MainLayout>
+          }
         />
 
         {/* ⏸️ TEMPORAL: sala gaming oculta */}
@@ -433,11 +611,11 @@ function AppRoutes() {
         />
         <Route
           path="/premium"
-          element={
-            <PrivateRoute>
-              <MainLayout><PremiumPage /></MainLayout>
-            </PrivateRoute>
-          }
+          element={<PremiumAccessRoute />}
+        />
+        <Route
+          path="/premium/"
+          element={<PremiumAccessRoute />}
         />
         <Route
           path="/admin"

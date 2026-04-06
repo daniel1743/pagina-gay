@@ -256,7 +256,7 @@ export const SEOLandingChile = () => (
   <SEOLanding
     chatRoom="principal"
     title="Chat Gay Chile | Entrada Rápida Al Chat Principal | Chactivo"
-    description="Una landing de apoyo para entrar al chat gay de Chile. Habla en vivo, entra gratis y accede al chat principal desde tu navegador."
+    description="Chat gay en vivo para Chile con gente real conectada ahora. Entra gratis, sin registro obligatorio, y empieza a hablar en segundos en Chactivo."
     keywords="chat gay chile, chat gay en vivo chile, entrar al chat gay chile, chat principal chile"
     h1="Entra y conversa con gente real"
     subtitle="Chile activo ahora mismo. Entra al chat principal sin vueltas ni descargas."
@@ -275,7 +275,7 @@ export const SEOLandingHome = () => (
   <SEOLanding
     chatRoom="principal"
     title="Chat Gay Chile En Vivo | Entra Gratis y Habla al Instante | Chactivo"
-    description="Conecta con gente real de Chile en segundos. Entra gratis, sin registro obligatorio y conversa al instante desde tu navegador."
+    description="Chat gay en vivo para Chile con gente real conectada ahora. Entra gratis, habla con hombres cercanos y empieza en segundos sin app ni registro obligatorio en Chactivo."
     keywords="chat gay chile, chat gay en vivo, chat gay gratis chile, chat gay sin registro, chat gay chile gratis"
     h1="Entra y conversa con gente real"
     subtitle="Chile activo ahora mismo. Sin descargas, sin pasos largos y sin perder tiempo."
@@ -299,6 +299,13 @@ export const SEOLandingArgentina = () => (
     h1="Chat Gay Argentina"
     subtitle="Conecta con hombres en toda Argentina"
     canonicalPath="/ar"
+    autoRedirect={false}
+    ctaLabel="Entrar al chat de Argentina"
+    supportingPoints={[
+      'Entrada regional estable para búsquedas de Argentina.',
+      'Acceso rápido sin descargas ni pasos largos.',
+      'Pensada para captar intención local antes de entrar al chat.',
+    ]}
   />
 );
 
@@ -311,6 +318,13 @@ export const SEOLandingMexico = () => (
     h1="Chat Gay México"
     subtitle="Conecta con hombres en todo México"
     canonicalPath="/mx"
+    autoRedirect={false}
+    ctaLabel="Entrar al chat de México"
+    supportingPoints={[
+      'Landing regional hecha para búsquedas de México.',
+      'Entrada directa desde navegador y sin fricción extra.',
+      'Mejor alineada con intención local y con indexación real.',
+    ]}
   />
 );
 
@@ -323,6 +337,13 @@ export const SEOLandingEspana = () => (
     h1="Chat Gay España"
     subtitle="Conecta con hombres en toda España"
     canonicalPath="/es"
+    autoRedirect={false}
+    ctaLabel="Entrar al chat de España"
+    supportingPoints={[
+      'Superficie regional clara para búsquedas de España.',
+      'Sin descargas y con acceso rápido al chat.',
+      'Más coherente para SEO que una landing que auto-redirige.',
+    ]}
   />
 );
 
@@ -335,6 +356,13 @@ export const SEOLandingBrasil = () => (
     h1="Chat Gay Brasil"
     subtitle="Conecte-se com homens em todo o Brasil"
     canonicalPath="/br"
+    autoRedirect={false}
+    ctaLabel="Entrar no chat do Brasil"
+    supportingPoints={[
+      'Landing regional estável para buscas do Brasil.',
+      'Acesso rápido pelo navegador, sem download.',
+      'Página feita para indexar de verdade, não para redirecionar.',
+    ]}
   />
 );
 

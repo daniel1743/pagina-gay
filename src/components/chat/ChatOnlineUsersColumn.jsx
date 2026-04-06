@@ -109,6 +109,7 @@ const ChatOnlineUsersColumn = ({
   contextualTitle = 'Disponible ahora',
   contextualSubtitle = '',
   contextualBadgeLabel = null,
+  onBeforeOpenContextualOpportunity,
   onOpenContextualOpportunity,
   onDismissContextualOpportunities,
   isContextualSending = false,
@@ -328,6 +329,7 @@ const ChatOnlineUsersColumn = ({
           title={contextualTitle}
           subtitle={contextualSubtitle}
           badgeLabel={contextualBadgeLabel}
+          onBeforeOpenMatch={onBeforeOpenContextualOpportunity}
           onOpenMatch={onOpenContextualOpportunity}
           onDismiss={onDismissContextualOpportunities}
           isSending={isContextualSending}

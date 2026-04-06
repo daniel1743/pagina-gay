@@ -18,6 +18,24 @@
     ],
     "headers": [
       {
+        "source": "/anonymous-chat",
+        "headers": [
+          {
+            "key": "X-Robots-Tag",
+            "value": "noindex, follow"
+          }
+        ]
+      },
+      {
+        "source": "/anonymous-chat/",
+        "headers": [
+          {
+            "key": "X-Robots-Tag",
+            "value": "noindex, follow"
+          }
+        ]
+      },
+      {
         "source": "**",
         "headers": [
           {
@@ -41,6 +59,108 @@
             "value": "geolocation=(self), microphone=(), camera=()"
           }
         ]
+      }
+    ],
+    "redirects": [
+      {
+        "source": "/chat/hablar-primero",
+        "destination": "/chat/principal",
+        "type": 301
+      },
+      {
+        "source": "/chat/hablar-primero/",
+        "destination": "/chat/principal",
+        "type": 301
+      },
+      {
+        "source": "/chat/mas-30",
+        "destination": "/mas-30",
+        "type": 301
+      },
+      {
+        "source": "/chat/mas-30/",
+        "destination": "/mas-30",
+        "type": 301
+      },
+      {
+        "source": "/chat/santiago",
+        "destination": "/santiago",
+        "type": 301
+      },
+      {
+        "source": "/chat/santiago/",
+        "destination": "/santiago",
+        "type": 301
+      },
+      {
+        "source": "/chat/es-main",
+        "destination": "/es",
+        "type": 301
+      },
+      {
+        "source": "/chat/es-main/",
+        "destination": "/es",
+        "type": 301
+      },
+      {
+        "source": "/chat/br-main",
+        "destination": "/br",
+        "type": 301
+      },
+      {
+        "source": "/chat/br-main/",
+        "destination": "/br",
+        "type": 301
+      },
+      {
+        "source": "/chat/mx-main",
+        "destination": "/mx",
+        "type": 301
+      },
+      {
+        "source": "/chat/mx-main/",
+        "destination": "/mx",
+        "type": 301
+      },
+      {
+        "source": "/chat/ar-main",
+        "destination": "/ar",
+        "type": 301
+      },
+      {
+        "source": "/chat/ar-main/",
+        "destination": "/ar",
+        "type": 301
+      },
+      {
+        "source": "/chat-gay-santiago-centro",
+        "destination": "/santiago",
+        "type": 301
+      },
+      {
+        "source": "/chat-gay-santiago-centro/",
+        "destination": "/santiago",
+        "type": 301
+      },
+      {
+        "source": "/anonymous-forum",
+        "destination": "/chat/principal",
+        "type": 301
+      },
+      {
+        "source": "/anonymous-forum/",
+        "destination": "/chat/principal",
+        "type": 301
+      },
+      {
+        "source": "/foro-gay",
+        "destination": "/chat/principal",
+        "type": 301
+      },
+      {
+        "source": "/foro-gay/",
+        "destination": "/chat/principal",
+        "type": 301
       }
     ],
     "rewrites": [

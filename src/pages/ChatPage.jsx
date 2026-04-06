@@ -822,6 +822,7 @@ const ChatPage = () => {
   const [showCercaniaBanner, setShowCercaniaBanner] = useState(false);
   const [showHeteroRoomIntroBanner, setShowHeteroRoomIntroBanner] = useState(false);
   const [showHelpLauncher, setShowHelpLauncher] = useState(false);
+  const [showMobileSidebarBadge, setShowMobileSidebarBadge] = useState(false);
   const lastForegroundPushRef = useRef({ key: '', at: 0 });
   const helpTourPromptShownRef = useRef(false);
   const pushBannerDismissKey = user?.id
@@ -851,6 +852,62 @@ const ChatPage = () => {
   const helpLauncherDismissKey = user?.id
     ? `chactivo:help_launcher:dismissed:${user.id}`
     : 'chactivo:help_launcher:dismissed:guest';
+  const mobileSidebarBadgeSeenKey = user?.id
+    ? `chactivo:mobile_sidebar_badge:shown:${user.id}`
+    : 'chactivo:mobile_sidebar_badge:shown:guest';
+  const mobileSidebarBadgeSessionKey = user?.id
+    ? `chactivo:mobile_sidebar_badge:session:${user.id}`
+    : 'chactivo:mobile_sidebar_badge:session:guest';
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+
+    if (window.innerWidth >= 1024) {
+      setShowMobileSidebarBadge(false);
+      return;
+    }
+
+    try {
+      const sessionState = sessionStorage.getItem(mobileSidebarBadgeSessionKey);
+
+      if (sessionState === 'consumed') {
+        setShowMobileSidebarBadge(false);
+        return;
+      }
+
+      if (sessionState === 'shown') {
+        setShowMobileSidebarBadge(true);
+        return;
+      }
+
+      const shownCount = Number.parseInt(localStorage.getItem(mobileSidebarBadgeSeenKey) || '0', 10);
+
+      if (shownCount >= 2) {
+        setShowMobileSidebarBadge(false);
+        return;
+      }
+
+      localStorage.setItem(mobileSidebarBadgeSeenKey, String(shownCount + 1));
+      sessionStorage.setItem(mobileSidebarBadgeSessionKey, 'shown');
+      setShowMobileSidebarBadge(true);
+    } catch (error) {
+      console.warn('No se pudo inicializar el badge del menú móvil:', error);
+      setShowMobileSidebarBadge(false);
+    }
+  }, [mobileSidebarBadgeSeenKey, mobileSidebarBadgeSessionKey]);
+
+  const handleOpenSidebarFromMenu = useCallback(() => {
+    setSidebarOpen(true);
+    setShowMobileSidebarBadge(false);
+
+    if (typeof window === 'undefined') return;
+
+    try {
+      sessionStorage.setItem(mobileSidebarBadgeSessionKey, 'consumed');
+    } catch (error) {
+      console.warn('No se pudo persistir el cierre del badge del menú móvil:', error);
+    }
+  }, [mobileSidebarBadgeSessionKey]);
 
   useEffect(() => {
     if (!user?.id) {
@@ -1193,6 +1250,7 @@ const ChatPage = () => {
   const [activeOpinIntents, setActiveOpinIntents] = useState([]);
   const [privateMatchSuggestion, setPrivateMatchSuggestion] = useState(null);
   const [isSendingPrivateMatchRequest, setIsSendingPrivateMatchRequest] = useState(false);
+  const [isOpeningContextualOpportunity, setIsOpeningContextualOpportunity] = useState(false);
   const [isRandomConnectActive, setIsRandomConnectActive] = useState(false);
   // Chat privado persistente: usa contexto global para mantener conversación al navegar
   const { openPrivateChats, setActivePrivateChat, closePrivateChat, discardPrivateChat, dismissedChatIds, maxOpenPrivateChats } = usePrivateChat();
@@ -1205,6 +1263,7 @@ const ChatPage = () => {
   const dismissedChatIdsRef = useRef(new Set());
   const currentRoomRef = useRef(null);
   const userRef = useRef(null);
+  const isOpeningContextualOpportunityRef = useRef(false);
   const openPrivateChatWindowRef = useRef(null);
   const openGroupPrivateChatWindowRef = useRef(null);
   const clearRandomConnectPendingTimeoutRef = useRef(null);
@@ -1242,6 +1301,7 @@ const ChatPage = () => {
   currentRoomRef.current = currentRoom;
   userRef.current = user;
   isSendingPrivateMatchRequestRef.current = isSendingPrivateMatchRequest;
+  isOpeningContextualOpportunityRef.current = isOpeningContextualOpportunity;
 
   useEffect(() => {
     if (privateChatRequest || (openPrivateChats?.length || 0) > 0) {
@@ -2648,6 +2708,7 @@ const ChatPage = () => {
       if (
         activeSuggestion
         && !isSendingPrivateMatchRequestRef.current
+        && !isOpeningContextualOpportunityRef.current
         && (Date.now() - Number(activeSuggestion?.shownAtMs || 0)) > 600
       ) {
         setPrivateMatchSuggestion(null);
@@ -2723,7 +2784,7 @@ const ChatPage = () => {
     const timeoutId = window.setTimeout(() => {
       if (roomEntrySuggestionShownRef.current.has(entryKey)) return;
       if (privateChatRequestRef.current || privateMatchSuggestionRef.current) return;
-      if (isSendingPrivateMatchRequestRef.current) return;
+      if (isSendingPrivateMatchRequestRef.current || isOpeningContextualOpportunityRef.current) return;
       if ((openPrivateChatsRef.current || []).length > 0) return;
 
       const candidate = getNextPrivateMatchCandidate();
@@ -2827,7 +2888,7 @@ const ChatPage = () => {
 
       if (privateChatRequestRef.current) return;
       if (privateMatchSuggestionRef.current) return;
-      if (isSendingPrivateMatchRequestRef.current) return;
+      if (isSendingPrivateMatchRequestRef.current || isOpeningContextualOpportunityRef.current) return;
       if (isInputFocused) return;
       if ((openPrivateChatsRef.current || []).length > 0) return;
       if (now - lastInteractionAtRef.current < PRIVATE_MATCH_IDLE_MS) return;
@@ -6163,16 +6224,25 @@ const ChatPage = () => {
 
   useEffect(() => {
     if (!privateMatchSuggestion) return undefined;
-    if (isSendingPrivateMatchRequest) return undefined;
+    if (isSendingPrivateMatchRequest || isOpeningContextualOpportunity) return undefined;
 
     const autoDismissTimer = setTimeout(() => {
-      if (privateMatchSuggestionRef.current && !isSendingPrivateMatchRequestRef.current) {
+      if (
+        privateMatchSuggestionRef.current
+        && !isSendingPrivateMatchRequestRef.current
+        && !isOpeningContextualOpportunityRef.current
+      ) {
         handleDismissPrivateMatchSuggestion();
       }
     }, PRIVATE_MATCH_SUGGESTION_VISIBLE_MS);
 
     return () => clearTimeout(autoDismissTimer);
-  }, [privateMatchSuggestion, isSendingPrivateMatchRequest, handleDismissPrivateMatchSuggestion]);
+  }, [
+    privateMatchSuggestion,
+    isOpeningContextualOpportunity,
+    isSendingPrivateMatchRequest,
+    handleDismissPrivateMatchSuggestion,
+  ]);
 
   const handleSendPrivateMatchGreeting = useCallback(async (greetingText) => {
     const activeSuggestion = privateMatchSuggestionRef.current;
@@ -6275,6 +6345,10 @@ const ChatPage = () => {
     if (!hasRealAuthenticatedUid) {
       setPendingPrivateTarget(targetUser || null);
       setPendingPrivateOptions(options || null);
+      toast({
+        title: 'Preparando modo invitado',
+        description: 'Espera un momento mientras terminamos de conectar tu sesión.',
+      });
       return { ok: false, reason: 'auth_sync_pending' };
     }
 
@@ -6353,10 +6427,22 @@ const ChatPage = () => {
     user,
   ]);
 
+  const beginContextualOpportunityOpen = useCallback(() => {
+    isOpeningContextualOpportunityRef.current = true;
+    setIsOpeningContextualOpportunity(true);
+  }, []);
+
+  const finishContextualOpportunityOpen = useCallback(() => {
+    isOpeningContextualOpportunityRef.current = false;
+    setIsOpeningContextualOpportunity(false);
+  }, []);
+
   const handleOpenCompatibleNowCandidate = useCallback((candidate) => {
     if (!candidate) return;
     const targetUserId = candidate.userId || candidate.id || null;
     if (!targetUserId) return;
+
+    beginContextualOpportunityOpen();
 
     track('match_click', {
       roomId: currentRoom,
@@ -6385,6 +6471,15 @@ const ChatPage = () => {
             source: 'contextual_match_sidebar',
             target_user_id: targetUserId,
           }, { user }).catch(() => {});
+          return;
+        }
+
+        if (result?.reason === 'invalid_target') {
+          toast({
+            title: 'Ya no está disponible',
+            description: 'Este usuario ya no se puede abrir en privado ahora mismo.',
+            variant: 'destructive',
+          });
         }
       })
       .catch((error) => {
@@ -6394,8 +6489,19 @@ const ChatPage = () => {
           description: 'Intenta de nuevo en unos segundos.',
           variant: 'destructive',
         });
+      })
+      .finally(() => {
+        finishContextualOpportunityOpen();
       });
-  }, [bumpPrivateSuggestionScore, currentRoom, currentUserResolvedRole, openOrCreatePrivateChatWithTarget, user]);
+  }, [
+    beginContextualOpportunityOpen,
+    bumpPrivateSuggestionScore,
+    currentRoom,
+    currentUserResolvedRole,
+    finishContextualOpportunityOpen,
+    openOrCreatePrivateChatWithTarget,
+    user,
+  ]);
 
   const contextualSuggestionMeta = useMemo(
     () => getContextualSuggestionMeta(privateMatchSuggestion?.source),
@@ -6581,7 +6687,7 @@ const ChatPage = () => {
       : offlineIntentDrivenPrivateMatchSignal;
     if (!signal?.partner) return;
     if (privateChatRequestRef.current || privateMatchSuggestionRef.current) return;
-    if (isSendingPrivateMatchRequestRef.current) return;
+    if (isSendingPrivateMatchRequestRef.current || isOpeningContextualOpportunityRef.current) return;
     if ((openPrivateChatsRef.current || []).length > 0) return;
 
     const targetPartner = signal.partner;
@@ -7201,7 +7307,8 @@ const ChatPage = () => {
         <div className="w-full lg:flex-1 flex flex-col overflow-hidden min-w-0 h-full pb-16 lg:pb-0">
           <ChatHeader
             currentRoom={currentRoom}
-            onMenuClick={() => setSidebarOpen(true)}
+            onMenuClick={handleOpenSidebarFromMenu}
+            showMenuBadge={showMobileSidebarBadge}
             onOpenPrivateChat={handleOpenPrivateChatFromNotification}
             onRandomConnect={handleToggleRandomConnect}
             isRandomConnectActive={isRandomConnectActive}
@@ -7500,9 +7607,10 @@ const ChatPage = () => {
                 title={contextualSuggestionMeta.title}
                 subtitle={contextualSuggestionMeta.subtitle}
                 badgeLabel={contextualSuggestionMeta.badgeLabel}
+                onBeforeOpenMatch={beginContextualOpportunityOpen}
                 onOpenMatch={handleOpenCompatibleNowCandidate}
                 onDismiss={handleDismissPrivateMatchSuggestion}
-                isSending={isSendingPrivateMatchRequest}
+                isSending={isSendingPrivateMatchRequest || isOpeningContextualOpportunity}
               />
             </div>
           )}
@@ -7545,9 +7653,10 @@ const ChatPage = () => {
           contextualTitle={contextualSuggestionMeta.title}
           contextualSubtitle={contextualSuggestionMeta.subtitle}
           contextualBadgeLabel={contextualSuggestionMeta.badgeLabel}
+          onBeforeOpenContextualOpportunity={beginContextualOpportunityOpen}
           onOpenContextualOpportunity={handleOpenCompatibleNowCandidate}
           onDismissContextualOpportunities={handleDismissPrivateMatchSuggestion}
-          isContextualSending={isSendingPrivateMatchRequest}
+          isContextualSending={isSendingPrivateMatchRequest || isOpeningContextualOpportunity}
         />
 
         <FeaturedChannelsColumn

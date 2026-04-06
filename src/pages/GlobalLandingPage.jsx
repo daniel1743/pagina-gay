@@ -298,7 +298,7 @@ const GlobalLandingPage = () => {
       document.head.appendChild(ensuredMeta);
     }
     
-    ensuredMeta.content = 'Chat gay online para hablar en vivo, entrar gratis y conocer gente desde tu navegador. Sin registro obligatorio y con acceso rápido al chat principal.';
+    ensuredMeta.content = 'Chat gay online en Chactivo para hablar en vivo con gente real. Entra gratis, sin registro obligatorio, y conecta rápido desde tu navegador.';
 
     return () => {
       // Restore title

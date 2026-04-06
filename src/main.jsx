@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useEffect } from 'react';
 import ReactDOM from 'react-dom/client';
 import App from '@/App';
 import '@/index.css';
@@ -7,6 +7,18 @@ import '@/utils/errorLogger'; // 🔍 Sistema de detección de errores
 import '@/utils/performanceMonitor'; // 📊 Performance Monitor - Sistema de análisis de velocidad
 
 console.log('🚀 [MAIN] Iniciando aplicación...');
+
+function AppBootstrap() {
+  useEffect(() => {
+    document.documentElement.classList.add('app-loaded');
+
+    return () => {
+      document.documentElement.classList.remove('app-loaded');
+    };
+  }, []);
+
+  return <App />;
+}
 
 try {
   const root = document.getElementById('root');
@@ -19,10 +31,10 @@ try {
   ReactDOM.createRoot(root).render(
     isDevelopment ? (
       <React.StrictMode>
-        <App />
+        <AppBootstrap />
       </React.StrictMode>
     ) : (
-      <App />
+      <AppBootstrap />
     )
   );
 
@@ -31,5 +43,6 @@ try {
     console.log('⚡ [MAIN] Strict Mode desactivado en producción - rendimiento optimizado');
   }
 } catch (error) {
+  document.documentElement.classList.remove('app-loaded');
   console.error('❌ [MAIN] Error al inicializar aplicación:', error);
 }

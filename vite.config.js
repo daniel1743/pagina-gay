@@ -7,6 +7,8 @@ import iframeRouteRestorationPlugin from './plugins/vite-plugin-iframe-route-res
 import generateVersionPlugin from './vite-plugin-generate-version.js';
 
 const isDev = process.env.NODE_ENV !== 'production';
+const reactPath = path.resolve(__dirname, './node_modules/react');
+const reactDomPath = path.resolve(__dirname, './node_modules/react-dom');
 
 const configHorizonsViteErrorHandler = `
 const observer = new MutationObserver((mutations) => {
@@ -223,13 +225,16 @@ const addTransformIndexHtml = {
 				children: configHorizonsConsoleErrroHandler,
 				injectTo: 'head',
 			},
-			{
+		];
+
+		if (!isDev) {
+			tags.push({
 				tag: 'script',
 				attrs: { type: 'module' },
 				children: configWindowFetchMonkeyPatch,
 				injectTo: 'head',
-			},
-		];
+			});
+		}
 
 		if (!isDev && process.env.TEMPLATE_BANNER_SCRIPT_URL && process.env.TEMPLATE_REDIRECT_URL) {
 			tags.push(
@@ -297,7 +302,7 @@ export default defineConfig({
 		'import.meta.env.MODE': JSON.stringify(isDev ? 'development' : 'production'),
 	},
 	server: {
-		host: '127.0.0.1',
+		host: 'localhost',
 		port: 3000,
 		strictPort: true,
 		cors: true,
@@ -306,15 +311,21 @@ export default defineConfig({
 		},
 		allowedHosts: true,
 		hmr: {
-			host: '127.0.0.1',
+			host: 'localhost',
 			port: 3000,
 			protocol: 'ws',
 		},
 	},
 	resolve: {
 		extensions: ['.jsx', '.js', '.tsx', '.ts', '.json', ],
+		dedupe: ['react', 'react-dom'],
 		alias: {
 			'@': path.resolve(__dirname, './src'),
+			react: reactPath,
+			'react-dom': reactDomPath,
+			'react-dom/client': path.resolve(reactDomPath, './client.js'),
+			'react/jsx-runtime': path.resolve(reactPath, './jsx-runtime.js'),
+			'react/jsx-dev-runtime': path.resolve(reactPath, './jsx-dev-runtime.js'),
 		},
 	},
 	// ⚡ OPTIMIZACIÓN: Pre-bundlear dependencias pesadas para dev server más rápido
@@ -330,7 +341,7 @@ export default defineConfig({
 			'framer-motion',
 			'date-fns',
 		],
-		// Excluir módulos problemáticos del pre-bundling
+		// React debe prebundlearse en dev; excluirlo rompe el arranque del optimizador.
 		exclude: [],
 	},
 	build: {

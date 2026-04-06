@@ -5,10 +5,12 @@ import { Button } from '@/components/ui/button';
 import { Shield, Lock, Users, MessageCircle, Heart, ArrowRight, CheckCircle, Home, MessageSquare, Zap, X } from 'lucide-react';
 import { motion } from 'framer-motion';
 import { toast } from '@/components/ui/use-toast';
+import { useCanonical } from '@/hooks/useCanonical';
 
 const AnonymousChatPage = () => {
   const navigate = useNavigate();
   const { user } = useAuth();
+  useCanonical('/anonymous-chat');
 
   useEffect(() => {
     document.title = "Sala de Apoyo Anónima - Chactivo | Chat Gay Chile";
@@ -21,6 +23,14 @@ const AnonymousChatPage = () => {
       document.head.appendChild(metaDescription);
     }
     metaDescription.content = '🔒 Sala de Apoyo Anónima - Espacio seguro y confidencial para la comunidad LGBT+ en Chile. Chat de apoyo emocional, consejos y recursos. 100% anónimo y protegido.';
+
+    let robotsMeta = document.querySelector('meta[name="robots"]');
+    if (!robotsMeta) {
+      robotsMeta = document.createElement('meta');
+      robotsMeta.name = 'robots';
+      document.head.appendChild(robotsMeta);
+    }
+    robotsMeta.content = 'noindex, follow';
   }, []);
 
   const handleRegister = () => {

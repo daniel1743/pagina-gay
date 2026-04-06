@@ -26,6 +26,7 @@ const ContextualOpportunitiesPanel = ({
   subtitle = '1 buena oportunidad > 10 irrelevantes.',
   badgeLabel = null,
   onOpenMatch,
+  onBeforeOpenMatch,
   onDismiss,
   isSending = false,
 }) => {
@@ -101,6 +102,7 @@ const ContextualOpportunitiesPanel = ({
                   <div className="flex items-center gap-2.5">
                     <button
                       type="button"
+                      onPointerDown={() => onBeforeOpenMatch?.(item)}
                       onClick={() => onOpenMatch?.(item)}
                       className="flex min-w-0 flex-1 items-center gap-2.5 text-left"
                     >
@@ -140,6 +142,7 @@ const ContextualOpportunitiesPanel = ({
                       type="button"
                       size="sm"
                       disabled={isSending}
+                      onPointerDown={() => onBeforeOpenMatch?.(item)}
                       onClick={() => onOpenMatch?.(item)}
                       className="h-9 shrink-0 rounded-xl border border-cyan-400/30 bg-cyan-500/14 px-3 text-xs font-semibold text-cyan-50 hover:bg-cyan-500/22"
                     >

@@ -256,23 +256,16 @@
         text-decoration: underline;
       }
 
-      /* Evitar CLS: si JS está activo, ocultamos rápido con clase */
+      /* Ocultar el shell SEO solo cuando React realmente montó */
       html.app-loaded #seo-shell {
         display: none;
       }
     </style>
-
-    <!-- ✅ Ocultar SEO shell ASAP (sin esperar window.load) para minimizar FOUC/CLS -->
-    <script>
-      // En cuanto el navegador pueda ejecutar JS, marcamos app-loaded.
-      // React todavía no montó, pero esto evita que el usuario vea "2 páginas".
-      document.documentElement.classList.add("app-loaded");
-    </script>
   </head>
 
   <body>
     <!-- ✅ CONTENIDO SEO REAL (sin SSR): para crawlers / fallback -->
-    <!-- Nota: se ocultará rápido con JS por app-loaded; Google igual puede leerlo en HTML inicial -->
+    <!-- Nota: se oculta solo después del primer mount de React; si la app falla, esto evita pantalla blanca -->
     <main id="seo-shell">
       <header>
         <h1>Chat Gay Chile: +500 usuarios online ahora</h1>

@@ -5,9 +5,15 @@ import { Button } from '@/components/ui/button';
 import { ArrowLeft } from 'lucide-react';
 import Header from '@/components/layout/Header';
 import Footer from '@/components/layout/Footer';
+import { useCanonical, usePageMeta } from '@/hooks/useCanonical';
 
 const FAQPage = () => {
   const navigate = useNavigate();
+  useCanonical('/faq');
+  usePageMeta(
+    'Preguntas Frecuentes | Chactivo',
+    'Respuestas claras sobre privacidad, registro, costo, moderacion y seguridad en Chactivo.'
+  );
 
   const faqs = [
     {
