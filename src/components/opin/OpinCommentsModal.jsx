@@ -20,11 +20,19 @@ import { useAuth } from '@/contexts/AuthContext';
 import { getPostComments, addComment, deleteComment, OPIN_STATUS_OPTIONS, getOpinStatusMeta, updateOpinStatus } from '@/services/opinService';
 import { sendPrivateChatRequestFromOpin } from '@/services/socialService';
 import { toast } from '@/components/ui/use-toast';
+import { sanitizeOpinPublicText } from '@/services/opinSafetyService';
 
 const QUICK_REPLIES = ['Me interesa', 'Yo también busco', 'Escríbeme', 'Suena bien'];
 const PREVIEW_LIMIT = 3; // Respuestas visibles para visitantes
 
-const OpinCommentsModal = ({ post, open, onClose, onPostUpdated }) => {
+const OpinCommentsModal = ({
+  post,
+  open,
+  onClose,
+  onPostUpdated,
+  initialCommentDraft = '',
+  initialCommentLabel = '',
+}) => {
   const navigate = useNavigate();
   const { user } = useAuth();
   const [comments, setComments] = useState([]);
@@ -35,6 +43,7 @@ const OpinCommentsModal = ({ post, open, onClose, onPostUpdated }) => {
   const [statusValue, setStatusValue] = useState(post?.status || OPIN_STATUS_OPTIONS[0].value);
   const [updatingStatus, setUpdatingStatus] = useState(false);
   const commentsEndRef = useRef(null);
+  const commentInputRef = useRef(null);
 
   // Detectar si es visitante (no logueado o guest)
   const isGuest = !user || user.isAnonymous || user.isGuest;
@@ -42,6 +51,7 @@ const OpinCommentsModal = ({ post, open, onClose, onPostUpdated }) => {
   const currentUserId = user?.uid || user?.id || null;
   const isOwner = currentUserId && post?.userId === currentUserId;
   const statusMeta = getOpinStatusMeta(statusValue);
+  const safePostText = sanitizeOpinPublicText(post?.text || '');
 
   useEffect(() => {
     if (open && post) {
@@ -52,6 +62,21 @@ const OpinCommentsModal = ({ post, open, onClose, onPostUpdated }) => {
   useEffect(() => {
     setStatusValue(post?.status || OPIN_STATUS_OPTIONS[0].value);
   }, [post?.status, post?.id]);
+
+  useEffect(() => {
+    if (!open) return;
+    setCommentText(initialCommentDraft || '');
+  }, [open, post?.id, initialCommentDraft]);
+
+  useEffect(() => {
+    if (!open || !canInteract || !initialCommentDraft) return;
+    const timeoutId = setTimeout(() => {
+      commentInputRef.current?.focus();
+      const length = commentInputRef.current?.value?.length || 0;
+      commentInputRef.current?.setSelectionRange?.(length, length);
+    }, 50);
+    return () => clearTimeout(timeoutId);
+  }, [open, canInteract, initialCommentDraft]);
 
   const loadComments = async () => {
     setLoading(true);
@@ -307,7 +332,7 @@ const OpinCommentsModal = ({ post, open, onClose, onPostUpdated }) => {
                   </span>
                 </div>
                 <p className="text-sm text-foreground/80 mt-1 line-clamp-2">
-                  {post.text}
+                  {safePostText}
                 </p>
                 {canInteract && post.userId && post.userId !== currentUserId && (
                   <button
@@ -386,7 +411,7 @@ const OpinCommentsModal = ({ post, open, onClose, onPostUpdated }) => {
                       <p className="text-sm">
                         <span className="font-semibold text-foreground">{comment.username}</span>
                         {' '}
-                        <span className="text-foreground/80">{comment.comment}</span>
+                        <span className="text-foreground/80">{sanitizeOpinPublicText(comment.comment || '')}</span>
                       </p>
                     </div>
 
@@ -453,6 +478,17 @@ const OpinCommentsModal = ({ post, open, onClose, onPostUpdated }) => {
           <div className="p-4 border-t border-border space-y-3">
             {canInteract ? (
               <>
+                {initialCommentLabel && (
+                  <div className="rounded-xl border border-cyan-500/20 bg-cyan-500/10 px-3 py-2">
+                    <p className="text-[11px] font-medium uppercase tracking-wide text-cyan-300">
+                      Modo buzón
+                    </p>
+                    <p className="text-xs text-foreground/80 mt-1">
+                      Nota rápida elegida: {initialCommentLabel}
+                    </p>
+                  </div>
+                )}
+
                 {/* Chips de respuesta rápida */}
                 <div className="flex flex-wrap gap-2">
                   {QUICK_REPLIES.map((reply) => (
@@ -473,6 +509,7 @@ const OpinCommentsModal = ({ post, open, onClose, onPostUpdated }) => {
                 {/* Textarea reducido */}
                 <form onSubmit={handleSubmitComment} className="flex gap-2">
                   <input
+                    ref={commentInputRef}
                     type="text"
                     value={commentText}
                     onChange={(e) => setCommentText(e.target.value)}
@@ -497,6 +534,10 @@ const OpinCommentsModal = ({ post, open, onClose, onPostUpdated }) => {
                     )}
                   </button>
                 </form>
+
+                <p className="text-[11px] text-muted-foreground">
+                  No compartas telefono ni redes aqui. Usa Buzon o privado dentro de Chactivo.
+                </p>
 
                 {commentText.length > 0 && (
                   <p className={`text-xs ${commentText.length > 150 ? 'text-red-400' : 'text-muted-foreground'}`}>

@@ -1,5 +1,5 @@
 /**
- * 🎯 OPIN Service - Discovery Wall Completo
+ * 🎯 OPIN Service - OPIN feed
  *
  * Features completas:
  * - Crear post con título y color
@@ -32,6 +32,8 @@ import {
 import { db, auth } from '@/config/firebase';
 import { track } from '@/services/eventTrackingService';
 import { isBlockedBetween } from '@/services/blockService';
+import { validateOpinPublicText } from '@/services/opinSafetyService';
+import { recordBlockedContactAttempt } from '@/services/contactSafetyTelemetryService';
 
 const assertCanInteractWithUser = async (targetUserId) => {
   if (!auth.currentUser || !targetUserId) return;
@@ -135,6 +137,64 @@ export const normalizeOpinPost = (post) => ({
   lastCommentAt: post?.lastCommentAt || null,
   lastInteractionAt: post?.lastInteractionAt || post?.createdAt || null,
 });
+
+const sanitizeOpinIdentityValue = (value) => String(value || '').trim();
+
+const isGenericOpinIdentity = (value) => {
+  const normalized = sanitizeOpinIdentityValue(value).toLowerCase();
+  return !normalized || ['anónimo', 'anonimo', 'usuario'].includes(normalized);
+};
+
+const buildOpinProfileFallbackName = (userId = '') => {
+  const safeId = String(userId || '').trim();
+  return safeId ? `Usuario${safeId.slice(0, 6)}` : 'Perfil';
+};
+
+const resolveOpinIdentity = (post = {}, profileData = null) => {
+  const profileUsername = sanitizeOpinIdentityValue(profileData?.username);
+  const profileAvatar = sanitizeOpinIdentityValue(profileData?.avatar);
+  const postUsername = sanitizeOpinIdentityValue(post?.username);
+  const postAvatar = sanitizeOpinIdentityValue(post?.avatar);
+
+  return {
+    ...post,
+    username: profileUsername || (!isGenericOpinIdentity(postUsername) ? postUsername : buildOpinProfileFallbackName(post?.userId)),
+    avatar: profileAvatar || postAvatar || '',
+  };
+};
+
+const hydrateOpinPostsWithProfiles = async (posts = []) => {
+  const safePosts = Array.isArray(posts) ? posts : [];
+  const userIdsToHydrate = Array.from(new Set(
+    safePosts
+      .filter((post) => {
+        const hasUserId = Boolean(post?.userId);
+        if (!hasUserId) return false;
+        return isGenericOpinIdentity(post?.username) || !sanitizeOpinIdentityValue(post?.avatar);
+      })
+      .map((post) => String(post.userId).trim())
+      .filter(Boolean)
+  ));
+
+  if (userIdsToHydrate.length === 0) {
+    return safePosts.map((post) => resolveOpinIdentity(post));
+  }
+
+  const profileEntries = await Promise.all(
+    userIdsToHydrate.map(async (userId) => {
+      try {
+        const profileSnap = await getDoc(doc(db, 'users', userId));
+        return [userId, profileSnap.exists() ? profileSnap.data() : null];
+      } catch (error) {
+        console.warn('[OPIN] No se pudo hidratar perfil para OPIN:', userId, error?.message || error);
+        return [userId, null];
+      }
+    })
+  );
+
+  const profileMap = new Map(profileEntries);
+  return safePosts.map((post) => resolveOpinIdentity(post, profileMap.get(post?.userId)));
+};
 
 const diversifyOpinPosts = (posts, limitCount) => {
   const selected = [];
@@ -271,6 +331,20 @@ export const createOpinPost = async ({ title = '', text, color = 'purple', userP
     throw new Error('El texto no puede superar 500 caracteres');
   }
 
+  const publicTextValidation = validateOpinPublicText(text);
+  if (!publicTextValidation.allowed) {
+    await recordBlockedContactAttempt({
+      userId: auth.currentUser.uid,
+      surface: 'opin_public',
+      blockedType: publicTextValidation.blockedType || 'external_contact',
+      metadata: {
+        context: 'create_post',
+        matchedRules: publicTextValidation.matchedRules || [],
+      },
+    });
+    throw new Error(publicTextValidation.reason);
+  }
+
   // Validar color
   if (!OPIN_COLORS[color]) {
     color = 'purple'; // Default
@@ -288,11 +362,17 @@ export const createOpinPost = async ({ title = '', text, color = 'purple', userP
 
   const now = Timestamp.now();
   const expiresAt = new Timestamp(now.seconds + (60 * 24 * 60 * 60), now.nanoseconds); // +60 días (2 meses)
+  const username = sanitizeOpinIdentityValue(userProfile?.username)
+    || sanitizeOpinIdentityValue(auth.currentUser?.displayName)
+    || buildOpinProfileFallbackName(auth.currentUser.uid);
+  const avatar = sanitizeOpinIdentityValue(userProfile?.avatar)
+    || sanitizeOpinIdentityValue(auth.currentUser?.photoURL)
+    || '';
 
   const postData = {
     userId: auth.currentUser.uid,
-    username: userProfile.username || 'Anónimo',
-    avatar: userProfile.avatar || '',
+    username,
+    avatar,
     profileId: auth.currentUser.uid,
     title: '',
     text: text.trim(),
@@ -377,8 +457,8 @@ export const getOpinFeed = async (limitCount = OPIN_FEED_DEFAULT_LIMIT) => {
     const activityDiff = getOpinPostActivityMs(b) - getOpinPostActivityMs(a);
     if (activityDiff !== 0) return activityDiff;
 
-    const engagementA = Number(a.commentCount || 0) + Number(a.likeCount || 0) + getReactionTotalFromCounts(a.reactionCounts || {});
-    const engagementB = Number(b.commentCount || 0) + Number(b.likeCount || 0) + getReactionTotalFromCounts(b.reactionCounts || {});
+    const engagementA = Number(a.commentCount || 0) + Number(a.likeCount || 0);
+    const engagementB = Number(b.commentCount || 0) + Number(b.likeCount || 0);
     if (engagementA !== engagementB) return engagementB - engagementA;
 
     return Number(b.viewCount || 0) - Number(a.viewCount || 0);
@@ -386,7 +466,7 @@ export const getOpinFeed = async (limitCount = OPIN_FEED_DEFAULT_LIMIT) => {
 
   const rankedStables = [...stables].sort((a, b) => getOpinPostActivityMs(b) - getOpinPostActivityMs(a));
   const diversifiedNormals = diversifyOpinPosts(rankedNormals, safeLimit);
-  const posts = [...diversifiedNormals, ...rankedStables].slice(0, safeLimit);
+  const posts = await hydrateOpinPostsWithProfiles([...diversifiedNormals, ...rankedStables].slice(0, safeLimit));
 
   console.log(`📥 [OPIN] Feed priorizado y diverso: ${rankedNormals.length} reales, ${rankedStables.length} estables, ${posts.length} total`);
 
@@ -522,6 +602,23 @@ export const editOpinPost = async (postId, { title, text, color, status }) => {
     throw new Error('El texto debe tener entre 10 y 500 caracteres');
   }
 
+  if (text) {
+    const publicTextValidation = validateOpinPublicText(text);
+    if (!publicTextValidation.allowed) {
+      await recordBlockedContactAttempt({
+        userId: auth.currentUser.uid,
+        surface: 'opin_public',
+        blockedType: publicTextValidation.blockedType || 'external_contact',
+        metadata: {
+          context: 'update_post',
+          matchedRules: publicTextValidation.matchedRules || [],
+          postId,
+        },
+      });
+      throw new Error(publicTextValidation.reason);
+    }
+  }
+
   // Validar título
   if (title && title.length > 50) {
     throw new Error('El título no puede superar 50 caracteres');
@@ -606,7 +703,7 @@ export const getMyOpinPosts = async (limitCount = 10) => {
     ...doc.data(),
   }));
 
-  return posts;
+  return hydrateOpinPostsWithProfiles(posts);
 };
 
 export const getMyActiveOpinIntent = async () => {
@@ -667,8 +764,10 @@ export const getOpenOpinIntentsByUserIds = async (userIds = []) => {
     }
   });
 
-  return Array.from(latestByUser.values())
+  const latestPosts = Array.from(latestByUser.values())
     .sort((a, b) => getOpinPostActivityMs(b) - getOpinPostActivityMs(a));
+
+  return hydrateOpinPostsWithProfiles(latestPosts);
 };
 
 export const getOpinPostById = async (postId) => {
@@ -676,7 +775,10 @@ export const getOpinPostById = async (postId) => {
   const postRef = doc(db, 'opin_posts', postId);
   const postDoc = await getDoc(postRef);
   if (!postDoc.exists()) return null;
-  return normalizeOpinPost({ id: postDoc.id, ...postDoc.data() });
+  const [hydratedPost] = await hydrateOpinPostsWithProfiles([
+    normalizeOpinPost({ id: postDoc.id, ...postDoc.data() })
+  ]);
+  return hydratedPost || null;
 };
 
 export const getPersistedFollowedOpinPostIds = async () => {
@@ -985,6 +1087,21 @@ export const addComment = async (postId, commentText) => {
     throw new Error('El comentario no puede superar 150 caracteres');
   }
 
+  const publicCommentValidation = validateOpinPublicText(commentText);
+  if (!publicCommentValidation.allowed) {
+    await recordBlockedContactAttempt({
+      userId: auth.currentUser.uid,
+      surface: 'opin_public',
+      blockedType: publicCommentValidation.blockedType || 'external_contact',
+      metadata: {
+        context: 'add_comment',
+        matchedRules: publicCommentValidation.matchedRules || [],
+        postId,
+      },
+    });
+    throw new Error(publicCommentValidation.reason);
+  }
+
   const commentsRef = collection(db, 'opin_comments');
 
   const postDoc = await getDoc(doc(db, 'opin_posts', postId));
@@ -1149,6 +1266,19 @@ export const createStableOpinPost = async ({ title = '', text, color = 'purple',
   if (text.length > 500) {
     throw new Error('El texto no puede superar 500 caracteres');
   }
+  const publicTextValidation = validateOpinPublicText(text);
+  if (!publicTextValidation.allowed) {
+    await recordBlockedContactAttempt({
+      userId: auth.currentUser.uid,
+      surface: 'opin_public',
+      blockedType: publicTextValidation.blockedType || 'external_contact',
+      metadata: {
+        context: 'create_stable_post',
+        matchedRules: publicTextValidation.matchedRules || [],
+      },
+    });
+    throw new Error(publicTextValidation.reason);
+  }
   if (title && title.length > 50) {
     throw new Error('El título no puede superar 50 caracteres');
   }
@@ -1219,6 +1349,22 @@ export const updateStableOpinPost = async (postId, { title, text, color }) => {
 
   if (text != null && (text.trim().length < 10 || text.length > 500)) {
     throw new Error('El texto debe tener entre 10 y 500 caracteres');
+  }
+  if (text != null) {
+    const publicTextValidation = validateOpinPublicText(text);
+    if (!publicTextValidation.allowed) {
+      await recordBlockedContactAttempt({
+        userId: auth.currentUser.uid,
+        surface: 'opin_public',
+        blockedType: publicTextValidation.blockedType || 'external_contact',
+        metadata: {
+          context: 'update_stable_post',
+          matchedRules: publicTextValidation.matchedRules || [],
+          postId,
+        },
+      });
+      throw new Error(publicTextValidation.reason);
+    }
   }
   if (title != null && title.length > 50) {
     throw new Error('El título no puede superar 50 caracteres');

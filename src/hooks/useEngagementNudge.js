@@ -167,7 +167,7 @@ export function useEngagementNudge() {
 
       showNudge('opin_first', {
         title: 'Antes de irte 👀',
-        description: 'No has dejado tu Opin. Puedes dejar tu contacto o decir quién eres para que otros te encuentren después.',
+        description: 'No has dejado tu Opin. Puedes publicar lo que buscas y luego mover la conversacion a privado dentro de Chactivo.',
         actionLabel: 'Ir a Opin',
         actionRoute: '/opin',
         duration: 9000,

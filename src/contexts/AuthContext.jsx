@@ -189,8 +189,6 @@ const DEFAULT_AUTH_CONTEXT = {
   authReady: false,
   guestMessageCount: 0,
   setGuestMessageCount: () => {},
-  showWelcomeTour: false,
-  setShowWelcomeTour: () => {},
   guestAuthInProgress: false,
   setGuestAuthInProgress: () => {},
   login: async () => {},
@@ -220,7 +218,6 @@ export const AuthProvider = ({ children }) => {
   const [loading, setLoading] = useState(true);
   const [authReady, setAuthReady] = useState(false);
   const [guestMessageCount, setGuestMessageCount] = useState(0);
-  const [showWelcomeTour, setShowWelcomeTour] = useState(false);
   const [guestAuthInProgress, setGuestAuthInProgress] = useState(false); // ✅ FASE 2: Estado para loading overlay
   const isLoggingOutRef = useRef(false); // Ref para evitar auto-login después de logout
   const loadingTimeoutRef = useRef(null); // ✅ FIX: Timeout de seguridad para loading
@@ -866,9 +863,6 @@ export const AuthProvider = ({ children }) => {
       // Crear notificación de bienvenida
       createWelcomeNotification(userCredential.user.uid, username);
 
-      // Mostrar tour de bienvenida para nuevos usuarios
-      setShowWelcomeTour(true);
-
       toast({
         title: "¡Cuenta creada! 🎉",
         description: "Bienvenido a Chactivo",
@@ -1381,8 +1375,6 @@ export const AuthProvider = ({ children }) => {
     authReady,
     guestMessageCount,
     setGuestMessageCount,
-    showWelcomeTour,
-    setShowWelcomeTour,
     guestAuthInProgress, // ✅ FASE 2: Estado de loading
     setGuestAuthInProgress, // ✅ FASE 2: Setter para controlar loading
     login,
@@ -1398,7 +1390,7 @@ export const AuthProvider = ({ children }) => {
     updateAnonymousUserProfile,
     switchToGenericIdentity,
     restoreAdminIdentity,
-  }), [user, loading, authReady, guestMessageCount, showWelcomeTour, guestAuthInProgress]);
+  }), [user, loading, authReady, guestMessageCount, guestAuthInProgress]);
 
   return (
     <AuthContext.Provider value={value}>

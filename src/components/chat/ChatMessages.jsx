@@ -52,6 +52,10 @@ const QUICK_REPLY_ACTIONS = [
 const ChatMessages = ({
   messages,
   currentUserId,
+  currentUserSeekingBadgeMeta = null,
+  currentUserSeekingBadgeOptions = [],
+  onUpdateCurrentUserSeekingBadge,
+  isSavingCurrentUserSeekingBadge = false,
   onUserClick,
   onReport,
   onPrivateChat,
@@ -97,7 +101,9 @@ const ChatMessages = ({
   const [reactionBursts, setReactionBursts] = useState([]);
   const [swipeReplyMessageId, setSwipeReplyMessageId] = useState(null);
   const [swipeReplyOffset, setSwipeReplyOffset] = useState(0);
+  const [showUsageGuide, setShowUsageGuide] = useState(false);
   const [showPrivateHint, setShowPrivateHint] = useState(false);
+  const [editingOwnSeekingBadgeMessageId, setEditingOwnSeekingBadgeMessageId] = useState(null);
   const renderedMessageIdsRef = useRef(new Set());
   const shownQuickReplyBadgesRef = useRef(new Set());
   const quickReplyHideTimeoutRef = useRef(null);
@@ -216,6 +222,14 @@ const ChatMessages = ({
   }, []);
 
   useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const storageSuffix = currentUserId || authUser?.id || 'guest';
+    const storageKey = `chactivo:chat-usage-guide:dismissed:${storageSuffix}`;
+    if (window.localStorage.getItem(storageKey) === '1') return;
+    setShowUsageGuide(true);
+  }, [authUser?.id, currentUserId]);
+
+  useEffect(() => {
     if (!Array.isArray(messages) || messages.length === 0) return;
     const validIds = new Set(messages.map((msg) => msg._realId || msg.id).filter(Boolean));
     setRevealedImageIds((prev) => {
@@ -254,6 +268,12 @@ const ChatMessages = ({
     }, 12000);
   }, [currentUserId, messages]);
 
+  useEffect(() => {
+    if (!currentUserSeekingBadgeMeta?.key) {
+      setEditingOwnSeekingBadgeMessageId(null);
+    }
+  }, [currentUserSeekingBadgeMeta?.key]);
+
   const dismissPrivateHint = () => {
     if (typeof window !== 'undefined' && currentUserId) {
       window.localStorage.setItem(`chactivo:private-chat-discovery-hint:${currentUserId}`, 'seen');
@@ -263,6 +283,14 @@ const ChatMessages = ({
       privateHintTimeoutRef.current = null;
     }
     setShowPrivateHint(false);
+  };
+
+  const dismissUsageGuide = () => {
+    if (typeof window !== 'undefined') {
+      const storageSuffix = currentUserId || authUser?.id || 'guest';
+      window.localStorage.setItem(`chactivo:chat-usage-guide:dismissed:${storageSuffix}`, '1');
+    }
+    setShowUsageGuide(false);
   };
 
   const triggerReply = (message) => {
@@ -657,6 +685,33 @@ const ChatMessages = ({
     >
       {newMessagesIndicator}
 
+      {showUsageGuide ? (
+        <div className="message-usage-guide" role="note" aria-live="polite">
+          <div className="message-usage-guide-header">
+            <span className="message-usage-guide-title">
+              <MessageCircle className="w-3.5 h-3.5" />
+              ¿Cómo se usa esto?
+            </span>
+            <button
+              type="button"
+              className="message-usage-guide-close"
+              onClick={dismissUsageGuide}
+              aria-label="Cerrar guía rápida"
+            >
+              <X className="w-3.5 h-3.5" />
+            </button>
+          </div>
+          <p className="message-usage-guide-copy">
+            Escribe qué buscas, tu comuna y si tienes lugar o te mueves.
+            {' '}
+            <strong>"Activo en Maipú, me muevo, busco pasivo ahora"</strong>.
+          </p>
+          <p className="message-usage-guide-copy">
+            Si alguien te interesa, toca su avatar o su nombre para abrir perfil y pasar a privado.
+          </p>
+        </div>
+      ) : null}
+
       {dailyTopic ? (
         <div className="flex justify-center py-2">
           <div className="text-[11px] text-gray-500 bg-gray-100 dark:bg-gray-800/70 px-3 py-1 rounded-full">
@@ -667,7 +722,7 @@ const ChatMessages = ({
 
       {showPrivateHint ? (
         <div className="message-discovery-hint" role="note" aria-live="polite">
-          <span className="message-discovery-hint-copy">Toca el icono del usuario para hablar en privado</span>
+          <span className="message-discovery-hint-copy">Toca el icono del usuario para abrir perfil y hablar en privado</span>
           <button
             type="button"
             className="message-discovery-hint-close"
@@ -895,6 +950,9 @@ const ChatMessages = ({
                   && isFirst
                   && group.comuna
                   && !shouldHideComunaMeta(group, group.comuna);
+                const showOwnSeekingBadge = isOwn
+                  && isLast
+                  && Boolean(currentUserSeekingBadgeMeta?.label);
 
                 return (
                   <div
@@ -1087,6 +1145,52 @@ const ChatMessages = ({
                           </div>
                         )}
                       </div>
+
+                      {showOwnSeekingBadge ? (
+                        <div className="message-own-seeking-wrap">
+                          <button
+                            type="button"
+                            className={`message-own-seeking-badge ${editingOwnSeekingBadgeMessageId === messageKey ? 'active' : ''}`}
+                            onClick={(event) => {
+                              event.stopPropagation();
+                              setEditingOwnSeekingBadgeMessageId((prev) => (
+                                prev === messageKey ? null : messageKey
+                              ));
+                            }}
+                            aria-label="Editar lo que buscas"
+                            title="Editar lo que buscas"
+                          >
+                            {currentUserSeekingBadgeMeta.label}
+                          </button>
+
+                          {editingOwnSeekingBadgeMessageId === messageKey && currentUserSeekingBadgeOptions.length > 0 ? (
+                            <div className="message-own-seeking-editor">
+                              {currentUserSeekingBadgeOptions.map((option) => {
+                                const isSelected = option.key === currentUserSeekingBadgeMeta.key;
+                                return (
+                                  <button
+                                    key={`seeking_${option.key}`}
+                                    type="button"
+                                    className={`message-own-seeking-option ${isSelected ? 'selected' : ''}`}
+                                    disabled={isSavingCurrentUserSeekingBadge || isSelected}
+                                    onClick={async (event) => {
+                                      event.stopPropagation();
+                                      const success = await Promise.resolve(
+                                        onUpdateCurrentUserSeekingBadge?.(option.key)
+                                      );
+                                      if (success !== false) {
+                                        setEditingOwnSeekingBadgeMessageId(null);
+                                      }
+                                    }}
+                                  >
+                                    {option.label}
+                                  </button>
+                                );
+                              })}
+                            </div>
+                          ) : null}
+                        </div>
+                      ) : null}
                     </div>
 
                     {/* ACCIONES - Solo para otros */}

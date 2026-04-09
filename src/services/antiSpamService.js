@@ -18,7 +18,7 @@ import { checkDuplicateSpamBeforeSend } from '@/services/moderationAIService';
  * - backend-like enforcement from send service (client is not source of truth)
  */
 
-const CTA_OPIN_BAUL = 'Usa OPIN o el Baul de Perfiles para compartir contacto de forma segura.';
+const CTA_OPIN_BAUL = 'Usa OPIN para publicar lo que buscas y mueve la conversacion a privado dentro de Chactivo.';
 const GENERIC_BLOCK_MESSAGE = 'Tu mensaje contiene contenido no permitido por las reglas del chat.';
 const GENERIC_EXTERNAL_BLOCK_MESSAGE =
   'Por seguridad, no se permite compartir contactos ni invitar a plataformas externas.';

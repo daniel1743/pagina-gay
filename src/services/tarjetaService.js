@@ -394,7 +394,12 @@ export async function obtenerTarjetasCercanas(miUbicacion, miUserId, limite = 10
     console.log('[TARJETA] Buscando tarjetas cercanas para:', miUserId);
 
     const cantidadAObtener = Math.max(limite, BAUL_CONFIG.TARJETAS_MINIMAS);
-    const queryCap = Math.min(Math.max(cantidadAObtener, BAUL_CONFIG.TARJETAS_MINIMAS), BAUL_CONFIG.QUERY_CAP);
+    // Sobrecapturar candidatas evita que perfiles completos queden fuera solo
+    // porque no entraron en el primer corte por ultimaConexion.
+    const queryCap = Math.min(
+      Math.max(Math.ceil(cantidadAObtener * 1.5), BAUL_CONFIG.TARJETAS_MINIMAS),
+      BAUL_CONFIG.QUERY_CAP
+    );
     const tarjetasRef = collection(db, 'tarjetas');
 
     // 🔧 FIX: Obtener TODAS las tarjetas sin depender de orderBy
@@ -536,7 +541,12 @@ export async function obtenerTarjetasRecientes(miUserId, limite = 100) {
     console.log('[TARJETA] Buscando tarjetas recientes para usuario:', miUserId);
 
     const cantidadAObtener = Math.max(limite, BAUL_CONFIG.TARJETAS_MINIMAS);
-    const queryCap = Math.min(Math.max(cantidadAObtener, BAUL_CONFIG.TARJETAS_MINIMAS), BAUL_CONFIG.QUERY_CAP);
+    // Sobrecapturar candidatas evita que perfiles completos queden fuera solo
+    // porque no entraron en el primer corte por ultimaConexion.
+    const queryCap = Math.min(
+      Math.max(Math.ceil(cantidadAObtener * 1.5), BAUL_CONFIG.TARJETAS_MINIMAS),
+      BAUL_CONFIG.QUERY_CAP
+    );
     const tarjetasRef = collection(db, 'tarjetas');
 
     // 🔧 FIX: Obtener TODAS las tarjetas sin depender de orderBy

@@ -382,7 +382,7 @@ const ChatSecondaryPage = () => {
           toast({
             title: isContactBlock ? "No permitido aquí" : "❌ Mensaje Bloqueado",
             description: isContactBlock
-              ? "OPIN es donde puedes publicar tu contacto y lo que buscas. Otros te encontrarán ahí."
+              ? "OPIN es para publicar tu intencion. Si conectan, muevan la conversacion al privado sin exponer contacto en publico."
               : (validation.details || validation.reason),
             variant: isContactBlock ? "default" : "destructive",
             duration: 8000,

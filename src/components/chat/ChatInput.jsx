@@ -1,4 +1,4 @@
-import React, { useState, useRef, useEffect, lazy, Suspense, useMemo } from 'react';
+import React, { useState, useRef, useEffect, lazy, Suspense, useMemo, useCallback } from 'react';
 import { Button } from '@/components/ui/button';
 import { Send, Smile, Mic, Image, MessageSquarePlus, X, Reply } from 'lucide-react';
 import { toast } from '@/components/ui/use-toast';
@@ -54,12 +54,62 @@ const ONBOARDING_DISMISSED_KEY = 'chactivo:onboarding:dismissed';
 const ONBOARDING_FIRST_MESSAGE_KEY = 'chactivo:onboarding:first_message_sent';
 const ONBOARDING_FOCUS_NUDGE_KEY = 'chactivo:onboarding:focus_nudge_shown';
 const ONBOARDING_SESSION_START_KEY = 'chactivo:onboarding:session_start_ts';
+const COMPOSER_GUIDANCE_AUTO_HIDE_MS = 6000;
 
 const ROLE_CHIPS = [
   { value: 'activo', label: 'Soy Activo' },
   { value: 'pasivo', label: 'Soy Pasivo' },
   { value: 'versatil', label: 'Soy Versátil' },
 ];
+
+const ONBOARDING_MESSAGE_TEMPLATES = [
+  {
+    key: 'activo-mobile',
+    label: 'Activo y me muevo',
+    message: 'Activo en Maipú, me muevo, busco pasivo ahora',
+  },
+  {
+    key: 'pasivo-place',
+    label: 'Pasivo con lugar',
+    message: 'Pasivo en Santiago Centro, tengo lugar, busco activo ahora',
+  },
+  {
+    key: 'versatil-now',
+    label: 'Versátil disponible',
+    message: 'Versátil en La Florida, sin lugar, me muevo ahora',
+  },
+];
+
+const STRUCTURED_COMPOSER_CHIPS = [
+  {
+    key: 'place',
+    label: 'Tengo lugar',
+    snippet: 'tengo lugar',
+    group: 'place_status',
+  },
+  {
+    key: 'no-place',
+    label: 'Sin lugar',
+    snippet: 'sin lugar',
+    group: 'place_status',
+  },
+  {
+    key: 'move',
+    label: 'Me muevo',
+    snippet: 'me muevo',
+  },
+  {
+    key: 'now',
+    label: 'Ahora',
+    snippet: 'ahora',
+  },
+];
+
+const ROLE_LABEL_BY_VALUE = {
+  activo: 'Activo',
+  pasivo: 'Pasivo',
+  versatil: 'Versatil',
+};
 
 const PHOTO_MAX_SIZE_BYTES = 140 * 1024;
 const PHOTO_HOURLY_LIMIT = 3;
@@ -111,6 +161,7 @@ const ChatInput = ({
   });
   const typingTimeoutRef = useRef(null);
   const focusNudgeTimeoutRef = useRef(null);
+  const composerGuidanceTimeoutRef = useRef(null);
   const photoInputRef = useRef(null);
 
   // ✨ COMPANION AI: Setear mensaje cuando viene de sugerencia externa
@@ -131,20 +182,21 @@ const ChatInput = ({
   const hasVisiblePhotoLimit = visiblePhotoCount >= PHOTO_VISIBLE_LIMIT;
   const canSendPhotoNow = isRegisteredUser && roomId === 'principal';
 
-  const shouldShowOnboarding = !isHeteroContext && showOnboardingHints && !onboardingDismissed && !firstMessageSentInSession && !isMobileEmojiSheet;
+  const shouldShowComposerGuidance = !isHeteroContext && showOnboardingHints && !onboardingDismissed && !firstMessageSentInSession;
+  const shouldShowOnboarding = shouldShowComposerGuidance;
   const composerPlaceholder = useMemo(() => {
     if (isGuest) return 'Toca aquí para elegir tu nickname y chatear...';
     if (replyTo?.username) return `Responde con contexto a ${replyTo.username}...`;
     if (!isHeteroContext && showOnboardingHints && !firstMessageSentInSession) {
       if (selectedRole && selectedComuna) {
-        return `Di qué buscas. Ej: ${selectedRole} en ${selectedComuna}, disponible ahora`;
+        return `Di qué buscas. Ej: ${selectedRole} en ${selectedComuna}, tengo lugar o me muevo`;
       }
       if (selectedRole) {
-        return `Di qué buscas. Ej: ${selectedRole} buscando ahora`;
+        return `Di qué buscas. Ej: ${selectedRole}, tengo lugar, busco ahora`;
       }
-      return 'Di qué buscas y alguien te responderá más rápido';
+      return 'Di rol + comuna + si tienes lugar o te mueves';
     }
-    return 'Di qué buscas, tu rol o tu comuna...';
+    return 'Di qué buscas, tu comuna y si tienes lugar o te mueves...';
   }, [
     firstMessageSentInSession,
     isGuest,
@@ -177,10 +229,10 @@ const ChatInput = ({
     }, { user }).catch(() => {});
   };
 
-  const dismissOnboardingForSession = () => {
+  const dismissOnboardingForSession = (reason = 'manual') => {
     setOnboardingDismissed(true);
     persistSessionFlag(ONBOARDING_DISMISSED_KEY, '1');
-    trackOnboardingEvent('onboarding_dismissed');
+    trackOnboardingEvent('onboarding_dismissed', { reason });
   };
 
   const markFirstMessageSent = () => {
@@ -240,8 +292,37 @@ const ChatInput = ({
       if (focusNudgeTimeoutRef.current) {
         clearTimeout(focusNudgeTimeoutRef.current);
       }
+      if (composerGuidanceTimeoutRef.current) {
+        clearTimeout(composerGuidanceTimeoutRef.current);
+      }
     };
   }, []);
+
+  useEffect(() => {
+    if (!shouldShowComposerGuidance || showEmojiPicker || showQuickPhrases || showComunaSelector) {
+      if (composerGuidanceTimeoutRef.current) {
+        clearTimeout(composerGuidanceTimeoutRef.current);
+        composerGuidanceTimeoutRef.current = null;
+      }
+      return;
+    }
+
+    composerGuidanceTimeoutRef.current = setTimeout(() => {
+      dismissOnboardingForSession('timeout');
+    }, COMPOSER_GUIDANCE_AUTO_HIDE_MS);
+
+    return () => {
+      if (composerGuidanceTimeoutRef.current) {
+        clearTimeout(composerGuidanceTimeoutRef.current);
+        composerGuidanceTimeoutRef.current = null;
+      }
+    };
+  }, [
+    shouldShowComposerGuidance,
+    showEmojiPicker,
+    showQuickPhrases,
+    showComunaSelector,
+  ]);
 
   // 📱 FIX MÓVIL: Asegurar que el textarea sea focusable y visible en dispositivos móviles
   useEffect(() => {
@@ -531,9 +612,19 @@ const ChatInput = ({
     setShowQuickPhrases(false);
   }
 
+  const handleOnboardingTemplateClick = (templateMessage) => {
+    setMessage(templateMessage);
+    textareaRef.current?.focus({ preventScroll: true });
+    dismissOnboardingForSession('template_selected');
+    trackOnboardingEvent('onboarding_template_click', {
+      template_message: templateMessage,
+    });
+  };
+
   const handleRoleSelect = (roleValue) => {
     setSelectedRole(roleValue);
     persistLocalValue(ONBOARDING_ROLE_KEY, roleValue);
+    dismissOnboardingForSession('role_selected');
     trackOnboardingEvent('onboarding_chip_click', {
       chip_type: 'role',
       chip_value: roleValue,
@@ -544,6 +635,7 @@ const ChatInput = ({
     const normalizedComuna = normalizeComuna(comunaValue);
     setSelectedComuna(normalizedComuna);
     persistLocalValue(ONBOARDING_COMUNA_KEY, normalizedComuna);
+    dismissOnboardingForSession('comuna_selected');
     if (roomId && user?.id) {
       updatePresenceFields(roomId, {
         comuna: normalizedComuna || null,
@@ -562,6 +654,88 @@ const ChatInput = ({
       dismissOnboardingForSession();
     }
   };
+
+  const normalizeComposerMessage = (value = '') => (
+    String(value || '')
+      .replace(/\s+/g, ' ')
+      .replace(/\s*,\s*/g, ', ')
+      .replace(/,\s*,+/g, ', ')
+      .replace(/^,\s*|\s*,\s*$/g, '')
+      .trim()
+  );
+
+  const getStructuredComposerSegments = (value = '') => (
+    normalizeComposerMessage(value)
+      .split(',')
+      .map((segment) => segment.trim())
+      .filter(Boolean)
+  );
+
+  const buildStructuredComposerSeed = useCallback((chipSnippet) => {
+    const parts = [];
+    const roleLabel = ROLE_LABEL_BY_VALUE[selectedRole] || '';
+
+    if (roleLabel && selectedComuna) {
+      parts.push(`${roleLabel} en ${selectedComuna}`);
+    } else if (roleLabel) {
+      parts.push(roleLabel);
+    } else if (selectedComuna) {
+      parts.push(`En ${selectedComuna}`);
+    }
+
+    if (chipSnippet) {
+      parts.push(chipSnippet);
+    }
+
+    return normalizeComposerMessage(parts.join(', '));
+  }, [selectedComuna, selectedRole]);
+
+  const activeStructuredComposerChips = useMemo(() => {
+    const segments = new Set(
+      getStructuredComposerSegments(message).map((segment) => segment.toLowerCase())
+    );
+
+    return STRUCTURED_COMPOSER_CHIPS.reduce((accumulator, chip) => {
+      accumulator[chip.key] = segments.has(chip.snippet);
+      return accumulator;
+    }, {});
+  }, [message]);
+
+  const handleStructuredComposerChip = useCallback((chip) => {
+    setMessage((previousMessage) => {
+      const currentSegments = getStructuredComposerSegments(previousMessage);
+      const normalizedSnippet = chip.snippet.toLowerCase();
+      const hasSnippet = currentSegments.some((segment) => segment.toLowerCase() === normalizedSnippet);
+      const conflictingSnippets = STRUCTURED_COMPOSER_CHIPS
+        .filter((item) => item.group && item.group === chip.group && item.key !== chip.key)
+        .map((item) => item.snippet.toLowerCase());
+
+      const nextSegments = hasSnippet
+        ? currentSegments.filter((segment) => segment.toLowerCase() !== normalizedSnippet)
+        : [
+            ...currentSegments.filter((segment) => !conflictingSnippets.includes(segment.toLowerCase())),
+            chip.snippet,
+          ];
+
+      const nextMessage = nextSegments.length > 0
+        ? normalizeComposerMessage(nextSegments.join(', '))
+        : buildStructuredComposerSeed('');
+
+      if (!previousMessage.trim() && !hasSnippet) {
+        return buildStructuredComposerSeed(chip.snippet);
+      }
+
+      return nextMessage;
+    });
+
+    textareaRef.current?.focus({ preventScroll: true });
+    dismissOnboardingForSession('structured_chip_selected');
+    trackOnboardingEvent('onboarding_chip_click', {
+      chip_type: 'composer_structure',
+      chip_value: chip.key,
+      chip_active: !activeStructuredComposerChips[chip.key],
+    });
+  }, [activeStructuredComposerChips, buildStructuredComposerSeed]);
 
   const buildPhotoBlockedDescription = () => {
     if (!isRegisteredUser) {
@@ -921,6 +1095,50 @@ const ChatInput = ({
         )}
       </AnimatePresence>
 
+      {shouldShowOnboarding && (
+        <div className="mb-2 rounded-2xl border border-white/10 bg-black/20 px-3 py-3">
+          <p className="text-[11px] font-semibold uppercase tracking-[0.08em] text-cyan-300/90">
+            Cómo hablar aquí
+          </p>
+          <p className="mt-1 text-xs text-muted-foreground">
+            Funciona mejor si dices tu rol, tu comuna y si tienes lugar o te mueves.
+          </p>
+          <p className="mt-1 text-xs text-foreground/90">
+            Ejemplo: <span className="font-medium text-cyan-100">Activo en Maipú, me muevo, busco pasivo ahora</span>
+          </p>
+
+          <div className="mt-3 flex flex-wrap gap-2">
+            {ROLE_CHIPS.map((chip) => (
+              <button
+                key={chip.value}
+                type="button"
+                onClick={() => handleRoleSelect(chip.value)}
+                className={`rounded-full border px-2.5 py-1 text-[11px] font-medium transition-colors ${
+                  selectedRole === chip.value
+                    ? 'border-cyan-400/40 bg-cyan-500/15 text-cyan-100'
+                    : 'border-white/10 bg-white/5 text-muted-foreground hover:border-cyan-500/20 hover:text-cyan-100'
+                }`}
+              >
+                {chip.label}
+              </button>
+            ))}
+          </div>
+
+          <div className="mt-2 flex flex-wrap gap-2">
+            {ONBOARDING_MESSAGE_TEMPLATES.map((template) => (
+              <button
+                key={template.key}
+                type="button"
+                onClick={() => handleOnboardingTemplateClick(template.message)}
+                className="rounded-full border border-fuchsia-500/20 bg-fuchsia-500/10 px-2.5 py-1 text-[11px] font-medium text-fuchsia-100 transition-colors hover:bg-fuchsia-500/15"
+              >
+                {template.label}
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
+
       <AnimatePresence>
         {showFocusNudge && (
           <motion.div
@@ -929,10 +1147,85 @@ const ChatInput = ({
             exit={{ opacity: 0, y: -6 }}
             className="mb-2 rounded-2xl border border-cyan-500/20 bg-cyan-500/10 px-3 py-2 text-xs text-cyan-700 dark:text-cyan-100"
           >
-            Tip: Di qué buscas. Los mensajes con rol, comuna o intención reciben más respuesta.
+            Tip: di rol + comuna + si tienes lugar o te mueves. Eso recibe más respuesta que solo “hola”.
           </motion.div>
         )}
       </AnimatePresence>
+
+      {shouldShowComposerGuidance && (
+        <div className="mb-2 space-y-2">
+          <div className="flex flex-wrap items-center gap-2">
+            <span className="text-[11px] font-medium text-muted-foreground">
+              Completa rápido:
+            </span>
+            {STRUCTURED_COMPOSER_CHIPS.map((chip) => {
+              const isActive = Boolean(activeStructuredComposerChips[chip.key]);
+              return (
+                <button
+                  key={chip.key}
+                  type="button"
+                  onClick={() => handleStructuredComposerChip(chip)}
+                  className={`rounded-full border px-2.5 py-1 text-[11px] font-medium transition-colors ${
+                    isActive
+                      ? 'border-cyan-400/40 bg-cyan-500/15 text-cyan-100'
+                      : 'border-white/10 bg-white/5 text-muted-foreground hover:border-cyan-500/20 hover:text-cyan-100'
+                  }`}
+                >
+                  {chip.label}
+                </button>
+              );
+            })}
+            <button
+              type="button"
+              onClick={() => setShowComunaSelector((prev) => !prev)}
+              className={`rounded-full border px-2.5 py-1 text-[11px] font-medium transition-colors ${
+                showComunaSelector || selectedComuna
+                  ? 'border-fuchsia-400/35 bg-fuchsia-500/12 text-fuchsia-100'
+                  : 'border-white/10 bg-white/5 text-muted-foreground hover:border-fuchsia-500/20 hover:text-fuchsia-100'
+              }`}
+            >
+              {selectedComuna ? `Comuna: ${selectedComuna}` : 'Elegir comuna'}
+            </button>
+          </div>
+
+          {showComunaSelector && (
+            <div className="rounded-2xl border border-white/10 bg-black/20 px-3 py-3">
+              <div className="flex items-center justify-between gap-3">
+                <p className="text-[11px] font-semibold uppercase tracking-[0.08em] text-fuchsia-200/90">
+                  Tu comuna o ciudad
+                </p>
+                {selectedComuna ? (
+                  <button
+                    type="button"
+                    onClick={() => handleComunaSelect('')}
+                    className="text-[11px] font-medium text-muted-foreground hover:text-fuchsia-100"
+                  >
+                    Limpiar
+                  </button>
+                ) : null}
+              </div>
+
+              <div className="mt-2">
+                <select
+                  value={selectedComuna || ''}
+                  onChange={(event) => {
+                    handleComunaSelect(event.target.value);
+                    setShowComunaSelector(false);
+                  }}
+                  className="w-full rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-sm text-foreground outline-none transition-colors focus:border-fuchsia-400/40"
+                >
+                  <option value="">Selecciona tu comuna o ciudad</option>
+                  {COMUNA_OPTIONS.map((comunaOption) => (
+                    <option key={comunaOption} value={comunaOption}>
+                      {comunaOption}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            </div>
+          )}
+        </div>
+      )}
 
       <style>{`
         @keyframes composer-marquee {

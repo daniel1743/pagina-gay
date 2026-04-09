@@ -26,6 +26,9 @@ import imageCompression from 'browser-image-compression';
 import { Check, CheckCheck, Clock, CornerUpLeft, ImagePlus, Minus, Send, Smile, X } from 'lucide-react';
 import { EmojiStyle, Categories } from 'emoji-picker-react';
 import {
+  requestPrivateChatContactShare,
+  revokePrivateChatContactShare,
+  respondToPrivateChatContactShare,
   sendRichPrivateChatMessage,
   subscribeToPrivateChatTyping,
   updatePrivateChatTypingStatus,
@@ -42,6 +45,10 @@ const PRIVATE_HISTORY_PAGE_SIZE = 40;
 const GUEST_PRIVATE_MESSAGES_LIMIT = 10;
 const GUEST_PRIVATE_COUNTER_STORAGE_PREFIX = 'chactivo:private_chat_guest_counter:v2:';
 const GUEST_EMOJI_REGEX = /\p{Extended_Pictographic}/u;
+const PRIVATE_CONTACT_SHARE_MIN_MESSAGES_PER_PARTICIPANT = 3;
+const PRIVATE_CONTACT_SHARE_MIN_AGE_MS = 10 * 60 * 1000;
+const PRIVATE_CONTACT_GUIDE_DISMISS_PREFIX = 'chactivo:private_contact_guide_dismissed:';
+const PRIVATE_EARLY_WARNING_MAX_MESSAGES = 4;
 
 const getTimestampMs = (value) => {
   if (!value) return null;
@@ -56,6 +63,17 @@ const formatMessageTime = (value) => {
   const timestampMs = getTimestampMs(value);
   if (!timestampMs) return '';
   return new Date(timestampMs).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+};
+
+const formatRemainingDuration = (expiresAtMs) => {
+  const remainingMs = Math.max(0, Number(expiresAtMs || 0) - Date.now());
+  if (!remainingMs) return 'vence ahora';
+  const totalMinutes = Math.ceil(remainingMs / (60 * 1000));
+  if (totalMinutes < 60) return `vence en ${totalMinutes} min`;
+  const totalHours = Math.ceil(totalMinutes / 60);
+  if (totalHours < 24) return `vence en ${totalHours} h`;
+  const totalDays = Math.ceil(totalHours / 24);
+  return `vence en ${totalDays} d`;
 };
 
 const formatLastSeen = (timestampMs) => {
@@ -174,6 +192,11 @@ export default function PrivateChatWindowV2({
     lastSeenMs: getTimestampMs(partner?.ultimaConexion || partner?.lastSeen),
   });
   const [guestPrivateSentCount, setGuestPrivateSentCount] = useState(0);
+  const [chatMeta, setChatMeta] = useState(null);
+  const [sharedContacts, setSharedContacts] = useState({});
+  const [isSubmittingContactShare, setIsSubmittingContactShare] = useState(false);
+  const [contactShareNowMs, setContactShareNowMs] = useState(() => Date.now());
+  const [isContactGuideDismissed, setIsContactGuideDismissed] = useState(false);
 
   const inputRef = useRef(null);
   const fileInputRef = useRef(null);
@@ -190,6 +213,8 @@ export default function PrivateChatWindowV2({
   const shouldRestoreScrollRef = useRef(false);
   const onChatActivityRef = useRef(onChatActivity);
   const lastReportedActivityKeyRef = useRef('');
+  const lastContactSystemMessageRef = useRef(null);
+  const sharedContactsRef = useRef({});
   const swipeStateRef = useRef({
     tracking: false,
     messageKey: null,
@@ -238,6 +263,14 @@ export default function PrivateChatWindowV2({
     () => `${GUEST_PRIVATE_COUNTER_STORAGE_PREFIX}${user?.id || 'anon'}`,
     [user?.id]
   );
+  const contactGuideDismissStorageKey = useMemo(
+    () => `${PRIVATE_CONTACT_GUIDE_DISMISS_PREFIX}${user?.id || 'anon'}:${chatId || 'unknown'}`,
+    [chatId, user?.id]
+  );
+  const directChatParticipantIds = useMemo(
+    () => chatParticipants.map((participantItem) => participantItem.userId).filter(Boolean),
+    [chatParticipants]
+  );
   const messages = useMemo(() => {
     const byId = new Map();
     [...optimisticMessages, ...olderMessages, ...recentMessages].forEach((message) => {
@@ -279,6 +312,41 @@ export default function PrivateChatWindowV2({
   useEffect(() => {
     onChatActivityRef.current = onChatActivity;
   }, [onChatActivity]);
+
+  useEffect(() => {
+    if (!chatId) {
+      setChatMeta(null);
+      return;
+    }
+
+    let cancelled = false;
+
+    const loadChatMeta = async () => {
+      try {
+        const snapshot = await getDoc(doc(db, 'private_chats', chatId));
+        if (!cancelled) {
+          setChatMeta(snapshot.exists() ? (snapshot.data() || null) : null);
+        }
+      } catch {
+        if (!cancelled) {
+          setChatMeta(null);
+        }
+      }
+    };
+
+    void loadChatMeta();
+    return () => {
+      cancelled = true;
+    };
+  }, [chatId]);
+
+  useEffect(() => {
+    lastContactSystemMessageRef.current = null;
+  }, [chatId]);
+
+  useEffect(() => {
+    sharedContactsRef.current = sharedContacts;
+  }, [sharedContacts]);
 
   useEffect(() => {
     let cancelled = false;
@@ -337,6 +405,31 @@ export default function PrivateChatWindowV2({
   useEffect(() => {
     setOptimisticMessages([]);
   }, [chatId]);
+
+  useEffect(() => {
+    setSharedContacts({});
+  }, [chatId]);
+
+  useEffect(() => {
+    if (!contactGuideDismissStorageKey) {
+      setIsContactGuideDismissed(false);
+      return;
+    }
+
+    try {
+      setIsContactGuideDismissed(localStorage.getItem(contactGuideDismissStorageKey) === '1');
+    } catch {
+      setIsContactGuideDismissed(false);
+    }
+  }, [contactGuideDismissStorageKey]);
+
+  useEffect(() => {
+    const intervalId = window.setInterval(() => {
+      setContactShareNowMs(Date.now());
+    }, 60 * 1000);
+
+    return () => window.clearInterval(intervalId);
+  }, []);
 
   useEffect(() => {
     const handleResize = () => setIsMobile(window.innerWidth < 768);
@@ -419,6 +512,200 @@ export default function PrivateChatWindowV2({
 
     setOptimisticMessages((prev) => prev.filter((message) => !persistedClientIds.has(message?.clientId)));
   }, [olderMessages, optimisticMessages.length, recentMessages]);
+
+  useEffect(() => {
+    if (!chatId) {
+      setChatMeta(null);
+      return;
+    }
+
+    const latestContactSystemMessage = [...messages]
+      .reverse()
+      .find((message) => (
+        message?.type === 'system' &&
+        typeof message?.content === 'string' &&
+        /(telefono|contacto)/i.test(message.content)
+      ));
+
+    if (!latestContactSystemMessage) return;
+
+    const messageKey = latestContactSystemMessage.id
+      || latestContactSystemMessage._realId
+      || getTimestampMs(latestContactSystemMessage.timestamp)
+      || latestContactSystemMessage.content;
+
+    if (!lastContactSystemMessageRef.current) {
+      lastContactSystemMessageRef.current = messageKey;
+      return;
+    }
+
+    if (lastContactSystemMessageRef.current === messageKey) return;
+    lastContactSystemMessageRef.current = messageKey;
+
+    let cancelled = false;
+
+    const refreshChatMeta = async () => {
+      try {
+        const snapshot = await getDoc(doc(db, 'private_chats', chatId));
+        if (!cancelled) {
+          setChatMeta(snapshot.exists() ? (snapshot.data() || null) : null);
+        }
+      } catch {
+        if (!cancelled) {
+          setChatMeta(null);
+        }
+      }
+    };
+
+    void refreshChatMeta();
+    return () => {
+      cancelled = true;
+    };
+  }, [chatId, messages]);
+
+  const privateContactMessageCounts = useMemo(() => {
+    const counts = directChatParticipantIds.reduce((acc, participantId) => {
+      acc[participantId] = 0;
+      return acc;
+    }, {});
+
+    messages.forEach((message) => {
+      if (!message?.userId || message.type === 'system') return;
+      if (!(message.userId in counts)) return;
+      counts[message.userId] += 1;
+    });
+
+    return counts;
+  }, [directChatParticipantIds, messages]);
+
+  const privateConversationMessageCount = useMemo(
+    () => Object.values(privateContactMessageCounts).reduce((total, count) => total + Number(count || 0), 0),
+    [privateContactMessageCounts]
+  );
+
+  const privateContactShareReady = useMemo(() => {
+    if (chatMeta?.contactSharingUnlocked === true) return true;
+    if (isGroupChat || directChatParticipantIds.length !== 2) return false;
+
+    const createdAtMs = getTimestampMs(chatMeta?.createdAt);
+    const chatIsOldEnough = Boolean(createdAtMs) && (Date.now() - createdAtMs >= PRIVATE_CONTACT_SHARE_MIN_AGE_MS);
+    const eachParticipantHasEnoughMessages = directChatParticipantIds.every(
+      (participantId) => (privateContactMessageCounts[participantId] || 0) >= PRIVATE_CONTACT_SHARE_MIN_MESSAGES_PER_PARTICIPANT
+    );
+
+    return chatIsOldEnough && eachParticipantHasEnoughMessages;
+  }, [chatMeta?.contactSharingUnlocked, chatMeta?.createdAt, directChatParticipantIds, isGroupChat, privateContactMessageCounts]);
+
+  const myContactShareRequest = user?.id ? (chatMeta?.contactShareRequests?.[user.id] || null) : null;
+
+  const incomingContactShareRequest = useMemo(() => {
+    if (!user?.id || isGroupChat) return null;
+    const requests = chatMeta?.contactShareRequests || {};
+    return Object.values(requests).find((requestItem) => (
+      requestItem?.status === 'pending' &&
+      requestItem?.recipientId === user.id
+    )) || null;
+  }, [chatMeta?.contactShareRequests, isGroupChat, user?.id]);
+
+  const getContactVisibilityState = (ownerId, viewerId) => {
+    const rawValue = chatMeta?.contactShareVisibility?.[ownerId]?.[viewerId];
+    if (!rawValue) {
+      return {
+        isVisible: false,
+        isExpired: false,
+        expiresAtMs: null,
+      };
+    }
+
+    if (rawValue === true) {
+      return {
+        isVisible: true,
+        isExpired: false,
+        expiresAtMs: null,
+      };
+    }
+
+    const expiresAtMs = Number(rawValue?.expiresAtMs || 0) || null;
+    const isExpired = Boolean(expiresAtMs) && expiresAtMs <= contactShareNowMs;
+    return {
+      isVisible: rawValue?.allowed === true && !isExpired,
+      isExpired,
+      expiresAtMs,
+    };
+  };
+
+  const visibleSharedContactOwnerIds = useMemo(() => {
+    if (!user?.id) return [];
+    return Object.entries(chatMeta?.contactShareVisibility || {})
+      .filter(([ownerId]) => getContactVisibilityState(ownerId, user.id).isVisible)
+      .map(([ownerId]) => ownerId)
+      .filter(Boolean);
+  }, [chatMeta?.contactShareVisibility, contactShareNowMs, user?.id]);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    const loadSharedContacts = async () => {
+      if (visibleSharedContactOwnerIds.length === 0) {
+        if (!cancelled) {
+          setSharedContacts({});
+        }
+        return;
+      }
+
+      const visibleOwnerIdsSet = new Set(visibleSharedContactOwnerIds);
+      const cachedVisibleContacts = Object.fromEntries(
+        Object.entries(sharedContactsRef.current || {}).filter(([ownerId]) => visibleOwnerIdsSet.has(ownerId))
+      );
+
+      if (!cancelled) {
+        setSharedContacts(cachedVisibleContacts);
+      }
+
+      const missingOwnerIds = visibleSharedContactOwnerIds.filter(
+        (ownerId) => !cachedVisibleContacts?.[ownerId]?.phone
+      );
+
+      if (missingOwnerIds.length === 0) {
+        return;
+      }
+
+      try {
+        const entries = await Promise.all(
+          missingOwnerIds.map(async (ownerId) => {
+            const userSnap = await getDoc(doc(db, 'users', ownerId));
+            const userData = userSnap.data() || {};
+            return [
+              ownerId,
+              {
+                userId: ownerId,
+                username: userData?.username || 'Usuario',
+                phone: typeof userData?.phone === 'string' ? userData.phone.trim() : '',
+              },
+            ];
+          })
+        );
+
+        if (!cancelled) {
+          setSharedContacts((previousContacts) => ({
+            ...Object.fromEntries(
+              Object.entries(previousContacts || {}).filter(([ownerId]) => visibleOwnerIdsSet.has(ownerId))
+            ),
+            ...Object.fromEntries(entries),
+          }));
+        }
+      } catch {
+        if (!cancelled) {
+          setSharedContacts(cachedVisibleContacts);
+        }
+      }
+    };
+
+    loadSharedContacts();
+    return () => {
+      cancelled = true;
+    };
+  }, [visibleSharedContactOwnerIds]);
 
   useEffect(() => {
     if (!partner?.id && !partner?.userId) return undefined;
@@ -768,6 +1055,99 @@ export default function PrivateChatWindowV2({
     }
   };
 
+  const handleRequestContactShare = async () => {
+    if (!chatId || !user?.id || isGroupChat) return;
+    if (isGuestMode) {
+      showGuestRegistrationPrompt('compartir tu telefono');
+      return;
+    }
+
+    setIsSubmittingContactShare(true);
+    try {
+      const result = await requestPrivateChatContactShare(chatId, user.id);
+      const chatMetaSnapshot = await getDoc(doc(db, 'private_chats', chatId));
+      setChatMeta(chatMetaSnapshot.exists() ? (chatMetaSnapshot.data() || null) : null);
+      toast({
+        title: result?.alreadyShared ? 'Tu telefono ya fue compartido' : 'Solicitud enviada',
+        description: result?.alreadyShared
+          ? 'Esta persona ya puede ver tu telefono en este chat.'
+          : (result?.alreadyPending
+            ? 'La otra persona todavia no responde tu solicitud.'
+            : 'La otra persona debe aceptar antes de ver tu telefono.'),
+      });
+    } catch (error) {
+      toast({
+        title: error?.code === 'PRIVATE_CONTACT_LOCKED' ? 'Todavia no pueden compartir contacto' : 'No se pudo solicitar',
+        description: error?.message || 'Intenta de nuevo en un momento.',
+        variant: 'destructive',
+      });
+    } finally {
+      setIsSubmittingContactShare(false);
+    }
+  };
+
+  const handleRespondContactShare = async (accepted) => {
+    if (!chatId || !user?.id || !incomingContactShareRequest?.requesterId) return;
+
+    setIsSubmittingContactShare(true);
+    try {
+      await respondToPrivateChatContactShare(
+        chatId,
+        user.id,
+        incomingContactShareRequest.requesterId,
+        accepted
+      );
+      const chatMetaSnapshot = await getDoc(doc(db, 'private_chats', chatId));
+      setChatMeta(chatMetaSnapshot.exists() ? (chatMetaSnapshot.data() || null) : null);
+      toast({
+        title: accepted ? 'Contacto habilitado' : 'Solicitud rechazada',
+        description: accepted
+          ? 'Ahora puedes ver el telefono compartido en este chat.'
+          : 'La otra persona no vera tu respuesta como contacto aprobado.',
+      });
+    } catch (error) {
+      toast({
+        title: 'No se pudo responder',
+        description: error?.message || 'Intenta de nuevo en un momento.',
+        variant: 'destructive',
+      });
+    } finally {
+      setIsSubmittingContactShare(false);
+    }
+  };
+
+  const handleRevokeContactShare = async () => {
+    if (!chatId || !user?.id || !primaryParticipant.userId) return;
+
+    setIsSubmittingContactShare(true);
+    try {
+      await revokePrivateChatContactShare(chatId, user.id, primaryParticipant.userId);
+      const chatMetaSnapshot = await getDoc(doc(db, 'private_chats', chatId));
+      setChatMeta(chatMetaSnapshot.exists() ? (chatMetaSnapshot.data() || null) : null);
+      toast({
+        title: 'Contacto revocado',
+        description: 'Tu telefono dejo de mostrarse en este chat.',
+      });
+    } catch (error) {
+      toast({
+        title: 'No se pudo revocar',
+        description: error?.message || 'Intenta de nuevo en un momento.',
+        variant: 'destructive',
+      });
+    } finally {
+      setIsSubmittingContactShare(false);
+    }
+  };
+
+  const handleDismissContactGuide = () => {
+    setIsContactGuideDismissed(true);
+    try {
+      localStorage.setItem(contactGuideDismissStorageKey, '1');
+    } catch {
+      // noop
+    }
+  };
+
   const handleSendMessage = async (event) => {
     event.preventDefault();
     const contentToSend = newMessage.trim();
@@ -845,8 +1225,8 @@ export default function PrivateChatWindowV2({
       console.error('[PRIVATE_CHAT_V2] Error sending private message:', error);
       console.info('[PRIVATE_CHAT_DEBUG] Ejecuta window.printPrivateChatDebug?.() o inspecciona window.__lastPrivateChatDebug');
       toast({
-        title: 'No pudimos enviar el mensaje',
-        description: 'Intenta de nuevo en un momento.',
+        title: error?.code === 'PRIVATE_CONTACT_LOCKED' ? 'Aún no compartas contacto' : 'No pudimos enviar el mensaje',
+        description: error?.message || 'Intenta de nuevo en un momento.',
         variant: 'destructive',
       });
     }
@@ -962,6 +1342,34 @@ export default function PrivateChatWindowV2({
       setIsUploadingPhoto(false);
     }
   };
+
+  const incomingContactRequester = incomingContactShareRequest?.requesterId
+    ? chatParticipants.find((participantItem) => participantItem.userId === incomingContactShareRequest.requesterId)
+    : null;
+  const myContactVisibilityState = (
+    user?.id && primaryParticipant.userId
+      ? getContactVisibilityState(user.id, primaryParticipant.userId)
+      : { isVisible: false, isExpired: false, expiresAtMs: null }
+  );
+  const partnerContactVisibilityState = primaryParticipant.userId
+    ? getContactVisibilityState(primaryParticipant.userId, user?.id)
+    : { isVisible: false, isExpired: false, expiresAtMs: null };
+  const mySharedContactVisibleToPartner = myContactVisibilityState.isVisible;
+  const partnerSharedContact = partnerContactVisibilityState.isVisible && primaryParticipant.userId
+    ? sharedContacts?.[primaryParticipant.userId]
+    : null;
+  const canRequestContactShare = (
+    !isGroupChat &&
+    isRegisteredUser &&
+    privateContactShareReady &&
+    !incomingContactShareRequest &&
+    myContactShareRequest?.status !== 'pending' &&
+    !mySharedContactVisibleToPartner
+  );
+  const contactShareStatusText = privateContactShareReady
+    ? 'Ya pueden compartir telefono con aceptacion mutua y vigencia temporal.'
+    : 'Se habilita tras 10 min y 3 mensajes por lado.';
+  const shouldShowEarlyExternalWarning = privateConversationMessageCount <= PRIVATE_EARLY_WARNING_MAX_MESSAGES;
 
   const statusLabel = isPartnerTyping
     ? 'escribiendo...'
@@ -1180,6 +1588,136 @@ export default function PrivateChatWindowV2({
           </Button>
         </div>
       </div>
+
+      {!isGroupChat ? (
+        <div className="border-b border-white/10 bg-zinc-900/80 px-3 py-2">
+          <div className="mx-auto flex max-w-3xl flex-col gap-2">
+            {partnerSharedContact?.phone ? (
+              <div className="rounded-2xl border border-emerald-400/20 bg-emerald-500/10 px-3 py-2">
+                <div className="text-[11px] font-semibold uppercase tracking-[0.14em] text-emerald-300">
+                  Contacto compartido
+                </div>
+                <div className="mt-1 text-sm text-white">
+                  {partnerSharedContact.username || conversationTitle} compartio su telefono:
+                </div>
+                <div className="mt-1 text-[11px] text-emerald-100/80">
+                  {partnerContactVisibilityState.expiresAtMs
+                    ? formatRemainingDuration(partnerContactVisibilityState.expiresAtMs)
+                    : 'vigencia activa'}
+                </div>
+                <a
+                  href={`tel:${partnerSharedContact.phone}`}
+                  className="mt-1 inline-flex w-fit rounded-full border border-emerald-300/30 bg-black/20 px-3 py-1 text-sm font-semibold text-emerald-100 hover:bg-black/30"
+                >
+                  {partnerSharedContact.phone}
+                </a>
+              </div>
+            ) : null}
+
+            {incomingContactShareRequest ? (
+              <div className="rounded-2xl border border-amber-300/20 bg-amber-500/10 px-3 py-2">
+                <div className="text-sm text-white">
+                  {incomingContactRequester?.username || 'Esta persona'} quiere compartir su telefono contigo.
+                </div>
+                <div className="mt-2 flex flex-wrap gap-2">
+                  <Button
+                    type="button"
+                    size="sm"
+                    className="rounded-full bg-emerald-500 text-zinc-950 hover:bg-emerald-400"
+                    disabled={isSubmittingContactShare}
+                    onClick={() => handleRespondContactShare(true)}
+                  >
+                    Aceptar
+                  </Button>
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="ghost"
+                    className="rounded-full border border-white/10 bg-white/5 text-zinc-200 hover:bg-white/10 hover:text-white"
+                    disabled={isSubmittingContactShare}
+                    onClick={() => handleRespondContactShare(false)}
+                  >
+                    No ahora
+                  </Button>
+                </div>
+              </div>
+            ) : null}
+
+            {myContactShareRequest?.status === 'pending' ? (
+              <div className="rounded-2xl border border-white/10 bg-white/5 px-3 py-2 text-sm text-zinc-200">
+                Tu solicitud para compartir telefono sigue pendiente.
+              </div>
+            ) : null}
+
+            {mySharedContactVisibleToPartner ? (
+              <div className="rounded-2xl border border-cyan-300/20 bg-cyan-500/10 px-3 py-2 text-sm text-cyan-100">
+                <div>Tu telefono ya fue compartido en este chat con aceptacion mutua.</div>
+                <div className="mt-1 text-[11px] text-cyan-100/80">
+                  {myContactVisibilityState.expiresAtMs
+                    ? formatRemainingDuration(myContactVisibilityState.expiresAtMs)
+                    : 'vigencia activa'}
+                </div>
+                <div className="mt-2">
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="ghost"
+                    className="rounded-full border border-cyan-200/20 bg-black/10 text-cyan-50 hover:bg-black/20 hover:text-white"
+                    disabled={isSubmittingContactShare}
+                    onClick={handleRevokeContactShare}
+                  >
+                    Revocar
+                  </Button>
+                </div>
+              </div>
+            ) : null}
+
+            {myContactVisibilityState.isExpired ? (
+              <div className="rounded-2xl border border-zinc-400/20 bg-zinc-500/10 px-3 py-2 text-sm text-zinc-200">
+                Tu permiso de contacto en este chat ya vencio.
+              </div>
+            ) : null}
+
+            {partnerContactVisibilityState.isExpired ? (
+              <div className="rounded-2xl border border-zinc-400/20 bg-zinc-500/10 px-3 py-2 text-sm text-zinc-200">
+                El contacto compartido por la otra persona ya vencio.
+              </div>
+            ) : null}
+
+            {!isContactGuideDismissed ? (
+              <div className="rounded-2xl border border-white/10 bg-white/5 px-3 py-2">
+                <div className="flex items-start justify-between gap-3">
+                  <div className="text-[12px] text-zinc-300">
+                    {contactShareStatusText}
+                  </div>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="icon"
+                    className="h-7 w-7 shrink-0 rounded-full text-zinc-400 hover:bg-white/10 hover:text-white"
+                    onClick={handleDismissContactGuide}
+                  >
+                    <X className="h-4 w-4" />
+                  </Button>
+                </div>
+                {canRequestContactShare ? (
+                  <div className="mt-2">
+                    <Button
+                      type="button"
+                      size="sm"
+                      className="rounded-full bg-white text-zinc-950 hover:bg-zinc-200"
+                      disabled={isSubmittingContactShare}
+                      onClick={handleRequestContactShare}
+                    >
+                      Compartir mi telefono
+                    </Button>
+                  </div>
+                ) : null}
+              </div>
+            ) : null}
+          </div>
+        </div>
+      ) : null}
 
       <div ref={messagesScrollRef} className="flex-1 overflow-y-auto bg-gradient-to-b from-zinc-950 via-zinc-950 to-zinc-900 px-2.5 py-3">
         <div className="mx-auto flex max-w-3xl flex-col gap-2">
@@ -1480,6 +2018,11 @@ export default function PrivateChatWindowV2({
               }
               className="h-11 rounded-full border-white/10 bg-white/5 px-4 text-white placeholder:text-zinc-500 focus-visible:ring-emerald-500"
             />
+            {shouldShowEarlyExternalWarning ? (
+              <p className="mt-1 px-2 text-[11px] text-zinc-500">
+                Al inicio evita compartir telefono o redes. Primero conversen aqui y usa el boton de compartir cuando se habilite.
+              </p>
+            ) : null}
           </div>
 
           <Button

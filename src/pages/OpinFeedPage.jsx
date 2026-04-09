@@ -1,8 +1,8 @@
 /**
- * OpinFeedPage - Tablón de notas con señales de retorno
+ * OpinFeedPage - OPIN con señales de retorno
  */
 
-import React, { useState, useEffect, useRef, useMemo } from 'react';
+import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { Plus, Sparkles, RefreshCw, Eye, UserPlus, ArrowLeft, MessageCircle, PencilLine, PauseCircle, Clock3 } from 'lucide-react';
@@ -11,7 +11,6 @@ import {
   getOpinFeed,
   canCreatePost,
   getOpinPostActivityMs,
-  getReactionTotalFromCounts,
   getMyOpinPosts,
   getOpinStatusMeta,
   updateOpinStatus,
@@ -26,11 +25,16 @@ import OpinCard from '@/components/opin/OpinCard';
 import OpinCommentsModal from '@/components/opin/OpinCommentsModal';
 import { toast } from '@/components/ui/use-toast';
 import { trackPageView, trackPageExit, track } from '@/services/eventTrackingService';
+import { sanitizeOpinPublicText } from '@/services/opinSafetyService';
 
 const OPIN_FEED_LIMIT = 24;
 const FOLLOWED_STORAGE_PREFIX = 'opin:followed_posts:';
 const LAST_VISIT_STORAGE_PREFIX = 'opin:last_visit_at:';
 const SNAPSHOT_STORAGE_PREFIX = 'opin:own_snapshot:';
+const PASSIVE_REFRESH_DEBOUNCE_MS = 2500;
+const OPIN_MAILBOX_OPTIONS = [
+  { id: 'mailbox', label: 'Buzón', draft: 'Te dejo un mensaje en buzón: ' },
+];
 
 const isRunningStandalone = () => {
   if (typeof window === 'undefined') return false;
@@ -53,7 +57,7 @@ const buildOwnSnapshot = (posts, userId) => (
         viewCount: Number(post.viewCount || 0),
         commentCount: Number(post.commentCount || 0),
         likeCount: Number(post.likeCount || 0),
-        reactionTotal: getReactionTotalFromCounts(post.reactionCounts || {}),
+        reactionTotal: Number(post.likeCount || 0),
       };
       return acc;
     }, {})
@@ -75,9 +79,7 @@ const computeActivitySummary = (posts, userId, snapshot) => {
 
     const newViews = Math.max(0, Number(post.viewCount || 0) - previous.viewCount);
     const newReplies = Math.max(0, Number(post.commentCount || 0) - previous.commentCount);
-    const newLikes = Math.max(0, Number(post.likeCount || 0) - previous.likeCount);
-    const newReactions = Math.max(0, getReactionTotalFromCounts(post.reactionCounts || {}) - previous.reactionTotal);
-    const newInterest = newLikes + newReactions;
+    const newInterest = Math.max(0, Number(post.likeCount || 0) - previous.likeCount);
 
     if (newViews > 0 || newReplies > 0 || newInterest > 0) {
       acc.postsWithChanges += 1;
@@ -114,25 +116,41 @@ const computePostDelta = (post, snapshot) => {
 
   const newViews = Math.max(0, Number(post.viewCount || 0) - previous.viewCount);
   const newReplies = Math.max(0, Number(post.commentCount || 0) - previous.commentCount);
-  const newLikes = Math.max(0, Number(post.likeCount || 0) - previous.likeCount);
-  const newReactions = Math.max(0, getReactionTotalFromCounts(post.reactionCounts || {}) - previous.reactionTotal);
-
   return {
     newViews,
     newReplies,
-    newInterest: newLikes + newReactions,
+    newInterest: Math.max(0, Number(post.likeCount || 0) - previous.likeCount),
   };
+};
+
+const formatOpinFeedTimeAgo = (createdAt) => {
+  if (!createdAt) return 'reciente';
+
+  const created = createdAt?.toDate ? createdAt.toDate() : new Date(createdAt);
+  const diffMs = Date.now() - created.getTime();
+  const diffMins = Math.floor(diffMs / 60000);
+  const diffHours = Math.floor(diffMs / 3600000);
+  const diffDays = Math.floor(diffHours / 24);
+
+  if (diffMins < 1) return 'ahora';
+  if (diffMins < 60) return `hace ${diffMins}m`;
+  if (diffHours < 24) return `hace ${diffHours}h`;
+  if (diffDays < 7) return `hace ${diffDays}d`;
+  if (diffDays < 30) return `hace ${Math.floor(diffDays / 7)}sem`;
+  return `hace ${Math.floor(diffDays / 30)}mes`;
 };
 
 const OpinFeedPage = () => {
   const navigate = useNavigate();
   const location = useLocation();
-  const { user } = useAuth();
+  const { user, userProfile } = useAuth();
   const [posts, setPosts] = useState([]);
   const [loading, setLoading] = useState(true);
   const [canCreate, setCanCreate] = useState(false);
   const [selectedPost, setSelectedPost] = useState(null);
   const [showCommentsModal, setShowCommentsModal] = useState(false);
+  const [commentsDraft, setCommentsDraft] = useState('');
+  const [commentsDraftLabel, setCommentsDraftLabel] = useState('');
   const [showIntentCta, setShowIntentCta] = useState(false);
   const [isInstalled, setIsInstalled] = useState(isRunningStandalone());
   const [pushEnabled, setPushEnabled] = useState(isPushEnabled());
@@ -149,8 +167,10 @@ const OpinFeedPage = () => {
   const [recentInterest, setRecentInterest] = useState([]);
   const [loadingRecentInterest, setLoadingRecentInterest] = useState(false);
   const [invitingInterestTargetId, setInvitingInterestTargetId] = useState(null);
+  const [openOpportunityMailboxId, setOpenOpportunityMailboxId] = useState(null);
   const pageStartRef = useRef(Date.now());
   const postsRef = useRef([]);
+  const passiveRefreshRef = useRef({ at: 0, reason: 'init' });
 
   const isReadOnlyMode = !user || user.isAnonymous || user.isGuest;
   const currentUserId = user?.id || user?.uid || null;
@@ -359,7 +379,7 @@ const OpinFeedPage = () => {
   // SEO
   useEffect(() => {
     const previousTitle = document.title;
-    document.title = 'Tablón Gay Chile 📝 Qué Buscan Hoy | Chactivo';
+    document.title = 'OPIN Gay Chile | Qué Buscan Hoy | Chactivo';
 
     let metaDescription = document.querySelector('meta[name="description"]');
     const previousDescription = metaDescription?.content || '';
@@ -369,7 +389,7 @@ const OpinFeedPage = () => {
       metaDescription.name = 'description';
       document.head.appendChild(metaDescription);
     }
-    metaDescription.content = 'Tablón de notas de la comunidad gay en Chile. Mira qué buscan otros usuarios hoy. Deja tu nota, recibe respuestas y vuelve cuando haya actividad.';
+    metaDescription.content = 'OPIN de la comunidad gay en Chile. Mira qué buscan otros usuarios hoy, deja tu intención, recibe respuestas y vuelve cuando haya movimiento real.';
 
     let canonical = document.querySelector('link[rel="canonical"]');
     if (!canonical) {
@@ -389,7 +409,7 @@ const OpinFeedPage = () => {
 
   useEffect(() => {
     pageStartRef.current = Date.now();
-    trackPageView('/opin', 'Tablón OPIN', { user });
+    trackPageView('/opin', 'OPIN', { user });
     track('opin_feed_view', { page_path: '/opin' }, { user });
 
     return () => {
@@ -399,16 +419,10 @@ const OpinFeedPage = () => {
   }, [user]);
 
   useEffect(() => {
-    loadFeed();
-    loadMyIntentContext();
-    checkCanCreate();
-  }, [currentUserId, user?.isAnonymous, user?.isGuest]);
-
-  useEffect(() => {
     localStorage.setItem(`opin_visited:${storageUserKey}`, '1');
   }, [storageUserKey]);
 
-  const loadFeed = async () => {
+  const loadFeed = useCallback(async () => {
     setLoading(true);
     try {
       const feedPosts = await getOpinFeed(OPIN_FEED_LIMIT);
@@ -416,13 +430,13 @@ const OpinFeedPage = () => {
     } catch (error) {
       console.error('Error cargando feed:', error);
       setPosts([]);
-      toast({ description: error?.message || 'No se pudo cargar el tablón', variant: 'destructive' });
+      toast({ description: error?.message || 'No se pudo cargar OPIN', variant: 'destructive' });
     } finally {
       setLoading(false);
     }
-  };
+  }, []);
 
-  const loadMyIntentContext = async () => {
+  const loadMyIntentContext = useCallback(async () => {
     if (!currentUserId || isReadOnlyMode) {
       setMyPosts([]);
       setMyActiveIntent(null);
@@ -443,20 +457,72 @@ const OpinFeedPage = () => {
       setMyPosts([]);
       setMyActiveIntent(null);
     }
-  };
+  }, [currentUserId, isReadOnlyMode]);
 
-  const checkCanCreate = async () => {
+  const checkCanCreate = useCallback(async () => {
     if (!user || user.isAnonymous) {
       setCanCreate(false);
       return;
     }
     const result = await canCreatePost();
     setCanCreate(result.canCreate);
+  }, [user]);
+
+  const refreshOpinState = useCallback(async ({ reason = 'manual', force = false } = {}) => {
+    if (typeof document !== 'undefined' && document.visibilityState === 'hidden') {
+      return;
+    }
+
+    const now = Date.now();
+    if (!force && (now - passiveRefreshRef.current.at) < PASSIVE_REFRESH_DEBOUNCE_MS) {
+      return;
+    }
+
+    passiveRefreshRef.current = { at: now, reason };
+
+    await Promise.allSettled([
+      loadFeed(),
+      loadMyIntentContext(),
+      checkCanCreate(),
+    ]);
+  }, [checkCanCreate, loadFeed, loadMyIntentContext]);
+
+  useEffect(() => {
+    refreshOpinState({ reason: 'mount', force: true });
+  }, [refreshOpinState]);
+
+  useEffect(() => {
+    const handleWindowFocus = () => {
+      refreshOpinState({ reason: 'focus' });
+    };
+
+    const handleVisibilityChange = () => {
+      if (document.visibilityState !== 'visible') return;
+      refreshOpinState({ reason: 'visibility' });
+    };
+
+    window.addEventListener('focus', handleWindowFocus);
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+
+    return () => {
+      window.removeEventListener('focus', handleWindowFocus);
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+    };
+  }, [refreshOpinState]);
+
+  const handleCommentsClick = (post, options = {}) => {
+    setSelectedPost(post);
+    setCommentsDraft(options.initialCommentDraft || '');
+    setCommentsDraftLabel(options.initialCommentLabel || '');
+    setShowCommentsModal(true);
+    setOpenOpportunityMailboxId(null);
   };
 
-  const handleCommentsClick = (post) => {
-    setSelectedPost(post);
-    setShowCommentsModal(true);
+  const handleOpenMailbox = (post, option) => {
+    handleCommentsClick(post, {
+      initialCommentDraft: option?.draft || '',
+      initialCommentLabel: option?.label || '',
+    });
   };
 
   const clearComposerIntentFlags = () => {
@@ -523,6 +589,8 @@ const OpinFeedPage = () => {
 
   const handleCloseCommentsModal = () => {
     setShowCommentsModal(false);
+    setCommentsDraft('');
+    setCommentsDraftLabel('');
     const params = new URLSearchParams(location.search);
     if (!params.has('postId') && !params.has('openComments')) return;
     params.delete('postId');
@@ -720,7 +788,7 @@ const OpinFeedPage = () => {
   const activeIntentMetrics = useMemo(() => {
     if (!myActiveIntent) return null;
 
-    const totalInterest = Number(myActiveIntent.likeCount || 0) + getReactionTotalFromCounts(myActiveIntent.reactionCounts || {});
+    const totalInterest = Number(myActiveIntent.likeCount || 0);
     const delta = computePostDelta(myActiveIntent, ownSnapshot);
 
     return {
@@ -734,7 +802,7 @@ const OpinFeedPage = () => {
   const ownHistoryCards = useMemo(() => (
     historicalOwnPosts.slice(0, 4).map((post) => {
       const delta = computePostDelta(post, ownSnapshot);
-      const totalInterest = Number(post.likeCount || 0) + getReactionTotalFromCounts(post.reactionCounts || {});
+      const totalInterest = Number(post.likeCount || 0);
       return {
         ...post,
         delta,
@@ -774,8 +842,8 @@ const OpinFeedPage = () => {
         };
       default:
         return {
-          title: 'El tablón está vacío',
-          description: 'Sé el primero en dejar una nota.',
+          title: 'OPIN está vacío',
+          description: 'Sé el primero en dejar una intención.',
         };
     }
   }, [activeFilter]);
@@ -794,7 +862,7 @@ const OpinFeedPage = () => {
               </button>
               <div className="flex items-center gap-2">
                 <Sparkles className="w-5 h-5 text-purple-400" />
-                <h1 className="text-lg font-bold">Tablón</h1>
+                <h1 className="text-lg font-bold">OPIN</h1>
               </div>
               {isReadOnlyMode && (
                 <span className="px-2 py-0.5 rounded-full bg-yellow-500/20 text-yellow-400 text-xs">
@@ -858,7 +926,7 @@ const OpinFeedPage = () => {
           <div className="max-w-7xl mx-auto flex items-center justify-between gap-3">
             <div className="flex items-center gap-2 text-white text-sm">
               <Eye className="w-4 h-4" />
-              <span>Estás mirando el tablón</span>
+              <span>Estás mirando OPIN</span>
             </div>
             <button
               onClick={() => navigate('/auth')}
@@ -887,7 +955,7 @@ const OpinFeedPage = () => {
                     </span>
                   </div>
                   <p className="mt-3 text-base font-semibold text-foreground leading-relaxed">
-                    {myActiveIntent.text}
+                    {sanitizeOpinPublicText(myActiveIntent.text || '')}
                   </p>
                   <p className="mt-1 text-xs text-muted-foreground">
                     Tu intención sigue visible y acumulando señales sin depender del chat en vivo.
@@ -983,7 +1051,7 @@ const OpinFeedPage = () => {
                             {reply.username || 'Usuario'}
                           </p>
                           <p className="mt-1 text-sm text-foreground/90 line-clamp-2">
-                            {reply.comment || 'Respondió a tu intención'}
+                            {sanitizeOpinPublicText(reply.comment || 'Respondió a tu intención')}
                           </p>
                         </div>
                       </div>
@@ -1056,7 +1124,7 @@ const OpinFeedPage = () => {
                         </div>
 
                         <p className="mt-2 text-sm font-medium text-foreground line-clamp-3">
-                          {post.text}
+                          {sanitizeOpinPublicText(post.text || '')}
                         </p>
 
                         <div className="mt-3 flex flex-wrap gap-2 text-[11px] text-muted-foreground">
@@ -1135,10 +1203,21 @@ const OpinFeedPage = () => {
               <div className="mt-4 grid grid-cols-1 lg:grid-cols-3 gap-3">
                 {opportunityPosts.map((post) => {
                   const statusMeta = getOpinStatusMeta(post.status);
+                  const isOwnPost = currentUserId && post.userId === currentUserId;
+                  const authorName = isOwnPost
+                    ? (userProfile?.username || post.username || 'Perfil')
+                    : (post.username || 'Perfil');
+                  const authorAvatar = isOwnPost
+                    ? (userProfile?.avatar || post.avatar || '')
+                    : (post.avatar || '');
+                  const authorInitial = authorName?.charAt(0)?.toUpperCase() || '?';
+                  const commentsLabel = post.commentCount > 0
+                    ? `Comentarios (${post.commentCount})`
+                    : 'Nuevo';
                   return (
                     <div
                       key={post.id}
-                      className="rounded-2xl border border-white/10 bg-gradient-to-b from-white/[0.045] to-white/[0.02] p-3"
+                      className="h-full min-h-[250px] rounded-2xl border border-white/10 bg-gradient-to-b from-white/[0.045] to-white/[0.02] p-4 flex flex-col"
                     >
                       <div className="flex items-center justify-between gap-2">
                         <span className={`inline-flex items-center rounded-full border px-2 py-0.5 text-[11px] font-medium ${statusMeta.badgeClassName}`}>
@@ -1149,19 +1228,47 @@ const OpinFeedPage = () => {
                         </span>
                       </div>
 
-                      <p className="mt-2 text-sm font-medium text-foreground">
-                        {post.username || 'Usuario'}
-                      </p>
-                      <p className="mt-2 text-sm text-foreground/90 line-clamp-3">
-                        {post.text}
-                      </p>
-
-                      <div className="mt-3 flex flex-wrap gap-2 text-[11px] text-muted-foreground">
-                        <span>{post.viewCount || 0} vistas</span>
-                        <span>{Number(post.likeCount || 0) + getReactionTotalFromCounts(post.reactionCounts || {})} interés</span>
+                      <div className="mt-3 flex items-center gap-2 min-w-0">
+                        {authorAvatar ? (
+                          <img
+                            src={authorAvatar}
+                            alt={authorName}
+                            className="w-8 h-8 rounded-full object-cover ring-1 ring-white/10"
+                          />
+                        ) : (
+                          <div className="w-8 h-8 rounded-full bg-gradient-to-br from-purple-500 to-pink-500 flex items-center justify-center text-xs font-semibold text-white ring-1 ring-white/10">
+                            {authorInitial}
+                          </div>
+                        )}
+                        <div className="min-w-0 flex-1">
+                          <div className="flex items-center gap-2 flex-wrap text-[11px] text-muted-foreground">
+                            <span className="font-medium text-purple-300 truncate">{authorName}</span>
+                            <span>·</span>
+                            <span>{formatOpinFeedTimeAgo(post.createdAt)}</span>
+                          </div>
+                          <button
+                            onClick={() => handleCommentsClick(post)}
+                            className="mt-1 inline-flex items-center gap-1 text-[11px] text-muted-foreground hover:text-cyan-300 transition-colors"
+                          >
+                            <MessageCircle className="w-3.5 h-3.5" />
+                            <span>{commentsLabel}</span>
+                          </button>
+                        </div>
                       </div>
 
-                      <div className="mt-3 flex flex-wrap gap-2">
+                      <div className="mt-4 flex-1">
+                        <p className="text-sm text-foreground/90 line-clamp-4 leading-relaxed">
+                          {sanitizeOpinPublicText(post.text || '')}
+                        </p>
+                      </div>
+
+                      <div className="mt-4 flex flex-wrap gap-2 pt-3 border-t border-white/5">
+                        <button
+                          onClick={() => setOpenOpportunityMailboxId((prev) => (prev === post.id ? null : post.id))}
+                          className="rounded-full border border-fuchsia-500/30 bg-fuchsia-500/10 px-3 py-1.5 text-xs font-medium text-fuchsia-200 hover:bg-fuchsia-500/15 transition-colors"
+                        >
+                          Buzón
+                        </button>
                         <button
                           onClick={() => handleCommentsClick(post)}
                           className="rounded-full border border-cyan-500/30 bg-cyan-500/10 px-3 py-1.5 text-xs font-medium text-cyan-200 hover:bg-cyan-500/15 transition-colors"
@@ -1181,6 +1288,25 @@ const OpinFeedPage = () => {
                           </button>
                         )}
                       </div>
+
+                      {openOpportunityMailboxId === post.id && (
+                        <div className="mt-3 rounded-xl border border-white/10 bg-black/20 p-3">
+                          <p className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
+                            Dejar nota rápida
+                          </p>
+                          <div className="mt-2 flex flex-wrap gap-2">
+                            {OPIN_MAILBOX_OPTIONS.map((option) => (
+                              <button
+                                key={option.id}
+                                onClick={() => handleOpenMailbox(post, option)}
+                                className="rounded-full border border-white/10 bg-white/5 px-2.5 py-1 text-[11px] font-medium text-foreground hover:bg-white/10 transition-colors"
+                              >
+                                {option.label}
+                              </button>
+                            ))}
+                          </div>
+                        </div>
+                      )}
                     </div>
                   );
                 })}
@@ -1249,11 +1375,13 @@ const OpinFeedPage = () => {
                   key={post.id}
                   post={post}
                   onCommentsClick={handleCommentsClick}
+                  onOpenMailbox={handleOpenMailbox}
                   onPostDeleted={handlePostDeleted}
                   isReadOnlyMode={isReadOnlyMode}
                   isFollowed={followedPostSet.has(post.id)}
                   onToggleFollow={handleToggleFollow}
                   hasNewActivity={hasNewActivitySince(post, previousVisitAt)}
+                  mailboxOptions={OPIN_MAILBOX_OPTIONS}
                 />
               ))}
             </div>
@@ -1279,6 +1407,8 @@ const OpinFeedPage = () => {
           open={showCommentsModal}
           onClose={handleCloseCommentsModal}
           onPostUpdated={handlePostUpdated}
+          initialCommentDraft={commentsDraft}
+          initialCommentLabel={commentsDraftLabel}
         />
       )}
 
@@ -1286,7 +1416,7 @@ const OpinFeedPage = () => {
         <div className="px-3 pt-3">
           <div className="max-w-7xl mx-auto rounded-xl border border-fuchsia-500/40 bg-fuchsia-500/10 p-3">
             <p className="text-sm text-foreground font-medium">
-              Tu nota ya está en el tablón. Activa avisos para volver cuando te respondan.
+              Tu nota ya está en OPIN. Activa avisos para volver cuando te respondan.
             </p>
             <div className="flex flex-wrap gap-2 mt-2">
               {!pushEnabled && (

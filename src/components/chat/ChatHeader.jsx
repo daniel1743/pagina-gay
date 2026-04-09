@@ -28,9 +28,6 @@ const ChatHeader = ({
   showMenuBadge = false,
   onOpenPrivateChat,
   onSimulate,
-  showHelpLauncher = false,
-  onOpenHelpTour,
-  onDismissHelpLauncher,
   activityText = '',
   activityTickerItems = [],
   onRandomConnect = null,
@@ -111,24 +108,6 @@ const ChatHeader = ({
               </p>
             ) : null}
           </div>
-          {showHelpLauncher && (
-            <div className="mt-1 hidden sm:flex items-center gap-2">
-              <button
-                type="button"
-                onClick={onOpenHelpTour}
-                className="text-[11px] font-medium text-cyan-700 dark:text-cyan-300 hover:text-cyan-800 dark:hover:text-cyan-200 transition-colors"
-              >
-                ¿Perdido? Ver guía rápida
-              </button>
-              <button
-                type="button"
-                onClick={onDismissHelpLauncher}
-                className="text-[11px] font-medium text-muted-foreground hover:text-foreground transition-colors"
-              >
-                Ocultar ayuda
-              </button>
-            </div>
-          )}
         </div>
       </div>
 

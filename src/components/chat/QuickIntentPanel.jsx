@@ -6,6 +6,7 @@ import { toast } from '@/components/ui/use-toast';
 import { getPresenceActivityMs, updatePresenceFields } from '@/services/presenceService';
 
 const ACTIVE_THRESHOLD_MS = 2 * 60 * 1000;
+const COLLAPSED_LAUNCHER_AUTO_HIDE_MS = 5000;
 const DEFAULT_CHAT_AVATAR = '/avatar_por_defecto.jpeg';
 
 const INTENT_OPTIONS = [
@@ -80,6 +81,8 @@ const QuickIntentPanel = ({
 }) => {
   const [savingKey, setSavingKey] = useState(null);
   const [showExpandedPanel, setShowExpandedPanel] = useState(false);
+  const [showCollapsedLauncher, setShowCollapsedLauncher] = useState(true);
+  const [optimisticIntentKey, setOptimisticIntentKey] = useState(null);
 
   const activeUsers = useMemo(() => {
     const now = Date.now();
@@ -132,15 +135,12 @@ const QuickIntentPanel = ({
     [summary]
   );
 
-  const selectedIntentKey = String(currentPresence?.quickIntentKey || '').trim();
+  const selectedIntentKey = String(
+    optimisticIntentKey ?? currentPresence?.quickIntentKey ?? ''
+  ).trim();
   const selectedIntent = useMemo(
     () => INTENT_OPTIONS.find((option) => option.key === selectedIntentKey) || null,
     [selectedIntentKey]
-  );
-
-  const selectedIntentUsersCount = useMemo(
-    () => summary.find((option) => option.key === selectedIntentKey)?.users.length || 0,
-    [selectedIntentKey, summary]
   );
 
   useEffect(() => {
@@ -148,6 +148,28 @@ const QuickIntentPanel = ({
       setShowExpandedPanel(false);
     }
   }, [selectedIntentKey]);
+
+  useEffect(() => {
+    const remoteIntentKey = String(currentPresence?.quickIntentKey || '').trim() || null;
+    if (!optimisticIntentKey) return;
+    if (remoteIntentKey === optimisticIntentKey) {
+      setOptimisticIntentKey(null);
+    }
+  }, [currentPresence?.quickIntentKey, optimisticIntentKey]);
+
+  useEffect(() => {
+    if (selectedIntentKey || showExpandedPanel) {
+      setShowCollapsedLauncher(false);
+      return undefined;
+    }
+
+    setShowCollapsedLauncher(true);
+    const timer = window.setTimeout(() => {
+      setShowCollapsedLauncher(false);
+    }, COLLAPSED_LAUNCHER_AUTO_HIDE_MS);
+
+    return () => window.clearTimeout(timer);
+  }, [selectedIntentKey, showExpandedPanel]);
 
   const handlePickIntent = async (option) => {
     if (!user?.id) {
@@ -166,6 +188,9 @@ const QuickIntentPanel = ({
     const nextKey = currentPresence.quickIntentKey === option.key ? null : option.key;
     const nextLabel = nextKey ? option.label : null;
 
+    setOptimisticIntentKey(nextKey);
+    setShowExpandedPanel(false);
+    setShowCollapsedLauncher(false);
     setSavingKey(option.key);
     try {
       await updatePresenceFields(roomId, {
@@ -173,8 +198,8 @@ const QuickIntentPanel = ({
         quickIntentLabel: nextLabel,
         quickIntentUpdatedAt: Date.now(),
       });
-      setShowExpandedPanel(false);
     } catch (error) {
+      setOptimisticIntentKey(null);
       console.error('[QUICK_INTENT] Error actualizando estado:', error);
       toast({
         title: 'No se pudo actualizar',
@@ -188,39 +213,41 @@ const QuickIntentPanel = ({
 
   if (roomId !== 'principal') return null;
 
-  if (selectedIntent && !showExpandedPanel) {
-    const SelectedIcon = selectedIntent.icon;
-
+  if (!selectedIntent && !showExpandedPanel && showCollapsedLauncher) {
     return (
       <section className="px-3 pt-3 md:px-4 md:pt-4">
-        <div className="rounded-2xl border border-white/10 bg-[linear-gradient(135deg,rgba(27,32,58,0.96),rgba(53,36,74,0.92))] px-4 py-3 shadow-[0_18px_50px_rgba(8,10,26,0.32)]">
+        <div className="rounded-2xl border border-white/10 bg-[linear-gradient(135deg,rgba(27,32,58,0.96),rgba(53,36,74,0.92))] px-4 py-3 shadow-[0_18px_50px_rgba(8,10,26,0.28)]">
           <div className="flex items-center justify-between gap-3">
             <div className="min-w-0">
-              <p className="text-[11px] uppercase tracking-[0.24em] text-cyan-200/70">Radar express activo</p>
-              <div className="mt-1 flex flex-wrap items-center gap-2">
-                <span className={`inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-[11px] font-semibold ${selectedIntent.chipClassName}`}>
-                  <SelectedIcon className="w-3.5 h-3.5" />
-                  {selectedIntent.label}
-                </span>
-                <span className="text-[11px] text-slate-300">
-                  {selectedIntentUsersCount} en esto
-                </span>
-              </div>
+              <p className="text-[11px] uppercase tracking-[0.24em] text-cyan-200/70">Radar express</p>
+              <p className="mt-1 text-sm font-semibold text-white">Marca qué buscas sin tapar el chat</p>
+              <p className="mt-1 text-[11px] text-slate-300">
+                {totalMarked > 0
+                  ? `${totalMarked} personas ya marcaron intención`
+                  : 'Abre el radar para ver opciones rápidas'}
+              </p>
             </div>
 
             <Button
               type="button"
               size="sm"
-              onClick={() => setShowExpandedPanel(true)}
-              className="h-8 rounded-xl bg-white text-slate-950 hover:bg-slate-100 px-3 text-xs font-semibold"
+              onClick={() => {
+                setShowCollapsedLauncher(false);
+                setShowExpandedPanel(true);
+              }}
+              className="h-8 shrink-0 rounded-xl bg-white text-slate-950 hover:bg-slate-100 px-3 text-xs font-semibold"
             >
-              Cambiar
+              Abrir
             </Button>
           </div>
         </div>
       </section>
     );
   }
+
+  if (!selectedIntent && !showExpandedPanel && !showCollapsedLauncher) return null;
+
+  if (selectedIntent && !showExpandedPanel) return null;
 
   return (
     <section className="px-3 pt-3 md:px-4 md:pt-4">
@@ -245,7 +272,7 @@ const QuickIntentPanel = ({
           <div className="grid grid-cols-2 md:grid-cols-5 gap-2">
             {INTENT_OPTIONS.map((option) => {
               const Icon = option.icon;
-              const isSelected = currentPresence?.quickIntentKey === option.key;
+              const isSelected = selectedIntentKey === option.key;
               const isSaving = savingKey === option.key;
               const count = summary.find((item) => item.key === option.key)?.users.length || 0;
 

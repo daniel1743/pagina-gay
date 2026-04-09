@@ -19,7 +19,6 @@ import PrivateChatInviteToast from '@/components/chat/PrivateChatInviteToast';
 import PrivateChatDirectMessageToast from '@/components/chat/PrivateChatDirectMessageToast';
 import VerificationModal from '@/components/chat/VerificationModal';
 import TypingIndicator from '@/components/chat/TypingIndicator';
-import WelcomeTour from '@/components/onboarding/WelcomeTour';
 // ⚠️ MODAL COMENTADO - No está en uso hasta que se repare
 // import { PremiumWelcomeModal } from '@/components/chat/PremiumWelcomeModal';
 // ⚠️ MODAL COMENTADO - El bot moderador ya informa las reglas al ingresar
@@ -42,6 +41,7 @@ import ChatBottomNav from '@/components/chat/ChatBottomNav';
 import FeaturedChannelsColumn from '@/components/featured/FeaturedChannelsColumn';
 import ChatOnlineUsersColumn from '@/components/chat/ChatOnlineUsersColumn';
 import ContextualOpportunitiesPanel from '@/components/chat/ContextualOpportunitiesPanel';
+import QuickIntentPanel from '@/components/chat/QuickIntentPanel';
 import { useEngagementNudge } from '@/hooks/useEngagementNudge';
 // ⚠️ MODERADOR ELIMINADO (06/01/2026) - A petición del usuario
 // import RulesBanner from '@/components/chat/RulesBanner';
@@ -159,6 +159,49 @@ const getRoleBucket = (roleLabel) => {
   if (normalized.includes('pasivo')) return 'pasivo';
   if (normalized.includes('versátil') || normalized.includes('versatil')) return 'versatil';
   return 'otro';
+};
+
+const CHAT_SEEKING_BADGE_OPTIONS = [
+  { key: 'activo', label: 'Busca activo' },
+  { key: 'pasivo', label: 'Busca pasivo' },
+  { key: 'versatil', label: 'Busca versátil' },
+  { key: 'mamar', label: 'Busca mamar' },
+];
+
+const normalizeChatSeekingBadgeKey = (value) => {
+  const normalized = String(value || '')
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .trim()
+    .toLowerCase();
+
+  if (!normalized) return null;
+  if (normalized.includes('mamar') || normalized.includes('oral')) return 'mamar';
+  if (normalized.includes('versatil')) return 'versatil';
+  if (normalized.includes('activo')) return 'activo';
+  if (normalized.includes('pasivo')) return 'pasivo';
+  return null;
+};
+
+const getChatSeekingBadgeLabel = (value) => (
+  CHAT_SEEKING_BADGE_OPTIONS.find((option) => option.key === value)?.label || null
+);
+
+const getDefaultChatSeekingBadgeKey = (roleLabel) => {
+  const normalizedRole = resolveProfileRole(roleLabel);
+  if (!normalizedRole) return null;
+
+  if (normalizedRole === 'Pasivo') return 'activo';
+  if (normalizedRole === 'Activo') return 'pasivo';
+  if (
+    normalizedRole === 'Versátil Act'
+    || normalizedRole === 'Versátil Pasivo'
+    || normalizedRole === 'Inter'
+  ) {
+    return 'versatil';
+  }
+  if (normalizedRole === 'Solo Mamar') return 'mamar';
+  return null;
 };
 
 const getRoleCompatibilityScore = (selfRole, candidateRole) => {
@@ -780,8 +823,6 @@ const ChatPage = () => {
     authReady,
     guestMessageCount,
     setGuestMessageCount,
-    showWelcomeTour,
-    setShowWelcomeTour,
     updateAnonymousUserProfile,
     updateProfile,
     signInAsGuest
@@ -821,10 +862,8 @@ const ChatPage = () => {
   const [showPushBanner, setShowPushBanner] = useState(false);
   const [showCercaniaBanner, setShowCercaniaBanner] = useState(false);
   const [showHeteroRoomIntroBanner, setShowHeteroRoomIntroBanner] = useState(false);
-  const [showHelpLauncher, setShowHelpLauncher] = useState(false);
   const [showMobileSidebarBadge, setShowMobileSidebarBadge] = useState(false);
   const lastForegroundPushRef = useRef({ key: '', at: 0 });
-  const helpTourPromptShownRef = useRef(false);
   const pushBannerDismissKey = user?.id
     ? `push_banner_dismissed_${user.id}`
     : 'push_banner_dismissed_guest';
@@ -843,15 +882,6 @@ const ChatPage = () => {
   const heteroIntroSeenKey = user?.id
     ? `chactivo:hetero_intro:seen:${user.id}`
     : 'chactivo:hetero_intro:seen:guest';
-  const tourCompletionKey = user?.id
-    ? `chactivo:welcome_tour:completed:${user.id}`
-    : 'chactivo:welcome_tour:completed:guest';
-  const helpPromptSessionKey = user?.id
-    ? `chactivo:help_tour_prompt:session:${user.id}`
-    : 'chactivo:help_tour_prompt:session:guest';
-  const helpLauncherDismissKey = user?.id
-    ? `chactivo:help_launcher:dismissed:${user.id}`
-    : 'chactivo:help_launcher:dismissed:guest';
   const mobileSidebarBadgeSeenKey = user?.id
     ? `chactivo:mobile_sidebar_badge:shown:${user.id}`
     : 'chactivo:mobile_sidebar_badge:shown:guest';
@@ -909,30 +939,6 @@ const ChatPage = () => {
     }
   }, [mobileSidebarBadgeSessionKey]);
 
-  useEffect(() => {
-    if (!user?.id) {
-      setShowHelpLauncher(false);
-      return;
-    }
-    if (currentRoom !== 'principal') {
-      setShowHelpLauncher(false);
-      return;
-    }
-
-    const dismissed = localStorage.getItem(helpLauncherDismissKey) === '1';
-    const completedTour = localStorage.getItem(tourCompletionKey) === '1';
-    setShowHelpLauncher(!dismissed && !completedTour);
-  }, [user?.id, currentRoom, helpLauncherDismissKey, tourCompletionKey]);
-
-  const handleOpenHelpTour = useCallback(() => {
-    setShowWelcomeTour(true);
-  }, [setShowWelcomeTour]);
-
-  const handleDismissHelpLauncher = useCallback(() => {
-    setShowHelpLauncher(false);
-    localStorage.setItem(helpLauncherDismissKey, '1');
-  }, [helpLauncherDismissKey]);
-
   // Mostrar banner de push despues de 30s (solo una vez por sesion, solo si no ha dado permiso)
   useEffect(() => {
     if (!user || user.isAnonymous || user.isGuest) return;
@@ -974,41 +980,6 @@ const ChatPage = () => {
 
     return () => clearTimeout(timer);
   }, [showHeteroRoomIntroBanner]);
-
-  useEffect(() => {
-    if (!user?.id) return;
-    if (showWelcomeTour) return;
-    if (currentRoom !== 'principal') return;
-    if (helpTourPromptShownRef.current) return;
-    if (sessionStorage.getItem(helpPromptSessionKey)) return;
-    if (localStorage.getItem(tourCompletionKey) === '1') return;
-
-    // Mostrar a usuarios nuevos o invitados que aún no arrancan conversación
-    const shouldPrompt =
-      user.isGuest ||
-      user.isAnonymous ||
-      guestMessageCount === 0;
-
-    if (!shouldPrompt) return;
-
-    helpTourPromptShownRef.current = true;
-    const timer = setTimeout(() => {
-      setShowHelpLauncher(true);
-      sessionStorage.setItem(helpPromptSessionKey, '1');
-    }, 9000);
-
-    return () => clearTimeout(timer);
-  }, [
-    user?.id,
-    user?.isGuest,
-    user?.isAnonymous,
-    guestMessageCount,
-    showWelcomeTour,
-    currentRoom,
-    helpPromptSessionKey,
-    tourCompletionKey,
-    setShowWelcomeTour,
-  ]);
 
   const handleEnablePush = async () => {
     setShowPushBanner(false);
@@ -1386,12 +1357,12 @@ const ChatPage = () => {
   roomUsersRef.current = roomUsers;
 
   const DAILY_TOPICS = [
-    '¿De qué comuna andas hoy?',
-    '¿Alguien nuevo por aquí?',
-    '¿Qué buscas hoy?',
-    '¿Qué tal tu día?',
-    '¿De dónde te conectas?',
-    '¿Plan tranqui o plan intenso?',
+    'Tip de sala: di rol + comuna + si tienes lugar o te mueves',
+    'Tip de sala: los mensajes con contexto reciben más respuesta',
+    'Tip de sala: si conectas con alguien, pasa a privado interno',
+    'Tip de sala: evita “hola” y di directo qué buscas',
+    'Tip de sala: decir si te mueves o tienes lugar acelera la conversación',
+    'Tip de sala: si buscas algo ahora, dilo en el primer mensaje',
   ];
 
   const countRealUsers = useCallback((users) => {
@@ -1741,6 +1712,88 @@ const ChatPage = () => {
       (typeof window !== 'undefined' ? localStorage.getItem(ONBOARDING_COMUNA_KEY) : '')
     );
   }, [roomUsers, user?.id, user?.comuna, latestComunaByConnectedUser]);
+
+  const chatSeekingStorageKey = useMemo(
+    () => (user?.id ? `chactivo:chat-seeking-badge:${user.id}` : null),
+    [user?.id]
+  );
+  const [currentUserSeekingBadgeOverride, setCurrentUserSeekingBadgeOverride] = useState(null);
+  const [isSavingCurrentUserSeekingBadge, setIsSavingCurrentUserSeekingBadge] = useState(false);
+
+  useEffect(() => {
+    if (!chatSeekingStorageKey || typeof window === 'undefined') {
+      setCurrentUserSeekingBadgeOverride(null);
+      return;
+    }
+
+    const storedKey = normalizeChatSeekingBadgeKey(localStorage.getItem(chatSeekingStorageKey));
+    const profileKey = normalizeChatSeekingBadgeKey(
+      user?.chatSeekingBadgeKey || user?.chatSeekingBadgeLabel
+    );
+
+    setCurrentUserSeekingBadgeOverride(profileKey || storedKey || null);
+  }, [chatSeekingStorageKey, user?.chatSeekingBadgeKey, user?.chatSeekingBadgeLabel]);
+
+  const currentUserSeekingBadgeMeta = useMemo(() => {
+    const effectiveKey = (
+      normalizeChatSeekingBadgeKey(currentUserSeekingBadgeOverride)
+      || normalizeChatSeekingBadgeKey(user?.chatSeekingBadgeKey || user?.chatSeekingBadgeLabel)
+      || getDefaultChatSeekingBadgeKey(currentUserResolvedRole)
+    );
+
+    if (!effectiveKey) return null;
+    return {
+      key: effectiveKey,
+      label: getChatSeekingBadgeLabel(effectiveKey),
+    };
+  }, [
+    currentUserSeekingBadgeOverride,
+    currentUserResolvedRole,
+    user?.chatSeekingBadgeKey,
+    user?.chatSeekingBadgeLabel,
+  ]);
+
+  const handleUpdateCurrentUserSeekingBadge = useCallback(async (nextKey) => {
+    const normalizedKey = normalizeChatSeekingBadgeKey(nextKey);
+    if (!normalizedKey) return false;
+
+    const nextLabel = getChatSeekingBadgeLabel(normalizedKey);
+    if (!nextLabel) return false;
+
+    setCurrentUserSeekingBadgeOverride(normalizedKey);
+    if (chatSeekingStorageKey && typeof window !== 'undefined') {
+      localStorage.setItem(chatSeekingStorageKey, normalizedKey);
+    }
+
+    setIsSavingCurrentUserSeekingBadge(true);
+    try {
+      if (roomId && authReady && user?.id) {
+        await updatePresenceFields(roomId, {
+          chatSeekingBadgeKey: normalizedKey,
+          chatSeekingBadgeLabel: nextLabel,
+        });
+      }
+
+      if (user && !user.isGuest && !user.isAnonymous) {
+        await updateProfile({
+          chatSeekingBadgeKey: normalizedKey,
+          chatSeekingBadgeLabel: nextLabel,
+        });
+      }
+
+      return true;
+    } catch (error) {
+      console.error('[CHAT] Error actualizando badge de búsqueda:', error);
+      toast({
+        title: 'No se pudo actualizar',
+        description: 'Reintenta en unos segundos.',
+        variant: 'destructive',
+      });
+      return false;
+    } finally {
+      setIsSavingCurrentUserSeekingBadge(false);
+    }
+  }, [authReady, chatSeekingStorageKey, roomId, updateProfile, user]);
 
   useEffect(() => {
     if (!authReady || !user?.id || !roomId) return;
@@ -3226,7 +3279,7 @@ const ChatPage = () => {
 
   const dailyTopic = useMemo(() => {
     if (currentUserComuna) {
-      return `¿Quién anda por ${currentUserComuna} hoy?`;
+      return `Tip de sala: si estás en ${currentUserComuna}, dilo junto con lo que buscas y si te mueves`;
     }
     const now = new Date(activityNow);
     const key = now.getUTCFullYear() * 10000 + (now.getUTCMonth() + 1) * 100 + now.getUTCDate();
@@ -5819,19 +5872,19 @@ const ChatPage = () => {
                 toast({
                   ...opinToastCommon,
                   title: "Teléfono no permitido aquí",
-                  description: "OPIN es donde puedes publicar lo que buscas y dejar tu contacto para que otros te encuentren.",
+                  description: "OPIN es donde puedes publicar lo que buscas sin exponer tu contacto y luego mover la conversacion a privado interno.",
                 });
               } else if (validation.type === 'email') {
                 toast({
                   ...opinToastCommon,
                   title: "Email no permitido aquí",
-                  description: "OPIN es donde puedes hacer publicaciones con tu contacto (email, teléfono) para que otros te contacten.",
+                  description: "OPIN es donde puedes publicar tu intencion sin exponer correo ni telefono, y seguir dentro de Chactivo.",
                 });
               } else if (validation.type === 'forbidden_word') {
                 toast({
                   ...opinToastCommon,
                   title: "Enlaces externos no permitidos aquí",
-                  description: "OPIN es donde puedes compartir redes sociales y enlaces. Publica ahí lo que buscas.",
+                  description: "OPIN es donde puedes publicar lo que buscas sin sacar a la gente fuera de Chactivo.",
                 });
               } else if (validation.type === 'private_redirect') {
                 toast({
@@ -7313,9 +7366,6 @@ const ChatPage = () => {
             onRandomConnect={handleToggleRandomConnect}
             isRandomConnectActive={isRandomConnectActive}
             onSimulate={() => setShowScreenSaver(true)}
-            showHelpLauncher={showHelpLauncher}
-            onOpenHelpTour={handleOpenHelpTour}
-            onDismissHelpLauncher={handleDismissHelpLauncher}
             activityText={activityText}
             activityTickerItems={headerTickerItems}
           />
@@ -7554,12 +7604,26 @@ const ChatPage = () => {
               </div>
             )}
 
+            {currentRoom === 'principal' && !isHeteroRoom && (
+              <QuickIntentPanel
+                roomId={currentRoom || roomId}
+                roomUsers={roomUsers}
+                user={user}
+                onRequestNickname={() => setShowNicknameModal(true)}
+                onStartConversation={handleStartAvailableConversation}
+              />
+            )}
+
             {/* ⏳ Siempre renderizar ChatMessages; él decide si mostrar loading o contenido */}
             <ChatMessages
               messages={visibleMessages}
               isLoadingMessages={isLoadingMessages}
               messagesLoadingStage={messagesLoadingStage}
               currentUserId={user?.id || null}
+              currentUserSeekingBadgeMeta={currentUserSeekingBadgeMeta}
+              currentUserSeekingBadgeOptions={CHAT_SEEKING_BADGE_OPTIONS}
+              onUpdateCurrentUserSeekingBadge={handleUpdateCurrentUserSeekingBadge}
+              isSavingCurrentUserSeekingBadge={isSavingCurrentUserSeekingBadge}
               onUserClick={setUserActionsTarget}
               onReport={setReportTarget}
               onPrivateChat={handlePrivateChatRequest}
@@ -7791,14 +7855,6 @@ const ChatPage = () => {
         )} */}
 
         {/* Chat privado renderizado globalmente para persistir entre secciones */}
-
-        {showWelcomeTour && (
-          <WelcomeTour onComplete={() => {
-            localStorage.setItem(tourCompletionKey, '1');
-            setShowHelpLauncher(false);
-            setShowWelcomeTour(false);
-          }} />
-        )}
 
         {/* 🔔 Popup de recordatorio de evento deshabilitado.
             Si vuelve más adelante, mejor llevarlo a campana/notificaciones y no a popup. */}

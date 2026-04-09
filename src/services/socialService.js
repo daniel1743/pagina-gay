@@ -17,10 +17,19 @@ import {
   setDoc,
   limit,
   runTransaction,
+  deleteField,
 } from 'firebase/firestore';
 import { db, auth } from '@/config/firebase';
 import { isBlockedBetween } from '@/services/blockService';
 import { trackListenerStart, trackListenerStop } from '@/utils/listenerMonitor';
+import {
+  detectPrivateChatExternalContact,
+  getPrivateChatEarlyContactBlockMessage,
+} from '@/services/privateChatSafetyService';
+import {
+  recordBlockedContactAttempt,
+  recordContactSafetyEvent,
+} from '@/services/contactSafetyTelemetryService';
 
 const OPIN_PRIVATE_REQUESTS_PER_HOUR = 4;
 const OPIN_PRIVATE_REQUEST_WINDOW_MS = 60 * 60 * 1000;
@@ -29,6 +38,10 @@ const PRIVATE_CHAT_REQUEST_LOG_COLLECTION = 'private_chat_request_logs';
 const PRIVATE_GROUP_MAX_PARTICIPANTS = 4;
 const PRIVATE_GROUP_INVITES_COLLECTION = 'private_chat_group_invites';
 const PRIVATE_GROUP_INVITE_EXPIRY_MS = 2 * 60 * 1000;
+const PRIVATE_CHAT_CONTACT_UNLOCK_MIN_MESSAGES_PER_PARTICIPANT = 3;
+const PRIVATE_CHAT_CONTACT_UNLOCK_MIN_AGE_MS = 10 * 60 * 1000;
+const PRIVATE_CHAT_CONTACT_HISTORY_LIMIT = 40;
+const PRIVATE_CHAT_CONTACT_SHARE_TTL_MS = 24 * 60 * 60 * 1000;
 const sharedNotificationsListeners = new Map();
 
 const buildPrivateChatDebugError = (error) => ({
@@ -133,6 +146,176 @@ const buildPrivateChatMessagePreview = ({ content, type }) => {
   const normalized = typeof content === 'string' ? content.trim() : '';
   if (!normalized) return 'Nuevo mensaje';
   return normalized.length > 180 ? `${normalized.slice(0, 177)}...` : normalized;
+};
+
+const evaluatePrivateChatContactGate = async (chatRef, chatId, chatData = {}, participants = []) => {
+  const normalizedParticipants = [...new Set((participants || []).filter(Boolean))];
+  if (!chatId || normalizedParticipants.length < 2) {
+    return {
+      unlocked: false,
+      chatAgeMs: 0,
+      participantMessageCounts: {},
+      reason: 'invalid_chat',
+    };
+  }
+
+  if (chatData?.contactSharingUnlocked === true) {
+    return {
+      unlocked: true,
+      chatAgeMs: Math.max(0, Date.now() - toMillis(chatData?.createdAt)),
+      participantMessageCounts: chatData?.contactSharingUnlockedCounts || {},
+      reason: 'cached_unlock',
+    };
+  }
+
+  const messagesRef = collection(db, 'private_chats', chatId, 'messages');
+  const historySnap = await getDocs(query(
+    messagesRef,
+    orderBy('timestamp', 'desc'),
+    limit(PRIVATE_CHAT_CONTACT_HISTORY_LIMIT)
+  ));
+
+  const participantMessageCounts = normalizedParticipants.reduce((acc, participantId) => {
+    acc[participantId] = 0;
+    return acc;
+  }, {});
+
+  historySnap.docs.forEach((docSnap) => {
+    const data = docSnap.data() || {};
+    const senderId = data.userId;
+    if (!senderId || !(senderId in participantMessageCounts)) return;
+    participantMessageCounts[senderId] += 1;
+  });
+
+  const chatAgeMs = Math.max(0, Date.now() - toMillis(chatData?.createdAt));
+  const everyParticipantHasEnoughMessages = normalizedParticipants.every(
+    (participantId) => (participantMessageCounts[participantId] || 0) >= PRIVATE_CHAT_CONTACT_UNLOCK_MIN_MESSAGES_PER_PARTICIPANT
+  );
+  const unlocked = (
+    normalizedParticipants.length >= 2 &&
+    everyParticipantHasEnoughMessages &&
+    chatAgeMs >= PRIVATE_CHAT_CONTACT_UNLOCK_MIN_AGE_MS
+  );
+
+  if (unlocked) {
+    await setDoc(chatRef, {
+      contactSharingUnlocked: true,
+      contactSharingUnlockedAt: serverTimestamp(),
+      contactSharingUnlockedCounts: participantMessageCounts,
+    }, { merge: true });
+  }
+
+  return {
+    unlocked,
+    chatAgeMs,
+    participantMessageCounts,
+    reason: unlocked ? 'threshold_reached' : 'threshold_pending',
+  };
+};
+
+const enforcePrivateChatEarlyContactPolicy = async ({ chatId, chatRef, chatData, participants, type, content }) => {
+  if (type !== 'text') return null;
+
+  const detection = detectPrivateChatExternalContact(content);
+  if (!detection.hasExternalContact) return null;
+
+  const gate = await evaluatePrivateChatContactGate(chatRef, chatId, chatData, participants);
+  if (gate.unlocked) {
+    return {
+      allowed: true,
+      detection,
+      gate,
+    };
+  }
+
+  const error = new Error(getPrivateChatEarlyContactBlockMessage());
+  error.code = 'PRIVATE_CONTACT_LOCKED';
+  error.contactGate = gate;
+  error.contactDetection = detection;
+  throw error;
+};
+
+const getPrivateContactVisibilityState = (chatData = {}, ownerId, viewerId) => {
+  const rawValue = chatData?.contactShareVisibility?.[ownerId]?.[viewerId];
+  if (!rawValue) {
+    return {
+      isVisible: false,
+      isExpired: false,
+      expiresAtMs: null,
+    };
+  }
+
+  if (rawValue === true) {
+    return {
+      isVisible: true,
+      isExpired: false,
+      expiresAtMs: null,
+    };
+  }
+
+  const expiresAtMs = Number(rawValue?.expiresAtMs || 0) || null;
+  const isExpired = Boolean(expiresAtMs) && expiresAtMs <= Date.now();
+  return {
+    isVisible: rawValue?.allowed === true && !isExpired,
+    isExpired,
+    expiresAtMs,
+  };
+};
+
+const appendPrivateChatSystemMessage = async (chatId, content) => {
+  if (!chatId || !content) return null;
+
+  const messagesRef = collection(db, 'private_chats', chatId, 'messages');
+  return addDoc(messagesRef, {
+    userId: 'system',
+    username: 'Sistema',
+    avatar: '',
+    content,
+    type: 'system',
+    status: 'sent',
+    deliveredTo: [],
+    readBy: [],
+    timestamp: serverTimestamp(),
+  });
+};
+
+const syncPrivateChatSystemEvent = async ({
+  chatRef,
+  chatId,
+  participantProfiles = [],
+  preview,
+  unreadRecipientIds = [],
+  resetUnreadForUserIds = [],
+}) => {
+  if (!chatRef || !chatId || !preview) return;
+
+  await setDoc(chatRef, {
+    lastMessage: preview,
+    lastMessageType: 'system',
+    lastMessageSenderId: null,
+    lastMessageAt: serverTimestamp(),
+    updatedAt: serverTimestamp(),
+    active: true,
+    status: 'active',
+  }, { merge: true });
+
+  void syncPrivateInboxEntries({
+    chatId,
+    participantProfiles,
+    conversationState: 'active',
+    lastMessagePreview: preview,
+    lastMessageSenderId: null,
+    lastMessageType: 'system',
+    unreadRecipientIds,
+    resetUnreadForUserIds,
+  }).catch((secondaryError) => {
+    emitPrivateChatDebug('private_chat_system_event_sync_failed', {
+      chatId,
+      preview,
+      unreadRecipientIds,
+      resetUnreadForUserIds,
+    }, secondaryError);
+  });
 };
 
 const buildParticipantMapValue = (participantIds = [], value = null) => Object.fromEntries(
@@ -833,6 +1016,317 @@ export const getOrCreatePrivateChat = async (userAId, userBId) => {
   }
 };
 
+export const requestPrivateChatContactShare = async (chatId, requesterId) => {
+  let stage = 'validate_input';
+  try {
+    if (!chatId || !requesterId) {
+      throw new Error('Faltan datos para compartir contacto.');
+    }
+
+    const authUid = auth?.currentUser?.uid || null;
+    if (authUid && authUid !== requesterId) {
+      throw new Error('AUTH_USER_MISMATCH');
+    }
+
+    const chatRef = doc(db, 'private_chats', chatId);
+    stage = 'read_chat_doc';
+    const chatSnap = await getDoc(chatRef);
+    if (!chatSnap.exists()) {
+      throw new Error('CHAT_NOT_FOUND');
+    }
+
+    const chatData = chatSnap.data() || {};
+    const participants = Array.isArray(chatData?.participants) ? chatData.participants : [];
+    if (!participants.includes(requesterId)) {
+      throw new Error('USER_NOT_CHAT_PARTICIPANT');
+    }
+    if (participants.length !== 2) {
+      const error = new Error('Compartir contacto solo esta disponible en chats privados entre dos personas.');
+      error.code = 'PRIVATE_CONTACT_GROUP_UNSUPPORTED';
+      throw error;
+    }
+
+    const gate = await evaluatePrivateChatContactGate(chatRef, chatId, chatData, participants);
+    if (!gate.unlocked) {
+      const error = new Error(getPrivateChatEarlyContactBlockMessage());
+      error.code = 'PRIVATE_CONTACT_LOCKED';
+      error.contactGate = gate;
+      throw error;
+    }
+
+    stage = 'read_requester_profile';
+    const requesterSnap = await getDoc(doc(db, 'users', requesterId));
+    const requesterData = requesterSnap.data() || {};
+    const requesterPhone = typeof requesterData.phone === 'string' ? requesterData.phone.trim() : '';
+    if (!requesterPhone) {
+      const error = new Error('Agrega tu telefono en tu perfil antes de compartirlo.');
+      error.code = 'PRIVATE_CONTACT_PHONE_MISSING';
+      throw error;
+    }
+
+    const recipientId = participants.find((participantId) => participantId !== requesterId) || null;
+    if (!recipientId) {
+      throw new Error('PRIVATE_CONTACT_RECIPIENT_NOT_FOUND');
+    }
+
+    const visibilityState = getPrivateContactVisibilityState(chatData, requesterId, recipientId);
+    if (visibilityState.isVisible) {
+      return { success: true, alreadyShared: true, recipientId };
+    }
+
+    const currentRequest = chatData?.contactShareRequests?.[requesterId] || null;
+    if (currentRequest?.status === 'pending' && currentRequest?.recipientId === recipientId) {
+      return { success: true, alreadyPending: true, recipientId };
+    }
+
+    stage = 'write_request_state';
+    await updateDoc(chatRef, {
+      [`contactShareRequests.${requesterId}`]: {
+        requesterId,
+        recipientId,
+        contactType: 'phone',
+        status: 'pending',
+        requestedAt: serverTimestamp(),
+        respondedAt: null,
+        responderId: null,
+      },
+      updatedAt: serverTimestamp(),
+    });
+
+    const participantProfiles = Array.isArray(chatData?.participantProfiles) && chatData.participantProfiles.length > 0
+      ? dedupeParticipantProfiles(chatData.participantProfiles)
+      : await fetchPrivateChatParticipantProfiles(participants);
+    const requesterName = requesterData?.username || participantProfiles.find((item) => item.userId === requesterId)?.username || 'Usuario';
+    const preview = `${requesterName} quiere compartir su telefono.`;
+
+    stage = 'append_system_message';
+    await appendPrivateChatSystemMessage(chatId, preview);
+    stage = 'sync_event';
+    await syncPrivateChatSystemEvent({
+      chatRef,
+      chatId,
+      participantProfiles,
+      preview,
+      unreadRecipientIds: [recipientId],
+      resetUnreadForUserIds: [requesterId],
+    });
+
+    emitPrivateChatDebug('private_chat_contact_share_requested', {
+      stage: 'done',
+      chatId,
+      requesterId,
+      recipientId,
+    });
+
+    void recordContactSafetyEvent({
+      userId: requesterId,
+      eventType: 'share_requested',
+      surface: 'private_chat',
+      chatId,
+      metadata: {
+        recipientId,
+        contactType: 'phone',
+      },
+    }).catch(() => {});
+
+    return { success: true, recipientId };
+  } catch (error) {
+    emitPrivateChatDebug('private_chat_contact_share_request_failed', {
+      stage,
+      chatId,
+      requesterId,
+    }, error);
+    throw error;
+  }
+};
+
+export const respondToPrivateChatContactShare = async (chatId, responderId, requesterId, accepted) => {
+  let stage = 'validate_input';
+  try {
+    if (!chatId || !responderId || !requesterId) {
+      throw new Error('Faltan datos para responder la solicitud de contacto.');
+    }
+
+    const authUid = auth?.currentUser?.uid || null;
+    if (authUid && authUid !== responderId) {
+      throw new Error('AUTH_USER_MISMATCH');
+    }
+
+    const chatRef = doc(db, 'private_chats', chatId);
+    stage = 'read_chat_doc';
+    const chatSnap = await getDoc(chatRef);
+    if (!chatSnap.exists()) {
+      throw new Error('CHAT_NOT_FOUND');
+    }
+
+    const chatData = chatSnap.data() || {};
+    const participants = Array.isArray(chatData?.participants) ? chatData.participants : [];
+    if (!participants.includes(responderId) || !participants.includes(requesterId)) {
+      throw new Error('USER_NOT_CHAT_PARTICIPANT');
+    }
+
+    const requestState = chatData?.contactShareRequests?.[requesterId] || null;
+    if (!requestState || requestState?.status !== 'pending' || requestState?.recipientId !== responderId) {
+      const error = new Error('Esta solicitud de contacto ya no esta disponible.');
+      error.code = 'PRIVATE_CONTACT_REQUEST_NOT_PENDING';
+      throw error;
+    }
+
+    stage = 'write_response_state';
+    const patch = {
+      [`contactShareRequests.${requesterId}.status`]: accepted ? 'accepted' : 'rejected',
+      [`contactShareRequests.${requesterId}.respondedAt`]: serverTimestamp(),
+      [`contactShareRequests.${requesterId}.responderId`]: responderId,
+      updatedAt: serverTimestamp(),
+    };
+    if (accepted) {
+      patch[`contactShareVisibility.${requesterId}.${responderId}`] = {
+        allowed: true,
+        grantedAt: serverTimestamp(),
+        expiresAtMs: Date.now() + PRIVATE_CHAT_CONTACT_SHARE_TTL_MS,
+      };
+    }
+    await updateDoc(chatRef, patch);
+
+    const participantProfiles = Array.isArray(chatData?.participantProfiles) && chatData.participantProfiles.length > 0
+      ? dedupeParticipantProfiles(chatData.participantProfiles)
+      : await fetchPrivateChatParticipantProfiles(participants);
+    const responderName = participantProfiles.find((item) => item.userId === responderId)?.username || 'Usuario';
+    const preview = accepted
+      ? `${responderName} acepto compartir contacto en este chat.`
+      : `${responderName} prefirio no recibir contacto todavia.`;
+
+    stage = 'append_system_message';
+    await appendPrivateChatSystemMessage(chatId, preview);
+    stage = 'sync_event';
+    await syncPrivateChatSystemEvent({
+      chatRef,
+      chatId,
+      participantProfiles,
+      preview,
+      unreadRecipientIds: [requesterId],
+      resetUnreadForUserIds: [responderId],
+    });
+
+    emitPrivateChatDebug('private_chat_contact_share_responded', {
+      stage: 'done',
+      chatId,
+      requesterId,
+      responderId,
+      accepted,
+    });
+
+    void recordContactSafetyEvent({
+      userId: requesterId,
+      eventType: accepted ? 'share_accepted' : 'share_rejected',
+      surface: 'private_chat',
+      chatId,
+      metadata: {
+        responderId,
+        contactType: 'phone',
+      },
+    }).catch(() => {});
+
+    return { success: true, accepted };
+  } catch (error) {
+    emitPrivateChatDebug('private_chat_contact_share_response_failed', {
+      stage,
+      chatId,
+      requesterId,
+      responderId,
+      accepted,
+    }, error);
+    throw error;
+  }
+};
+
+export const revokePrivateChatContactShare = async (chatId, ownerId, recipientId) => {
+  let stage = 'validate_input';
+  try {
+    if (!chatId || !ownerId || !recipientId) {
+      throw new Error('Faltan datos para revocar el contacto.');
+    }
+
+    const authUid = auth?.currentUser?.uid || null;
+    if (authUid && authUid !== ownerId) {
+      throw new Error('AUTH_USER_MISMATCH');
+    }
+
+    const chatRef = doc(db, 'private_chats', chatId);
+    stage = 'read_chat_doc';
+    const chatSnap = await getDoc(chatRef);
+    if (!chatSnap.exists()) {
+      throw new Error('CHAT_NOT_FOUND');
+    }
+
+    const chatData = chatSnap.data() || {};
+    const participants = Array.isArray(chatData?.participants) ? chatData.participants : [];
+    if (!participants.includes(ownerId) || !participants.includes(recipientId)) {
+      throw new Error('USER_NOT_CHAT_PARTICIPANT');
+    }
+
+    const visibilityState = getPrivateContactVisibilityState(chatData, ownerId, recipientId);
+    if (!visibilityState.isVisible && !visibilityState.isExpired) {
+      return { success: true, alreadyRevoked: true };
+    }
+
+    stage = 'write_revoke_state';
+    await updateDoc(chatRef, {
+      [`contactShareVisibility.${ownerId}.${recipientId}`]: deleteField(),
+      [`contactShareRequests.${ownerId}.status`]: 'revoked',
+      [`contactShareRequests.${ownerId}.respondedAt`]: serverTimestamp(),
+      [`contactShareRequests.${ownerId}.responderId`]: ownerId,
+      updatedAt: serverTimestamp(),
+    });
+
+    const participantProfiles = Array.isArray(chatData?.participantProfiles) && chatData.participantProfiles.length > 0
+      ? dedupeParticipantProfiles(chatData.participantProfiles)
+      : await fetchPrivateChatParticipantProfiles(participants);
+    const ownerName = participantProfiles.find((item) => item.userId === ownerId)?.username || 'Usuario';
+    const preview = `${ownerName} revoco el telefono compartido en este chat.`;
+
+    stage = 'append_system_message';
+    await appendPrivateChatSystemMessage(chatId, preview);
+    stage = 'sync_event';
+    await syncPrivateChatSystemEvent({
+      chatRef,
+      chatId,
+      participantProfiles,
+      preview,
+      unreadRecipientIds: [recipientId],
+      resetUnreadForUserIds: [ownerId],
+    });
+
+    emitPrivateChatDebug('private_chat_contact_share_revoked', {
+      stage: 'done',
+      chatId,
+      ownerId,
+      recipientId,
+    });
+
+    void recordContactSafetyEvent({
+      userId: ownerId,
+      eventType: 'share_revoked',
+      surface: 'private_chat',
+      chatId,
+      metadata: {
+        recipientId,
+        contactType: 'phone',
+      },
+    }).catch(() => {});
+
+    return { success: true };
+  } catch (error) {
+    emitPrivateChatDebug('private_chat_contact_share_revoke_failed', {
+      stage,
+      chatId,
+      ownerId,
+      recipientId,
+    }, error);
+    throw error;
+  }
+};
+
 /**
  * Envía un mensaje dentro de un chat privado existente
  */
@@ -862,6 +1356,14 @@ export const sendMessageToPrivateChat = async (chatId, { userId, username, avata
       : await fetchPrivateChatParticipantProfiles(participants);
     const recipientIds = participants.filter((participantId) => participantId !== userId);
     const normalizedContent = content.trim();
+    await enforcePrivateChatEarlyContactPolicy({
+      chatId,
+      chatRef,
+      chatData: chatSnap.data() || {},
+      participants,
+      type: 'text',
+      content: normalizedContent,
+    });
     const messagesRef = collection(db, 'private_chats', chatId, 'messages');
 
     stage = 'write_message';
@@ -960,6 +1462,18 @@ export const sendMessageToPrivateChat = async (chatId, { userId, username, avata
       username: username || 'Usuario',
       contentPreview: typeof content === 'string' ? content.trim().slice(0, 80) : '',
     }, error);
+    if (error?.code === 'PRIVATE_CONTACT_LOCKED') {
+      void recordBlockedContactAttempt({
+        userId,
+        surface: 'private_chat',
+        blockedType: error?.contactDetection?.matchedRules?.[0]?.id || 'external_contact',
+        chatId,
+        metadata: {
+          context: 'send_text_message',
+          matchedRules: error?.contactDetection?.matchedRules || [],
+        },
+      }).catch(() => {});
+    }
     throw error;
   }
 };
@@ -1006,6 +1520,14 @@ export const sendRichPrivateChatMessage = async (
     if (type === 'text' && !normalizedContent) {
       throw new Error('EMPTY_TEXT_MESSAGE');
     }
+    await enforcePrivateChatEarlyContactPolicy({
+      chatId,
+      chatRef,
+      chatData: chatSnap.data() || {},
+      participants,
+      type,
+      content: normalizedContent,
+    });
 
     const messagesRef = collection(db, 'private_chats', chatId, 'messages');
     stage = 'write_message';
@@ -1126,6 +1648,19 @@ export const sendRichPrivateChatMessage = async (
       mediaCount: Array.isArray(media) ? media.length : 0,
       contentPreview: typeof content === 'string' ? content.trim().slice(0, 80) : '[non-text]',
     }, error);
+    if (error?.code === 'PRIVATE_CONTACT_LOCKED') {
+      void recordBlockedContactAttempt({
+        userId,
+        surface: 'private_chat',
+        blockedType: error?.contactDetection?.matchedRules?.[0]?.id || 'external_contact',
+        chatId,
+        metadata: {
+          context: 'send_rich_message',
+          messageType: type,
+          matchedRules: error?.contactDetection?.matchedRules || [],
+        },
+      }).catch(() => {});
+    }
     throw error;
   }
 };

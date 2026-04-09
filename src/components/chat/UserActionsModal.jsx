@@ -220,12 +220,14 @@ const UserActionsModal = ({
       toast({
         title: error?.message === 'BLOCKED'
           ? "No disponible"
+          : error?.code === 'PRIVATE_CONTACT_LOCKED'
+            ? "Aún no compartas contacto"
           : composeMode === 'comment'
             ? "No pudimos enviar el comentario"
             : "No pudimos enviar el mensaje",
         description: error?.message === 'BLOCKED'
           ? "No puedes enviar mensajes a este usuario."
-          : "Intenta de nuevo en un momento",
+          : (error?.message || "Intenta de nuevo en un momento"),
         variant: "destructive",
       });
     } finally {

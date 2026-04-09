@@ -1,5 +1,5 @@
 /**
- * OpinCard - Item compacto de nota OPIN (estilo tablón)
+ * OpinCard - Item compacto de nota OPIN
  *
  * Diseño minimalista tipo lista:
  * - Texto principal (2-3 líneas max, "Ver más" si es largo)
@@ -9,14 +9,15 @@
 
 import React, { useState, useEffect, useRef, forwardRef } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Heart, MessageCircle, MoreHorizontal, Trash2, ChevronDown, ChevronUp, Lock, Bell, BellOff } from 'lucide-react';
-import { toggleLike, hasUserLiked, deleteOpinPost, OPIN_COLORS, OPIN_REACTIONS, toggleReaction, getUserReactions, getReplyPreview, incrementViewCount, getOpinStatusMeta } from '@/services/opinService';
+import { MessageCircle, MoreHorizontal, Trash2, ChevronDown, ChevronUp, Lock } from 'lucide-react';
+import { deleteOpinPost, OPIN_COLORS, getReplyPreview, incrementViewCount, getOpinStatusMeta } from '@/services/opinService';
 import { sendPrivateChatRequestFromOpin } from '@/services/socialService';
 import { obtenerTarjeta } from '@/services/tarjetaService';
 import MensajeTarjetaModal from '@/components/baul/MensajeTarjetaModal';
 import { useAuth } from '@/contexts/AuthContext';
 import { toast } from '@/components/ui/use-toast';
 import { track, getSessionId } from '@/services/eventTrackingService';
+import { sanitizeOpinPublicText } from '@/services/opinSafetyService';
 
 const COMMENTS_INLINE_LIMIT = 16;
 
@@ -28,12 +29,11 @@ const OpinCard = forwardRef(({
   isFollowed = false,
   onToggleFollow = null,
   hasNewActivity = false,
+  onOpenMailbox = null,
+  mailboxOptions = [],
 }, ref) => {
   const navigate = useNavigate();
   const { user, userProfile } = useAuth();
-  const [likeCount, setLikeCount] = useState(post.likeCount || 0);
-  const [liked, setLiked] = useState(hasUserLiked(post));
-  const [likingInProgress, setLikingInProgress] = useState(false);
   const [expanded, setExpanded] = useState(false);
   const [showMenu, setShowMenu] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
@@ -43,16 +43,12 @@ const OpinCard = forwardRef(({
   const [baulTarjeta, setBaulTarjeta] = useState(null);
   const [loadingBaul, setLoadingBaul] = useState(false);
 
-  // Estados para reacciones
-  const [reactionCounts, setReactionCounts] = useState(post.reactionCounts || {});
-  const [myReactions, setMyReactions] = useState(getUserReactions(post));
-  const [reactingEmoji, setReactingEmoji] = useState(null);
-
   // Estados para preview de respuestas
   const [previewReplies, setPreviewReplies] = useState([]);
   const [loadingReplies, setLoadingReplies] = useState(false);
   const [commentsExpanded, setCommentsExpanded] = useState(false);
   const [invitingTargetId, setInvitingTargetId] = useState(null);
+  const [showMailboxOptions, setShowMailboxOptions] = useState(false);
   const cardRef = useRef(null);
 
   const isOwner = user && (user.id === post.userId || user.uid === post.userId);
@@ -60,6 +56,15 @@ const OpinCard = forwardRef(({
   const currentUserId = user?.uid || user?.id || null;
   const totalReplies = post.commentCount || 0;
   const statusMeta = getOpinStatusMeta(post.status);
+  const authorDisplayName = userProfile?.username && isOwner
+    ? userProfile.username
+    : post.username || 'Perfil';
+  const authorAvatar = userProfile?.avatar && isOwner
+    ? userProfile.avatar
+    : post.avatar || '';
+  const authorInitial = authorDisplayName?.charAt(0)?.toUpperCase() || '?';
+  const commentsLabel = totalReplies > 0 ? `Comentarios (${totalReplies})` : 'Nuevo';
+  const safePostText = sanitizeOpinPublicText(post.text || '');
 
   const setRefs = (node) => {
     cardRef.current = node;
@@ -98,10 +103,7 @@ const OpinCard = forwardRef(({
   }, [post?.id, post?.userId, user]);
 
   useEffect(() => {
-    setLikeCount(post.likeCount || 0);
-    setLiked(hasUserLiked(post));
-    setReactionCounts(post.reactionCounts || {});
-    setMyReactions(getUserReactions(post));
+    setShowMailboxOptions(false);
   }, [post]);
 
   // Cargar preview de respuestas al desplegar el bloque de comentarios
@@ -154,8 +156,8 @@ const OpinCard = forwardRef(({
 
   // Texto truncado
   const MAX_CHARS = 120;
-  const isLongText = post.text.length > MAX_CHARS;
-  const displayText = expanded ? post.text : post.text.slice(0, MAX_CHARS);
+  const isLongText = safePostText.length > MAX_CHARS;
+  const displayText = expanded ? safePostText : safePostText.slice(0, MAX_CHARS);
 
   // Click en autor → abrir Baúl
   const handleAuthorClick = async (e) => {
@@ -183,32 +185,6 @@ const OpinCard = forwardRef(({
       toast({ description: 'No se pudo cargar el perfil', variant: 'destructive' });
     } finally {
       setLoadingBaul(false);
-    }
-  };
-
-  // Like
-  const handleLikeClick = async (e) => {
-    e.stopPropagation();
-    if (isReadOnlyMode || !user || user.isAnonymous || likingInProgress) return;
-
-    setLikingInProgress(true);
-    try {
-      const result = await toggleLike(post.id);
-      if (result.liked) {
-        setLiked(true);
-        setLikeCount(prev => prev + 1);
-      } else {
-        setLiked(false);
-        setLikeCount(prev => prev - 1);
-      }
-    } catch (error) {
-      if (error?.message === 'BLOCKED') {
-        toast({ description: 'No puedes interactuar con este usuario', variant: 'destructive' });
-      } else {
-        toast({ description: 'Error al dar like', variant: 'destructive' });
-      }
-    } finally {
-      setLikingInProgress(false);
     }
   };
 
@@ -308,40 +284,15 @@ const OpinCard = forwardRef(({
     }
   };
 
-  // Reacción con emoji
-  const handleReaction = async (e, emoji) => {
+  const handleMailboxToggle = (e) => {
     e.stopPropagation();
-    if (reactingEmoji) return;
-    if (isReadOnlyMode || !user || user.isAnonymous) {
-      toast({ description: 'Inicia sesión o regístrate para reaccionar', variant: 'destructive' });
-      return;
-    }
+    setShowMailboxOptions((prev) => !prev);
+  };
 
-    setReactingEmoji(emoji);
-    try {
-      const result = await toggleReaction(post.id, emoji);
-      if (result.reacted) {
-        setMyReactions(prev => [...prev, emoji]);
-        setReactionCounts(prev => ({
-          ...prev,
-          [emoji]: (prev[emoji] || 0) + 1
-        }));
-      } else {
-        setMyReactions(prev => prev.filter(e => e !== emoji));
-        setReactionCounts(prev => ({
-          ...prev,
-          [emoji]: Math.max(0, (prev[emoji] || 0) - 1)
-        }));
-      }
-    } catch (error) {
-      if (error?.message === 'BLOCKED') {
-        toast({ description: 'No puedes interactuar con este usuario', variant: 'destructive' });
-      } else {
-        toast({ description: 'Error al reaccionar', variant: 'destructive' });
-      }
-    } finally {
-      setReactingEmoji(null);
-    }
+  const handleMailboxOption = (e, option) => {
+    e.stopPropagation();
+    setShowMailboxOptions(false);
+    onOpenMailbox?.(post, option);
   };
 
   return (
@@ -350,61 +301,89 @@ const OpinCard = forwardRef(({
         ref={setRefs}
         className={`group relative h-full rounded-2xl border border-white/10 bg-gradient-to-b from-white/[0.035] to-white/[0.015] px-4 py-4 shadow-[0_8px_30px_rgba(0,0,0,0.2)] transition-all duration-200 hover:-translate-y-0.5 hover:border-white/20 hover:shadow-[0_16px_40px_rgba(0,0,0,0.28)] ${post.isStable ? 'ring-1 ring-purple-400/30' : ''}`}
       >
-        {/* Indicador de color (punto) + Texto */}
-        <div className="flex gap-3">
-          {/* Punto de color */}
-          <div className={`w-2 h-2 rounded-full mt-2 flex-shrink-0 bg-gradient-to-br ${colorConfig.gradient}`} />
-
-          {/* Contenido */}
-          <div className="flex-1 min-w-0">
-            <div className="flex items-start justify-between gap-2 mb-2">
-              <div className="flex flex-wrap items-center gap-2">
-                <span className={`inline-flex items-center rounded-full border px-2 py-0.5 text-[11px] font-medium ${statusMeta.badgeClassName}`}>
-                  {statusMeta.shortLabel}
+        <div className="flex-1 min-w-0 flex flex-col">
+          <div className="flex items-start justify-between gap-2 mb-3">
+            <div className="flex flex-wrap items-center gap-2">
+              <span className={`inline-flex items-center rounded-full border px-2 py-0.5 text-[11px] font-medium ${statusMeta.badgeClassName}`}>
+                {statusMeta.shortLabel}
+              </span>
+              {post.isStable && (
+                <span className="inline-flex items-center rounded-full border border-purple-500/30 bg-purple-500/10 px-2 py-0.5 text-[11px] font-medium text-purple-200">
+                  Editorial
                 </span>
-                {post.isStable && (
-                  <span className="inline-flex items-center rounded-full border border-purple-500/30 bg-purple-500/10 px-2 py-0.5 text-[11px] font-medium text-purple-200">
-                    Editorial
-                  </span>
-                )}
-                {hasNewActivity && (
-                  <span className="inline-flex items-center rounded-full border border-amber-500/30 bg-amber-500/10 px-2 py-0.5 text-[11px] font-medium text-amber-300">
-                    Actividad nueva
-                  </span>
-                )}
-              </div>
-
-              {!isOwner && (
-                <button
-                  onClick={handleToggleFollow}
-                  className={`inline-flex items-center gap-1 rounded-full border px-2 py-1 text-[11px] font-medium transition-colors ${
-                    isFollowed
-                      ? 'border-cyan-500/30 bg-cyan-500/10 text-cyan-300'
-                      : 'border-white/10 bg-white/5 text-muted-foreground hover:bg-white/10'
-                  }`}
-                >
-                  {isFollowed ? (
-                    <>
-                      <BellOff className="w-3 h-3" />
-                      Siguiendo
-                    </>
-                  ) : (
-                    <>
-                      <Bell className="w-3 h-3" />
-                      Seguir
-                    </>
-                  )}
-                </button>
+              )}
+              {hasNewActivity && (
+                <span className="inline-flex items-center rounded-full border border-amber-500/30 bg-amber-500/10 px-2 py-0.5 text-[11px] font-medium text-amber-300">
+                  Actividad nueva
+                </span>
               )}
             </div>
 
-            {/* Texto principal */}
+            <div className="min-w-[1px]" />
+          </div>
+
+          <div className="flex items-center gap-2 mb-3 min-w-0">
+            {!isOwner ? (
+              <button
+                type="button"
+                onClick={handleAuthorClick}
+                className="flex-shrink-0 focus:outline-none"
+                aria-label={`Ver perfil de ${authorDisplayName}`}
+              >
+                {authorAvatar ? (
+                  <img
+                    src={authorAvatar}
+                    alt={authorDisplayName}
+                    className="w-8 h-8 rounded-full object-cover ring-1 ring-white/10"
+                  />
+                ) : (
+                  <div className={`w-8 h-8 rounded-full bg-gradient-to-br ${colorConfig.gradient} flex items-center justify-center text-xs font-semibold text-white ring-1 ring-white/10`}>
+                    {authorInitial}
+                  </div>
+                )}
+              </button>
+            ) : (
+              authorAvatar ? (
+                <img
+                  src={authorAvatar}
+                  alt={authorDisplayName}
+                  className="w-8 h-8 rounded-full object-cover ring-1 ring-white/10 flex-shrink-0"
+                />
+              ) : (
+                <div className={`w-8 h-8 rounded-full bg-gradient-to-br ${colorConfig.gradient} flex items-center justify-center text-xs font-semibold text-white ring-1 ring-white/10 flex-shrink-0`}>
+                  {authorInitial}
+                </div>
+              )
+            )}
+
+            <div className="min-w-0 flex-1">
+              <div className="flex items-center gap-2 min-w-0 flex-wrap text-xs text-muted-foreground">
+                <span
+                  onClick={handleAuthorClick}
+                  className={`font-medium truncate ${!isOwner ? 'text-purple-300 hover:underline cursor-pointer' : 'text-foreground'}`}
+                >
+                  {authorDisplayName}
+                </span>
+                <span>·</span>
+                <span>{formatTime()}</span>
+              </div>
+
+              <button
+                onClick={handleReplyClick}
+                className="mt-1 inline-flex items-center gap-1 text-xs text-muted-foreground hover:text-cyan-300 transition-colors"
+              >
+                <MessageCircle className="w-3.5 h-3.5" />
+                <span>{commentsLabel}</span>
+              </button>
+            </div>
+          </div>
+
+          <div className="flex-1">
             <p className="text-sm text-foreground leading-relaxed">
               {displayText}
               {isLongText && !expanded && '...'}
             </p>
 
-            {/* Ver más/menos */}
             {isLongText && (
               <button
                 onClick={(e) => { e.stopPropagation(); setExpanded(!expanded); }}
@@ -417,56 +396,35 @@ const OpinCard = forwardRef(({
                 )}
               </button>
             )}
+          </div>
 
-            <div className="mt-3 flex flex-wrap gap-2">
+            <div className="mt-4 flex flex-wrap gap-2 pt-3 border-t border-white/5">
+              {!isOwner && mailboxOptions.length > 0 && (
+                <button
+                  onClick={handleMailboxToggle}
+                  className="rounded-full border border-fuchsia-500/30 bg-fuchsia-500/10 px-3 py-1.5 text-xs font-medium text-fuchsia-200 hover:bg-fuchsia-500/15 transition-colors"
+                >
+                  Buzón
+                </button>
+              )}
               <button
                 onClick={handleViewIntentClick}
                 className="rounded-full border border-cyan-500/30 bg-cyan-500/10 px-3 py-1.5 text-xs font-medium text-cyan-200 hover:bg-cyan-500/15 transition-colors"
               >
                 Ver intención
               </button>
-            </div>
-
-            {/* Metadata + Acciones */}
-            <div className="flex items-center gap-3 mt-2 text-xs text-muted-foreground flex-wrap">
-              {/* Autor (clickeable) */}
-              <span
-                onClick={handleAuthorClick}
-                className={`font-medium ${!isOwner ? 'text-purple-400 hover:underline cursor-pointer' : 'text-foreground'}`}
-              >
-                {isOwner ? 'Tú' : post.username || 'Anónimo'}
-              </span>
-
-              <span>·</span>
-
-              {/* Tiempo */}
-              <span>{formatTime()}</span>
-
-              <span>·</span>
-
-              {/* Like */}
-              <button
-                onClick={handleLikeClick}
-                disabled={likingInProgress || isReadOnlyMode}
-                className={`flex items-center gap-1 transition-colors ${
-                  liked ? 'text-pink-500' : 'hover:text-pink-400'
-                }`}
-              >
-                <Heart className={`w-3.5 h-3.5 ${liked ? 'fill-current' : ''}`} />
-                {likeCount > 0 && <span>{likeCount}</span>}
-              </button>
-
-              <span>·</span>
-
-              {/* Responder */}
-              <button
-                onClick={handleReplyClick}
-                className="flex items-center gap-1 rounded-full px-2 py-1 hover:bg-white/10 hover:text-cyan-300 transition-colors"
-              >
-                <MessageCircle className="w-3.5 h-3.5" />
-                <span>{totalReplies > 0 ? `Comentarios (${totalReplies})` : 'Comentarios'}</span>
-              </button>
-
+              {!isOwner && (
+                <button
+                  onClick={handleToggleFollow}
+                  className={`rounded-full border px-3 py-1.5 text-xs font-medium transition-colors ${
+                    isFollowed
+                      ? 'border-fuchsia-500/30 bg-fuchsia-500/10 text-fuchsia-200'
+                      : 'border-white/10 bg-white/5 text-muted-foreground hover:bg-white/10'
+                  }`}
+                >
+                  {isFollowed ? 'Siguiendo' : 'Seguir'}
+                </button>
+              )}
               {!isOwner && isLoggedIn && (
                 <button
                   onClick={(e) => handleInviteToPrivateChat(
@@ -476,15 +434,36 @@ const OpinCard = forwardRef(({
                     { postId: post.id }
                   )}
                   disabled={invitingTargetId === post.userId}
-                  className="ml-auto flex items-center gap-1 rounded-full px-2 py-1 bg-fuchsia-500/20 text-fuchsia-300 hover:bg-fuchsia-500/30 transition-colors disabled:opacity-60"
+                  className="ml-auto flex items-center gap-1 rounded-full px-3 py-1.5 bg-fuchsia-500/20 text-xs font-medium text-fuchsia-300 hover:bg-fuchsia-500/30 transition-colors disabled:opacity-60"
                 >
                   <span>{invitingTargetId === post.userId ? 'Enviando...' : 'Invitar privado'}</span>
                 </button>
               )}
+            </div>
 
+            {!isOwner && mailboxOptions.length > 0 && showMailboxOptions && (
+              <div className="mt-3 rounded-xl border border-white/10 bg-black/20 p-3">
+                <p className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
+                  Dejar nota rápida
+                </p>
+                <div className="mt-2 flex flex-wrap gap-2">
+                  {mailboxOptions.map((option) => (
+                    <button
+                      key={option.id}
+                      onClick={(e) => handleMailboxOption(e, option)}
+                      className="rounded-full border border-white/10 bg-white/5 px-2.5 py-1 text-[11px] font-medium text-foreground hover:bg-white/10 transition-colors"
+                    >
+                      {option.label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            <div className="mt-2 flex items-center justify-end">
               {/* Menú del dueño */}
               {isOwner && !post.isStable && (
-                <div className="relative ml-auto">
+                <div className="relative">
                   <button
                     onClick={(e) => { e.stopPropagation(); setShowMenu(!showMenu); }}
                     className="p-1 hover:bg-white/10 rounded"
@@ -506,37 +485,6 @@ const OpinCard = forwardRef(({
                   )}
                 </div>
               )}
-            </div>
-
-            {/* Barra de reacciones */}
-            <div className="flex items-center gap-1 mt-3 pt-2 border-t border-white/5">
-              {OPIN_REACTIONS.map(({ emoji, label }) => {
-                const count = reactionCounts[emoji] || 0;
-                const isActive = myReactions.includes(emoji);
-                const isLoading = reactingEmoji === emoji;
-
-                return (
-                  <button
-                    key={emoji}
-                    onClick={(e) => handleReaction(e, emoji)}
-                    disabled={isReadOnlyMode || !user || user.isAnonymous || isLoading}
-                    title={label}
-                    className={`flex items-center gap-0.5 px-2 py-1 rounded-full text-sm transition-all
-                      ${isActive
-                        ? 'bg-white/15 scale-110'
-                        : 'bg-white/5 hover:bg-white/10 hover:scale-105'
-                      }
-                      ${isLoading ? 'opacity-50' : ''}
-                      ${isReadOnlyMode ? 'cursor-not-allowed opacity-60' : 'cursor-pointer'}
-                    `}
-                  >
-                    <span className={isActive ? 'animate-bounce' : ''}>{emoji}</span>
-                    {count > 0 && (
-                      <span className="text-xs text-muted-foreground ml-0.5">{count}</span>
-                    )}
-                  </button>
-                );
-              })}
             </div>
 
             {/* Comentarios desplegables */}
@@ -577,7 +525,7 @@ const OpinCard = forwardRef(({
                           <p className="text-xs text-foreground/80 leading-relaxed flex-1">
                             <span className="font-semibold text-foreground">{reply.username}</span>
                             {' '}
-                            {reply.comment}
+                            {sanitizeOpinPublicText(reply.comment || '')}
                           </p>
                           {isLoggedIn && reply.userId && reply.userId !== currentUserId && (
                             <button
@@ -622,7 +570,6 @@ const OpinCard = forwardRef(({
                 {post.viewCount} {post.viewCount === 1 ? 'persona te vio' : 'personas te vieron'}
               </p>
             )}
-          </div>
         </div>
       </div>
 

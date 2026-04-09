@@ -1,4 +1,4 @@
-import { collection, addDoc, serverTimestamp, query, where, orderBy, onSnapshot, getDocs, doc, updateDoc } from 'firebase/firestore';
+import { collection, addDoc, serverTimestamp, query, where, orderBy, onSnapshot, getDocs, doc, updateDoc, limit } from 'firebase/firestore';
 import { db } from '@/config/firebase';
 import { auth } from '@/config/firebase';
 
@@ -15,6 +15,9 @@ const PROVIDERS = {
     model: import.meta.env.VITE_OPENAI_MODEL || 'gpt-4o-mini'
   }
 };
+
+const CONTACT_SAFETY_ALERT_LIMIT = 20;
+const CONTACT_SAFETY_RISK_MIN = 3;
 
 /**
  * 🔍 MODERACIÓN: Analiza mensaje con ChatGPT para detectar contenido sensible
@@ -222,6 +225,70 @@ export const getModerationStats = async () => {
   } catch (error) {
     console.error('[MODERACIÓN] Error obteniendo estadísticas:', error);
     return null;
+  }
+};
+
+/**
+ * 📵 Riesgo de contacto externo: usuarios con reincidencia
+ */
+export const subscribeToContactSafetyAlerts = (callback) => {
+  const usersRef = collection(db, 'users');
+  const q = query(
+    usersRef,
+    where('contactSafety.riskScore', '>=', CONTACT_SAFETY_RISK_MIN),
+    orderBy('contactSafety.riskScore', 'desc'),
+    limit(CONTACT_SAFETY_ALERT_LIMIT)
+  );
+
+  return onSnapshot(q, (snapshot) => {
+    const alerts = [];
+    snapshot.forEach((docSnap) => {
+      const data = docSnap.data() || {};
+      const contactSafety = data.contactSafety || {};
+      alerts.push({
+        id: docSnap.id,
+        userId: docSnap.id,
+        username: data.username || data.displayName || 'Usuario',
+        avatar: data.avatar || '',
+        riskScore: Number(contactSafety.riskScore || 0),
+        blockedAttempts: Number(contactSafety.blockedAttempts || 0),
+        blockedAttemptsOpin: Number(contactSafety.blockedAttemptsOpin || 0),
+        blockedAttemptsPrivate: Number(contactSafety.blockedAttemptsPrivate || 0),
+        shareRequests: Number(contactSafety.shareRequests || 0),
+        shareAccepted: Number(contactSafety.shareAccepted || 0),
+        shareRejected: Number(contactSafety.shareRejected || 0),
+        shareRevoked: Number(contactSafety.shareRevoked || 0),
+        lastEventType: contactSafety.lastEventType || null,
+        lastSurface: contactSafety.lastSurface || null,
+        lastBlockedType: contactSafety.lastBlockedType || null,
+        lastEventAt: contactSafety.lastEventAt || null,
+        lastReviewedAt: contactSafety.lastReviewedAt || null,
+        lastReviewedBy: contactSafety.lastReviewedBy || null,
+        lastAdminNotes: contactSafety.lastAdminNotes || '',
+      });
+    });
+    callback(alerts);
+  }, (error) => {
+    if (error.code !== 'cancelled' && error.name !== 'AbortError') {
+      console.error('[MODERACIÓN] Error suscribiéndose a riesgo de contacto:', error);
+    }
+  });
+};
+
+/**
+ * ✅ Marcar riesgo de contacto como revisado
+ */
+export const reviewContactSafetyAlert = async (userId, adminNotes = '') => {
+  try {
+    const userRef = doc(db, 'users', userId);
+    await updateDoc(userRef, {
+      'contactSafety.lastReviewedAt': serverTimestamp(),
+      'contactSafety.lastReviewedBy': auth.currentUser?.uid || null,
+      'contactSafety.lastAdminNotes': adminNotes || '',
+    });
+  } catch (error) {
+    console.error('[MODERACIÓN] Error marcando riesgo de contacto como revisado:', error);
+    throw error;
   }
 };
 

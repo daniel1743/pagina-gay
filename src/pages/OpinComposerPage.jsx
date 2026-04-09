@@ -14,8 +14,11 @@ import {
   getOpinStatusMeta,
   getOpinPostById,
   editOpinPost,
+  getMyActiveOpinIntent,
+  deleteOpinPost,
 } from '@/services/opinService';
 import { toast } from '@/components/ui/use-toast';
+import { sanitizeOpinPublicText } from '@/services/opinSafetyService';
 
 const OpinComposerPage = () => {
   const navigate = useNavigate();
@@ -31,6 +34,8 @@ const OpinComposerPage = () => {
   });
   const [editingPostId, setEditingPostId] = useState(null);
   const [loadingExisting, setLoadingExisting] = useState(false);
+  const [activeIntentToReplace, setActiveIntentToReplace] = useState(null);
+  const [replacingIntent, setReplacingIntent] = useState(false);
   const isEditing = Boolean(editingPostId);
 
   const charCount = text.length;
@@ -49,15 +54,31 @@ const OpinComposerPage = () => {
     const editId = params.get('edit');
     if (editId) {
       setCanCreate(true);
+      setActiveIntentToReplace(null);
       return;
     }
 
     const result = await canCreatePost();
+    if (!result.canCreate && result.reason === 'active_intent') {
+      try {
+        const activeIntent = await getMyActiveOpinIntent();
+        setActiveIntentToReplace(activeIntent);
+      } catch {
+        setActiveIntentToReplace(null);
+      }
+      setCanCreate(false);
+      return;
+    }
+
     if (!result.canCreate) {
       toast({ description: result.message || 'No puedes crear más notas', variant: 'destructive' });
       navigate('/opin');
       setCanCreate(false);
+      return;
     }
+
+    setCanCreate(true);
+    setActiveIntentToReplace(null);
   };
 
   const loadExistingIntent = async () => {
@@ -130,9 +151,42 @@ const OpinComposerPage = () => {
       sessionStorage.setItem('opin:just_posted', '1');
       navigate('/opin?fromComposer=1');
     } catch (error) {
+      if (error?.message?.includes('Ya tienes una intención activa')) {
+        try {
+          const activeIntent = await getMyActiveOpinIntent();
+          setActiveIntentToReplace(activeIntent);
+          setCanCreate(false);
+          toast({
+            description: 'Ya tienes una intención activa. Puedes eliminarla y publicar una nueva.',
+            variant: 'destructive',
+          });
+          return;
+        } catch {
+          // continuar al manejo genérico
+        }
+      }
       toast({ description: error.message || 'Error al publicar', variant: 'destructive' });
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleReplaceIntent = async () => {
+    if (!activeIntentToReplace?.id || replacingIntent) return;
+
+    setReplacingIntent(true);
+    try {
+      await deleteOpinPost(activeIntentToReplace.id);
+      setActiveIntentToReplace(null);
+      setCanCreate(true);
+      toast({ description: 'Intención actual eliminada. Ya puedes publicar la nueva.' });
+    } catch (error) {
+      toast({
+        description: error?.message || 'No se pudo eliminar la intención actual.',
+        variant: 'destructive',
+      });
+    } finally {
+      setReplacingIntent(false);
     }
   };
 
@@ -183,6 +237,45 @@ const OpinComposerPage = () => {
           </div>
         ) : (
         <form onSubmit={handleSubmit} className="space-y-4">
+          {!isEditing && activeIntentToReplace && (
+            <div className="mx-4 rounded-2xl border border-amber-500/30 bg-amber-500/10 p-4">
+              <p className="text-sm font-semibold text-foreground">
+                Ya tienes una intención activa
+              </p>
+              <p className="mt-1 text-sm text-muted-foreground">
+                ¿Deseas eliminar la intención actual y publicar una nueva?
+              </p>
+              <div className="mt-3 rounded-xl border border-white/10 bg-black/20 p-3">
+                <p className="text-xs uppercase tracking-wide text-muted-foreground">Intención actual</p>
+                <p className="mt-2 text-sm text-foreground">{sanitizeOpinPublicText(activeIntentToReplace.text || 'Sin texto')}</p>
+              </div>
+              <div className="mt-4 flex flex-wrap gap-2">
+                <button
+                  type="button"
+                  onClick={handleReplaceIntent}
+                  disabled={replacingIntent}
+                  className="rounded-full border border-red-500/30 bg-red-500/10 px-4 py-2 text-sm font-medium text-red-200 hover:bg-red-500/15 transition-colors disabled:opacity-60"
+                >
+                  {replacingIntent ? 'Eliminando...' : 'Eliminar actual y seguir'}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => navigate(`/opin/new?edit=${activeIntentToReplace.id}`)}
+                  className="rounded-full border border-cyan-500/30 bg-cyan-500/10 px-4 py-2 text-sm font-medium text-cyan-200 hover:bg-cyan-500/15 transition-colors"
+                >
+                  Editar intención actual
+                </button>
+                <button
+                  type="button"
+                  onClick={() => navigate('/opin')}
+                  className="rounded-full border border-white/10 bg-white/5 px-4 py-2 text-sm font-medium text-muted-foreground hover:bg-white/10 transition-colors"
+                >
+                  Volver
+                </button>
+              </div>
+            </div>
+          )}
+
           {/* Textarea */}
           <div className="relative">
             <textarea
@@ -230,6 +323,12 @@ const OpinComposerPage = () => {
             <span className={`text-sm ${charCount > maxChars ? 'text-red-400' : 'text-muted-foreground'}`}>
               {charCount}/{maxChars}
             </span>
+          </div>
+
+          <div className="px-4">
+            <p className="text-xs text-muted-foreground">
+              No publiques telefonos, WhatsApp ni redes. Primero conversa dentro de Chactivo.
+            </p>
           </div>
 
           {/* Preview en tiempo real */}
