@@ -6,7 +6,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import { toast } from '@/components/ui/use-toast';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { collection, query, where, getDocs, orderBy, limit } from 'firebase/firestore';
+import { collection, query, getDocs, limit } from 'firebase/firestore';
 import { db } from '@/config/firebase';
 import {
   getCurrentLocation,
@@ -14,6 +14,8 @@ import {
   checkLocationPermission,
 } from '@/services/geolocationService';
 import { filterAndSortByProximity, formatDistance } from '@/utils/geohash';
+
+const DISCOVERABLE_USER_LOCATIONS_COLLECTION = 'discoverable_user_locations';
 
 /**
  * Tarjeta de usuario (estilo Grindr)
@@ -292,14 +294,8 @@ const NearbyUsersModal = ({ isOpen, onClose }) => {
    */
   const loadNearbyUsersFromFirestore = async (userLat, userLon) => {
     try {
-      const usersRef = collection(db, 'users');
-
-      // OPTIMIZACIÓN: Solo buscar usuarios con ubicación habilitada
-      const q = query(
-        usersRef,
-        where('locationEnabled', '==', true),
-        limit(100) // Límite de 100 usuarios cercanos
-      );
+      const usersRef = collection(db, DISCOVERABLE_USER_LOCATIONS_COLLECTION);
+      const q = query(usersRef, limit(100));
 
       const querySnapshot = await getDocs(q);
 

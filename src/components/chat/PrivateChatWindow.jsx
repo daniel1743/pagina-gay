@@ -783,7 +783,7 @@ const PrivateChatWindow = ({
         : `private_msg_${Date.now()}_${Math.random().toString(36).slice(2, 9)}`;
       const assetId = `${Date.now()}_${Math.random().toString(36).slice(2, 7)}`;
       const extension = getImageExtension(optimizedFile.type);
-      const mediaPath = `chat_media/private/${chatId}/${tempMessageId}/${assetId}.${extension}`;
+      const mediaPath = `chat_media/private/${user?.id || 'unknown'}/${chatId}/${tempMessageId}/${assetId}.${extension}`;
 
       const fileRef = storageRef(storage, mediaPath);
       await uploadBytes(fileRef, optimizedFile, {

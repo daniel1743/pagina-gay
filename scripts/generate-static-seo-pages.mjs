@@ -7,9 +7,9 @@ const indexPath = path.join(distDir, 'index.html');
 const routes = [
   {
     route: '/',
-    lang: 'es',
+    lang: 'es-CL',
     title: 'Chat Gay Chile En Vivo | Entra Gratis y Habla al Instante | Chactivo',
-    description: 'Chat gay en vivo para Chile con gente real conectada ahora. Entra gratis, habla con hombres cercanos y empieza en segundos sin app ni registro obligatorio en Chactivo.',
+    description: 'Entra gratis al chat gay de Chile y habla al instante con hombres de Santiago y otras ciudades. Sin app, sin vueltas y sin registro obligatorio.',
     canonical: 'https://chactivo.com/',
     ogLocale: 'es_CL',
     seoShell: `
@@ -28,6 +28,10 @@ const routes = [
           <li><a href="/santiago">Ver entrada local de Santiago</a></li>
           <li><a href="/mas-30">Ver chat gay mayores de 30</a></li>
           <li><a href="/faq">Leer preguntas frecuentes</a></li>
+          <li><a href="/mx">Explorar Mexico</a></li>
+          <li><a href="/ar">Explorar Argentina</a></li>
+          <li><a href="/es">Explorar España</a></li>
+          <li><a href="/br">Explorar Brasil</a></li>
         </ul>
       </nav>
     </main>`,
@@ -35,23 +39,25 @@ const routes = [
   {
     route: '/ar',
     lang: 'es-AR',
-    title: 'Chat Gay Argentina - Chatea Gratis Sin Registro',
-    description: 'Chat gay Argentina gratis. Conoce hombres gay en Buenos Aires, Cordoba, Rosario y toda Argentina. Sin registro, 100% anonimo.',
+    title: 'Chat Gay Argentina Gratis | Conoce Hombres En Vivo | Chactivo',
+    description: 'Entra al chat gay de Argentina y conoce hombres de Buenos Aires, Cordoba, Rosario y otras ciudades. Gratis, simple y sin app.',
     canonical: 'https://chactivo.com/ar',
     ogLocale: 'es_AR',
     seoShell: `
     <main id="seo-shell">
       <header>
         <h1>Chat Gay Argentina</h1>
-        <p>Una entrada pensada para Argentina. Habla con gente de Buenos Aires, Cordoba, Rosario y otras ciudades sin registro obligatorio.</p>
+        <p>Una entrada pensada para Argentina. Habla con gente de Buenos Aires, Cordoba, Rosario y otras ciudades con una promesa local mas clara.</p>
       </header>
       <section>
-        <h2>Conecta desde cualquier ciudad</h2>
-        <p>Chactivo ofrece una forma simple de entrar, conversar y conectar desde navegador con gente real interesada en hablar ahora.</p>
+        <h2>Entrada regional para separar mejor la demanda argentina</h2>
+        <p>La idea de esta landing es darle a Google una superficie mas coherente para Argentina y evitar que la home de Chile siga absorbiendo en exceso estas busquedas.</p>
       </section>
       <nav aria-label="Entradas principales">
         <ul>
+          <li><a href="/ar/buenos-aires">Ver Buenos Aires</a></li>
           <li><a href="/chat/principal">Entrar al chat principal</a></li>
+          <li><a href="/">Ver home Chile</a></li>
           <li><a href="/faq">Leer preguntas frecuentes</a></li>
         </ul>
       </nav>
@@ -60,22 +66,50 @@ const routes = [
   {
     route: '/mx',
     lang: 'es-MX',
-    title: 'Chat Gay Mexico - Chatea Gratis Sin Registro',
-    description: 'Chat gay Mexico gratis. Conoce hombres gay en CDMX, Guadalajara, Monterrey y todo Mexico. Sin registro, 100% anonimo.',
+    title: 'Chat Gay Mexico Gratis | CDMX, Guadalajara y Monterrey | Chactivo',
+    description: 'Explora el chat gay de Mexico y conecta con hombres de CDMX, Guadalajara, Monterrey y otras ciudades. Gratis, rapido y sin app.',
     canonical: 'https://chactivo.com/mx',
     ogLocale: 'es_MX',
     seoShell: `
     <main id="seo-shell">
       <header>
         <h1>Chat Gay Mexico</h1>
-        <p>Entrada de apoyo para Mexico. Habla con gente de CDMX, Guadalajara, Monterrey y otras ciudades desde tu navegador.</p>
+        <p>Entrada de apoyo para Mexico. Habla con gente de CDMX, Guadalajara, Monterrey y otras ciudades desde una superficie mas local.</p>
       </header>
       <section>
-        <h2>Conversacion rapida y sin vueltas</h2>
-        <p>Accede gratis, sin pasos largos y con una comunidad que ya llega desde busquedas de alta intencion.</p>
+        <h2>Superficie local para no cargar todo sobre la home de Chile</h2>
+        <p>Esta landing busca capturar mejor la demanda de Mexico, mejorar relevancia regional y repartir el crecimiento internacional con mas orden.</p>
       </section>
       <nav aria-label="Entradas principales">
         <ul>
+          <li><a href="/mx/cdmx">Ver CDMX</a></li>
+          <li><a href="/chat/principal">Entrar al chat principal</a></li>
+          <li><a href="/">Ver home Chile</a></li>
+          <li><a href="/faq">Leer preguntas frecuentes</a></li>
+        </ul>
+      </nav>
+    </main>`,
+  },
+  {
+    route: '/mx/cdmx',
+    lang: 'es-MX',
+    title: 'Chat Gay CDMX | Conecta En Ciudad de Mexico | Chactivo',
+    description: 'Chat gay CDMX gratis para conectar con hombres de Ciudad de Mexico. Entra rapido, sin app y con una entrada local clara para CDMX.',
+    canonical: 'https://chactivo.com/mx/cdmx',
+    ogLocale: 'es_MX',
+    seoShell: `
+    <main id="seo-shell">
+      <header>
+        <h1>Chat Gay CDMX</h1>
+        <p>Entrada local para Ciudad de Mexico. Habla con hombres de CDMX desde una superficie mas especifica y conectada al hub de Mexico.</p>
+      </header>
+      <section>
+        <h2>Pagina satelite para reforzar el cluster Mexico</h2>
+        <p>Esta pagina existe para empezar a captar busquedas mas especificas de CDMX y empujarlas hacia el hub /mx con mejor relevancia local.</p>
+      </section>
+      <nav aria-label="Entradas principales">
+        <ul>
+          <li><a href="/mx">Ver hub Mexico</a></li>
           <li><a href="/chat/principal">Entrar al chat principal</a></li>
           <li><a href="/faq">Leer preguntas frecuentes</a></li>
         </ul>
@@ -85,22 +119,50 @@ const routes = [
   {
     route: '/es',
     lang: 'es-ES',
-    title: 'Chat Gay Espana - Chatea Gratis Sin Registro',
-    description: 'Chat gay Espana gratis. Conoce hombres gay en Madrid, Barcelona, Valencia y toda Espana. Sin registro, 100% anonimo.',
+    title: 'Chat Gay Espana Gratis | Habla En Vivo Sin App | Chactivo',
+    description: 'Entra al chat gay de Espana y habla con chicos de Madrid, Barcelona, Valencia y otras ciudades. Gratis, claro y sin app.',
     canonical: 'https://chactivo.com/es',
     ogLocale: 'es_ES',
     seoShell: `
     <main id="seo-shell">
       <header>
         <h1>Chat Gay Espana</h1>
-        <p>Una entrada para Espana donde puedes conversar con gente de Madrid, Barcelona, Valencia y otras ciudades sin registro obligatorio.</p>
+        <p>Una entrada para Espana donde puedes conversar con gente de Madrid, Barcelona, Valencia y otras ciudades desde una superficie mas local.</p>
       </header>
       <section>
-        <h2>Habla con gente real</h2>
-        <p>La idea es simple: menos friccion, acceso inmediato y una comunidad abierta a conversar ahora desde movil o desktop.</p>
+        <h2>Mas relevancia local para la demanda de Espana</h2>
+        <p>Esta landing ayuda a separar mejor las busquedas de Espana, mejorar la promesa regional y reducir la mezcla con la home chilena.</p>
       </section>
       <nav aria-label="Entradas principales">
         <ul>
+          <li><a href="/es/madrid">Ver Madrid</a></li>
+          <li><a href="/chat/principal">Entrar al chat principal</a></li>
+          <li><a href="/">Ver home Chile</a></li>
+          <li><a href="/faq">Leer preguntas frecuentes</a></li>
+        </ul>
+      </nav>
+    </main>`,
+  },
+  {
+    route: '/es/madrid',
+    lang: 'es-ES',
+    title: 'Chat Gay Madrid | Habla Con Chicos De Madrid | Chactivo',
+    description: 'Chat gay Madrid gratis para hablar con chicos de Madrid y alrededores. Entra rapido, sin app y con una entrada clara para Madrid.',
+    canonical: 'https://chactivo.com/es/madrid',
+    ogLocale: 'es_ES',
+    seoShell: `
+    <main id="seo-shell">
+      <header>
+        <h1>Chat Gay Madrid</h1>
+        <p>Entrada local para Madrid. Habla con chicos de Madrid y alrededores desde una superficie mas afinada para esa busqueda.</p>
+      </header>
+      <section>
+        <h2>Refuerzo semantico del cluster Espana</h2>
+        <p>Esta pagina satelite ayuda a capturar long-tail de Madrid sin mezclar toda la demanda con el hub general /es.</p>
+      </section>
+      <nav aria-label="Entradas principales">
+        <ul>
+          <li><a href="/es">Ver hub España</a></li>
           <li><a href="/chat/principal">Entrar al chat principal</a></li>
           <li><a href="/faq">Leer preguntas frecuentes</a></li>
         </ul>
@@ -110,24 +172,79 @@ const routes = [
   {
     route: '/br',
     lang: 'pt-BR',
-    title: 'Chat Gay Brasil - Bate-papo Gay Gratis',
-    description: 'Chat gay Brasil gratis. Conheca homens gays em Sao Paulo, Rio, Brasilia e todo Brasil. Sem registro, 100% anonimo.',
+    title: 'Bate-Papo Gay Brasil Gratis | Entre Agora Sem App | Chactivo',
+    description: 'Entre no chat gay do Brasil e converse com homens de Sao Paulo, Rio, Brasilia e outras cidades. Gratis, rapido e sem app.',
     canonical: 'https://chactivo.com/br',
     ogLocale: 'pt_BR',
     seoShell: `
     <main id="seo-shell">
       <header>
         <h1>Chat Gay Brasil</h1>
-        <p>Uma entrada para o Brasil. Converse com homens de Sao Paulo, Rio, Brasilia e outras cidades sem cadastro obrigatorio.</p>
+        <p>Uma entrada para o Brasil. Converse com homens de Sao Paulo, Rio, Brasilia e outras cidades com foco mais local.</p>
       </header>
       <section>
-        <h2>Bate-papo rapido no navegador</h2>
-        <p>A proposta e simples: acesso rapido, sem download e com uma comunidade real conectando agora.</p>
+        <h2>Superficie regional para organizar melhor o crescimento</h2>
+        <p>Esta landing ajuda a dar mais contexto para buscas do Brasil, reduzir dependencia da home do Chile e tornar a expansao mais ordenada.</p>
       </section>
       <nav aria-label="Entradas principais">
         <ul>
+          <li><a href="/br/sao-paulo">Ver Sao Paulo</a></li>
           <li><a href="/chat/principal">Entrar no chat principal</a></li>
+          <li><a href="/">Ver home Chile</a></li>
           <li><a href="/faq">Ler perguntas frequentes</a></li>
+        </ul>
+      </nav>
+    </main>`,
+  },
+  {
+    route: '/br/sao-paulo',
+    lang: 'pt-BR',
+    title: 'Chat Gay Sao Paulo | Converse Com Homens Da Cidade | Chactivo',
+    description: 'Chat gay Sao Paulo gratis para conversar com homens da cidade e alredores. Entre rapido, sem app e com uma entrada local para Sao Paulo.',
+    canonical: 'https://chactivo.com/br/sao-paulo',
+    ogLocale: 'pt_BR',
+    seoShell: `
+    <main id="seo-shell">
+      <header>
+        <h1>Chat Gay Sao Paulo</h1>
+        <p>Entrada local para Sao Paulo. Converse com homens da cidade desde uma superficie mais especifica e ligada ao hub do Brasil.</p>
+      </header>
+      <section>
+        <h2>Pagina satelite para reforcar o cluster Brasil</h2>
+        <p>Esta pagina ajuda a captar buscas mais especificas de Sao Paulo e leva essa intencao ao hub /br com mais contexto local.</p>
+      </section>
+      <nav aria-label="Entradas principales">
+        <ul>
+          <li><a href="/br">Ver hub Brasil</a></li>
+          <li><a href="/chat/principal">Entrar no chat principal</a></li>
+          <li><a href="/">Ver home Chile</a></li>
+          <li><a href="/faq">Ler perguntas frequentes</a></li>
+        </ul>
+      </nav>
+    </main>`,
+  },
+  {
+    route: '/ar/buenos-aires',
+    lang: 'es-AR',
+    title: 'Chat Gay Buenos Aires | Conoce Hombres En Vivo | Chactivo',
+    description: 'Chat gay Buenos Aires gratis para conocer hombres de Capital, GBA y otras zonas cercanas. Entra simple, rapido y sin app.',
+    canonical: 'https://chactivo.com/ar/buenos-aires',
+    ogLocale: 'es_AR',
+    seoShell: `
+    <main id="seo-shell">
+      <header>
+        <h1>Chat Gay Buenos Aires</h1>
+        <p>Entrada local para Buenos Aires. Conoce hombres de Capital, GBA y otras zonas cercanas desde una superficie mas afinada para esa busqueda.</p>
+      </header>
+      <section>
+        <h2>Pagina satelite para reforzar el cluster Argentina</h2>
+        <p>Esta pagina ayuda a captar una intencion mas concreta dentro de Argentina y empujarla hacia el hub /ar con mejor relevancia semantica.</p>
+      </section>
+      <nav aria-label="Entradas principales">
+        <ul>
+          <li><a href="/ar">Ver hub Argentina</a></li>
+          <li><a href="/chat/principal">Entrar al chat principal</a></li>
+          <li><a href="/faq">Leer preguntas frecuentes</a></li>
         </ul>
       </nav>
     </main>`,
@@ -185,6 +302,7 @@ const routes = [
       <nav aria-label="Entradas principales">
         <ul>
           <li><a href="/chat/principal">Entrar al chat principal</a></li>
+          <li><a href="/">Volver a home Chile</a></li>
           <li><a href="/faq">Leer preguntas frecuentes</a></li>
         </ul>
       </nav>
@@ -210,12 +328,23 @@ const routes = [
       <nav aria-label="Entradas principales">
         <ul>
           <li><a href="/chat/principal">Entrar al chat principal</a></li>
+          <li><a href="/">Volver a home Chile</a></li>
           <li><a href="/faq">Leer preguntas frecuentes</a></li>
         </ul>
       </nav>
     </main>`,
   },
 ];
+
+const hreflangEntries = [
+  { hreflang: 'es-CL', href: 'https://chactivo.com/' },
+  { hreflang: 'x-default', href: 'https://chactivo.com/' },
+  { hreflang: 'es-MX', href: 'https://chactivo.com/mx' },
+  { hreflang: 'es-AR', href: 'https://chactivo.com/ar' },
+  { hreflang: 'es-ES', href: 'https://chactivo.com/es' },
+  { hreflang: 'pt-BR', href: 'https://chactivo.com/br' },
+];
+const hreflangSupportedCanonicals = new Set(hreflangEntries.map(({ href }) => href));
 
 function replaceTag(html, pattern, value) {
   return html.replace(pattern, value);
@@ -225,6 +354,14 @@ function renderRouteHtml(baseHtml, routeConfig) {
   const canonical = routeConfig.canonical;
   const escapedTitle = routeConfig.title;
   const escapedDescription = routeConfig.description;
+  const hreflangBlock = hreflangSupportedCanonicals.has(canonical)
+    ? hreflangEntries
+        .map(
+          ({ hreflang, href }) =>
+            `    <link rel="alternate" hreflang="${hreflang}" href="${href}" data-chactivo-hreflang="true" />`
+        )
+        .join('\n')
+    : '';
 
   let html = baseHtml;
   html = html.replace(/<html lang="[^"]+" class="dark">/, `<html lang="${routeConfig.lang}" class="dark">`);
@@ -246,6 +383,11 @@ function renderRouteHtml(baseHtml, routeConfig) {
   html = replaceTag(html, /<meta property="og:locale" content="[^"]*"\s*\/>/, `<meta property="og:locale" content="${routeConfig.ogLocale}" />`);
   html = replaceTag(html, /<meta name="twitter:title" content="[^"]*"\s*\/>/, `<meta name="twitter:title" content="${escapedTitle}" />`);
   html = replaceTag(html, /<meta name="twitter:description" content="[^"]*"\s*\/>/, `<meta name="twitter:description" content="${escapedDescription}" />`);
+  html = replaceTag(
+    html,
+    /<!-- hreflang:start -->[\s\S]*?<!-- hreflang:end -->/,
+    `<!-- hreflang:start -->\n${hreflangBlock ? `${hreflangBlock}\n` : ''}    <!-- hreflang:end -->`
+  );
 
   html = html.replace(
     /<script type="application\/ld\+json">\s*{\s*"@context": "https:\/\/schema.org",\s*"@type": "WebPage"[\s\S]*?<\/script>/,

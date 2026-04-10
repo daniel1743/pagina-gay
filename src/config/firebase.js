@@ -2,6 +2,7 @@ import { initializeApp } from 'firebase/app';
 import { getAuth, connectAuthEmulator, setPersistence, inMemoryPersistence } from 'firebase/auth';
 import { getFirestore, initializeFirestore, connectFirestoreEmulator } from 'firebase/firestore';
 import { getStorage, connectStorageEmulator } from 'firebase/storage';
+import { getFunctions, connectFunctionsEmulator } from 'firebase/functions';
 import { getMessaging, isSupported } from 'firebase/messaging';
 
 // Validar variables de entorno críticas
@@ -77,6 +78,7 @@ export const db = (() => {
   }
 })();
 export const storage = getStorage(app);
+export const functions = getFunctions(app, 'us-central1');
 
 // FCM Messaging (condicional - no todos los navegadores lo soportan)
 export let messaging = null;
@@ -148,6 +150,7 @@ if (usingEmulator) {
   connectAuthEmulator(auth, 'http://localhost:9099', { disableWarnings: true });
   connectFirestoreEmulator(db, 'localhost', 8080);
   connectStorageEmulator(storage, 'localhost', 9199);
+  connectFunctionsEmulator(functions, 'localhost', 5001);
 } else {
   // ✅ PRODUCCIÓN: Localhost se conecta a Firebase producción
   console.log('✅ [FIREBASE] ========================================');

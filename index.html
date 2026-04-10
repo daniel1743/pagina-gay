@@ -56,15 +56,77 @@
     <link rel="image_src" href="https://chactivo.com/og-preview.png" />
     <script>
       (function () {
-        const rawPath = window.location.pathname.replace(/\/$/, "") || "/";
+        const normalizeSeoPath = (pathname) => {
+          if (!pathname || pathname === "/") return "/";
+          return pathname.replace(/\/+$/, "");
+        };
+        const toAbsoluteSeoUrl = (pathname) => {
+          const normalizedPath = normalizeSeoPath(pathname);
+          return normalizedPath === "/"
+            ? "https://chactivo.com/"
+            : `https://chactivo.com${normalizedPath}`;
+        };
+        const rawPath = normalizeSeoPath(window.location.pathname);
         const canonicalPath =
           rawPath === "/gay" || rawPath === "/landing"
             ? "/"
             : rawPath;
-        const path = canonicalPath === "/" ? "" : canonicalPath;
-        const canonicalHref = `https://chactivo.com${path}`;
         const canonicalTag = document.querySelector('link[rel="canonical"]');
-        if (canonicalTag) canonicalTag.setAttribute("href", canonicalHref);
+        if (canonicalTag) canonicalTag.setAttribute("href", toAbsoluteSeoUrl(canonicalPath));
+      })();
+    </script>
+    <!-- hreflang:start -->
+    <link rel="alternate" hreflang="es-CL" href="https://chactivo.com/" data-chactivo-hreflang="true" />
+    <link rel="alternate" hreflang="x-default" href="https://chactivo.com/" data-chactivo-hreflang="true" />
+    <link rel="alternate" hreflang="es-MX" href="https://chactivo.com/mx" data-chactivo-hreflang="true" />
+    <link rel="alternate" hreflang="es-AR" href="https://chactivo.com/ar" data-chactivo-hreflang="true" />
+    <link rel="alternate" hreflang="es-ES" href="https://chactivo.com/es" data-chactivo-hreflang="true" />
+    <link rel="alternate" hreflang="pt-BR" href="https://chactivo.com/br" data-chactivo-hreflang="true" />
+    <!-- hreflang:end -->
+    <script>
+      (function () {
+        const normalizeSeoPath = (pathname) => {
+          if (!pathname || pathname === "/") return "/";
+          return pathname.replace(/\/+$/, "");
+        };
+        const toAbsoluteSeoUrl = (pathname) => {
+          const normalizedPath = normalizeSeoPath(pathname);
+          return normalizedPath === "/"
+            ? "https://chactivo.com/"
+            : `https://chactivo.com${normalizedPath}`;
+        };
+        const hreflangEntries = [
+          { hreflang: "es-CL", path: "/" },
+          { hreflang: "x-default", path: "/" },
+          { hreflang: "es-MX", path: "/mx" },
+          { hreflang: "es-AR", path: "/ar" },
+          { hreflang: "es-ES", path: "/es" },
+          { hreflang: "pt-BR", path: "/br" },
+        ];
+        const supportedPaths = new Set(["/", "/mx", "/ar", "/es", "/br"]);
+        const currentPath = normalizeSeoPath(window.location.pathname);
+
+        document
+          .querySelectorAll('link[rel="alternate"][data-chactivo-hreflang="true"]')
+          .forEach((tag) => tag.remove());
+
+        if (!supportedPaths.has(currentPath)) return;
+
+        const canonicalTag = document.querySelector('link[rel="canonical"]');
+        const anchorNode = canonicalTag || document.querySelector('meta[name="robots"]');
+
+        hreflangEntries.forEach(({ hreflang, path }) => {
+          const link = document.createElement("link");
+          link.rel = "alternate";
+          link.hreflang = hreflang;
+          link.href = toAbsoluteSeoUrl(path);
+          link.setAttribute("data-chactivo-hreflang", "true");
+          if (anchorNode?.parentNode) {
+            anchorNode.parentNode.insertBefore(link, anchorNode.nextSibling);
+          } else {
+            document.head.appendChild(link);
+          }
+        });
       })();
     </script>
     <link rel="sitemap" type="application/xml" title="Sitemap" href="/sitemap.xml" />
@@ -303,11 +365,10 @@
         <p><strong>Entrar ahora:</strong></p>
         <ul>
           <li><a href="/chat/principal"><strong>💬 Entrar al Chat Gay Chile Gratis</strong></a></li>
-          <li><a href="/video-chat-gay">🎥 Video Chat Gay en Vivo</a></li>
-          <li><a href="/foro-gay">🕵️ Foro Gay Anónimo</a></li>
-          <li><a href="/chat/santiago">Chat Gay Santiago</a></li>
-          <li><a href="/chat/gaming">Chat Gamers LGBT+</a></li>
-          <li><a href="/anonymous-forum">Foro Anónimo</a></li>
+          <li><a href="/santiago">📍 Entrada local Santiago</a></li>
+          <li><a href="/mas-30">💪 Entrada Mayores de 30</a></li>
+          <li><a href="/faq">❓ Preguntas frecuentes</a></li>
+          <li><a href="/global">🌐 Entrada general online</a></li>
         </ul>
       </nav>
 

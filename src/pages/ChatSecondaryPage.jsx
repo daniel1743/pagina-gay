@@ -285,10 +285,11 @@ const ChatSecondaryPage = () => {
   // Handlers
   const handleSendMessage = async (content, type = 'text') => {
     if (!user || !user.id) {
+      setShowNicknameModal(true);
       toast({
-        title: "Debes iniciar sesión",
-        description: "Inicia sesión para enviar mensajes.",
-        variant: "destructive",
+        title: "Elige tu nickname",
+        description: "Para enviar mensajes primero crea tu identidad de invitado.",
+        variant: "default",
       });
       return;
     }
@@ -453,6 +454,20 @@ const ChatSecondaryPage = () => {
       })
       .catch((error) => {
         console.error('❌ Error enviando mensaje:', error);
+        if (error?.code === 'guest-auth-required') {
+          setShowNicknameModal(true);
+          toast({
+            title: "Elige tu nickname",
+            description: "Necesitamos crear tu sesión de invitado para enviar el mensaje.",
+            duration: 4000,
+          });
+        } else if ((error?.code || '').startsWith('rate-limit')) {
+          toast({
+            title: "Vas muy rápido",
+            description: error?.message || `Espera ${error?.retryAfterSeconds || 1}s antes de volver a escribir.`,
+            duration: 3500,
+          });
+        }
         setMessages(prev => prev.map(msg =>
           msg.id === optimisticId
             ? { ...msg, status: 'error', _error: error }

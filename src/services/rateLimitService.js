@@ -1,269 +1,352 @@
 /**
- * 🛡️ RATE LIMITING SERVICE - ANTI-SPAM PROFESIONAL
+ * 🛡️ RATE LIMITING SERVICE
  *
- * Implementa rate limiting estricto para prevenir spam masivo:
- * - Máximo 3 mensajes cada 10 segundos
- * - Mute automático de 10 minutos si excede
- * - Almacenamiento en Firestore (no se puede evadir)
+ * Freno ligero para flood, repeticion y automatizacion simple sin castigar
+ * conversacion normal. Se apoya en cache local + persistencia de mute corta
+ * en localStorage para mantener la UX consistente entre recargas.
  */
 
-import {
-  doc,
-  setDoc,
-  getDoc,
-  collection,
-  query,
-  where,
-  orderBy,
-  limit as firestoreLimit,
-  getDocs,
-  serverTimestamp
-} from 'firebase/firestore';
-import { db } from '@/config/firebase';
+const WINDOW_SECONDS = 10;
+const DUPLICATE_WINDOW_SECONDS = 45;
+const LOCAL_MUTE_PREFIX = 'chactivo:rate-limit-mute:';
 
-// ✅ ACTUALIZADO: Rate limiting ELIMINADO (05/01/2026)
-// Motivo: Usuarios siendo bloqueados injustamente por mensajes normales ("hola")
-// El anti-spam ahora se maneja SOLO en antiSpamService.js (palabras prohibidas)
-// Este servicio SOLO previene doble envío accidental, NO mutea usuarios
-const RATE_LIMIT = {
-  MAX_MESSAGES: 999,      // Sin límite
-  WINDOW_SECONDS: 10,
-  MIN_INTERVAL_MS: 0,     // ✅ SIN BLOQUEO - Permitir envío instantáneo
-  MUTE_DURATION: 0,       // ✅ SIN MUTE - No bloquear usuarios localmente
-  MAX_DUPLICATES: 999     // Sin límite
+const REGISTERED_LIMITS = {
+  MAX_MESSAGES_GLOBAL: 6,
+  MAX_MESSAGES_PER_ROOM: 5,
+  MIN_INTERVAL_MS: 900,
+  MAX_CONSECUTIVE_DUPLICATES: 2,
+  MUTE_DURATION_SECONDS: 45,
 };
 
-// Cache en memoria para rendimiento (evita leer Firestore constantemente)
-const messageCache = new Map(); // userId → array de timestamps
-const muteCache = new Map();    // userId → timestamp de fin de mute
-const contentCache = new Map(); // userId → array de últimos contenidos (para detectar duplicados repetidos)
-const duplicateCount = new Map(); // userId → contador de duplicados consecutivos
+const GUEST_LIMITS = {
+  MAX_MESSAGES_GLOBAL: 4,
+  MAX_MESSAGES_PER_ROOM: 3,
+  MIN_INTERVAL_MS: 1500,
+  MAX_CONSECUTIVE_DUPLICATES: 1,
+  MUTE_DURATION_SECONDS: 75,
+};
+
+const messageCache = new Map(); // userId -> timestamps
+const roomMessageCache = new Map(); // userId:roomId -> timestamps
+const muteCache = new Map(); // userId -> { muteEnd, reason }
+const contentCache = new Map(); // userId:roomId -> [{ content, timestamp }]
+
+const hasLocalStorage = () => typeof window !== 'undefined' && !!window.localStorage;
+
+const getRoomKey = (userId, roomId = 'global') => `${userId}:${roomId || 'global'}`;
+
+const getMuteStorageKey = (userId) => `${LOCAL_MUTE_PREFIX}${userId}`;
+
+const normalizeContent = (content = '') => String(content || '')
+  .trim()
+  .toLowerCase()
+  .replace(/\s+/g, ' ');
+
+const trimTimestamps = (timestamps = [], now = Date.now(), windowMs = WINDOW_SECONDS * 1000) =>
+  timestamps.filter((ts) => now - ts < windowMs);
+
+const trimContentHistory = (entries = [], now = Date.now()) =>
+  entries.filter((entry) => entry && entry.content && (now - entry.timestamp) < (DUPLICATE_WINDOW_SECONDS * 1000));
+
+const formatRetryMessage = (retryAfterSeconds, fallback = 'Vas demasiado rapido. Espera un momento.') => {
+  if (!retryAfterSeconds || retryAfterSeconds <= 1) {
+    return fallback;
+  }
+  return `Espera ${retryAfterSeconds}s antes de volver a escribir.`;
+};
+
+const readPersistedMute = (userId) => {
+  if (!userId || !hasLocalStorage()) return null;
+
+  try {
+    const raw = window.localStorage.getItem(getMuteStorageKey(userId));
+    if (!raw) return null;
+
+    const parsed = JSON.parse(raw);
+    if (!parsed?.muteEnd || Number.isNaN(Number(parsed.muteEnd))) {
+      window.localStorage.removeItem(getMuteStorageKey(userId));
+      return null;
+    }
+
+    return {
+      muteEnd: Number(parsed.muteEnd),
+      reason: parsed.reason || 'SPAM_RATE_LIMIT',
+    };
+  } catch {
+    return null;
+  }
+};
+
+const persistMute = (userId, payload) => {
+  if (!userId || !hasLocalStorage()) return;
+  try {
+    window.localStorage.setItem(getMuteStorageKey(userId), JSON.stringify(payload));
+  } catch {
+    // noop
+  }
+};
+
+const clearPersistedMute = (userId) => {
+  if (!userId || !hasLocalStorage()) return;
+  try {
+    window.localStorage.removeItem(getMuteStorageKey(userId));
+  } catch {
+    // noop
+  }
+};
+
+const getLimits = (isGuest = false) => (isGuest ? GUEST_LIMITS : REGISTERED_LIMITS);
+
+const getConsecutiveDuplicateCount = (entries = [], normalizedContent = '') => {
+  if (!normalizedContent || entries.length === 0) return 0;
+
+  let count = 0;
+  for (let i = entries.length - 1; i >= 0; i -= 1) {
+    if (entries[i]?.content !== normalizedContent) break;
+    count += 1;
+  }
+  return count;
+};
 
 /**
- * Verifica si un usuario está muteado
+ * Verifica si un usuario esta muteado por flood reciente.
  */
 export const isUserMuted = async (userId) => {
-  if (!userId) return false;
+  if (!userId) return { muted: false };
 
-  // 1. Verificar cache primero (rápido)
-  const cachedMuteEnd = muteCache.get(userId);
-  if (cachedMuteEnd) {
-    const now = Date.now();
-    if (now < cachedMuteEnd) {
-      const remainingSeconds = Math.ceil((cachedMuteEnd - now) / 1000);
-
-      // 🚨 LOG VISIBLE EN F12: Usuario muteado
-      console.warn(`
-╔═══════════════════════════════════════════════════════════════
-║ 🔇 USUARIO MUTEADO (Rate Limit)
-╠═══════════════════════════════════════════════════════════════
-║ Usuario ID: ${userId}
-║ Motivo: SPAM_RATE_LIMIT
-║ Tiempo restante: ${remainingSeconds} segundo(s)
-║ Fuente: Cache en memoria
-╚═══════════════════════════════════════════════════════════════
-      `);
-
-      return {
-        muted: true,
-        remainingSeconds,
-        reason: 'SPAM_RATE_LIMIT'
-      };
-    } else {
-      // Mute expiró, limpiar cache
-      muteCache.delete(userId);
-    }
+  const now = Date.now();
+  const cached = muteCache.get(userId);
+  if (cached?.muteEnd && now < cached.muteEnd) {
+    return {
+      muted: true,
+      remainingSeconds: Math.ceil((cached.muteEnd - now) / 1000),
+      reason: cached.reason || 'SPAM_RATE_LIMIT',
+    };
   }
 
-  // 2. Verificar Firestore (por si acaso)
-  try {
-    const muteDoc = await getDoc(doc(db, 'muted_users', userId));
-    if (muteDoc.exists()) {
-      const data = muteDoc.data();
-      const muteEnd = data.muteEnd?.toMillis() || 0;
-      const now = Date.now();
+  if (cached?.muteEnd && now >= cached.muteEnd) {
+    muteCache.delete(userId);
+  }
 
-      if (now < muteEnd) {
-        const remainingSeconds = Math.ceil((muteEnd - now) / 1000);
-        muteCache.set(userId, muteEnd); // Actualizar cache
+  const persisted = readPersistedMute(userId);
+  if (persisted?.muteEnd && now < persisted.muteEnd) {
+    muteCache.set(userId, persisted);
+    return {
+      muted: true,
+      remainingSeconds: Math.ceil((persisted.muteEnd - now) / 1000),
+      reason: persisted.reason || 'SPAM_RATE_LIMIT',
+    };
+  }
 
-        // 🚨 LOG VISIBLE EN F12: Usuario muteado desde Firestore
-        console.warn(`
-╔═══════════════════════════════════════════════════════════════
-║ 🔇 USUARIO MUTEADO (Rate Limit)
-╠═══════════════════════════════════════════════════════════════
-║ Usuario ID: ${userId}
-║ Motivo: ${data.reason || 'SPAM_RATE_LIMIT'}
-║ Tiempo restante: ${remainingSeconds} segundo(s)
-║ Fuente: Firestore (muted_users)
-╚═══════════════════════════════════════════════════════════════
-        `);
-
-        return {
-          muted: true,
-          remainingSeconds,
-          reason: data.reason || 'SPAM_RATE_LIMIT'
-        };
-      }
-    }
-  } catch (error) {
-    console.error('Error verificando mute:', error);
+  if (persisted?.muteEnd && now >= persisted.muteEnd) {
+    clearPersistedMute(userId);
   }
 
   return { muted: false };
 };
 
 /**
- * Mutea un usuario por exceder rate limit
+ * Aplica mute corto local para enfriar flood sostenido.
  */
-export const muteUser = async (userId, durationSeconds = RATE_LIMIT.MUTE_DURATION) => {
-  if (!userId) return;
+export const muteUser = async (userId, durationSeconds = REGISTERED_LIMITS.MUTE_DURATION_SECONDS, reason = 'SPAM_RATE_LIMIT') => {
+  if (!userId || durationSeconds <= 0) return;
 
-  const now = Date.now();
-  const muteEnd = now + (durationSeconds * 1000);
-
-  try {
-    // Guardar en Firestore
-    await setDoc(doc(db, 'muted_users', userId), {
-      userId,
-      muteStart: serverTimestamp(),
-      muteEnd: new Date(muteEnd),
-      reason: 'SPAM_RATE_LIMIT',
-      messageCount: RATE_LIMIT.MAX_MESSAGES + 1,
-      createdAt: serverTimestamp()
-    });
-
-    // Actualizar cache
-    muteCache.set(userId, muteEnd);
-
-    // 🚨 LOG VISIBLE EN F12: Mute aplicado
-    console.error(`
-╔═══════════════════════════════════════════════════════════════
-║ 🔨 MUTE APLICADO (Rate Limit)
-╠═══════════════════════════════════════════════════════════════
-║ Usuario ID: ${userId}
-║ Motivo: Exceso de mensajes (SPAM_RATE_LIMIT)
-║ Duración: ${durationSeconds} segundo(s)
-║ Expira: ${new Date(muteEnd).toLocaleString()}
-║ Límite excedido: ${RATE_LIMIT.MAX_MESSAGES} mensajes en ${RATE_LIMIT.WINDOW_SECONDS}s
-╚═══════════════════════════════════════════════════════════════
-    `);
-  } catch (error) {
-    console.error('Error muteando usuario:', error);
-  }
+  const muteEnd = Date.now() + (durationSeconds * 1000);
+  const payload = { muteEnd, reason };
+  muteCache.set(userId, payload);
+  persistMute(userId, payload);
 };
 
 /**
- * Desmutea un usuario (limpia mute de cache y Firestore)
+ * Limpia mute y cache del usuario.
  */
 export const unmuteUser = async (userId) => {
   if (!userId) return;
 
-  try {
-    // Limpiar de Firestore
-    const muteDocRef = doc(db, 'muted_users', userId);
-    const muteDoc = await getDoc(muteDocRef);
-    if (muteDoc.exists()) {
-      await setDoc(muteDocRef, {
-        muteEnd: new Date(Date.now() - 1000), // Establecer en el pasado para que expire
-        reason: 'MANUAL_UNMUTE'
-      }, { merge: true });
+  muteCache.delete(userId);
+  messageCache.delete(userId);
+  clearPersistedMute(userId);
+
+  for (const key of roomMessageCache.keys()) {
+    if (key.startsWith(`${userId}:`)) {
+      roomMessageCache.delete(key);
     }
+  }
 
-    // Limpiar cache
-    muteCache.delete(userId);
-    contentCache.delete(userId); // También limpiar contenido duplicado
-    duplicateCount.delete(userId);
-
-    console.log(`✅ [RATE LIMIT] Usuario ${userId} DESMUTEADO manualmente`);
-  } catch (error) {
-    console.error('Error desmuteando usuario:', error);
+  for (const key of contentCache.keys()) {
+    if (key.startsWith(`${userId}:`)) {
+      contentCache.delete(key);
+    }
   }
 };
 
 /**
- * 🚀 Verifica rate limit ULTRA RÁPIDO usando SOLO cache en memoria
- * NO consulta Firestore = instantáneo como WhatsApp
- * ⚠️ TEMPORALMENTE DESHABILITADO - Siempre permite mensajes
- *
- * @param {string} userId - ID del usuario
- * @param {string} roomId - ID de la sala (no usado, solo por compatibilidad)
- * @param {string} content - Contenido del mensaje (para detectar duplicados)
- * @returns {object} { allowed: boolean, error?: string }
+ * Verifica limites por usuario, invitado, sala y repeticion.
  */
-export const checkRateLimit = async (userId, roomId, content = '') => {
-  // ⚠️ RATE LIMITING DESHABILITADO TEMPORALMENTE
+export const checkRateLimit = async (userId, roomId, content = '', options = {}) => {
+  if (!userId) {
+    return {
+      allowed: false,
+      code: 'rate-limit-invalid-user',
+      error: 'No pudimos validar tu sesion para enviar el mensaje.',
+    };
+  }
+
+  if (options?.isAutomated) {
+    return { allowed: true };
+  }
+
+  const limits = getLimits(Boolean(options?.isGuest));
+  const mutedState = await isUserMuted(userId);
+  if (mutedState.muted) {
+    return {
+      allowed: false,
+      code: 'rate-limit-muted',
+      retryAfterSeconds: mutedState.remainingSeconds,
+      error: formatRetryMessage(
+        mutedState.remainingSeconds,
+        'Vas demasiado rapido. Espera un momento antes de seguir.'
+      ),
+    };
+  }
+
+  const now = Date.now();
+  const windowMs = WINDOW_SECONDS * 1000;
+  const roomKey = getRoomKey(userId, roomId);
+  const globalMessages = trimTimestamps(messageCache.get(userId) || [], now, windowMs);
+  const roomMessages = trimTimestamps(roomMessageCache.get(roomKey) || [], now, windowMs);
+  const normalizedContent = normalizeContent(content);
+  const recentContents = trimContentHistory(contentCache.get(roomKey) || [], now);
+
+  messageCache.set(userId, globalMessages);
+  roomMessageCache.set(roomKey, roomMessages);
+  contentCache.set(roomKey, recentContents);
+
+  const lastMessageAt = globalMessages[globalMessages.length - 1] || 0;
+  const cooldownRemainingMs = limits.MIN_INTERVAL_MS - (now - lastMessageAt);
+  if (lastMessageAt && cooldownRemainingMs > 0) {
+    return {
+      allowed: false,
+      code: 'rate-limit-cooldown',
+      retryAfterSeconds: Math.max(1, Math.ceil(cooldownRemainingMs / 1000)),
+      error: formatRetryMessage(
+        Math.max(1, Math.ceil(cooldownRemainingMs / 1000)),
+        'Espera un instante antes de enviar otro mensaje.'
+      ),
+    };
+  }
+
+  if (roomMessages.length >= limits.MAX_MESSAGES_PER_ROOM) {
+    const roomRetrySeconds = Math.max(
+      1,
+      Math.ceil((windowMs - (now - roomMessages[0])) / 1000)
+    );
+    return {
+      allowed: false,
+      code: 'rate-limit-room',
+      retryAfterSeconds: roomRetrySeconds,
+      error: formatRetryMessage(
+        roomRetrySeconds,
+        'Estás enviando mensajes demasiado rapido en esta sala.'
+      ),
+    };
+  }
+
+  if (globalMessages.length >= limits.MAX_MESSAGES_GLOBAL) {
+    await muteUser(userId, limits.MUTE_DURATION_SECONDS, 'RATE_LIMIT_BURST');
+    return {
+      allowed: false,
+      code: 'rate-limit-burst',
+      retryAfterSeconds: limits.MUTE_DURATION_SECONDS,
+      error: formatRetryMessage(
+        limits.MUTE_DURATION_SECONDS,
+        'Vas demasiado rapido. Espera un momento antes de seguir.'
+      ),
+    };
+  }
+
+  if (normalizedContent) {
+    const duplicateCount = getConsecutiveDuplicateCount(recentContents, normalizedContent);
+    if (duplicateCount >= limits.MAX_CONSECUTIVE_DUPLICATES) {
+      return {
+        allowed: false,
+        code: 'rate-limit-duplicate',
+        retryAfterSeconds: 8,
+        error: 'No repitas el mismo mensaje tantas veces seguidas. Espera unos segundos.',
+      };
+    }
+  }
+
   return { allowed: true };
 };
 
 /**
- * Registra mensaje enviado en cache (para rendimiento y detección de duplicados)
- *
- * @param {string} userId - ID del usuario
- * @param {string} content - Contenido del mensaje
+ * Registra mensaje enviado en cache.
  */
-export const recordMessage = (userId, content = '') => {
+export const recordMessage = (userId, content = '', roomId = 'global') => {
   if (!userId) return;
 
   const now = Date.now();
+  const roomKey = getRoomKey(userId, roomId);
+  const globalMessages = trimTimestamps(messageCache.get(userId) || [], now);
+  const roomMessages = trimTimestamps(roomMessageCache.get(roomKey) || [], now);
 
-  // Registrar timestamp
-  if (!messageCache.has(userId)) {
-    messageCache.set(userId, []);
-  }
+  globalMessages.push(now);
+  roomMessages.push(now);
 
-  const messages = messageCache.get(userId);
-  messages.push(now);
+  messageCache.set(userId, globalMessages);
+  roomMessageCache.set(roomKey, roomMessages);
 
-  // Mantener solo los últimos MAX_MESSAGES timestamps
-  if (messages.length > RATE_LIMIT.MAX_MESSAGES) {
-    messages.shift();
-  }
-
-  // 🔥 MEJORADO: Guardar últimos contenidos para detectar duplicados repetidos
-  if (content) {
-    const normalizedContent = content.trim().toLowerCase();
-    if (!contentCache.has(userId)) {
-      contentCache.set(userId, []);
-    }
-    
-    const contents = contentCache.get(userId);
-    contents.push(normalizedContent);
-    
-    // Mantener solo los últimos 5 contenidos para detectar repeticiones
-    if (contents.length > 5) {
-      contents.shift();
-    }
+  const normalizedContent = normalizeContent(content);
+  if (normalizedContent) {
+    const recentContents = trimContentHistory(contentCache.get(roomKey) || [], now);
+    recentContents.push({ content: normalizedContent, timestamp: now });
+    contentCache.set(roomKey, recentContents.slice(-5));
   }
 };
 
 /**
- * Limpia cache de mensajes antiguos (ejecutar periódicamente)
+ * Limpia cache vieja.
  */
 export const cleanupCache = () => {
   const now = Date.now();
-  const windowMs = RATE_LIMIT.WINDOW_SECONDS * 1000;
+  const windowMs = WINDOW_SECONDS * 1000;
 
-  // Limpiar mensajes antiguos
   for (const [userId, timestamps] of messageCache.entries()) {
-    const recentMessages = timestamps.filter(ts => now - ts < windowMs);
-    if (recentMessages.length === 0) {
+    const recent = trimTimestamps(timestamps, now, windowMs);
+    if (recent.length === 0) {
       messageCache.delete(userId);
     } else {
-      messageCache.set(userId, recentMessages);
+      messageCache.set(userId, recent);
     }
   }
 
-  // Limpiar mutes expirados
-  for (const [userId, muteEnd] of muteCache.entries()) {
-    if (now >= muteEnd) {
+  for (const [roomKey, timestamps] of roomMessageCache.entries()) {
+    const recent = trimTimestamps(timestamps, now, windowMs);
+    if (recent.length === 0) {
+      roomMessageCache.delete(roomKey);
+    } else {
+      roomMessageCache.set(roomKey, recent);
+    }
+  }
+
+  for (const [roomKey, entries] of contentCache.entries()) {
+    const recent = trimContentHistory(entries, now);
+    if (recent.length === 0) {
+      contentCache.delete(roomKey);
+    } else {
+      contentCache.set(roomKey, recent);
+    }
+  }
+
+  for (const [userId, muteInfo] of muteCache.entries()) {
+    if (!muteInfo?.muteEnd || now >= muteInfo.muteEnd) {
       muteCache.delete(userId);
+      clearPersistedMute(userId);
     }
   }
-
-  // ✅ Cambiado a console.debug para reducir ruido en consola (solo visible si se activa "Verbose" en DevTools)
-  console.debug(`🧹 [RATE LIMIT] Cache limpiado: ${messageCache.size} usuarios con mensajes, ${muteCache.size} muteados`);
 };
 
-// Limpiar cache cada 30 segundos
-setInterval(cleanupCache, 30000);
+if (typeof window !== 'undefined') {
+  window.setInterval(cleanupCache, 30000);
+}

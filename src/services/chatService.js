@@ -20,7 +20,7 @@ import {
 import { ref as storageRef, deleteObject } from 'firebase/storage';
 import { db, auth, storage } from '@/config/firebase';
 import { trackMessageSent, trackFirstMessage } from '@/services/ga4Service';
-import { checkRateLimit, recordMessage, unmuteUser } from '@/services/rateLimitService';
+import { checkRateLimit, recordMessage } from '@/services/rateLimitService';
 import { moderateMessage } from '@/services/moderationService';
 import { validateMessage as sanitizeMessage } from '@/services/antiSpamService';
 import { getPerformanceMonitor } from '@/services/performanceMonitor';
@@ -42,6 +42,7 @@ const MAX_BULK_DELETE_BATCH = 200;
 const MESSAGE_CACHE_TTL_MS = 60 * 1000;
 const messageSnapshotCache = new Map();
 const sharedRealtimeMessageListeners = new Map();
+const GUEST_AUTH_REQUIRED_CODE = 'guest-auth-required';
 
 const normalizeRoomScope = (roomScope = 'rooms') => {
   if (roomScope === 'secondary' || roomScope === 'secondary-rooms') {
@@ -85,6 +86,24 @@ const isStorageNotFoundError = (error) => {
     msg.includes('object-not-found') ||
     msg.includes('no such object')
   );
+};
+
+const isStorageDeleteHandledByServer = (error) => {
+  const code = error?.code || '';
+  const msg = String(error?.message || '').toLowerCase();
+  return (
+    code === 'storage/unauthorized' ||
+    code === 'storage/unauthenticated' ||
+    code === 'permission-denied' ||
+    msg.includes('permission') ||
+    msg.includes('unauthorized')
+  );
+};
+
+const createGuestAuthRequiredError = () => {
+  const error = new Error('GUEST_AUTH_REQUIRED');
+  error.code = GUEST_AUTH_REQUIRED_CODE;
+  return error;
 };
 
 const buildConversationPairKey = (userIdA, userIdB) => {
@@ -223,18 +242,8 @@ const doSendMessage = async (roomId, messageData, isAnonymous = false, options =
   const messageType = messageData.type || 'text';
   const isTextMessage = messageType === 'text';
 
-  // ✅ ESTRATEGIA DE CAPTACIÓN: Permitir usuarios NO autenticados PERMANENTEMENTE
-  // Reducir fricción - usuarios pueden chatear en sala principal sin registrarse
-  // Restricciones para usuarios NO autenticados:
-  // - NO pueden enviar mensajes privados (requiere autenticación)
-  // - NO pueden enviar links externos
-  // - NO pueden enviar imágenes/voz (solo texto)
-  // - NO pueden personalizar avatar (avatar genérico)
-
-  // ✅ NO hay restricción de tiempo - usuarios NO autenticados pueden chatear siempre
-  // (La conversión a usuario registrado se incentiva con funciones premium)
-
-  // Asegurar que userId coincida con auth.currentUser.uid (excepto mensajes de sistema y usuarios no autenticados)
+  // Los usuarios invitados deben existir como sesión anónima real.
+  // No se permite fabricar remitentes temporales sin auth.
   const isAdminSeededMessage = Boolean(
     options?.allowAdminSeededInPrincipal &&
     messageData.userId?.startsWith('seed_user_') &&
@@ -259,15 +268,9 @@ const doSendMessage = async (roomId, messageData, isAnonymous = false, options =
     });
     messageData.userId = auth.currentUser.uid;
   }
-  
-  // Para usuarios NO autenticados, generar un userId temporal único
+
   if (!auth.currentUser && !isSystemMessage) {
-    // Generar ID temporal basado en IP/sesión (se guarda en localStorage)
-    const unauthenticatedUserId = `unauthenticated_${localStorage.getItem('session_id') || `temp_${Date.now()}_${Math.random()}`}`;
-    if (!localStorage.getItem('session_id')) {
-      localStorage.setItem('session_id', unauthenticatedUserId.split('_')[1]);
-    }
-    messageData.userId = unauthenticatedUserId;
+    throw createGuestAuthRequiredError();
   }
 
   // Identificar tipo de remitente
@@ -278,13 +281,17 @@ const doSendMessage = async (roomId, messageData, isAnonymous = false, options =
                 messageData.userId === 'system';
   const isRealUser = !isBot;
 
-  // RATE LIMITING deshabilitado temporalmente
-  // if (isRealUser) {
-  //   const rateLimitCheck = await checkRateLimit(messageData.userId, roomId, messageData.content);
-  //   if (!rateLimitCheck.allowed) {
-  //     throw new Error(rateLimitCheck.error);
-  //   }
-  // }
+  if (isRealUser) {
+    const rateLimitCheck = await checkRateLimit(messageData.userId, roomId, messageData.content, {
+      isGuest: Boolean(isAnonymous || auth.currentUser?.isAnonymous),
+    });
+    if (!rateLimitCheck.allowed) {
+      const rateLimitError = new Error(rateLimitCheck.error || 'RATE_LIMIT_EXCEEDED');
+      rateLimitError.code = rateLimitCheck.code || 'rate-limit';
+      rateLimitError.retryAfterSeconds = rateLimitCheck.retryAfterSeconds || null;
+      throw rateLimitError;
+    }
+  }
 
   const messagesRef = collection(db, 'rooms', roomId, 'messages');
 
@@ -307,7 +314,7 @@ const doSendMessage = async (roomId, messageData, isAnonymous = false, options =
     throw new Error('Username es requerido para enviar mensajes');
   }
 
-  // ⚠️ VALIDAR LINKS: Usuarios no autenticados NO pueden enviar links de texto
+  // Defensa extra por si el estado de auth cambia entre validaciones.
   if (!auth.currentUser && isTextMessage) {
     const linkPattern = /(https?:\/\/|www\.|@|#)/i;
     if (linkPattern.test(messageData.content)) {
@@ -491,7 +498,7 @@ const doSendMessage = async (roomId, messageData, isAnonymous = false, options =
   );
 
   // Cache rate limiting (memoria)
-  recordMessage(messageData.userId, messageData.content);
+  recordMessage(messageData.userId, messageData.content, roomId);
 
   // Tareas en background
   Promise.all([
@@ -556,7 +563,7 @@ export const sendMessage = async (roomId, messageData, isAnonymous = false, skip
       console.error('[SEND] 🛑 USUARIO NO AUTENTICADO - auth.currentUser es null');
     } else if (error.code === 'unavailable') {
       console.error('[SEND] 🌐 FIREBASE NO DISPONIBLE - Problema de conexión');
-    } else if (error.message?.includes('rate limit') || error.message?.includes('Espera')) {
+    } else if ((error.code || '').startsWith('rate-limit') || error.message?.includes('rate limit') || error.message?.includes('Espera')) {
       console.error('[SEND] ⏳ RATE LIMIT - Usuario bloqueado temporalmente');
     }
 
@@ -895,7 +902,7 @@ export const deleteMessageWithMedia = async (
     try {
       await deleteObject(storageRef(storage, path));
     } catch (error) {
-      if (!isStorageNotFoundError(error)) {
+      if (!isStorageNotFoundError(error) && !isStorageDeleteHandledByServer(error)) {
         console.warn('[DELETE][MEDIA] No se pudo borrar asset de Storage:', path, error?.message || error);
       }
     }
@@ -925,7 +932,7 @@ const deleteMessageDocsAndMedia = async (docsToDelete = []) => {
       try {
         await deleteObject(storageRef(storage, path));
       } catch (error) {
-        if (!isStorageNotFoundError(error)) {
+        if (!isStorageNotFoundError(error) && !isStorageDeleteHandledByServer(error)) {
           console.warn('[DELETE][MEDIA] No se pudo borrar asset de Storage:', path, error?.message || error);
         }
       }
@@ -1112,19 +1119,28 @@ const doSendSecondaryMessage = async (roomId, messageData, isAnonymous = false) 
     console.warn('[SEND SECONDARY] ⚠️ userId no coincide con auth.currentUser.uid, corrigiendo...');
     messageData.userId = auth.currentUser.uid;
   }
-  
+
   if (!auth.currentUser && !isSystemMessage) {
-    const unauthenticatedUserId = `unauthenticated_${localStorage.getItem('session_id') || `temp_${Date.now()}_${Math.random()}`}`;
-    if (!localStorage.getItem('session_id')) {
-      localStorage.setItem('session_id', unauthenticatedUserId.split('_')[1]);
-    }
-    messageData.userId = unauthenticatedUserId;
+    throw createGuestAuthRequiredError();
   }
 
   const isBot = messageData.userId?.startsWith('bot_') ||
                 messageData.userId?.startsWith('ai_') ||
+                messageData.userId?.startsWith('seed_user_') ||
                 messageData.userId?.startsWith('static_bot_') ||
                 messageData.userId === 'system';
+
+  if (!isBot) {
+    const rateLimitCheck = await checkRateLimit(messageData.userId, roomId, messageData.content, {
+      isGuest: Boolean(isAnonymous || auth.currentUser?.isAnonymous),
+    });
+    if (!rateLimitCheck.allowed) {
+      const rateLimitError = new Error(rateLimitCheck.error || 'RATE_LIMIT_EXCEEDED');
+      rateLimitError.code = rateLimitCheck.code || 'rate-limit';
+      rateLimitError.retryAfterSeconds = rateLimitCheck.retryAfterSeconds || null;
+      throw rateLimitError;
+    }
+  }
 
   // Usar colección 'secondary-rooms' en lugar de 'rooms'
   const messagesRef = collection(db, 'secondary-rooms', roomId, 'messages');
@@ -1256,7 +1272,7 @@ const doSendSecondaryMessage = async (roomId, messageData, isAnonymous = false) 
     }
   );
 
-  recordMessage(messageData.userId, messageData.content);
+  recordMessage(messageData.userId, messageData.content, roomId);
 
   return { id: docRef.id, ...message };
 };

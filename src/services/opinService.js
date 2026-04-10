@@ -34,6 +34,8 @@ import { track } from '@/services/eventTrackingService';
 import { isBlockedBetween } from '@/services/blockService';
 import { validateOpinPublicText } from '@/services/opinSafetyService';
 import { recordBlockedContactAttempt } from '@/services/contactSafetyTelemetryService';
+import { getPublicProfilesByIds } from '@/services/userService';
+import { dispatchUserNotification } from '@/services/userNotificationDispatchService';
 
 const assertCanInteractWithUser = async (targetUserId) => {
   if (!auth.currentUser || !targetUserId) return;
@@ -180,19 +182,16 @@ const hydrateOpinPostsWithProfiles = async (posts = []) => {
     return safePosts.map((post) => resolveOpinIdentity(post));
   }
 
-  const profileEntries = await Promise.all(
-    userIdsToHydrate.map(async (userId) => {
-      try {
-        const profileSnap = await getDoc(doc(db, 'users', userId));
-        return [userId, profileSnap.exists() ? profileSnap.data() : null];
-      } catch (error) {
-        console.warn('[OPIN] No se pudo hidratar perfil para OPIN:', userId, error?.message || error);
-        return [userId, null];
-      }
-    })
-  );
+  let publicProfiles = [];
+  try {
+    publicProfiles = await getPublicProfilesByIds(userIdsToHydrate);
+  } catch (error) {
+    console.warn('[OPIN] No se pudo hidratar perfiles publicos para OPIN:', error?.message || error);
+  }
 
-  const profileMap = new Map(profileEntries);
+  const profileMap = new Map(
+    publicProfiles.map((profile) => [profile.id, profile])
+  );
   return safePosts.map((post) => resolveOpinIdentity(post, profileMap.get(post?.userId)));
 };
 
@@ -247,15 +246,26 @@ export const canCreatePost = async () => {
   const now = new Date();
   const cooldownAgo = new Date(now.getTime() - COOLDOWN_HOURS * 60 * 60 * 1000);
 
-  // Buscar últimos posts del usuario sin orderBy para evitar índice compuesto
   const postsRef = collection(db, 'opin_posts');
-  const qSimple = query(
-    postsRef,
-    where('userId', '==', auth.currentUser.uid),
-    limit(20)
-  );
+  let snapshot;
 
-  const snapshot = await getDocs(qSimple);
+  try {
+    const q = query(
+      postsRef,
+      where('userId', '==', auth.currentUser.uid),
+      orderBy('createdAt', 'desc'),
+      limit(20)
+    );
+    snapshot = await getDocs(q);
+  } catch (error) {
+    console.warn('[OPIN] Fallback canCreatePost sin orderBy:', error?.message || error);
+    const qSimple = query(
+      postsRef,
+      where('userId', '==', auth.currentUser.uid),
+      limit(20)
+    );
+    snapshot = await getDocs(qSimple);
+  }
 
   if (snapshot.empty) {
     return { canCreate: true, message: 'Primera nota' };
@@ -707,11 +717,13 @@ export const getMyOpinPosts = async (limitCount = 10) => {
 };
 
 export const getMyActiveOpinIntent = async () => {
+  const nowMs = Date.now();
   const posts = await getMyOpinPosts(12);
   return posts.find((post) => (
     post.isStable !== true
     && post.isActive !== false
     && isOpenOpinIntentStatus(post.status)
+    && (nowMs - getTimestampMs(post.createdAt)) <= OPIN_ACTIVE_WINDOW_MS
   )) || null;
 };
 
@@ -1162,21 +1174,9 @@ export const addComment = async (postId, commentText) => {
       ? `${postSnippetRaw.slice(0, 110)}...`
       : postSnippetRaw;
 
-    await addDoc(collection(db, 'users', postData.userId, 'notifications'), {
-      from: auth.currentUser.uid,
-      fromUsername: commenterName,
-      fromAvatar: userData.avatar || '',
-      to: postData.userId,
-      type: 'opin_reply',
-      title: `${commenterName} respondió tu OPIN`,
-      content: safeCommentSnippet || 'Alguien respondió tu nota en OPIN',
+    await dispatchUserNotification('opin_reply', {
       postId,
       commentId: docRef.id,
-      postPreview: postSnippet,
-      read: false,
-      timestamp: serverTimestamp(),
-      url: `/opin?postId=${postId}&openComments=1`,
-      tag: `opin_reply_${postId}`,
     });
   }
 
@@ -1662,21 +1662,9 @@ export const addAdminReply = async (postId, text, authorName) => {
       ? `${postSnippetRaw.slice(0, 110)}...`
       : postSnippetRaw;
 
-    await addDoc(collection(db, 'users', postData.userId, 'notifications'), {
-      from: auth.currentUser.uid,
-      fromUsername: authorName.trim(),
-      fromAvatar: '',
-      to: postData.userId,
-      type: 'opin_reply',
-      title: `${authorName.trim()} respondió tu OPIN`,
-      content: replySnippet || 'Hay una nueva respuesta en tu nota',
+    await dispatchUserNotification('opin_reply', {
       postId,
       commentId: docRef.id,
-      postPreview: postSnippet,
-      read: false,
-      timestamp: serverTimestamp(),
-      url: `/opin?postId=${postId}&openComments=1`,
-      tag: `opin_reply_${postId}`,
     });
   }
 

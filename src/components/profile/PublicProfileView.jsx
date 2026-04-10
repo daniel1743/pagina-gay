@@ -78,6 +78,7 @@ const PublicProfileView = ({
   const stats = profile?.stats || {};
   const baul = profile?.baul || {};
   const friendsPreview = Array.isArray(profile?.friendsPreview) ? profile.friendsPreview.slice(0, 8) : [];
+  const hasFriendsPreview = friendsPreview.length > 0;
   const interests = Array.isArray(profile?.interests) ? profile.interests : [];
   const recentOpinPosts = Array.isArray(profile?.recentOpinPosts) ? profile.recentOpinPosts.slice(0, 3) : [];
   const memberSince = formatSince(profile?.createdAtMs);
@@ -163,7 +164,7 @@ const PublicProfileView = ({
         <StatCard icon={Eye} label="Vistas" value={stats.opinViews || stats.profileViews} />
       </section>
 
-      <section className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+      <section className={`grid gap-4 ${hasFriendsPreview ? 'grid-cols-1 lg:grid-cols-2' : 'grid-cols-1'}`}>
         <div className="rounded-2xl border border-border bg-card/40 p-4">
           <h3 className="text-sm font-semibold uppercase tracking-wide text-cyan-300 mb-3">Intereses y gustos</h3>
           {interests.length > 0 ? (
@@ -199,9 +200,9 @@ const PublicProfileView = ({
           )}
         </div>
 
-        <div className="rounded-2xl border border-border bg-card/40 p-4">
-          <h3 className="text-sm font-semibold uppercase tracking-wide text-cyan-300 mb-3">Conexiones</h3>
-          {friendsPreview.length > 0 ? (
+        {hasFriendsPreview && (
+          <div className="rounded-2xl border border-border bg-card/40 p-4">
+            <h3 className="text-sm font-semibold uppercase tracking-wide text-cyan-300 mb-3">Conexiones</h3>
             <div className="space-y-2">
               {friendsPreview.map((friend) => (
                 <button
@@ -226,10 +227,8 @@ const PublicProfileView = ({
                 </button>
               ))}
             </div>
-          ) : (
-            <p className="text-sm text-muted-foreground">Este usuario aún no muestra amistades públicas.</p>
-          )}
-        </div>
+          </div>
+        )}
       </section>
 
       <section className="rounded-2xl border border-border bg-card/40 p-4">

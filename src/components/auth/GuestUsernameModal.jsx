@@ -14,6 +14,8 @@ import {
 } from '@/utils/guestIdentity';
 import { PROFILE_ROLE_OPTIONS, normalizeProfileRole } from '@/config/profileRoles';
 import { COMUNA_OPTIONS, ONBOARDING_COMUNA_KEY, normalizeComuna } from '@/config/comunas';
+import { track } from '@/services/eventTrackingService';
+import { clearSeoFunnelContext, readSeoFunnelContext } from '@/utils/seoFunnelContext';
 import { 
   trackModalOpen, 
   trackChatEntry, 
@@ -88,6 +90,19 @@ export const GuestUsernameModal = ({
   useEffect(() => {
     if (open && openSource === 'auto' && hasGuestIdentity()) {
       console.log('[GuestModal] ✅ Identidad persistente detectada (apertura AUTO) - notificando al parent...');
+      const seoContext = readSeoFunnelContext();
+      if (seoContext) {
+        track('seo_chat_entry_completed', {
+          room_id: chatRoomId,
+          modal_source: openSource,
+          completion_type: 'guest_identity_reused',
+          seo_context_id: seoContext.contextId,
+          seo_from_path: seoContext.fromPath,
+          seo_country_path: seoContext.countryPath,
+          seo_entry_method: seoContext.entryMethod,
+        }).catch(() => {});
+        clearSeoFunnelContext();
+      }
       // Cerrar modal y notificar al parent para que navegue
       onClose();
       // Notificar al parent que hay identidad y puede navegar directamente
@@ -103,8 +118,21 @@ export const GuestUsernameModal = ({
       modalOpenTimeRef.current = performance.now();
       trackModalOpen(modalOpenTimeRef.current);
       startTiming('guestModalInteraction', { action: 'modal_opened' });
+
+      const seoContext = readSeoFunnelContext();
+      if (seoContext) {
+        track('seo_guest_modal_open', {
+          room_id: chatRoomId,
+          modal_source: openSource,
+          seo_context_id: seoContext.contextId,
+          seo_from_path: seoContext.fromPath,
+          seo_country_path: seoContext.countryPath,
+          seo_entry_method: seoContext.entryMethod,
+          seo_landing_variant: seoContext.landingVariant,
+        }).catch(() => {});
+      }
     }
-  }, [open]);
+  }, [open, chatRoomId, openSource]);
 
   // ⚡ Auto-marcar checkbox de edad al presionar ENTER
   const handleKeyDown = (e) => {
@@ -220,6 +248,25 @@ export const GuestUsernameModal = ({
       // Cerrar modal
       onClose();
 
+      const seoContext = readSeoFunnelContext();
+      if (seoContext) {
+        track('seo_chat_entry_completed', {
+          room_id: chatRoomId,
+          modal_source: openSource,
+          completion_type: 'guest_created',
+          seo_context_id: seoContext.contextId,
+          seo_from_path: seoContext.fromPath,
+          seo_country_path: seoContext.countryPath,
+          seo_entry_method: seoContext.entryMethod,
+          seo_landing_variant: seoContext.landingVariant,
+          nickname_length: nickname.trim().length,
+          profile_role: normalizedRole,
+          comuna: normalizedComuna,
+          sexo: normalizedSexo,
+        }).catch(() => {});
+        clearSeoFunnelContext();
+      }
+
       // Notificar al parent para que navegue (usuario YA está seteado)
       if (onGuestReady) {
         onGuestReady({
@@ -270,6 +317,19 @@ export const GuestUsernameModal = ({
     } catch (error) {
       console.error('%c❌ ERROR EN ENTRADA (MODAL):', 'color: #ff0000; font-weight: bold; font-size: 14px', error);
       console.log('%c═══════════════════════════════════════════', 'color: #ff0000; font-weight: bold');
+
+      const seoContext = readSeoFunnelContext();
+      if (seoContext) {
+        track('seo_guest_modal_error', {
+          room_id: chatRoomId,
+          modal_source: openSource,
+          seo_context_id: seoContext.contextId,
+          seo_from_path: seoContext.fromPath,
+          seo_country_path: seoContext.countryPath,
+          seo_entry_method: seoContext.entryMethod,
+          error_message: error?.message || 'guest_modal_error',
+        }).catch(() => {});
+      }
 
       setError(`Error al entrar: ${error.message || 'Intenta de nuevo.'}`);
       setAgeConfirmed(false); // Reset en caso de error

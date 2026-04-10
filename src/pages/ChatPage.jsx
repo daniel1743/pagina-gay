@@ -99,6 +99,7 @@ import { COMUNA_OPTIONS, getComunaKey, normalizeComuna, ONBOARDING_COMUNA_KEY } 
 import { MessageCircle } from 'lucide-react';
 import { getOpenOpinIntentsByUserIds, getOpinPostActivityMs, getOpinStatusMeta } from '@/services/opinService';
 import { readPendingPrivateChatRestore, clearPendingPrivateChatRestore } from '@/utils/privateChatRestore';
+import { clearSeoFunnelContext, readSeoFunnelContext } from '@/utils/seoFunnelContext';
 import '@/utils/chatDiagnostics'; // 🔍 Cargar diagnóstico en consola
 import { 
   trackChatLoad, 
@@ -1317,6 +1318,7 @@ const ChatPage = () => {
   const [engagementTime, setEngagementTime] = useState(''); // ⏱️ Tiempo total de engagement
   const [showScreenSaver, setShowScreenSaver] = useState(false); // 🔒 Protector de pantalla
   const [showNicknameModal, setShowNicknameModal] = useState(false); // ✅ Modal nickname - solo al intentar escribir
+  const [nicknameModalSource, setNicknameModalSource] = useState('user');
   const [isInputFocused, setIsInputFocused] = useState(false); // 📝 Input focus state for scroll manager
   const [suggestedMessage, setSuggestedMessage] = useState(null); // 🤖 Mensaje sugerido por Companion AI
   const [replyTo, setReplyTo] = useState(null); // 💬 Mensaje al que se está respondiendo { messageId, username, content }
@@ -1342,6 +1344,8 @@ const ChatPage = () => {
   const usersUpdateInProgressRef = useRef(false); // 🔒 CRÍTICO: Evitar loops infinitos en setRoomUsers
   const chatLoadStartTimeRef = useRef(null); // 📊 PERFORMANCE: Timestamp cuando inicia carga del chat
   const chatLoadTrackedRef = useRef(false); // 📊 PERFORMANCE: Flag para evitar tracking duplicado
+  const seoChatArrivalTrackedRef = useRef(null);
+  const seoChatCompletionTrackedRef = useRef(null);
   const firstNonEmptySnapshotRef = useRef(false); // Evita flicker "vacío" cuando Firestore responde tarde
   const firstSnapshotReceivedRef = useRef(false); // Marca llegada del primer snapshot (aunque venga vacío)
   const loadingFallbackTimeoutRef = useRef(null); // Cambio a carga lenta
@@ -1364,6 +1368,16 @@ const ChatPage = () => {
     'Tip de sala: decir si te mueves o tienes lugar acelera la conversación',
     'Tip de sala: si buscas algo ahora, dilo en el primer mensaje',
   ];
+
+  const openNicknameModal = useCallback((source = 'user') => {
+    setNicknameModalSource(source);
+    setShowNicknameModal(true);
+  }, []);
+
+  const closeNicknameModal = useCallback(() => {
+    setShowNicknameModal(false);
+    setNicknameModalSource('user');
+  }, []);
 
   const countRealUsers = useCallback((users) => {
     if (!users || users.length === 0) return 0;
@@ -3711,6 +3725,46 @@ const ChatPage = () => {
     };
   }, [roomId, user]);
 
+  useEffect(() => {
+    const seoContext = readSeoFunnelContext();
+    if (!seoContext || seoContext.roomId !== roomId) return;
+
+    const arrivalKey = `${seoContext.contextId}:${roomId}`;
+    if (seoChatArrivalTrackedRef.current === arrivalKey) return;
+
+    seoChatArrivalTrackedRef.current = arrivalKey;
+    track('seo_chat_arrival', {
+      room_id: roomId,
+      page_path: location.pathname,
+      seo_context_id: seoContext.contextId,
+      seo_from_path: seoContext.fromPath,
+      seo_country_path: seoContext.countryPath,
+      seo_entry_method: seoContext.entryMethod,
+      seo_landing_variant: seoContext.landingVariant,
+    }, { user }).catch(() => {});
+  }, [location.pathname, roomId, user]);
+
+  useEffect(() => {
+    const seoContext = readSeoFunnelContext();
+    if (!seoContext || seoContext.roomId !== roomId) return;
+    if (!user || user.isGuest || user.isAnonymous) return;
+
+    const completionKey = `${seoContext.contextId}:${user.id || 'authenticated'}`;
+    if (seoChatCompletionTrackedRef.current === completionKey) return;
+
+    seoChatCompletionTrackedRef.current = completionKey;
+    track('seo_chat_entry_completed', {
+      room_id: roomId,
+      completion_type: 'authenticated_user',
+      seo_context_id: seoContext.contextId,
+      seo_from_path: seoContext.fromPath,
+      seo_country_path: seoContext.countryPath,
+      seo_entry_method: seoContext.entryMethod,
+      seo_landing_variant: seoContext.landingVariant,
+    }, { user }).catch(() => {});
+    clearSeoFunnelContext();
+  }, [roomId, user]);
+
   // 📊 Señales de comportamiento para vertical hetero: tiempo en chat, mensajes y retorno
   useEffect(() => {
     if (roomId !== 'hetero-general') return undefined;
@@ -5535,7 +5589,7 @@ const ChatPage = () => {
 
     // 🔒 Si ya exigimos nickname (después del primer mensaje rápido), bloquear cualquier envío
     if (needsNickname && !(allowGuestAutoStart && isQuickStarter)) {
-      setShowNicknameModal(true);
+      openNicknameModal('message_gate');
       toast({
         title: 'Elige tu nickname',
         description: 'Para seguir chateando, primero ingresa tu nickname.',
@@ -6166,6 +6220,23 @@ const ChatPage = () => {
       .catch((error) => {
         console.error('❌ Error enviando mensaje:', error);
 
+        if (error?.code === 'guest-auth-required') {
+          openNicknameModal('message_gate');
+          toast({
+            title: 'Elige tu nickname',
+            description: 'Necesitamos crear tu sesión de invitado para enviar el mensaje.',
+            duration: 4000,
+            variant: 'default',
+          });
+        } else if ((error?.code || '').startsWith('rate-limit')) {
+          toast({
+            title: 'Vas muy rápido',
+            description: error?.message || `Espera ${error?.retryAfterSeconds || 1}s antes de volver a escribir.`,
+            duration: 3500,
+            variant: 'default',
+          });
+        }
+
         // 🔍 TRACE: Escritura en Firebase falló
         traceEvent(TRACE_EVENTS.FIREBASE_WRITE_FAIL, {
           traceId: clientId,
@@ -6255,6 +6326,15 @@ const ChatPage = () => {
           ? { ...msg, status: 'error', _error: error }
           : msg
       ));
+
+      if ((error?.code || '').startsWith('rate-limit')) {
+        toast({
+          title: 'Vas muy rápido',
+          description: error?.message || `Espera ${error?.retryAfterSeconds || 1}s antes de volver a escribir.`,
+          duration: 3500,
+          variant: 'default',
+        });
+      }
     }
   };
 
@@ -6391,7 +6471,7 @@ const ChatPage = () => {
     if (!auth.currentUser || !user?.id) {
       setPendingPrivateTarget(targetUser || null);
       setPendingPrivateOptions(options || null);
-      setShowNicknameModal(true);
+      openNicknameModal('private_chat_request');
       return { ok: false, reason: 'guest_setup_required' };
     }
 
@@ -6476,6 +6556,7 @@ const ChatPage = () => {
     bumpPrivateSuggestionScore,
     currentRoom,
     discardPrivateChat,
+    openNicknameModal,
     openPrivateChatWindow,
     user,
   ]);
@@ -7352,7 +7433,7 @@ const ChatPage = () => {
           roomUsers={roomUsers}
           fallbackUsers={recentPresenceFallbackUsers}
           onUserClick={(targetUser) => setUserActionsTarget(targetUser)}
-          onRequestNickname={() => setShowNicknameModal(true)}
+          onRequestNickname={() => openNicknameModal('chat_sidebar')}
         />
 
         {/* ✅ FIX: Contenedor del chat - Asegurar que esté visible en móvil cuando sidebar está cerrado */}
@@ -7609,7 +7690,7 @@ const ChatPage = () => {
                 roomId={currentRoom || roomId}
                 roomUsers={roomUsers}
                 user={user}
-                onRequestNickname={() => setShowNicknameModal(true)}
+                onRequestNickname={() => openNicknameModal('quick_intent_panel')}
                 onStartConversation={handleStartAvailableConversation}
               />
             )}
@@ -7693,7 +7774,7 @@ const ChatPage = () => {
             roomId={roomId}
             replyTo={replyTo}
             onCancelReply={handleCancelReply}
-            onRequestNickname={() => setShowNicknameModal(true)}
+            onRequestNickname={() => openNicknameModal('chat_input')}
             isGuest={!user || needsNickname}
             showOnboardingHints={!needsNickname && !isHeteroRoom}
             isHeteroContext={isHeteroRoom}
@@ -7711,7 +7792,7 @@ const ChatPage = () => {
           unreadPrivateMessages={unreadPrivateMessages}
           onUserClick={(targetUser) => setUserActionsTarget(targetUser)}
           onStartConversation={handleStartAvailableConversation}
-          onRequestNickname={() => setShowNicknameModal(true)}
+          onRequestNickname={() => openNicknameModal('online_users_column')}
           hideRoleBadges={isHeteroRoom}
           contextualOpportunities={!isHeteroRoom ? contextualOpportunityItems : []}
           contextualTitle={contextualSuggestionMeta.title}
@@ -7757,7 +7838,7 @@ const ChatPage = () => {
               if (feature === 'chat privado' && !user?.id) {
                 setPendingPrivateTarget(targetUserForPrivate || userActionsTarget || null);
                 setPendingPrivateOptions(null);
-                setShowNicknameModal(true);
+                openNicknameModal('private_chat_request');
                 return;
               }
               setRegistrationModalFeature(feature);
@@ -8029,11 +8110,11 @@ const ChatPage = () => {
       {/* ✅ Modal de nickname para invitados: aparece SOLO al intentar escribir */}
       <GuestUsernameModal
         open={showNicknameModal}
-        onClose={() => setShowNicknameModal(false)}
+        onClose={closeNicknameModal}
         chatRoomId={currentRoom || roomId || 'principal'}
-        openSource="user"
+        openSource={nicknameModalSource}
         onGuestReady={() => {
-          setShowNicknameModal(false);
+          closeNicknameModal();
           setNeedsNickname(false);
         }}
       />

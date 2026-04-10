@@ -33,6 +33,7 @@ import {
   subscribeToPrivateChatTyping,
   updatePrivateChatTypingStatus,
 } from '@/services/socialService';
+import { getPrivateChatSharedContacts } from '@/services/secureUserDataService';
 import { notificationSounds } from '@/services/notificationSounds';
 import { savePendingPrivateChatRestore } from '@/utils/privateChatRestore';
 
@@ -149,6 +150,32 @@ const TypingDots = () => (
     <span className="h-2 w-2 animate-bounce rounded-full bg-zinc-400" />
   </div>
 );
+
+const focusInputSafely = (inputElement) => {
+  if (!inputElement) return;
+
+  const applyFocus = () => {
+    try {
+      inputElement.focus({ preventScroll: true });
+    } catch {
+      inputElement.focus();
+    }
+
+    try {
+      const value = typeof inputElement.value === 'string' ? inputElement.value : '';
+      inputElement.setSelectionRange?.(value.length, value.length);
+    } catch {
+      // noop
+    }
+  };
+
+  if (typeof window !== 'undefined' && typeof window.requestAnimationFrame === 'function') {
+    window.requestAnimationFrame(applyFocus);
+    return;
+  }
+
+  applyFocus();
+};
 
 export default function PrivateChatWindowV2({
   user,
@@ -671,20 +698,8 @@ export default function PrivateChatWindowV2({
       }
 
       try {
-        const entries = await Promise.all(
-          missingOwnerIds.map(async (ownerId) => {
-            const userSnap = await getDoc(doc(db, 'users', ownerId));
-            const userData = userSnap.data() || {};
-            return [
-              ownerId,
-              {
-                userId: ownerId,
-                username: userData?.username || 'Usuario',
-                phone: typeof userData?.phone === 'string' ? userData.phone.trim() : '',
-              },
-            ];
-          })
-        );
+        const contacts = await getPrivateChatSharedContacts(chatId, missingOwnerIds);
+        const entries = Object.entries(contacts || {});
 
         if (!cancelled) {
           setSharedContacts((previousContacts) => ({
@@ -705,7 +720,7 @@ export default function PrivateChatWindowV2({
     return () => {
       cancelled = true;
     };
-  }, [visibleSharedContactOwnerIds]);
+  }, [chatId, visibleSharedContactOwnerIds]);
 
   useEffect(() => {
     if (!partner?.id && !partner?.userId) return undefined;
@@ -765,12 +780,16 @@ export default function PrivateChatWindowV2({
 
   useEffect(() => {
     if (isPrependingHistoryRef.current) return;
-    bottomRef.current?.scrollIntoView({ behavior: 'smooth', block: 'end' });
-  }, [messages, isPartnerTyping, showEmojiPicker]);
+    const shouldUseInstantScroll = isMobile && document.activeElement === inputRef.current;
+    bottomRef.current?.scrollIntoView({
+      behavior: shouldUseInstantScroll ? 'auto' : 'smooth',
+      block: 'end',
+    });
+  }, [isMobile, messages, isPartnerTyping, showEmojiPicker]);
 
   useEffect(() => {
     if (!autoFocus) return undefined;
-    const timer = setTimeout(() => inputRef.current?.focus(), 80);
+    const timer = setTimeout(() => focusInputSafely(inputRef.current), 80);
     return () => clearTimeout(timer);
   }, [autoFocus, chatId]);
 
@@ -1152,6 +1171,7 @@ export default function PrivateChatWindowV2({
     event.preventDefault();
     const contentToSend = newMessage.trim();
     if (!contentToSend || !chatId || !user?.id) return;
+    const shouldPreserveFocus = isMobile && document.activeElement === inputRef.current;
     if (isPending || String(user.id).startsWith('temp_')) {
       toast({
         title: 'Preparando chat privado',
@@ -1196,6 +1216,9 @@ export default function PrivateChatWindowV2({
     setShowEmojiPicker(false);
     setReplyTo(null);
     setOptimisticMessages((prev) => [...prev, optimisticMessage]);
+    if (shouldPreserveFocus) {
+      focusInputSafely(inputRef.current);
+    }
 
     try {
       await sendRichPrivateChatMessage(chatId, {
@@ -1217,11 +1240,16 @@ export default function PrivateChatWindowV2({
       updatePrivateChatTypingStatus(chatId, user.id, false, user.username).catch(() => {});
       notificationSounds.playMessageSentSound();
       await registerGuestPrivateMessage();
-      inputRef.current?.focus();
+      if (shouldPreserveFocus) {
+        focusInputSafely(inputRef.current);
+      }
     } catch (error) {
       setOptimisticMessages((prev) => prev.filter((message) => message.clientId !== clientId));
       setNewMessage(contentToSend);
       setReplyTo(replyToSend);
+      if (shouldPreserveFocus) {
+        focusInputSafely(inputRef.current);
+      }
       console.error('[PRIVATE_CHAT_V2] Error sending private message:', error);
       console.info('[PRIVATE_CHAT_DEBUG] Ejecuta window.printPrivateChatDebug?.() o inspecciona window.__lastPrivateChatDebug');
       toast({
@@ -1241,7 +1269,7 @@ export default function PrivateChatWindowV2({
     if (!emoji) return;
     setNewMessage((prev) => prev + emoji);
     registerRecentEmoji(emoji);
-    inputRef.current?.focus({ preventScroll: true });
+    focusInputSafely(inputRef.current);
   };
 
   const compressImageForChat = async (file) => {
@@ -1293,7 +1321,7 @@ export default function PrivateChatWindowV2({
         : `private_msg_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
       const assetId = `${Date.now()}_${Math.random().toString(36).slice(2, 7)}`;
       const extension = getImageExtension(optimizedFile.type);
-      const mediaPath = `chat_media/private/${chatId}/${tempMessageId}/${assetId}.${extension}`;
+      const mediaPath = `chat_media/private/${user?.id || 'unknown'}/${chatId}/${tempMessageId}/${assetId}.${extension}`;
 
       const fileRef = storageRef(storage, mediaPath);
       await uploadBytes(fileRef, optimizedFile, {
@@ -1424,14 +1452,14 @@ export default function PrivateChatWindowV2({
     shouldRestoreScrollRef.current = true;
     onRestore?.(chatId);
     setTimeout(() => {
-      inputRef.current?.focus({ preventScroll: true });
+      focusInputSafely(inputRef.current);
     }, 60);
   };
 
   const triggerReply = (message) => {
     if (!message) return;
     setReplyTo(buildReplyPayload(message, primaryParticipant.username || 'Usuario'));
-    inputRef.current?.focus({ preventScroll: true });
+    focusInputSafely(inputRef.current);
   };
 
   const handleSwipeStart = (event, message) => {
@@ -2030,6 +2058,8 @@ export default function PrivateChatWindowV2({
             size="icon"
             className="h-11 w-11 shrink-0 rounded-full bg-emerald-500 text-zinc-950 hover:bg-emerald-400"
             disabled={!newMessage.trim()}
+            onMouseDown={(event) => event.preventDefault()}
+            onPointerDown={(event) => event.preventDefault()}
           >
             <Send className="h-5 w-5" />
           </Button>

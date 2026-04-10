@@ -824,7 +824,7 @@ const ChatInput = ({
         : `msg_${Date.now()}_${Math.random().toString(36).slice(2, 9)}`;
       const assetId = `${Date.now()}_${Math.random().toString(36).slice(2, 7)}`;
       const extension = getImageExtension(optimizedFile.type);
-      const mediaPath = `chat_media/${roomId || 'principal'}/${tempMessageId}/${assetId}.${extension}`;
+      const mediaPath = `chat_media/rooms/${user?.id || 'unknown'}/${roomId || 'principal'}/${tempMessageId}/${assetId}.${extension}`;
 
       const fileRef = storageRef(storage, mediaPath);
       await uploadBytes(fileRef, optimizedFile, {

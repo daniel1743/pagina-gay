@@ -15,6 +15,7 @@ import {
 import { db } from '@/config/firebase';
 
 const TOP_PARTICIPANTS_COLLECTION = 'featured_participants';
+const PUBLIC_USER_PROFILES_COLLECTION = 'public_user_profiles';
 const AUTO_TOP_LIMIT = 6;
 const FALLBACK_MESSAGES_LIMIT = 120;
 const ROOM_ACTIVE_THRESHOLD_MS = 2 * 60 * 1000;
@@ -388,53 +389,47 @@ const buildTopFromPublicMessagesSnapshot = (snapshot) => {
 };
 
 const buildFallbackFromUsers = async () => {
-  const usersRef = collection(db, 'users');
-  const usersQuery = query(usersRef, orderBy('messageCount', 'desc'), limit(30));
+  try {
+    const fallbackMessagesQuery = query(
+      collection(db, 'rooms', 'principal', 'messages'),
+      orderBy('timestamp', 'desc'),
+      limit(FALLBACK_MESSAGES_LIMIT)
+    );
+    const messagesSnapshot = await getDocs(fallbackMessagesQuery);
+    const rankingFromMessages = buildTopFromPublicMessagesSnapshot(messagesSnapshot);
+    if (rankingFromMessages.length > 0) {
+      return rankingFromMessages;
+    }
+  } catch (error) {
+    console.warn('[TOP_PARTICIPANTS] Fallback por mensajes no disponible:', error);
+  }
+
+  const usersRef = collection(db, PUBLIC_USER_PROFILES_COLLECTION);
+  const usersQuery = query(usersRef, orderBy('createdAtMs', 'desc'), limit(12));
   const snapshot = await getDocs(usersQuery);
 
-  const rows = [];
-  snapshot.forEach((docSnap) => {
+  const rows = snapshot.docs.map((docSnap, index) => {
     const data = docSnap.data() || {};
-    if (data.isGuest || data.isAnonymous || data.role === 'admin' || data.role === 'administrator') {
-      return;
-    }
-
-    const metrics = data.metrics || {};
-    const messagesCount = toNumber(data.messageCount ?? data.messagesCount ?? metrics.messageCount ?? metrics.messagesCount, 0);
-    const threadsCount = toNumber(data.threadCount ?? data.threadsCount ?? metrics.threadCount ?? metrics.threadsCount, 0);
-    const repliesCount = toNumber(data.replyCount ?? data.repliesCount ?? metrics.replyCount ?? metrics.repliesCount, 0);
-    const totalActiveTime = toNumber(
-      data.totalActiveTime ?? data.totalActiveTimeSeconds ?? metrics.totalActiveTime ?? metrics.totalActiveTimeSeconds,
-      0
-    );
-
-    const activityScore = Math.round(
-      messagesCount * 1 +
-      threadsCount * 3 +
-      repliesCount * 2 +
-      (totalActiveTime / 3600) * 0.5
-    );
-
-    rows.push({
+    return {
       id: docSnap.id,
       userId: docSnap.id,
       username: data.username || 'Usuario',
       avatar: data.avatar || '',
       isActive: true,
-      sortOrder: 9999,
+      sortOrder: 9999 + index,
       pinnedRank: null,
       blurEnabled: null,
-      messagesCount,
-      threadsCount,
-      repliesCount,
-      totalActiveTime: Math.floor(totalActiveTime / 60),
-      activityScore,
-      source: 'auto_fallback',
-      updatedAt: null,
-    });
+      messagesCount: 0,
+      threadsCount: 0,
+      repliesCount: 0,
+      totalActiveTime: 0,
+      activityScore: Math.max(1, 12 - index),
+      source: 'auto_fallback_public_profiles',
+      updatedAt: data.updatedAtMs || data.createdAtMs || null,
+    };
   });
 
-  return sortForDisplay(rows).slice(0, 8);
+  return sortForDisplay(rows).slice(0, AUTO_TOP_LIMIT);
 };
 
 export const subscribeTopParticipantsPublic = (onUpdate, onError) => {

@@ -36,20 +36,33 @@ service firebase.storage {
       allow delete: if request.auth != null && request.auth.uid == userId;
     }
 
-    // Media efímera del chat (imágenes y notas de voz)
-    // Ruta esperada: chat_media/{roomId}/{messageId}/{assetId}
-    match /chat_media/{roomId}/{messageId}/{assetPath=**} {
-      // El chat actual es público para lectura, mantenemos compatibilidad
+    // Media efímera del chat público
+    // Ruta esperada: chat_media/rooms/{ownerUid}/{roomId}/{messageId}/{assetId}
+    match /chat_media/rooms/{ownerUid}/{roomId}/{messageId}/{assetPath=**} {
       allow read: if true;
 
-      // Solo usuarios autenticados pueden subir imágenes comprimidas (no originales pesados)
+      // Solo el dueño autenticado puede escribir en su propia ruta.
       allow create, update: if request.auth != null
+        && request.auth.uid == ownerUid
         && request.resource != null
         && request.resource.size <= 140 * 1024
         && request.resource.contentType.matches('image/.*');
 
-      // Permitir borrar a usuarios autenticados; cleanup principal lo hace Cloud Functions (Admin SDK)
-      allow delete: if request.auth != null;
+      allow delete: if request.auth != null && request.auth.uid == ownerUid;
+    }
+
+    // Media efímera del chat privado
+    // Ruta esperada: chat_media/private/{ownerUid}/{chatId}/{messageId}/{assetId}
+    match /chat_media/private/{ownerUid}/{chatId}/{messageId}/{assetPath=**} {
+      allow read: if true;
+
+      allow create, update: if request.auth != null
+        && request.auth.uid == ownerUid
+        && request.resource != null
+        && request.resource.size <= 140 * 1024
+        && request.resource.contentType.matches('image/.*');
+
+      allow delete: if request.auth != null && request.auth.uid == ownerUid;
     }
     
     // ⚠️ NOTA: Si tienes reglas existentes, NO incluyas esta regla por defecto

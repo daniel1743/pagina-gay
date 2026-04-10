@@ -147,6 +147,7 @@ const OpinFeedPage = () => {
   const [posts, setPosts] = useState([]);
   const [loading, setLoading] = useState(true);
   const [canCreate, setCanCreate] = useState(false);
+  const [createBlockMessage, setCreateBlockMessage] = useState('');
   const [selectedPost, setSelectedPost] = useState(null);
   const [showCommentsModal, setShowCommentsModal] = useState(false);
   const [commentsDraft, setCommentsDraft] = useState('');
@@ -445,11 +446,7 @@ const OpinFeedPage = () => {
 
     try {
       const ownPostsData = await getMyOpinPosts(8);
-      const activeIntentData = ownPostsData.find((post) => (
-        post.isStable !== true
-        && post.isActive !== false
-        && isOpenOpinIntentStatus(post.status)
-      )) || null;
+      const activeIntentData = await getMyActiveOpinIntent();
       setMyPosts(ownPostsData);
       setMyActiveIntent(activeIntentData);
     } catch (error) {
@@ -462,10 +459,12 @@ const OpinFeedPage = () => {
   const checkCanCreate = useCallback(async () => {
     if (!user || user.isAnonymous) {
       setCanCreate(false);
+      setCreateBlockMessage('');
       return;
     }
     const result = await canCreatePost();
     setCanCreate(result.canCreate);
+    setCreateBlockMessage(result.canCreate ? '' : (result.message || 'Ahora mismo no puedes abrir otra intención.'));
   }, [user]);
 
   const refreshOpinState = useCallback(async ({ reason = 'manual', force = false } = {}) => {
@@ -632,7 +631,7 @@ const OpinFeedPage = () => {
       return;
     }
     if (!canCreate) {
-      toast({ description: 'Ya tienes una intención activa o debes esperar para abrir otra.' });
+      toast({ description: createBlockMessage || 'Ya tienes una intención activa o debes esperar para abrir otra.' });
       return;
     }
     navigate('/opin/new');

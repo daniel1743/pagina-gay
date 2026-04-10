@@ -3,6 +3,9 @@ import { db } from '@/config/firebase';
 import { resolveProfileRole } from '@/config/profileRoles';
 import { normalizeComuna } from '@/config/comunas';
 
+const PUBLIC_USER_PROFILES_COLLECTION = 'public_user_profiles';
+const getPublicUserProfileRef = (userId) => doc(db, PUBLIC_USER_PROFILES_COLLECTION, userId);
+
 /**
  * ✅ NUEVO: Verifica si un username ya existe (case-insensitive)
  * @param {string} username - Username a verificar
@@ -16,7 +19,7 @@ export const checkUsernameAvailability = async (username, excludeUserId = null) 
     }
 
     const usernameLower = username.trim().toLowerCase();
-    const usersRef = collection(db, 'users');
+    const usersRef = collection(db, PUBLIC_USER_PROFILES_COLLECTION);
     
     // Buscar todos los usuarios (Firestore no tiene búsqueda case-insensitive nativa)
     // Para mejor rendimiento, buscaremos por rango y luego filtraremos
@@ -313,6 +316,55 @@ export const getUserById = async (userId) => {
   }
 };
 
+const mapPublicProfileSnapshot = (docSnap) => {
+  if (!docSnap?.exists?.()) {
+    return null;
+  }
+
+  const data = docSnap.data() || {};
+  return {
+    id: docSnap.id,
+    userId: docSnap.id,
+    ...data,
+  };
+};
+
+export const getPublicProfileById = async (userId) => {
+  try {
+    if (!userId) return null;
+    const profileSnap = await getDoc(getPublicUserProfileRef(userId));
+    return mapPublicProfileSnapshot(profileSnap);
+  } catch (error) {
+    console.error('Error getting public profile by ID:', error);
+    return null;
+  }
+};
+
+export const getPublicProfilesByIds = async (userIds = []) => {
+  try {
+    const normalizedIds = [...new Set(
+      (Array.isArray(userIds) ? userIds : [])
+        .map((value) => String(value || '').trim())
+        .filter(Boolean)
+    )];
+
+    if (normalizedIds.length === 0) {
+      return [];
+    }
+
+    const snapshots = await Promise.all(
+      normalizedIds.map((userId) => getDoc(getPublicUserProfileRef(userId)))
+    );
+
+    return snapshots
+      .map(mapPublicProfileSnapshot)
+      .filter(Boolean);
+  } catch (error) {
+    console.error('Error getting public profiles by IDs:', error);
+    return [];
+  }
+};
+
 /**
  * Campos públicos del perfil que otros usuarios pueden ver
  * (foto, nombre, rol, intereses, descripción, estado)
@@ -333,25 +385,13 @@ export const getPublicProfile = async (userId) => {
   try {
     if (!userId) return null;
 
-    const fullProfile = await getUserById(userId);
-    if (!fullProfile) return null;
+    const publicProfile = await getPublicProfileById(userId);
+    if (!publicProfile) return null;
 
     // Si el usuario ocultó su perfil, no mostrarlo
-    if (fullProfile.profileVisible === false) {
+    if (publicProfile.profileVisible === false) {
       return null;
     }
-
-    // Extraer solo campos públicos (evitar exponer email, etc.)
-    const publicProfile = {};
-    for (const key of PUBLIC_PROFILE_FIELDS) {
-      if (fullProfile[key] !== undefined) {
-        publicProfile[key] = fullProfile[key];
-      }
-    }
-    // Asegurar que id y username existan
-    publicProfile.id = fullProfile.id;
-    publicProfile.userId = fullProfile.id; // alias para compatibilidad
-    publicProfile.username = fullProfile.username || 'Usuario';
 
     return publicProfile;
   } catch (error) {
@@ -386,21 +426,6 @@ const pickTarjetaPublicFields = (tarjeta = {}) => ({
   estaOnline: Boolean(tarjeta?.estaOnline),
   ultimaConexionMs: toMillisSafe(tarjeta?.ultimaConexion),
 });
-
-const mapFavoritePreview = (docSnap) => {
-  if (!docSnap?.exists?.()) return null;
-  const data = docSnap.data() || {};
-  return {
-    id: docSnap.id,
-    userId: docSnap.id,
-    username: data?.username || 'Usuario',
-    avatar: data?.avatar || '',
-    isPremium: Boolean(data?.isPremium || data?.isProUser),
-    verified: Boolean(data?.verified),
-    isOnline: Boolean(data?.estaOnline),
-    role: data?.profileRole || data?.role || null,
-  };
-};
 
 const fetchRecentOpinPosts = async (userId, maxItems = 6) => {
   const postsRef = collection(db, 'opin_posts');
@@ -437,25 +462,12 @@ export const getPublicProfileExtended = async (userId) => {
     const baseProfile = await getPublicProfile(userId);
     if (!baseProfile) return null;
 
-    const [fullUserDoc, tarjetaDoc, recentOpinRaw] = await Promise.all([
-      getDoc(doc(db, 'users', userId)),
+    const [tarjetaDoc, recentOpinRaw] = await Promise.all([
       getDoc(doc(db, 'tarjetas', userId)),
       fetchRecentOpinPosts(userId, 6),
     ]);
 
-    const fullUserData = fullUserDoc.exists() ? fullUserDoc.data() : {};
     const tarjetaData = tarjetaDoc.exists() ? tarjetaDoc.data() : {};
-
-    const favoriteIds = Array.isArray(fullUserData?.favorites)
-      ? fullUserData.favorites.filter((id) => typeof id === 'string' && id.trim()).slice(0, 8)
-      : [];
-
-    const favoriteDocs = favoriteIds.length > 0
-      ? await Promise.all(favoriteIds.map((favId) => getDoc(doc(db, 'users', favId))))
-      : [];
-    const favoritesPreview = favoriteDocs
-      .map(mapFavoritePreview)
-      .filter(Boolean);
 
     const recentOpinPosts = recentOpinRaw.map((post) => ({
       id: post.id,
@@ -477,12 +489,12 @@ export const getPublicProfileExtended = async (userId) => {
 
     return {
       ...baseProfile,
-      createdAtMs: toMillisSafe(fullUserData?.createdAt),
-      friendsPreview: favoritesPreview,
+      createdAtMs: baseProfile?.createdAtMs || null,
+      friendsPreview: [],
       stats: {
-        favoritesCount: Array.isArray(fullUserData?.favorites) ? fullUserData.favorites.length : favoritesPreview.length,
+        favoritesCount: Number(baseProfile?.favoritesCount || 0),
         interestsCount: Array.isArray(baseProfile?.interests) ? baseProfile.interests.length : 0,
-        profileViews: Number(fullUserData?.profileViews || 0),
+        profileViews: Number(baseProfile?.profileViews || 0),
         opinPostsCount: opinStats.posts,
         opinLikes: opinStats.likes,
         opinComments: opinStats.comments,

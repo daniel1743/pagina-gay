@@ -12,6 +12,7 @@
 import { db } from '@/config/firebase';
 import { track } from '@/services/eventTrackingService';
 import { isBlockedBetween } from '@/services/blockService';
+import { dispatchUserNotification } from '@/services/userNotificationDispatchService';
 import {
   doc,
   setDoc,
@@ -719,14 +720,8 @@ export async function darLike(tarjetaId, miUserId, miUsername, miAvatar = '') {
 
     // 4b. Crear notificacion para push (alimenta Cloud Function)
     try {
-      const notifRef = collection(db, 'users', tarjetaId, 'notifications');
-      await addDoc(notifRef, {
-        type: 'tarjeta_like',
-        fromUserId: miUserId,
-        fromUsername: miUsername,
-        message: `${miUsername} le dio like a tu tarjeta`,
-        read: false,
-        createdAt: serverTimestamp(),
+      await dispatchUserNotification('tarjeta_like', {
+        toUserId: tarjetaId,
       });
     } catch (notifError) {
       console.error('[TARJETA] Error creando notificacion de like:', notifError);

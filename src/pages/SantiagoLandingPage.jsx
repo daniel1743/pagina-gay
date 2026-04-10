@@ -112,7 +112,7 @@ const SantiagoLandingPage = () => {
 
           {/* Subtitle */}
           <p className="text-lg sm:text-xl md:text-2xl text-muted-foreground mb-8 max-w-3xl mx-auto">
-            Habla con gente de Providencia, Las Condes, Ñuñoa, Bellavista y toda la RM desde una entrada local pensada para Santiago.
+            Habla con gente de Providencia, Las Condes, Ñuñoa, Bellavista y toda la RM desde una entrada local pensada para llevarte al chat principal de Chile con contexto local.
           </p>
 
           {/* Trust Badges */}
@@ -140,7 +140,7 @@ const SantiagoLandingPage = () => {
                   className="magenta-gradient text-white font-extrabold text-xl sm:text-2xl px-10 sm:px-16 py-7 sm:py-8 rounded-2xl shadow-2xl hover:shadow-[#E4007C]/60 w-full sm:w-auto"
                 >
                   <Sparkles className="w-7 h-7 mr-3" />
-                  Entrar al chat de Santiago
+                  Entrar al chat principal
                 </Button>
             </motion.div>
 
@@ -159,7 +159,7 @@ const SantiagoLandingPage = () => {
 
           {/* Micro CTA copy */}
           <p className="text-sm text-muted-foreground mt-4">
-            Entrada local, conversación en vivo y acceso rápido desde tu navegador.
+            Entrada local de apoyo para Santiago, conectada al chat principal de Chile.
           </p>
         </motion.div>
 
@@ -1276,7 +1276,7 @@ const SantiagoLandingPage = () => {
               ¿Listo para Conocer Gays de Santiago?
             </h2>
             <p className="text-lg text-muted-foreground mb-8 max-w-2xl mx-auto">
-              Únete a la comunidad gay más activa de la capital. Conversación real, eventos, amistad. Todo gratis.
+              Úsala como entrada local hacia el chat principal de Chile. Conversación real, contexto santiaguino y acceso rápido.
             </p>
             <motion.div
               whileHover={{ scale: 1.05 }}
@@ -1288,12 +1288,12 @@ const SantiagoLandingPage = () => {
                 className="bg-gradient-to-r from-blue-600 to-cyan-600 hover:from-blue-500 hover:to-cyan-500 text-white font-bold text-xl sm:text-2xl px-12 sm:px-20 py-6 sm:py-8 rounded-2xl shadow-2xl"
               >
                 <MapPin className="w-7 h-7 mr-3" />
-                Entrar al Chat Ahora
+                Entrar al chat principal
                 <ArrowRight className="w-7 h-7 ml-3" />
               </Button>
             </motion.div>
             <p className="text-sm text-muted-foreground mt-6">
-              🏙️ +80 usuarios activos de Santiago • 🔒 100% anónimo • ⚡ Sin registro
+              🏙️ Entrada local para Santiago • 🔒 100% anónimo • ⚡ Acceso rápido
             </p>
           </div>
         </motion.section>

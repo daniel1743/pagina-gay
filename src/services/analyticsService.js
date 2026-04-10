@@ -36,6 +36,15 @@ const STORED_ANALYTICS_EVENT_TYPES = new Set([
   'onboarding_dismissed',
   'onboarding_first_message_sent',
   'onboarding_time_to_first_message',
+  'baul_view',
+  'opin_feed_view',
+  'opin_view',
+  'opin_like',
+  'opin_comment',
+  'opin_reaction',
+  'opin_status_updated',
+  'opin_follow_toggle',
+  'match_private_chat_started',
 ]);
 
 const isIgnorableFirestoreInternalError = (error) => {

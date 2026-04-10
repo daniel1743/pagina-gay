@@ -56,6 +56,7 @@ const PremiumLandingHero = ({
   showAutoRedirect = false,
   autoRedirectText = 'Abriendo el chat...',
   brandLabel = 'CHACTIVO',
+  secondaryLinks = [],
 }) => {
   const [mounted, setMounted] = useState(false);
   const featureCards = useMemo(() => buildFeatureCards(supportingPoints), [supportingPoints]);
@@ -181,6 +182,20 @@ const PremiumLandingHero = ({
             <Users size={15} className="text-indigo-300" />
             <span>{livePillLabel}</span>
           </div>
+
+          {secondaryLinks.length > 0 && (
+            <div className="mt-6 flex flex-wrap items-center justify-center gap-3">
+              {secondaryLinks.map((link) => (
+                <a
+                  key={`${link.href}-${link.label}`}
+                  href={link.href}
+                  className="rounded-full border border-white/10 bg-white/[0.03] px-4 py-2 text-sm font-medium text-white/72 transition-all duration-300 hover:border-fuchsia-500/30 hover:bg-fuchsia-500/10 hover:text-white"
+                >
+                  {link.label}
+                </a>
+              ))}
+            </div>
+          )}
 
           {showAutoRedirect && (
             <p className="mt-4 text-sm text-white/45">{autoRedirectText}</p>

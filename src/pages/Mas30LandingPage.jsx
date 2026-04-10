@@ -100,7 +100,7 @@ const Mas30LandingPage = () => {
 
           {/* Subtitle */}
           <p className="text-lg sm:text-xl md:text-2xl text-muted-foreground mb-8 max-w-3xl mx-auto">
-            Conversaciones maduras, sin drama. Conecta con gays de tu edad que buscan amistad, conversación real y relaciones significativas.
+            Conversaciones maduras, sin drama. Conecta con gays de tu edad desde una entrada enfocada en +30 que te lleva al chat principal de Chile.
           </p>
 
           {/* Trust Badges */}
@@ -128,7 +128,7 @@ const Mas30LandingPage = () => {
                 className="magenta-gradient text-white font-extrabold text-xl sm:text-2xl px-12 sm:px-16 py-7 sm:py-8 rounded-2xl shadow-2xl hover:shadow-[#E4007C]/50 hover:scale-105 transition-all w-full sm:w-auto"
               >
                 <Zap className="w-7 h-7 mr-2" />
-                Chatear Ahora - ¡Es Gratis!
+                Entrar al chat principal
               </Button>
             </motion.div>
 
@@ -147,7 +147,7 @@ const Mas30LandingPage = () => {
 
           {/* Micro CTA copy */}
           <p className="text-sm text-muted-foreground mt-4">
-            ⚡ Sin registro: Chatea gratis 1 mes • 💎 Con registro: Chats privados, likes y más
+            Entrada enfocada en conversación madura, conectada al chat principal de Chile.
           </p>
         </motion.div>
 
@@ -1010,7 +1010,7 @@ const Mas30LandingPage = () => {
               ¿Listo para Conversaciones de Verdad?
             </h2>
             <p className="text-lg text-muted-foreground mb-8 max-w-2xl mx-auto">
-              Únete a la sala +30 más activa de Chile. Conversación madura, sin drama, 100% gratis.
+              Usa esta entrada temática para llegar al chat principal con una promesa más madura y una expectativa más clara.
             </p>
             <motion.div
               whileHover={{ scale: 1.05 }}
@@ -1022,12 +1022,12 @@ const Mas30LandingPage = () => {
                 className="bg-gradient-to-r from-amber-600 to-orange-600 hover:from-amber-500 hover:to-orange-500 text-white font-bold text-xl sm:text-2xl px-12 sm:px-20 py-6 sm:py-8 rounded-2xl shadow-2xl"
               >
                 <Users className="w-7 h-7 mr-3" />
-                Entrar a la Sala Ahora
+                Entrar al chat principal
                 <ArrowRight className="w-7 h-7 ml-3" />
               </Button>
             </motion.div>
             <p className="text-sm text-muted-foreground mt-6">
-              💪 Comunidad +30 activa • 🔒 100% anónimo • ⚡ Sin registro
+              💪 Entrada temática +30 • 🔒 100% anónimo • ⚡ Acceso rápido
             </p>
           </div>
         </motion.section>

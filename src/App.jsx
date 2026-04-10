@@ -32,7 +32,11 @@ import SEOLanding, {
   SEOLandingMexico,
   SEOLandingEspana,
   SEOLandingBrasil,
-  SEOLandingSantiagoCentro
+  SEOLandingSantiagoCentro,
+  SEOLandingCDMX,
+  SEOLandingBuenosAires,
+  SEOLandingMadrid,
+  SEOLandingSaoPaulo
 } from '@/components/seo/SEOLanding';
 import NoindexRouteNotice from '@/components/seo/NoindexRouteNotice';
 
@@ -368,19 +372,25 @@ function AppRoutes() {
         {/* 🌍 RUTAS REGIONALES: SEO Landing específica → chat regional */}
         <Route path="/argentina" element={<SEOLandingArgentina />} />
         <Route path="/ar" element={<SEOLandingArgentina />} />
-        <Route path="/modal-arg" element={<SEOLandingArgentina />} />
+        <Route path="/modal-arg" element={<Navigate to="/ar" replace />} />
+        <Route path="/modal-arg/" element={<Navigate to="/ar" replace />} />
 
         <Route path="/brasil" element={<SEOLandingBrasil />} />
         <Route path="/br" element={<SEOLandingBrasil />} />
-        <Route path="/modal-br" element={<SEOLandingBrasil />} />
+        <Route path="/modal-br" element={<Navigate to="/br" replace />} />
+        <Route path="/modal-br/" element={<Navigate to="/br" replace />} />
 
         <Route path="/mexico" element={<SEOLandingMexico />} />
         <Route path="/mx" element={<SEOLandingMexico />} />
-        <Route path="/modal-mx" element={<SEOLandingMexico />} />
+        <Route path="/mx/cdmx" element={<SEOLandingCDMX />} />
+        <Route path="/modal-mx" element={<Navigate to="/mx" replace />} />
+        <Route path="/modal-mx/" element={<Navigate to="/mx" replace />} />
 
         <Route path="/españa" element={<SEOLandingEspana />} />
         <Route path="/es" element={<SEOLandingEspana />} />
-        <Route path="/modal-es" element={<SEOLandingEspana />} />
+        <Route path="/es/madrid" element={<SEOLandingMadrid />} />
+        <Route path="/modal-es" element={<Navigate to="/es" replace />} />
+        <Route path="/modal-es/" element={<Navigate to="/es" replace />} />
         <Route path="/es-test" element={<SEOLandingEspana />} />
 
         {/* Trailing slashes - redirigen a la landing correspondiente */}
@@ -388,10 +398,20 @@ function AppRoutes() {
         <Route path="/mx/" element={<SEOLandingMexico />} />
         <Route path="/ar/" element={<SEOLandingArgentina />} />
         <Route path="/br/" element={<SEOLandingBrasil />} />
+        <Route path="/mx/cdmx/" element={<SEOLandingCDMX />} />
+        <Route path="/ar/buenos-aires" element={<SEOLandingBuenosAires />} />
+        <Route path="/ar/buenos-aires/" element={<SEOLandingBuenosAires />} />
+        <Route path="/es/madrid/" element={<SEOLandingMadrid />} />
+        <Route path="/br/sao-paulo" element={<SEOLandingSaoPaulo />} />
+        <Route path="/br/sao-paulo/" element={<SEOLandingSaoPaulo />} />
         <Route path="/argentina/" element={<SEOLandingArgentina />} />
         <Route path="/brasil/" element={<SEOLandingBrasil />} />
         <Route path="/mexico/" element={<SEOLandingMexico />} />
         <Route path="/españa/" element={<SEOLandingEspana />} />
+        <Route path="/argentina/buenos-aires" element={<SEOLandingBuenosAires />} />
+        <Route path="/argentina/buenos-aires/" element={<SEOLandingBuenosAires />} />
+        <Route path="/brasil/sao-paulo" element={<SEOLandingSaoPaulo />} />
+        <Route path="/brasil/sao-paulo/" element={<SEOLandingSaoPaulo />} />
         
         {/* ✅ ARQUITECTURA: Home solo para usuarios logueados */}
         <Route path="/home" element={<HomeRoute><MainLayout><LobbyPage /></MainLayout></HomeRoute>} />

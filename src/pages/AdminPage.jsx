@@ -32,6 +32,7 @@ import TrafficSourcesChart from '@/components/admin/TrafficSourcesChart';
 import ModerationAlerts from '@/components/admin/ModerationAlerts';
 import MessageGenerator from '@/components/admin/MessageGenerator';
 import ConversionFunnelPanel from '@/components/admin/ConversionFunnelPanel';
+import AdminFeaturePulsePanel from '@/components/admin/AdminFeaturePulsePanel';
 import { 
   subscribeToTickets, 
   updateTicketStatus 
@@ -85,6 +86,7 @@ import BotControlPanel from '@/components/admin/BotControlPanel';
 import AdminFeaturedAdsPanel from '@/components/admin/AdminFeaturedAdsPanel';
 import AdminTopParticipantsPanel from '@/components/admin/AdminTopParticipantsPanel';
 import AdminSeededChatPanel from '@/components/admin/AdminSeededChatPanel';
+import AdminRoomHistoryPanel from '@/components/admin/AdminRoomHistoryPanel';
 
 const AdminPage = () => {
   const navigate = useNavigate();
@@ -976,6 +978,7 @@ const AdminPage = () => {
             <TabsTrigger value="opin-replies">Responder OPINs</TabsTrigger>
             <TabsTrigger value="notifications">Notificaciones</TabsTrigger>
             <TabsTrigger value="analytics">Analytics</TabsTrigger>
+            <TabsTrigger value="historial-sala">Historial Sala</TabsTrigger>
             <TabsTrigger value="moderation">Moderación</TabsTrigger>
             <TabsTrigger value="generator">Generador</TabsTrigger>
             <TabsTrigger value="eventos">Eventos</TabsTrigger>
@@ -2882,6 +2885,7 @@ const AdminPage = () => {
             </div>
 
             <ConversionFunnelPanel funnelMetrics={funnelMetrics} />
+            <AdminFeaturePulsePanel />
 
             {/* KPIs Calculados */}
             <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
@@ -3053,6 +3057,10 @@ const AdminPage = () => {
                 <p className="text-muted-foreground text-center py-8">No hay datos históricos disponibles aún</p>
               )}
             </motion.div>
+          </TabsContent>
+
+          <TabsContent value="historial-sala" className="space-y-6">
+            <AdminRoomHistoryPanel />
           </TabsContent>
 
           {/* Moderación Tab */}

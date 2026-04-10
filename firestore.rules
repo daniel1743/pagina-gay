@@ -162,28 +162,6 @@ service cloud.firestore {
              data.timestamp is timestamp;
     }
 
-    // ✅ NUEVO: Validación para usuarios NO autenticados (estrategia de captación)
-    // Permitir chat en sala principal SIN autenticación para reducir fricción
-    function isValidUnauthenticatedMessage() {
-      let data = request.resource.data;
-      return !isAuthenticated() &&
-             'userId' in data &&
-             data.userId is string &&
-             data.userId.matches('unauthenticated_.*') &&  // Solo IDs temporales
-             'username' in data &&
-             data.username is string &&
-             data.username.size() >= 3 &&
-             data.username.size() <= 30 &&
-             'content' in data &&
-             data.content is string &&
-             data.content.size() > 0 &&
-             data.content.size() <= 1000 &&  // Mismo límite que usuarios autenticados
-             'type' in data &&
-             data.type == 'text' &&  // Solo texto (no imágenes ni voz)
-             !data.content.matches('.*(https?://|www\\.).*') &&  // NO links externos
-             hasNoProhibitedWordsPublic(data.content.lower());
-    }
-
     // ✅ SISTEMA DE IA: permite mensajes AI con control del usuario autenticado
     // ✅ ACTUALIZADO: También permite mensajes sembrados (seed_user_*)
     function isValidBotMessage() {
@@ -250,12 +228,26 @@ service cloud.firestore {
     }
 
     // ===========================
+    // PERFIL PUBLICO ESPEJO
+    // ===========================
+
+    match /public_user_profiles/{userId} {
+      allow read: if true;
+      allow write: if false;
+    }
+
+    match /discoverable_user_locations/{userId} {
+      allow read: if isAuthenticated();
+      allow write: if false;
+    }
+
+    // ===========================
     // REGLAS DE USUARIOS
     // ===========================
 
     match /users/{userId} {
-      // ✅ SUPER ADMIN puede leer cualquier usuario, otros solo si están autenticados
-      allow read: if isSuperAdmin() || isAuthenticated();
+      // S1: lectura privada solo para dueño y staff interno.
+      allow read: if isOwner(userId) || isAdminOrSupport() || isSuperAdmin();
 
       allow create: if isOwner(userId) &&
                       request.resource.data.username is string &&
@@ -298,11 +290,37 @@ service cloud.firestore {
       match /notifications/{notificationId} {
         allow read: if isOwner(userId);
 
-        // ✅ CRÍTICO: Cualquier usuario autenticado puede crear notificaciones (para mensajes directos y solicitudes de chat privado)
-        // Admin/Support también pueden crear notificaciones para usuarios (respuestas a tickets, etc.)
-        allow create: if isAuthenticated();
+        // S2: las notificaciones ya no se crean desde cliente.
+        // Deben salir desde Cloud Functions o backend admin SDK.
+        allow create: if false;
 
-        allow update: if isOwner(userId);
+        allow update: if isOwner(userId) &&
+                        request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+                          'read',
+                          'readAt',
+                          'status',
+                          'respondedAt',
+                          'chatId'
+                        ]) &&
+                        (!resource.data.keys().hasAny(['read']) || resource.data.read != true || request.resource.data.read == true) &&
+                        (!request.resource.data.keys().hasAny(['status']) ||
+                          request.resource.data.status in ['pending', 'accepted', 'rejected', 'expired']) &&
+                        (
+                          !request.resource.data.keys().hasAny(['status']) ||
+                          !resource.data.keys().hasAny(['status']) ||
+                          resource.data.status == request.resource.data.status ||
+                          resource.data.status == 'pending'
+                        ) &&
+                        (
+                          !request.resource.data.keys().hasAny(['chatId']) ||
+                          !resource.data.keys().hasAny(['chatId']) ||
+                          request.resource.data.chatId == resource.data.chatId ||
+                          (
+                            request.resource.data.status == 'accepted' &&
+                            request.resource.data.chatId is string &&
+                            request.resource.data.chatId.size() > 0
+                          )
+                        );
 
         allow delete: if isOwner(userId);
       }
@@ -402,11 +420,6 @@ service cloud.firestore {
             request.resource.data.type != 'text' ||
             hasNoExternalContactIntent(request.resource.data.content)
           )
-        ) ||
-        (
-          roomId == 'principal' &&
-          isValidUnauthenticatedMessage() &&
-          hasNoExternalContactIntent(request.resource.data.content)
         ) ||
         isValidAdminSeededMessage(roomId) ||
         isValidSystemMessage() ||

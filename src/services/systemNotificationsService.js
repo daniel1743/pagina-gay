@@ -12,6 +12,7 @@ import {
 } from 'firebase/firestore';
 import { db } from '@/config/firebase';
 import { trackListenerStart, trackListenerStop } from '@/utils/listenerMonitor';
+import { dispatchUserNotification } from '@/services/userNotificationDispatchService';
 
 const sharedNotificationListeners = new Map();
 
@@ -82,25 +83,11 @@ export const createSystemNotification = async (userId, notificationData) => {
 };
 
 const createUserScopedWelcomeNotification = async (userId, username) => {
-  const notificationsRef = collection(db, 'users', userId, 'notifications');
-  const notification = {
-    type: 'system_welcome',
-    title: '¡Ya estás dentro de Chactivo! 🔥',
-    content: `Bienvenido ${username || ''}. Entra a la sala y empieza a conversar 😉`.trim(),
-    from: 'system',
-    fromName: 'Chactivo',
-    fromAvatar: '/transparente_logo.png',
-    status: 'unread',
-    createdAt: serverTimestamp(),
-    timestamp: Date.now(),
-    read: false,
-    metadata: {
-      link: '/chat/principal',
-      priority: 'high',
-    },
-  };
-  const docRef = await addDoc(notificationsRef, notification);
-  return docRef.id;
+  const result = await dispatchUserNotification('system_welcome', {
+    userId,
+    username,
+  });
+  return result?.notificationId || null;
 };
 
 /**

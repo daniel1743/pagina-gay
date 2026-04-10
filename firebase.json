@@ -63,6 +63,46 @@
     ],
     "redirects": [
       {
+        "source": "/modal-mx",
+        "destination": "/mx",
+        "type": 301
+      },
+      {
+        "source": "/modal-mx/",
+        "destination": "/mx",
+        "type": 301
+      },
+      {
+        "source": "/modal-arg",
+        "destination": "/ar",
+        "type": 301
+      },
+      {
+        "source": "/modal-arg/",
+        "destination": "/ar",
+        "type": 301
+      },
+      {
+        "source": "/modal-es",
+        "destination": "/es",
+        "type": 301
+      },
+      {
+        "source": "/modal-es/",
+        "destination": "/es",
+        "type": 301
+      },
+      {
+        "source": "/modal-br",
+        "destination": "/br",
+        "type": 301
+      },
+      {
+        "source": "/modal-br/",
+        "destination": "/br",
+        "type": 301
+      },
+      {
         "source": "/chat/hablar-primero",
         "destination": "/chat/principal",
         "type": 301

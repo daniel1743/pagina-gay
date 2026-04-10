@@ -30,6 +30,8 @@ import {
   recordBlockedContactAttempt,
   recordContactSafetyEvent,
 } from '@/services/contactSafetyTelemetryService';
+import { getPublicProfilesByIds } from '@/services/userService';
+import { dispatchUserNotification } from '@/services/userNotificationDispatchService';
 
 const OPIN_PRIVATE_REQUESTS_PER_HOUR = 4;
 const OPIN_PRIVATE_REQUEST_WINDOW_MS = 60 * 60 * 1000;
@@ -348,27 +350,20 @@ const fetchPrivateChatParticipantProfiles = async (participantIds = []) => {
   const normalizedIds = [...new Set((participantIds || []).filter(Boolean))].sort();
   if (normalizedIds.length === 0) return [];
 
-  const profiles = await Promise.all(
-    normalizedIds.map(async (participantId) => {
-      try {
-        const userSnap = await getDoc(doc(db, 'users', participantId));
-        const data = userSnap.data() || {};
-        return normalizeParticipantProfile({
-          userId: participantId,
-          username: data.username || 'Usuario',
-          avatar: data.avatar || '',
-          isPremium: Boolean(data.isPremium),
-        });
-      } catch {
-        return normalizeParticipantProfile({
-          userId: participantId,
-          username: 'Usuario',
-          avatar: '',
-          isPremium: false,
-        });
-      }
-    })
+  const publicProfiles = await getPublicProfilesByIds(normalizedIds);
+  const publicProfileMap = new Map(
+    publicProfiles.map((profile) => [profile.id, profile])
   );
+
+  const profiles = normalizedIds.map((participantId) => {
+    const data = publicProfileMap.get(participantId) || {};
+    return normalizeParticipantProfile({
+      userId: participantId,
+      username: data.username || 'Usuario',
+      avatar: data.avatar || '',
+      isPremium: Boolean(data.isPremium),
+    });
+  });
 
   return dedupeParticipantProfiles(profiles);
 };
@@ -475,23 +470,17 @@ const notifyPrivateChatRecipients = async ({
   const validRecipients = [...new Set((recipientIds || []).filter(Boolean))].filter((id) => id !== sender?.userId);
   if (validRecipients.length === 0) return;
 
-  const preview = buildPrivateChatMessagePreview({ content, type });
-
-  await Promise.all(
-    validRecipients.map((recipientId) => addDoc(collection(db, 'users', recipientId, 'notifications'), {
-      from: sender?.userId || null,
-      fromUsername: sender?.username || 'Usuario',
-      fromAvatar: sender?.avatar || '',
-      fromIsPremium: Boolean(sender?.isPremium),
-      to: recipientId,
-      type: 'direct_message',
+  try {
+    await dispatchUserNotification('direct_message', {
       chatId,
-      content: preview,
-      read: false,
+      recipientIds: validRecipients,
+      content,
+      messageType: type,
       source: 'private_chat_direct',
-      timestamp: serverTimestamp(),
-    }))
-  );
+    });
+  } catch (error) {
+    console.error('Error dispatching private chat recipient notifications:', error);
+  }
 };
 
 export const signalPrivateChatOpen = async ({
@@ -526,22 +515,12 @@ export const signalPrivateChatOpen = async ({
       : title;
 
     stage = 'write_notification';
-    await addDoc(collection(db, 'users', toUserId, 'notifications'), {
-      from: fromUserId,
-      fromUsername: senderData.username || 'Usuario',
-      fromAvatar: senderData.avatar || '',
-      fromIsPremium: Boolean(senderData.isPremium),
-      to: toUserId,
-      type: 'private_chat_reopened',
+    await dispatchUserNotification('private_chat_reopened', {
       chatId,
+      toUserId,
       title: conversationTitle || '',
-      participantProfiles,
       created,
-      content: created
-        ? `${senderData.username || 'Usuario'} abrió un chat privado contigo`
-        : `${senderData.username || 'Usuario'} volvió a abrir el chat privado`,
-      read: false,
-      timestamp: serverTimestamp(),
+      participantProfiles,
     });
 
     emitPrivateChatDebug('private_chat_open_signal_sent', {
@@ -706,26 +685,9 @@ export const sendPrivateGroupInvite = async ({
       createdAt: serverTimestamp(),
     });
 
-    await Promise.all(
-      approverUserIds.map((targetUserId) => addDoc(collection(db, 'users', targetUserId, 'notifications'), {
-        from: actorUserId,
-        fromUsername: inviterProfile.username,
-        fromAvatar: inviterProfile.avatar,
-        fromIsPremium: inviterProfile.isPremium,
-        to: targetUserId,
-        type: 'private_group_invite_request',
-        inviteId: inviteRef.id,
-        sourceChatId,
-        requestedUserId: normalizedInvitee.userId,
-        requestedUsername: normalizedInvitee.username,
-        participantProfiles,
-        approverUserIds: [...new Set(approverUserIds)],
-        read: false,
-        status: 'pending',
-        expiresAtMs: Date.now() + PRIVATE_GROUP_INVITE_EXPIRY_MS,
-        timestamp: serverTimestamp(),
-      }))
-    );
+    await dispatchUserNotification('private_group_invite_request', {
+      inviteId: inviteRef.id,
+    });
 
     return { success: true, inviteId: inviteRef.id };
   } catch (error) {
@@ -761,16 +723,22 @@ export const sendDirectMessage = async (fromUserId, toUserId, content) => {
       timestamp: serverTimestamp(),
     };
 
-    // Guardar en la colección de notificaciones del destinatario
-    await addDoc(collection(db, 'users', toUserId, 'notifications'), messageData);
+    const { chatId } = await getOrCreatePrivateChat(fromUserId, toUserId);
+    await sendMessageToPrivateChat(chatId, {
+      userId: fromUserId,
+      username: fromUserData?.username || 'Usuario',
+      avatar: fromUserData?.avatar || '',
+      content,
+    });
 
     // También guardar en la bandeja de enviados del remitente
     await addDoc(collection(db, 'users', fromUserId, 'sent_messages'), {
       ...messageData,
       read: true, // El remitente ya lo "leyó" porque lo envió
+      chatId,
     });
 
-    return { success: true };
+    return { success: true, chatId };
   } catch (error) {
     console.error('Error sending direct message:', error);
     throw error;
@@ -813,38 +781,23 @@ export const sendPrivateChatRequest = async (fromUserId, toUserId, options = {})
       ? options.suggestedStarter.trim()
       : null;
 
-    const requestData = {
-      from: senderUserId,
-      fromUsername: fromUserData?.username || 'Usuario',
-      fromAvatar: fromUserData?.avatar || '',
-      fromIsPremium: fromUserData?.isPremium || false,
-      to: toUserId,
-      content: `${fromUserData?.username || 'Un usuario'} quiere conectar contigo en chat privado`,
-      type: 'private_chat_request',
-      status: 'pending', // pending | accepted | rejected
-      read: false,
-      timestamp: serverTimestamp(),
+    stage = 'write_notification';
+    const notificationRef = await dispatchUserNotification('private_chat_request', {
+      toUserId,
       source,
       ...(systemPrompt ? { systemPrompt } : {}),
       ...(suggestedStarter ? { suggestedStarter } : {}),
-    };
-
-    // Guardar en notificaciones del destinatario
-    stage = 'write_notification';
-    const notificationRef = await addDoc(
-      collection(db, 'users', toUserId, 'notifications'),
-      requestData
-    );
+    });
 
     emitPrivateChatDebug('private_chat_request_success', {
       stage: 'done',
       senderUserId,
       toUserId,
-      requestId: notificationRef.id,
+      requestId: notificationRef.requestId,
       source,
     });
 
-    return { success: true, requestId: notificationRef.id };
+    return { success: true, requestId: notificationRef.requestId };
   } catch (error) {
     emitPrivateChatDebug('private_chat_request_failed', {
       stage,
@@ -1766,22 +1719,9 @@ export const respondToPrivateGroupInvite = async (
       const rejectingUserData = rejectingUserDoc.data() || {};
       const targetUserIds = [...new Set((inviteData.allParticipantIds || []).filter((id) => id && id !== userId))];
 
-      await Promise.all(
-        targetUserIds.map((targetUserId) => addDoc(collection(db, 'users', targetUserId, 'notifications'), {
-          from: userId,
-          fromUsername: rejectingUserData.username || 'Usuario',
-          fromAvatar: rejectingUserData.avatar || '',
-          fromIsPremium: rejectingUserData.isPremium || false,
-          to: targetUserId,
-          type: 'private_group_invite_rejected',
-          inviteId,
-          requestedUserId: inviteData.requestedUserId || null,
-          requestedUsername: notificationData.requestedUsername || null,
-          participantProfiles: inviteData.participantProfiles || [],
-          read: false,
-          timestamp: serverTimestamp(),
-        }))
-      );
+      await dispatchUserNotification('private_group_invite_rejected', {
+        inviteId,
+      });
 
       return { success: true, rejected: true };
     }
@@ -1843,22 +1783,9 @@ export const respondToPrivateGroupInvite = async (
       completedAt: serverTimestamp(),
     }).catch(() => {});
 
-    await Promise.all(
-      participantProfiles.map((participant) => addDoc(collection(db, 'users', participant.userId, 'notifications'), {
-        from: userId,
-        fromUsername: notificationData.fromUsername || 'Usuario',
-        fromAvatar: notificationData.fromAvatar || '',
-        fromIsPremium: notificationData.fromIsPremium || false,
-        to: participant.userId,
-        type: 'private_group_chat_ready',
-        inviteId,
-        chatId,
-        participantProfiles,
-        title: groupTitle,
-        read: false,
-        timestamp: serverTimestamp(),
-      }))
-    );
+    await dispatchUserNotification('private_group_chat_ready', {
+      inviteId,
+    });
 
     return {
       success: true,
@@ -2045,7 +1972,10 @@ export const sendProfileComment = async (fromUserId, toUserId, content) => {
       timestamp: serverTimestamp(),
     };
 
-    await addDoc(collection(db, 'users', toUserId, 'notifications'), commentData);
+    await dispatchUserNotification('profile_comment', {
+      toUserId,
+      content,
+    });
     await addDoc(collection(db, 'users', fromUserId, 'sent_messages'), {
       ...commentData,
       read: true,
@@ -2194,17 +2124,9 @@ export const respondToPrivateChatRequest = async (
         const rejectedUserDoc = await getDoc(doc(db, 'users', userId));
         const rejectedUserData = rejectedUserDoc.data();
 
-        await addDoc(collection(db, 'users', notificationData.from, 'notifications'), {
-          from: userId,
-          fromUsername: rejectedUserData?.username || 'Usuario',
-          fromAvatar: rejectedUserData?.avatar || '',
-          fromIsPremium: rejectedUserData?.isPremium || false,
-          to: notificationData.from,
-          type: 'private_chat_rejected',
-          source: notificationData.source || 'manual',
+        await dispatchUserNotification('private_chat_request_response', {
           requestId: notificationId,
-          read: false,
-          timestamp: serverTimestamp(),
+          accepted: false,
         });
       } catch (notifyError) {
         console.error('Error notifying sender about private chat rejection:', notifyError);
@@ -2269,16 +2191,10 @@ export const respondToPrivateChatRequest = async (
         const acceptedUserDoc = await getDoc(doc(db, 'users', userId));
         const acceptedUserData = acceptedUserDoc.data();
 
-        await addDoc(collection(db, 'users', notificationData.from, 'notifications'), {
-          from: userId,
-          fromUsername: acceptedUserData?.username || 'Usuario',
-          fromAvatar: acceptedUserData?.avatar || '',
-          fromIsPremium: acceptedUserData?.isPremium || false,
-          to: notificationData.from,
-          type: 'private_chat_accepted',
+        await dispatchUserNotification('private_chat_request_response', {
+          requestId: notificationId,
+          accepted: true,
           chatId,
-          read: false,
-          timestamp: serverTimestamp(),
         });
       } catch (notifyError) {
         console.error('Error notifying sender about private chat acceptance:', notifyError);
@@ -2554,18 +2470,16 @@ export const getFavorites = async (userId) => {
       return [];
     }
 
-    // Obtener datos de cada favorito
-    const favoritesData = await Promise.all(
-      favoriteIds.map(async (favId) => {
-        const favDoc = await getDoc(doc(db, 'users', favId));
-        return {
-          id: favId,
-          ...favDoc.data(),
-        };
-      })
-    );
+    const publicProfiles = await getPublicProfilesByIds(favoriteIds);
+    const profilesById = new Map(publicProfiles.map((profile) => [profile.id, profile]));
 
-    return favoritesData;
+    return favoriteIds
+      .map((favId) => profilesById.get(favId))
+      .filter(Boolean)
+      .map((profile) => ({
+        id: profile.id,
+        ...profile,
+      }));
   } catch (error) {
     console.error('Error getting favorites:', error);
     throw error;

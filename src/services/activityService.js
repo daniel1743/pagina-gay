@@ -1,5 +1,7 @@
-import { collection, query, where, getDocs, getDoc, doc, Timestamp } from 'firebase/firestore';
+import { collection, query, where, getDocs, Timestamp } from 'firebase/firestore';
 import { db } from '@/config/firebase';
+import { getFavoriteAudienceCount } from '@/services/secureUserDataService';
+import { getPublicProfileById } from '@/services/userService';
 
 /**
  * Obtiene estadísticas de actividad del usuario para hoy
@@ -149,17 +151,7 @@ const countUniqueInteractions = async (userId, startDate, endDate) => {
  */
 const countFavoriteAdds = async (userId) => {
   try {
-    const usersSnapshot = await getDocs(collection(db, 'users'));
-    let count = 0;
-
-    usersSnapshot.forEach(userDoc => {
-      const userData = userDoc.data();
-      if (userData.favorites && Array.isArray(userData.favorites) && userData.favorites.includes(userId)) {
-        count++;
-      }
-    });
-
-    return count;
+    return await getFavoriteAudienceCount(userId);
   } catch (error) {
     console.error('Error counting favorites:', error);
     return 0;
@@ -240,10 +232,8 @@ const getTopConversationPartner = async (userId, startDate, endDate) => {
     }
 
     if (topPartner && topPartner.id) {
-      // Obtener datos del usuario
-      const userDoc = await getDoc(doc(db, 'users', topPartner.id));
-      if (userDoc.exists()) {
-        const userData = userDoc.data();
+      const userData = await getPublicProfileById(topPartner.id);
+      if (userData) {
         return {
           userId: topPartner.id,
           username: userData.username || 'Usuario',

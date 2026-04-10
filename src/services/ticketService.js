@@ -15,6 +15,7 @@ import {
   runTransaction
 } from 'firebase/firestore';
 import { db, auth } from '@/config/firebase';
+import { dispatchUserNotification } from '@/services/userNotificationDispatchService';
 
 /**
  * SERVICIO DE TICKETS DE SOPORTE - VERSIÓN EXTENDIDA
@@ -728,15 +729,12 @@ export const sendTicketNotification = async (userUid, notificationData) => {
   try {
     const { type, ticketId, title, body } = notificationData;
 
-    const notificationsRef = collection(db, 'users', userUid, 'notifications');
-    await addDoc(notificationsRef, {
+    await dispatchUserNotification('ticket_update', {
+      toUserId: userUid,
       type,
       ticketId,
       title,
       body,
-      read: false,
-      timestamp: serverTimestamp(), // ✅ Usar 'timestamp' para compatibilidad con subscribeToNotifications
-      createdAt: serverTimestamp() // Mantener también createdAt para referencia
     });
 
     console.log('✅ Notificación enviada al usuario:', userUid);

@@ -1,6 +1,6 @@
 # robots.txt para Chactivo - Chat Gay Internacional
 # URL principal: https://chactivo.com
-# Última actualización: 2026-03-06
+# Última actualización: 2026-04-09
 
 # Configuración para todos los bots
 User-agent: *
@@ -12,12 +12,18 @@ Allow: /chat-gay-chile
 Allow: /chat-gay-santiago-centro
 Allow: /mas-30
 Allow: /santiago
+Allow: /faq
+Allow: /opin
 
 # ✅ PERMITIR landing pages internacionales
 Allow: /es
 Allow: /br
 Allow: /mx
 Allow: /ar
+Allow: /mx/cdmx
+Allow: /ar/buenos-aires
+Allow: /es/madrid
+Allow: /br/sao-paulo
 
 # ✅ PERMITIR sala pública principal
 Allow: /chat/principal
@@ -69,6 +75,5 @@ Disallow: /*?*auth=
 Disallow: /*?*token=
 Disallow: /*?*session=
 
-# Sitemap principal
-Sitemap: https://chactivo.com/sitemap.xml
+# Sitemap principal consolidado
 Sitemap: https://chactivo.com/sitemap-index.xml
