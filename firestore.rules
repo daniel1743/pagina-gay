@@ -630,20 +630,13 @@ service cloud.firestore {
     // ===========================
 
     match /analytics_stats/{dateId} {
-      // ✅ Permitir que usuarios autenticados escriban en analytics (para tracking de eventos)
-      // Los usuarios solo pueden escribir en documentos que coincidan con su userId o fecha actual
-      allow write: if isAuthenticated() && 
-                      (isAdmin() || 
-                       dateId == request.auth.uid || 
-                       dateId.matches('\\d{4}-\\d{2}-\\d{2}'));
-      allow read: if isAuthenticated();
+      allow read: if isAdminOrSupport();
+      allow write: if isAdmin();
     }
 
     match /analytics_events/{eventId} {
-      // Eventos detallados para embudo y depuración.
-      // Solo usuarios autenticados pueden crearlos; lectura reservada a admin.
-      allow create: if isAuthenticated();
-      allow read: if isAdmin();
+      allow create: if false;
+      allow read: if isAdminOrSupport();
       allow update, delete: if false;
     }
 
@@ -1046,19 +1039,8 @@ service cloud.firestore {
     // ===========================
 
     match /muted_users/{userId} {
-      // Leer: cualquier usuario autenticado puede verificar si está muteado
-      allow read: if isAuthenticated();
-
-      // Crear/Actualizar: cualquier usuario autenticado puede mutear (sistema automático)
-      // El userId del documento DEBE coincidir con el campo userId en los datos
-      allow create, update: if isAuthenticated() &&
-                              'userId' in request.resource.data &&
-                              request.resource.data.userId is string &&
-                              'muteEnd' in request.resource.data &&
-                              'reason' in request.resource.data;
-
-      // Borrar: solo admin puede eliminar mutes manualmente
-      allow delete: if isAdmin();
+      allow read: if isOwner(userId) || isAdminOrSupport();
+      allow create, update, delete: if isAdminOrSupport();
     }
 
     // ===========================
@@ -1066,28 +1048,8 @@ service cloud.firestore {
     // ===========================
 
     match /moderation_alerts/{alertId} {
-      // Leer: solo admins
-      allow read: if isAdmin();
-
-      // Crear: sistema de moderación (usuarios autenticados pueden crear alertas)
-      allow create: if isAuthenticated() &&
-                      'type' in request.resource.data &&
-                      request.resource.data.type in ['hate_speech', 'offensive', 'suicide', 'self_harm', 'harassment'] &&
-                      'userId' in request.resource.data &&
-                      'username' in request.resource.data &&
-                      'message' in request.resource.data &&
-                      'roomId' in request.resource.data &&
-                      'severity' in request.resource.data &&
-                      request.resource.data.severity in ['low', 'medium', 'high', 'critical'] &&
-                      'status' in request.resource.data &&
-                      request.resource.data.status == 'pending' &&
-                      'createdAt' in request.resource.data;
-
-      // Actualizar: solo admins (para cambiar status, agregar notas, etc.)
-      allow update: if isAdmin();
-
-      // Eliminar: solo admins
-      allow delete: if isAdmin();
+      allow read, update, delete: if isAdminOrSupport();
+      allow create: if false;
     }
 
     // ===========================
@@ -1101,21 +1063,40 @@ service cloud.firestore {
       // Crear: El dueño o un admin pueden crear la tarjeta
       allow create: if isAuthenticated() && (request.auth.uid == odIdUsuari || isAdmin());
 
-      // Actualizar: El dueño puede actualizar su info,
-      // OTROS usuarios pueden actualizar solo campos de interacción (likes, visitas)
       allow update: if isAuthenticated() && (
-        // El dueño puede actualizar todo
-        request.auth.uid == odIdUsuari ||
-        // Admin: flags PRO/recompensas de la tarjeta
+        (
+          request.auth.uid == odIdUsuari &&
+          request.resource.data.odIdUsuari == resource.data.odIdUsuari &&
+          request.resource.data.diff(resource.data).affectedKeys()
+            .hasOnly([
+              'nombre',
+              'edad',
+              'sexo',
+              'rol',
+              'alturaCm',
+              'pesaje',
+              'etnia',
+              'ubicacionTexto',
+              'ubicacion',
+              'ubicacionActiva',
+              'bio',
+              'buscando',
+              'horariosConexion',
+              'fotoUrl',
+              'fotoUrlThumb',
+              'fotoUrlFull',
+              'fotoUrl2',
+              'fotoSensible',
+              'estaOnline',
+              'ultimaConexion',
+              'actividadNoLeida',
+              'actualizadaEn'
+            ])
+        ) ||
         (
           isAdmin() &&
           request.resource.data.diff(resource.data).affectedKeys()
             .hasOnly(['isProUser', 'proUntil', 'canUploadSecondPhoto', 'hasFeaturedCard', 'hasRainbowBorder', 'hasProBadge', 'actualizadaEn'])
-        ) ||
-        // Otros usuarios solo pueden modificar campos de interacción
-        (
-          request.resource.data.diff(resource.data).affectedKeys()
-            .hasOnly(['likesRecibidos', 'likesDe', 'visitasRecibidas', 'visitasDe', 'impresionesRecibidas', 'impresionesDe', 'huellasRecibidas', 'huellasDe', 'mensajesRecibidos', 'actividadNoLeida', 'actualizadaEn'])
         )
       );
 
@@ -1127,11 +1108,11 @@ service cloud.firestore {
         // Leer: Solo el dueño de la tarjeta puede ver su actividad
         allow read: if isAuthenticated() && request.auth.uid == odIdUsuari;
 
-        // Crear: Cualquier usuario autenticado puede dejar actividad (like, mensaje, visita)
-        allow create: if isAuthenticated() && request.auth.uid != odIdUsuari;
+        allow create: if false;
 
-        // Actualizar: Solo el dueño puede marcar como leída
-        allow update: if isAuthenticated() && request.auth.uid == odIdUsuari;
+        allow update: if isAuthenticated() &&
+                        request.auth.uid == odIdUsuari &&
+                        request.resource.data.diff(resource.data).affectedKeys().hasOnly(['leida']);
 
         // Eliminar: Solo el dueño o admin
         allow delete: if isOwner(odIdUsuari) || isAdmin();
@@ -1143,9 +1124,8 @@ service cloud.firestore {
     // ===========================
 
     match /userHuellas/{userId} {
-      // El usuario solo puede leer/escribir su propio contador diario
-      allow read, create, update, delete: if isAuthenticated() &&
-                                            (request.auth.uid == userId || isAdmin());
+      allow read: if isAuthenticated() && (request.auth.uid == userId || isAdmin());
+      allow create, update, delete: if false;
     }
 
     // ===========================

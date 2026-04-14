@@ -82,6 +82,9 @@ export const createUserProfile = async (uid, userData) => {
       avatar: userData.avatar || `https://api.dicebear.com/7.x/avataaars/svg?seed=${userData.username}`,
       quickPhrases: [],
       theme: {},
+      communityPolicyAccepted: Boolean(userData.communityPolicyAccepted),
+      communityPolicyAcceptedAt: userData.communityPolicyAcceptedAt || serverTimestamp(),
+      communityPolicyVersion: userData.communityPolicyVersion || null,
       createdAt: serverTimestamp(),
       updatedAt: serverTimestamp(),
     };

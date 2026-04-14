@@ -27,7 +27,15 @@ const TYPE_LABELS = {
   offensive: 'Contenido Ofensivo',
   suicide: 'Suicidio',
   self_harm: 'Autolesión',
-  harassment: 'Acoso'
+  harassment: 'Acoso',
+  minor_risk: 'Riesgo de Menor',
+  minor_ambiguous: 'Menor Ambiguo',
+  drug_meetup: 'Droga + Encuentro',
+  drugs: 'Drogas',
+  violence: 'Violencia',
+  external_contact: 'Contacto Externo',
+  coercion: 'Coerción',
+  high_risk_ai: 'Riesgo Alto IA',
 };
 
 const CONTACT_EVENT_LABELS = {

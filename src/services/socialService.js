@@ -2458,6 +2458,65 @@ export const markNotificationAsRead = async (userId, notificationId) => {
   }
 };
 
+export const markNotificationsAsRead = async (userId, notificationIds = []) => {
+  try {
+    if (!userId || !Array.isArray(notificationIds) || notificationIds.length === 0) {
+      return { success: true, updatedCount: 0 };
+    }
+
+    const uniqueIds = [...new Set(notificationIds.map((value) => String(value || '').trim()).filter(Boolean))];
+
+    await Promise.all(
+      uniqueIds.map((notificationId) =>
+        updateDoc(doc(db, 'users', userId, 'notifications', notificationId), {
+          read: true,
+          readAt: serverTimestamp(),
+        })
+      )
+    );
+
+    return { success: true, updatedCount: uniqueIds.length };
+  } catch (error) {
+    console.error('Error marking notifications as read:', error);
+    throw error;
+  }
+};
+
+export const deleteNotification = async (userId, notificationId) => {
+  try {
+    if (!userId || !notificationId) {
+      return { success: true };
+    }
+
+    await deleteDoc(doc(db, 'users', userId, 'notifications', notificationId));
+    return { success: true };
+  } catch (error) {
+    console.error('Error deleting notification:', error);
+    throw error;
+  }
+};
+
+export const deleteNotifications = async (userId, notificationIds = []) => {
+  try {
+    if (!userId || !Array.isArray(notificationIds) || notificationIds.length === 0) {
+      return { success: true, deletedCount: 0 };
+    }
+
+    const uniqueIds = [...new Set(notificationIds.map((value) => String(value || '').trim()).filter(Boolean))];
+
+    await Promise.all(
+      uniqueIds.map((notificationId) =>
+        deleteDoc(doc(db, 'users', userId, 'notifications', notificationId))
+      )
+    );
+
+    return { success: true, deletedCount: uniqueIds.length };
+  } catch (error) {
+    console.error('Error deleting notifications:', error);
+    throw error;
+  }
+};
+
 /**
  * Obtiene la lista de favoritos del usuario con sus datos
  */

@@ -1,14 +1,21 @@
 import React, { useState, useMemo } from 'react';
+import { createPortal } from 'react-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Button } from '@/components/ui/button';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Input } from '@/components/ui/input';
-import { MessageSquare, MessageCircle, Video, Check, X, ExternalLink, CheckCircle, Ticket, CheckCircle2, Search, Pin } from 'lucide-react';
+import { MessageSquare, MessageCircle, Video, Check, X, ExternalLink, CheckCircle, Ticket, CheckCircle2, Search, Pin, Trash2, CheckCheck } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
 import { auth } from '@/config/firebase';
-import { markNotificationAsRead, respondToPrivateChatRequest } from '@/services/socialService';
+import {
+  markNotificationAsRead,
+  markNotificationsAsRead,
+  deleteNotification,
+  deleteNotifications,
+  respondToPrivateChatRequest,
+} from '@/services/socialService';
 import { toast } from '@/components/ui/use-toast';
 import { formatDistanceToNow, format, isToday, isYesterday } from 'date-fns';
 import { es } from 'date-fns/locale';
@@ -18,11 +25,35 @@ const NotificationsPanel = ({ isOpen, onClose, notifications, onOpenPrivateChat 
   const navigate = useNavigate();
   const currentUserId = auth?.currentUser?.uid || user?.id || user?.uid || null;
   const [searchQuery, setSearchQuery] = useState('');
+  const [busyIds, setBusyIds] = useState(() => new Set());
+  const [bulkAction, setBulkAction] = useState(null);
   const [pinnedIds, setPinnedIds] = useState(() => {
     // Cargar pins desde localStorage
     const saved = localStorage.getItem(`pins_${currentUserId || ''}`);
     return saved ? new Set(JSON.parse(saved)) : new Set();
   });
+
+  const unreadNotifications = notifications.filter((notification) => !notification.read);
+
+  const withBusyId = async (notificationId, action) => {
+    if (!notificationId || typeof action !== 'function') return;
+
+    setBusyIds((prev) => {
+      const next = new Set(prev);
+      next.add(notificationId);
+      return next;
+    });
+
+    try {
+      await action();
+    } finally {
+      setBusyIds((prev) => {
+        const next = new Set(prev);
+        next.delete(notificationId);
+        return next;
+      });
+    }
+  };
 
   const handleAcceptPrivateChat = async (notification) => {
     if (!currentUserId) return;
@@ -88,6 +119,85 @@ const NotificationsPanel = ({ isOpen, onClose, notifications, onOpenPrivateChat 
       await markNotificationAsRead(currentUserId, notificationId);
     } catch (error) {
       console.error('Error marking as read:', error);
+    }
+  };
+
+  const handleMarkAllAsRead = async () => {
+    if (!currentUserId || unreadNotifications.length === 0 || bulkAction) return;
+
+    setBulkAction('mark-all-read');
+    try {
+      await markNotificationsAsRead(
+        currentUserId,
+        unreadNotifications.map((notification) => notification.id)
+      );
+
+      toast({
+        title: 'Conversaciones actualizadas',
+        description: 'Todas quedaron marcadas como leídas.',
+      });
+    } catch (error) {
+      console.error('Error marking all notifications as read:', error);
+      toast({
+        title: 'No se pudo completar',
+        description: 'No fue posible marcar todas como leídas.',
+        variant: 'destructive',
+      });
+    } finally {
+      setBulkAction(null);
+    }
+  };
+
+  const handleDeleteNotification = async (notification) => {
+    if (!currentUserId || !notification?.id) return;
+
+    await withBusyId(notification.id, async () => {
+      try {
+        await deleteNotification(currentUserId, notification.id);
+        toast({
+          title: 'Conversación eliminada',
+          description: 'Se quitó de tu bandeja.',
+        });
+      } catch (error) {
+        console.error('Error deleting notification:', error);
+        toast({
+          title: 'No se pudo eliminar',
+          description: 'Intenta nuevamente.',
+          variant: 'destructive',
+        });
+      }
+    });
+  };
+
+  const handleDeleteAllNotifications = async () => {
+    if (!currentUserId || notifications.length === 0 || bulkAction) return;
+
+    const confirmed = typeof window === 'undefined'
+      ? true
+      : window.confirm(`Esto eliminará ${notifications.length} conversaciones de tu bandeja. ¿Continuar?`);
+
+    if (!confirmed) return;
+
+    setBulkAction('delete-all');
+    try {
+      await deleteNotifications(
+        currentUserId,
+        notifications.map((notification) => notification.id)
+      );
+
+      toast({
+        title: 'Bandeja vaciada',
+        description: 'Se eliminaron todas las conversaciones visibles.',
+      });
+    } catch (error) {
+      console.error('Error deleting all notifications:', error);
+      toast({
+        title: 'No se pudo vaciar',
+        description: 'No fue posible eliminar todas las conversaciones.',
+        variant: 'destructive',
+      });
+    } finally {
+      setBulkAction(null);
     }
   };
 
@@ -216,7 +326,7 @@ const NotificationsPanel = ({ isOpen, onClose, notifications, onOpenPrivateChat 
     return [...pinned, ...unread, ...read];
   }, [notifications, pinnedIds, searchQuery]);
 
-  return (
+  const panelContent = (
     <AnimatePresence>
       {isOpen && (
         <>
@@ -225,7 +335,7 @@ const NotificationsPanel = ({ isOpen, onClose, notifications, onOpenPrivateChat 
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
-            className="fixed inset-0 bg-black/20 z-40"
+            className="fixed inset-0 z-[120] bg-black/45 backdrop-blur-[1px]"
             onClick={onClose}
           />
 
@@ -235,13 +345,19 @@ const NotificationsPanel = ({ isOpen, onClose, notifications, onOpenPrivateChat 
             animate={{ opacity: 1, x: 0, y: 0 }}
             exit={{ opacity: 0, x: 20, y: -10 }}
             transition={{ type: 'spring', stiffness: 300, damping: 30 }}
-            className="fixed top-16 right-4 w-96 max-w-[calc(100vw-2rem)] bg-card border border-border rounded-2xl shadow-2xl z-50 overflow-hidden"
+            className="fixed top-16 right-4 z-[130] w-96 max-w-[calc(100vw-2rem)] overflow-hidden rounded-2xl border border-border bg-card shadow-2xl"
           >
             {/* Header */}
-            <div className="p-4 border-b border-border bg-accent/30 sticky top-0 z-10">
+            <div className="sticky top-0 z-20 border-b border-border bg-accent/95 p-4 backdrop-blur">
               <div className="flex items-center justify-between mb-3">
                 <h3 className="font-bold text-lg text-foreground">Conversaciones</h3>
-                <Button variant="ghost" size="icon" onClick={onClose}>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  onClick={onClose}
+                  className="relative z-[1] h-9 w-9 rounded-full border border-border bg-background/80 hover:bg-background"
+                  title="Cerrar panel"
+                >
                   <X className="w-4 h-4" />
                 </Button>
               </div>
@@ -260,15 +376,41 @@ const NotificationsPanel = ({ isOpen, onClose, notifications, onOpenPrivateChat 
 
               {/* Contador de notificaciones */}
               {notifications.length > 0 && (
-                <div className="flex items-center gap-2 mt-2">
-                  <p className="text-xs text-muted-foreground">
-                    {sortedAndFilteredNotifications.length} conversaciones
-                  </p>
-                  {notifications.filter(n => !n.read).length > 0 && (
-                    <span className="px-2 py-0.5 bg-red-500 text-white text-xs font-bold rounded-full">
-                      {notifications.filter(n => !n.read).length > 99 ? '99+' : notifications.filter(n => !n.read).length}
-                    </span>
-                  )}
+                <div className="mt-3 space-y-3">
+                  <div className="flex items-center gap-2">
+                    <p className="text-xs text-muted-foreground">
+                      {sortedAndFilteredNotifications.length} conversaciones
+                    </p>
+                    {unreadNotifications.length > 0 && (
+                      <span className="px-2 py-0.5 bg-red-500 text-white text-xs font-bold rounded-full">
+                        {unreadNotifications.length > 99 ? '99+' : unreadNotifications.length}
+                      </span>
+                    )}
+                  </div>
+
+                  <div className="flex flex-wrap gap-2">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={handleMarkAllAsRead}
+                      disabled={unreadNotifications.length === 0 || bulkAction !== null}
+                      className="h-8 rounded-full text-xs"
+                    >
+                      <CheckCheck className="mr-1 h-3.5 w-3.5" />
+                      Marcar todas leídas
+                    </Button>
+
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={handleDeleteAllNotifications}
+                      disabled={notifications.length === 0 || bulkAction !== null}
+                      className="h-8 rounded-full text-xs text-red-500 hover:text-red-400"
+                    >
+                      <Trash2 className="mr-1 h-3.5 w-3.5" />
+                      Borrar todas
+                    </Button>
+                  </div>
                 </div>
               )}
             </div>
@@ -299,26 +441,41 @@ const NotificationsPanel = ({ isOpen, onClose, notifications, onOpenPrivateChat 
                       initial={{ opacity: 0, y: 20 }}
                       animate={{ opacity: 1, y: 0 }}
                       transition={{ delay: index * 0.05 }}
-                      className={`relative p-4 hover:bg-accent/50 transition-colors ${
+                      className={`relative p-4 pr-28 hover:bg-accent/50 transition-colors ${
                         isUnread ? 'bg-primary/5 border-l-4 border-l-red-500' : ''
                       } ${isPinned ? 'bg-cyan-500/5' : ''}`}
                     >
                       {/* 📌 Botón de Pin + Badge No Leído */}
-                      <div className="absolute top-2 right-2 flex items-center gap-2">
+                      <div className="absolute top-2 right-2 z-10 flex items-center gap-1">
                         {isUnread && (
                           <motion.span
                             initial={{ scale: 0 }}
                             animate={{ scale: 1 }}
-                            className="bg-red-500 text-white text-xs font-bold px-2 py-1 rounded-full min-w-[20px] text-center"
+                            className="min-w-[20px] rounded-full bg-red-500 px-2 py-1 text-center text-xs font-bold text-white"
                             style={{ fontSize: '11px' }}
                           >
                             1
                           </motion.span>
                         )}
+                        {isUnread && (
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="h-7 w-7 rounded-full bg-background/80"
+                            disabled={busyIds.has(notification.id)}
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleMarkAsRead(notification.id);
+                            }}
+                            title="Marcar como leída"
+                          >
+                            <Check className="h-3.5 w-3.5 text-green-400" />
+                          </Button>
+                        )}
                         <Button
                           variant="ghost"
                           size="icon"
-                          className="h-6 w-6"
+                          className="h-7 w-7 rounded-full bg-background/80"
                           onClick={(e) => {
                             e.stopPropagation();
                             togglePin(notification.id);
@@ -326,6 +483,19 @@ const NotificationsPanel = ({ isOpen, onClose, notifications, onOpenPrivateChat 
                           title={isPinned ? 'Desfijar' : 'Fijar conversación'}
                         >
                           <Pin className={`w-3 h-3 ${isPinned ? 'fill-cyan-400 text-cyan-400' : 'text-muted-foreground'}`} />
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="h-7 w-7 rounded-full bg-background/80"
+                          disabled={busyIds.has(notification.id)}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleDeleteNotification(notification);
+                          }}
+                          title="Borrar conversación"
+                        >
+                          <Trash2 className="h-3.5 w-3.5 text-red-400" />
                         </Button>
                       </div>
 
@@ -536,6 +706,12 @@ const NotificationsPanel = ({ isOpen, onClose, notifications, onOpenPrivateChat 
       )}
     </AnimatePresence>
   );
+
+  if (typeof document === 'undefined') {
+    return panelContent;
+  }
+
+  return createPortal(panelContent, document.body);
 };
 
 export default NotificationsPanel;

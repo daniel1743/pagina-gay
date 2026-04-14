@@ -1317,9 +1317,9 @@ const LobbyPage = () => {
                   <path fillRule="evenodd" d="M2.166 4.999A11.954 11.954 0 0010 1.944 11.954 11.954 0 0017.834 5c.11.65.166 1.32.166 2.001 0 5.225-3.34 9.67-8 11.317C5.34 16.67 2 12.225 2 7c0-.682.057-1.35.166-2.001zm11.541 3.708a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
                 </svg>
               </div>
-              <h3 className="text-lg font-bold text-center mb-2 text-green-400">Moderación 24/7 Híbrida</h3>
+              <h3 className="text-lg font-bold text-center mb-2 text-green-400">Filtros y Moderación Activa</h3>
               <p className="text-sm text-center text-gray-300 leading-relaxed">
-                Sistema único: IA detecta abusos + moderadores humanos verifican. Seguridad sin invadir privacidad.
+                Filtros automáticos y revisión operativa para reducir abuso, spam y contenido de riesgo sin romper la privacidad.
               </p>
             </motion.div>
 
@@ -1581,7 +1581,7 @@ const LobbyPage = () => {
               },
               {
                 q: "¿Hay moderación? ¿Cómo funciona?",
-                a: "Sí, moderación 24/7 con sistema híbrido único: IA detecta contenido inapropiado en tiempo real + moderadores humanos verifican reportes. Esto nos permite ser rápidos sin invadir tu privacidad. Puedes reportar cualquier mensaje o usuario con un click."
+                a: "Sí. Chactivo usa filtros automáticos y análisis asistido para detectar spam, abuso y contenido de riesgo, además de reportes manuales. Los casos sensibles se revisan según prioridad operativa. Puedes reportar cualquier mensaje o usuario con un click."
               },
               {
                 q: "¿Puedo eliminar mi cuenta y datos?",
@@ -1597,7 +1597,7 @@ const LobbyPage = () => {
               },
               {
                 q: "¿Cómo reporto comportamiento inapropiado?",
-                a: "Hay un botón de reporte en cada mensaje y perfil. Click derecho > Reportar. Nuestro equipo revisa todos los reportes en minutos (no horas). También tenemos IA que detecta automáticamente acoso, spam y contenido prohibido."
+                a: "Hay un botón de reporte en cada mensaje y perfil. Click derecho > Reportar. Priorizamos casos sensibles y además usamos filtros automáticos para detectar spam, abuso y contenido de riesgo."
               },
               {
                 q: "¿Verifican que los usuarios sean reales?",

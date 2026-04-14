@@ -1,6 +1,8 @@
 import { collection, addDoc, serverTimestamp, query, where, orderBy, onSnapshot, getDocs, doc, updateDoc, limit } from 'firebase/firestore';
 import { db } from '@/config/firebase';
 import { auth } from '@/config/firebase';
+import { httpsCallable } from 'firebase/functions';
+import { functions } from '@/config/firebase';
 
 // ✅ DESACTIVADO (05/01/2026): OpenAI NO puede llamarse desde frontend
 // Motivo: CORS bloqueado + API key expuesta = riesgo de seguridad
@@ -18,6 +20,12 @@ const PROVIDERS = {
 
 const CONTACT_SAFETY_ALERT_LIMIT = 20;
 const CONTACT_SAFETY_RISK_MIN = 3;
+const createModerationIncidentAlertCallable = httpsCallable(functions, 'createModerationIncidentAlert');
+
+export const createModerationIncidentAlert = async (payload) => {
+  const result = await createModerationIncidentAlertCallable(payload);
+  return result.data;
+};
 
 /**
  * 🔍 MODERACIÓN: Analiza mensaje con ChatGPT para detectar contenido sensible

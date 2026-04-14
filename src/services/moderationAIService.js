@@ -21,6 +21,7 @@
 
 import { doc, getDoc, setDoc, addDoc, collection, serverTimestamp, Timestamp } from 'firebase/firestore';
 import { db, auth } from '@/config/firebase';
+import { createModerationIncidentAlert } from '@/services/moderationService';
 
 // ═══════════════════════════════════════════════════════════════════
 // CONFIG
@@ -62,6 +63,89 @@ const userMessageHistory = new Map();
 
 // Cache local de estado de moderación (evitar leer Firestore en cada mensaje)
 const moderationStateCache = new Map();
+
+const LOCAL_MODERATION_CONFIG = {
+  AI_REVIEW_MIN_SCORE: 3,
+  DIRECT_BLOCK_MIN_SCORE: 6,
+};
+const ENCOUNTER_NOW_REGEX = /\b(lugar|sitio|ahora|ya|ven|vente|manda ubi|ubicaci[oó]n|quedar|encuentro)\b/i;
+
+const LOCAL_RISK_PATTERNS = {
+  minorDirect: [
+    /\bsoy menor\b/i,
+    /\bmenor de edad\b/i,
+    /\btengo\s*(1[0-7])\b/i,
+    /\b(1[0-7])\s*a[nñ]os\b/i,
+    /\btengo\s*14\b/i,
+    /\bsoy de 16\b/i,
+    /\bsoy de 17\b/i,
+  ],
+  minorAmbiguous: [
+    /\b31 al rev[eé]s\b/i,
+    /\b18 casi\b/i,
+    /\bcasi 18\b/i,
+    /\bparezco menor\b/i,
+    /\b-8 a[nñ]os\b/i,
+  ],
+  externalDirect: [
+    /\bwhatsapp\b/i,
+    /\bwsp\b/i,
+    /\bwapp\b/i,
+    /\btelegram\b/i,
+    /\bsignal\b/i,
+    /\bdiscord\b/i,
+    /\binstagram\b/i,
+    /\big\b/i,
+    /\bcorreo\b/i,
+    /\bgmail\b/i,
+    /\bhotmail\b/i,
+    /\boutlook\b/i,
+    /[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}/i,
+    /\b\d{8,}\b/,
+  ],
+  externalAmbiguous: [
+    /\bte paso mi contacto\b/i,
+    /\bhablemos por fuera\b/i,
+    /\bafuera de la app\b/i,
+    /\bte escribo afuera\b/i,
+  ],
+  drugDirect: [
+    /\bdroga\b/i,
+    /\bdrogas\b/i,
+    /\btusi\b/i,
+    /\bcoca[ií]?na\b/i,
+    /\bketamina\b/i,
+    /\bporro\b/i,
+    /\bsaque\b/i,
+    /\bpoppers?\b/i,
+  ],
+  violenceDirect: [
+    /\bte voy a matar\b/i,
+    /\bmatarte\b/i,
+    /\bgolpear\b/i,
+    /\bapu[nñ]alar\b/i,
+    /\bviolar\b/i,
+    /\bamenaza\b/i,
+  ],
+  hateDirect: [
+    /\bnazi\b/i,
+    /\bracista\b/i,
+    /\bxenofob/i,
+    /\bhomofob/i,
+    /\btransfob/i,
+    /\bnegro culiao\b/i,
+    /\bveneco culiao\b/i,
+    /\bmaric[oó]n culiao\b/i,
+  ],
+  coercionAmbiguous: [
+    /\bsi no\b/i,
+    /\bforzar\b/i,
+    /\bobligar\b/i,
+    /\bte obligo\b/i,
+    /\bhazlo ahora\b/i,
+    /\bmanda foto ya\b/i,
+  ],
+};
 
 // ═══════════════════════════════════════════════════════════════════
 // SYSTEM PROMPT para IA
@@ -138,6 +222,146 @@ const callModerationAI = async (url, apiKey, model, message) => {
     throw err;
   }
 };
+
+function matchAnyPattern(patterns, message) {
+  return patterns.some((pattern) => pattern.test(message));
+}
+
+function analyzeLocalRisk(message) {
+  const content = String(message || '').trim();
+  const flags = [];
+  let score = 0;
+
+  const addFlag = (category, label, severity, points, route = 'block') => {
+    flags.push({ category, label, severity, points, route });
+    score += points;
+  };
+
+  if (matchAnyPattern(LOCAL_RISK_PATTERNS.minorDirect, content)) {
+    addFlag('minor', 'Referencia explicita a menor de edad', 'high', 10, 'block');
+  }
+  if (matchAnyPattern(LOCAL_RISK_PATTERNS.minorAmbiguous, content)) {
+    addFlag('minor', 'Referencia ambigua de menor de edad', 'high', 5, 'ai');
+  }
+  if (matchAnyPattern(LOCAL_RISK_PATTERNS.externalDirect, content)) {
+    addFlag('external_contact', 'Intento de sacar la conversacion fuera de Chactivo', 'medium', 7, 'block');
+  }
+  if (matchAnyPattern(LOCAL_RISK_PATTERNS.externalAmbiguous, content)) {
+    addFlag('external_contact', 'Posible extraccion a canal externo', 'medium', 4, 'ai');
+  }
+  if (matchAnyPattern(LOCAL_RISK_PATTERNS.drugDirect, content)) {
+    addFlag('drugs', 'Lenguaje asociado a drogas o sustancias', 'high', 7, 'block');
+  }
+  if (matchAnyPattern(LOCAL_RISK_PATTERNS.violenceDirect, content)) {
+    addFlag('violence', 'Amenaza o violencia explicita', 'high', 9, 'block');
+  }
+  if (matchAnyPattern(LOCAL_RISK_PATTERNS.hateDirect, content)) {
+    addFlag('hate', 'Lenguaje de odio o discriminacion', 'high', 9, 'block');
+  }
+  if (matchAnyPattern(LOCAL_RISK_PATTERNS.coercionAmbiguous, content)) {
+    addFlag('coercion', 'Posible coercion o presion directa', 'medium', 3, 'ai');
+  }
+
+  const directBlock = flags.some((flag) => flag.route === 'block')
+    && score >= LOCAL_MODERATION_CONFIG.DIRECT_BLOCK_MIN_SCORE;
+  const needsAIReview = !directBlock
+    && flags.some((flag) => flag.route === 'ai')
+    && score >= LOCAL_MODERATION_CONFIG.AI_REVIEW_MIN_SCORE;
+
+  const primaryFlag = flags[0] || null;
+
+  return {
+    score,
+    flags,
+    directBlock,
+    needsAIReview,
+    primaryFlag,
+  };
+}
+
+async function runAIModeration(message) {
+  let aiResult = null;
+
+  if (DEEPSEEK_API_KEY) {
+    try {
+      aiResult = await callModerationAI(DEEPSEEK_URL, DEEPSEEK_API_KEY, 'deepseek-chat', message);
+      console.log('[MOD-AI] DeepSeek respondió:', JSON.stringify(aiResult));
+    } catch (err) {
+      console.warn('[MOD-AI] DeepSeek falló:', err.message);
+    }
+  }
+
+  if (!aiResult && OPENAI_API_KEY) {
+    try {
+      aiResult = await callModerationAI(OPENAI_URL, OPENAI_API_KEY, 'gpt-4o-mini', message);
+      console.log('[MOD-AI] OpenAI respondió:', JSON.stringify(aiResult));
+    } catch (err) {
+      console.warn('[MOD-AI] OpenAI falló:', err.message);
+    }
+  }
+
+  if (!aiResult && QWEN_API_KEY) {
+    try {
+      aiResult = await callModerationAI(QWEN_URL, QWEN_API_KEY, 'qwen2.5-7b-instruct', message);
+      console.log('[MOD-AI] Qwen respondió:', JSON.stringify(aiResult));
+    } catch (err) {
+      console.warn('[MOD-AI] Qwen falló:', err.message);
+    }
+  }
+
+  return aiResult;
+}
+
+function buildHighRiskAlertPayload(message, roomId, violation, localRisk) {
+  const primaryFlag = localRisk?.primaryFlag || null;
+  const category = primaryFlag?.category || null;
+  let type = null;
+  let severity = String(violation?.severity || primaryFlag?.severity || 'medium').toLowerCase();
+
+  if (category === 'minor') {
+    type = primaryFlag?.route === 'ai' ? 'minor_ambiguous' : 'minor_risk';
+    severity = 'critical';
+  } else if (category === 'violence') {
+    type = 'violence';
+    severity = 'critical';
+  } else if (category === 'hate') {
+    type = 'hate_speech';
+    severity = severity === 'critical' ? 'critical' : 'high';
+  } else if (category === 'drugs') {
+    type = ENCOUNTER_NOW_REGEX.test(String(message || '')) ? 'drug_meetup' : 'drugs';
+    severity = type === 'drug_meetup' ? 'critical' : 'high';
+  } else if (category === 'external_contact') {
+    type = 'external_contact';
+    severity = 'high';
+  } else if (category === 'coercion') {
+    type = 'coercion';
+    severity = severity === 'critical' ? 'critical' : 'high';
+  } else if (violation?.detectedBy === 'ai' && ['high', 'critical'].includes(severity)) {
+    type = 'high_risk_ai';
+  }
+
+  if (!type) return null;
+
+  return {
+    type,
+    severity,
+    roomId,
+    reason: violation?.reason || primaryFlag?.label || 'Incidente de moderacion detectado',
+    message: String(message || '').trim().slice(0, 500),
+    detectedBy: violation?.detectedBy || 'hybrid_moderation',
+    autoAction: violation?.action || 'warning',
+  };
+}
+
+async function queueHighRiskModerationAlert({ message, roomId, violation, localRisk }) {
+  try {
+    const payload = buildHighRiskAlertPayload(message, roomId, violation, localRisk);
+    if (!payload) return;
+    await createModerationIncidentAlert(payload);
+  } catch (error) {
+    console.warn('[MOD-AI] Error creando alerta de alto riesgo:', error?.message || error);
+  }
+}
 
 // ═══════════════════════════════════════════════════════════════════
 // DETECCIÓN DE SPAM (local, sin IA)
@@ -391,7 +615,7 @@ async function logModeration(userId, username, message, roomId, result) {
  *   muteUntil?: number,
  *   reason?: string,
  *   severity?: string,
- *   detectedBy?: 'spam' | 'ai',
+ *   detectedBy?: 'spam' | 'ai' | 'rules' | 'local',
  * }>}
  */
 export async function evaluateMessage(message, userId, username, roomId) {
@@ -427,57 +651,49 @@ export async function evaluateMessage(message, userId, username, roomId) {
       };
     }
 
-    // 2. AI MODERATION (DeepSeek → OpenAI → Qwen)
-    let aiResult = null;
+    // 2. SCORING LOCAL BARATO
+    const localRisk = analyzeLocalRisk(message);
 
-    // DeepSeek (primario, más barato)
-    if (DEEPSEEK_API_KEY) {
-      try {
-        aiResult = await callModerationAI(DEEPSEEK_URL, DEEPSEEK_API_KEY, 'deepseek-chat', message);
-        console.log('[MOD-AI] DeepSeek respondió:', JSON.stringify(aiResult));
-      } catch (err) {
-        console.warn('[MOD-AI] DeepSeek falló:', err.message);
-      }
+    if (localRisk.directBlock) {
+      const primaryFlag = localRisk.primaryFlag || {
+        category: 'policy',
+        label: 'Contenido no permitido',
+        severity: 'high',
+      };
+      return await applyEscalation(userId, username, message, roomId, {
+        safe: false,
+        reason: primaryFlag.label,
+        severity: primaryFlag.severity,
+        detectedBy: 'rules',
+      }, { localRisk });
     }
 
-    // OpenAI (fallback)
-    if (!aiResult && OPENAI_API_KEY) {
-      try {
-        aiResult = await callModerationAI(OPENAI_URL, OPENAI_API_KEY, 'gpt-4o-mini', message);
-        console.log('[MOD-AI] OpenAI respondió:', JSON.stringify(aiResult));
-      } catch (err) {
-        console.warn('[MOD-AI] OpenAI falló:', err.message);
-      }
+    // 3. Si no hay señal local, permitir sin gastar IA
+    if (!localRisk.needsAIReview) {
+      return { safe: true, detectedBy: 'local' };
     }
 
-    // Qwen (último recurso)
-    if (!aiResult && QWEN_API_KEY) {
-      try {
-        aiResult = await callModerationAI(QWEN_URL, QWEN_API_KEY, 'qwen2.5-7b-instruct', message);
-        console.log('[MOD-AI] Qwen respondió:', JSON.stringify(aiResult));
-      } catch (err) {
-        console.warn('[MOD-AI] Qwen falló:', err.message);
-      }
-    }
+    // 4. Solo lo ambiguo pero riesgoso sube a IA
+    const aiResult = await runAIModeration(message);
 
     // Si todas las APIs fallan → permitir (fail-open, NUNCA castigar por error técnico)
     if (!aiResult) {
       console.log('[MOD-AI] Todas las APIs fallaron, mensaje permitido (fail-open)');
-      return { safe: true };
+      return { safe: true, detectedBy: 'local' };
     }
 
     // Si la IA dice que es seguro → permitir
     if (aiResult.safe) {
-      return { safe: true };
+      return { safe: true, detectedBy: 'ai' };
     }
 
-    // 3. VIOLACIÓN DETECTADA: aplicar escalación
+    // 5. VIOLACIÓN DETECTADA: aplicar escalación
     return await applyEscalation(userId, username, message, roomId, {
       safe: false,
       reason: aiResult.reason || 'Contenido no permitido',
       severity: aiResult.severity || 'low',
       detectedBy: 'ai',
-    });
+    }, { localRisk });
   } catch (err) {
     console.error('[MOD-AI] Error general:', err);
     return { safe: true }; // Fail-open siempre
@@ -487,7 +703,7 @@ export async function evaluateMessage(message, userId, username, roomId) {
 /**
  * Aplica escalación progresiva basada en strikes del usuario
  */
-async function applyEscalation(userId, username, message, roomId, violation) {
+async function applyEscalation(userId, username, message, roomId, violation, options = {}) {
   const state = await getModerationState(userId);
   const newStrikes = state.strikes + 1;
 
@@ -537,6 +753,12 @@ async function applyEscalation(userId, username, message, roomId, violation) {
     strikes: newStrikes,
   };
   logModeration(userId, username, message, roomId, result);
+  await queueHighRiskModerationAlert({
+    message,
+    roomId,
+    violation: result,
+    localRisk: options.localRisk || null,
+  });
 
   console.log(`[MOD-AI] ${finalAction.toUpperCase()} para ${username} (strike ${newStrikes}): ${violation.reason}`);
 

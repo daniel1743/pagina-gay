@@ -1,7 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
-import { AlertTriangle, Copy, Download, RefreshCw, MessageSquare, Users } from 'lucide-react';
-import { collection, getDocs, limit, orderBy, query } from 'firebase/firestore';
-import { db } from '@/config/firebase';
+import { AlertTriangle, Copy, Download, FileJson, MessageSquare, RefreshCw, Users } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { toast } from '@/components/ui/use-toast';
 import { generateAdminRoomHistoryReport } from '@/services/adminRoomHistoryService';
@@ -9,18 +7,17 @@ import { generateAdminRoomHistoryReport } from '@/services/adminRoomHistoryServi
 const ROOM_OPTIONS = [
   { value: 'principal', label: 'Sala Principal' },
   { value: 'santiago', label: 'Santiago' },
-  { value: 'mas-30', label: 'Más 30' },
+  { value: 'mas-30', label: 'Mas 30' },
   { value: 'amistad', label: 'Amistad' },
   { value: 'osos-activos', label: 'Osos Activos' },
   { value: 'pasivos-buscando', label: 'Pasivos Buscando' },
-  { value: 'versatiles', label: 'Versátiles' },
+  { value: 'versatiles', label: 'Versatiles' },
   { value: 'quedar-ya', label: 'Quedar Ya' },
   { value: 'hablar-primero', label: 'Hablar Primero' },
   { value: 'morbosear', label: 'Morbosear' }
 ];
 
 const ROOM_RETENTION_MAX_MESSAGES = 205;
-const SEVEN_DAYS_MS = 7 * 24 * 60 * 60 * 1000;
 
 const formatDateTime = (date) =>
   new Intl.DateTimeFormat('es-CL', {
@@ -42,139 +39,186 @@ const buildMessagePreview = (message) => {
   return message.content.trim();
 };
 
+const normalizeWindowDays = () => 7;
+
+const buildTranscriptText = ({ roomId, days, messages, uniqueUsersCount, generatedAt }) => {
+  if (!Array.isArray(messages) || messages.length === 0) {
+    return [
+      `Sala: ${roomId}`,
+      `Ventana: ${days} dias`,
+      'No hay mensajes archivados disponibles para esta ventana.'
+    ].join('\n');
+  }
+
+  const header = [
+    `Sala: ${roomId}`,
+    `Ventana: ${days} dias`,
+    `Mensajes archivados: ${messages.length}`,
+    `Usuarios unicos aproximados: ${uniqueUsersCount}`,
+    `Generado: ${generatedAt ? generatedAt.toLocaleString('es-CL') : new Date().toLocaleString('es-CL')}`,
+    ''
+  ];
+
+  const lines = messages.map((message) => {
+    const identityBits = [message.username];
+    if (message.roleBadge) identityBits.push(message.roleBadge);
+    if (message.comuna) identityBits.push(message.comuna);
+    return `[${formatDateTime(message.timestamp)}] ${identityBits.join(' | ')}: ${buildMessagePreview(message)}`;
+  });
+
+  return [...header, ...lines].join('\n');
+};
+
+const downloadBlob = (content, filename, mimeType) => {
+  const blob = new Blob([content], { type: mimeType });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement('a');
+  link.href = url;
+  link.download = filename;
+  document.body.appendChild(link);
+  link.click();
+  document.body.removeChild(link);
+  URL.revokeObjectURL(url);
+};
+
 const AdminRoomHistoryPanel = () => {
   const [selectedRoom, setSelectedRoom] = useState('principal');
+  const [selectedWindowDays, setSelectedWindowDays] = useState(7);
   const [loading, setLoading] = useState(true);
-  const [downloadingDays, setDownloadingDays] = useState(null);
+  const [exportingFormat, setExportingFormat] = useState(null);
   const [messages, setMessages] = useState([]);
   const [loadedAt, setLoadedAt] = useState(null);
 
-  const loadRoomHistory = useCallback(async () => {
+  const loadRoomHistory = useCallback(async (requestedDays = selectedWindowDays) => {
+    const safeDays = normalizeWindowDays(requestedDays);
     setLoading(true);
 
     try {
-      const messagesRef = collection(db, 'rooms', selectedRoom, 'messages');
-      const roomQuery = query(messagesRef, orderBy('timestamp', 'desc'), limit(ROOM_RETENTION_MAX_MESSAGES));
-      const snapshot = await getDocs(roomQuery);
+      const report = await generateAdminRoomHistoryReport(selectedRoom, safeDays);
+      const nextMessages = Array.isArray(report?.messages)
+        ? report.messages
+            .map((entry, index) => {
+              const timestamp = entry?.timestampIso
+                ? new Date(entry.timestampIso)
+                : new Date(Number(entry?.createdAtMs || 0));
 
-      const nextMessages = snapshot.docs
-        .map((messageDoc) => {
-          const data = messageDoc.data();
-          const timestamp = data.timestamp?.toDate?.();
-
-          return {
-            id: messageDoc.id,
-            username: data.username || 'Usuario',
-            comuna: data.comuna || null,
-            roleBadge: data.roleBadge || null,
-            type: data.type || 'text',
-            content: typeof data.content === 'string' ? data.content : '',
-            timestamp: timestamp || null,
-            userId: data.userId || null
-          };
-        })
-        .filter((message) => message.timestamp instanceof Date)
-        .sort((a, b) => a.timestamp - b.timestamp);
+              return {
+                id: entry?.messageId || `${selectedRoom}_${safeDays}_${index}`,
+                username: entry?.username || 'Usuario',
+                comuna: entry?.comuna || null,
+                roleBadge: entry?.roleBadge || null,
+                type: entry?.type || 'text',
+                content: typeof entry?.content === 'string' ? entry.content : '',
+                timestamp,
+                userId: entry?.userId || null,
+              };
+            })
+            .filter((message) => message.timestamp instanceof Date && !Number.isNaN(message.timestamp.getTime()))
+            .sort((a, b) => a.timestamp - b.timestamp)
+        : [];
 
       setMessages(nextMessages);
-      setLoadedAt(new Date());
+      setSelectedWindowDays(normalizeWindowDays(report?.days || safeDays));
+      setLoadedAt(report?.generatedAtIso ? new Date(report.generatedAtIso) : new Date());
     } catch (error) {
-      console.error('Error cargando historial de sala:', error);
+      console.error('Error cargando historial archivado:', error);
       toast({
-        title: 'Error',
-        description: 'No se pudo cargar el historial disponible de la sala.',
+        title: 'No se pudo cargar el historial',
+        description: error?.message || 'Fallo la consulta del archivo admin.',
         variant: 'destructive'
       });
     } finally {
       setLoading(false);
     }
-  }, [selectedRoom]);
+  }, [selectedRoom, selectedWindowDays]);
 
   useEffect(() => {
-    loadRoomHistory();
-  }, [loadRoomHistory]);
-
-  const cutoffDate = useMemo(() => new Date(Date.now() - SEVEN_DAYS_MS), []);
-
-  const recentMessages = useMemo(
-    () => messages.filter((message) => message.timestamp >= cutoffDate),
-    [messages, cutoffDate]
-  );
+    loadRoomHistory(7);
+  }, [selectedRoom, loadRoomHistory]);
 
   const uniqueUsersCount = useMemo(() => {
-    const keys = recentMessages.map((message) => message.userId || `guest:${message.username}`);
+    const keys = messages.map((message) => message.userId || `guest:${message.username}`);
     return new Set(keys).size;
-  }, [recentMessages]);
+  }, [messages]);
 
-  const transcriptText = useMemo(() => {
-    if (recentMessages.length === 0) {
-      return `Sala: ${selectedRoom}\nNo hay mensajes disponibles dentro de la ventana de 7 días.`;
-    }
-
-    const header = [
-      `Sala: ${selectedRoom}`,
-      `Mensajes disponibles últimos 7 días: ${recentMessages.length}`,
-      `Usuarios únicos aproximados: ${uniqueUsersCount}`,
-      `Generado: ${new Date().toLocaleString('es-CL')}`,
-      ''
-    ];
-
-    const lines = recentMessages.map((message) => {
-      const identityBits = [message.username];
-      if (message.roleBadge) identityBits.push(message.roleBadge);
-      if (message.comuna) identityBits.push(message.comuna);
-
-      return `[${formatDateTime(message.timestamp)}] ${identityBits.join(' | ')}: ${buildMessagePreview(message)}`;
-    });
-
-    return [...header, ...lines].join('\n');
-  }, [recentMessages, selectedRoom, uniqueUsersCount]);
+  const transcriptText = useMemo(
+    () => buildTranscriptText({
+      roomId: selectedRoom,
+      days: selectedWindowDays,
+      messages,
+      uniqueUsersCount,
+      generatedAt: loadedAt,
+    }),
+    [loadedAt, messages, selectedRoom, selectedWindowDays, uniqueUsersCount]
+  );
 
   const handleCopyTranscript = async () => {
     try {
       await navigator.clipboard.writeText(transcriptText);
       toast({
         title: 'Historial copiado',
-        description: `Se copió el transcript disponible de la sala ${selectedRoom}.`
+        description: `Se copio la ventana de ${selectedWindowDays} dias de ${selectedRoom}.`
       });
     } catch (error) {
       console.error('Error copiando historial:', error);
       toast({
         title: 'No se pudo copiar',
-        description: 'El navegador no permitió copiar el historial al portapapeles.',
+        description: 'El navegador no permitio copiar el historial.',
         variant: 'destructive'
       });
     }
   };
 
-  const handleDownloadReport = async (days) => {
-    setDownloadingDays(days);
+  const handleDownloadCurrent = async (format) => {
+    const safeFormat = format === 'json' ? 'json' : 'txt';
+    setExportingFormat(safeFormat);
 
     try {
-      const report = await generateAdminRoomHistoryReport(selectedRoom, days);
-      if (!report?.txtDownloadUrl) {
-        throw new Error('No se recibió URL de descarga del informe.');
+      const roomSlug = String(selectedRoom || 'sala').replace(/[^a-z0-9-_]+/gi, '-');
+      const filenameBase = `historial_${roomSlug}_${selectedWindowDays}d_${new Date().toISOString().slice(0, 10)}`;
+
+      if (safeFormat === 'json') {
+        downloadBlob(
+          JSON.stringify({
+            roomId: selectedRoom,
+            days: selectedWindowDays,
+            generatedAtIso: loadedAt?.toISOString?.() || new Date().toISOString(),
+            totalMessages: messages.length,
+            messages: messages.map((message) => ({
+              id: message.id,
+              username: message.username,
+              comuna: message.comuna,
+              roleBadge: message.roleBadge,
+              type: message.type,
+              content: message.content,
+              timestampIso: message.timestamp?.toISOString?.() || null,
+              userId: message.userId,
+            })),
+          }, null, 2),
+          `${filenameBase}.json`,
+          'application/json;charset=utf-8'
+        );
+      } else {
+        downloadBlob(
+          transcriptText,
+          `${filenameBase}.txt`,
+          'text/plain;charset=utf-8'
+        );
       }
 
-      const link = document.createElement('a');
-      link.href = report.txtDownloadUrl;
-      link.target = '_blank';
-      link.rel = 'noopener noreferrer';
-      link.click();
-
       toast({
-        title: 'Informe generado',
-        description: `Informe de ${report.days} días listo con ${report.totalMessages || 0} mensajes.`
+        title: 'Descarga lista',
+        description: `Se descargo el historial ${safeFormat.toUpperCase()} de ${selectedWindowDays} dias.`,
       });
     } catch (error) {
-      console.error('Error generando informe descargable:', error);
+      console.error('Error descargando historial local:', error);
       toast({
-        title: 'No se pudo generar el informe',
-        description: error?.message || 'Falló la generación del informe descargable.',
+        title: 'No se pudo descargar',
+        description: error?.message || 'Fallo la descarga local del historial.',
         variant: 'destructive'
       });
     } finally {
-      setDownloadingDays(null);
+      setExportingFormat(null);
     }
   };
 
@@ -185,14 +229,14 @@ const AdminRoomHistoryPanel = () => {
           <div>
             <h2 className="text-2xl font-bold flex items-center gap-2">
               <MessageSquare className="w-6 h-6 text-cyan-400" />
-              Historial Reciente de Sala
+              Historial Admin de Sala
             </h2>
             <p className="text-sm text-muted-foreground mt-1">
-              Vista admin para leer la conversación disponible y copiarla para análisis de intención.
+              Esta vista usa el archivo admin separado con retencion corta y predecible. No depende de enlaces firmados ni de salir del panel.
             </p>
           </div>
 
-          <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
+          <div className="flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-center">
             <select
               value={selectedRoom}
               onChange={(e) => setSelectedRoom(e.target.value)}
@@ -205,14 +249,14 @@ const AdminRoomHistoryPanel = () => {
               ))}
             </select>
 
-            <Button variant="outline" onClick={loadRoomHistory} disabled={loading} className="gap-2">
+            <Button variant="outline" onClick={() => loadRoomHistory(selectedWindowDays)} disabled={loading} className="gap-2">
               <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
               Recargar
             </Button>
 
             <Button onClick={handleCopyTranscript} disabled={loading} className="gap-2">
               <Copy className="w-4 h-4" />
-              Copiar conversaciones
+              Copiar
             </Button>
           </div>
         </div>
@@ -221,10 +265,13 @@ const AdminRoomHistoryPanel = () => {
           <div className="flex gap-3">
             <AlertTriangle className="w-5 h-5 shrink-0 text-amber-300" />
             <div className="space-y-1">
-              <p className="font-medium text-amber-200">Retención real de la sala pública</p>
+              <p className="font-medium text-amber-200">Separacion simple entre sala viva y archivo admin</p>
               <p>
-                Este panel intenta mostrar últimos 7 días, pero hoy la sala pública se poda automáticamente a
-                aproximadamente {ROOM_RETENTION_MAX_MESSAGES} mensajes. Si hubo más tráfico, lo anterior ya fue borrado.
+                La sala publica viva sigue podandose a aproximadamente {ROOM_RETENTION_MAX_MESSAGES} mensajes para rendimiento.
+                Este panel ya no lee esa capa: lee el archivo admin de 7 dias.
+              </p>
+              <p className="text-amber-200/90">
+                Si falta material muy antiguo, normalmente es porque fue anterior al despliegue del archivado.
               </p>
             </div>
           </div>
@@ -237,21 +284,21 @@ const AdminRoomHistoryPanel = () => {
           </div>
 
           <div className="rounded-xl border border-border bg-background/60 p-4">
-            <div className="text-xs uppercase tracking-wide text-muted-foreground">Mensajes últimos 7 días</div>
-            <div className="mt-2 text-lg font-semibold">{recentMessages.length}</div>
+            <div className="text-xs uppercase tracking-wide text-muted-foreground">Ventana cargada</div>
+            <div className="mt-2 text-lg font-semibold">{selectedWindowDays} dias</div>
           </div>
 
           <div className="rounded-xl border border-border bg-background/60 p-4">
             <div className="text-xs uppercase tracking-wide text-muted-foreground flex items-center gap-2">
               <Users className="w-4 h-4" />
-              Usuarios únicos aprox.
+              Usuarios unicos aprox.
             </div>
             <div className="mt-2 text-lg font-semibold">{uniqueUsersCount}</div>
           </div>
         </div>
 
         <div className="text-xs text-muted-foreground">
-          {loadedAt ? `Última carga: ${loadedAt.toLocaleString('es-CL')}` : 'Sin carga todavía'}
+          {loadedAt ? `Ultima carga: ${loadedAt.toLocaleString('es-CL')}` : 'Sin carga todavia'}
         </div>
       </div>
 
@@ -259,51 +306,58 @@ const AdminRoomHistoryPanel = () => {
         <div>
           <h3 className="text-lg font-semibold flex items-center gap-2">
             <Download className="w-5 h-5 text-cyan-400" />
-            Informes Descargables
+            Ventana y descarga local
           </h3>
           <p className="mt-1 text-sm text-muted-foreground">
-            Estos informes salen de un archivo admin separado en Storage. La sala pública puede seguir podándose sin perder el material analítico de los últimos 14 días.
+            Ves el contenido aqui mismo y, si quieres, lo descargas directo desde el navegador.
           </p>
         </div>
 
-        <div className="flex flex-col gap-3 sm:flex-row">
+        <div className="flex flex-col gap-3 sm:flex-row sm:flex-wrap">
           <Button
-            onClick={() => handleDownloadReport(7)}
-            disabled={Boolean(downloadingDays)}
+            onClick={() => loadRoomHistory(7)}
+            disabled={loading}
             className="gap-2"
+            variant={selectedWindowDays === 7 ? 'default' : 'outline'}
           >
-            <Download className="w-4 h-4" />
-            {downloadingDays === 7 ? 'Generando...' : 'Descargar informe 7 días'}
+            <MessageSquare className="w-4 h-4" />
+            {loading && selectedWindowDays === 7 ? 'Cargando 7 dias...' : 'Mostrar 7 dias'}
           </Button>
 
           <Button
             variant="outline"
-            onClick={() => handleDownloadReport(14)}
-            disabled={Boolean(downloadingDays)}
+            onClick={() => handleDownloadCurrent('txt')}
+            disabled={loading || exportingFormat !== null}
             className="gap-2"
           >
             <Download className="w-4 h-4" />
-            {downloadingDays === 14 ? 'Generando...' : 'Descargar informe 14 días'}
+            {exportingFormat === 'txt' ? 'Preparando TXT...' : 'Descargar TXT'}
+          </Button>
+
+          <Button
+            variant="outline"
+            onClick={() => handleDownloadCurrent('json')}
+            disabled={loading || exportingFormat !== null}
+            className="gap-2"
+          >
+            <FileJson className="w-4 h-4" />
+            {exportingFormat === 'json' ? 'Preparando JSON...' : 'Descargar JSON'}
           </Button>
         </div>
-
-        <p className="text-xs text-muted-foreground">
-          El enlace de descarga se firma solo para admin y expira automáticamente.
-        </p>
       </div>
 
       <div className="glass-effect rounded-2xl border border-border p-6">
-        <h3 className="text-lg font-semibold mb-4">Conversación disponible</h3>
+        <h3 className="text-lg font-semibold mb-4">Conversacion archivada disponible</h3>
 
         {loading ? (
-          <div className="py-12 text-center text-muted-foreground">Cargando historial...</div>
-        ) : recentMessages.length === 0 ? (
+          <div className="py-12 text-center text-muted-foreground">Cargando historial archivado...</div>
+        ) : messages.length === 0 ? (
           <div className="py-12 text-center text-muted-foreground">
-            No hay mensajes disponibles dentro de la ventana de 7 días para esta sala.
+            No hay mensajes archivados disponibles para esta sala en la ventana de 7 dias.
           </div>
         ) : (
           <div className="max-h-[65vh] space-y-3 overflow-y-auto pr-2">
-            {recentMessages.map((message) => (
+            {messages.map((message) => (
               <div key={message.id} className="rounded-xl border border-border bg-background/60 p-4">
                 <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-sm">
                   <span className="font-semibold text-foreground">{message.username}</span>

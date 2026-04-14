@@ -100,6 +100,7 @@ import { MessageCircle } from 'lucide-react';
 import { getOpenOpinIntentsByUserIds, getOpinPostActivityMs, getOpinStatusMeta } from '@/services/opinService';
 import { readPendingPrivateChatRestore, clearPendingPrivateChatRestore } from '@/utils/privateChatRestore';
 import { clearSeoFunnelContext, readSeoFunnelContext } from '@/utils/seoFunnelContext';
+import { hasValidGuestCommunityAccess, syncGuestCommunityAccess } from '@/utils/communityPolicyGuard';
 import '@/utils/chatDiagnostics'; // 🔍 Cargar diagnóstico en consola
 import { 
   trackChatLoad, 
@@ -1242,6 +1243,7 @@ const ChatPage = () => {
   const stopRandomConnectRef = useRef(null);
   const sendNextRandomConnectInviteRef = useRef(null);
   const handledDirectMessageNotificationIdsRef = useRef(new Set());
+  const handledPrivateConversationNotificationIdsRef = useRef(new Set());
   const lastInteractionAtRef = useRef(Date.now());
   const privateMatchLastShownAtRef = useRef(0);
   const privateMatchCooldownByTargetRef = useRef(new Map());
@@ -3920,6 +3922,7 @@ const ChatPage = () => {
               if (storedAge && Number(storedAge) >= 18) {
                 setIsAgeVerified(true);
                 setShowAgeVerification(false);
+                syncGuestCommunityAccess({ userId: user.id, username: saved.username, fallbackAge: storedAge });
                 // console.log(`[AGE VERIFICATION] ✅ Usuario invitado ${user.username} ya verificó edad en sesión anterior`);
                 return; // No mostrar modal
               }
@@ -3937,15 +3940,29 @@ const ChatPage = () => {
       setShowAgeVerification(false);
       // Guardar en localStorage para futuras sesiones
       localStorage.setItem(`age_verified_${user.id}`, '18');
+      localStorage.setItem(`rules_accepted_${user.id}`, 'true');
       // console.log(`[AGE VERIFICATION] ✅ Usuario ${user.username} ya verificó edad en landing page`);
     } else {
-      // ✅ SI ES INVITADO: Auto-verificar (asumimos +18 porque ya pasó formulario de entrada)
       if (user.isGuest || user.isAnonymous) {
-        // console.log(`[AGE VERIFICATION] ✅ Usuario invitado ${user.username} - Auto-verificado (formulario de entrada simplificado)`);
-        setIsAgeVerified(true);
-        setShowAgeVerification(false);
-        localStorage.setItem(`age_verified_${user.id}`, '18');
-        return; // NO mostrar modal adicional - CERO FRICCIÓN
+        const hasValidGuestAccess = hasValidGuestCommunityAccess({
+          userId: user.id,
+          username: user.username,
+          fallbackAge: user.age || user.edad || null,
+        });
+
+        if (hasValidGuestAccess) {
+          setIsAgeVerified(true);
+          setShowAgeVerification(false);
+          syncGuestCommunityAccess({
+            userId: user.id,
+            username: user.username,
+            fallbackAge: user.age || user.edad || null,
+          });
+        } else {
+          setIsAgeVerified(false);
+          setShowAgeVerification(true);
+        }
+        return;
       }
 
       // ✅ USUARIOS REGISTRADOS (NO invitados, NO anónimos): Auto-verificar SIEMPRE
@@ -4708,6 +4725,34 @@ const ChatPage = () => {
   }, [setActivePrivateChat, maxOpenPrivateChats]);
   openPrivateChatWindowRef.current = openPrivateChatWindow;
 
+  const showPrivateConversationToast = useCallback((payload = {}) => {
+    if (!payload?.notificationId || handledPrivateConversationNotificationIdsRef.current.has(payload.notificationId)) {
+      return false;
+    }
+
+    handledPrivateConversationNotificationIdsRef.current.add(payload.notificationId);
+    if (handledPrivateConversationNotificationIdsRef.current.size > 150) {
+      handledPrivateConversationNotificationIdsRef.current = new Set(
+        Array.from(handledPrivateConversationNotificationIdsRef.current).slice(-80)
+      );
+    }
+
+    setPrivateDirectMessageToast({
+      notificationId: payload.notificationId,
+      chatId: payload.chatId,
+      from: payload.from || '',
+      fromUsername: payload.fromUsername || 'Usuario',
+      fromAvatar: payload.fromAvatar || '',
+      fromIsPremium: payload.fromIsPremium || false,
+      content: payload.content || '',
+      title: payload.title || null,
+      hint: payload.hint || 'No se abrirá automáticamente. Ábrelo solo si quieres responder ahora.',
+      actionLabel: payload.actionLabel || 'Abrir chat',
+    });
+
+    return true;
+  }, []);
+
   useEffect(() => {
     if (!authReady || !user?.id || user?.isGuest || user?.isAnonymous) return;
 
@@ -4971,26 +5016,26 @@ const ChatPage = () => {
       if (acceptedChats.length > 0) {
         const latestAccepted = acceptedChats.find((n) => !currentOpenChats.some((chat) => chat.chatId === n.chatId))
           || acceptedChats[0];
-        const roomId = currentRoomRef.current || null;
-        const opened = openPrivateChatWindowRef.current?.({
-          user: currentUser,
-          partner: {
-            userId: latestAccepted.from,
-            username: latestAccepted.fromUsername,
-            avatar: latestAccepted.fromAvatar,
-            isPremium: latestAccepted.fromIsPremium,
-          },
-          chatId: latestAccepted.chatId,
-          roomId
-        });
 
         const currentRandomSession = randomConnectSessionRef.current;
         if (currentRandomSession.active && currentRandomSession.pendingTargetId === latestAccepted.from) {
           stopRandomConnectRef.current?.();
         }
 
-        if (opened || currentOpenChats.some((chat) => chat.chatId === latestAccepted.chatId)) {
+        if (currentOpenChats.some((chat) => chat.chatId === latestAccepted.chatId)) {
           markNotificationAsRead(user.id, latestAccepted.id).catch(() => {});
+        } else {
+          showPrivateConversationToast({
+            notificationId: latestAccepted.id,
+            chatId: latestAccepted.chatId,
+            from: latestAccepted.from,
+            fromUsername: latestAccepted.fromUsername || 'Usuario',
+            fromAvatar: latestAccepted.fromAvatar || '',
+            fromIsPremium: latestAccepted.fromIsPremium,
+            title: `${latestAccepted.fromUsername || 'Un usuario'} aceptó tu privado`,
+            content: latestAccepted.content || 'La conversación privada ya está lista.',
+            hint: 'No se abrirá sola. Puedes entrar ahora o dejarla en Privados para después.',
+          });
         }
       }
 
@@ -5006,34 +5051,20 @@ const ChatPage = () => {
           ? latestReopened.participantProfiles
           : [];
 
-        const opened = openPrivateChatWindowRef.current?.({
-          user: currentUser,
-          partner: {
-            userId: latestReopened.from,
-            username: latestReopened.fromUsername || 'Usuario',
-            avatar: latestReopened.fromAvatar || '',
-            isPremium: latestReopened.fromIsPremium,
-          },
-          participants: participantProfiles,
-          title: latestReopened.title || '',
-          chatId: latestReopened.chatId,
-          roomId: currentRoomRef.current || null,
-          isMinimized: true,
-        });
-
-        toast({
-          title: latestReopened.fromUsername || 'Nuevo privado',
-          description: latestReopened.content || 'Hay una conversación privada nueva esperándote.',
-        });
-
-        console.info('[PRIVATE_CHAT_SYNC] Señal remota recibida', {
-          chatId: latestReopened.chatId,
-          fromUserId: latestReopened.from,
-          openedMinimized: Boolean(opened),
-        });
-
-        if (opened || currentOpenChats.some((chat) => chat.chatId === latestReopened.chatId)) {
+        if (currentOpenChats.some((chat) => chat.chatId === latestReopened.chatId)) {
           markNotificationAsRead(user.id, latestReopened.id).catch(() => {});
+        } else {
+          showPrivateConversationToast({
+            notificationId: latestReopened.id,
+            chatId: latestReopened.chatId,
+            from: latestReopened.from,
+            fromUsername: latestReopened.fromUsername || 'Usuario',
+            fromAvatar: latestReopened.fromAvatar || '',
+            fromIsPremium: latestReopened.fromIsPremium,
+            title: latestReopened.fromUsername || 'Nuevo privado',
+            content: latestReopened.content || 'Hay una conversación privada nueva esperándote.',
+            hint: 'Quedó disponible en Privados. Se abre solo si haces clic.',
+          });
         }
       }
 
@@ -5135,25 +5166,31 @@ const ChatPage = () => {
       if (readyGroupChats.length > 0) {
         const latestReady = readyGroupChats.find((n) => !currentOpenChats.some((chat) => chat.chatId === n.chatId))
           || readyGroupChats[0];
-        const opened = openGroupPrivateChatWindowRef.current?.({
-          chatId: latestReady.chatId,
-          title: latestReady.title || 'Chat grupal privado',
-          participantProfiles: latestReady.participantProfiles || [],
-          roomId: currentRoomRef.current || null,
-        });
 
         if (currentRequest?.inviteId && currentRequest.inviteId === latestReady.inviteId) {
           setPrivateChatRequest(null);
         }
 
-        if (opened || currentOpenChats.some((chat) => chat.chatId === latestReady.chatId)) {
+        if (currentOpenChats.some((chat) => chat.chatId === latestReady.chatId)) {
           markNotificationAsRead(user.id, latestReady.id).catch(() => {});
+        } else {
+          showPrivateConversationToast({
+            notificationId: latestReady.id,
+            chatId: latestReady.chatId,
+            from: latestReady.from,
+            fromUsername: latestReady.fromUsername || 'Chat grupal',
+            fromAvatar: latestReady.fromAvatar || '',
+            fromIsPremium: latestReady.fromIsPremium,
+            title: latestReady.title || 'Chat grupal privado listo',
+            content: latestReady.content || 'El grupo privado quedó disponible para abrir.',
+            hint: 'No se abrirá automáticamente. Puedes entrar cuando quieras.',
+          });
         }
       }
     });
 
     return () => unsubscribe();
-  }, [user?.id]); // refs manejan el estado mutable
+  }, [user?.id, showPrivateConversationToast]); // refs manejan el estado mutable
 
   useEffect(() => {
     if (!authReady || !user?.id || auth.currentUser?.uid !== user.id) {
@@ -7977,11 +8014,13 @@ const ChatPage = () => {
               // Guardar edad en localStorage (múltiples claves para persistencia)
               const ageKey = `age_verified_${user.id}`;
               localStorage.setItem(ageKey, String(age));
+              localStorage.setItem(`rules_accepted_${user.id}`, 'true');
               
               // ⚡ PERSISTENCIA: Guardar también por username para restaurar si cambia el UID
               if (user.isGuest || user.isAnonymous) {
                 const usernameAgeKey = `age_verified_${username.toLowerCase().trim()}`;
                 localStorage.setItem(usernameAgeKey, String(age));
+                localStorage.setItem(`rules_accepted_${username.toLowerCase().trim()}`, 'true');
                 
                 // ✅ GUARDAR SESIÓN si el usuario marcó "Mantener sesión"
                 if (keepSession) {

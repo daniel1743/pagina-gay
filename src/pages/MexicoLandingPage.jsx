@@ -4,6 +4,8 @@ import { useAuth } from '@/contexts/AuthContext';
 import { useCanonical } from '@/hooks/useCanonical';
 import { Check } from 'lucide-react';
 import TelegramBanner from '@/components/ui/TelegramBanner';
+import CommunityPolicyCompactNotice from '@/components/policy/CommunityPolicyCompactNotice';
+import { COMMUNITY_POLICY_STORAGE, COMMUNITY_POLICY_VERSION, getPolicyCopy } from '@/content/communityPolicy';
 
 const AVATAR_OPTIONS = [
   { id: 'avataaars', url: 'https://api.dicebear.com/7.x/avataaars/svg?seed=avatar1', name: 'Clásico' },
@@ -15,6 +17,7 @@ const AVATAR_OPTIONS = [
 const MexicoLandingPage = () => {
   const navigate = useNavigate();
   const { signInAsGuest } = useAuth();
+  const policyCopy = getPolicyCopy('es');
   const [nickname, setNickname] = React.useState('');
   const [age, setAge] = React.useState('');
   const [selectedAvatar, setSelectedAvatar] = React.useState(AVATAR_OPTIONS[0]);
@@ -112,6 +115,11 @@ const MexicoLandingPage = () => {
     try {
       sessionStorage.setItem(`age_verified_${nickname.trim()}`, 'true');
       sessionStorage.setItem(`rules_accepted_${nickname.trim()}`, 'true');
+      localStorage.setItem(`age_verified_${nickname.trim().toLowerCase()}`, String(parsedAge));
+      localStorage.setItem(`rules_accepted_${nickname.trim().toLowerCase()}`, 'true');
+      localStorage.setItem(COMMUNITY_POLICY_STORAGE.acceptedFlag, '1');
+      localStorage.setItem(COMMUNITY_POLICY_STORAGE.acceptedAt, String(Date.now()));
+      localStorage.setItem(COMMUNITY_POLICY_STORAGE.version, COMMUNITY_POLICY_VERSION);
       await signInAsGuest(nickname.trim(), selectedAvatar.url);
       console.log('🇲🇽 [MÉXICO] Autenticación exitosa, navegando a /chat/principal');
       navigate('/chat/principal', { replace: true });
@@ -154,6 +162,7 @@ const MexicoLandingPage = () => {
           <div style={{ marginBottom: '20px' }}>
             <label style={{ display: 'block', fontSize: '14px', fontWeight: '600', color: '#333', marginBottom: '8px' }}>Tu Edad *</label>
             <input type="number" value={age} onChange={(e) => setAge(e.target.value)} placeholder="Ej: 24" min="18" required style={{ width: '100%', padding: '12px', fontSize: '16px', border: '2px solid #f5576c', borderRadius: '10px', outline: 'none', boxSizing: 'border-box', backgroundColor: 'white', color: '#333' }} />
+            <p style={{ fontSize: '11px', color: '#0f766e', marginTop: '8px' }}>{policyCopy.privacyNotice}</p>
           </div>
 
           <div style={{ marginBottom: '20px' }}>
@@ -176,8 +185,12 @@ const MexicoLandingPage = () => {
           <div style={{ marginBottom: '20px' }}>
             <label style={{ display: 'flex', alignItems: 'flex-start', gap: '10px', cursor: 'pointer', fontSize: '13px', color: '#333' }}>
               <input type="checkbox" checked={acceptRules} onChange={(e) => setAcceptRules(e.target.checked)} required style={{ width: '18px', height: '18px', marginTop: '2px', cursor: 'pointer', accentColor: '#f5576c' }} />
-              <span>Acepto las reglas del chat. Tengo +18 años y entiendo que debo respetar a los demás usuarios.</span>
+              <span>{policyCopy.acceptanceLabel}</span>
             </label>
+          </div>
+
+          <div style={{ marginBottom: '20px' }}>
+            <CommunityPolicyCompactNotice />
           </div>
 
           {error && (

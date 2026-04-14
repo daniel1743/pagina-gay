@@ -8,9 +8,12 @@ const PRIVATE_DM_TOAST_DURATION_SECONDS = 2.8;
 
 const PrivateChatDirectMessageToast = ({ message, onOpen, onClose }) => {
   const fromUsername = message?.fromUsername || 'Alguien';
+  const title = message?.title || `${fromUsername} te ha escrito un mensaje`;
   const preview = typeof message?.content === 'string' && message.content.trim()
     ? message.content.trim()
     : 'Te ha escrito en privado.';
+  const helperText = message?.hint || 'Si lo abres ahora, entrarás directo a la conversación privada. Si cierras este aviso, el mensaje seguirá en Privados.';
+  const actionLabel = message?.actionLabel || 'Abrir chat';
 
   useEffect(() => {
     const timer = setTimeout(() => {
@@ -50,7 +53,7 @@ const PrivateChatDirectMessageToast = ({ message, onOpen, onClose }) => {
                 <div className="flex items-center gap-2 mb-1.5">
                   <MessageCircle className="w-4 h-4 text-emerald-400 flex-shrink-0" />
                   <p className="text-sm font-bold text-white leading-tight">
-                    {fromUsername} te ha escrito un mensaje
+                    {title}
                   </p>
                 </div>
                 <p className="text-xs sm:text-sm text-slate-200 leading-relaxed line-clamp-2 break-words">
@@ -68,7 +71,15 @@ const PrivateChatDirectMessageToast = ({ message, onOpen, onClose }) => {
             </div>
 
             <p className="mt-2 text-[11px] sm:text-xs text-slate-400">
-              Si lo abres ahora, entrarás directo a la conversación privada. Si cierras este aviso, el mensaje seguirá en <span className="font-semibold text-emerald-300">Privados</span>.
+              {helperText.split('Privados').length > 1 ? (
+                <>
+                  {helperText.split('Privados')[0]}
+                  <span className="font-semibold text-emerald-300">Privados</span>
+                  {helperText.split('Privados').slice(1).join('Privados')}
+                </>
+              ) : (
+                helperText
+              )}
             </p>
           </div>
 
@@ -89,7 +100,7 @@ const PrivateChatDirectMessageToast = ({ message, onOpen, onClose }) => {
               size="sm"
               className="flex-1 h-10 bg-gradient-to-r from-emerald-600 to-cyan-600 hover:from-emerald-500 hover:to-cyan-500 text-white font-bold"
             >
-              Abrir chat
+              {actionLabel}
             </Button>
           </div>
         </div>

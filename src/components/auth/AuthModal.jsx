@@ -15,6 +15,8 @@ import {
 import { Mail, Eye, EyeOff } from 'lucide-react';
 import { toast } from '@/components/ui/use-toast';
 import { PROFILE_ROLE_OPTIONS, normalizeProfileRole } from '@/config/profileRoles';
+import CommunityPolicyCompactNotice from '@/components/policy/CommunityPolicyCompactNotice';
+import { COMMUNITY_POLICY_STORAGE, COMMUNITY_POLICY_VERSION, getPolicyCopy } from '@/content/communityPolicy';
 
 /**
  * Modal de Autenticación (Login/Registro)
@@ -23,6 +25,7 @@ import { PROFILE_ROLE_OPTIONS, normalizeProfileRole } from '@/config/profileRole
 export const AuthModal = ({ open, onClose }) => {
   const navigate = useNavigate();
   const { login, register } = useAuth();
+  const policyCopy = getPolicyCopy('es');
   
   const [loginData, setLoginData] = useState({ email: '', password: '' });
   const [registerData, setRegisterData] = useState({
@@ -33,6 +36,8 @@ export const AuthModal = ({ open, onClose }) => {
   });
   const [ageError, setAgeError] = useState('');
   const [roleError, setRoleError] = useState('');
+  const [registerRulesAccepted, setRegisterRulesAccepted] = useState(false);
+  const [registerRulesError, setRegisterRulesError] = useState('');
   const [showLoginPassword, setShowLoginPassword] = useState(false);
   const [showRegisterPassword, setShowRegisterPassword] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
@@ -68,6 +73,7 @@ export const AuthModal = ({ open, onClose }) => {
     e.preventDefault();
     setAgeError('');
     setRoleError('');
+    setRegisterRulesError('');
     setIsLoading(true);
 
     // ✅ VALIDACIÓN CRÍTICA: Verificar edad mínima (18 años)
@@ -88,13 +94,26 @@ export const AuthModal = ({ open, onClose }) => {
       setIsLoading(false);
       return;
     }
+    if (!registerRulesAccepted) {
+      setRegisterRulesError('Debes aceptar las normas y políticas de seguridad.');
+      setIsLoading(false);
+      return;
+    }
 
     try {
       const success = await register({
         ...registerData,
         profileRole: normalizedRole,
+        communityPolicyAccepted: true,
+        communityPolicyAcceptedAt: Date.now(),
+        communityPolicyVersion: COMMUNITY_POLICY_VERSION,
       });
       if (success) {
+        if (typeof window !== 'undefined') {
+          localStorage.setItem(COMMUNITY_POLICY_STORAGE.acceptedFlag, '1');
+          localStorage.setItem(COMMUNITY_POLICY_STORAGE.acceptedAt, String(Date.now()));
+          localStorage.setItem(COMMUNITY_POLICY_STORAGE.version, COMMUNITY_POLICY_VERSION);
+        }
         onClose();
         // No navegamos, el usuario ya está en el chat
         // El toast ya se muestra en AuthContext
@@ -267,6 +286,7 @@ export const AuthModal = ({ open, onClose }) => {
                   >
                     {isLoading ? 'Iniciando sesión...' : 'Iniciar Sesión'}
                   </Button>
+                  <CommunityPolicyCompactNotice />
                 </form>
               </TabsContent>
 
@@ -305,8 +325,8 @@ export const AuthModal = ({ open, onClose }) => {
                         ⚠️ {ageError}
                       </p>
                     )}
-                    <p style={{ color: '#999', fontSize: '12px', marginTop: '4px' }}>
-                      Debes ser mayor de edad
+                    <p style={{ color: '#0f766e', fontSize: '12px', marginTop: '4px' }}>
+                      {policyCopy.privacyNotice}
                     </p>
                   </div>
                   <div>
@@ -414,6 +434,33 @@ export const AuthModal = ({ open, onClose }) => {
                       </button>
                     </div>
                   </div>
+                  <div
+                    style={{
+                      border: '1px solid rgba(102, 126, 234, 0.18)',
+                      borderRadius: '12px',
+                      padding: '12px',
+                      backgroundColor: 'rgba(102, 126, 234, 0.06)'
+                    }}
+                  >
+                    <label style={{ display: 'flex', alignItems: 'flex-start', gap: '10px', cursor: 'pointer', fontSize: '13px', color: '#333' }}>
+                      <input
+                        type="checkbox"
+                        checked={registerRulesAccepted}
+                        onChange={(e) => {
+                          setRegisterRulesAccepted(e.target.checked);
+                          setRegisterRulesError('');
+                        }}
+                        style={{ width: '18px', height: '18px', marginTop: '2px', cursor: 'pointer' }}
+                      />
+                      <span>{policyCopy.acceptanceLabel}</span>
+                    </label>
+                    {registerRulesError ? (
+                      <p style={{ color: '#c33', fontSize: '13px', marginTop: '8px', fontWeight: '600' }}>
+                        ⚠️ {registerRulesError}
+                      </p>
+                    ) : null}
+                  </div>
+                  <CommunityPolicyCompactNotice />
                   <Button
                     type="submit"
                     disabled={isLoading}

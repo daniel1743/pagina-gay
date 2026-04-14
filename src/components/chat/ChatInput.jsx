@@ -13,6 +13,11 @@ import { updatePresenceFields, updateTypingStatus } from '@/services/presenceSer
 import { notificationSounds, initAudioOnFirstGesture } from '@/services/notificationSounds';
 import { track } from '@/services/eventTrackingService';
 import { COMUNA_OPTIONS, ONBOARDING_COMUNA_KEY, normalizeComuna } from '@/config/comunas';
+import ChactivoAssistantCard from '@/components/chat/ChactivoAssistantCard';
+import {
+  getChactivoAssistantReply,
+  getChactivoAssistantTopics,
+} from '@/services/chactivoOnboardingAssistantService';
 
 // Lazy load del EmojiPicker para mejorar rendimiento
 const EmojiPicker = lazy(() => import('emoji-picker-react'));
@@ -184,6 +189,15 @@ const ChatInput = ({
 
   const shouldShowComposerGuidance = !isHeteroContext && showOnboardingHints && !onboardingDismissed && !firstMessageSentInSession;
   const shouldShowOnboarding = shouldShowComposerGuidance;
+  const assistantTopics = useMemo(() => getChactivoAssistantTopics(), []);
+  const [assistantTopicKey, setAssistantTopicKey] = useState('how_it_works');
+  const assistantReply = useMemo(() => (
+    getChactivoAssistantReply(assistantTopicKey, {
+      isGuest,
+      selectedRole,
+      selectedComuna,
+    })
+  ), [assistantTopicKey, isGuest, selectedComuna, selectedRole]);
   const composerPlaceholder = useMemo(() => {
     if (isGuest) return 'Toca aquí para elegir tu nickname y chatear...';
     if (replyTo?.username) return `Responde con contexto a ${replyTo.username}...`;
@@ -620,6 +634,40 @@ const ChatInput = ({
       template_message: templateMessage,
     });
   };
+
+  const handleAssistantTopicSelect = useCallback((topicKey) => {
+    setAssistantTopicKey(topicKey);
+    trackOnboardingEvent('assistant_topic_click', {
+      assistant_topic: topicKey,
+    });
+  }, [trackOnboardingEvent]);
+
+  const handleAssistantQuickAction = useCallback((actionKey, reply) => {
+    trackOnboardingEvent('assistant_action_click', {
+      assistant_topic: reply?.topicKey || assistantTopicKey,
+      assistant_action: actionKey,
+    });
+
+    switch (actionKey) {
+      case 'fill_example':
+        if (reply?.exampleMessage) {
+          setMessage(reply.exampleMessage);
+          textareaRef.current?.focus({ preventScroll: true });
+        }
+        break;
+      case 'open_comuna_selector':
+        setShowComunaSelector(true);
+        break;
+      case 'request_nickname':
+        onRequestNickname?.();
+        break;
+      case 'dismiss_assistant':
+        dismissOnboardingForSession('assistant_dismissed');
+        break;
+      default:
+        break;
+    }
+  }, [assistantTopicKey, dismissOnboardingForSession, onRequestNickname, trackOnboardingEvent]);
 
   const handleRoleSelect = (roleValue) => {
     setSelectedRole(roleValue);
@@ -1097,6 +1145,16 @@ const ChatInput = ({
 
       {shouldShowOnboarding && (
         <div className="mb-2 rounded-2xl border border-white/10 bg-black/20 px-3 py-3">
+          <ChactivoAssistantCard
+            topics={assistantTopics}
+            activeTopicKey={assistantTopicKey}
+            reply={assistantReply}
+            onTopicSelect={handleAssistantTopicSelect}
+            onQuickAction={handleAssistantQuickAction}
+            onDismiss={() => dismissOnboardingForSession('assistant_dismissed')}
+          />
+
+          <div className="mt-3 border-t border-white/10 pt-3">
           <p className="text-[11px] font-semibold uppercase tracking-[0.08em] text-cyan-300/90">
             Cómo hablar aquí
           </p>
@@ -1135,6 +1193,7 @@ const ChatInput = ({
                 {template.label}
               </button>
             ))}
+          </div>
           </div>
         </div>
       )}

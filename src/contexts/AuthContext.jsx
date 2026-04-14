@@ -26,6 +26,7 @@ import { trackUserRegister, trackUserLogin } from '@/services/eventTrackingServi
 import { recordUserConnection, checkVerificationMaintenance } from '@/services/verificationService';
 import { checkUserSanctions } from '@/services/sanctionsService';
 import { createWelcomeNotification } from '@/services/systemNotificationsService';
+import { hasValidGuestCommunityAccess, syncGuestCommunityAccess } from '@/utils/communityPolicyGuard';
 import {
   getGuestIdentity,
   createGuestIdentity,
@@ -850,6 +851,9 @@ export const AuthProvider = ({ children }) => {
         profileRole: normalizedProfileRole,
         comuna: guestSnapshot?.comuna || null,
         avatar: guestSnapshot?.avatar || null,
+        communityPolicyAccepted: Boolean(userData.communityPolicyAccepted),
+        communityPolicyAcceptedAt: userData.communityPolicyAcceptedAt || Date.now(),
+        communityPolicyVersion: userData.communityPolicyVersion || null,
       });
 
       setUser(userProfile);
@@ -935,6 +939,22 @@ export const AuthProvider = ({ children }) => {
     let finalProfileRole = requestedRole;
     let finalComuna = requestedComuna;
 
+    const candidateUsername = String(username || existingIdentity?.nombre || '').trim();
+    const canEnterAsGuest = hasValidGuestCommunityAccess({
+      username: candidateUsername || null,
+    });
+
+    if (!canEnterAsGuest) {
+      toast({
+        title: "Acceso restringido",
+        description: "Debes confirmar que tienes 18 años o más y aceptar las normas antes de entrar como invitado.",
+        variant: "destructive",
+      });
+      signInAsGuest.inProgress = false;
+      setGuestAuthInProgress(false);
+      return false;
+    }
+
     if (keepSession && existingIdentity) {
       // Auto-restore: reutilizar identidad existente (mismo UUID, nombre, avatar)
       identity = existingIdentity;
@@ -998,6 +1018,7 @@ export const AuthProvider = ({ children }) => {
     if (auth.currentUser && auth.currentUser.isAnonymous) {
       console.log('⚡ [AUTH] Sesión anónima existente reutilizada:', auth.currentUser.uid);
       setUser({ ...optimisticUser, id: auth.currentUser.uid });
+      syncGuestCommunityAccess({ userId: auth.currentUser.uid, username: finalUsername });
 
       // Vincular identidad con Firebase UID si no lo está
       if (identity.firebaseUid !== auth.currentUser.uid) {
@@ -1030,6 +1051,8 @@ export const AuthProvider = ({ children }) => {
 
       // Esperar un breve momento para que onAuthStateChanged actualice el estado
       await new Promise(resolve => setTimeout(resolve, 100));
+
+      syncGuestCommunityAccess({ userId: userCredential.user.uid, username: finalUsername });
 
       const totalDuration = performance.now() - startTime;
       console.log(`⏱️ [TOTAL] Proceso completo: ${totalDuration.toFixed(2)}ms`);
@@ -1363,7 +1386,7 @@ export const AuthProvider = ({ children }) => {
       autoRestoreAttemptedRef.current = true;
       console.log('[AUTH] 🔄 Auto-restaurando identidad persistente...');
       const identity = getGuestIdentity();
-      if (identity) {
+      if (identity && hasValidGuestCommunityAccess({ username: identity.nombre })) {
         signInAsGuest(identity.nombre, identity.avatar, true, identity.profileRole || null, identity.comuna || null);
       }
     }

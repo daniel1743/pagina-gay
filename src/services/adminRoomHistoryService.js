@@ -5,7 +5,7 @@ const generateAdminRoomHistoryReportCallable = httpsCallable(functions, 'generat
 
 export async function generateAdminRoomHistoryReport(roomId = 'principal', days = 7) {
   const safeRoomId = String(roomId || 'principal').trim() || 'principal';
-  const safeDays = Number(days) === 14 ? 14 : 7;
+  const safeDays = 7;
 
   const result = await generateAdminRoomHistoryReportCallable({
     roomId: safeRoomId,

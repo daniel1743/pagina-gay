@@ -1,18 +1,15 @@
 import {
   collection,
-  addDoc,
   query,
   where,
   getDocs,
-  serverTimestamp,
   doc,
   getDoc,
-  setDoc,
-  increment,
   onSnapshot,
   Timestamp,
 } from 'firebase/firestore';
-import { db, auth } from '@/config/firebase';
+import { httpsCallable } from 'firebase/functions';
+import { db, auth, functions } from '@/config/firebase';
 
 /**
  * Servicio de Analytics en tiempo real
@@ -47,6 +44,8 @@ const STORED_ANALYTICS_EVENT_TYPES = new Set([
   'match_private_chat_started',
 ]);
 
+const trackAnalyticsEventCallable = httpsCallable(functions, 'trackAnalyticsEvent');
+
 const isIgnorableFirestoreInternalError = (error) => {
   const message = String(error?.message || '');
   return (
@@ -63,135 +62,15 @@ const isIgnorableFirestoreInternalError = (error) => {
  */
 export const trackEvent = async (eventType, eventData = {}) => {
   try {
-    const timestamp = new Date();
-    const dateKey = timestamp.toISOString().split('T')[0]; // YYYY-MM-DD
-    const statsRef = doc(db, 'analytics_stats', dateKey);
+    if (!auth.currentUser?.uid) return;
 
-    const updates = {
-      date: dateKey,
-      lastUpdated: serverTimestamp(),
-    };
-
-    let handled = false;
-
-    const sanitizeFieldSegment = (value = 'unknown') =>
-      String(value)
-        .toLowerCase()
-        .replace(/[^a-z0-9_-]/g, '_')
-        .slice(0, 80);
-
-    const getPageKey = (path = '/') => sanitizeFieldSegment(path || '/');
-
-    // Incrementar contadores según el tipo de evento
-    switch (eventType) {
-      case 'page_view':
-        updates.pageViews = increment(1);
-        if (eventData.pagePath) {
-          updates.lastPagePath = eventData.pagePath;
-          const pageKey = getPageKey(eventData.pagePath);
-          updates[`pageViewsByPath.${pageKey}`] = increment(1);
-          updates[`pagePathMap.${pageKey}`] = eventData.pagePath;
-        }
-        // Guardar timeOnPage si está disponible
-        if (eventData.timeOnPage !== undefined) {
-          // Agregar a array de tiempos para análisis posterior
-          const timeBucket = getTimeBucket(eventData.timeOnPage);
-          updates[`timeDistribution.${timeBucket}`] = increment(1);
-        }
-        // Guardar fuente de tráfico (UTM)
-        if (eventData.source) {
-          const sourceKey = sanitizeFieldSegment(eventData.source);
-          updates[`trafficSources.${sourceKey}`] = increment(1);
-        }
-        handled = true;
-        break;
-      case 'user_register':
-        updates.registrations = increment(1);
-        handled = true;
-        break;
-      case 'user_login':
-        updates.logins = increment(1);
-        handled = true;
-        break;
-      case 'message_sent':
-        updates.messagesSent = increment(1);
-        handled = true;
-        break;
-      case 'room_created':
-        updates.roomsCreated = increment(1);
-        handled = true;
-        break;
-      case 'room_joined':
-        updates.roomsJoined = increment(1);
-        handled = true;
-        break;
-      case 'page_exit':
-        updates.pageExits = increment(1);
-        if (eventData.pagePath) {
-          updates.lastExitPage = eventData.pagePath;
-          const pageKey = getPageKey(eventData.pagePath);
-          updates[`exitPagesByPath.${pageKey}`] = increment(1);
-          updates[`pagePathMap.${pageKey}`] = eventData.pagePath;
-        }
-        if (eventData.timeOnPage !== undefined) {
-          const timeBucket = getTimeBucket(eventData.timeOnPage);
-          updates[`exitTimeDistribution.${timeBucket}`] = increment(1);
-        }
-        handled = true;
-        break;
-    }
-
-    // ✅ Registrar eventos personalizados en agregación diaria
-    if (!handled) {
-      const safeType = sanitizeEventType(eventType);
-      updates[`customEvents.${safeType}`] = increment(1);
-    }
-
-    // Actualizar estadísticas diarias (merge para no sobrescribir)
-    await setDoc(statsRef, updates, { merge: true }).catch(err => {
-      if (err.code !== 'permission-denied' && !isIgnorableFirestoreInternalError(err)) {
-        console.error('Error tracking event:', err);
-      }
+    await trackAnalyticsEventCallable({
+      eventType,
+      eventData: {
+        ...eventData,
+        userId: auth.currentUser.uid,
+      },
     });
-
-    // Guardar eventos individuales para análisis de embudo/usuarios únicos
-    const canPersistDetailedEvent = Boolean(auth.currentUser?.uid);
-
-    if (STORED_ANALYTICS_EVENT_TYPES.has(eventType) && canPersistDetailedEvent) {
-      const sanitizeIdPart = (value = '') => String(value).replace(/[^a-zA-Z0-9_-]/g, '').slice(0, 80);
-      const sessionPart = sanitizeIdPart(eventData.sessionId || 'nosession');
-      const userPart = sanitizeIdPart(eventData.userId || 'nouser');
-      const eventRef = doc(
-        collection(db, 'analytics_events'),
-        `${dateKey}_${eventType}_${sessionPart}_${userPart}_${Date.now()}`
-      );
-
-      const payload = {
-        type: eventType,
-        userId: eventData.userId || null,
-        sessionId: eventData.sessionId || null,
-        date: dateKey,
-        timestamp: serverTimestamp(),
-        pagePath: eventData.pagePath || null,
-        roomId: eventData.roomId || null,
-        roomName: eventData.roomName || null,
-        mode: eventData.mode || null,
-        source: eventData.source || null,
-        medium: eventData.medium || null,
-        campaign: eventData.campaign || null,
-        isGuest: eventData.isGuest ?? null,
-        isAnonymous: eventData.isAnonymous ?? null,
-      };
-
-      await setDoc(eventRef, {
-        ...payload,
-      }).catch((err) => {
-        if (err.code !== 'permission-denied' && !isIgnorableFirestoreInternalError(err)) {
-          console.error('Error storing analytics event:', err);
-        }
-      });
-    }
-
   } catch (error) {
     if (error.code !== 'permission-denied' && !isIgnorableFirestoreInternalError(error)) {
       console.error('Error tracking event:', error);

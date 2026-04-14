@@ -87,6 +87,7 @@ import AdminFeaturedAdsPanel from '@/components/admin/AdminFeaturedAdsPanel';
 import AdminTopParticipantsPanel from '@/components/admin/AdminTopParticipantsPanel';
 import AdminSeededChatPanel from '@/components/admin/AdminSeededChatPanel';
 import AdminRoomHistoryPanel from '@/components/admin/AdminRoomHistoryPanel';
+import AdminAIInsightsPanel from '@/components/admin/AdminAIInsightsPanel';
 
 const AdminPage = () => {
   const navigate = useNavigate();
@@ -979,6 +980,7 @@ const AdminPage = () => {
             <TabsTrigger value="notifications">Notificaciones</TabsTrigger>
             <TabsTrigger value="analytics">Analytics</TabsTrigger>
             <TabsTrigger value="historial-sala">Historial Sala</TabsTrigger>
+            <TabsTrigger value="ai-insights">Chactivo Assistant</TabsTrigger>
             <TabsTrigger value="moderation">Moderación</TabsTrigger>
             <TabsTrigger value="generator">Generador</TabsTrigger>
             <TabsTrigger value="eventos">Eventos</TabsTrigger>
@@ -3061,6 +3063,18 @@ const AdminPage = () => {
 
           <TabsContent value="historial-sala" className="space-y-6">
             <AdminRoomHistoryPanel />
+          </TabsContent>
+
+          <TabsContent value="ai-insights" className="space-y-6">
+            <AdminAIInsightsPanel
+              analyticsStats={analyticsStats}
+              yesterdayStats={yesterdayStats}
+              reportStats={reportStats}
+              ticketStats={ticketStats}
+              sanctionStats={sanctionStats}
+              mostUsedFeatures={mostUsedFeatures}
+              exitPages={exitPages}
+            />
           </TabsContent>
 
           {/* Moderación Tab */}

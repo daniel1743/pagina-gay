@@ -4,6 +4,8 @@ import { useAuth } from '@/contexts/AuthContext';
 import { useCanonical } from '@/hooks/useCanonical';
 import { Check } from 'lucide-react';
 import TelegramBanner from '@/components/ui/TelegramBanner';
+import CommunityPolicyCompactNotice from '@/components/policy/CommunityPolicyCompactNotice';
+import { COMMUNITY_POLICY_STORAGE, COMMUNITY_POLICY_VERSION, getPolicyCopy } from '@/content/communityPolicy';
 
 // 4 avatares predefinidos
 const AVATAR_OPTIONS = [
@@ -32,6 +34,7 @@ const AVATAR_OPTIONS = [
 const SpainLandingPage = () => {
   const navigate = useNavigate();
   const { signInAsGuest } = useAuth();
+  const policyCopy = getPolicyCopy('es');
   const [nickname, setNickname] = React.useState('');
   const [age, setAge] = React.useState('');
   const [selectedAvatar, setSelectedAvatar] = React.useState(AVATAR_OPTIONS[0]);
@@ -155,6 +158,11 @@ const SpainLandingPage = () => {
       // Guardar edad en sessionStorage para evitar que ChatPage vuelva a preguntar
       sessionStorage.setItem(`age_verified_${nickname.trim()}`, 'true');
       sessionStorage.setItem(`rules_accepted_${nickname.trim()}`, 'true');
+      localStorage.setItem(`age_verified_${nickname.trim().toLowerCase()}`, String(parsedAge));
+      localStorage.setItem(`rules_accepted_${nickname.trim().toLowerCase()}`, 'true');
+      localStorage.setItem(COMMUNITY_POLICY_STORAGE.acceptedFlag, '1');
+      localStorage.setItem(COMMUNITY_POLICY_STORAGE.acceptedAt, String(Date.now()));
+      localStorage.setItem(COMMUNITY_POLICY_STORAGE.version, COMMUNITY_POLICY_VERSION);
 
       await signInAsGuest(nickname.trim(), selectedAvatar.url);
       console.log('🇪🇸 [ESPAÑA] Autenticación exitosa, navegando a /chat/principal');
@@ -276,6 +284,7 @@ const SpainLandingPage = () => {
                 color: '#333'
               }}
             />
+            <p style={{ fontSize: '11px', color: '#0f766e', marginTop: '8px' }}>{policyCopy.privacyNotice}</p>
           </div>
 
           {/* Avatar */}
@@ -365,9 +374,13 @@ const SpainLandingPage = () => {
                 }}
               />
               <span>
-                Acepto las reglas del chat. Tengo +18 años y entiendo que debo respetar a los demás usuarios.
+                {policyCopy.acceptanceLabel}
               </span>
             </label>
+          </div>
+
+          <div style={{ marginBottom: '20px' }}>
+            <CommunityPolicyCompactNotice />
           </div>
 
           {/* Error */}

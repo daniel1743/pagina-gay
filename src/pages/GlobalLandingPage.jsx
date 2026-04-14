@@ -9,6 +9,8 @@ import ChatDemo from '@/components/landing/ChatDemo';
 import { GuestUsernameModal } from '@/components/auth/GuestUsernameModal';
 import { trackLandingLoad } from '@/utils/performanceMonitor';
 import TelegramBanner from '@/components/ui/TelegramBanner';
+import CommunityPolicyCompactNotice from '@/components/policy/CommunityPolicyCompactNotice';
+import { COMMUNITY_POLICY_STORAGE, COMMUNITY_POLICY_VERSION, getPolicyCopy } from '@/content/communityPolicy';
 // ⚠️ TOAST ELIMINADO (06/01/2026) - A petición del usuario
 // import LandingCaptureToast from '@/components/landing/LandingCaptureToast';
 // ⚠️ MODAL COMENTADO - Usamos entrada directa como invitado (sin opciones)
@@ -34,7 +36,9 @@ const AVATAR_OPTIONS = [
 const InlineGuestEntry = ({ chatRoomId = 'principal' }) => {
   const navigate = useNavigate();
   const { signInAsGuest } = useAuth();
+  const policyCopy = getPolicyCopy('es');
   const [nickname, setNickname] = useState('');
+  const [age, setAge] = useState('');
   const [acceptedTerms, setAcceptedTerms] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState('');
@@ -51,8 +55,21 @@ const InlineGuestEntry = ({ chatRoomId = 'principal' }) => {
       setError('El nickname debe tener al menos 3 caracteres');
       return;
     }
+    const parsedAge = parseInt(age, 10);
+    if (Number.isNaN(parsedAge)) {
+      setError('Ingresa tu edad en números');
+      return;
+    }
+    if (parsedAge < 18) {
+      setError('Debes ser mayor de 18 años');
+      return;
+    }
+    if (parsedAge > 120) {
+      setError('Ingresa una edad válida');
+      return;
+    }
     if (!acceptedTerms) {
-      setError('Debes aceptar que eres mayor de 18 años');
+      setError('Debes aceptar las normas y políticas de seguridad');
       return;
     }
 
@@ -60,6 +77,16 @@ const InlineGuestEntry = ({ chatRoomId = 'principal' }) => {
 
     try {
       const randomAvatar = AVATAR_OPTIONS[Math.floor(Math.random() * AVATAR_OPTIONS.length)];
+
+      if (typeof window !== 'undefined') {
+        localStorage.setItem(`age_verified_${nickname.trim().toLowerCase()}`, String(parsedAge));
+        sessionStorage.setItem(`age_verified_${nickname.trim()}`, 'true');
+        localStorage.setItem(`rules_accepted_${nickname.trim().toLowerCase()}`, 'true');
+        sessionStorage.setItem(`rules_accepted_${nickname.trim()}`, 'true');
+        localStorage.setItem(COMMUNITY_POLICY_STORAGE.acceptedFlag, '1');
+        localStorage.setItem(COMMUNITY_POLICY_STORAGE.acceptedAt, String(Date.now()));
+        localStorage.setItem(COMMUNITY_POLICY_STORAGE.version, COMMUNITY_POLICY_VERSION);
+      }
 
       // ✅ ESPERAR autenticación ANTES de navegar (evita loading infinito)
       await signInAsGuest(nickname.trim(), randomAvatar);
@@ -112,7 +139,10 @@ const InlineGuestEntry = ({ chatRoomId = 'principal' }) => {
               <input
                 type="text"
                 value={nickname}
-                onChange={(e) => setNickname(e.target.value)}
+                onChange={(e) => {
+                  setNickname(e.target.value);
+                  if (error) setError('');
+                }}
                 placeholder="Tu nombre (ej: Carlos23)"
                 maxLength={20}
                 required
@@ -122,6 +152,29 @@ const InlineGuestEntry = ({ chatRoomId = 'principal' }) => {
               />
               <p className="text-green-300 font-bold text-base text-center">
                 ✅ 100% Gratis • Sin registro • Sin email
+              </p>
+            </div>
+
+            <div className="mb-6">
+              <label className="mb-3 block text-left text-xl font-black text-white">
+                🔒 Tu edad:
+              </label>
+              <input
+                type="number"
+                value={age}
+                onChange={(e) => {
+                  setAge(e.target.value);
+                  if (error) setError('');
+                }}
+                placeholder="18+"
+                min="18"
+                max="120"
+                required
+                disabled={isLoading}
+                className="w-full rounded-xl border-2 border-purple-500/50 bg-white/95 px-4 py-4 text-lg font-bold text-gray-900 outline-none transition-all focus:border-purple-500 focus:ring-2 focus:ring-purple-500/30"
+              />
+              <p className="mt-2 text-xs text-cyan-200/90">
+                {policyCopy.privacyNotice}
               </p>
             </div>
 
@@ -135,26 +188,10 @@ const InlineGuestEntry = ({ chatRoomId = 'principal' }) => {
                 className="mt-1 w-5 h-5 rounded border-gray-300 text-purple-600 focus:ring-purple-500 cursor-pointer"
               />
               <label htmlFor="terms" className="text-sm text-gray-300 cursor-pointer leading-snug">
-                Acepto que soy <span className="font-bold text-white">mayor de 18 años</span> y entro al sitio por mi voluntad.
+                {policyCopy.acceptanceLabel}
               </label>
             </div>
-
-            {/* ✅ Desplegable de Reglas */}
-            <div className="mb-6">
-              <details className="group">
-                <summary className="flex items-center justify-between cursor-pointer text-sm font-medium text-purple-300 hover:text-purple-200 transition-colors p-2 rounded hover:bg-white/5">
-                  <span>📜 Reglas Anti-Spam y Conducta</span>
-                  <span className="transition-transform group-open:rotate-180">▼</span>
-                </summary>
-                <div className="mt-3 text-xs text-gray-300 space-y-2 p-3 bg-black/20 rounded-lg border border-white/10">
-                  <p>🚫 <span className="font-bold text-red-400">Prohibido Spam:</span> No promociones otros sitios, grupos o servicios.</p>
-                  <p>🚫 <span className="font-bold text-red-400">Cero Odio:</span> Discriminación, racismo o insultos serán baneados.</p>
-                  <p>🚫 <span className="font-bold text-red-400">No Venta:</span> Prohibida la venta de contenido o servicios.</p>
-                  <p>✅ <span className="font-bold text-green-400">Respeto:</span> Trata a los demás como quieres ser tratado.</p>
-                  <p className="text-[10px] text-gray-500 mt-2 italic">El incumplimiento resultará en bloqueo permanente.</p>
-                </div>
-              </details>
-            </div>
+            <CommunityPolicyCompactNotice className="mb-6" />
 
             {error && (
               <div className="mb-4 p-3 bg-red-500/20 border border-red-500/50 rounded-lg text-red-200 text-sm font-medium text-center animate-pulse">
@@ -164,10 +201,10 @@ const InlineGuestEntry = ({ chatRoomId = 'principal' }) => {
 
             <button
               type="submit"
-              disabled={isLoading || !nickname.trim() || !acceptedTerms}
+              disabled={isLoading || !nickname.trim() || !age.trim() || !acceptedTerms}
               className="w-full py-4 text-xl font-bold text-white rounded-xl transition-all disabled:opacity-50 disabled:cursor-not-allowed hover:scale-[1.02] shadow-xl hover:shadow-purple-500/40 flex items-center justify-center gap-2"
               style={{
-                background: isLoading || !nickname.trim() || !acceptedTerms
+                background: isLoading || !nickname.trim() || !age.trim() || !acceptedTerms
                   ? 'linear-gradient(135deg, #666 0%, #444 100%)'
                   : 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
               }}

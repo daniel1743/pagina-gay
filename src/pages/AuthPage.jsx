@@ -10,6 +10,8 @@ import { ArrowLeft, Mail, Eye, EyeOff } from 'lucide-react';
 import { useCanonical } from '@/hooks/useCanonical';
 import { track, trackPageExit, trackPageView } from '@/services/eventTrackingService';
 import { PROFILE_ROLE_OPTIONS, normalizeProfileRole } from '@/config/profileRoles';
+import CommunityPolicyCompactNotice from '@/components/policy/CommunityPolicyCompactNotice';
+import { COMMUNITY_POLICY_STORAGE, COMMUNITY_POLICY_VERSION, getPolicyCopy } from '@/content/communityPolicy';
 
 const AuthPage = () => {
   // SEO: Canonical tag para página de autenticación
@@ -66,6 +68,7 @@ const AuthPage = () => {
   const navigate = useNavigate();
   const location = useLocation();
   const { login, register, user } = useAuth();
+  const policyCopy = getPolicyCopy('es');
   const pageStartRef = useRef(Date.now());
   const [loginData, setLoginData] = useState({ email: '', password: '' });
   const [registerData, setRegisterData] = useState({
@@ -76,6 +79,8 @@ const AuthPage = () => {
   });
   const [ageError, setAgeError] = useState('');
   const [roleError, setRoleError] = useState('');
+  const [registerRulesAccepted, setRegisterRulesAccepted] = useState(false);
+  const [registerRulesError, setRegisterRulesError] = useState('');
   const [showLoginPassword, setShowLoginPassword] = useState(false);
   const [showRegisterPassword, setShowRegisterPassword] = useState(false);
 
@@ -112,6 +117,7 @@ const AuthPage = () => {
     e.preventDefault();
     setAgeError('');
     setRoleError('');
+    setRegisterRulesError('');
 
     // ✅ VALIDACIÓN CRÍTICA: Verificar edad mínima (18 años)
     const age = parseInt(registerData.age);
@@ -128,13 +134,25 @@ const AuthPage = () => {
       setRoleError('Selecciona tu rol para registrarte.');
       return;
     }
+    if (!registerRulesAccepted) {
+      setRegisterRulesError('Debes aceptar las normas y políticas de seguridad.');
+      return;
+    }
 
     track('auth_submit', { mode: 'register' }, { user }).catch(() => {});
     const success = await register({
       ...registerData,
       profileRole: normalizedRole,
+      communityPolicyAccepted: true,
+      communityPolicyAcceptedAt: Date.now(),
+      communityPolicyVersion: COMMUNITY_POLICY_VERSION,
     });
     if (success) {
+      if (typeof window !== 'undefined') {
+        localStorage.setItem(COMMUNITY_POLICY_STORAGE.acceptedFlag, '1');
+        localStorage.setItem(COMMUNITY_POLICY_STORAGE.acceptedAt, String(Date.now()));
+        localStorage.setItem(COMMUNITY_POLICY_STORAGE.version, COMMUNITY_POLICY_VERSION);
+      }
       track('auth_success', { mode: 'register' }, { user }).catch(() => {});
       navigate(getRedirectPath(), { replace: true });
     }
@@ -230,6 +248,7 @@ const AuthPage = () => {
                   >
                     Entrar
                   </Button>
+                  <CommunityPolicyCompactNotice />
                 </form>
               </TabsContent>
 
@@ -251,6 +270,9 @@ const AuthPage = () => {
                       className={`bg-gray-800/30 border-gray-700 text-gray-300 ${ageError ? 'border-red-500' : ''}`}
                       placeholder="18+"
                     />
+                    <p className="mt-2 text-xs text-cyan-300/90">
+                      {policyCopy.privacyNotice}
+                    </p>
                     {ageError && (
                       <p className="text-red-400 text-sm mt-2 font-medium">
                         ⚠️ {ageError}
@@ -324,6 +346,24 @@ const AuthPage = () => {
                       </button>
                     </div>
                   </div>
+                  <div className="rounded-xl border border-white/10 bg-white/5 p-3">
+                    <label className="flex items-start gap-3 text-sm text-slate-200">
+                      <input
+                        type="checkbox"
+                        checked={registerRulesAccepted}
+                        onChange={(e) => {
+                          setRegisterRulesAccepted(e.target.checked);
+                          setRegisterRulesError('');
+                        }}
+                        className="mt-1 h-4 w-4"
+                      />
+                      <span>{policyCopy.acceptanceLabel}</span>
+                    </label>
+                    {registerRulesError ? (
+                      <p className="mt-2 text-sm font-medium text-red-400">⚠️ {registerRulesError}</p>
+                    ) : null}
+                  </div>
+                  <CommunityPolicyCompactNotice />
                   <Button
                     type="submit"
                     className="w-full bg-gray-700 hover:bg-gray-600 text-gray-200 font-semibold transition-all"

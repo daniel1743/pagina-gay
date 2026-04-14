@@ -9,10 +9,13 @@ import { useAuth } from '@/contexts/AuthContext';
 import { Mail, Eye, EyeOff } from 'lucide-react';
 import { toast } from '@/components/ui/use-toast';
 import { PROFILE_ROLE_OPTIONS, normalizeProfileRole } from '@/config/profileRoles';
+import CommunityPolicyCompactNotice from '@/components/policy/CommunityPolicyCompactNotice';
+import { COMMUNITY_POLICY_STORAGE, COMMUNITY_POLICY_VERSION, getPolicyCopy } from '@/content/communityPolicy';
 
 const QuickSignupModal = ({ isOpen, onClose, redirectTo = '/home' }) => {
   const navigate = useNavigate();
   const { register } = useAuth();
+  const policyCopy = getPolicyCopy('es');
   const [formData, setFormData] = useState({
     email: '',
     password: '',
@@ -20,6 +23,7 @@ const QuickSignupModal = ({ isOpen, onClose, redirectTo = '/home' }) => {
     profileRole: '',
   });
   const [errors, setErrors] = useState({});
+  const [acceptRules, setAcceptRules] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
 
@@ -49,6 +53,9 @@ const QuickSignupModal = ({ isOpen, onClose, redirectTo = '/home' }) => {
     if (!normalizeProfileRole(formData.profileRole)) {
       newErrors.profileRole = 'Selecciona tu rol';
     }
+    if (!acceptRules) {
+      newErrors.acceptRules = 'Debes aceptar las normas y políticas de seguridad';
+    }
 
     setErrors(newErrors);
     return Object.keys(newErrors).length === 0;
@@ -65,9 +72,17 @@ const QuickSignupModal = ({ isOpen, onClose, redirectTo = '/home' }) => {
         password: formData.password,
         age: formData.age,
         profileRole: normalizeProfileRole(formData.profileRole),
+        communityPolicyAccepted: true,
+        communityPolicyAcceptedAt: Date.now(),
+        communityPolicyVersion: COMMUNITY_POLICY_VERSION,
       });
 
       if (success) {
+        if (typeof window !== 'undefined') {
+          localStorage.setItem(COMMUNITY_POLICY_STORAGE.acceptedFlag, '1');
+          localStorage.setItem(COMMUNITY_POLICY_STORAGE.acceptedAt, String(Date.now()));
+          localStorage.setItem(COMMUNITY_POLICY_STORAGE.version, COMMUNITY_POLICY_VERSION);
+        }
         toast({
           title: "¡Bienvenido a Chactivo! 🎉",
           description: "Tu cuenta ha sido creada exitosamente",
@@ -124,7 +139,7 @@ const QuickSignupModal = ({ isOpen, onClose, redirectTo = '/home' }) => {
               placeholder="18+"
             />
             {errors.age && <p className="text-red-400 text-xs mt-1">{errors.age}</p>}
-            <p className="text-purple-400 text-xs mt-1">Debes ser mayor de 18 años</p>
+            <p className="text-cyan-300 text-xs mt-1">{policyCopy.privacyNotice}</p>
           </div>
 
           <div>
@@ -194,6 +209,24 @@ const QuickSignupModal = ({ isOpen, onClose, redirectTo = '/home' }) => {
             </div>
             {errors.password && <p className="text-red-400 text-xs mt-1">{errors.password}</p>}
           </div>
+
+          <div className="rounded-xl border border-purple-400/20 bg-purple-950/30 p-3">
+            <label className="flex items-start gap-3 text-sm text-purple-100">
+              <input
+                type="checkbox"
+                checked={acceptRules}
+                onChange={(e) => {
+                  setAcceptRules(e.target.checked);
+                  setErrors((prev) => ({ ...prev, acceptRules: undefined }));
+                }}
+                className="mt-1 h-4 w-4"
+              />
+              <span>{policyCopy.acceptanceLabel}</span>
+            </label>
+            {errors.acceptRules && <p className="text-red-400 text-xs mt-2">{errors.acceptRules}</p>}
+          </div>
+
+          <CommunityPolicyCompactNotice />
 
           <Button
             type="submit"

@@ -9,10 +9,10 @@
  * - Genera razones para volver
  */
 
-import { db } from '@/config/firebase';
+import { db, functions } from '@/config/firebase';
+import { httpsCallable } from 'firebase/functions';
 import { track } from '@/services/eventTrackingService';
 import { isBlockedBetween } from '@/services/blockService';
-import { dispatchUserNotification } from '@/services/userNotificationDispatchService';
 import {
   doc,
   setDoc,
@@ -32,6 +32,17 @@ import {
   onSnapshot,
   Timestamp
 } from 'firebase/firestore';
+
+const recordTarjetaInteractionCallable = httpsCallable(functions, 'recordTarjetaInteraction');
+
+const callTarjetaInteraction = async (action, targetUserId = null, payload = {}) => {
+  const result = await recordTarjetaInteractionCallable({
+    action,
+    ...(targetUserId ? { targetUserId } : {}),
+    payload,
+  });
+  return result?.data || {};
+};
 
 // ============================================
 // 📊 MODELO DE DATOS
@@ -685,74 +696,25 @@ export async function darLike(tarjetaId, miUserId, miUsername, miAvatar = '') {
       console.warn('[TARJETA] Error verificando bloqueo (continuando):', blockError.message);
     }
 
-    // 1. Verificar si el otro usuario ya me dio like (para detectar match)
-    const miTarjeta = await obtenerTarjeta(miUserId);
-    const elOtroYaMeDioLike = miTarjeta?.likesDe?.includes(tarjetaId) || false;
-
-    // 2. Obtener datos del destinatario para el match
-    const tarjetaDestino = await obtenerTarjeta(tarjetaId);
-    if (!tarjetaDestino) {
-      console.error('[TARJETA] Tarjeta destino no encontrada:', tarjetaId);
-      return { success: false, isMatch: false };
-    }
-
-    const tarjetaRef = doc(db, 'tarjetas', tarjetaId);
-
-    // 3. Actualizar tarjeta del destinatario
-    await updateDoc(tarjetaRef, {
-      likesRecibidos: increment(1),
-      likesDe: arrayUnion(miUserId),
-      actividadNoLeida: increment(1),
-      actualizadaEn: serverTimestamp()
-    });
-
-    // 4. Guardar registro de actividad
-    await agregarActividad(tarjetaId, {
-      tipo: 'like',
-      deUserId: miUserId,
-      deUsername: miUsername,
-      timestamp: serverTimestamp()
-    });
+    const resultado = await callTarjetaInteraction('toggle_like', tarjetaId);
 
     track('tarjeta_like', { card_id: tarjetaId, viewer_id: miUserId }, { user: { id: miUserId } }).catch(() => {});
 
-    console.log('[TARJETA] Like enviado a', tarjetaId);
-
-    // 4b. Crear notificacion para push (alimenta Cloud Function)
-    try {
-      await dispatchUserNotification('tarjeta_like', {
-        toUserId: tarjetaId,
-      });
-    } catch (notifError) {
-      console.error('[TARJETA] Error creando notificacion de like:', notifError);
+    if (resultado?.success) {
+      console.log('[TARJETA] Like enviado a', tarjetaId);
+      return {
+        success: true,
+        isMatch: Boolean(resultado?.isMatch),
+        matchData: resultado?.matchData || null,
+      };
     }
 
-    // 5. ¡VERIFICAR MATCH!
-    if (elOtroYaMeDioLike) {
-      console.log('[MATCH] 🎉 ¡MATCH DETECTADO! Entre', miUserId, 'y', tarjetaId);
-
-      // Crear el match
-      const matchData = await crearMatch({
-        userA: {
-          odIdUsuari: miUserId,
-          username: miUsername,
-          avatar: miAvatar,
-          nombre: miTarjeta?.nombre || miUsername
-        },
-        userB: {
-          odIdUsuari: tarjetaId,
-          username: tarjetaDestino.nombre || tarjetaDestino.odIdUsuariNombre,
-          avatar: tarjetaDestino.fotoUrl || '',
-          nombre: tarjetaDestino.nombre || tarjetaDestino.odIdUsuariNombre
-        }
-      });
-
-      return { success: true, isMatch: true, matchData };
-    }
-
-    return { success: true, isMatch: false };
+    return { success: false, isMatch: false };
   } catch (error) {
     console.error('[TARJETA] Error dando like:', error);
+    if (error?.code === 'functions/permission-denied') {
+      return { success: false, isMatch: false, reason: 'blocked' };
+    }
     return { success: false, isMatch: false };
   }
 }
@@ -944,17 +906,12 @@ export async function contarMatchesNoLeidos(miUserId) {
 export async function quitarLike(tarjetaId, miUserId) {
   try {
     if (!tarjetaId || !miUserId) return false;
-
-    const tarjetaRef = doc(db, 'tarjetas', tarjetaId);
-
-    await updateDoc(tarjetaRef, {
-      likesRecibidos: increment(-1),
-      likesDe: arrayRemove(miUserId),
-      actualizadaEn: serverTimestamp()
-    });
-
-    console.log('[TARJETA] Like removido de', tarjetaId);
-    return true;
+    const resultado = await callTarjetaInteraction('toggle_like', tarjetaId);
+    if (resultado?.success && resultado?.liked === false) {
+      console.log('[TARJETA] Like removido de', tarjetaId);
+      return true;
+    }
+    return false;
   } catch (error) {
     console.error('[TARJETA] Error quitando like:', error);
     return false;
@@ -1014,29 +971,18 @@ export async function enviarMensajeTarjeta(tarjetaId, miUserId, miUsername, mens
       console.warn('[TARJETA] Error verificando bloqueo en mensaje (continuando):', blockError.message);
     }
 
-    // Limitar longitud del mensaje
     const mensajeLimpio = mensaje.trim().substring(0, 200);
-
-    // Actualizar contador en tarjeta
-    await updateDoc(doc(db, 'tarjetas', tarjetaId), {
-      mensajesRecibidos: increment(1),
-      actividadNoLeida: increment(1),
-      actualizadaEn: serverTimestamp()
-    });
-
-    // Guardar mensaje como actividad
-    await agregarActividad(tarjetaId, {
-      tipo: 'mensaje',
-      deUserId: miUserId,
-      deUsername: miUsername,
-      mensaje: mensajeLimpio,
-      timestamp: serverTimestamp()
+    const resultado = await callTarjetaInteraction('send_message', tarjetaId, {
+      message: mensajeLimpio,
     });
 
     track('tarjeta_message', { card_id: tarjetaId, viewer_id: miUserId }, { user: { id: miUserId } }).catch(() => {});
 
-    console.log('[TARJETA] ✅ Mensaje enviado a', tarjetaId);
-    return true;
+    if (resultado?.success) {
+      console.log('[TARJETA] ✅ Mensaje enviado a', tarjetaId);
+      return true;
+    }
+    return false;
   } catch (error) {
     console.error('[TARJETA] Error enviando mensaje:', error);
     return false;
@@ -1061,22 +1007,7 @@ export async function registrarVisita(tarjetaId, miUserId, miUsername) {
       console.warn('[TARJETA] Error verificando bloqueo en visita (continuando):', blockError.message);
     }
 
-    const tarjetaRef = doc(db, 'tarjetas', tarjetaId);
-
-    await updateDoc(tarjetaRef, {
-      visitasRecibidas: increment(1),
-      visitasDe: arrayUnion(miUserId),
-      actividadNoLeida: increment(1),
-      actualizadaEn: serverTimestamp()
-    });
-
-    // Guardar actividad
-    await agregarActividad(tarjetaId, {
-      tipo: 'visita',
-      deUserId: miUserId,
-      deUsername: miUsername,
-      timestamp: serverTimestamp()
-    });
+    await callTarjetaInteraction('record_visit', tarjetaId);
 
     track('tarjeta_view', { card_id: tarjetaId, viewer_id: miUserId }, { user: { id: miUserId } }).catch(() => {});
 
@@ -1104,11 +1035,7 @@ export async function registrarImpresion(tarjetaId, miUserId, tarjetaData = null
     const impresionesDe = tarjetaData?.impresionesDe || [];
     if (impresionesDe.includes(impresionKey)) return; // Ya contó hoy
 
-    await updateDoc(doc(db, 'tarjetas', tarjetaId), {
-      impresionesRecibidas: increment(1),
-      impresionesDe: arrayUnion(impresionKey),
-      actualizadaEn: serverTimestamp()
-    });
+    await callTarjetaInteraction('record_impression', tarjetaId);
 
     track('tarjeta_impression', { card_id: tarjetaId, viewer_id: miUserId }, { user: { id: miUserId } }).catch(() => {});
   } catch (error) {
@@ -1143,64 +1070,27 @@ export async function dejarHuella(tarjetaId, miUserId, miUsername) {
       console.warn('[TARJETA] Error verificando bloqueo en huella:', blockError?.message);
     }
 
-    const today = new Date().toISOString().slice(0, 10); // YYYY-MM-DD
-    const huellaKey = `${miUserId}_${today}`;
-
-    // 1. Verificar si ya dejó huella hoy en esta tarjeta
-    const tarjetaSnap = await getDoc(doc(db, 'tarjetas', tarjetaId));
-    if (!tarjetaSnap.exists()) {
-      console.warn('[TARJETA] Tarjeta no existe:', tarjetaId);
-      return { success: false, reason: 'not_found', message: 'Tarjeta no encontrada' };
+    const resultado = await callTarjetaInteraction('leave_footprint', tarjetaId);
+    if (!resultado?.success) {
+      return {
+        success: false,
+        reason: resultado?.reason || 'error',
+        message: resultado?.message || 'No se pudo dejar la huella',
+      };
     }
-    const tarjetaData = tarjetaSnap.data() || {};
-    const huellasDe = tarjetaData.huellasDe || [];
-    if (huellasDe.includes(huellaKey)) {
-      return { success: false, reason: 'already_left', message: 'Ya pasaste por aquí hoy' };
-    }
-
-    // 2. Verificar rate limit: máx 15 huellas por día
-    const userHuellasRef = doc(db, 'userHuellas', miUserId);
-    const userHuellasSnap = await getDoc(userHuellasRef);
-    const userData = userHuellasSnap.data() || {};
-    const storedDate = userData.date || '';
-    let count = userData.count || 0;
-    if (storedDate !== today) {
-      count = 0;
-    }
-    if (count >= HUELLAS_MAX_POR_DIA) {
-      return { success: false, reason: 'limit', message: `Máximo ${HUELLAS_MAX_POR_DIA} huellas por día` };
-    }
-
-    // 3. Actualizar tarjeta: increment huellasRecibidas, arrayUnion huellasDe
-    const tarjetaRef = doc(db, 'tarjetas', tarjetaId);
-    await updateDoc(tarjetaRef, {
-      huellasRecibidas: increment(1),
-      huellasDe: arrayUnion(huellaKey),
-      actividadNoLeida: increment(1),
-      actualizadaEn: serverTimestamp()
-    });
-
-    // 4. Actualizar contador del usuario
-    await setDoc(userHuellasRef, {
-      count: count + 1,
-      date: today,
-      lastAt: serverTimestamp()
-    }, { merge: true });
-
-    // 5. Registrar actividad en background (no bloquear éxito; si falla solo no aparece en feed)
-    agregarActividad(tarjetaId, {
-      tipo: 'huella',
-      deUserId: miUserId,
-      deUsername: miUsername,
-      mensaje: `${miUsername} pasó por tu perfil`,
-      timestamp: serverTimestamp()
-    }).catch((err) => console.warn('[TARJETA] Actividad huella (no crítico):', err?.message));
 
     track('tarjeta_huella', { card_id: tarjetaId, viewer_id: miUserId }, { user: { id: miUserId } }).catch(() => {});
     console.log('[TARJETA] 👣 Huella dejada en', tarjetaId);
     return { success: true };
   } catch (error) {
     console.error('[TARJETA] Error dejando huella:', error?.code, error?.message, error);
+    if (error?.code === 'functions/permission-denied') {
+      return {
+        success: false,
+        reason: 'blocked',
+        message: 'No puedes interactuar con este perfil'
+      };
+    }
     if (error?.code === 'permission-denied') {
       return {
         success: false,

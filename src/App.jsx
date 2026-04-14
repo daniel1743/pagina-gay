@@ -66,6 +66,7 @@ const FAQPage = lazy(() => import('@/pages/FAQPage'));
 const BaulPage = lazy(() => import('@/pages/BaulPage'));
 const ProfileViewPage = lazy(() => import('@/pages/ProfileViewPage'));
 const HeteroLandingPage = lazy(() => import('@/pages/HeteroLandingPage'));
+const CommunityPolicyPage = lazy(() => import('@/pages/CommunityPolicyPage'));
 
 // 🎯 OPIN - Discovery Wall
 const OpinFeedPage = lazy(() => import('@/pages/OpinFeedPage'));
@@ -420,6 +421,7 @@ function AppRoutes() {
         <Route path="/lobby" element={<HomeRoute><MainLayout><LobbyPage /></MainLayout></HomeRoute>} />
         
         <Route path="/auth" element={<AuthPage />} />
+        <Route path="/normas-comunidad" element={<MainLayout><CommunityPolicyPage /></MainLayout>} />
         
         {/* FAQ Page - Public access */}
         <Route path="/faq" element={<MainLayout><FAQPage /></MainLayout>} />

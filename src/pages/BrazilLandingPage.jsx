@@ -4,6 +4,8 @@ import { useAuth } from '@/contexts/AuthContext';
 import { useCanonical } from '@/hooks/useCanonical';
 import { Check } from 'lucide-react';
 import TelegramBanner from '@/components/ui/TelegramBanner';
+import CommunityPolicyCompactNotice from '@/components/policy/CommunityPolicyCompactNotice';
+import { COMMUNITY_POLICY_STORAGE, COMMUNITY_POLICY_VERSION, getPolicyCopy } from '@/content/communityPolicy';
 
 // 4 avatares predefinidos
 const AVATAR_OPTIONS = [
@@ -32,6 +34,7 @@ const AVATAR_OPTIONS = [
 const BrazilLandingPage = () => {
   const navigate = useNavigate();
   const { signInAsGuest } = useAuth();
+  const policyCopy = getPolicyCopy('pt');
   const [nickname, setNickname] = React.useState('');
   const [age, setAge] = React.useState('');
   const [selectedAvatar, setSelectedAvatar] = React.useState(AVATAR_OPTIONS[0]);
@@ -147,6 +150,11 @@ const BrazilLandingPage = () => {
     try {
       sessionStorage.setItem(`age_verified_${nickname.trim()}`, 'true');
       sessionStorage.setItem(`rules_accepted_${nickname.trim()}`, 'true');
+      localStorage.setItem(`age_verified_${nickname.trim().toLowerCase()}`, String(parsedAge));
+      localStorage.setItem(`rules_accepted_${nickname.trim().toLowerCase()}`, 'true');
+      localStorage.setItem(COMMUNITY_POLICY_STORAGE.acceptedFlag, '1');
+      localStorage.setItem(COMMUNITY_POLICY_STORAGE.acceptedAt, String(Date.now()));
+      localStorage.setItem(COMMUNITY_POLICY_STORAGE.version, COMMUNITY_POLICY_VERSION);
 
       await signInAsGuest(nickname.trim(), selectedAvatar.url);
       console.log('🇧🇷 [BRASIL] Autenticação bem-sucedida, navegando para /chat/principal');
@@ -265,7 +273,8 @@ const BrazilLandingPage = () => {
                 color: '#333'
               }}
             />
-              </div>
+            <p style={{ fontSize: '11px', color: '#0f766e', marginTop: '8px' }}>{policyCopy.privacyNotice}</p>
+          </div>
 
           <div style={{ marginBottom: '20px' }}>
             <label style={{ display: 'block', fontSize: '14px', fontWeight: '600', color: '#333', marginBottom: '12px' }}>
@@ -352,9 +361,13 @@ const BrazilLandingPage = () => {
                 }}
               />
               <span>
-                Aceito as regras do chat. Tenho +18 anos e entendo que devo respeitar os outros usuários.
+                {policyCopy.acceptanceLabel}
               </span>
             </label>
+          </div>
+
+          <div style={{ marginBottom: '20px' }}>
+            <CommunityPolicyCompactNotice locale="pt" />
           </div>
 
           {error && (

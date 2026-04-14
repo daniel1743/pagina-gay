@@ -49,7 +49,7 @@ const EVENT_REMINDER_LOOKAHEAD_MS = 10 * 60 * 1000; // 10 min antes
 const EVENT_REMINDER_START_WINDOW_MS = 5 * 60 * 1000; // 5 min post inicio
 const EVENT_REMINDER_EVENT_LIMIT = 40;
 const EVENT_REMINDER_USER_LIMIT = 300;
-const ADMIN_ROOM_HISTORY_RETENTION_DAYS = 14;
+const ADMIN_ROOM_HISTORY_RETENTION_DAYS = 7;
 const ADMIN_ROOM_HISTORY_DOWNLOAD_TTL_MS = 60 * 60 * 1000;
 const PUBLIC_USER_PROFILES_COLLECTION = "public_user_profiles";
 const PUBLIC_USER_PROFILE_PREVIEW_FAVORITES_LIMIT = 8;
@@ -58,6 +58,23 @@ const DISCOVERABLE_USER_LOCATIONS_COLLECTION = "discoverable_user_locations";
 const DISCOVERABLE_LOCATION_DECIMALS = 2;
 const NOTIFICATION_ACTION_LOGS_COLLECTION = "notification_action_logs";
 const NOTIFICATION_ACTION_LOG_LIMIT = 40;
+const TARJETA_MAX_LIKES_DE = 100;
+const TARJETA_MAX_VISITAS_DE = 50;
+const TARJETA_MAX_IMPRESIONES_DE = 200;
+const TARJETA_MAX_HUELLAS_DE = 200;
+const TARJETA_HUELLAS_MAX_POR_DIA = 15;
+const MODERATION_ALERT_ALLOWED_TYPES = new Set([
+  "minor_risk",
+  "minor_ambiguous",
+  "drug_meetup",
+  "drugs",
+  "violence",
+  "hate_speech",
+  "external_contact",
+  "coercion",
+  "high_risk_ai",
+]);
+const MODERATION_ALERT_ALLOWED_SEVERITIES = new Set(["low", "medium", "high", "critical"]);
 
 const chileDayFormatter = new Intl.DateTimeFormat("en-CA", {
   timeZone: CHILE_TIME_ZONE,
@@ -259,6 +276,97 @@ async function assertAdminCallableRequest(request) {
   };
 }
 
+function isAnonymousAuthRequest(request) {
+  return request.auth?.token?.firebase?.sign_in_provider === "anonymous";
+}
+
+async function assertRegisteredCallableRequest(request) {
+  if (!request.auth?.uid) {
+    throw new HttpsError("unauthenticated", "Debes iniciar sesion.");
+  }
+
+  if (isAnonymousAuthRequest(request)) {
+    throw new HttpsError("permission-denied", "Debes tener una cuenta registrada para esta accion.");
+  }
+
+  return {
+    uid: request.auth.uid,
+  };
+}
+
+function sanitizeAnalyticsSegment(value = "unknown") {
+  return String(value || "unknown")
+    .toLowerCase()
+    .replace(/[^a-z0-9_-]/g, "_")
+    .slice(0, 80);
+}
+
+function sanitizeAnalyticsEventType(eventType = "") {
+  return String(eventType || "")
+    .toLowerCase()
+    .replace(/[^a-z0-9_]/g, "_")
+    .slice(0, 60);
+}
+
+function getAnalyticsTimeBucket(seconds) {
+  const numeric = Number(seconds);
+  if (!Number.isFinite(numeric) || numeric < 0) return null;
+  if (numeric < 3) return "0-3s";
+  if (numeric < 10) return "3-10s";
+  if (numeric < 30) return "10-30s";
+  if (numeric < 60) return "30-60s";
+  if (numeric < 180) return "1-3m";
+  if (numeric < 300) return "3-5m";
+  return "5m+";
+}
+
+function buildTarjetaArrayWithCap(values = [], nextValue, maxItems = 100) {
+  const next = Array.isArray(values) ? [...values] : [];
+  if (!next.includes(nextValue)) {
+    next.push(nextValue);
+  }
+  return next.slice(-maxItems);
+}
+
+function buildTarjetaArrayWithoutValue(values = [], removedValue) {
+  return (Array.isArray(values) ? values : []).filter((value) => String(value || "") !== String(removedValue || ""));
+}
+
+async function getTarjetaIdentity(userId) {
+  const safeUserId = String(userId || "").trim();
+  if (!safeUserId) {
+    return {
+      exists: false,
+      userId: "",
+      username: "Usuario",
+      nombre: "Usuario",
+      avatar: "",
+    };
+  }
+
+  const [userSnap, cardSnap] = await Promise.all([
+    db.collection("users").doc(safeUserId).get().catch(() => null),
+    db.collection("tarjetas").doc(safeUserId).get().catch(() => null),
+  ]);
+
+  const userData = userSnap?.exists ? userSnap.data() || {} : {};
+  const cardData = cardSnap?.exists ? cardSnap.data() || {} : {};
+  const username =
+    normalizeNotificationString(userData.username || cardData.odIdUsuariNombre || cardData.nombre || "Usuario", 80) || "Usuario";
+  const nombre =
+    normalizeNotificationString(cardData.nombre || userData.username || cardData.odIdUsuariNombre || "Usuario", 80) || "Usuario";
+  const avatar =
+    normalizeNotificationString(userData.avatar || cardData.fotoUrl || cardData.fotoUrlThumb || "", 500) || "";
+
+  return {
+    exists: Boolean(cardSnap?.exists),
+    userId: safeUserId,
+    username,
+    nombre,
+    avatar,
+  };
+}
+
 async function getUserDataById(userId) {
   if (!userId) return {};
   const userDoc = await db.collection("users").doc(userId).get();
@@ -283,6 +391,20 @@ function normalizeNotificationString(value, maxLength = 500) {
 
 function normalizeNotificationBoolean(value) {
   return value === true;
+}
+
+function normalizeModerationAlertType(value = "") {
+  const normalized = String(value || "")
+    .toLowerCase()
+    .replace(/[^a-z0-9_]/g, "_")
+    .slice(0, 40);
+
+  return MODERATION_ALERT_ALLOWED_TYPES.has(normalized) ? normalized : null;
+}
+
+function normalizeModerationAlertSeverity(value = "medium") {
+  const normalized = String(value || "medium").toLowerCase().trim();
+  return MODERATION_ALERT_ALLOWED_SEVERITIES.has(normalized) ? normalized : "medium";
 }
 
 function getNotificationActionLogsRef(actorUid) {
@@ -577,56 +699,15 @@ async function loadRoomHistoryEntries(roomId, days) {
   return entries;
 }
 
-async function writeRoomHistoryReportFiles({ roomId, days, entries, requesterUid }) {
-  const bucket = storage.bucket();
-  const generatedDay = getChileDayString();
+async function buildRoomHistoryReportPayload({ roomId, days, entries }) {
   const generatedAtIso = new Date().toISOString();
 
-  const reportPayload = {
+  return {
     roomId,
     days,
     generatedAtIso,
     totalMessages: entries.length,
     messages: entries,
-  };
-
-  const reportLines = [
-    `Sala: ${roomId}`,
-    `Ventana: ${days} dias`,
-    `Mensajes: ${entries.length}`,
-    `Generado: ${generatedAtIso}`,
-    "",
-    ...entries.map((entry) => formatRoomHistoryReportLine(entry)),
-  ];
-
-  const txtPath = getHistoryGeneratedPath(roomId, generatedDay, requesterUid, days, "txt");
-  const jsonPath = getHistoryGeneratedPath(roomId, generatedDay, requesterUid, days, "json");
-  const txtFile = bucket.file(txtPath);
-  const jsonFile = bucket.file(jsonPath);
-
-  await Promise.all([
-    txtFile.save(reportLines.join("\n"), {
-      resumable: false,
-      contentType: "text/plain; charset=utf-8",
-    }),
-    jsonFile.save(JSON.stringify(reportPayload, null, 2), {
-      resumable: false,
-      contentType: "application/json; charset=utf-8",
-    }),
-  ]);
-
-  const expiresAt = Date.now() + ADMIN_ROOM_HISTORY_DOWNLOAD_TTL_MS;
-  const [txtDownloadUrl, jsonDownloadUrl] = await Promise.all([
-    txtFile.getSignedUrl({ action: "read", expires: expiresAt }).then((result) => result[0]),
-    jsonFile.getSignedUrl({ action: "read", expires: expiresAt }).then((result) => result[0]),
-  ]);
-
-  return {
-    txtDownloadUrl,
-    jsonDownloadUrl,
-    expiresAtIso: new Date(expiresAt).toISOString(),
-    generatedAtIso,
-    totalMessages: entries.length,
   };
 }
 
@@ -2434,6 +2515,480 @@ exports.dispatchUserNotification = onCall(
   }
 );
 
+exports.trackAnalyticsEvent = onCall(
+  { region: "us-central1", cors: true },
+  async (request) => {
+  if (!request.auth?.uid) {
+    throw new HttpsError("unauthenticated", "Debes iniciar sesion.");
+  }
+
+  const eventType = sanitizeAnalyticsEventType(request.data?.eventType || request.data?.type || "");
+  if (!eventType) {
+    throw new HttpsError("invalid-argument", "eventType es requerido.");
+  }
+
+  const eventData = request.data?.eventData && typeof request.data.eventData === "object" ?
+    request.data.eventData :
+    {};
+
+  const actorUid = request.auth.uid;
+  const now = new Date();
+  const dateKey = now.toISOString().split("T")[0];
+  const statsRef = db.collection("analytics_stats").doc(dateKey);
+  const updates = {
+    date: dateKey,
+    lastUpdated: FieldValue.serverTimestamp(),
+  };
+
+  let handled = false;
+  const pagePath = normalizeNotificationString(eventData.pagePath, 240);
+  const source = normalizeNotificationString(eventData.source, 120);
+  const sessionId = normalizeNotificationString(eventData.sessionId, 120);
+  const roomId = normalizeNotificationString(eventData.roomId, 120);
+  const roomName = normalizeNotificationString(eventData.roomName, 120);
+  const campaign = normalizeNotificationString(eventData.campaign, 120);
+  const medium = normalizeNotificationString(eventData.medium, 120);
+
+  switch (eventType) {
+    case "page_view": {
+      updates.pageViews = FieldValue.increment(1);
+      if (pagePath) {
+        const pageKey = sanitizeAnalyticsSegment(pagePath);
+        updates.lastPagePath = pagePath;
+        updates[`pageViewsByPath.${pageKey}`] = FieldValue.increment(1);
+        updates[`pagePathMap.${pageKey}`] = pagePath;
+      }
+      const timeBucket = getAnalyticsTimeBucket(eventData.timeOnPage);
+      if (timeBucket) {
+        updates[`timeDistribution.${timeBucket}`] = FieldValue.increment(1);
+      }
+      if (source) {
+        updates[`trafficSources.${sanitizeAnalyticsSegment(source)}`] = FieldValue.increment(1);
+      }
+      if (campaign) {
+        updates[`campaigns.${sanitizeAnalyticsSegment(campaign)}`] = FieldValue.increment(1);
+      }
+      handled = true;
+      break;
+    }
+    case "user_register":
+      updates.registrations = FieldValue.increment(1);
+      handled = true;
+      break;
+    case "user_login":
+      updates.logins = FieldValue.increment(1);
+      handled = true;
+      break;
+    case "message_sent":
+      updates.messagesSent = FieldValue.increment(1);
+      handled = true;
+      break;
+    case "room_created":
+      updates.roomsCreated = FieldValue.increment(1);
+      handled = true;
+      break;
+    case "room_joined":
+      updates.roomsJoined = FieldValue.increment(1);
+      handled = true;
+      break;
+    case "page_exit": {
+      updates.pageExits = FieldValue.increment(1);
+      if (pagePath) {
+        const pageKey = sanitizeAnalyticsSegment(pagePath);
+        updates.lastExitPage = pagePath;
+        updates[`exitPagesByPath.${pageKey}`] = FieldValue.increment(1);
+        updates[`pagePathMap.${pageKey}`] = pagePath;
+      }
+      const timeBucket = getAnalyticsTimeBucket(eventData.timeOnPage);
+      if (timeBucket) {
+        updates[`exitTimeDistribution.${timeBucket}`] = FieldValue.increment(1);
+      }
+      handled = true;
+      break;
+    }
+    default:
+      break;
+  }
+
+  if (!handled) {
+    updates[`customEvents.${eventType}`] = FieldValue.increment(1);
+  }
+
+  await statsRef.set(updates, { merge: true });
+
+  const storedEventTypes = new Set([
+    "user_login",
+    "user_register",
+    "message_sent",
+    "landing_view",
+    "entry_to_chat",
+    "auth_page_view",
+    "auth_submit",
+    "auth_success",
+    "chat_room_view",
+    "first_message_sent",
+    "onboarding_chip_click",
+    "onboarding_prompt_click",
+    "onboarding_nudge_shown",
+    "onboarding_dismissed",
+    "onboarding_first_message_sent",
+    "onboarding_time_to_first_message",
+    "baul_view",
+    "opin_feed_view",
+    "opin_view",
+    "opin_like",
+    "opin_comment",
+    "opin_reaction",
+    "opin_status_updated",
+    "opin_follow_toggle",
+    "match_private_chat_started",
+  ]);
+
+  if (storedEventTypes.has(eventType)) {
+    const sessionPart = String(sessionId || "nosession").replace(/[^a-zA-Z0-9_-]/g, "").slice(0, 80);
+    await db.collection("analytics_events").doc(
+      `${dateKey}_${eventType}_${sessionPart}_${actorUid}_${Date.now()}`
+    ).set({
+      type: eventType,
+      userId: actorUid,
+      sessionId: sessionId || null,
+      date: dateKey,
+      timestamp: FieldValue.serverTimestamp(),
+      pagePath: pagePath || null,
+      roomId: roomId || null,
+      roomName: roomName || null,
+      mode: normalizeNotificationString(eventData.mode, 80) || null,
+      source: source || null,
+      medium: medium || null,
+      campaign: campaign || null,
+      isGuest: Boolean(eventData.isGuest),
+      isAnonymous: isAnonymousAuthRequest(request) || Boolean(eventData.isAnonymous),
+    });
+  }
+
+  return { success: true };
+});
+
+exports.recordTarjetaInteraction = onCall(async (request) => {
+  const { uid: actorUid } = await assertRegisteredCallableRequest(request);
+  const action = normalizeNotificationString(request.data?.action, 80);
+  const targetUserId = normalizeNotificationString(request.data?.targetUserId || request.data?.tarjetaId, 120);
+  const payload = request.data?.payload && typeof request.data.payload === "object" ?
+    request.data.payload :
+    {};
+
+  if (!action) {
+    throw new HttpsError("invalid-argument", "action es requerido.");
+  }
+
+  const actorIdentity = await getTarjetaIdentity(actorUid);
+
+  if (action === "mark_activity_read") {
+    const actorCardRef = db.collection("tarjetas").doc(actorUid);
+    const actorCardSnap = await actorCardRef.get();
+    if (!actorCardSnap.exists) {
+      throw new HttpsError("not-found", "Tu tarjeta no existe.");
+    }
+
+    await actorCardRef.set({
+      odIdUsuari: actorUid,
+      actividadNoLeida: 0,
+      actualizadaEn: FieldValue.serverTimestamp(),
+    }, { merge: true });
+
+    return { success: true };
+  }
+
+  if (!targetUserId || targetUserId === actorUid) {
+    throw new HttpsError("invalid-argument", "targetUserId no es valido.");
+  }
+
+  const blocked = await isBlockedBetweenUsers(actorUid, targetUserId);
+  if (blocked) {
+    throw new HttpsError("permission-denied", "No puedes interactuar con un usuario bloqueado.");
+  }
+
+  const targetIdentity = await getTarjetaIdentity(targetUserId);
+  if (!targetIdentity.exists) {
+    throw new HttpsError("not-found", "Tarjeta destinataria no encontrada.");
+  }
+
+  const actorCardRef = db.collection("tarjetas").doc(actorUid);
+  const targetCardRef = db.collection("tarjetas").doc(targetUserId);
+
+  if (action === "toggle_like") {
+    const matchId = [actorUid, targetUserId].sort().join("_");
+    const matchRef = db.collection("matches").doc(matchId);
+
+    const result = await db.runTransaction(async (tx) => {
+      const [actorCardSnap, targetCardSnap, matchSnap] = await Promise.all([
+        tx.get(actorCardRef),
+        tx.get(targetCardRef),
+        tx.get(matchRef),
+      ]);
+
+      if (!actorCardSnap.exists || !targetCardSnap.exists) {
+        throw new HttpsError("not-found", "Tarjeta no encontrada.");
+      }
+
+      const actorCard = actorCardSnap.data() || {};
+      const targetCard = targetCardSnap.data() || {};
+      const targetLikesDe = Array.isArray(targetCard.likesDe) ? targetCard.likesDe : [];
+      const actorLikesDe = Array.isArray(actorCard.likesDe) ? actorCard.likesDe : [];
+      const alreadyLiked = targetLikesDe.includes(actorUid);
+
+      if (alreadyLiked) {
+        tx.update(targetCardRef, {
+          likesRecibidos: Math.max(Number(targetCard.likesRecibidos || 0) - 1, 0),
+          likesDe: buildTarjetaArrayWithoutValue(targetLikesDe, actorUid),
+          actualizadaEn: FieldValue.serverTimestamp(),
+        });
+
+        return {
+          success: true,
+          liked: false,
+          isMatch: false,
+        };
+      }
+
+      const isMatch = actorLikesDe.includes(targetUserId);
+      const nextTargetActivity = Number(targetCard.actividadNoLeida || 0) + (isMatch ? 2 : 1);
+
+      tx.update(targetCardRef, {
+        likesRecibidos: Number(targetCard.likesRecibidos || 0) + 1,
+        likesDe: buildTarjetaArrayWithCap(targetLikesDe, actorUid, TARJETA_MAX_LIKES_DE),
+        actividadNoLeida: nextTargetActivity,
+        actualizadaEn: FieldValue.serverTimestamp(),
+      });
+
+      tx.set(targetCardRef.collection("actividad").doc(), {
+        tipo: "like",
+        deUserId: actorUid,
+        deUsername: actorIdentity.nombre || actorIdentity.username,
+        leida: false,
+        timestamp: FieldValue.serverTimestamp(),
+      });
+
+      let matchData = null;
+      if (isMatch && !matchSnap.exists) {
+        matchData = {
+          id: matchId,
+          users: [actorUid, targetUserId].sort(),
+          user1Id: actorUid,
+          user2Id: targetUserId,
+          userA: {
+            odIdUsuari: actorUid,
+            username: actorIdentity.username,
+            avatar: actorIdentity.avatar || "",
+            nombre: actorIdentity.nombre,
+          },
+          userB: {
+            odIdUsuari: targetUserId,
+            username: targetIdentity.username,
+            avatar: targetIdentity.avatar || "",
+            nombre: targetIdentity.nombre,
+          },
+          createdAt: FieldValue.serverTimestamp(),
+          lastInteraction: FieldValue.serverTimestamp(),
+          status: "active",
+          chatStarted: false,
+          unreadByA: true,
+          unreadByB: true,
+        };
+
+        tx.set(matchRef, matchData);
+        tx.set(actorCardRef.collection("actividad").doc(), {
+          tipo: "match",
+          deUserId: targetUserId,
+          deUsername: targetIdentity.nombre,
+          mensaje: `¡Hiciste match con ${targetIdentity.nombre}!`,
+          matchId,
+          leida: false,
+          timestamp: FieldValue.serverTimestamp(),
+        });
+        tx.set(targetCardRef.collection("actividad").doc(), {
+          tipo: "match",
+          deUserId: actorUid,
+          deUsername: actorIdentity.nombre,
+          mensaje: `¡Hiciste match con ${actorIdentity.nombre}!`,
+          matchId,
+          leida: false,
+          timestamp: FieldValue.serverTimestamp(),
+        });
+        tx.update(actorCardRef, {
+          actividadNoLeida: Number(actorCard.actividadNoLeida || 0) + 1,
+          actualizadaEn: FieldValue.serverTimestamp(),
+        });
+      }
+
+      return {
+        success: true,
+        liked: true,
+        isMatch,
+        matchData,
+      };
+    });
+
+    if (result.liked) {
+      await createUserNotificationRecord(targetUserId, {
+        type: "tarjeta_like",
+        fromUserId: actorUid,
+        fromUsername: actorIdentity.username,
+        message: `${actorIdentity.username} le dio like a tu tarjeta`,
+        read: false,
+      }).catch(() => null);
+    }
+
+    return result;
+  }
+
+  if (action === "send_message") {
+    const message = normalizeNotificationString(payload.message, 200);
+    if (!message) {
+      throw new HttpsError("invalid-argument", "message es requerido.");
+    }
+
+    await db.runTransaction(async (tx) => {
+      const targetCardSnap = await tx.get(targetCardRef);
+      if (!targetCardSnap.exists) {
+        throw new HttpsError("not-found", "Tarjeta destinataria no encontrada.");
+      }
+
+      const targetCard = targetCardSnap.data() || {};
+      tx.update(targetCardRef, {
+        mensajesRecibidos: Number(targetCard.mensajesRecibidos || 0) + 1,
+        actividadNoLeida: Number(targetCard.actividadNoLeida || 0) + 1,
+        actualizadaEn: FieldValue.serverTimestamp(),
+      });
+      tx.set(targetCardRef.collection("actividad").doc(), {
+        tipo: "mensaje",
+        deUserId: actorUid,
+        deUsername: actorIdentity.nombre || actorIdentity.username,
+        mensaje: message,
+        leida: false,
+        timestamp: FieldValue.serverTimestamp(),
+      });
+    });
+
+    return { success: true };
+  }
+
+  if (action === "record_visit") {
+    return db.runTransaction(async (tx) => {
+      const targetCardSnap = await tx.get(targetCardRef);
+      if (!targetCardSnap.exists) {
+        throw new HttpsError("not-found", "Tarjeta destinataria no encontrada.");
+      }
+
+      const targetCard = targetCardSnap.data() || {};
+      const visitasDe = Array.isArray(targetCard.visitasDe) ? targetCard.visitasDe : [];
+      if (visitasDe.includes(actorUid)) {
+        return { success: true, skipped: true };
+      }
+
+      tx.update(targetCardRef, {
+        visitasRecibidas: Number(targetCard.visitasRecibidas || 0) + 1,
+        visitasDe: buildTarjetaArrayWithCap(visitasDe, actorUid, TARJETA_MAX_VISITAS_DE),
+        actividadNoLeida: Number(targetCard.actividadNoLeida || 0) + 1,
+        actualizadaEn: FieldValue.serverTimestamp(),
+      });
+      tx.set(targetCardRef.collection("actividad").doc(), {
+        tipo: "visita",
+        deUserId: actorUid,
+        deUsername: actorIdentity.nombre || actorIdentity.username,
+        leida: false,
+        timestamp: FieldValue.serverTimestamp(),
+      });
+
+      return { success: true, skipped: false };
+    });
+  }
+
+  if (action === "record_impression") {
+    const today = getChileDayString(new Date()) || new Date().toISOString().slice(0, 10);
+    const impressionKey = `${actorUid}_${today}`;
+
+    return db.runTransaction(async (tx) => {
+      const targetCardSnap = await tx.get(targetCardRef);
+      if (!targetCardSnap.exists) {
+        throw new HttpsError("not-found", "Tarjeta destinataria no encontrada.");
+      }
+
+      const targetCard = targetCardSnap.data() || {};
+      const impresionesDe = Array.isArray(targetCard.impresionesDe) ? targetCard.impresionesDe : [];
+      if (impresionesDe.includes(impressionKey)) {
+        return { success: true, skipped: true };
+      }
+
+      tx.update(targetCardRef, {
+        impresionesRecibidas: Number(targetCard.impresionesRecibidas || 0) + 1,
+        impresionesDe: buildTarjetaArrayWithCap(impresionesDe, impressionKey, TARJETA_MAX_IMPRESIONES_DE),
+        actualizadaEn: FieldValue.serverTimestamp(),
+      });
+
+      return { success: true, skipped: false };
+    });
+  }
+
+  if (action === "leave_footprint") {
+    const today = getChileDayString(new Date()) || new Date().toISOString().slice(0, 10);
+    const huellaKey = `${actorUid}_${today}`;
+    const userHuellasRef = db.collection("userHuellas").doc(actorUid);
+
+    return db.runTransaction(async (tx) => {
+      const [targetCardSnap, userHuellasSnap] = await Promise.all([
+        tx.get(targetCardRef),
+        tx.get(userHuellasRef),
+      ]);
+
+      if (!targetCardSnap.exists) {
+        throw new HttpsError("not-found", "Tarjeta destinataria no encontrada.");
+      }
+
+      const targetCard = targetCardSnap.data() || {};
+      const huellasDe = Array.isArray(targetCard.huellasDe) ? targetCard.huellasDe : [];
+      if (huellasDe.includes(huellaKey)) {
+        return { success: false, reason: "already_left", message: "Ya pasaste por aqui hoy" };
+      }
+
+      const userHuellas = userHuellasSnap.exists ? userHuellasSnap.data() || {} : {};
+      const storedDate = String(userHuellas.date || "");
+      const count = storedDate === today ? Number(userHuellas.count || 0) : 0;
+      if (count >= TARJETA_HUELLAS_MAX_POR_DIA) {
+        return {
+          success: false,
+          reason: "limit",
+          message: `Maximo ${TARJETA_HUELLAS_MAX_POR_DIA} huellas por dia`,
+        };
+      }
+
+      tx.update(targetCardRef, {
+        huellasRecibidas: Number(targetCard.huellasRecibidas || 0) + 1,
+        huellasDe: buildTarjetaArrayWithCap(huellasDe, huellaKey, TARJETA_MAX_HUELLAS_DE),
+        actividadNoLeida: Number(targetCard.actividadNoLeida || 0) + 1,
+        actualizadaEn: FieldValue.serverTimestamp(),
+      });
+      tx.set(userHuellasRef, {
+        count: count + 1,
+        date: today,
+        lastAt: FieldValue.serverTimestamp(),
+      }, { merge: true });
+      tx.set(targetCardRef.collection("actividad").doc(), {
+        tipo: "huella",
+        deUserId: actorUid,
+        deUsername: actorIdentity.nombre || actorIdentity.username,
+        mensaje: `${actorIdentity.nombre || actorIdentity.username} paso por tu perfil`,
+        leida: false,
+        timestamp: FieldValue.serverTimestamp(),
+      });
+
+      return { success: true };
+    });
+  }
+
+  throw new HttpsError("invalid-argument", "Action no soportada.");
+});
+
 /**
  * archiveRoomMessageForAdminHistory
  * Trigger: rooms/{roomId}/messages/{messageId} onCreate
@@ -2665,35 +3220,122 @@ exports.getFavoriteAudienceCount = onCall(
   }
 );
 
+exports.createModerationIncidentAlert = onCall(
+  { region: "us-central1", cors: true },
+  async (request) => {
+    const actorUid = String(request.auth?.uid || "").trim();
+    if (!actorUid) {
+      throw new HttpsError("unauthenticated", "Debes iniciar sesión.");
+    }
+
+    const alertType = normalizeModerationAlertType(request.data?.type);
+    if (!alertType) {
+      throw new HttpsError("invalid-argument", "Tipo de alerta no valido.");
+    }
+
+    const severity = normalizeModerationAlertSeverity(request.data?.severity);
+    const roomId = normalizePublicString(request.data?.roomId, 80) || "principal";
+    const roomKey = roomId.replace(/[^a-zA-Z0-9_-]/g, "_").slice(0, 32) || "principal";
+    const reason = normalizePublicString(request.data?.reason, 240) || "Incidente de moderacion detectado";
+    const message = normalizePublicString(request.data?.message, 500) || "[sin muestra]";
+    const detectedBy = normalizePublicString(request.data?.detectedBy, 40) || "hybrid_moderation";
+    const autoAction = normalizePublicString(request.data?.autoAction, 40) || null;
+
+    const [userSnap, guestSnap] = await Promise.all([
+      db.collection("users").doc(actorUid).get().catch(() => null),
+      db.collection("guests").doc(actorUid).get().catch(() => null),
+    ]);
+
+    const userData = userSnap?.exists ? (userSnap.data() || {}) : {};
+    const guestData = guestSnap?.exists ? (guestSnap.data() || {}) : {};
+    const username =
+      normalizePublicString(userData.username || guestData.username || "Usuario", 80) || "Usuario";
+
+    const alertId = `${getChileDayString()}_${actorUid}_${alertType}_${roomKey}`.slice(0, 140);
+    const alertRef = db.collection("moderation_alerts").doc(alertId);
+    const existingSnap = await alertRef.get().catch(() => null);
+    const now = FieldValue.serverTimestamp();
+
+    if (existingSnap?.exists) {
+      const existingData = existingSnap.data() || {};
+      const repeatCount = Number(existingData.repeatCount || 1) + 1;
+
+      await alertRef.set({
+        type: alertType,
+        severity,
+        userId: actorUid,
+        username,
+        roomId,
+        message,
+        latestMessage: message,
+        reason,
+        status: "pending",
+        detectedBy,
+        autoAction,
+        repeatCount,
+        lastDetectedAt: now,
+        updatedAt: now,
+      }, { merge: true });
+
+      return {
+        created: false,
+        alertId,
+        repeatCount,
+      };
+    }
+
+    await alertRef.set({
+      type: alertType,
+      severity,
+      userId: actorUid,
+      username,
+      roomId,
+      message,
+      latestMessage: message,
+      reason,
+      status: "pending",
+      needsHelp: alertType === "minor_risk",
+      detectedBy,
+      autoAction,
+      repeatCount: 1,
+      createdAt: now,
+      detectedAt: now,
+      lastDetectedAt: now,
+      updatedAt: now,
+    }, { merge: true });
+
+    return {
+      created: true,
+      alertId,
+      repeatCount: 1,
+    };
+  }
+);
+
 /**
  * generateAdminRoomHistoryReport
- * Callable admin-only: genera informe descargable desde Storage para últimos 7/14 días.
+ * Callable admin-only: devuelve historial admin de 7 dias directamente al panel.
+ * El frontend decide si mostrar, copiar o descargar localmente.
  */
 exports.generateAdminRoomHistoryReport = onCall(
   { region: "us-central1", cors: true },
   async (request) => {
     const admin = await assertAdminCallableRequest(request);
     const roomId = String(request.data?.roomId || "principal").trim();
-    const requestedDays = Number.parseInt(String(request.data?.days || "7"), 10);
-    const days = requestedDays === 14 ? 14 : 7;
+    const days = 7;
 
     if (!roomId) {
       throw new HttpsError("invalid-argument", "roomId es requerido.");
     }
 
     const entries = await loadRoomHistoryEntries(roomId, days);
-    const report = await writeRoomHistoryReportFiles({
+    const report = await buildRoomHistoryReportPayload({
       roomId,
       days,
       entries,
-      requesterUid: admin.uid,
     });
 
-    return {
-      roomId,
-      days,
-      ...report,
-    };
+    return report;
   }
 );
 

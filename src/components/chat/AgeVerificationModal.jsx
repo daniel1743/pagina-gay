@@ -4,6 +4,8 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Check } from 'lucide-react';
+import CommunityPolicyCompactNotice from '@/components/policy/CommunityPolicyCompactNotice';
+import { COMMUNITY_POLICY_STORAGE, COMMUNITY_POLICY_VERSION, getPolicyCopy } from '@/content/communityPolicy';
 
 // 4 avatares predefinidos con descripciones
 const AVATAR_OPTIONS = [
@@ -37,11 +39,13 @@ const AVATAR_OPTIONS = [
  * Modal para verificar mayoría de edad, elegir nombre de usuario y avatar para usuarios anónimos
  */
 const AgeVerificationModal = ({ isOpen, onConfirm, onClose }) => {
+  const copy = getPolicyCopy('es');
   const [age, setAge] = useState('');
   const [username, setUsername] = useState('');
   const [selectedAvatar, setSelectedAvatar] = useState(null);
   const [error, setError] = useState('');
   const [keepSession, setKeepSession] = useState(false); // ✅ Checkbox "Mantener sesión"
+  const [acceptRules, setAcceptRules] = useState(false);
 
   const handleConfirm = () => {
     // Validar edad
@@ -52,6 +56,10 @@ const AgeVerificationModal = ({ isOpen, onConfirm, onClose }) => {
     }
     if (parsedAge < 18) {
       setError('Debes ser mayor de 18 años para usar este chat.');
+      return;
+    }
+    if (parsedAge > 120) {
+      setError('Ingresa una edad válida.');
       return;
     }
 
@@ -75,8 +83,17 @@ const AgeVerificationModal = ({ isOpen, onConfirm, onClose }) => {
       setError('Selecciona un avatar.');
       return;
     }
+    if (!acceptRules) {
+      setError('Debes aceptar las normas y políticas de seguridad para continuar.');
+      return;
+    }
 
     setError('');
+    if (typeof window !== 'undefined') {
+      localStorage.setItem(COMMUNITY_POLICY_STORAGE.acceptedFlag, '1');
+      localStorage.setItem(COMMUNITY_POLICY_STORAGE.acceptedAt, String(Date.now()));
+      localStorage.setItem(COMMUNITY_POLICY_STORAGE.version, COMMUNITY_POLICY_VERSION);
+    }
     onConfirm(parsedAge, trimmedUsername, selectedAvatar, keepSession);
   };
 
@@ -117,6 +134,9 @@ const AgeVerificationModal = ({ isOpen, onConfirm, onClose }) => {
               placeholder="Ej: 24"
               className="bg-slate-900 border-slate-700 text-white"
             />
+            <p className="text-xs text-cyan-200/80">
+              {copy.privacyNotice}
+            </p>
           </div>
 
           {/* Nombre de usuario */}
@@ -200,9 +220,22 @@ const AgeVerificationModal = ({ isOpen, onConfirm, onClose }) => {
             Si marcas esta opción, la próxima vez que entres mantendrás el mismo avatar y nombre.
           </p>
 
-          <p className="text-xs text-slate-400 mt-4">
-            Al continuar confirmas que tienes 18 años o más y aceptas las normas del chat.
-          </p>
+          <div className="flex items-start space-x-2 pt-2">
+            <Checkbox
+              id="accept-rules"
+              checked={acceptRules}
+              onCheckedChange={(checked) => setAcceptRules(Boolean(checked))}
+              className="mt-0.5 border-slate-600"
+            />
+            <label
+              htmlFor="accept-rules"
+              className="text-sm text-slate-300 cursor-pointer leading-relaxed"
+            >
+              {copy.acceptanceLabel}
+            </label>
+          </div>
+
+          <CommunityPolicyCompactNotice className="mt-4" />
           </div>
         </div>
 

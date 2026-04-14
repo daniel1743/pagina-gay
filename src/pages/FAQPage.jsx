@@ -30,7 +30,7 @@ const FAQPage = () => {
     },
     {
       q: "¿Hay moderación? ¿Cómo funciona?",
-      a: "Sí, moderación 24/7 con sistema híbrido único: IA detecta contenido inapropiado en tiempo real + moderadores humanos verifican reportes. Esto nos permite ser rápidos sin invadir tu privacidad. Puedes reportar cualquier mensaje o usuario con un click."
+      a: "Sí. Chactivo usa filtros automáticos y análisis asistido para detectar spam, abuso y contenido de riesgo, además de reportes manuales de la comunidad. Los casos sensibles se revisan según prioridad operativa. Puedes reportar cualquier mensaje o usuario con un click."
     },
     {
       q: "¿Puedo eliminar mi cuenta y datos?",
@@ -46,7 +46,7 @@ const FAQPage = () => {
     },
     {
       q: "¿Cómo reporto comportamiento inapropiado?",
-      a: "Hay un botón de reporte en cada mensaje y perfil. Click derecho > Reportar. Nuestro equipo revisa todos los reportes en minutos (no horas). También tenemos IA que detecta automáticamente acoso, spam y contenido prohibido."
+      a: "Hay un botón de reporte en cada mensaje y perfil. Click derecho > Reportar. Priorizamos casos sensibles y además usamos filtros automáticos para detectar spam, abuso y contenido de riesgo."
     },
     {
       q: "¿Verifican que los usuarios sean reales?",

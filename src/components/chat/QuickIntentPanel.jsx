@@ -1,9 +1,10 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { Flame, MapPin, MessageCircle, Search, Users, Video } from 'lucide-react';
+import { Flame, MapPin, MessageCircle, Search, Sparkles, Users, Video } from 'lucide-react';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Button } from '@/components/ui/button';
 import { toast } from '@/components/ui/use-toast';
 import { getPresenceActivityMs, updatePresenceFields } from '@/services/presenceService';
+import { normalizeComuna } from '@/config/comunas';
 
 const ACTIVE_THRESHOLD_MS = 2 * 60 * 1000;
 const COLLAPSED_LAUNCHER_AUTO_HIDE_MS = 5000;
@@ -72,6 +73,22 @@ const getInitials = (username = '') => {
   return safe ? safe.charAt(0).toUpperCase() : 'U';
 };
 
+const getRoleBucket = (roleLabel = '') => {
+  const normalized = String(roleLabel || '').trim().toLowerCase();
+  if (!normalized) return 'otro';
+  if (normalized.includes('vers')) return 'versatil';
+  if (normalized.includes('acti')) return 'activo';
+  if (normalized.includes('pasi')) return 'pasivo';
+  return 'otro';
+};
+
+const getCompatibleRoleBuckets = (roleBucket = 'otro') => {
+  if (roleBucket === 'activo') return ['pasivo', 'versatil'];
+  if (roleBucket === 'pasivo') return ['activo', 'versatil'];
+  if (roleBucket === 'versatil') return ['activo', 'pasivo', 'versatil'];
+  return [];
+};
+
 const QuickIntentPanel = ({
   roomId = 'principal',
   roomUsers = [],
@@ -104,6 +121,32 @@ const QuickIntentPanel = ({
     ),
     [activeUsers, currentUserId, roomUsers]
   );
+
+  const currentUserRoleBucket = useMemo(() => (
+    getRoleBucket(
+      currentPresence?.roleBadge
+      || currentPresence?.profileRole
+      || currentPresence?.role
+      || user?.roleBadge
+      || user?.profileRole
+      || user?.role
+    )
+  ), [
+    currentPresence?.profileRole,
+    currentPresence?.role,
+    currentPresence?.roleBadge,
+    user?.profileRole,
+    user?.role,
+    user?.roleBadge,
+  ]);
+
+  const currentUserComuna = useMemo(() => (
+    normalizeComuna(
+      currentPresence?.comuna
+      || user?.comuna
+      || ''
+    ) || null
+  ), [currentPresence?.comuna, user?.comuna]);
 
   const summary = useMemo(() => {
     const grouped = new Map(INTENT_OPTIONS.map((option) => [option.key, []]));
@@ -142,6 +185,88 @@ const QuickIntentPanel = ({
     () => INTENT_OPTIONS.find((option) => option.key === selectedIntentKey) || null,
     [selectedIntentKey]
   );
+
+  const smartRecommendation = useMemo(() => {
+    const compatibleRoleBuckets = getCompatibleRoleBuckets(currentUserRoleBucket);
+    const candidateUsers = activeUsers
+      .filter((item) => {
+        const itemUserId = item?.userId || item?.id || '';
+        if (!itemUserId || itemUserId === currentUserId) return false;
+        return true;
+      })
+      .map((item) => {
+        const candidateRoleBucket = getRoleBucket(item?.roleBadge || item?.profileRole || item?.role);
+        const candidateComuna = normalizeComuna(item?.comuna || '') || null;
+        const sameComuna = Boolean(
+          candidateComuna
+          && currentUserComuna
+          && candidateComuna === currentUserComuna
+        );
+        const roleCompatible = compatibleRoleBuckets.includes(candidateRoleBucket);
+        const sameIntent = Boolean(
+          selectedIntentKey
+          && item?.quickIntentKey
+          && String(item.quickIntentKey).trim() === selectedIntentKey
+        );
+        const score = (
+          (sameComuna ? 45 : 0)
+          + (roleCompatible ? 30 : 0)
+          + (sameIntent ? 18 : 0)
+          + (item?.isPremium || item?.isProUser ? 2 : 0)
+        );
+
+        return {
+          userId: item?.userId || item?.id,
+          username: item?.username || 'Usuario',
+          avatar: resolveChatAvatar(item?.avatar),
+          comuna: candidateComuna,
+          roleBadge: item?.roleBadge || item?.profileRole || item?.role || null,
+          sameComuna,
+          roleCompatible,
+          sameIntent,
+          score,
+        };
+      })
+      .sort((a, b) => b.score - a.score);
+
+    const topCandidates = candidateUsers.filter((item) => item.score > 0).slice(0, 3);
+    const sameComunaCount = candidateUsers.filter((item) => item.sameComuna).length;
+    const compatibleCount = candidateUsers.filter((item) => item.roleCompatible).length;
+    const sameIntentCount = candidateUsers.filter((item) => item.sameIntent).length;
+
+    let recommendedIntentKey = selectedIntentKey || 'mirando';
+    let title = 'Radar de coincidencia';
+    let description = 'Marca lo que buscas para ordenar mejor la sala.';
+
+    if (!currentUserComuna) {
+      recommendedIntentKey = 'juntarse';
+      title = 'Falta tu comuna';
+      description = 'Si marcas comuna, el sistema puede priorizar gente cercana y bajar ruido.';
+    } else if (!selectedIntentKey && sameComunaCount >= 2) {
+      recommendedIntentKey = 'juntarse';
+      title = `Hay gente cerca de ${currentUserComuna}`;
+      description = `Vimos ${sameComunaCount} perfiles activos cerca. Marca juntarse para separarlos del ruido general.`;
+    } else if (!selectedIntentKey && compatibleCount >= 2) {
+      recommendedIntentKey = 'chat';
+      title = 'Hay compatibilidad en sala';
+      description = `Vimos ${compatibleCount} perfiles con rol compatible contigo. Marca una intención para filtrar mejor.`;
+    } else if (selectedIntentKey && sameIntentCount >= 1) {
+      const selectedIntentLabel = INTENT_OPTIONS.find((option) => option.key === selectedIntentKey)?.label || 'esa intención';
+      title = `Ya hay respuesta para ${selectedIntentLabel.toLowerCase()}`;
+      description = `${sameIntentCount} perfiles activos marcaron lo mismo. Mira primero los de mejor cruce.`;
+    }
+
+    return {
+      title,
+      description,
+      recommendedIntentKey,
+      topCandidates,
+      sameComunaCount,
+      compatibleCount,
+      sameIntentCount,
+      hasCurrentUserComuna: Boolean(currentUserComuna),
+    };
+  }, [activeUsers, currentUserComuna, currentUserId, currentUserRoleBucket, selectedIntentKey]);
 
   useEffect(() => {
     if (!selectedIntentKey) {
@@ -269,6 +394,76 @@ const QuickIntentPanel = ({
         </div>
 
         <div className="px-4 py-3">
+          <div className="mb-3 rounded-2xl border border-emerald-400/20 bg-emerald-500/10 px-3 py-3">
+            <div className="flex items-start justify-between gap-3">
+              <div className="min-w-0">
+                <div className="inline-flex items-center gap-1.5 rounded-full border border-emerald-400/20 bg-emerald-500/10 px-2 py-1 text-[11px] font-semibold text-emerald-100">
+                  <Sparkles className="h-3.5 w-3.5" />
+                  IA-5 local
+                </div>
+                <p className="mt-2 text-sm font-semibold text-white">{smartRecommendation.title}</p>
+                <p className="mt-1 text-xs text-emerald-50/85">{smartRecommendation.description}</p>
+              </div>
+
+              {!selectedIntentKey && smartRecommendation.recommendedIntentKey ? (
+                <Button
+                  type="button"
+                  size="sm"
+                  onClick={() => {
+                    const recommended = INTENT_OPTIONS.find((option) => option.key === smartRecommendation.recommendedIntentKey);
+                    if (recommended) handlePickIntent(recommended);
+                  }}
+                  className="h-8 shrink-0 rounded-xl bg-white text-slate-950 hover:bg-slate-100 px-3 text-xs font-semibold"
+                >
+                  Marcar sugerida
+                </Button>
+              ) : null}
+            </div>
+
+            {smartRecommendation.topCandidates.length > 0 ? (
+              <div className="mt-3 flex flex-wrap gap-2">
+                {smartRecommendation.topCandidates.map((person) => (
+                  <button
+                    key={`smart_${person.userId}`}
+                    type="button"
+                    onClick={() => onStartConversation?.(person)}
+                    disabled={!onStartConversation}
+                    className={`inline-flex items-center gap-2 rounded-full border pr-2 pl-1 py-1 transition-colors ${
+                      onStartConversation
+                        ? 'border-emerald-300/30 bg-emerald-500/10 hover:bg-emerald-500/16 hover:border-emerald-300/50'
+                        : 'border-white/10 bg-white/5'
+                    }`}
+                  >
+                    <Avatar className="w-6 h-6 border border-white/10">
+                      <AvatarImage src={person.avatar} alt={person.username} />
+                      <AvatarFallback>{getInitials(person.username)}</AvatarFallback>
+                    </Avatar>
+                    <span className="max-w-[110px] truncate text-[11px] text-white">
+                      {person.username}
+                    </span>
+                    {person.comuna ? (
+                      <span className="rounded-full bg-white/10 px-1.5 py-0.5 text-[10px] text-emerald-100">
+                        {person.comuna}
+                      </span>
+                    ) : null}
+                  </button>
+                ))}
+              </div>
+            ) : null}
+
+            <div className="mt-3 flex flex-wrap gap-2 text-[11px] text-emerald-50/75">
+              <span className="rounded-full border border-white/10 bg-white/5 px-2 py-1">
+                {smartRecommendation.sameComunaCount} cerca
+              </span>
+              <span className="rounded-full border border-white/10 bg-white/5 px-2 py-1">
+                {smartRecommendation.compatibleCount} compatibles
+              </span>
+              <span className="rounded-full border border-white/10 bg-white/5 px-2 py-1">
+                {smartRecommendation.sameIntentCount} en tu misma intención
+              </span>
+            </div>
+          </div>
+
           <div className="grid grid-cols-2 md:grid-cols-5 gap-2">
             {INTENT_OPTIONS.map((option) => {
               const Icon = option.icon;

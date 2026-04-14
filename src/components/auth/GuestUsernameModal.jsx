@@ -16,6 +16,8 @@ import { PROFILE_ROLE_OPTIONS, normalizeProfileRole } from '@/config/profileRole
 import { COMUNA_OPTIONS, ONBOARDING_COMUNA_KEY, normalizeComuna } from '@/config/comunas';
 import { track } from '@/services/eventTrackingService';
 import { clearSeoFunnelContext, readSeoFunnelContext } from '@/utils/seoFunnelContext';
+import CommunityPolicyCompactNotice from '@/components/policy/CommunityPolicyCompactNotice';
+import { COMMUNITY_POLICY_STORAGE, COMMUNITY_POLICY_VERSION, getPolicyCopy } from '@/content/communityPolicy';
 import { 
   trackModalOpen, 
   trackChatEntry, 
@@ -61,8 +63,10 @@ export const GuestUsernameModal = ({
 }) => {
   const { signInAsGuest, setGuestAuthInProgress } = useAuth(); // ✅ FASE 2: Acceso al setter del loading overlay
   const isHeteroRoom = chatRoomId === 'hetero-general';
+  const policyCopy = getPolicyCopy('es');
 
   const [nickname, setNickname] = useState('');
+  const [age, setAge] = useState('');
   const [selectedRole, setSelectedRole] = useState(() => {
     if (typeof window === 'undefined') return '';
     return normalizeProfileRole(localStorage.getItem('chactivo:role') || '') || '';
@@ -77,11 +81,13 @@ export const GuestUsernameModal = ({
   });
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState('');
-  const [ageConfirmed, setAgeConfirmed] = useState(true); // ✅ PRE-MARCADO: Menos fricción para el usuario
+  const [acceptRules, setAcceptRules] = useState(false);
   const modalOpenTimeRef = useRef(null); // 📊 Timestamp cuando se abre el modal
   const canSubmit = Boolean(
     nickname.trim() &&
+    age.trim() &&
     selectedComuna &&
+    acceptRules &&
     (isHeteroRoom ? selectedSexo : selectedRole)
   );
 
@@ -134,11 +140,8 @@ export const GuestUsernameModal = ({
     }
   }, [open, chatRoomId, openSource]);
 
-  // ⚡ Auto-marcar checkbox de edad al presionar ENTER
   const handleKeyDown = (e) => {
     if (e.key === 'Enter' && !isLoading && nickname.trim().length >= 3) {
-      // Auto-confirmar edad al presionar ENTER
-      setAgeConfirmed(true);
       // El submit se maneja automáticamente por el formulario
     }
   };
@@ -147,46 +150,52 @@ export const GuestUsernameModal = ({
     e.preventDefault();
     setError('');
 
-    // ✅ Auto-confirmar edad al hacer submit (si no está marcado)
-    if (!ageConfirmed) {
-      setAgeConfirmed(true);
-    }
-
     // 📊 PERFORMANCE MONITOR: Iniciar medición de entrada al chat
     const chatEntryStartTime = performance.now();
 
     // ✅ Validación - nickname
     if (!nickname.trim()) {
       setError('Ingresa tu nickname');
-      setAgeConfirmed(false); // Reset si hay error
       return;
     }
     if (nickname.trim().length < 3) {
       setError('El nickname debe tener al menos 3 caracteres');
-      setAgeConfirmed(false);
       return;
     }
     if (nickname.trim().length > 20) {
       setError('El nickname no puede tener más de 20 caracteres');
-      setAgeConfirmed(false);
+      return;
+    }
+    const parsedAge = parseInt(age, 10);
+    if (Number.isNaN(parsedAge)) {
+      setError('Ingresa tu edad en números');
+      return;
+    }
+    if (parsedAge < 18) {
+      setError('Debes ser mayor de 18 años para entrar a Chactivo.');
+      return;
+    }
+    if (parsedAge > 120) {
+      setError('Ingresa una edad válida.');
       return;
     }
     const normalizedRole = isHeteroRoom ? null : normalizeProfileRole(selectedRole);
     if (!isHeteroRoom && !normalizedRole) {
       setError('Selecciona tu rol para entrar al chat');
-      setAgeConfirmed(false);
       return;
     }
     const normalizedSexo = isHeteroRoom ? String(selectedSexo || '').trim() : null;
     if (isHeteroRoom && !normalizedSexo) {
       setError('Selecciona si entras como hombre o mujer');
-      setAgeConfirmed(false);
       return;
     }
     const normalizedComuna = normalizeComuna(selectedComuna);
     if (!normalizedComuna) {
       setError('Selecciona tu comuna o ciudad para conectar gente cerca');
-      setAgeConfirmed(false);
+      return;
+    }
+    if (!acceptRules) {
+      setError('Debes aceptar las normas y políticas de seguridad para continuar.');
       return;
     }
 
@@ -209,6 +218,8 @@ export const GuestUsernameModal = ({
         role: normalizedRole,
         comuna: normalizedComuna,
         sexo: normalizedSexo,
+        age: parsedAge,
+        rulesAccepted: true,
       });
       console.log('[GuestModal] ✅ Datos guardados para persistencia automática');
 
@@ -220,6 +231,13 @@ export const GuestUsernameModal = ({
           localStorage.setItem('chactivo:hetero_sex', normalizedSexo);
         }
         localStorage.setItem(ONBOARDING_COMUNA_KEY, normalizedComuna);
+        localStorage.setItem(`age_verified_${nickname.trim().toLowerCase()}`, String(parsedAge));
+        sessionStorage.setItem(`age_verified_${nickname.trim()}`, 'true');
+        localStorage.setItem(`rules_accepted_${nickname.trim().toLowerCase()}`, 'true');
+        sessionStorage.setItem(`rules_accepted_${nickname.trim()}`, 'true');
+        localStorage.setItem(COMMUNITY_POLICY_STORAGE.acceptedFlag, '1');
+        localStorage.setItem(COMMUNITY_POLICY_STORAGE.acceptedAt, String(Date.now()));
+        localStorage.setItem(COMMUNITY_POLICY_STORAGE.version, COMMUNITY_POLICY_VERSION);
       }
 
       // 📊 PERFORMANCE MONITOR: Iniciar tracking de autenticación
@@ -332,7 +350,6 @@ export const GuestUsernameModal = ({
       }
 
       setError(`Error al entrar: ${error.message || 'Intenta de nuevo.'}`);
-      setAgeConfirmed(false); // Reset en caso de error
       setIsLoading(false);
       setGuestAuthInProgress(false); // ✅ FASE 2: Desactivar loading overlay en caso de error
       
@@ -399,7 +416,10 @@ export const GuestUsernameModal = ({
                 <input
                   type="text"
                   value={nickname}
-                  onChange={(e) => setNickname(e.target.value)}
+                  onChange={(e) => {
+                    setNickname(e.target.value);
+                    if (error) setError('');
+                  }}
                   onKeyDown={handleKeyDown}
                   placeholder="Ej: Carlos23"
                   maxLength={20}
@@ -421,7 +441,40 @@ export const GuestUsernameModal = ({
                   }}
                 />
                 <p style={{ fontSize: '12px', color: '#999', marginBottom: '16px' }}>
-                  ✨ Avatar asignado automáticamente • Presiona ENTER para entrar
+                  ✨ Avatar asignado automáticamente
+                </p>
+
+                <label style={{ display: 'block', fontSize: '15px', fontWeight: '600', color: '#333', marginBottom: '10px' }}>
+                  Tu edad:
+                </label>
+                <input
+                  type="number"
+                  value={age}
+                  onChange={(e) => {
+                    setAge(e.target.value);
+                    if (error) setError('');
+                  }}
+                  placeholder="Ej: 24"
+                  min="18"
+                  max="120"
+                  required
+                  disabled={isLoading}
+                  style={{
+                    width: '100%',
+                    padding: '14px',
+                    fontSize: '16px',
+                    border: '2px solid #667eea',
+                    borderRadius: '12px',
+                    outline: 'none',
+                    boxSizing: 'border-box',
+                    backgroundColor: 'white',
+                    color: '#333',
+                    fontWeight: '500',
+                    marginBottom: '10px'
+                  }}
+                />
+                <p style={{ fontSize: '11px', color: '#0f766e', marginBottom: '16px' }}>
+                  {policyCopy.privacyNotice}
                 </p>
 
                 {isHeteroRoom && (
@@ -540,46 +593,39 @@ export const GuestUsernameModal = ({
                   Esto ayuda a mostrarte gente cercana y ordenar mejor la sala.
                 </p>
                 
-                {/* ✅ Checkbox "Soy mayor de edad" (se auto-marca con ENTER o submit) */}
                 <div style={{ 
-                  display: 'flex', 
-                  alignItems: 'center', 
-                  gap: '8px', 
                   marginBottom: '20px',
                   padding: '12px',
                   backgroundColor: '#f8f9fa',
                   borderRadius: '8px'
                 }}>
-                  <input
-                    type="checkbox"
-                    id="age-confirmation-guest"
-                    checked={ageConfirmed}
-                    onChange={(e) => setAgeConfirmed(e.target.checked)}
-                    style={{
-                      width: '18px',
-                      height: '18px',
-                      cursor: 'pointer'
-                    }}
-                  />
-                  <label
-                    htmlFor="age-confirmation-guest"
-                    style={{
-                      fontSize: '14px',
-                      color: '#555',
-                      cursor: 'pointer',
-                      userSelect: 'none'
-                    }}
-                  >
-                    Soy mayor de edad y entiendo que entro a una sala para adultos
+                  <label style={{ display: 'flex', alignItems: 'flex-start', gap: '10px', cursor: 'pointer', fontSize: '13px', color: '#333' }}>
+                    <input
+                      type="checkbox"
+                      id="accept-guest-rules"
+                      checked={acceptRules}
+                      onChange={(e) => {
+                        setAcceptRules(e.target.checked);
+                        if (error) setError('');
+                      }}
+                      required
+                      style={{
+                        width: '18px',
+                        height: '18px',
+                        cursor: 'pointer',
+                        marginTop: '2px'
+                      }}
+                    />
+                    <span>{policyCopy.acceptanceLabel}</span>
                   </label>
                 </div>
-                <p style={{ fontSize: '11px', color: '#999', marginBottom: '20px', marginTop: '-12px' }}>
-                  Se marca automáticamente al presionar ENTER o hacer click en "Ir al Chat"
-                </p>
+
+                <div style={{ marginBottom: '20px' }}>
+                  <CommunityPolicyCompactNotice />
+                </div>
                 
                 <button
                   type="submit"
-                  onClick={() => setAgeConfirmed(true)} // ✅ Auto-marcar checkbox al hacer click
                   disabled={isLoading || !canSubmit}
                   style={{
                     width: '100%',

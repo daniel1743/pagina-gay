@@ -41,6 +41,7 @@ import { roomsData } from '@/config/rooms';
 import { trackPageView, trackPageExit, trackRoomJoined, trackMessageSent } from '@/services/eventTrackingService';
 import { useCanonical } from '@/hooks/useCanonical';
 import { notificationSounds, initAudioOnFirstGesture } from '@/services/notificationSounds';
+import { hasValidGuestCommunityAccess, syncGuestCommunityAccess } from '@/utils/communityPolicyGuard';
 
 const ChatSecondaryPage = () => {
   const { roomId } = useParams();
@@ -154,6 +155,7 @@ const ChatSecondaryPage = () => {
             if (storedAge && Number(storedAge) >= 18) {
               setIsAgeVerified(true);
               setShowAgeVerification(false);
+              syncGuestCommunityAccess({ userId: user.id, username: saved.username, fallbackAge: storedAge });
               return;
             }
           } catch (e) {
@@ -167,11 +169,27 @@ const ChatSecondaryPage = () => {
       setIsAgeVerified(true);
       setShowAgeVerification(false);
       localStorage.setItem(`age_verified_${user.id}`, '18');
+      localStorage.setItem(`rules_accepted_${user.id}`, 'true');
     } else {
       if (user.isGuest || user.isAnonymous) {
-        setIsAgeVerified(true);
-        setShowAgeVerification(false);
-        localStorage.setItem(`age_verified_${user.id}`, '18');
+        const hasValidGuestAccess = hasValidGuestCommunityAccess({
+          userId: user.id,
+          username: user.username,
+          fallbackAge: user.age || user.edad || null,
+        });
+
+        if (hasValidGuestAccess) {
+          setIsAgeVerified(true);
+          setShowAgeVerification(false);
+          syncGuestCommunityAccess({
+            userId: user.id,
+            username: user.username,
+            fallbackAge: user.age || user.edad || null,
+          });
+        } else {
+          setIsAgeVerified(false);
+          setShowAgeVerification(true);
+        }
         return;
       }
       setIsAgeVerified(true);
@@ -879,10 +897,12 @@ const ChatSecondaryPage = () => {
 
               const ageKey = `age_verified_${user.id}`;
               localStorage.setItem(ageKey, String(age));
+              localStorage.setItem(`rules_accepted_${user.id}`, 'true');
               
               if (user.isGuest || user.isAnonymous) {
                 const usernameAgeKey = `age_verified_${username.toLowerCase().trim()}`;
                 localStorage.setItem(usernameAgeKey, String(age));
+                localStorage.setItem(`rules_accepted_${username.toLowerCase().trim()}`, 'true');
               }
               
               setIsAgeVerified(true);

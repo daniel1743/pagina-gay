@@ -50,6 +50,9 @@ const PRIVATE_CONTACT_SHARE_MIN_MESSAGES_PER_PARTICIPANT = 3;
 const PRIVATE_CONTACT_SHARE_MIN_AGE_MS = 10 * 60 * 1000;
 const PRIVATE_CONTACT_GUIDE_DISMISS_PREFIX = 'chactivo:private_contact_guide_dismissed:';
 const PRIVATE_EARLY_WARNING_MAX_MESSAGES = 4;
+const MOBILE_MINIMIZED_PRIVATE_CHAT_SAFE_BOTTOM = 132;
+const DESKTOP_MINIMIZED_PRIVATE_CHAT_SAFE_BOTTOM = 88;
+const MINIMIZED_PRIVATE_CHAT_SPACING = 56;
 
 const getTimestampMs = (value) => {
   if (!value) return null;
@@ -1422,14 +1425,15 @@ export default function PrivateChatWindowV2({
 
   const minimizedStyle = isMobile
     ? {
-      left: '12px',
+      left: 'auto',
       right: '12px',
-      bottom: `${80 + (minimizedIndex * 64)}px`,
+      width: 'min(232px, calc(100vw - 24px))',
+      bottom: `${MOBILE_MINIMIZED_PRIVATE_CHAT_SAFE_BOTTOM + (minimizedIndex * MINIMIZED_PRIVATE_CHAT_SPACING)}px`,
     }
     : {
-      right: `${16 + minimizedIndex * 304}px`,
-      bottom: '16px',
-      width: '288px',
+      right: `${16 + minimizedIndex * 248}px`,
+      bottom: `${DESKTOP_MINIMIZED_PRIVATE_CHAT_SAFE_BOTTOM}px`,
+      width: '232px',
     };
 
   useEffect(() => {
@@ -1521,7 +1525,7 @@ export default function PrivateChatWindowV2({
   if (isMinimized) {
     return (
       <div
-        className="fixed z-[94] flex items-center gap-3 rounded-2xl border border-white/10 bg-zinc-950/95 px-3 py-2 text-white shadow-2xl backdrop-blur-xl"
+        className="fixed z-[94] flex items-center gap-2 rounded-2xl border border-white/10 bg-zinc-950/95 px-2.5 py-2 text-white shadow-2xl backdrop-blur-xl"
         style={minimizedStyle}
       >
         <button
@@ -1555,7 +1559,7 @@ export default function PrivateChatWindowV2({
           type="button"
           variant="ghost"
           size="icon"
-          className="h-8 w-8 shrink-0 rounded-full text-zinc-300 hover:bg-white/10 hover:text-white"
+          className="h-7 w-7 shrink-0 rounded-full text-zinc-300 hover:bg-white/10 hover:text-white"
           onClick={() => onClose?.(chatId)}
         >
           <X className="h-4 w-4" />
