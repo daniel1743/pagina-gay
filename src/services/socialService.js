@@ -474,6 +474,9 @@ const notifyPrivateChatRecipients = async ({
   content,
   type = 'text',
 }) => {
+  const PRIVATE_DM_NOTIFICATIONS_ENABLED = false;
+  if (!PRIVATE_DM_NOTIFICATIONS_ENABLED) return;
+
   const validRecipients = [...new Set((recipientIds || []).filter(Boolean))].filter((id) => id !== sender?.userId);
   if (validRecipients.length === 0) return;
 
@@ -1993,10 +1996,15 @@ export const sendProfileComment = async (fromUserId, toUserId, content) => {
       timestamp: serverTimestamp(),
     };
 
-    await dispatchUserNotification('profile_comment', {
+    const notificationResult = await dispatchUserNotification('profile_comment', {
       toUserId,
       content,
     });
+    if (notificationResult?.skipped) {
+      const disabledError = new Error('PROFILE_COMMENTS_DISABLED');
+      disabledError.code = 'PROFILE_COMMENTS_DISABLED';
+      throw disabledError;
+    }
     await addDoc(collection(db, 'users', fromUserId, 'sent_messages'), {
       ...commentData,
       read: true,

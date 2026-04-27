@@ -363,7 +363,6 @@ function buildDiscoverableUserLocation(userId, userData = {}) {
 
 function buildPublicMirrorRelevantSnapshot(userData = {}) {
   const ageNumber = Number.parseInt(String(userData.age ?? ""), 10);
-  const profileViews = Number.parseInt(String(userData.profileViews ?? "0"), 10);
   const latitude = roundDiscoverableCoordinate(userData?.location?.latitude);
   const longitude = roundDiscoverableCoordinate(userData?.location?.longitude);
   const hasValidLocation = Number.isFinite(latitude) && Number.isFinite(longitude);
@@ -386,8 +385,6 @@ function buildPublicMirrorRelevantSnapshot(userData = {}) {
     hasRainbowBorder: Boolean(userData.hasRainbowBorder),
     hasProBadge: Boolean(userData.hasProBadge),
     profileVisible: userData.profileVisible !== false,
-    favoritesCount: Array.isArray(userData.favorites) ? userData.favorites.length : 0,
-    profileViews: Number.isFinite(profileViews) ? profileViews : 0,
     locationEnabled: userData.locationEnabled === true,
     isOnline: Boolean(userData.isOnline),
     location: hasValidLocation
@@ -755,30 +752,6 @@ async function countFavoriteAudienceForUser(targetUserId) {
   return count;
 }
 
-function getHistoryRawPath(roomId, dayString, messageId, createdAtMs) {
-  return `admin-room-history/raw/${roomId}/${dayString}/${createdAtMs}_${messageId}.json`;
-}
-
-function getHistoryGeneratedPath(roomId, dayString, uid, days, extension) {
-  return `admin-room-history/generated/${roomId}/${dayString}/${Date.now()}_${uid}_${days}d.${extension}`;
-}
-
-function extractHistoryDayFromPath(filePath = "") {
-  const parts = String(filePath).split("/");
-  if (parts.length < 5) return null;
-  return parts[3] || null;
-}
-
-function getLastNDayStrings(days, baseDate = new Date()) {
-  const safeDays = Math.max(1, Math.min(Number(days || 1), ADMIN_ROOM_HISTORY_RETENTION_DAYS));
-  const results = [];
-  for (let offset = safeDays - 1; offset >= 0; offset -= 1) {
-    const date = new Date(baseDate.getTime() - offset * 24 * 60 * 60 * 1000);
-    results.push(getChileDayString(date));
-  }
-  return results;
-}
-
 function buildRoomHistoryEntry(messageData = {}, roomId, messageId) {
   const timestampValue = messageData.timestamp;
   const timestampDate =
@@ -810,47 +783,20 @@ function buildRoomHistoryEntry(messageData = {}, roomId, messageId) {
   };
 }
 
-function formatRoomHistoryReportLine(entry = {}) {
-  const date = new Date(entry.timestampIso || Date.now());
-  const parts = [entry.username || "Usuario"];
-  if (entry.roleBadge) parts.push(entry.roleBadge);
-  if (entry.comuna) parts.push(entry.comuna);
-  const identity = parts.join(" | ");
-  const stamp = new Intl.DateTimeFormat("es-CL", {
-    timeZone: CHILE_TIME_ZONE,
-    day: "2-digit",
-    month: "2-digit",
-    hour: "2-digit",
-    minute: "2-digit",
-  }).format(date);
-
-  return `[${stamp}] ${identity}: ${entry.content || "[Mensaje sin contenido visible]"}`;
-}
-
 async function loadRoomHistoryEntries(roomId, days) {
-  const bucket = storage.bucket();
-  const dayStrings = getLastNDayStrings(days);
-  const entries = [];
+  const safeRoomId = String(roomId || "").trim();
+  const safeDays = Math.max(1, Math.min(Number(days || 7), ADMIN_ROOM_HISTORY_RETENTION_DAYS));
+  const cutoffDate = new Date(Date.now() - safeDays * 24 * 60 * 60 * 1000);
+  const snapshot = await db
+    .collection("rooms")
+    .doc(safeRoomId)
+    .collection("messages")
+    .where("timestamp", ">=", cutoffDate)
+    .orderBy("timestamp", "desc")
+    .limit(ROOM_RETENTION_MAX_MESSAGES)
+    .get();
 
-  for (const dayString of dayStrings) {
-    const prefix = `admin-room-history/raw/${roomId}/${dayString}/`;
-    const [files] = await bucket.getFiles({ prefix });
-    if (!files.length) continue;
-
-    const loadedEntries = await Promise.all(
-      files.map(async (file) => {
-        const [contents] = await file.download();
-        return JSON.parse(contents.toString("utf8"));
-      })
-    );
-
-    for (const entry of loadedEntries) {
-      if (entry && typeof entry === "object") {
-        entries.push(entry);
-      }
-    }
-  }
-
+  const entries = snapshot.docs.map((docSnap) => buildRoomHistoryEntry(docSnap.data() || {}, safeRoomId, docSnap.id));
   entries.sort((a, b) => Number(a.createdAtMs || 0) - Number(b.createdAtMs || 0));
   return entries;
 }
@@ -1927,23 +1873,8 @@ async function sendPushToUser(userId, notification, data = {}) {
   }
 }
 
-/**
- * 1. notifyOnNewMessage
- * Trigger: Nuevo documento en private_chats/{chatId}/messages/{messageId}
- * Envia push al destinatario del mensaje privado
- */
-exports.notifyOnNewMessage = onDocumentCreated(
-  "private_chats/{chatId}/messages/{messageId}",
-  async (event) => {
-    const message = event.data?.data();
-    if (!message) return;
-    if (message.type === "system") return;
-    console.log(
-      `[DM_PUSH] notifyOnNewMessage skip chatId=${event.params.chatId} reason=handled_via_user_notification`
-    );
-    return null;
-  }
-);
+// FASE 1 ahorro Cloud Functions:
+// notifyOnNewMessage retirado por redundancia y costo por mensaje privado.
 
 /**
  * cleanupPrivateChatMessageMedia
@@ -2144,101 +2075,8 @@ async function saveReminderLog(collectionName, docId, payload = {}) {
   }, { merge: true });
 }
 
-/**
- * Recordatorio de hora pico para usuarios inactivos con push habilitado.
- * Ejecuta cada 30 min y solo dispara en slots definidos.
- */
-exports.sendPeakHourConnectionReminders = onSchedule(
-  {
-    schedule: "every 30 minutes",
-    timeZone: CHILE_TIME_ZONE,
-    region: "us-central1",
-  },
-  async () => {
-    const now = new Date();
-    const { hour, minute } = getChileClockParts(now);
-
-    if (!ENGAGEMENT_REMINDER_SLOTS.includes(hour) || minute > 20) {
-      return null;
-    }
-
-    const cutoffDate = new Date(now.getTime() - ENGAGEMENT_INACTIVITY_MS);
-    const dayKey = getChileDayString(now);
-    const slotKey = `${dayKey}_${String(hour).padStart(2, "0")}`;
-
-    const inactiveSnap = await db
-      .collection("user_activity_state")
-      .where("lastActiveAt", "<=", cutoffDate)
-      .orderBy("lastActiveAt", "asc")
-      .limit(ENGAGEMENT_REMINDER_BATCH)
-      .get();
-
-    if (inactiveSnap.empty) {
-      console.log(`[PUSH_REMINDER] slot=${slotKey} sin candidatos inactivos`);
-      return null;
-    }
-
-    let sentCount = 0;
-    let skippedCount = 0;
-
-    for (const activityDoc of inactiveSnap.docs) {
-      const activityData = activityDoc.data() || {};
-      const userId = String(activityData.uid || activityDoc.id || "");
-      if (!userId || isBotLikeUserId(userId)) {
-        skippedCount += 1;
-        continue;
-      }
-
-      const logDocId = `${slotKey}_${userId}`;
-      const alreadySent = await hasReminderLog("pushReminderLog", logDocId);
-      if (alreadySent) {
-        skippedCount += 1;
-        continue;
-      }
-
-      const userDoc = await db.collection("users").doc(userId).get();
-      if (!userDoc.exists) {
-        skippedCount += 1;
-        continue;
-      }
-
-      const userData = userDoc.data() || {};
-      if (shouldSkipReminderForUser(userData)) {
-        skippedCount += 1;
-        continue;
-      }
-
-      if (!Array.isArray(userData.fcmTokens) || userData.fcmTokens.length === 0) {
-        skippedCount += 1;
-        continue;
-      }
-
-      const notification = buildEngagementReminderNotification(hour);
-      const sent = await sendPushToUser(userId, notification, {
-        type: "engagement_reminder",
-        slotHour: String(hour),
-        url: "/chat/principal",
-        tag: `engagement_${slotKey}`,
-      });
-
-      if (!sent) {
-        skippedCount += 1;
-        continue;
-      }
-
-      await saveReminderLog("pushReminderLog", logDocId, {
-        userId,
-        slotKey,
-        type: "engagement_reminder",
-        lastActiveAt: activityData.lastActiveAt || null,
-      });
-      sentCount += 1;
-    }
-
-    console.log(`[PUSH_REMINDER] slot=${slotKey} sent=${sentCount} skipped=${skippedCount}`);
-    return null;
-  }
-);
+// FASE 1 ahorro Cloud Functions:
+// sendPeakHourConnectionReminders retirado por costo alto y bajo retorno.
 
 exports.enforceCriticalRoomSafety = onDocumentCreated(
   "rooms/{roomId}/messages/{messageId}",
@@ -2377,228 +2215,14 @@ exports.enforceCriticalPrivateChatSafety = onDocumentCreated(
   }
 );
 
-/**
- * Recordatorios de eventos:
- * - 10 minutos antes (event_soon)
- * - cuando inicia (event_start)
- * Solo para asistentes registrados del evento.
- */
-exports.sendEventReminderPushes = onSchedule(
-  {
-    schedule: "every 5 minutes",
-    timeZone: CHILE_TIME_ZONE,
-    region: "us-central1",
-  },
-  async () => {
-    const now = new Date();
-    const nowMs = now.getTime();
-    const dayKey = getChileDayString(now);
+// FASE 1 ahorro Cloud Functions:
+// sendEventReminderPushes retirado por frecuencia agresiva y valor secundario.
 
-    const eventsSnap = await db
-      .collection("eventos")
-      .where("activo", "==", true)
-      .limit(EVENT_REMINDER_EVENT_LIMIT)
-      .get();
+// FASE 3 ahorro Cloud Functions:
+// syncPhotoPrivilegeFromPresence retirado por alto churn desde roomPresence y bajo valor operativo.
 
-    if (eventsSnap.empty) {
-      return null;
-    }
-
-    let remindersSent = 0;
-    let eventsConsidered = 0;
-
-    for (const eventDoc of eventsSnap.docs) {
-      const eventData = eventDoc.data() || {};
-      const startMs = toMillis(eventData.fechaInicio);
-      const roomId = String(eventData.roomId || "");
-      const eventName = String(eventData.nombre || "Tu evento");
-      if (!startMs || !roomId) continue;
-
-      const deltaMs = startMs - nowMs;
-      let stage = "";
-
-      if (deltaMs > 0 && deltaMs <= EVENT_REMINDER_LOOKAHEAD_MS) {
-        stage = "soon";
-      } else if (deltaMs <= 0 && Math.abs(deltaMs) <= EVENT_REMINDER_START_WINDOW_MS) {
-        stage = "start";
-      }
-
-      if (!stage) continue;
-      eventsConsidered += 1;
-
-      const attendeesSnap = await eventDoc.ref
-        .collection("asistentes")
-        .limit(EVENT_REMINDER_USER_LIMIT)
-        .get();
-
-      if (attendeesSnap.empty) continue;
-
-      for (const attendeeDoc of attendeesSnap.docs) {
-        const attendeeData = attendeeDoc.data() || {};
-        const userId = String(attendeeData.userId || attendeeDoc.id || "");
-        if (!userId || isBotLikeUserId(userId)) continue;
-
-        const logDocId = `${eventDoc.id}_${stage}_${dayKey}_${userId}`;
-        const alreadySent = await hasReminderLog("eventPushReminderLog", logDocId);
-        if (alreadySent) continue;
-
-        const userDoc = await db.collection("users").doc(userId).get();
-        if (!userDoc.exists) continue;
-
-        const userData = userDoc.data() || {};
-        if (shouldSkipReminderForUser(userData)) continue;
-        if (!Array.isArray(userData.fcmTokens) || userData.fcmTokens.length === 0) continue;
-
-        const pushType = stage === "start" ? "event_start" : "event_soon";
-        const notification = stage === "start"
-          ? buildEventStartNotification(eventName)
-          : buildEventSoonNotification(eventName, Math.round(deltaMs / 60000));
-
-        const sent = await sendPushToUser(userId, notification, {
-          type: pushType,
-          eventId: eventDoc.id,
-          roomId,
-          url: `/chat/${roomId}`,
-          tag: `event_${eventDoc.id}_${stage}`,
-        });
-
-        if (!sent) continue;
-
-        await saveReminderLog("eventPushReminderLog", logDocId, {
-          userId,
-          eventId: eventDoc.id,
-          roomId,
-          stage,
-        });
-        remindersSent += 1;
-      }
-    }
-
-    if (eventsConsidered > 0) {
-      console.log(`[EVENT_PUSH] consideredEvents=${eventsConsidered} remindersSent=${remindersSent}`);
-    }
-    return null;
-  }
-);
-
-/**
- * syncPhotoPrivilegeFromPresence
- * Trigger: roomPresence/{roomId}/users/{presenceId} onCreate
- * Regla de negocio:
- * - Solo sala principal
- * - Solo usuarios registrados (no guest/anónimo/bot)
- * - Beneficio auto tras 2 días seguidos de actividad
- */
-exports.syncPhotoPrivilegeFromPresence = onDocumentCreated(
-  "roomPresence/{roomId}/users/{presenceId}",
-  async (event) => {
-    const roomId = event.params.roomId;
-    const presenceId = event.params.presenceId;
-    const presenceData = event.data?.data() || {};
-
-    if (roomId !== PHOTO_PRIVILEGE_SCOPE) {
-      return null;
-    }
-
-    if (!isRegisteredPresenceUser(presenceData, presenceId)) {
-      console.log(`[PHOTO_PRIV] Skip ineligible presence user roomId=${roomId} presenceId=${presenceId}`);
-      return null;
-    }
-
-    const userId = String(presenceData.userId || presenceId);
-    const now = new Date();
-
-    try {
-      const result = await syncPhotoPrivilegeFromActivity(userId, roomId, now);
-      console.log(
-        `[PHOTO_PRIV] Synced from presence uid=${userId} streak=${result.streakDays} active=${result.isActive} autoEligible=${result.autoEligible} adminGranted=${result.adminGranted}`
-      );
-
-      if (result.justGrantedByAuto) {
-        await recordPhotoMetrics({ photoPrivilegeAutoGrants: 1 }, now).catch((error) => {
-          console.error("[PHOTO_PRIV] Error recording auto grant metrics", error);
-        });
-        console.log(`[PHOTO_PRIV] Auto grant applied uid=${userId}`);
-      }
-    } catch (error) {
-      console.error(`[PHOTO_PRIV] Error syncing privilege uid=${userId}`, error);
-    }
-
-    return null;
-  }
-);
-
-/**
- * revokePhotoPrivilegeForInactivity
- * Job cada hora:
- * - Busca privilegios activos con lastActiveAt <= now-24h
- * - Revoca privilegios y notifica al usuario
- */
-exports.revokePhotoPrivilegeForInactivity = onSchedule(
-  {
-    schedule: "every 60 minutes",
-    timeZone: CHILE_TIME_ZONE,
-    region: "us-central1",
-  },
-  async () => {
-    const now = new Date();
-    const cutoff = new Date(now.getTime() - PHOTO_PRIVILEGE_INACTIVITY_MS);
-    let totalRevoked = 0;
-
-    console.log(`[PHOTO_PRIV] Inactivity revoke run start cutoff=${cutoff.toISOString()}`);
-
-    while (true) {
-      const snap = await db
-        .collection("chat_photo_privileges")
-        .where("active", "==", true)
-        .where("lastActiveAt", "<=", cutoff)
-        .orderBy("lastActiveAt", "asc")
-        .limit(PHOTO_PRIVILEGE_REVOKE_BATCH_SIZE)
-        .get();
-
-      if (snap.empty) break;
-
-      const batch = db.batch();
-      for (const docSnap of snap.docs) {
-        const data = docSnap.data() || {};
-        const userId = String(data.uid || docSnap.id);
-        if (!userId) continue;
-
-        batch.set(
-          docSnap.ref,
-          {
-            uid: userId,
-            active: false,
-            autoEligible: false,
-            adminGranted: false,
-            source: "none",
-            revokedAt: now,
-            revokedReason: "inactive_24h",
-            updatedAt: now,
-            grantedBy: null,
-          },
-          { merge: true }
-        );
-
-        const notificationRef = db.collection("systemNotifications").doc();
-        batch.set(notificationRef, buildInactivityNotification(userId, now));
-      }
-
-      await batch.commit();
-      totalRevoked += snap.size;
-      console.log(`[PHOTO_PRIV] Revoked by inactivity batchSize=${snap.size} total=${totalRevoked}`);
-    }
-
-    if (totalRevoked > 0) {
-      await recordPhotoMetrics({ photoPrivilegeRevocationsInactivity: totalRevoked }, now).catch((error) => {
-        console.error("[PHOTO_PRIV] Error recording inactivity revoke metrics", error);
-      });
-    }
-
-    console.log(`[PHOTO_PRIV] Inactivity revoke run done totalRevoked=${totalRevoked}`);
-    return null;
-  }
-);
+// FASE 3 ahorro Cloud Functions:
+// revokePhotoPrivilegeForInactivity retirado para evitar job horario y escrituras derivadas no esenciales.
 
 /**
  * enforceRoomRetention
@@ -3255,159 +2879,8 @@ exports.dispatchUserNotification = onCall(
   }
 );
 
-exports.trackAnalyticsEvent = onCall(
-  { region: "us-central1", cors: true },
-  async (request) => {
-  if (!request.auth?.uid) {
-    throw new HttpsError("unauthenticated", "Debes iniciar sesion.");
-  }
-
-  const eventType = sanitizeAnalyticsEventType(request.data?.eventType || request.data?.type || "");
-  if (!eventType) {
-    throw new HttpsError("invalid-argument", "eventType es requerido.");
-  }
-
-  const eventData = request.data?.eventData && typeof request.data.eventData === "object" ?
-    request.data.eventData :
-    {};
-
-  const actorUid = request.auth.uid;
-  const now = new Date();
-  const dateKey = now.toISOString().split("T")[0];
-  const statsRef = db.collection("analytics_stats").doc(dateKey);
-  const updates = {
-    date: dateKey,
-    lastUpdated: FieldValue.serverTimestamp(),
-  };
-
-  let handled = false;
-  const pagePath = normalizeNotificationString(eventData.pagePath, 240);
-  const source = normalizeNotificationString(eventData.source, 120);
-  const sessionId = normalizeNotificationString(eventData.sessionId, 120);
-  const roomId = normalizeNotificationString(eventData.roomId, 120);
-  const roomName = normalizeNotificationString(eventData.roomName, 120);
-  const campaign = normalizeNotificationString(eventData.campaign, 120);
-  const medium = normalizeNotificationString(eventData.medium, 120);
-
-  switch (eventType) {
-    case "page_view": {
-      updates.pageViews = FieldValue.increment(1);
-      if (pagePath) {
-        const pageKey = sanitizeAnalyticsSegment(pagePath);
-        updates.lastPagePath = pagePath;
-        updates[`pageViewsByPath.${pageKey}`] = FieldValue.increment(1);
-        updates[`pagePathMap.${pageKey}`] = pagePath;
-      }
-      const timeBucket = getAnalyticsTimeBucket(eventData.timeOnPage);
-      if (timeBucket) {
-        updates[`timeDistribution.${timeBucket}`] = FieldValue.increment(1);
-      }
-      if (source) {
-        updates[`trafficSources.${sanitizeAnalyticsSegment(source)}`] = FieldValue.increment(1);
-      }
-      if (campaign) {
-        updates[`campaigns.${sanitizeAnalyticsSegment(campaign)}`] = FieldValue.increment(1);
-      }
-      handled = true;
-      break;
-    }
-    case "user_register":
-      updates.registrations = FieldValue.increment(1);
-      handled = true;
-      break;
-    case "user_login":
-      updates.logins = FieldValue.increment(1);
-      handled = true;
-      break;
-    case "message_sent":
-      updates.messagesSent = FieldValue.increment(1);
-      handled = true;
-      break;
-    case "room_created":
-      updates.roomsCreated = FieldValue.increment(1);
-      handled = true;
-      break;
-    case "room_joined":
-      updates.roomsJoined = FieldValue.increment(1);
-      handled = true;
-      break;
-    case "page_exit": {
-      updates.pageExits = FieldValue.increment(1);
-      if (pagePath) {
-        const pageKey = sanitizeAnalyticsSegment(pagePath);
-        updates.lastExitPage = pagePath;
-        updates[`exitPagesByPath.${pageKey}`] = FieldValue.increment(1);
-        updates[`pagePathMap.${pageKey}`] = pagePath;
-      }
-      const timeBucket = getAnalyticsTimeBucket(eventData.timeOnPage);
-      if (timeBucket) {
-        updates[`exitTimeDistribution.${timeBucket}`] = FieldValue.increment(1);
-      }
-      handled = true;
-      break;
-    }
-    default:
-      break;
-  }
-
-  if (!handled) {
-    updates[`customEvents.${eventType}`] = FieldValue.increment(1);
-  }
-
-  await statsRef.set(updates, { merge: true });
-
-  const storedEventTypes = new Set([
-    "user_login",
-    "user_register",
-    "message_sent",
-    "landing_view",
-    "entry_to_chat",
-    "auth_page_view",
-    "auth_submit",
-    "auth_success",
-    "chat_room_view",
-    "first_message_sent",
-    "onboarding_chip_click",
-    "onboarding_prompt_click",
-    "onboarding_nudge_shown",
-    "onboarding_dismissed",
-    "onboarding_first_message_sent",
-    "onboarding_time_to_first_message",
-    "baul_view",
-    "opin_feed_view",
-    "opin_view",
-    "opin_like",
-    "opin_comment",
-    "opin_reaction",
-    "opin_status_updated",
-    "opin_follow_toggle",
-    "match_private_chat_started",
-  ]);
-
-  if (storedEventTypes.has(eventType)) {
-    const sessionPart = String(sessionId || "nosession").replace(/[^a-zA-Z0-9_-]/g, "").slice(0, 80);
-    await db.collection("analytics_events").doc(
-      `${dateKey}_${eventType}_${sessionPart}_${actorUid}_${Date.now()}`
-    ).set({
-      type: eventType,
-      userId: actorUid,
-      sessionId: sessionId || null,
-      date: dateKey,
-      timestamp: FieldValue.serverTimestamp(),
-      pagePath: pagePath || null,
-      roomId: roomId || null,
-      roomName: roomName || null,
-      mode: normalizeNotificationString(eventData.mode, 80) || null,
-      source: source || null,
-      medium: medium || null,
-      campaign: campaign || null,
-      isGuest: Boolean(eventData.isGuest),
-      isAnonymous: isAnonymousAuthRequest(request) || Boolean(eventData.isAnonymous),
-    });
-  }
-
-  return { success: true };
-});
+// FASE 2 ahorro Cloud Functions:
+// trackAnalyticsEvent retirado por alto volumen de invocaciones y costo por CORS/preflight.
 
 exports.recordTarjetaInteraction = onCall(async (request) => {
   const { uid: actorUid } = await assertRegisteredCallableRequest(request);
@@ -3729,40 +3202,8 @@ exports.recordTarjetaInteraction = onCall(async (request) => {
   throw new HttpsError("invalid-argument", "Action no soportada.");
 });
 
-/**
- * archiveRoomMessageForAdminHistory
- * Trigger: rooms/{roomId}/messages/{messageId} onCreate
- * Guarda una copia mínima por mensaje en Cloud Storage para análisis admin.
- */
-exports.archiveRoomMessageForAdminHistory = onDocumentCreated(
-  "rooms/{roomId}/messages/{messageId}",
-  async (event) => {
-    const roomId = String(event.params.roomId || "").trim();
-    const messageId = String(event.params.messageId || "").trim();
-    const messageData = event.data?.data() || {};
-
-    if (!roomId || !messageId) {
-      return null;
-    }
-
-    try {
-      const entry = buildRoomHistoryEntry(messageData, roomId, messageId);
-      const objectPath = getHistoryRawPath(roomId, entry.dayString, messageId, entry.createdAtMs);
-      const file = storage.bucket().file(objectPath);
-
-      await file.save(JSON.stringify(entry), {
-        resumable: false,
-        contentType: "application/json; charset=utf-8",
-      });
-
-      console.log(`[ROOM_HISTORY] Archived message roomId=${roomId} messageId=${messageId} path=${objectPath}`);
-    } catch (error) {
-      console.error(`[ROOM_HISTORY] Error archiving message roomId=${roomId} messageId=${messageId}`, error);
-    }
-
-    return null;
-  }
-);
+// FASE 1 ahorro Cloud Functions:
+// archiveRoomMessageForAdminHistory retirado por costo por mensaje publico.
 
 /**
  * cleanupRoomMessageMedia
@@ -4060,8 +3501,8 @@ exports.createModerationIncidentAlert = onCall(
 
 /**
  * generateAdminRoomHistoryReport
- * Callable admin-only: devuelve historial admin de 7 dias directamente al panel.
- * El frontend decide si mostrar, copiar o descargar localmente.
+ * Callable admin-only: consulta una ventana corta directo desde Firestore.
+ * Evita depender del archivo legacy en Storage y reduce lecturas fallidas.
  */
 exports.generateAdminRoomHistoryReport = onCall(
   { region: "us-central1", cors: true },
@@ -4082,39 +3523,5 @@ exports.generateAdminRoomHistoryReport = onCall(
     });
 
     return report;
-  }
-);
-
-/**
- * cleanupAdminRoomHistoryArchive
- * Job diario: elimina raw/generados más antiguos que la retención definida.
- */
-exports.cleanupAdminRoomHistoryArchive = onSchedule(
-  {
-    schedule: "15 3 * * *",
-    timeZone: CHILE_TIME_ZONE,
-    region: "us-central1",
-  },
-  async () => {
-    const bucket = storage.bucket();
-    const currentDay = getChileDayString();
-    const [files] = await bucket.getFiles({ prefix: "admin-room-history/" });
-    let deleted = 0;
-
-    for (const file of files) {
-      const fileDay = extractHistoryDayFromPath(file.name);
-      if (!fileDay) continue;
-
-      const diff = getDayDiff(fileDay, currentDay);
-      if (diff === null || diff < ADMIN_ROOM_HISTORY_RETENTION_DAYS) {
-        continue;
-      }
-
-      await file.delete({ ignoreNotFound: true });
-      deleted += 1;
-    }
-
-    console.log(`[ROOM_HISTORY] Cleanup finished deletedFiles=${deleted}`);
-    return null;
   }
 );

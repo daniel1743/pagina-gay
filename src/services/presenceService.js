@@ -21,6 +21,9 @@ import {
   deleteDoc,
   onSnapshot,
   collection,
+  query,
+  orderBy,
+  limit,
   serverTimestamp,
   getDoc,
 } from 'firebase/firestore';
@@ -36,8 +39,9 @@ const isBotUserId = (userId = '') =>
   userId?.startsWith('static_bot_');
 
 const ACTIVE_THRESHOLD_MS = 12 * 60 * 1000;
-// Modo ultra ahorro: presencia suficientemente estable, pero sin heartbeat constante.
-export const CHAT_AVAILABILITY_HEARTBEAT_MS = 5 * 60 * 1000;
+const ROOM_USERS_LISTENER_LIMIT = 60;
+// Modo ultra ahorro: reducimos escrituras de presencia sin dejar que expire el online base.
+export const CHAT_AVAILABILITY_HEARTBEAT_MS = 8 * 60 * 1000;
 export const CHAT_AVAILABILITY_TIMEOUT_MS = 12 * 60 * 1000;
 export const CHAT_AVAILABILITY_DURATION_MS = 10 * 60 * 1000;
 const sharedRoomCountListeners = new Map();
@@ -307,12 +311,16 @@ export const updatePresenceFields = async (roomId, fields) => {
  * ⚠️ NO hace queries de getDoc - solo retorna lo que está en roomPresence
  */
 export const subscribeToRoomUsers = (roomId, callback) => {
-  const usersRef = collection(db, 'roomPresence', roomId, 'users');
+  const usersRef = query(
+    collection(db, 'roomPresence', roomId, 'users'),
+    orderBy('lastSeenMs', 'desc'),
+    limit(ROOM_USERS_LISTENER_LIMIT)
+  );
   const includeBots = roomId === 'admin-testing';
   const listenerToken = trackListenerStart({
     module: 'presence',
     type: 'room_users',
-    key: `roomPresence/${roomId}/users`,
+    key: `roomPresence/${roomId}/users:recent_${ROOM_USERS_LISTENER_LIMIT}`,
     shared: false,
   });
 

@@ -8,8 +8,7 @@ import {
   onSnapshot,
   Timestamp,
 } from 'firebase/firestore';
-import { httpsCallable } from 'firebase/functions';
-import { db, auth, functions } from '@/config/firebase';
+import { db, auth } from '@/config/firebase';
 
 /**
  * Servicio de Analytics en tiempo real
@@ -44,7 +43,7 @@ const STORED_ANALYTICS_EVENT_TYPES = new Set([
   'match_private_chat_started',
 ]);
 
-const trackAnalyticsEventCallable = httpsCallable(functions, 'trackAnalyticsEvent');
+const ANALYTICS_CALLABLE_ENABLED = false;
 
 const isIgnorableFirestoreInternalError = (error) => {
   const message = String(error?.message || '');
@@ -63,14 +62,7 @@ const isIgnorableFirestoreInternalError = (error) => {
 export const trackEvent = async (eventType, eventData = {}) => {
   try {
     if (!auth.currentUser?.uid) return;
-
-    await trackAnalyticsEventCallable({
-      eventType,
-      eventData: {
-        ...eventData,
-        userId: auth.currentUser.uid,
-      },
-    });
+    if (!ANALYTICS_CALLABLE_ENABLED) return;
   } catch (error) {
     if (error.code !== 'permission-denied' && !isIgnorableFirestoreInternalError(error)) {
       console.error('Error tracking event:', error);

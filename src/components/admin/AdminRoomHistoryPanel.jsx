@@ -232,7 +232,7 @@ const AdminRoomHistoryPanel = () => {
               Historial Admin de Sala
             </h2>
             <p className="text-sm text-muted-foreground mt-1">
-              Esta vista usa el archivo admin separado con retencion corta y predecible. No depende de enlaces firmados ni de salir del panel.
+              Esta vista consulta una ventana corta directo desde Firestore y evita depender del archivo legacy en Storage.
             </p>
           </div>
 
@@ -265,13 +265,13 @@ const AdminRoomHistoryPanel = () => {
           <div className="flex gap-3">
             <AlertTriangle className="w-5 h-5 shrink-0 text-amber-300" />
             <div className="space-y-1">
-              <p className="font-medium text-amber-200">Separacion simple entre sala viva y archivo admin</p>
+              <p className="font-medium text-amber-200">Ventana admin corta y controlada</p>
               <p>
                 La sala publica viva sigue podandose a aproximadamente {ROOM_RETENTION_MAX_MESSAGES} mensajes para rendimiento.
-                Este panel ya no lee esa capa: lee el archivo admin de 7 dias.
+                Este panel toma una ventana corta bajo demanda y no mantiene lecturas activas.
               </p>
               <p className="text-amber-200/90">
-                Si falta material muy antiguo, normalmente es porque fue anterior al despliegue del archivado.
+                Si falta material muy antiguo, es porque este panel ya no depende del archivo legacy de Storage.
               </p>
             </div>
           </div>
@@ -350,10 +350,10 @@ const AdminRoomHistoryPanel = () => {
         <h3 className="text-lg font-semibold mb-4">Conversacion archivada disponible</h3>
 
         {loading ? (
-          <div className="py-12 text-center text-muted-foreground">Cargando historial archivado...</div>
+          <div className="py-12 text-center text-muted-foreground">Cargando ventana admin...</div>
         ) : messages.length === 0 ? (
           <div className="py-12 text-center text-muted-foreground">
-            No hay mensajes archivados disponibles para esta sala en la ventana de 7 dias.
+            No hay mensajes disponibles para esta sala en la ventana administrable de 7 dias.
           </div>
         ) : (
           <div className="max-h-[65vh] space-y-3 overflow-y-auto pr-2">

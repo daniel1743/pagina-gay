@@ -220,6 +220,8 @@ const UserActionsModal = ({
       toast({
         title: error?.message === 'BLOCKED'
           ? "No disponible"
+          : error?.code === 'PROFILE_COMMENTS_DISABLED'
+            ? "Comentarios pausados"
           : error?.code === 'PRIVATE_CONTACT_LOCKED'
             ? "Aún no compartas contacto"
           : composeMode === 'comment'
@@ -227,6 +229,8 @@ const UserActionsModal = ({
             : "No pudimos enviar el mensaje",
         description: error?.message === 'BLOCKED'
           ? "No puedes enviar mensajes a este usuario."
+          : error?.code === 'PROFILE_COMMENTS_DISABLED'
+            ? "Los comentarios de perfil están desactivados por ahorro operativo."
           : (error?.message || "Intenta de nuevo en un momento"),
         variant: "destructive",
       });

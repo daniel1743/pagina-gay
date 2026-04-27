@@ -143,6 +143,7 @@ const PRIVATE_MATCH_SUGGESTION_VISIBLE_MS = 18000;
 const PRIVATE_MATCH_FETCH_LIMIT = 15;
 const PRIVATE_MATCH_OPIN_CACHE_TTL_MS = 5 * 60 * 1000;
 const PRESENCE_HEARTBEAT_IDLE_GRACE_MS = 12 * 60 * 1000;
+const PRIVATE_SURFACES_WARM_WINDOW_MS = 10 * 60 * 1000;
 const PRIVATE_UI_MEMORY_STORAGE_PREFIX = 'chactivo:private_ui_memory:v1:';
 const PRIVATE_UI_NOTIFICATION_TTL_MS = 48 * 60 * 60 * 1000;
 const PRIVATE_UI_REQUEST_SUPPRESSION_MS = 24 * 60 * 60 * 1000;
@@ -1365,6 +1366,7 @@ const ChatPage = () => {
   const [privateMatchStateItems, setPrivateMatchStateItems] = useState([]);
   const [privateDirectMessageToast, setPrivateDirectMessageToast] = useState(null);
   const [hasActivatedPrivateSurfaces, setHasActivatedPrivateSurfaces] = useState(false);
+  const [privateSurfacesLastActivatedAt, setPrivateSurfacesLastActivatedAt] = useState(0);
   const [showInPrivateUsersStrip, setShowInPrivateUsersStrip] = useState(false);
   const [isInPrivateUsersStripPinned, setIsInPrivateUsersStripPinned] = useState(false);
   const [activeOpinIntents, setActiveOpinIntents] = useState([]);
@@ -1473,13 +1475,21 @@ const ChatPage = () => {
 
   const activatePrivateSurfaces = useCallback(() => {
     setHasActivatedPrivateSurfaces(true);
+    setPrivateSurfacesLastActivatedAt(Date.now());
   }, []);
 
   useEffect(() => {
     if ((openPrivateChats?.length || 0) > 0) {
       setHasActivatedPrivateSurfaces(true);
+      setPrivateSurfacesLastActivatedAt(Date.now());
     }
   }, [openPrivateChats]);
+
+  useEffect(() => {
+    if (!privateChatRequest && !privateDirectMessageToast) return;
+    setHasActivatedPrivateSurfaces(true);
+    setPrivateSurfacesLastActivatedAt(Date.now());
+  }, [privateChatRequest, privateDirectMessageToast]);
 
   const getPrivateRequestSurfaceScope = useCallback((request = {}) => {
     const type = request?.type === 'private_group_invite_request' ? 'group' : 'direct';
@@ -1569,6 +1579,21 @@ const ChatPage = () => {
   const [activityNow, setActivityNow] = useState(Date.now());
   const [engagementTime, setEngagementTime] = useState(''); // ⏱️ Tiempo total de engagement
   const [showScreenSaver, setShowScreenSaver] = useState(false); // 🔒 Protector de pantalla
+
+  const shouldListenPrivateSurfaceData = useMemo(() => {
+    if (!hasActivatedPrivateSurfaces) return false;
+    if (privateChatRequest || privateDirectMessageToast) return true;
+    if ((openPrivateChats?.length || 0) > 0) return true;
+    if (!privateSurfacesLastActivatedAt) return false;
+    return (activityNow - privateSurfacesLastActivatedAt) <= PRIVATE_SURFACES_WARM_WINDOW_MS;
+  }, [
+    activityNow,
+    hasActivatedPrivateSurfaces,
+    openPrivateChats,
+    privateChatRequest,
+    privateDirectMessageToast,
+    privateSurfacesLastActivatedAt,
+  ]);
   const [showNicknameModal, setShowNicknameModal] = useState(false); // ✅ Modal nickname - solo al intentar escribir
   const [nicknameModalSource, setNicknameModalSource] = useState('user');
   const [isInputFocused, setIsInputFocused] = useState(false); // 📝 Input focus state for scroll manager
@@ -5664,7 +5689,7 @@ const ChatPage = () => {
       return;
     }
 
-    if (!hasActivatedPrivateSurfaces) {
+    if (!shouldListenPrivateSurfaceData) {
       setPrivateInboxItems([]);
       return;
     }
@@ -5676,7 +5701,7 @@ const ChatPage = () => {
     });
 
     return () => unsubscribe();
-  }, [authReady, hasActivatedPrivateSurfaces, user?.id, isPageVisible]);
+  }, [authReady, shouldListenPrivateSurfaceData, user?.id, isPageVisible]);
 
   useEffect(() => {
     if (!authReady || !user?.id || auth.currentUser?.uid !== user.id) {
@@ -5684,7 +5709,7 @@ const ChatPage = () => {
       return;
     }
 
-    if (!hasActivatedPrivateSurfaces) {
+    if (!shouldListenPrivateSurfaceData) {
       setPrivateMatchStateItems([]);
       return;
     }
@@ -5696,7 +5721,7 @@ const ChatPage = () => {
     });
 
     return () => unsubscribe();
-  }, [authReady, hasActivatedPrivateSurfaces, user?.id, isPageVisible]);
+  }, [authReady, shouldListenPrivateSurfaceData, user?.id, isPageVisible]);
 
   useEffect(() => {
     if (!user?.id) return;

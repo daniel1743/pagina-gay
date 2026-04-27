@@ -746,16 +746,32 @@ export default function PrivateChatWindowV2({
     const partnerId = primaryParticipant.userId;
     if (!partnerId || isGroupChat || isMinimized) return undefined;
 
-    const unsubscribe = onSnapshot(doc(db, 'tarjetas', partnerId), (snapshot) => {
-      if (!snapshot.exists()) return;
-      const data = snapshot.data() || {};
-      setPartnerPresence({
-        isOnline: data.estaOnline === true,
-        lastSeenMs: getTimestampMs(data.ultimaConexion),
-      });
-    });
+    let cancelled = false;
 
-    return () => unsubscribe();
+    const loadPartnerPresence = async () => {
+      try {
+        const snapshot = await getDoc(doc(db, 'tarjetas', partnerId));
+        if (!snapshot.exists() || cancelled) return;
+        const data = snapshot.data() || {};
+        setPartnerPresence({
+          isOnline: data.estaOnline === true,
+          lastSeenMs: getTimestampMs(data.ultimaConexion),
+        });
+      } catch {
+        if (!cancelled) {
+          setPartnerPresence({
+            isOnline: Boolean(partner?.estaOnline || partner?.isOnline),
+            lastSeenMs: getTimestampMs(partner?.ultimaConexion || partner?.lastSeen),
+          });
+        }
+      }
+    };
+
+    void loadPartnerPresence();
+
+    return () => {
+      cancelled = true;
+    };
   }, [isGroupChat, isMinimized, partner?.id, partner?.userId, primaryParticipant.userId]);
 
   useEffect(() => {

@@ -13,6 +13,7 @@ import { db, functions } from '@/config/firebase';
 import { httpsCallable } from 'firebase/functions';
 import { track } from '@/services/eventTrackingService';
 import { isBlockedBetween } from '@/services/blockService';
+import { ENABLE_BAUL } from '@/config/featureFlags';
 import {
   doc,
   setDoc,
@@ -34,8 +35,18 @@ import {
 } from 'firebase/firestore';
 
 const recordTarjetaInteractionCallable = httpsCallable(functions, 'recordTarjetaInteraction');
+const isBaulRuntimeEnabled = () => ENABLE_BAUL === true;
 
 const callTarjetaInteraction = async (action, targetUserId = null, payload = {}) => {
+  if (!isBaulRuntimeEnabled()) {
+    return {
+      success: false,
+      skipped: true,
+      reason: 'baul_disabled',
+      action,
+    };
+  }
+
   const result = await recordTarjetaInteractionCallable({
     action,
     ...(targetUserId ? { targetUserId } : {}),
@@ -373,6 +384,7 @@ export async function actualizarTarjeta(odIdUsuari, datos) {
 export async function actualizarEstadoOnline(odIdUsuari, estaOnline) {
   try {
     if (!odIdUsuari) return;
+    if (!isBaulRuntimeEnabled()) return;
 
     await setDoc(doc(db, 'tarjetas', odIdUsuari), {
       odIdUsuari,
@@ -403,6 +415,7 @@ const BAUL_CONFIG = {
  */
 export async function obtenerTarjetasCercanas(miUbicacion, miUserId, limite = 100) {
   try {
+    if (!isBaulRuntimeEnabled()) return [];
     console.log('[TARJETA] Buscando tarjetas cercanas para:', miUserId);
 
     const cantidadAObtener = Math.max(limite, BAUL_CONFIG.TARJETAS_MINIMAS);
@@ -550,6 +563,7 @@ export async function obtenerTarjetasCercanas(miUbicacion, miUserId, limite = 10
  */
 export async function obtenerTarjetasRecientes(miUserId, limite = 100) {
   try {
+    if (!isBaulRuntimeEnabled()) return [];
     console.log('[TARJETA] Buscando tarjetas recientes para usuario:', miUserId);
 
     const cantidadAObtener = Math.max(limite, BAUL_CONFIG.TARJETAS_MINIMAS);
@@ -1145,6 +1159,7 @@ async function agregarActividad(tarjetaId, actividad) {
  */
 export async function obtenerMiActividad(miUserId, limite = 20) {
   try {
+    if (!isBaulRuntimeEnabled()) return [];
     if (!miUserId) return [];
 
     const actividadRef = collection(db, 'tarjetas', miUserId, 'actividad');
@@ -1219,6 +1234,7 @@ export async function verificarInteresMutuo(userId1, userId2) {
  */
 export async function obtenerMetricasTarjeta(miUserId) {
   try {
+    if (!isBaulRuntimeEnabled()) return null;
     if (!miUserId) return null;
 
     const [tarjetaSnap, actividadSnap] = await Promise.all([
@@ -1311,6 +1327,7 @@ export async function marcarActividadLeida(miUserId) {
  * Suscribirse a cambios en mi tarjeta (tiempo real)
  */
 export function suscribirseAMiTarjeta(miUserId, callback) {
+  if (!isBaulRuntimeEnabled()) return () => {};
   if (!miUserId) return () => {};
 
   return onSnapshot(
