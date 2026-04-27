@@ -35,13 +35,13 @@ const isBotUserId = (userId = '') =>
   userId?.startsWith('bot_') ||
   userId?.startsWith('static_bot_');
 
-const ACTIVE_THRESHOLD_MS = 2 * 60 * 1000;
-// Reducimos el heartbeat para bajar escrituras y fan-out de lecturas sin perder
-// por completo la sensación de presencia en tiempo real.
-export const CHAT_AVAILABILITY_HEARTBEAT_MS = 20 * 1000;
-export const CHAT_AVAILABILITY_TIMEOUT_MS = 55 * 1000;
+const ACTIVE_THRESHOLD_MS = 12 * 60 * 1000;
+// Modo ultra ahorro: presencia suficientemente estable, pero sin heartbeat constante.
+export const CHAT_AVAILABILITY_HEARTBEAT_MS = 5 * 60 * 1000;
+export const CHAT_AVAILABILITY_TIMEOUT_MS = 12 * 60 * 1000;
 export const CHAT_AVAILABILITY_DURATION_MS = 10 * 60 * 1000;
 const sharedRoomCountListeners = new Map();
+const presenceWriteAtByRoomUser = new Map();
 
 const toMillisSafe = (value) => {
   if (!value) return null;
@@ -67,6 +67,31 @@ const getPresenceLastActivityMs = (user = {}) => {
 };
 
 export const getPresenceActivityMs = (user = {}) => getPresenceLastActivityMs(user);
+
+const getPresenceWriteKey = (roomId, userId) => {
+  if (!roomId || !userId) return null;
+  return `${roomId}:${userId}`;
+};
+
+const rememberPresenceWrite = (roomId, userId, timestampMs = Date.now()) => {
+  const key = getPresenceWriteKey(roomId, userId);
+  if (!key) return;
+  presenceWriteAtByRoomUser.set(key, timestampMs);
+};
+
+const clearPresenceWriteMemory = (roomId, userId) => {
+  const key = getPresenceWriteKey(roomId, userId);
+  if (!key) return;
+  presenceWriteAtByRoomUser.delete(key);
+};
+
+const shouldSkipPresenceWrite = (roomId, userId, now = Date.now(), minIntervalMs = CHAT_AVAILABILITY_HEARTBEAT_MS) => {
+  const key = getPresenceWriteKey(roomId, userId);
+  if (!key) return false;
+  const lastWriteAt = Number(presenceWriteAtByRoomUser.get(key) || 0);
+  if (!Number.isFinite(lastWriteAt) || lastWriteAt <= 0) return false;
+  return (now - lastWriteAt) < minIntervalMs;
+};
 
 export const isUserAvailableForConversation = (user = {}, now = Date.now()) => {
   const userId = user.userId || user.id || '';
@@ -103,6 +128,7 @@ export const setAvailabilityForConversation = async (roomId, enabled = true) => 
       lastSeenMs: now,
       lastSeen: serverTimestamp(),
     }, { merge: true });
+    rememberPresenceWrite(roomId, auth.currentUser.uid, now);
   } catch (error) {
     console.warn('[PRESENCE] Error actualizando disponibilidad conversacional:', error?.message);
     throw error;
@@ -184,6 +210,7 @@ export const joinRoom = async (roomId, userData) => {
       joinedAt: serverTimestamp(),
       lastSeen: serverTimestamp(),
     });
+    rememberPresenceWrite(roomId, auth.currentUser.uid, Date.now());
 
     // ✅ Sincronizar Baúl: usuarios registrados (no guest) actualizan su tarjeta al conectar
     const esRegistrado = !auth.currentUser.isAnonymous && !userData.isGuest && !userData.isAnonymous;
@@ -208,6 +235,7 @@ export const leaveRoom = async (roomId) => {
 
   try {
     await deleteDoc(presenceRef);
+    clearPresenceWriteMemory(roomId, auth.currentUser.uid);
     // ✅ Sincronizar Baúl solo para usuarios registrados (evita permission-denied en anónimos)
     if (!auth.currentUser.isAnonymous) {
       actualizarEstadoOnline(auth.currentUser.uid, false).catch(() => {});
@@ -450,11 +478,16 @@ export const subscribeToRoomUserCount = (roomId, callback) => {
 /**
  * ✅ HABILITADO: Actualizar actividad del usuario (sin queries)
  */
-export const updateUserActivity = async (roomId) => {
+export const updateUserActivity = async (roomId, options = {}) => {
   if (!auth.currentUser) return;
 
   const presenceRef = doc(db, 'roomPresence', roomId, 'users', auth.currentUser.uid);
   const now = Date.now();
+  const force = options?.force === true;
+
+  if (!force && shouldSkipPresenceWrite(roomId, auth.currentUser.uid, now)) {
+    return;
+  }
 
   try {
     await setDoc(presenceRef, {
@@ -462,6 +495,7 @@ export const updateUserActivity = async (roomId) => {
       lastSeen: serverTimestamp(),
       connectionStatus: 'connected',
     }, { merge: true });
+    rememberPresenceWrite(roomId, auth.currentUser.uid, now);
   } catch (error) {
     // Silenciar errores
   }

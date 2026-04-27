@@ -112,8 +112,8 @@ const RoomPreviewCard = ({
             size="sm"
             className={`
               ${highlighted
-                ? 'bg-cyan-500/20 hover:bg-cyan-500/30 border-cyan-500/40 text-cyan-300'
-                : 'border-border hover:border-cyan-500/40'
+                ? 'border-cyan-600 bg-cyan-600 text-white hover:border-cyan-700 hover:bg-cyan-700 dark:border-cyan-400 dark:bg-cyan-400 dark:text-slate-950 dark:hover:border-cyan-300 dark:hover:bg-cyan-300'
+                : 'border-slate-300 bg-white text-slate-900 hover:border-cyan-500 hover:bg-slate-50 dark:border-white/10 dark:bg-white/5 dark:text-white dark:hover:bg-white/10'
               }
               transition-all
             `}

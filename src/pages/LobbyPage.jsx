@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
+import { ENABLE_BAUL } from '@/config/featureFlags';
 import { MessageSquare, Shield, Calendar, SlidersHorizontal, Users, Lock, MapPin, Sparkles, Zap, ArrowRight } from 'lucide-react';
 import FeatureCard from '@/components/lobby/FeatureCard';
 import RoomsModal from '@/components/lobby/RoomsModal';
@@ -1966,19 +1967,20 @@ const LobbyPage = () => {
                 accentColor="purple"
               />
 
-              {/* 3. Baúl de Perfiles (Tarjetas Sociales) */}
-              <FeatureCard
-                key="baul-perfiles"
-                icon={<Users className="w-8 h-8" />}
-                title="Baúl de Perfiles"
-                description="Crea tu tarjeta con tu info. Da likes, deja mensajes. Cuando vuelvas verás quién se interesó en ti."
-                onClick={() => navigate('/baul')}
-                index={2}
-                variant="default"
-                badge="🆕 Nuevo"
-                stats={{ label: "❤️ Conecta diferente", icon: Users }}
-                accentColor="pink"
-              />
+              {ENABLE_BAUL && (
+                <FeatureCard
+                  key="baul-perfiles"
+                  icon={<Users className="w-8 h-8" />}
+                  title="Baúl de Perfiles"
+                  description="Crea tu tarjeta con tu info. Da likes, deja mensajes. Cuando vuelvas verás quién se interesó en ti."
+                  onClick={() => navigate('/baul')}
+                  index={2}
+                  variant="default"
+                  badge="🆕 Nuevo"
+                  stats={{ label: "❤️ Conecta diferente", icon: Users }}
+                  accentColor="pink"
+                />
+              )}
 
               {/* 4. Ajustes */}
               <FeatureCard

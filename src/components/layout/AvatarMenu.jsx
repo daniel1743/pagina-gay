@@ -82,6 +82,7 @@ export function AvatarMenu() {
 
   const isGuest = Boolean(user?.isGuest || user?.isAnonymous);
   const userId = user?.id || null;
+  const menuItemClassName = 'h-11 rounded-[14px] px-3 text-[14px] font-medium text-slate-900 outline-none transition-colors hover:bg-slate-100 hover:text-slate-900 focus:bg-slate-100 focus:text-slate-900 data-[highlighted]:bg-slate-100 data-[highlighted]:text-slate-900';
 
   useEffect(() => {
     const merged = {
@@ -298,10 +299,10 @@ export function AvatarMenu() {
 
   return (
     <>
-      <DropdownMenu>
-        <DropdownMenuTrigger asChild>
-          <button className="relative rounded-full focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-2 transition-all hover:scale-105">
-            <Avatar className="h-9 w-9 cursor-pointer ring-2 ring-white dark:ring-gray-800">
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+          <button className="relative rounded-full transition-opacity hover:opacity-90 focus:outline-none focus:ring-2 focus:ring-primary/30 focus:ring-offset-2">
+            <Avatar className="h-9 w-9 cursor-pointer border border-border/60 bg-background shadow-[0_6px_16px_rgba(15,23,42,0.08)]">
               <AvatarImage
                 src={user.avatar || `https://api.dicebear.com/7.x/avataaars/svg?seed=${user.username}`}
                 alt={user.username || 'Usuario'}
@@ -319,13 +320,13 @@ export function AvatarMenu() {
 
         <DropdownMenuContent
           align="end"
-          className="w-64 rounded-2xl border border-border/90 bg-popover/98 p-1.5 text-popover-foreground shadow-[0_18px_48px_rgba(15,23,42,0.18)] backdrop-blur-xl"
+          className="w-[248px] rounded-[22px] border border-slate-200 bg-white p-1.5 text-slate-900 shadow-[0_24px_56px_rgba(15,23,42,0.16)]"
         >
           {/* Nombre de perfil */}
-          <DropdownMenuLabel className="font-normal">
+          <DropdownMenuLabel className="px-3 py-3 font-normal">
             <div className="flex flex-col space-y-1">
-              <p className="text-sm font-medium leading-none">{user.username || 'Usuario'}</p>
-              <p className="text-xs leading-none text-muted-foreground">
+              <p className="text-[14px] font-semibold leading-none text-slate-900">{user.username || 'Usuario'}</p>
+              <p className="text-[11px] leading-none text-slate-500">
                 {isGuest ? 'Invitado' : isAdmin ? 'Administrador' : user.email || 'Usuario registrado'}
               </p>
             </div>
@@ -333,12 +334,12 @@ export function AvatarMenu() {
 
           <DropdownMenuSeparator />
 
-          <DropdownMenuItem onClick={handleGoHome}>
+          <DropdownMenuItem onClick={handleGoHome} className={menuItemClassName}>
             <Home className="mr-2 h-4 w-4" />
             <span>Ir a inicio</span>
           </DropdownMenuItem>
 
-          <DropdownMenuItem onClick={handleOpenProfile}>
+          <DropdownMenuItem onClick={handleOpenProfile} className={menuItemClassName}>
             <User className="mr-2 h-4 w-4" />
             <span>{isGuest ? 'Crear perfil' : 'Mi perfil'}</span>
           </DropdownMenuItem>
@@ -347,13 +348,13 @@ export function AvatarMenu() {
           {isGuest && (
             <>
               {/* Cambiar nombre */}
-              <DropdownMenuItem onClick={() => setShowChangeNameModal(true)}>
+              <DropdownMenuItem onClick={() => setShowChangeNameModal(true)} className={menuItemClassName}>
                 <Edit3 className="mr-2 h-4 w-4" />
                 <span>Cambiar nombre</span>
               </DropdownMenuItem>
 
               {/* Hacer denuncia */}
-              <DropdownMenuItem onClick={handleReport}>
+              <DropdownMenuItem onClick={handleReport} className={menuItemClassName}>
                 <Flag className="mr-2 h-4 w-4" />
                 <span>Hacer denuncia</span>
               </DropdownMenuItem>
@@ -361,7 +362,7 @@ export function AvatarMenu() {
               <DropdownMenuSeparator />
 
               {/* Iniciar sesión */}
-              <DropdownMenuItem onClick={handleGoToAuth}>
+              <DropdownMenuItem onClick={handleGoToAuth} className={menuItemClassName}>
                 <LogIn className="mr-2 h-4 w-4" />
                 <span>Iniciar sesión</span>
               </DropdownMenuItem>
@@ -371,24 +372,24 @@ export function AvatarMenu() {
           {/* ⚡ OPCIONES PARA USUARIOS REGISTRADOS */}
           {!isGuest && (
             <>
-              <DropdownMenuItem onClick={handleEditProfile}>
+              <DropdownMenuItem onClick={handleEditProfile} className={menuItemClassName}>
                 <Edit3 className="mr-2 h-4 w-4" />
                 <span>Editar perfil</span>
               </DropdownMenuItem>
 
-              <DropdownMenuItem onClick={handleChangePhoto}>
+              <DropdownMenuItem onClick={handleChangePhoto} className={menuItemClassName}>
                 <Camera className="mr-2 h-4 w-4" />
                 <span>Cambiar foto</span>
               </DropdownMenuItem>
 
-              <DropdownMenuItem onClick={() => setShowNotificationSettings(true)}>
+              <DropdownMenuItem onClick={() => setShowNotificationSettings(true)} className={menuItemClassName}>
                 <Bell className="mr-2 h-4 w-4" />
                 <span>Ajustes de notificaciones</span>
               </DropdownMenuItem>
 
               {/* Panel de Admin (solo para admins) */}
               {isAdmin && (
-                <DropdownMenuItem onClick={() => navigate('/admin')}>
+                <DropdownMenuItem onClick={() => navigate('/admin')} className={menuItemClassName}>
                   <Shield className="mr-2 h-4 w-4" />
                   <span>Panel de Admin</span>
                 </DropdownMenuItem>
@@ -399,7 +400,7 @@ export function AvatarMenu() {
           <DropdownMenuSeparator />
 
           {/* Cerrar sesión (para todos) */}
-          <DropdownMenuItem onClick={handleLogout} className="text-red-600 dark:text-red-400">
+          <DropdownMenuItem onClick={handleLogout} className={`${menuItemClassName} text-red-600 hover:bg-red-50 hover:text-red-700 focus:bg-red-50 focus:text-red-700 data-[highlighted]:bg-red-50 data-[highlighted]:text-red-700 dark:text-red-400 dark:hover:text-red-300`}>
             <LogOut className="mr-2 h-4 w-4" />
             <span>Cerrar sesión</span>
           </DropdownMenuItem>

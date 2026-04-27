@@ -986,10 +986,10 @@ const PrivateChatWindow = ({
       updatePrivateChatTypingStatus(chatId, user.id, false, user.username).catch(() => {});
     } catch (error) {
       console.error('Error sending private message:', error);
-      console.info('[PRIVATE_CHAT_DEBUG] Ejecuta window.printPrivateChatDebug?.() o inspecciona window.__lastPrivateChatDebug');
+      const moderationReason = error?.moderationResult?.reason || null;
       toast({
-        title: 'No pudimos enviar el mensaje',
-        description: 'Intenta de nuevo en un momento',
+        title: moderationReason ? 'Mensaje bloqueado por seguridad' : 'No pudimos enviar el mensaje',
+        description: moderationReason || 'Intenta de nuevo en un momento',
         variant: 'destructive',
       });
     }

@@ -11,6 +11,7 @@
     "build": "vite build",
     "postbuild": "node scripts/generate-static-seo-pages.mjs",
     "preview": "vite preview --host localhost --port 3000",
+    "supabase:verify": "node scripts/verify-supabase-env.mjs",
     "test:firestore": "jest tests/firestore.rules.test.js",
     "emulators": "firebase emulators:start",
     "deploy": "npm run build && firebase deploy",

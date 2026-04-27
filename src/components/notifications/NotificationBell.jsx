@@ -103,54 +103,20 @@ const NotificationBell = ({ onOpenPrivateChat }) => {
         const currentCount = filteredNotifications.length;
         const previousCount = previousCountRef.current;
 
-        // Si hay nuevas notificaciones, mostrar toast y/o abrir ventana
+        // Si hay nuevas notificaciones, actualizar badge y mostrar solo avisos no intrusivos.
+        // Los flujos de privados se manejan desde ChatPage con toasts accionables;
+        // aquí no debemos abrir conversaciones automáticamente ni duplicar avisos.
         // ✅ FIX: Solo mostrar toasts si hay diferencia y es un incremento
         if (currentCount > previousCount && previousCount > 0 && currentCount - previousCount === 1) {
           const latestNotification = filteredNotifications[0];
 
-          if (latestNotification.type === 'direct_message') {
-            if (onOpenPrivateChatRef.current && latestNotification.chatId) {
-              onOpenPrivateChatRef.current({
-                chatId: latestNotification.chatId,
-                partner: {
-                  userId: latestNotification.from,
-                  username: latestNotification.fromUsername,
-                  avatar: latestNotification.fromAvatar,
-                  isPremium: latestNotification.fromIsPremium,
-                }
-              });
-            }
-            toast({
-              title: `💬 Nuevo mensaje de ${latestNotification.fromUsername || 'un usuario'}`,
-              description: latestNotification.content?.substring(0, 100) || '',
-              duration: 5000,
-            });
-          } else if (latestNotification.type === 'private_chat_request') {
-            toast({
-              title: `📞 Solicitud de chat privado`,
-              description: `${latestNotification.fromUsername || 'Un usuario'} quiere conectar contigo`,
-              duration: 5000,
-            });
-          } else if (latestNotification.type === 'private_chat_accepted') {
-            // Abrir automáticamente la ventana de chat privado
-            if (onOpenPrivateChatRef.current && latestNotification.chatId) {
-              onOpenPrivateChatRef.current({
-                chatId: latestNotification.chatId,
-                partner: {
-                  userId: latestNotification.from,
-                  username: latestNotification.fromUsername,
-                  avatar: latestNotification.fromAvatar,
-                  isPremium: latestNotification.fromIsPremium,
-                }
-              });
-            }
+          const isPrivateChatNotification = (
+            latestNotification.type === 'direct_message'
+            || latestNotification.type === 'private_chat_request'
+            || latestNotification.type === 'private_chat_accepted'
+          );
 
-            toast({
-              title: `✅ ${latestNotification.fromUsername} aceptó tu solicitud`,
-              description: 'La ventana de chat privado se ha abierto',
-              duration: 5000,
-            });
-          } else if (isImportantNotification(latestNotification)) {
+          if (!isPrivateChatNotification && isImportantNotification(latestNotification)) {
             toast({
               title: '🧵 Nueva actividad',
               description: latestNotification.content?.substring(0, 100) || 'Alguien respondió o interactuó contigo.',
@@ -211,7 +177,11 @@ const NotificationBell = ({ onOpenPrivateChat }) => {
             variant="ghost"
             size="icon"
             onClick={() => setIsOpen(!isOpen)}
-            className="relative text-muted-foreground hover:text-foreground"
+            className={`relative min-h-[40px] min-w-[40px] rounded-[14px] transition-colors ${
+              isOpen || importantCount > 0
+                ? 'bg-[#1473E6]/10 text-[#1473E6] hover:text-[#0F67D8]'
+                : 'text-muted-foreground hover:bg-foreground/5 hover:text-foreground'
+            }`}
           >
             <Bell className="w-5 h-5" />
             <AnimatePresence>
@@ -223,8 +193,7 @@ const NotificationBell = ({ onOpenPrivateChat }) => {
                   className="absolute -top-1 -right-1"
                 >
                   <Badge
-                    variant="destructive"
-                    className="h-5 min-w-5 flex items-center justify-center px-1 text-xs font-bold bg-red-500"
+                    className="flex h-5 min-w-5 items-center justify-center rounded-full border border-white/10 bg-[#1473E6] px-1 text-xs font-bold text-white shadow-[0_8px_18px_rgba(20,115,230,0.22)]"
                   >
                     {importantCount > 9 ? '9+' : importantCount}
                   </Badge>
@@ -235,10 +204,10 @@ const NotificationBell = ({ onOpenPrivateChat }) => {
             {/* Animación de pulso para notificaciones nuevas */}
             {importantCount > 0 && (
               <motion.div
-                className="absolute inset-0 rounded-full bg-red-500/20"
+                className="absolute inset-0 rounded-[14px] bg-[#1473E6]/14"
                 animate={{
-                  scale: [1, 1.2, 1],
-                  opacity: [0.5, 0, 0.5],
+                  scale: [1, 1.08, 1],
+                  opacity: [0.35, 0, 0.35],
                 }}
                 transition={{
                   duration: 2,

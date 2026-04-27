@@ -3,6 +3,7 @@ import { db } from '@/config/firebase';
 import { auth } from '@/config/firebase';
 import { httpsCallable } from 'firebase/functions';
 import { functions } from '@/config/firebase';
+import { recordAPISignal } from '@/utils/runtimeDiagnostics';
 
 // ✅ DESACTIVADO (05/01/2026): OpenAI NO puede llamarse desde frontend
 // Motivo: CORS bloqueado + API key expuesta = riesgo de seguridad
@@ -23,8 +24,25 @@ const CONTACT_SAFETY_RISK_MIN = 3;
 const createModerationIncidentAlertCallable = httpsCallable(functions, 'createModerationIncidentAlert');
 
 export const createModerationIncidentAlert = async (payload) => {
-  const result = await createModerationIncidentAlertCallable(payload);
-  return result.data;
+  try {
+    const result = await createModerationIncidentAlertCallable(payload);
+    recordAPISignal({
+      source: 'moderation',
+      action: 'createModerationIncidentAlert',
+      status: 'ok',
+      summary: 'Callable de moderación respondió',
+    });
+    return result.data;
+  } catch (error) {
+    recordAPISignal({
+      source: 'moderation',
+      action: 'createModerationIncidentAlert',
+      status: 'error',
+      summary: error?.message || 'Falló callable de moderación',
+      error,
+    });
+    throw error;
+  }
 };
 
 /**

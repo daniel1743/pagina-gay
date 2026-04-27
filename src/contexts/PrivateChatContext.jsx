@@ -17,6 +17,8 @@ const PrivateChatContext = createContext(null);
 const MAX_OPEN_PRIVATE_CHATS = 3;
 const MAX_RECENT_PRIVATE_CHATS = 20;
 const RECENT_PRIVATE_CHATS_STORAGE_PREFIX = 'chactivo:private_chats:recent:v1:';
+const DISMISSED_PRIVATE_CHATS_STORAGE_PREFIX = 'chactivo:private_chats:dismissed:v1:';
+const DISMISSED_PRIVATE_CHAT_TTL_MS = 48 * 60 * 60 * 1000;
 
 const getChatKey = (chat) => {
   if (!chat) return null;
@@ -90,6 +92,26 @@ const readRecentChatsFromStorage = (storageKey) => {
   }
 };
 
+const pruneDismissedChatEntries = (entries = {}, now = Date.now()) => Object.entries(entries || {}).reduce((acc, [chatId, expiresAt]) => {
+  const untilMs = Number(expiresAt || 0);
+  if (!chatId || !Number.isFinite(untilMs) || untilMs <= now) return acc;
+  acc[chatId] = untilMs;
+  return acc;
+}, {});
+
+const readDismissedChatsFromStorage = (storageKey) => {
+  if (!storageKey) return {};
+  try {
+    const raw = localStorage.getItem(storageKey);
+    if (!raw) return {};
+    const parsed = JSON.parse(raw);
+    if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) return {};
+    return pruneDismissedChatEntries(parsed);
+  } catch {
+    return {};
+  }
+};
+
 export const usePrivateChat = () => {
   const ctx = useContext(PrivateChatContext);
   return ctx || {
@@ -115,12 +137,18 @@ export const PrivateChatProvider = ({ children }) => {
   const [openPrivateChats, setOpenPrivateChats] = useState([]);
   const [recentPrivateChats, setRecentPrivateChats] = useState([]);
   const [dismissedChatIds, setDismissedChatIds] = useState(new Set());
+  const dismissedChatExpiryMapRef = useRef({});
   const openPrivateChatsRef = useRef([]);
   openPrivateChatsRef.current = openPrivateChats;
 
   const recentStorageKey = useMemo(() => {
     if (!user?.id) return null;
     return `${RECENT_PRIVATE_CHATS_STORAGE_PREFIX}${user.id}`;
+  }, [user?.id]);
+
+  const dismissedStorageKey = useMemo(() => {
+    if (!user?.id) return null;
+    return `${DISMISSED_PRIVATE_CHATS_STORAGE_PREFIX}${user.id}`;
   }, [user?.id]);
 
   useEffect(() => {
@@ -139,6 +167,53 @@ export const PrivateChatProvider = ({ children }) => {
       // noop
     }
   }, [recentPrivateChats, recentStorageKey]);
+
+  useEffect(() => {
+    if (!dismissedStorageKey) {
+      dismissedChatExpiryMapRef.current = {};
+      setDismissedChatIds(new Set());
+      return;
+    }
+
+    const parsed = readDismissedChatsFromStorage(dismissedStorageKey);
+    dismissedChatExpiryMapRef.current = parsed;
+    setDismissedChatIds(new Set(Object.keys(parsed)));
+
+    try {
+      localStorage.setItem(dismissedStorageKey, JSON.stringify(parsed));
+    } catch {
+      // noop
+    }
+  }, [dismissedStorageKey]);
+
+  const syncDismissedChats = (nextEntries) => {
+    const pruned = pruneDismissedChatEntries(nextEntries);
+    dismissedChatExpiryMapRef.current = pruned;
+    setDismissedChatIds(new Set(Object.keys(pruned)));
+
+    if (!dismissedStorageKey) return;
+    try {
+      localStorage.setItem(dismissedStorageKey, JSON.stringify(pruned));
+    } catch {
+      // noop
+    }
+  };
+
+  const dismissChatForCooldown = (chatId, ttlMs = DISMISSED_PRIVATE_CHAT_TTL_MS) => {
+    if (!chatId) return;
+    const nextEntries = {
+      ...dismissedChatExpiryMapRef.current,
+      [chatId]: Date.now() + ttlMs,
+    };
+    syncDismissedChats(nextEntries);
+  };
+
+  const clearDismissedChat = (chatId) => {
+    if (!chatId || !dismissedChatExpiryMapRef.current[chatId]) return;
+    const nextEntries = { ...dismissedChatExpiryMapRef.current };
+    delete nextEntries[chatId];
+    syncDismissedChats(nextEntries);
+  };
 
   const upsertRecentPrivateChat = (chatMeta) => {
     const sanitized = sanitizeRecentChat(chatMeta);
@@ -194,12 +269,7 @@ export const PrivateChatProvider = ({ children }) => {
     });
 
     if (chat.chatId) {
-      setDismissedChatIds((prev) => {
-        if (!prev.has(chat.chatId)) return prev;
-        const next = new Set(prev);
-        next.delete(chat.chatId);
-        return next;
-      });
+      clearDismissedChat(chat.chatId);
     }
 
     return { ok: true };
@@ -230,7 +300,7 @@ export const PrivateChatProvider = ({ children }) => {
 
   const closePrivateChat = (chatIdToDismiss = null) => {
     if (chatIdToDismiss) {
-      setDismissedChatIds((prev) => new Set([...prev, chatIdToDismiss]));
+      dismissChatForCooldown(chatIdToDismiss);
     }
     setOpenPrivateChats((prev) => {
       if (!prev.length) return prev;
@@ -248,7 +318,7 @@ export const PrivateChatProvider = ({ children }) => {
   };
 
   const addDismissedChat = (chatId) => {
-    setDismissedChatIds((prev) => new Set([...prev, chatId]));
+    dismissChatForCooldown(chatId);
   };
 
   const openRecentPrivateChat = (chatMeta) => setActivePrivateChat(chatMeta);

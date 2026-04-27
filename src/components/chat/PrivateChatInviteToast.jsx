@@ -18,20 +18,20 @@ const PrivateChatInviteToast = ({ request, onAccept, onDecline, onClose }) => {
   // Auto-cerrar después de 10 segundos
   useEffect(() => {
     const timer = setTimeout(() => {
-      onClose();
+      onClose?.({ reason: 'timeout' });
     }, 10000);
 
     return () => clearTimeout(timer);
   }, [onClose]);
 
   const handleAccept = () => {
-    onAccept();
-    onClose();
+    onAccept?.();
+    onClose?.({ reason: 'accept' });
   };
 
   const handleDecline = () => {
-    onDecline();
-    onClose();
+    onDecline?.();
+    onClose?.({ reason: 'decline' });
   };
 
   return (
@@ -85,7 +85,7 @@ const PrivateChatInviteToast = ({ request, onAccept, onDecline, onClose }) => {
 
             {/* Botón cerrar */}
             <button
-              onClick={onClose}
+              onClick={() => onClose?.({ reason: 'dismiss' })}
               className="flex-shrink-0 inline-flex h-9 w-9 items-center justify-center rounded-full border border-white/15 bg-white/10 text-white hover:bg-white/20 transition-colors"
               aria-label="Cerrar aviso"
             >

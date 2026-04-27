@@ -34,7 +34,7 @@ import {
   updateUserActivity, 
   cleanInactiveUsers 
 } from '@/services/presenceService';
-import { validateMessage } from '@/services/antiSpamService';
+import { validateMessage, detectCriticalSafetyRisk, checkTempBan } from '@/services/antiSpamService';
 import { auth, db } from '@/config/firebase';
 import { checkUserSanctions, createSanction, SANCTION_TYPES, SANCTION_REASONS } from '@/services/sanctionsService';
 import { roomsData } from '@/config/rooms';
@@ -344,6 +344,33 @@ const ChatSecondaryPage = () => {
           title: "No puedes enviar mensajes",
           description: "Estás silenciado y no puedes enviar mensajes en este momento.",
           variant: "destructive",
+        });
+        return;
+      }
+    }
+
+    try {
+      const contactSafetyBan = await checkTempBan(user.id);
+      if (contactSafetyBan.isBanned) {
+        toast({
+          title: "Bloqueado por seguridad",
+          description: contactSafetyBan.reason || "Tu cuenta tiene una restriccion temporal por seguridad.",
+          variant: "destructive",
+        });
+        return;
+      }
+    } catch (err) {
+      console.warn('[ANTI-SPAM] Error verificando sancion critica:', err.message);
+    }
+
+    if (type === 'text') {
+      const criticalSafetyRisk = detectCriticalSafetyRisk(content);
+      if (criticalSafetyRisk.blocked) {
+        toast({
+          title: "Mensaje bloqueado por seguridad",
+          description: criticalSafetyRisk.reason || 'Contenido bloqueado por seguridad critica.',
+          variant: "destructive",
+          duration: 8000,
         });
         return;
       }

@@ -828,54 +828,6 @@ const ChatMessages = ({
                 </div>
               )}
 
-              {/* ✅ Nombre: Solo una vez, solo para otros */}
-              {!isOwn && (
-                <div className="message-username">
-                  <div className="message-identity">
-                    <div className="message-identity-main">
-                      <span className="message-identity-name">{group.username}</span>
-                      <span className="message-user-flags">
-                        {(isUserPremium || userRole === 'admin') && (
-                          <CheckCircle className="w-3 h-3 text-yellow-500" title="Miembro destacado" />
-                        )}
-                        {isUserVerified && !isUserPremium && userRole !== 'admin' && (
-                          <CheckCircle className="w-3 h-3 text-blue-500" title="Usuario verificado" />
-                        )}
-                      </span>
-                      {roleBadgeMeta ? (
-                        <span className={`message-primary-chip ${roleBadgeMeta.badgeClassName}`}>
-                          {roleBadgeMeta.label}
-                        </span>
-                      ) : group.badge && group.badge !== 'Nuevo' ? (
-                        (() => {
-                          const badgeConfig = getBadgeConfig(group.badge);
-                          return (
-                            <span className={`message-primary-chip ${badgeConfig.bg} ${badgeConfig.color} ${badgeConfig.border} border`}>
-                              {group.badge}
-                            </span>
-                          );
-                        })()
-                      ) : null}
-                    </div>
-
-                    {!isSeededUserId(group.userId) && (
-                      <button
-                        type="button"
-                        className="message-private-trigger"
-                        onClick={(event) => {
-                          event.stopPropagation();
-                          openPrivateChatFromGroup(group);
-                        }}
-                        aria-label={`Abrir chat privado con ${group.username}`}
-                        title={`Hablar en privado con ${group.username}`}
-                      >
-                        <MessageCircle className="w-3.5 h-3.5" />
-                      </button>
-                    )}
-                  </div>
-                </div>
-              )}
-
               {/* ⚡ MENSAJES DEL GRUPO */}
               {group.messages.map((message, msgIndex) => {
                 const isFirst = msgIndex === 0;
@@ -958,7 +910,7 @@ const ChatMessages = ({
                   <div
                     key={message.id}
                     data-message-id={message.id}
-                    className={`message-row group ${isOwn ? 'own' : 'other'}`}
+                    className={`message-row group ${isOwn ? 'own' : 'other'} ${isFirst ? 'first-in-group' : 'continuation'}`}
                     style={
                       isMobileViewport && swipeReplyMessageId === (message._realId || message.id)
                         ? {
@@ -1026,6 +978,53 @@ const ChatMessages = ({
                     )}
 
                     <div className={`message-stack ${isOwn ? 'own' : 'other'}`}>
+                      {!isOwn && isFirst && (
+                        <div className="message-identity-inline">
+                          <div className="message-identity">
+                            <div className="message-identity-main">
+                              <span className="message-identity-name">{group.username}</span>
+                              <span className="message-user-flags">
+                                {(isUserPremium || userRole === 'admin') && (
+                                  <CheckCircle className="w-3 h-3 text-yellow-500" title="Miembro destacado" />
+                                )}
+                                {isUserVerified && !isUserPremium && userRole !== 'admin' && (
+                                  <CheckCircle className="w-3 h-3 text-blue-500" title="Usuario verificado" />
+                                )}
+                              </span>
+                              {roleBadgeMeta ? (
+                                <span className={`message-primary-chip ${roleBadgeMeta.badgeClassName}`}>
+                                  {roleBadgeMeta.label}
+                                </span>
+                              ) : group.badge && group.badge !== 'Nuevo' ? (
+                                (() => {
+                                  const badgeConfig = getBadgeConfig(group.badge);
+                                  return (
+                                    <span className={`message-primary-chip ${badgeConfig.bg} ${badgeConfig.color} ${badgeConfig.border} border`}>
+                                      {group.badge}
+                                    </span>
+                                  );
+                                })()
+                              ) : null}
+                            </div>
+
+                            {!isSeededUserId(group.userId) && (
+                              <button
+                                type="button"
+                                className="message-private-trigger"
+                                onClick={(event) => {
+                                  event.stopPropagation();
+                                  openPrivateChatFromGroup(group);
+                                }}
+                                aria-label={`Abrir chat privado con ${group.username}`}
+                                title={`Hablar en privado con ${group.username}`}
+                              >
+                                <MessageCircle className="w-3.5 h-3.5" />
+                              </button>
+                            )}
+                          </div>
+                        </div>
+                      )}
+
                       {(hasContextSignal && signalMeta?.accentLabel) || showBubbleIntentMeta || showBubbleComunaMeta ? (
                         <div className={`message-prelude ${isOwn ? 'own' : 'other'}`}>
                           {hasContextSignal && signalMeta?.accentLabel ? (
@@ -1036,9 +1035,12 @@ const ChatMessages = ({
                           {(showBubbleIntentMeta || showBubbleComunaMeta) ? (
                             <div className={`message-bubble-meta ${isOwn ? 'own' : 'other'}`}>
                               {showBubbleIntentMeta ? (
-                                <span className={`message-bubble-meta-pill ${groupIntentMeta.tone}`}>
+                                <span className={`message-bubble-meta-label ${groupIntentMeta.tone}`}>
                                   {groupIntentMeta.label}
                                 </span>
+                              ) : null}
+                              {showBubbleIntentMeta && showBubbleComunaMeta ? (
+                                <span className="message-bubble-meta-separator" aria-hidden="true">•</span>
                               ) : null}
                               {showBubbleComunaMeta ? (
                                 <span className="message-bubble-meta-text">
@@ -1191,10 +1193,38 @@ const ChatMessages = ({
                           ) : null}
                         </div>
                       ) : null}
+                      {showAntiHolaActions ? (
+                        <div className="message-quick-actions" role="group" aria-label="Acciones rápidas con contexto">
+                          {QUICK_REPLY_ACTIONS.map((action) => (
+                            <button
+                              key={`${messageKey}_${action.key}`}
+                              type="button"
+                              className="message-quick-action"
+                              onClick={(event) => {
+                                event.stopPropagation();
+                                onSuggestReply?.(action.buildText(group), message);
+                              }}
+                            >
+                              {action.label}
+                            </button>
+                          ))}
+                          <button
+                            type="button"
+                            className="message-quick-action primary"
+                            onClick={(event) => {
+                              event.stopPropagation();
+                              openPrivateChatFromGroup(group);
+                            }}
+                          >
+                            Privado
+                          </button>
+                        </div>
+                      ) : null}
                     </div>
 
-                    {/* ACCIONES - Solo para otros */}
-                    {!isOwn && (
+                    {/* ACCIONES - Solo para otros.
+                        En móvil no reservamos esta columna para texto, porque comprimía la burbuja. */}
+                    {!isOwn && (!isMobileViewport || message.type === 'image') && (
                       <span
                         className={`inline-flex items-center gap-1 ml-1 transition-opacity ${
                           message.type === 'image'
@@ -1262,34 +1292,6 @@ const ChatMessages = ({
                         )}
                       </span>
                     )}
-
-                    {showAntiHolaActions ? (
-                      <div className="message-quick-actions" role="group" aria-label="Acciones rápidas con contexto">
-                        {QUICK_REPLY_ACTIONS.map((action) => (
-                          <button
-                            key={`${messageKey}_${action.key}`}
-                            type="button"
-                            className="message-quick-action"
-                            onClick={(event) => {
-                              event.stopPropagation();
-                              onSuggestReply?.(action.buildText(group), message);
-                            }}
-                          >
-                            {action.label}
-                          </button>
-                        ))}
-                        <button
-                          type="button"
-                          className="message-quick-action primary"
-                          onClick={(event) => {
-                            event.stopPropagation();
-                            openPrivateChatFromGroup(group);
-                          }}
-                        >
-                          Privado
-                        </button>
-                      </div>
-                    ) : null}
 
                   </div>
                 );

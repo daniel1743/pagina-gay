@@ -39,6 +39,7 @@ import SEOLanding, {
   SEOLandingSaoPaulo
 } from '@/components/seo/SEOLanding';
 import NoindexRouteNotice from '@/components/seo/NoindexRouteNotice';
+import { ENABLE_BAUL } from '@/config/featureFlags';
 
 // ⚡ CODE SPLITTING - Lazy loading de páginas (reducción de 80% del bundle inicial)
 // Estas páginas se cargan solo cuando el usuario navega a ellas
@@ -609,7 +610,7 @@ function AppRoutes() {
         <Route path="/thread/:threadId" element={<MainLayout><ThreadDetailPage /></MainLayout>} />
 
         {/* 🎯 BAÚL - Página independiente */}
-        <Route path="/baul" element={<MainLayout><BaulPage /></MainLayout>} />
+        <Route path="/baul" element={ENABLE_BAUL ? <MainLayout><BaulPage /></MainLayout> : <Navigate to="/chat/principal" replace />} />
 
         {/* 🎯 OPIN - Discovery Wall */}
         <Route path="/opin" element={<OpinLayout><OpinFeedPage /></OpinLayout>} />

@@ -28,20 +28,15 @@ import AgeVerificationModal from '@/components/chat/AgeVerificationModal';
 // import ChatLandingPage from '@/components/chat/ChatLandingPage';
 import { GuestUsernameModal } from '@/components/auth/GuestUsernameModal';
 // ⚠️ MODALES DE INSTRUCCIONES ELIMINADOS (17/01/2026) - A petición del usuario
-// import EmptyRoomNotificationPrompt from '@/components/chat/EmptyRoomNotificationPrompt';
 // import LoadingMessagesPrompt from '@/components/chat/LoadingMessagesPrompt';
 import ReplyIndicator from '@/components/chat/ReplyIndicator';
 // 🎯 OPIN Discovery Banner - Para que invitados descubran OPIN
-import OpinDiscoveryBanner from '@/components/opin/OpinDiscoveryBanner';
 // 📢 Telegram Banner - Promoción del grupo
 import TelegramBanner from '@/components/ui/TelegramBanner';
-// 🚀 ENGAGEMENT: Banner promocional Baúl + OPIN
-import TarjetaPromoBanner from '@/components/chat/TarjetaPromoBanner';
 import ChatBottomNav from '@/components/chat/ChatBottomNav';
 import FeaturedChannelsColumn from '@/components/featured/FeaturedChannelsColumn';
 import ChatOnlineUsersColumn from '@/components/chat/ChatOnlineUsersColumn';
-import ContextualOpportunitiesPanel from '@/components/chat/ContextualOpportunitiesPanel';
-import QuickIntentPanel from '@/components/chat/QuickIntentPanel';
+import ChatPrimaryResolutionPanel from '@/components/chat/ChatPrimaryResolutionPanel';
 import { useEngagementNudge } from '@/hooks/useEngagementNudge';
 // ⚠️ MODERADOR ELIMINADO (06/01/2026) - A petición del usuario
 // import RulesBanner from '@/components/chat/RulesBanner';
@@ -59,7 +54,7 @@ import {
   generateUUID
 } from '@/services/chatService';
 import { CHAT_AVAILABILITY_HEARTBEAT_MS, joinRoom, leaveRoom, subscribeToRoomUsers, subscribeToMultipleRoomCounts, updateUserActivity, cleanInactiveUsers, filterActiveUsers, subscribeToTypingUsers, updatePresenceFields, validateUserAvailabilityInRoom, isUserAvailableForConversation, getPresenceActivityMs } from '@/services/presenceService';
-import { validateMessage } from '@/services/antiSpamService';
+import { validateMessage, detectCriticalSafetyRisk, checkTempBan } from '@/services/antiSpamService';
 import { auth, db } from '@/config/firebase'; // ✅ CRÍTICO: Necesario para obtener UID real de Firebase Auth
 import { doc, getDoc, deleteDoc } from 'firebase/firestore';
 import { evaluateMessage, checkAIMute, formatMuteRemaining } from '@/services/moderationAIService';
@@ -101,6 +96,7 @@ import { getOpenOpinIntentsByUserIds, getOpinPostActivityMs, getOpinStatusMeta }
 import { readPendingPrivateChatRestore, clearPendingPrivateChatRestore } from '@/utils/privateChatRestore';
 import { clearSeoFunnelContext, readSeoFunnelContext } from '@/utils/seoFunnelContext';
 import { hasValidGuestCommunityAccess, syncGuestCommunityAccess } from '@/utils/communityPolicyGuard';
+import { ENABLE_BAUL } from '@/config/featureFlags';
 import '@/utils/chatDiagnostics'; // 🔍 Cargar diagnóstico en consola
 import { 
   trackChatLoad, 
@@ -145,7 +141,61 @@ const PRIVATE_MATCH_INTENT_WINDOW_MS = 45 * 60 * 1000;
 const PRIVATE_MATCH_INITIAL_SUGGESTION_DELAY_MS = 6000;
 const PRIVATE_MATCH_SUGGESTION_VISIBLE_MS = 18000;
 const PRIVATE_MATCH_FETCH_LIMIT = 15;
-const PRIVATE_MATCH_OPIN_CACHE_TTL_MS = 45 * 1000;
+const PRIVATE_MATCH_OPIN_CACHE_TTL_MS = 5 * 60 * 1000;
+const PRESENCE_HEARTBEAT_IDLE_GRACE_MS = 12 * 60 * 1000;
+const PRIVATE_UI_MEMORY_STORAGE_PREFIX = 'chactivo:private_ui_memory:v1:';
+const PRIVATE_UI_NOTIFICATION_TTL_MS = 48 * 60 * 60 * 1000;
+const PRIVATE_UI_REQUEST_SUPPRESSION_MS = 24 * 60 * 60 * 1000;
+const PRIVATE_UI_REQUEST_COOLDOWN_MS = 2 * 60 * 1000;
+
+const prunePrivateUiMemoryEntries = (entries = {}, now = Date.now()) => Object.entries(entries || {}).reduce((acc, [key, expiresAt]) => {
+  const untilMs = Number(expiresAt || 0);
+  if (!key || !Number.isFinite(untilMs) || untilMs <= now) return acc;
+  acc[key] = untilMs;
+  return acc;
+}, {});
+
+const getPrivateUiMemoryStorageKey = (userId) => {
+  if (!userId) return null;
+  return `${PRIVATE_UI_MEMORY_STORAGE_PREFIX}${userId}`;
+};
+
+const readPrivateUiMemoryEntries = (userId) => {
+  const storageKey = getPrivateUiMemoryStorageKey(userId);
+  if (!storageKey || typeof window === 'undefined') return {};
+  try {
+    const raw = localStorage.getItem(storageKey);
+    if (!raw) return {};
+    const parsed = JSON.parse(raw);
+    if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) return {};
+    return prunePrivateUiMemoryEntries(parsed);
+  } catch {
+    return {};
+  }
+};
+
+const writePrivateUiMemoryEntries = (userId, entries = {}) => {
+  const storageKey = getPrivateUiMemoryStorageKey(userId);
+  if (!storageKey || typeof window === 'undefined') return;
+  try {
+    localStorage.setItem(storageKey, JSON.stringify(prunePrivateUiMemoryEntries(entries)));
+  } catch {
+    // noop
+  }
+};
+
+const getPrivateNotificationSeenKey = (notificationId) => (
+  notificationId ? `notification-seen:${notificationId}` : null
+);
+
+const getPrivateRequestMuteKey = (scope) => (
+  scope ? `request-muted:${scope}` : null
+);
+
+const getPrivateRequestCooldownKey = (scope) => (
+  scope ? `request-cooldown:${scope}` : null
+);
+
 const isChatDebugEnabled = () => {
   if (typeof window === 'undefined') return false;
   const params = new URLSearchParams(window.location.search);
@@ -271,6 +321,50 @@ const getTimeProximityScore = ({ availableForChat = false, lastActivityMs = null
   return 24;
 };
 
+const buildPrivateMatchReasons = ({ candidate = {}, nowMs = Date.now() }) => {
+  const reasons = [];
+
+  if (candidate?.sameComuna) {
+    reasons.push('Misma comuna');
+  }
+
+  if (candidate?.availableForChat) {
+    reasons.push('Disponible ahora');
+  } else if (
+    Number.isFinite(candidate?.lastActivityMs)
+    && Math.max(0, nowMs - candidate.lastActivityMs) <= (2 * 60 * 1000)
+  ) {
+    reasons.push('Activo hace poco');
+  }
+
+  if (Number(candidate?.scoring?.compatibility || 0) >= 88) {
+    reasons.push('Rol compatible');
+  }
+
+  if (candidate?.opinIntent || candidate?.intentSummary || candidate?.chatSeekingBadgeLabel) {
+    reasons.push('Busca algo parecido');
+  } else if (candidate?.opportunitySource === 'catalog') {
+    reasons.push('Perfil alineado');
+  }
+
+  return Array.from(new Set(reasons)).slice(0, 4);
+};
+
+const buildPrivateMatchHeadline = (reasons = []) => {
+  const safeReasons = Array.isArray(reasons) ? reasons.filter(Boolean) : [];
+  if (safeReasons.length === 0) return 'Compatible contigo ahora';
+  if (safeReasons.includes('Misma comuna') && safeReasons.includes('Disponible ahora')) {
+    return 'Misma comuna y disponible ahora';
+  }
+  if (safeReasons.includes('Rol compatible') && safeReasons.includes('Busca algo parecido')) {
+    return 'Rol compatible y misma intención';
+  }
+  if (safeReasons.includes('Disponible ahora')) {
+    return 'Disponible ahora para hablar';
+  }
+  return safeReasons.slice(0, 2).join(' · ');
+};
+
 const normalizeIntentText = (value) => String(value || '')
   .normalize('NFD')
   .replace(/[\u0300-\u036f]/g, '')
@@ -278,6 +372,40 @@ const normalizeIntentText = (value) => String(value || '')
   .replace(/[^\p{L}\p{N}\s]/gu, ' ')
   .replace(/\s+/g, ' ')
   .trim();
+
+const tokenizeSuggestionText = (value) => (
+  normalizeIntentText(value)
+    .split(' ')
+    .map((token) => token.trim())
+    .filter((token) => token.length >= 3)
+);
+
+const buildSuggestionTokenSet = ({ interests = [], description = '', buscando = '', badgeLabel = '' }) => {
+  const tokens = new Set();
+
+  (Array.isArray(interests) ? interests : []).forEach((interest) => {
+    tokenizeSuggestionText(interest).forEach((token) => tokens.add(token));
+  });
+
+  [description, buscando, badgeLabel].forEach((value) => {
+    tokenizeSuggestionText(value).forEach((token) => tokens.add(token));
+  });
+
+  return tokens;
+};
+
+const getInterestOverlapScore = (sourceTokens, candidateTokens) => {
+  if (!(sourceTokens instanceof Set) || sourceTokens.size === 0) return 22;
+  if (!(candidateTokens instanceof Set) || candidateTokens.size === 0) return 18;
+
+  let matches = 0;
+  sourceTokens.forEach((token) => {
+    if (candidateTokens.has(token)) matches += 1;
+  });
+
+  if (matches === 0) return 12;
+  return clampScore(38 + matches * 18);
+};
 
 const hasIntentPhrase = (text, phrases = []) => phrases.some((phrase) => text.includes(phrase));
 
@@ -835,6 +963,7 @@ const ChatPage = () => {
   const [messages, setMessages] = useState([]);
   const [blockedUserIds, setBlockedUserIds] = useState(new Set());
   const [blockedByUserIds, setBlockedByUserIds] = useState(new Set());
+  const [persistentPrivateSuggestionCatalog, setPersistentPrivateSuggestionCatalog] = useState([]);
   const blockedUserIdsRef = useRef(new Set());
   const blockedByUserIdsRef = useRef(new Set());
   const blockedByCacheRef = useRef(new Set());
@@ -850,6 +979,10 @@ const ChatPage = () => {
   // ⚠️ MODERADOR ELIMINADO (06/01/2026) - A petición del usuario
   // const [moderatorMessage, setModeratorMessage] = useState(null); // 👮 Mensaje del moderador (para RulesBanner)
   const [roomUsers, setRoomUsers] = useState([]); // 🤖 Usuarios en la sala (para sistema de bots)
+  const [isPageVisible, setIsPageVisible] = useState(() => {
+    if (typeof document === 'undefined') return true;
+    return document.visibilityState === 'visible';
+  });
   const [selectedUser, setSelectedUser] = useState(null);
   const [userActionsTarget, setUserActionsTarget] = useState(null);
   const [reportTarget, setReportTarget] = useState(null);
@@ -927,6 +1060,19 @@ const ChatPage = () => {
       setShowMobileSidebarBadge(false);
     }
   }, [mobileSidebarBadgeSeenKey, mobileSidebarBadgeSessionKey]);
+
+  useEffect(() => {
+    if (typeof document === 'undefined') return undefined;
+
+    const handleVisibilityChange = () => {
+      setIsPageVisible(document.visibilityState === 'visible');
+    };
+
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+    return () => {
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+    };
+  }, []);
 
   const handleOpenSidebarFromMenu = useCallback(() => {
     setSidebarOpen(true);
@@ -1218,6 +1364,7 @@ const ChatPage = () => {
   const [privateInboxItems, setPrivateInboxItems] = useState([]);
   const [privateMatchStateItems, setPrivateMatchStateItems] = useState([]);
   const [privateDirectMessageToast, setPrivateDirectMessageToast] = useState(null);
+  const [hasActivatedPrivateSurfaces, setHasActivatedPrivateSurfaces] = useState(false);
   const [showInPrivateUsersStrip, setShowInPrivateUsersStrip] = useState(false);
   const [isInPrivateUsersStripPinned, setIsInPrivateUsersStripPinned] = useState(false);
   const [activeOpinIntents, setActiveOpinIntents] = useState([]);
@@ -1226,7 +1373,7 @@ const ChatPage = () => {
   const [isOpeningContextualOpportunity, setIsOpeningContextualOpportunity] = useState(false);
   const [isRandomConnectActive, setIsRandomConnectActive] = useState(false);
   // Chat privado persistente: usa contexto global para mantener conversación al navegar
-  const { openPrivateChats, setActivePrivateChat, closePrivateChat, discardPrivateChat, dismissedChatIds, maxOpenPrivateChats } = usePrivateChat();
+  const { openPrivateChats, setActivePrivateChat, closePrivateChat, discardPrivateChat, dismissedChatIds, addDismissedChat, maxOpenPrivateChats } = usePrivateChat();
   // 🔔 Estado para popup de recordatorio de evento
   const [reminderEvento, setReminderEvento] = useState(null);
   // Refs para leer estado actual dentro del callback del listener sin re-crear el listener
@@ -1234,6 +1381,8 @@ const ChatPage = () => {
   const privateMatchSuggestionRef = useRef(null);
   const openPrivateChatsRef = useRef([]);
   const dismissedChatIdsRef = useRef(new Set());
+  const privateUiMemoryRef = useRef({});
+  const privateDirectMessageToastRef = useRef(null);
   const currentRoomRef = useRef(null);
   const userRef = useRef(null);
   const isOpeningContextualOpportunityRef = useRef(false);
@@ -1272,10 +1421,111 @@ const ChatPage = () => {
   privateMatchSuggestionRef.current = privateMatchSuggestion;
   openPrivateChatsRef.current = openPrivateChats;
   dismissedChatIdsRef.current = dismissedChatIds;
+  privateDirectMessageToastRef.current = privateDirectMessageToast;
   currentRoomRef.current = currentRoom;
   userRef.current = user;
   isSendingPrivateMatchRequestRef.current = isSendingPrivateMatchRequest;
   isOpeningContextualOpportunityRef.current = isOpeningContextualOpportunity;
+
+  useEffect(() => {
+    privateUiMemoryRef.current = readPrivateUiMemoryEntries(user?.id);
+    if (user?.id) {
+      writePrivateUiMemoryEntries(user.id, privateUiMemoryRef.current);
+    }
+  }, [user?.id]);
+
+  const commitPrivateUiMemory = useCallback((entries) => {
+    const pruned = prunePrivateUiMemoryEntries(entries);
+    privateUiMemoryRef.current = pruned;
+    if (user?.id) {
+      writePrivateUiMemoryEntries(user.id, pruned);
+    }
+    return pruned;
+  }, [user?.id]);
+
+  const rememberPrivateUiKey = useCallback((key, ttlMs) => {
+    if (!key || !ttlMs) return;
+    commitPrivateUiMemory({
+      ...privateUiMemoryRef.current,
+      [key]: Date.now() + ttlMs,
+    });
+  }, [commitPrivateUiMemory]);
+
+  const isPrivateUiKeyActive = useCallback((key) => {
+    if (!key) return false;
+
+    const now = Date.now();
+    const currentEntries = privateUiMemoryRef.current || {};
+    let hasExpired = false;
+
+    Object.values(currentEntries).forEach((value) => {
+      if (Number(value || 0) <= now) {
+        hasExpired = true;
+      }
+    });
+
+    if (hasExpired) {
+      commitPrivateUiMemory(currentEntries);
+    }
+
+    return Number(privateUiMemoryRef.current?.[key] || 0) > now;
+  }, [commitPrivateUiMemory]);
+
+  const activatePrivateSurfaces = useCallback(() => {
+    setHasActivatedPrivateSurfaces(true);
+  }, []);
+
+  useEffect(() => {
+    if ((openPrivateChats?.length || 0) > 0) {
+      setHasActivatedPrivateSurfaces(true);
+    }
+  }, [openPrivateChats]);
+
+  const getPrivateRequestSurfaceScope = useCallback((request = {}) => {
+    const type = request?.type === 'private_group_invite_request' ? 'group' : 'direct';
+    const currentUserId = userRef.current?.id || user?.id || '';
+    const fromId = request?.from?.id || request?.from?.userId || request?.from || '';
+    const toId = request?.to?.id || request?.to?.userId || request?.to || '';
+    const requestedUserId = request?.requestedUser?.userId || request?.requestedUser?.id || '';
+    const otherPartyId = [fromId, toId].find((candidateId) => candidateId && candidateId !== currentUserId)
+      || fromId
+      || toId
+      || 'unknown';
+
+    if (type === 'group') {
+      return `${type}:${otherPartyId}:${requestedUserId || request?.inviteId || request?.notificationId || 'pending'}`;
+    }
+
+    return `${type}:${otherPartyId}`;
+  }, [user?.id]);
+
+  const suppressPrivateRequestSurface = useCallback((request, ttlMs = PRIVATE_UI_REQUEST_SUPPRESSION_MS) => {
+    if (!request) return;
+    const scope = getPrivateRequestSurfaceScope(request);
+    rememberPrivateUiKey(getPrivateRequestMuteKey(scope), ttlMs);
+    rememberPrivateUiKey(getPrivateNotificationSeenKey(request?.notificationId), ttlMs);
+  }, [getPrivateRequestSurfaceScope, rememberPrivateUiKey]);
+
+  const closePrivateRequestSurface = useCallback((request, meta = {}) => {
+    if ((meta?.reason === 'dismiss' || meta?.reason === 'timeout') && request) {
+      suppressPrivateRequestSurface(request);
+    }
+    setPrivateChatRequest((prev) => {
+      if (!prev) return null;
+      if (request?.notificationId && prev.notificationId && prev.notificationId !== request.notificationId) {
+        return prev;
+      }
+      return null;
+    });
+  }, [suppressPrivateRequestSurface]);
+
+  const closePrivateDirectToast = useCallback((meta = {}) => {
+    const currentToast = privateDirectMessageToastRef.current;
+    if (currentToast?.chatId && meta?.reason !== 'open') {
+      addDismissedChat(currentToast.chatId);
+    }
+    setPrivateDirectMessageToast(null);
+  }, [addDismissedChat]);
 
   useEffect(() => {
     if (privateChatRequest || (openPrivateChats?.length || 0) > 0) {
@@ -1769,6 +2019,20 @@ const ChatPage = () => {
     user?.chatSeekingBadgeLabel,
   ]);
 
+  const currentUserSuggestionTokens = useMemo(() => (
+    buildSuggestionTokenSet({
+      interests: user?.interests || [],
+      description: user?.description || user?.estado || '',
+      buscando: '',
+      badgeLabel: currentUserSeekingBadgeMeta?.label || '',
+    })
+  ), [
+    user?.interests,
+    user?.description,
+    user?.estado,
+    currentUserSeekingBadgeMeta?.label,
+  ]);
+
   const handleUpdateCurrentUserSeekingBadge = useCallback(async (nextKey) => {
     const normalizedKey = normalizeChatSeekingBadgeKey(nextKey);
     if (!normalizedKey) return false;
@@ -1923,6 +2187,9 @@ const ChatPage = () => {
   const profileComunaPromptDismissKey = user?.id
     ? `chactivo:profile_comuna_prompt:dismissed:${user.id}`
     : 'chactivo:profile_comuna_prompt:dismissed:guest';
+  const profileComunaPromptSeenKey = user?.id
+    ? `chactivo:profile_comuna_prompt:seen:${user.id}`
+    : 'chactivo:profile_comuna_prompt:seen:guest';
 
   useEffect(() => {
     setProfileComunaValue(currentUserComuna || '');
@@ -1937,15 +2204,18 @@ const ChatPage = () => {
     }
 
     const dismissedAt = Number(localStorage.getItem(profileComunaPromptDismissKey) || 0);
-    const sixHoursMs = 6 * 60 * 60 * 1000;
-    if (dismissedAt && (Date.now() - dismissedAt) < sixHoursMs) return;
+    const alreadySeen = localStorage.getItem(profileComunaPromptSeenKey) === '1';
+    const fortyEightHoursMs = 48 * 60 * 60 * 1000;
+    if (alreadySeen) return;
+    if (dismissedAt && (Date.now() - dismissedAt) < fortyEightHoursMs) return;
 
     const timer = window.setTimeout(() => {
       setShowProfileComunaPrompt(true);
+      localStorage.setItem(profileComunaPromptSeenKey, '1');
     }, 5000);
 
     return () => window.clearTimeout(timer);
-  }, [user?.id, user?.isGuest, user?.isAnonymous, currentRoom, currentUserComuna, profileComunaPromptDismissKey]);
+  }, [user?.id, user?.isGuest, user?.isAnonymous, currentRoom, currentUserComuna, profileComunaPromptDismissKey, profileComunaPromptSeenKey]);
 
   const handleDismissProfileComunaPrompt = useCallback(() => {
     setShowProfileComunaPrompt(false);
@@ -1988,6 +2258,32 @@ const ChatPage = () => {
     });
     return ids;
   }, [openPrivateChats]);
+
+  useEffect(() => {
+    if (!user?.id) {
+      setPersistentPrivateSuggestionCatalog([]);
+      return;
+    }
+
+    const cacheKey = `chactivo:private-suggestions-catalog:v2:${user.id}`;
+
+    try {
+      const cachedCatalogRaw = localStorage.getItem(cacheKey);
+      if (cachedCatalogRaw) {
+        const cachedCatalog = JSON.parse(cachedCatalogRaw);
+        if (Array.isArray(cachedCatalog) && cachedCatalog.length > 0) {
+          setPersistentPrivateSuggestionCatalog(cachedCatalog);
+          return;
+        }
+      }
+    } catch {
+      // noop
+    }
+
+    // Fase 1 de ahorro: el chat principal deja de leer Baúl/tarjetas al entrar.
+    // Solo se reutiliza lo que ya exista en caché local.
+    setPersistentPrivateSuggestionCatalog([]);
+  }, [user?.id]);
 
   const [privateSuggestionScoreVersion, setPrivateSuggestionScoreVersion] = useState(0);
   const privateSuggestionScoreMapRef = useRef(new Map());
@@ -2183,6 +2479,10 @@ const ChatPage = () => {
       return undefined;
     }
 
+    if (!isPageVisible) {
+      return undefined;
+    }
+
     let cancelled = false;
     const cacheKey = opinCandidateUserIds.join('|');
     const now = Date.now();
@@ -2217,7 +2517,7 @@ const ChatPage = () => {
     return () => {
       cancelled = true;
     };
-  }, [currentRoom, isHeteroRoom, opinCandidateUserIds, user?.id]);
+  }, [currentRoom, isHeteroRoom, opinCandidateUserIds, user?.id, isPageVisible]);
 
   const opinIntentByUserId = useMemo(() => {
     const nextMap = new Map();
@@ -2286,7 +2586,7 @@ const ChatPage = () => {
         const persistedPenalty = getPrivateSuggestionPenalty(persistedState);
         const score = weightedScore - persistedPenalty;
 
-        return {
+        const baseCandidate = {
           id: userId,
           userId,
           username: presenceUser?.username || 'Usuario',
@@ -2294,6 +2594,7 @@ const ChatPage = () => {
           isPremium: Boolean(presenceUser?.isPremium || presenceUser?.isProUser),
           isGuest: Boolean(presenceUser?.isGuest || presenceUser?.isAnonymous),
           roleBadge: normalizedRole || null,
+          chatSeekingBadgeLabel: presenceUser?.chatSeekingBadgeLabel || null,
           comuna: candidateComuna || null,
           sameComuna: Boolean(candidateComuna && currentUserComuna && getComunaKey(candidateComuna) === getComunaKey(currentUserComuna)),
           suggestionState: persistedState,
@@ -2316,6 +2617,16 @@ const ChatPage = () => {
           },
           score,
         };
+        const matchReasons = buildPrivateMatchReasons({
+          candidate: baseCandidate,
+          nowMs,
+        });
+
+        return {
+          ...baseCandidate,
+          matchReasons,
+          matchHeadline: buildPrivateMatchHeadline(matchReasons),
+        };
       })
       .filter(Boolean)
       .sort((a, b) => b.score - a.score);
@@ -2337,6 +2648,148 @@ const ChatPage = () => {
     recentIntentSignalByUserId,
     opinIntentByUserId,
   ]);
+
+  const persistentPrivateSuggestionCandidates = useMemo(() => {
+    if (!user?.id || !Array.isArray(persistentPrivateSuggestionCatalog) || persistentPrivateSuggestionCatalog.length === 0) return [];
+
+    const nowMs = Date.now();
+
+    return persistentPrivateSuggestionCatalog
+      .map((candidate) => {
+        const targetUserId = candidate?.userId || candidate?.id || '';
+        if (!targetUserId || targetUserId === user.id) return null;
+        if (blockedUserIds.has(targetUserId) || blockedByUserIds.has(targetUserId)) return null;
+        if (activePrivatePartnerIds.has(targetUserId)) return null;
+
+        const normalizedRole = resolveProfileRole(candidate?.roleBadge);
+        const candidateComuna = normalizeComuna(candidate?.comuna || '') || null;
+        const sameComuna = Boolean(
+          candidateComuna
+          && currentUserComuna
+          && getComunaKey(candidateComuna) === getComunaKey(currentUserComuna)
+        );
+        const roleCompatibilityScore = clampScore(
+          getRoleCompatibilityScore(currentUserResolvedRole, normalizedRole)
+          + getComunaMatchBoost(currentUserComuna, candidateComuna)
+        );
+        const interestScore = getInterestOverlapScore(
+          currentUserSuggestionTokens,
+          candidate?.candidateTokens
+        );
+        const offlineIntent = extractPublicMatchIntent({
+          content: [candidate?.buscando, candidate?.description, candidate?.chatSeekingBadgeLabel].filter(Boolean).join('. '),
+          fallbackRole: normalizedRole,
+        });
+        const publicIntentScore = clampScore(
+          Math.max(
+            offlineIntent?.confidence || 0,
+            candidate?.buscando ? 48 : 0,
+            candidate?.chatSeekingBadgeLabel ? 40 : 0
+          )
+        );
+        const activityRecentScore = getActivityRecencyScore(candidate?.lastActivityMs, nowMs);
+        const weightedScore = (
+          roleCompatibilityScore * 0.42
+          + interestScore * 0.3
+          + publicIntentScore * 0.18
+          + activityRecentScore * 0.1
+        );
+        const persistedState = mergePrivateSuggestionEntries(
+          privateSuggestionScoreMapRef.current.get(targetUserId),
+          privateMatchStateByTarget.get(targetUserId)
+        );
+        const persistedPenalty = getPrivateSuggestionPenalty(persistedState);
+        const score = weightedScore - persistedPenalty;
+        const summarySource = candidate?.buscando || candidate?.description || candidate?.chatSeekingBadgeLabel || '';
+
+        const baseCandidate = {
+          id: targetUserId,
+          userId: targetUserId,
+          username: candidate?.username || 'Usuario',
+          avatar: candidate?.avatar || '',
+          isPremium: Boolean(candidate?.isPremium),
+          isGuest: Boolean(candidate?.isGuest),
+          roleBadge: normalizedRole || null,
+          chatSeekingBadgeLabel: candidate?.chatSeekingBadgeLabel || null,
+          comuna: candidateComuna,
+          sameComuna,
+          suggestionState: persistedState,
+          availableForChat: false,
+          lastActivityMs: candidate?.lastActivityMs || null,
+          intentSummary: summarySource,
+          opinIntent: null,
+          opportunityText: truncateOpportunityText(
+            summarySource || [normalizedRole, candidateComuna].filter(Boolean).join(' · ')
+          ),
+          opportunityMeta: sameComuna ? 'Tu comuna' : 'Perfil',
+          opportunitySource: 'catalog',
+          scoring: {
+            compatibility: Math.round(roleCompatibilityScore),
+            activity: Math.round(activityRecentScore),
+            intent: Math.round(Math.max(interestScore, publicIntentScore)),
+            time: Math.round(activityRecentScore),
+          },
+          score,
+        };
+        const matchReasons = buildPrivateMatchReasons({
+          candidate: baseCandidate,
+          nowMs,
+        });
+
+        return {
+          ...baseCandidate,
+          matchReasons,
+          matchHeadline: buildPrivateMatchHeadline(matchReasons),
+        };
+      })
+      .filter(Boolean)
+      .sort((a, b) => b.score - a.score);
+  }, [
+    persistentPrivateSuggestionCatalog,
+    user?.id,
+    blockedUserIds,
+    blockedByUserIds,
+    activePrivatePartnerIds,
+    currentUserResolvedRole,
+    currentUserComuna,
+    currentUserSuggestionTokens,
+    privateMatchStateByTarget,
+    privateSuggestionScoreVersion,
+  ]);
+
+  const mergedPrivateSuggestionCandidates = useMemo(() => {
+    const merged = new Map();
+
+    [...persistentPrivateSuggestionCandidates, ...privateMatchCandidates].forEach((candidate) => {
+      const targetUserId = candidate?.userId || candidate?.id;
+      if (!targetUserId) return;
+
+      const existing = merged.get(targetUserId);
+      if (!existing || Number(candidate?.score || 0) > Number(existing?.score || 0)) {
+        merged.set(targetUserId, candidate);
+      } else if (existing && candidate?.opportunitySource === 'presence') {
+        const nextCandidate = {
+          ...existing,
+          availableForChat: Boolean(candidate?.availableForChat),
+          opportunityMeta: existing?.opportunityMeta === 'Perfil' ? candidate?.opportunityMeta : existing?.opportunityMeta,
+          opportunitySource: candidate?.opportunitySource,
+          lastActivityMs: candidate?.lastActivityMs || existing?.lastActivityMs,
+          sameComuna: Boolean(existing?.sameComuna || candidate?.sameComuna),
+        };
+        const matchReasons = buildPrivateMatchReasons({
+          candidate: nextCandidate,
+        });
+
+        merged.set(targetUserId, {
+          ...nextCandidate,
+          matchReasons,
+          matchHeadline: buildPrivateMatchHeadline(matchReasons),
+        });
+      }
+    });
+
+    return Array.from(merged.values()).sort((a, b) => Number(b?.score || 0) - Number(a?.score || 0));
+  }, [persistentPrivateSuggestionCandidates, privateMatchCandidates]);
 
   const intentDrivenPrivateMatchSignal = useMemo(() => {
     if (isHeteroRoom || !user?.id || !currentUserResolvedRole) return null;
@@ -3462,7 +3915,7 @@ const ChatPage = () => {
 
   const handleOpenBaul = useCallback(() => {
     detenerNudges();
-    navigate('/baul');
+    navigate(ENABLE_BAUL ? '/baul' : '/chat/principal');
     return true;
   }, [detenerNudges, navigate]);
 
@@ -4393,7 +4846,7 @@ const ChatPage = () => {
     };
   }, [roomId, user?.id, currentUserComuna]); // ✅ F3: user?.id en vez de user (evita re-suscripciones por cambio de referencia)
 
-  // 🟢 PRESENCIA: Solo iniciar con auth lista + usuario válido
+  // 🟢 PRESENCIA: Mantener presencia básica de sala mientras la vista esté abierta.
   useEffect(() => {
     if (!roomId || !authReady || !user?.id) return;
 
@@ -4405,6 +4858,19 @@ const ChatPage = () => {
     if (roomId?.startsWith('evento_')) {
       registrarParticipacionEvento(roomId, user).catch(() => {});
     }
+
+    return () => {
+      leaveRoom(roomId).catch(error => {
+        if (error.name !== 'AbortError' && error.code !== 'cancelled') {
+          console.error('Error leaving room:', error);
+        }
+      });
+    };
+  }, [roomId, authReady, user?.id]);
+
+  // 🟢 LECTURAS AHORRO: solo escuchar usuarios cuando la pestaña está visible.
+  useEffect(() => {
+    if (!roomId || !authReady || !user?.id || !isPageVisible) return;
 
     const unsubscribeUsers = subscribeToRoomUsers(roomId, (users) => {
       if (usersUpdateInProgressRef.current) return;
@@ -4512,41 +4978,31 @@ const ChatPage = () => {
           console.error('Error canceling user subscription:', error);
         }
       }
-
-      leaveRoom(roomId).catch(error => {
-        if (error.name !== 'AbortError' && error.code !== 'cancelled') {
-          console.error('Error leaving room:', error);
-        }
-      });
     };
-  }, [roomId, authReady, user?.id]);
+  }, [roomId, authReady, user?.id, isPageVisible]);
 
   // 💓 Heartbeat de presencia: refresca lastSeen para conteo online real y puntos de estado.
   useEffect(() => {
-    if (!roomId || !authReady || !user?.id) return;
+    if (!roomId || !authReady || !user?.id || !isPageVisible) return;
 
-    const pingPresence = () => {
-      if (typeof document !== 'undefined' && document.visibilityState !== 'visible') return;
+    const intervalId = setInterval(() => {
+      const now = Date.now();
+      const wasRecentlyActive = (now - lastInteractionAtRef.current) <= PRESENCE_HEARTBEAT_IDLE_GRACE_MS;
+      if (!wasRecentlyActive) return;
       updateUserActivity(roomId).catch(() => {});
-    };
+    }, CHAT_AVAILABILITY_HEARTBEAT_MS);
 
-    pingPresence();
-    const intervalId = setInterval(pingPresence, CHAT_AVAILABILITY_HEARTBEAT_MS);
-
-    const handleVisibilityChange = () => {
-      if (document.visibilityState === 'visible') {
-        pingPresence();
-      }
-    };
-
-    document.addEventListener('visibilitychange', handleVisibilityChange);
     return () => {
       clearInterval(intervalId);
-      document.removeEventListener('visibilitychange', handleVisibilityChange);
     };
-  }, [roomId, authReady, user?.id]);
+  }, [roomId, authReady, user?.id, isPageVisible]);
 
-  // 💓 Heartbeat: Actualizar presencia cada 10 segundos + Limpiar inactivos cada 30s
+  useEffect(() => {
+    if (!roomId || !authReady || !user?.id || !isPageVisible) return;
+    updateUserActivity(roomId).catch(() => {});
+  }, [roomId, authReady, user?.id, isPageVisible]);
+
+  // 💓 Control liviano de presencia derivada: evita trabajo si el conteo real no cambio.
   useEffect(() => {
     // ? CRÍTICO: Validar que el usuario existe antes de continuar
     if (!user || !user.id || !user.username) {
@@ -4712,6 +5168,7 @@ const ChatPage = () => {
   }, [currentRoom, user?.id, countRealUsers]); // No incluir messages/roomUsers para evitar re-crear el intervalo
 
   const openPrivateChatWindow = useCallback((chatPayload) => {
+    activatePrivateSurfaces();
     const result = setActivePrivateChat(chatPayload);
     if (!result?.ok && result?.reason === 'limit_reached') {
       toast({
@@ -4722,11 +5179,27 @@ const ChatPage = () => {
       return false;
     }
     return Boolean(result?.ok);
-  }, [setActivePrivateChat, maxOpenPrivateChats]);
+  }, [activatePrivateSurfaces, setActivePrivateChat, maxOpenPrivateChats]);
   openPrivateChatWindowRef.current = openPrivateChatWindow;
 
   const showPrivateConversationToast = useCallback((payload = {}) => {
     if (!payload?.notificationId || handledPrivateConversationNotificationIdsRef.current.has(payload.notificationId)) {
+      return false;
+    }
+
+    if (
+      dismissedChatIdsRef.current?.has(payload.chatId)
+      || isPrivateUiKeyActive(getPrivateNotificationSeenKey(payload.notificationId))
+      || privateDirectMessageToastRef.current
+    ) {
+      return false;
+    }
+
+    const currentChatWindow = (openPrivateChatsRef.current || []).find((chat) => chat?.chatId === payload.chatId);
+    const currentChatState = !currentChatWindow
+      ? 'closed'
+      : (currentChatWindow?.isMinimized ? 'minimized' : 'visible');
+    if (currentChatState === 'visible') {
       return false;
     }
 
@@ -4736,6 +5209,8 @@ const ChatPage = () => {
         Array.from(handledPrivateConversationNotificationIdsRef.current).slice(-80)
       );
     }
+
+    rememberPrivateUiKey(getPrivateNotificationSeenKey(payload.notificationId), PRIVATE_UI_NOTIFICATION_TTL_MS);
 
     setPrivateDirectMessageToast({
       notificationId: payload.notificationId,
@@ -4751,6 +5226,13 @@ const ChatPage = () => {
     });
 
     return true;
+  }, [isPrivateUiKeyActive, rememberPrivateUiKey]);
+
+  const getPrivateChatWindowState = useCallback((chatId, chatWindows = []) => {
+    if (!chatId) return 'closed';
+    const chatWindow = (chatWindows || []).find((chat) => chat?.chatId === chatId);
+    if (!chatWindow) return 'closed';
+    return chatWindow?.isMinimized ? 'minimized' : 'visible';
   }, []);
 
   useEffect(() => {
@@ -4812,7 +5294,7 @@ const ChatPage = () => {
 
   // Suscribirse a notificaciones de chat privado (un solo listener por user.id)
   useEffect(() => {
-    if (!user?.id) return;
+    if (!user?.id || !isPageVisible) return;
 
     const unsubscribe = subscribeToNotifications(user.id, (notifications) => {
       // Leer estado actual desde refs (no re-crea el listener)
@@ -4898,63 +5380,22 @@ const ChatPage = () => {
         };
       });
 
-      setPendingPrivateRequests([...normalizedPendingRequests, ...normalizedPendingGroupRequests]);
+      const normalizedPendingItems = [...normalizedPendingRequests, ...normalizedPendingGroupRequests];
+      setPendingPrivateRequests(normalizedPendingItems);
 
-      if (pendingRequests.length > 0 && !currentRequest) {
-        const latestRequest = pendingRequests[0];
-        setPrivateChatRequest({
-          from: {
-            id: latestRequest.from,
-            userId: latestRequest.from,
-            username: latestRequest.fromUsername,
-            avatar: latestRequest.fromAvatar,
-            isPremium: latestRequest.fromIsPremium,
-          },
-          to: {
-            ...(currentUser || {}),
-            id: currentUserId,
-            userId: currentUserId,
-          },
-          notificationId: latestRequest.id,
-          source: latestRequest.source || 'manual',
-          suggestedStarter: latestRequest.suggestedStarter || '',
-          systemPrompt: latestRequest.systemPrompt || '',
-          expiresAtMs: latestRequest.expiresAtMs || null,
+      if (!currentRequest) {
+        const nextPendingRequest = normalizedPendingItems.find((item) => {
+          const scope = getPrivateRequestSurfaceScope(item);
+          return !isPrivateUiKeyActive(getPrivateRequestMuteKey(scope))
+            && !isPrivateUiKeyActive(getPrivateRequestCooldownKey(scope))
+            && !isPrivateUiKeyActive(getPrivateNotificationSeenKey(item?.notificationId));
         });
-      } else if (pendingGroupRequests.length > 0 && !currentRequest) {
-        const latestRequest = pendingGroupRequests[0];
-        const participantProfiles = Array.isArray(latestRequest.participantProfiles)
-          ? latestRequest.participantProfiles
-          : [];
-        const inviteeProfile = participantProfiles.find((participant) => (
-          participant?.userId === latestRequest.requestedUserId
-        )) || {
-          userId: latestRequest.requestedUserId,
-          username: latestRequest.requestedUsername || 'Usuario',
-          avatar: '',
-        };
 
-        setPrivateChatRequest({
-          type: 'private_group_invite_request',
-          from: {
-            id: latestRequest.from,
-            userId: latestRequest.from,
-            username: latestRequest.fromUsername,
-            avatar: latestRequest.fromAvatar,
-            isPremium: latestRequest.fromIsPremium,
-          },
-          to: {
-            ...(currentUser || {}),
-            id: currentUserId,
-            userId: currentUserId,
-          },
-          requestedUser: inviteeProfile,
-          participantProfiles,
-          notificationId: latestRequest.id,
-          inviteId: latestRequest.inviteId,
-          sourceChatId: latestRequest.sourceChatId || null,
-          expiresAtMs: latestRequest.expiresAtMs || null,
-        });
+        if (nextPendingRequest) {
+          const scope = getPrivateRequestSurfaceScope(nextPendingRequest);
+          rememberPrivateUiKey(getPrivateRequestCooldownKey(scope), PRIVATE_UI_REQUEST_COOLDOWN_MS);
+          setPrivateChatRequest(nextPendingRequest);
+        }
       }
 
       // Rechazos de chat privado (importante para encadenar "conectar al azar")
@@ -5014,17 +5455,19 @@ const ChatPage = () => {
       );
 
       if (acceptedChats.length > 0) {
-        const latestAccepted = acceptedChats.find((n) => !currentOpenChats.some((chat) => chat.chatId === n.chatId))
-          || acceptedChats[0];
+        const latestAccepted = acceptedChats.find(
+          (n) => getPrivateChatWindowState(n.chatId, currentOpenChats) === 'closed'
+        ) || acceptedChats[0];
 
         const currentRandomSession = randomConnectSessionRef.current;
         if (currentRandomSession.active && currentRandomSession.pendingTargetId === latestAccepted.from) {
           stopRandomConnectRef.current?.();
         }
 
-        if (currentOpenChats.some((chat) => chat.chatId === latestAccepted.chatId)) {
+        const acceptedChatState = getPrivateChatWindowState(latestAccepted.chatId, currentOpenChats);
+        if (acceptedChatState === 'visible') {
           markNotificationAsRead(user.id, latestAccepted.id).catch(() => {});
-        } else {
+        } else if (acceptedChatState === 'closed' || acceptedChatState === 'minimized') {
           showPrivateConversationToast({
             notificationId: latestAccepted.id,
             chatId: latestAccepted.chatId,
@@ -5034,7 +5477,9 @@ const ChatPage = () => {
             fromIsPremium: latestAccepted.fromIsPremium,
             title: `${latestAccepted.fromUsername || 'Un usuario'} aceptó tu privado`,
             content: latestAccepted.content || 'La conversación privada ya está lista.',
-            hint: 'No se abrirá sola. Puedes entrar ahora o dejarla en Privados para después.',
+            hint: acceptedChatState === 'minimized'
+              ? 'Tu chat sigue minimizado. Puedes retomarlo ahora o dejarlo en Conecta.'
+              : 'No se abrirá sola. Puedes entrar ahora o dejarla en Conecta para después.',
           });
         }
       }
@@ -5044,16 +5489,18 @@ const ChatPage = () => {
       );
 
       if (reopenedChats.length > 0) {
-        const latestReopened = reopenedChats.find((n) => !currentOpenChats.some((chat) => chat.chatId === n.chatId))
-          || reopenedChats[0];
+        const latestReopened = reopenedChats.find(
+          (n) => getPrivateChatWindowState(n.chatId, currentOpenChats) === 'closed'
+        ) || reopenedChats[0];
 
         const participantProfiles = Array.isArray(latestReopened.participantProfiles)
           ? latestReopened.participantProfiles
           : [];
 
-        if (currentOpenChats.some((chat) => chat.chatId === latestReopened.chatId)) {
+        const reopenedChatState = getPrivateChatWindowState(latestReopened.chatId, currentOpenChats);
+        if (reopenedChatState === 'visible') {
           markNotificationAsRead(user.id, latestReopened.id).catch(() => {});
-        } else {
+        } else if (reopenedChatState === 'closed' || reopenedChatState === 'minimized') {
           showPrivateConversationToast({
             notificationId: latestReopened.id,
             chatId: latestReopened.chatId,
@@ -5063,7 +5510,9 @@ const ChatPage = () => {
             fromIsPremium: latestReopened.fromIsPremium,
             title: latestReopened.fromUsername || 'Nuevo privado',
             content: latestReopened.content || 'Hay una conversación privada nueva esperándote.',
-            hint: 'Quedó disponible en Privados. Se abre solo si haces clic.',
+            hint: reopenedChatState === 'minimized'
+              ? 'La conversación sigue minimizada. Solo vuelve al frente si tú quieres.'
+              : 'Quedó disponible en Conecta. Se abre solo si haces clic.',
           });
         }
       }
@@ -5075,17 +5524,20 @@ const ChatPage = () => {
       ));
 
       if (directMessages.length > 0) {
-        const openChatIds = new Set(
+        const openChatStateById = new Map(
           (currentOpenChats || [])
-            .map((chat) => chat?.chatId)
-            .filter(Boolean)
+            .filter((chat) => chat?.chatId)
+            .map((chat) => [chat.chatId, chat])
         );
 
         const unreadDirectByChat = {};
         directMessages.forEach((item) => {
           if (!item?.chatId) return;
 
-          if (openChatIds.has(item.chatId)) {
+          const currentChatState = openChatStateById.get(item.chatId);
+          const isChatVisible = Boolean(currentChatState && !currentChatState.isMinimized);
+
+          if (isChatVisible) {
             markNotificationAsRead(user.id, item.id).catch(() => {});
             return;
           }
@@ -5127,12 +5579,17 @@ const ChatPage = () => {
 
         const latestUnshownMessage = directMessages.find((item) => {
           if (!item?.id || !item?.chatId) return false;
-          if (openChatIds.has(item.chatId)) return false;
+          const currentChatState = openChatStateById.get(item.chatId);
+          if (currentChatState && !currentChatState.isMinimized) return false;
+          if (dismissedChatIdsRef.current?.has(item.chatId)) return false;
+          if (privateDirectMessageToastRef.current) return false;
+          if (isPrivateUiKeyActive(getPrivateNotificationSeenKey(item.id))) return false;
           return !handledDirectMessageNotificationIdsRef.current.has(item.id);
         });
 
         if (latestUnshownMessage) {
           handledDirectMessageNotificationIdsRef.current.add(latestUnshownMessage.id);
+          rememberPrivateUiKey(getPrivateNotificationSeenKey(latestUnshownMessage.id), PRIVATE_UI_NOTIFICATION_TTL_MS);
           setPrivateDirectMessageToast({
             notificationId: latestUnshownMessage.id,
             chatId: latestUnshownMessage.chatId,
@@ -5141,6 +5598,11 @@ const ChatPage = () => {
             fromAvatar: latestUnshownMessage.fromAvatar || '',
             fromIsPremium: latestUnshownMessage.fromIsPremium,
             content: latestUnshownMessage.content || '',
+            title: 'Nuevo mensaje privado',
+            hint: openChatStateById.get(latestUnshownMessage.chatId)?.isMinimized
+              ? 'Tu privado está minimizado. Puedes retomarlo ahora o dejarlo con badge.'
+              : 'Queda en Conecta con badge. Solo se abre si tú decides entrar.',
+            actionLabel: 'Abrir',
           });
         }
       } else {
@@ -5164,16 +5626,18 @@ const ChatPage = () => {
         n.type === 'private_group_chat_ready' && !n.read && !currentDismissed.has(n.chatId)
       ));
       if (readyGroupChats.length > 0) {
-        const latestReady = readyGroupChats.find((n) => !currentOpenChats.some((chat) => chat.chatId === n.chatId))
-          || readyGroupChats[0];
+        const latestReady = readyGroupChats.find(
+          (n) => getPrivateChatWindowState(n.chatId, currentOpenChats) === 'closed'
+        ) || readyGroupChats[0];
 
         if (currentRequest?.inviteId && currentRequest.inviteId === latestReady.inviteId) {
           setPrivateChatRequest(null);
         }
 
-        if (currentOpenChats.some((chat) => chat.chatId === latestReady.chatId)) {
+        const readyGroupChatState = getPrivateChatWindowState(latestReady.chatId, currentOpenChats);
+        if (readyGroupChatState === 'visible') {
           markNotificationAsRead(user.id, latestReady.id).catch(() => {});
-        } else {
+        } else if (readyGroupChatState === 'closed' || readyGroupChatState === 'minimized') {
           showPrivateConversationToast({
             notificationId: latestReady.id,
             chatId: latestReady.chatId,
@@ -5183,14 +5647,16 @@ const ChatPage = () => {
             fromIsPremium: latestReady.fromIsPremium,
             title: latestReady.title || 'Chat grupal privado listo',
             content: latestReady.content || 'El grupo privado quedó disponible para abrir.',
-            hint: 'No se abrirá automáticamente. Puedes entrar cuando quieras.',
+            hint: readyGroupChatState === 'minimized'
+              ? 'El grupo quedó minimizado. Puedes volver cuando quieras.'
+              : 'No se abrirá automáticamente. Puedes entrar cuando quieras.',
           });
         }
       }
     });
 
     return () => unsubscribe();
-  }, [user?.id, showPrivateConversationToast]); // refs manejan el estado mutable
+  }, [user?.id, isPageVisible, getPrivateChatWindowState, getPrivateRequestSurfaceScope, isPrivateUiKeyActive, rememberPrivateUiKey, showPrivateConversationToast]); // refs manejan el estado mutable
 
   useEffect(() => {
     if (!authReady || !user?.id || auth.currentUser?.uid !== user.id) {
@@ -5198,12 +5664,19 @@ const ChatPage = () => {
       return;
     }
 
+    if (!hasActivatedPrivateSurfaces) {
+      setPrivateInboxItems([]);
+      return;
+    }
+
+    if (!isPageVisible) return;
+
     const unsubscribe = subscribeToPrivateInbox(user.id, (items) => {
       setPrivateInboxItems(Array.isArray(items) ? items : []);
     });
 
     return () => unsubscribe();
-  }, [authReady, user?.id]);
+  }, [authReady, hasActivatedPrivateSurfaces, user?.id, isPageVisible]);
 
   useEffect(() => {
     if (!authReady || !user?.id || auth.currentUser?.uid !== user.id) {
@@ -5211,20 +5684,31 @@ const ChatPage = () => {
       return;
     }
 
+    if (!hasActivatedPrivateSurfaces) {
+      setPrivateMatchStateItems([]);
+      return;
+    }
+
+    if (!isPageVisible) return;
+
     const unsubscribe = subscribeToPrivateMatchState(user.id, (items) => {
       setPrivateMatchStateItems(Array.isArray(items) ? items : []);
     });
 
     return () => unsubscribe();
-  }, [authReady, user?.id]);
+  }, [authReady, hasActivatedPrivateSurfaces, user?.id, isPageVisible]);
 
   useEffect(() => {
     if (!user?.id) return;
-    const openChatIds = new Set((openPrivateChats || []).map((chat) => chat?.chatId).filter(Boolean));
-    if (openChatIds.size === 0) return;
+    const visibleOpenChatIds = new Set(
+      (openPrivateChats || [])
+        .filter((chat) => chat?.chatId && !chat?.isMinimized)
+        .map((chat) => chat.chatId)
+    );
+    if (visibleOpenChatIds.size === 0) return;
 
     const notificationIdsToRead = Object.values(unreadPrivateMessages || {})
-      .filter((entry) => entry?.chatId && openChatIds.has(entry.chatId))
+      .filter((entry) => entry?.chatId && visibleOpenChatIds.has(entry.chatId))
       .flatMap((entry) => entry?.notificationIds || []);
 
     if (notificationIdsToRead.length === 0) return;
@@ -5237,7 +5721,7 @@ const ChatPage = () => {
       const next = { ...(prev || {}) };
       let changed = false;
       Object.keys(next).forEach((chatId) => {
-        if (openChatIds.has(chatId)) {
+        if (visibleOpenChatIds.has(chatId)) {
           delete next[chatId];
           changed = true;
         }
@@ -5248,18 +5732,22 @@ const ChatPage = () => {
 
   useEffect(() => {
     if (!user?.id) return;
-    const openChatIds = (openPrivateChats || []).map((chat) => chat?.chatId).filter(Boolean);
-    if (openChatIds.length === 0) return;
+    const visibleOpenChatIds = (openPrivateChats || [])
+      .filter((chat) => chat?.chatId && !chat?.isMinimized)
+      .map((chat) => chat.chatId);
+    if (visibleOpenChatIds.length === 0) return;
 
-    openChatIds.forEach((chatId) => {
+    visibleOpenChatIds.forEach((chatId) => {
       markPrivateInboxConversationRead(user.id, chatId).catch(() => {});
     });
   }, [user?.id, openPrivateChats]);
 
   useEffect(() => {
     if (!privateDirectMessageToast?.chatId) return;
-    const isNowOpen = (openPrivateChats || []).some((chat) => chat?.chatId === privateDirectMessageToast.chatId);
-    if (isNowOpen) {
+    const isNowVisible = (openPrivateChats || []).some(
+      (chat) => chat?.chatId === privateDirectMessageToast.chatId && !chat?.isMinimized
+    );
+    if (isNowVisible) {
       setPrivateDirectMessageToast(null);
     }
   }, [openPrivateChats, privateDirectMessageToast]);
@@ -5792,6 +6280,21 @@ const ChatPage = () => {
       console.warn('[MOD-AI] Error verificando mute:', err.message);
     }
 
+    try {
+      const contactSafetyBan = await checkTempBan(currentUser.id);
+      if (contactSafetyBan.isBanned) {
+        toast({
+          title: "Bloqueado por seguridad",
+          description: contactSafetyBan.reason || "Tu cuenta tiene una restriccion temporal por seguridad.",
+          variant: "destructive",
+          duration: 6000,
+        });
+        return;
+      }
+    } catch (err) {
+      console.warn('[ANTI-SPAM] Error verificando sancion critica:', err.message);
+    }
+
     // 🔍 TRACE: Usuario escribió mensaje
     traceEvent(TRACE_EVENTS.USER_INPUT_TYPED, {
       content: content.substring(0, 50),
@@ -5820,6 +6323,18 @@ const ChatPage = () => {
           title: 'Evita repetir lo mismo',
           description: repeatDescription,
           duration: 3200,
+        });
+        return;
+      }
+
+      const criticalSafetyRisk = detectCriticalSafetyRisk(trimmedContent);
+      if (criticalSafetyRisk.blocked) {
+        const criticalReason = criticalSafetyRisk.reason || 'Contenido bloqueado por seguridad critica.';
+        toast({
+          title: "Mensaje bloqueado por seguridad",
+          description: criticalReason,
+          variant: "destructive",
+          duration: 8000,
         });
         return;
       }
@@ -6699,7 +7214,7 @@ const ChatPage = () => {
       };
 
       seen.add(candidateId);
-      nextItems.push({
+      const candidateWithExplanation = {
         ...mergedCandidate,
         isPrimary: primary,
         opportunityText: truncateOpportunityText(
@@ -6715,6 +7230,18 @@ const ChatPage = () => {
         opportunityMeta: mergedCandidate?.opinIntent
           ? `OPIN ${getOpinStatusMeta(mergedCandidate.opinIntent.status).shortLabel}`
           : mergedCandidate?.opportunityMeta,
+      };
+      const matchReasons = (Array.isArray(mergedCandidate?.matchReasons) && mergedCandidate.matchReasons.length > 0)
+        ? mergedCandidate.matchReasons
+        : buildPrivateMatchReasons({
+          candidate: candidateWithExplanation,
+          nowMs: activityNow,
+        });
+
+      nextItems.push({
+        ...candidateWithExplanation,
+        matchReasons,
+        matchHeadline: mergedCandidate?.matchHeadline || buildPrivateMatchHeadline(matchReasons),
       });
     };
 
@@ -6955,19 +7482,23 @@ const ChatPage = () => {
     user?.id,
   ]);
 
-  const handlePrivateChatRequest = async (targetUser) => {
+  const handlePrivateChatRequest = async (targetUser, options = {}) => {
+    activatePrivateSurfaces();
     if (targetUser.userId === 'demo-user-123') {
       openPrivateChatWindow({ user, partner: targetUser, roomId: currentRoom });
-      return;
+      return { ok: true, reason: 'demo' };
     }
 
     try {
       const opened = await openOrCreatePrivateChatWithTarget(targetUser);
-      if (!opened?.ok) return;
-      toast({
-        title: 'Chat privado abierto',
-        description: `Ya puedes conversar con ${targetUser.username || 'este usuario'}.`,
-      });
+      if (!opened?.ok) return opened;
+      if (!options?.silentSuccess) {
+        toast({
+          title: 'Chat privado abierto',
+          description: `Ya puedes conversar con ${targetUser.username || 'este usuario'}.`,
+        });
+      }
+      return opened;
     } catch (error) {
       console.error('Error opening private chat:', error);
       toast({
@@ -6977,11 +7508,13 @@ const ChatPage = () => {
           : 'Intenta de nuevo en un momento',
         variant: 'destructive',
       });
+      return { ok: false, reason: error?.message || 'unknown_error' };
     }
   };
 
   const handleStartAvailableConversation = useCallback(async (targetUser) => {
     if (!targetUser?.userId) return;
+    activatePrivateSurfaces();
 
     try {
       const validation = await validateUserAvailabilityInRoom(currentRoom || roomId, targetUser.userId);
@@ -7012,7 +7545,7 @@ const ChatPage = () => {
         variant: 'destructive',
       });
     }
-  }, [currentRoom, openOrCreatePrivateChatWithTarget, roomId]);
+  }, [activatePrivateSurfaces, currentRoom, openOrCreatePrivateChatWithTarget, roomId]);
 
   /**
    * Respuesta a solicitud de chat privado
@@ -7451,7 +7984,6 @@ const ChatPage = () => {
       : showHeteroRoomIntroBanner
         ? 'hetero_intro'
         : null;
-  const shouldShowSecondaryChatPromos = !activeTopBanner;
 
   return (
     <>
@@ -7471,6 +8003,7 @@ const ChatPage = () => {
           fallbackUsers={recentPresenceFallbackUsers}
           onUserClick={(targetUser) => setUserActionsTarget(targetUser)}
           onRequestNickname={() => openNicknameModal('chat_sidebar')}
+          onOpenPrivates={activatePrivateSurfaces}
         />
 
         {/* ✅ FIX: Contenedor del chat - Asegurar que esté visible en móvil cuando sidebar está cerrado */}
@@ -7488,23 +8021,23 @@ const ChatPage = () => {
             activityTickerItems={headerTickerItems}
           />
 
-          <section className="border-b border-border/50 bg-card/45 backdrop-blur-sm px-3 py-2.5">
+          <section className="border-b border-[var(--chat-divider)] bg-[var(--chat-header-surface)]/70 px-3 py-2 backdrop-blur-[14px]">
             <div className="flex gap-2 overflow-x-auto scrollbar-hide">
               {activityPulseBadges.map((badge) => {
                 const toneClass = badge.tone === 'cyan'
-                  ? 'border-cyan-500/20 bg-cyan-500/10 text-cyan-700 dark:text-cyan-200'
+                  ? 'border-[#1473E6]/12 bg-[#1473E6]/8 text-[#0F67D8] dark:text-[#B8D4FF]'
                   : badge.tone === 'emerald'
-                    ? 'border-emerald-500/20 bg-emerald-500/10 text-emerald-700 dark:text-emerald-200'
+                    ? 'border-emerald-500/14 bg-emerald-500/8 text-emerald-700 dark:text-emerald-200'
                     : badge.tone === 'amber'
-                      ? 'border-amber-500/20 bg-amber-500/10 text-amber-700 dark:text-amber-200'
+                      ? 'border-amber-500/14 bg-amber-500/8 text-amber-700 dark:text-amber-200'
                       : badge.tone === 'violet'
-                        ? 'border-violet-500/20 bg-violet-500/10 text-violet-700 dark:text-violet-200'
-                        : 'border-border/70 bg-background/60 text-muted-foreground';
+                        ? 'border-violet-500/14 bg-violet-500/8 text-violet-700 dark:text-violet-200'
+                        : 'border-[var(--chat-divider)] bg-[var(--chat-surface-feed)]/64 text-muted-foreground';
 
                 return (
                   <div
                     key={badge.id}
-                    className={`shrink-0 rounded-full border px-3 py-1.5 text-[11px] font-semibold tracking-[0.01em] whitespace-nowrap shadow-sm ${toneClass}`}
+                    className={`shrink-0 whitespace-nowrap rounded-full border px-3 py-1.5 text-[11px] font-semibold tracking-[0.01em] ${toneClass}`}
                   >
                     {badge.label}
                   </div>
@@ -7535,7 +8068,7 @@ const ChatPage = () => {
                     <MessageCircle className="h-3.5 w-3.5" />
                     <span>{inPrivateUsersCount}</span>
                     <span className="hidden sm:inline">
-                      {isInPrivateUsersStripPinned ? 'Ocultar privados' : 'Privados activos'}
+                      {isInPrivateUsersStripPinned ? 'Ocultar conecta' : 'Conecta activo'}
                     </span>
                   </button>
                 </div>
@@ -7638,7 +8171,7 @@ const ChatPage = () => {
             </div>
           )}
 
-          {activeTopBanner === 'cercania' && (currentRoom === 'principal' || currentRoom === 'hetero-general') && (
+          {activeTopBanner === 'cercania' && currentRoom === 'hetero-general' && (
             <section className="border-b border-border/50 bg-secondary/10 px-4 py-2.5">
               <div className="flex items-start justify-between gap-3">
                 <div className="min-w-0">
@@ -7705,30 +8238,20 @@ const ChatPage = () => {
           )}
 
           <div className="flex-1 overflow-hidden flex flex-col min-h-0">
-            {/* 🎯 OPIN Discovery Banner - Solo para invitados */}
-            {shouldShowSecondaryChatPromos && !isHeteroRoom && user && (user.isGuest || user.isAnonymous) && (
-              <div className="hidden md:block px-4 pt-4">
-                <OpinDiscoveryBanner onOpenOpin={handleOpenOpin} />
-              </div>
-            )}
-
-            {/* 🚀 BANNER PROMOCIONAL Baúl + OPIN - Solo para usuarios registrados */}
-            {shouldShowSecondaryChatPromos && !isHeteroRoom && user && !user.isGuest && !user.isAnonymous && (
-              <div className="hidden md:block">
-                <TarjetaPromoBanner
-                  onOpenBaul={handleOpenBaul}
-                  onOpenOpin={handleOpenOpin}
-                />
-              </div>
-            )}
-
             {currentRoom === 'principal' && !isHeteroRoom && (
-              <QuickIntentPanel
+              <ChatPrimaryResolutionPanel
                 roomId={currentRoom || roomId}
                 roomUsers={roomUsers}
                 user={user}
-                onRequestNickname={() => openNicknameModal('quick_intent_panel')}
-                onStartConversation={handleStartAvailableConversation}
+                currentUserComuna={currentUserComuna}
+                nearbySignals={nearbySignals}
+                opportunityItems={contextualOpportunityItems}
+                onBeforeOpenOpportunity={beginContextualOpportunityOpen}
+                onOpenOpportunity={handleOpenCompatibleNowCandidate}
+                onRequestNickname={() => openNicknameModal('chat_primary_resolution_panel')}
+                onRequestComuna={() => setShowProfileComunaPrompt(true)}
+                onPrefillMessage={handleSuggestedReply}
+                isOpeningOpportunity={isSendingPrivateMatchRequest || isOpeningContextualOpportunity}
               />
             )}
 
@@ -7781,22 +8304,6 @@ const ChatPage = () => {
             count={unreadRepliesCount}
           />
 
-          {!isHeteroRoom && contextualOpportunityItems.length > 0 && (
-            <div className="px-3 pb-2 pt-1 md:hidden">
-              <ContextualOpportunitiesPanel
-                items={contextualOpportunityItems}
-                variant="mobile"
-                title={contextualSuggestionMeta.title}
-                subtitle={contextualSuggestionMeta.subtitle}
-                badgeLabel={contextualSuggestionMeta.badgeLabel}
-                onBeforeOpenMatch={beginContextualOpportunityOpen}
-                onOpenMatch={handleOpenCompatibleNowCandidate}
-                onDismiss={handleDismissPrivateMatchSuggestion}
-                isSending={isSendingPrivateMatchRequest || isOpeningContextualOpportunity}
-              />
-            </div>
-          )}
-
           <ChatInput
             onSendMessage={handleSendMessage}
             onFocus={() => {
@@ -7816,6 +8323,9 @@ const ChatPage = () => {
             showOnboardingHints={!needsNickname && !isHeteroRoom}
             isHeteroContext={isHeteroRoom}
             photoUsageStats={photoUsageStats}
+            currentUserComuna={currentUserComuna}
+            preventiveOpportunity={!isHeteroRoom ? (contextualOpportunityItems[0] || null) : null}
+            onOpenPreventiveOpportunity={handleOpenCompatibleNowCandidate}
           />
         </div>
 
@@ -7924,7 +8434,7 @@ const ChatPage = () => {
                 request={privateChatRequest}
                 onAccept={() => handlePrivateChatResponse(true, privateChatRequest.notificationId, privateChatRequest)}
                 onDecline={() => handlePrivateChatResponse(false, privateChatRequest.notificationId, privateChatRequest)}
-                onClose={() => setPrivateChatRequest(null)}
+                onClose={(meta) => closePrivateRequestSurface(privateChatRequest, meta)}
               />
             );
           }
@@ -7936,7 +8446,7 @@ const ChatPage = () => {
                 request={privateChatRequest}
                 currentUser={user}
                 onResponse={handlePrivateChatResponse}
-                onClose={() => setPrivateChatRequest(null)}
+                onClose={() => closePrivateRequestSurface(privateChatRequest, { reason: 'dismiss' })}
               />
             );
           }
@@ -7960,7 +8470,7 @@ const ChatPage = () => {
                 roomId: currentRoomRef.current || null,
               });
             }}
-            onClose={() => setPrivateDirectMessageToast(null)}
+            onClose={closePrivateDirectToast}
           />
         ) : null}
 
@@ -8167,8 +8677,13 @@ const ChatPage = () => {
         pendingPrivateRequests={pendingPrivateRequests}
         unreadPrivateMessages={unreadPrivateMessages}
         privateInboxItems={privateInboxItems}
+        privateSuggestedUsers={mergedPrivateSuggestionCandidates}
+        currentUserResolvedRole={currentUserResolvedRole}
+        currentUserComuna={currentUserComuna}
+        onStartPrivateChat={handlePrivateChatRequest}
         onAcceptPrivateRequest={(request) => handlePrivateChatResponse(true, request?.notificationId, request)}
         onDeclinePrivateRequest={(request) => handlePrivateChatResponse(false, request?.notificationId, request)}
+        onOpenPrivates={activatePrivateSurfaces}
       />
     </>
   );

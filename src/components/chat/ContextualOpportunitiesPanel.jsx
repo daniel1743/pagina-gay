@@ -90,6 +90,8 @@ const ContextualOpportunitiesPanel = ({
               const roleLabel = item?.roleBadge || item?.roleLabel || null;
               const opportunityText = item?.opportunityText || item?.intentSummary || 'Disponible ahora';
               const activityText = item?.activityText || 'Activo hace poco';
+              const matchHeadline = item?.matchHeadline || null;
+              const matchReasons = Array.isArray(item?.matchReasons) ? item.matchReasons.slice(0, 3) : [];
 
               return (
                 <div
@@ -127,6 +129,12 @@ const ContextualOpportunitiesPanel = ({
                           {opportunityText}
                         </p>
 
+                        {matchHeadline ? (
+                          <p className="mt-1 text-[10px] font-medium text-emerald-200/90">
+                            {matchHeadline}
+                          </p>
+                        ) : null}
+
                         <div className="mt-1 flex flex-wrap items-center gap-1.5 text-[10px] text-slate-400">
                           <span>{activityText}</span>
                           {item?.opportunityMeta ? (
@@ -134,6 +142,14 @@ const ContextualOpportunitiesPanel = ({
                               {item.opportunityMeta}
                             </span>
                           ) : null}
+                          {matchReasons.map((reason) => (
+                            <span
+                              key={`${itemKey}:${reason}`}
+                              className="rounded-full border border-emerald-400/14 bg-emerald-500/[0.08] px-1.5 py-0.5 text-[10px] text-emerald-100"
+                            >
+                              {reason}
+                            </span>
+                          ))}
                         </div>
                       </div>
                     </button>

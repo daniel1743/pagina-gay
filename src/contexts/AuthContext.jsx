@@ -51,6 +51,36 @@ const withTimeout = (promise, timeoutMs = 3000) => {
   ]);
 };
 
+const maskDebugEmail = (email = '') => {
+  const normalized = String(email || '').trim().toLowerCase();
+  if (!normalized || !normalized.includes('@')) return normalized || '(empty)';
+  const [localPart, domain] = normalized.split('@');
+  const safeLocal = localPart.length <= 2
+    ? `${localPart[0] || '*'}*`
+    : `${localPart.slice(0, 2)}***`;
+  return `${safeLocal}@${domain}`;
+};
+
+const pushAuthDebugLog = (phase, payload = {}) => {
+  const entry = {
+    phase,
+    at: new Date().toISOString(),
+    ...payload,
+  };
+
+  console.log('[AUTH_DEBUG]', entry);
+
+  if (typeof window !== 'undefined') {
+    const previousLogs = Array.isArray(window.__chactivoAuthDebug)
+      ? window.__chactivoAuthDebug
+      : [];
+    window.__chactivoAuthDebug = [...previousLogs.slice(-39), entry];
+    window.__lastAuthDebug = entry;
+  }
+
+  return entry;
+};
+
 const diagnoseFirebaseAuthConnectivity = async () => {
   const apiKey = import.meta.env.VITE_FIREBASE_API_KEY;
   if (!apiKey) return { kind: 'missing_api_key' };
@@ -63,6 +93,9 @@ const diagnoseFirebaseAuthConnectivity = async () => {
   });
 
   try {
+    pushAuthDebugLog('firebase_auth_diagnostic:start', {
+      endpoint: 'identitytoolkit.googleapis.com',
+    });
     const controller = new AbortController();
     const timeout = setTimeout(() => controller.abort(), 5000);
     const response = await fetch(endpoint, {
@@ -84,19 +117,32 @@ const diagnoseFirebaseAuthConnectivity = async () => {
         responseText.includes('INVALID_EMAIL')
       )
     ) {
+      pushAuthDebugLog('firebase_auth_diagnostic:reachable', {
+        status: response.status,
+      });
       return { kind: 'reachable' };
     }
 
     if (response.status === 403 && responseText.includes('API_KEY')) {
+      pushAuthDebugLog('firebase_auth_diagnostic:api_key_restricted', {
+        status: response.status,
+      });
       return { kind: 'api_key_restricted' };
     }
 
+    pushAuthDebugLog('firebase_auth_diagnostic:http_error', {
+      status: response.status,
+      snippet: responseText.slice(0, 120),
+    });
     return {
       kind: 'http_error',
       status: response.status,
       snippet: responseText.slice(0, 180),
     };
   } catch (err) {
+    pushAuthDebugLog('firebase_auth_diagnostic:network_error', {
+      message: err?.message || String(err),
+    });
     return { kind: 'network_error', message: err?.message || String(err) };
   }
 };

@@ -8,6 +8,7 @@ import {
   setDoc,
 } from 'firebase/firestore';
 import { checkDuplicateSpamBeforeSend } from '@/services/moderationAIService';
+import { createModerationIncidentAlert } from '@/services/moderationService';
 
 /**
  * Anti-Extraction + Anti-External-Contact moderation
@@ -24,8 +25,8 @@ const GENERIC_EXTERNAL_BLOCK_MESSAGE =
   'Por seguridad, no se permite compartir contactos ni invitar a plataformas externas.';
 
 const MODERATION_CONFIG = {
-  recentWindowSize: 5,
-  fragmentationWindowSize: 3,
+  recentWindowSize: 8,
+  fragmentationWindowSize: 6,
   contextMaxAgeMs: 5 * 60 * 1000,
   cacheTtlMs: 30 * 1000,
   strictBlockThreshold: 6,
@@ -44,6 +45,10 @@ const MODERATION_CONFIG = {
     emailPattern: 5,
     fragmentedContact: 5,
     invitationFollowedByDigits: 4,
+    contactFragmentBurst: 4,
+    minorAgeContext: 8,
+    suspiciousReattempt: 3,
+    minorContactCombination: 16,
   },
   sanctions: {
     muteMinutes: 60,
@@ -53,14 +58,71 @@ const MODERATION_CONFIG = {
   },
 };
 
+const CRITICAL_SAFETY_CONFIG = {
+  minorSuspendHours: 72,
+  drugsSuspendHours: 24,
+  abuseSuspendHours: 24,
+};
+
+const CRITICAL_SAFETY_PATTERNS = {
+  minorDirect: [
+    /\bsoy\s+menor(?:es)?\b/i,
+    /\bmenor\s+de\s+edad\b/i,
+    /\bbusco\s+menores\b/i,
+    /\bde\s+menores\b/i,
+    /\bvideos?\s+de\s+menores\b/i,
+    /\bcp\b/i,
+    /\bcsam\b/i,
+    /\b31\s+al\s+rev(?:e|é)s\b/i,
+    /\b31\s+alrevez\b/i,
+    /\bcasi\s+18\b/i,
+    /\b18\s+casi\b/i,
+    /\b-8\s*a(?:n|ñ)os?\b/i,
+  ],
+  minorSolicitation: [
+    /\bme\s+gustan?\s+los\s+de\s+1[0-7]\b/i,
+    /\bbusco\s+(?:a\s+)?(?:uno|unos|chico|chicos|menor|menores)\b/i,
+    /\bquiero\s+videos?\s+de\s+menores\b/i,
+  ],
+  drugDirect: [
+    /\bdroga(?:s)?\b/i,
+    /\bfalopa\b/i,
+    /\bfalopita\b/i,
+    /\btusi\b/i,
+    /\bcoca[ií]na\b/i,
+    /\bperico\b/i,
+    /\bketamina\b/i,
+    /\bketa\b/i,
+    /\bpoppers?\b/i,
+    /\bsaque(?:sito)?\b/i,
+    /\bmdma\b/i,
+    /\bmolly\b/i,
+    /\bpasta\s+base\b/i,
+    /\bcristal\b/i,
+  ],
+  abuseDirect: [
+    /\bte\s+obligo\b/i,
+    /\bobligarte\b/i,
+    /\bforzarte\b/i,
+    /\bforzar\b/i,
+    /\bdrogarte\b/i,
+    /\bte\s+drogo\b/i,
+    /\bextors/i,
+  ],
+};
+
 const PLATFORM_TERMS = [
   'telegram', 'tg', 't.me',
+  'teleg', 'telegrm', 'telegrama', 'tlg',
   'skype',
-  'whatsapp', 'wasap', 'wasapp', 'wsp', 'wpp', 'wa.me',
+  'whatsapp', 'whats', 'wasap', 'wasapp', 'wassap', 'wasa', 'guasap', 'wsp', 'wspp', 'wpp', 'wa.me',
   'facebook', 'fb',
   'instagram', 'ig', 'insta',
   'discord', 'dc', 'discord.gg',
   'snap', 'snapchat', 'tgram',
+  'signal', 'teams',
+  'line', 'kik', 'messenger',
+  'sms', 'imessage',
 ];
 
 const INVITATION_PHRASES = [
@@ -80,6 +142,25 @@ const INVITATION_PHRASES = [
   'chat latino',
   'contactame',
   'te dejo mi',
+  'te paso mi whatsapp',
+  'te paso mi telegram',
+  'te mando mi numero',
+  'te doy mi numero',
+  'hablemos por whatsapp',
+  'hablemos por telegram',
+  'hablemos por discord',
+  'hablemos por signal',
+  'hablemos por sms',
+  'hablemos por mensaje de texto',
+  'hablemos por mensajes de texto',
+  'hablemos por otra app',
+  'hablemos por otra aplicacion',
+  'te saco de aqui',
+  'salgamos de chactivo',
+  'sal de chactivo',
+  'por fuera de chactivo',
+  'afuera de chactivo',
+  'fuera de chactivo',
 ];
 
 const PRIVATE_REDIRECT_PHRASES = [
@@ -112,6 +193,72 @@ const RIVAL_CHAT_TERMS = [
   'sala alterna',
   'grupo privado',
   'canal privado',
+  'otra app',
+  'otra aplicacion',
+  'otra aplicación',
+  'fuera de la app',
+  'afuera de la app',
+  'por fuera de la app',
+  'salgamos de la app',
+  'salgamos de chactivo',
+  'fuera de chactivo',
+  'afuera de chactivo',
+  'por fuera de chactivo',
+  'mensajes de texto',
+  'mensaje de texto',
+];
+
+const CONTACT_FRAGMENT_TERMS = [
+  'escr',
+  'escrib',
+  'escribeme',
+  'habla',
+  'hablame',
+  'busca',
+  'buscame',
+  'agrega',
+  'agregame',
+  'contacta',
+  'contactame',
+  'numero',
+  'num',
+  'wsp',
+  'wasap',
+  'whatsapp',
+  'telegram',
+  'tg',
+  'insta',
+  'instagram',
+  'ig',
+  'discord',
+  'signal',
+  'sms',
+  'otraapp',
+  'otraaplicacion',
+];
+
+const WEAK_CONTACT_FRAGMENT_TERMS = [
+  'tele',
+  'afuera',
+  'fuera',
+];
+
+const BENIGN_NUMERIC_CONTEXT_REGEX =
+  /\b(?:cm|kg|kilos?|metros?|m|hrs?|horas?|hora|min|mins|minutos?|años?|anos?|edad|x|por\s+ciento|%|capitulo|episodio)\b/i;
+
+const MINOR_CONTEXT_TERMS = [
+  'tengo',
+  'soy',
+  'edad',
+  'cumplo',
+  'cumpli',
+  'menor',
+  'menordeedad',
+  'colegio',
+  'liceo',
+  'secundaria',
+  'media',
+  'prepa',
 ];
 
 const DOMAIN_HINT_REGEX =
@@ -125,13 +272,27 @@ const EVASIVE_PATTERNS = [
   { regex: /t[\s._\-]*g\b/i, label: 'tg' },
   { regex: /t[\s._\-]*\.?[\s._\-]*m[\s._\-]*\.?[\s._\-]*e/i, label: 't.me' },
   { regex: /w[\s._\-]*(s|\$)[\s._\-]*p/i, label: 'wsp' },
+  { regex: /w[\s._\-]*s[\s._\-]*a[\s._\-]*p{1,2}\b/i, label: 'wasap' },
+  { regex: /w[\s._\-]*h[\s._\-]*a[\s._\-]*p[\s._\-]*s[\s._\-]*s[\s._\-]*a[\s._\-]*p[\s._\-]*t?\b/i, label: 'whatsapp' },
+  { regex: /g[\s._\-]*u[\s._\-]*a[\s._\-]*s[\s._\-]*a[\s._\-]*p\b/i, label: 'whatsapp' },
   { regex: /i[\s._\-]*g\b/i, label: 'ig' },
   { regex: /f[\s._\-]*b\b/i, label: 'fb' },
   { regex: /d[\s._\-]*c\b/i, label: 'dc' },
-  { regex: /tele[\s._\-]*gram/i, label: 'telegram' },
+  { regex: /t[\s._\-]*l[\s._\-]*g\b/i, label: 'telegram' },
+  { regex: /tele[\s._\-]*g[\s._\-]*r?[\s._\-]*a[\s._\-]*m\b/i, label: 'telegram' },
+  { regex: /t[\s._\-]*e[\s._\-]*l[\s._\-]*e[\s._\-]*g[\s._\-]*r?[\s._\-]*a[\s._\-]*m\b/i, label: 'telegram' },
   { regex: /insta[\s._\-]*gram/i, label: 'instagram' },
   { regex: /face[\s._\-]*book/i, label: 'facebook' },
   { regex: /what[\s._\-]*s?app/i, label: 'whatsapp' },
+  { regex: /s[\s._\-]*i[\s._\-]*g[\s._\-]*n[\s._\-]*a[\s._\-]*l\b/i, label: 'signal' },
+  { regex: /t[\s._\-]*e[\s._\-]*a[\s._\-]*m[\s._\-]*s\b/i, label: 'teams' },
+  { regex: /m[\s._\-]*e[\s._\-]*s[\s._\-]*s[\s._\-]*e[\s._\-]*n[\s._\-]*g[\s._\-]*e[\s._\-]*r\b/i, label: 'messenger' },
+  { regex: /m[\s._\-]*e[\s._\-]*n[\s._\-]*s[\s._\-]*a[\s._\-]*j[\s._\-]*e[\s._\-]*s?\s+de\s+texto/i, label: 'mensaje de texto' },
+  { regex: /s[\s._\-]*m[\s._\-]*s\b/i, label: 'sms' },
+  { regex: /i[\s._\-]*m[\s._\-]*e[\s._\-]*s[\s._\-]*s[\s._\-]*a[\s._\-]*g[\s._\-]*e\b/i, label: 'imessage' },
+  { regex: /o[\s._\-]*t[\s._\-]*r[\s._\-]*a\s+a[\s._\-]*p[\s._\-]*p\b/i, label: 'otra app' },
+  { regex: /o[\s._\-]*t[\s._\-]*r[\s._\-]*a\s+a[\s._\-]*p[\s._\-]*l[\s._\-]*i[\s._\-]*c[\s._\-]*a[\s._\-]*c(?:i|í)[\s._\-]*o[\s._\-]*n\b/i, label: 'otra aplicacion' },
+  { regex: /f[\s._\-]*u[\s._\-]*e[\s._\-]*r[\s._\-]*a\s+de\s+chactivo/i, label: 'fuera de chactivo' },
 ];
 
 const tempBanCache = new Map(); // compatibility API
@@ -210,25 +371,224 @@ const pushContextEntry = (roomId, userId, entry) => {
 };
 
 const isMostlyNumericMessage = (normalized) => {
+  if (isLikelyBenignNumericContext(normalized)) {
+    return false;
+  }
   const digits = normalized.digitsOnly.length;
   const letters = normalized.alphaOnly.length;
   return digits >= 3 && digits >= letters;
+};
+
+const isLikelyBenignNumericContext = (normalized) => {
+  const collapsed = String(normalized?.collapsed || '');
+  if (!collapsed) return false;
+
+  return (
+    BENIGN_NUMERIC_CONTEXT_REGEX.test(collapsed) ||
+    /^\d{1,2}:\d{2}$/.test(collapsed) ||
+    /^\d{1,2}\/\d{1,2}$/.test(collapsed) ||
+    /^\d{1,2}\s*(?:am|pm)$/.test(collapsed)
+  );
+};
+
+const hasFragmentToken = (normalized, fragments = []) => {
+  const collapsed = normalized.collapsed || '';
+  const compact = normalized.compact || '';
+
+  return fragments.some((term) => {
+    const normalizedTerm = applyLeetMap(stripAccents(String(term || '').toLowerCase())).replace(/[^a-z0-9]/g, '');
+    if (!normalizedTerm) return false;
+    if (normalizedTerm.length <= 3) {
+      return collapsed.split(/\s+/).includes(normalizedTerm) || compact === normalizedTerm;
+    }
+    return compact.includes(normalizedTerm);
+  });
+};
+
+const hasMinorCue = (normalized) => hasFragmentToken(normalized, MINOR_CONTEXT_TERMS);
+
+const hasPlatformHint = (normalized) =>
+  PLATFORM_TERMS.some((term) => hasTokenTerm(normalized.collapsed, term) || hasCompactTerm(normalized.compact, term)) ||
+  EVASIVE_PATTERNS.some((pattern) => pattern.regex.test(normalized.raw) || pattern.regex.test(normalized.collapsed));
+
+const hasExitHint = (normalized) =>
+  RIVAL_CHAT_TERMS.some((term) => hasTokenTerm(normalized.collapsed, term) || hasCompactTerm(normalized.compact, term));
+
+const hasStrongContactHint = (normalized) =>
+  hasFragmentToken(normalized, CONTACT_FRAGMENT_TERMS) ||
+  INVITATION_PHRASES.some((phrase) => hasTokenTerm(normalized.collapsed, phrase) || hasCompactTerm(normalized.compact, phrase));
+
+const hasWeakContactHint = (normalized) => hasFragmentToken(normalized, WEAK_CONTACT_FRAGMENT_TERMS);
+
+const hasContactHint = (normalized, signals = {}) =>
+  hasStrongContactHint(normalized) ||
+  (hasWeakContactHint(normalized) && (signals.hasInvitation || signals.hasPlatform || signals.hasExitHint));
+
+const buildContextEntry = (normalized, timestamp = Date.now()) => {
+  const hasInvitation = INVITATION_PHRASES.some((phrase) => hasTokenTerm(normalized.collapsed, phrase) || hasCompactTerm(normalized.compact, phrase));
+  const hasPlatform = hasPlatformHint(normalized);
+  const exitHint = hasExitHint(normalized);
+  const benignNumericContext = isLikelyBenignNumericContext(normalized);
+
+  return {
+    timestamp,
+    raw: normalized.raw,
+    compact: normalized.compact,
+    collapsed: normalized.collapsed,
+    digitsOnly: normalized.digitsOnly,
+    alphaOnly: normalized.alphaOnly,
+    mostlyNumeric: isMostlyNumericMessage(normalized),
+    isShort: normalized.collapsed.replace(/\s+/g, '').length <= 8,
+    hasInvitation,
+    hasPlatform,
+    hasContactHint: hasContactHint(normalized, {
+      hasInvitation,
+      hasPlatform,
+      hasExitHint: exitHint,
+    }),
+    hasMinorCue: hasMinorCue(normalized),
+    hasExitHint: exitHint,
+    hasBenignNumericContext: benignNumericContext,
+    hasRiskSignal: false,
+  };
+};
+
+const finalizeContextEntry = (entry = {}) => ({
+  ...entry,
+  hasRiskSignal: Boolean(
+    entry.hasInvitation ||
+    entry.hasPlatform ||
+    entry.hasContactHint ||
+    entry.hasExitHint ||
+    entry.hasMinorCue ||
+    (!entry.hasBenignNumericContext && (entry.digitsOnly || '').length >= 5)
+  ),
+});
+
+const extractMinorAgeCandidate = (recentWindow = []) => {
+  const numericParts = recentWindow
+    .map((entry) => String(entry?.digitsOnly || '').trim())
+    .filter(Boolean)
+    .slice(-4);
+
+  const candidates = new Set();
+  numericParts.forEach((part) => {
+    if (/^\d{2}$/.test(part)) candidates.add(part);
+  });
+
+  for (let index = 0; index < numericParts.length - 1; index += 1) {
+    const first = numericParts[index];
+    const second = numericParts[index + 1];
+    if (/^\d$/.test(first) && /^\d$/.test(second)) {
+      candidates.add(`${first}${second}`);
+    }
+  }
+
+  for (const candidate of candidates) {
+    const age = Number(candidate);
+    if (age >= 10 && age <= 17) {
+      return age;
+    }
+  }
+
+  return null;
+};
+
+const detectContextualCriticalSafetyRisk = (message, recentEntries = []) => {
+  const currentNormalized = normalizeModerationText(message);
+  const recentWindow = [...recentEntries, finalizeContextEntry(buildContextEntry(currentNormalized))].slice(-MODERATION_CONFIG.fragmentationWindowSize);
+  const mergedCompact = recentWindow.map((entry) => entry.compact || '').join('');
+  const mergedCollapsed = recentWindow.map((entry) => entry.collapsed || '').join(' ');
+  const mergedDigits = recentWindow
+    .filter((entry) => !entry.hasBenignNumericContext)
+    .map((entry) => entry.digitsOnly || '')
+    .join('');
+  const ageCandidate = extractMinorAgeCandidate(recentWindow);
+  const hasMinorCueInWindow = recentWindow.some((entry) => entry.hasMinorCue);
+  const hasContactOrExitIntent = recentWindow.some(
+    (entry) => entry.hasContactHint || entry.hasPlatform || entry.hasExitHint || entry.hasInvitation
+  ) || mergedDigits.length >= 7;
+
+  if (hasMinorCueInWindow && ageCandidate && hasContactOrExitIntent) {
+    return {
+      blocked: true,
+      type: 'minor_risk',
+      reason: `Combinacion critica detectada: menor de edad + contacto o salida (${ageCandidate})`,
+      severity: 'critical',
+      normalized: currentNormalized,
+      riskScore: MODERATION_CONFIG.weights.minorContactCombination,
+      matchedRules: [
+        {
+          id: 'minor_contact_combination',
+          weight: MODERATION_CONFIG.weights.minorContactCombination,
+          evidence: mergedCollapsed.slice(0, 180),
+          category: 'minor_risk',
+        },
+      ],
+    };
+  }
+
+  if (hasMinorCueInWindow && ageCandidate) {
+    return {
+      blocked: true,
+      type: 'minor_risk',
+      reason: `Edad menor reconstruida por contexto reciente (${ageCandidate})`,
+      severity: 'critical',
+      normalized: currentNormalized,
+      riskScore: MODERATION_CONFIG.weights.minorAgeContext,
+      matchedRules: [
+        {
+          id: 'contextual_minor_age',
+          weight: MODERATION_CONFIG.weights.minorAgeContext,
+          evidence: mergedCollapsed.slice(0, 180),
+          category: 'minor_risk',
+        },
+      ],
+    };
+  }
+
+  if (
+    mergedCompact.includes('soymenor') ||
+    mergedCompact.includes('menordeedad') ||
+    mergedCompact.includes('casi18') ||
+    mergedCompact.includes('18casi')
+  ) {
+    return {
+      blocked: true,
+      type: 'minor_risk',
+      reason: hasContactOrExitIntent
+        ? 'Combinacion critica detectada: frase de menor de edad + contacto o salida'
+        : 'Referencia fragmentada a menor de edad detectada por contexto reciente',
+      severity: 'critical',
+      normalized: currentNormalized,
+      riskScore: hasContactOrExitIntent
+        ? MODERATION_CONFIG.weights.minorContactCombination
+        : MODERATION_CONFIG.weights.minorAgeContext,
+      matchedRules: [
+        {
+          id: hasContactOrExitIntent ? 'minor_contact_combination' : 'fragmented_minor_phrase',
+          weight: hasContactOrExitIntent
+            ? MODERATION_CONFIG.weights.minorContactCombination
+            : MODERATION_CONFIG.weights.minorAgeContext,
+          evidence: mergedCollapsed.slice(0, 180),
+          category: 'minor_risk',
+        },
+      ],
+    };
+  }
+
+  return { blocked: false };
 };
 
 const evaluateContextualRisk = (currentNormalized, recentEntries = []) => {
   const matchedRules = [];
   let score = 0;
 
-  const recentWindow = [...recentEntries, {
-    compact: currentNormalized.compact,
-    collapsed: currentNormalized.collapsed,
-    digitsOnly: currentNormalized.digitsOnly,
-    mostlyNumeric: isMostlyNumericMessage(currentNormalized),
-    hasInvitation: false,
-    hasPlatform: false,
-  }].slice(-MODERATION_CONFIG.fragmentationWindowSize);
+  const recentWindow = [...recentEntries, finalizeContextEntry(buildContextEntry(currentNormalized))].slice(-MODERATION_CONFIG.fragmentationWindowSize);
 
-  const numericLike = recentWindow.filter((entry) => entry.mostlyNumeric || entry.digitsOnly.length >= 3);
+  const numericLike = recentWindow.filter(
+    (entry) => !entry.hasBenignNumericContext && (entry.mostlyNumeric || entry.digitsOnly.length >= 3)
+  );
   const joinedDigits = recentWindow.map((entry) => entry.digitsOnly || '').join('');
 
   if (numericLike.length >= 2 && joinedDigits.length >= 7) {
@@ -270,6 +630,8 @@ const evaluateContextualRisk = (currentNormalized, recentEntries = []) => {
   const mergedCompact = recentWindow.map((entry) => entry.compact || '').join('');
   const mergedDigits = recentWindow.map((entry) => entry.digitsOnly || '').join('');
   const mergedCollapsed = recentWindow.map((entry) => entry.collapsed || '').join(' ');
+  const contactHintCount = recentWindow.filter((entry) => entry.hasContactHint).length;
+  const suspiciousAttemptCount = recentWindow.filter((entry) => entry.hasRiskSignal).length;
   const hadInvitationAndPlatform = recentWindow.some((entry) => entry.hasInvitation) &&
     recentWindow.some((entry) => entry.hasPlatform);
 
@@ -315,6 +677,26 @@ const evaluateContextualRisk = (currentNormalized, recentEntries = []) => {
     });
   }
 
+  if (contactHintCount >= 2 && (mergedDigits.length >= 7 || fragmentedPlatform)) {
+    score += MODERATION_CONFIG.weights.contactFragmentBurst;
+    matchedRules.push({
+      id: 'contact_fragment_burst',
+      weight: MODERATION_CONFIG.weights.contactFragmentBurst,
+      evidence: 'multiples fragmentos de contacto en ventana reciente',
+      category: 'platform',
+    });
+  }
+
+  if (suspiciousAttemptCount >= 3 && (contactHintCount >= 1 || mergedDigits.length >= 5 || fragmentedPlatform)) {
+    score += MODERATION_CONFIG.weights.suspiciousReattempt;
+    matchedRules.push({
+      id: 'suspicious_reattempt',
+      weight: MODERATION_CONFIG.weights.suspiciousReattempt,
+      evidence: `${suspiciousAttemptCount} intentos sospechosos en ventana reciente`,
+      category: 'invitation',
+    });
+  }
+
   return { score, matchedRules };
 };
 
@@ -346,7 +728,7 @@ export function evaluateExternalContactRisk(message, recentEntries = []) {
     const digits = normalized.digitsOnly.length;
     const visibleChars = normalized.raw.replace(/\s+/g, '').length || 1;
     const density = digits / visibleChars;
-    if (digits >= 5 && density >= 0.35) {
+    if (!isLikelyBenignNumericContext(normalized) && digits >= 5 && density >= 0.35) {
       mark('suspicious_numeric_fragment', MODERATION_CONFIG.weights.suspiciousNumericFragment, 'densidad numerica sospechosa', 'phone');
     }
   }
@@ -440,6 +822,114 @@ export function evaluateExternalContactRisk(message, recentEntries = []) {
   };
 }
 
+const detectMinorAgeSignal = (normalized) => {
+  const collapsed = normalized.collapsed || '';
+  const raw = normalized.raw || '';
+  const sexualContext = /\b(busco|quiero|cojer|coger|culear|paja|morbo|sexo|videos?)\b/i.test(collapsed);
+
+  for (const pattern of CRITICAL_SAFETY_PATTERNS.minorDirect) {
+    if (pattern.test(collapsed) || pattern.test(raw)) {
+      return {
+        matched: true,
+        evidence: pattern.source,
+        label: 'Referencia explicita a menor de edad',
+      };
+    }
+  }
+
+  for (const pattern of CRITICAL_SAFETY_PATTERNS.minorSolicitation) {
+    if (pattern.test(collapsed) || pattern.test(raw)) {
+      return {
+        matched: true,
+        evidence: pattern.source,
+        label: 'Solicitud o interes sexual vinculado a menores',
+      };
+    }
+  }
+
+  const ageClaimMatch = collapsed.match(/^\s*(?:tengo|soy|edad|cumpli|cumplo)\s*(?:de\s*)?(1[0-7])\s*$/i);
+  if (ageClaimMatch) {
+    return {
+      matched: true,
+      evidence: ageClaimMatch[0],
+      label: 'Declaracion de edad menor a 18',
+    };
+  }
+
+  const ageYearsMatch = collapsed.match(/\b(1[0-7])\s*(?:a(?:n|ñ)os?)\b/i);
+  if (ageYearsMatch && !/\bcm\b/i.test(collapsed)) {
+    return {
+      matched: true,
+      evidence: ageYearsMatch[0],
+      label: 'Edad menor a 18 detectada en el mensaje',
+    };
+  }
+
+  if (sexualContext && /\b(?:de|los)\s+1[0-7]\b/i.test(collapsed)) {
+    return {
+      matched: true,
+      evidence: collapsed,
+      label: 'Preferencia sexual asociada a edad menor',
+    };
+  }
+
+  return { matched: false };
+};
+
+export function detectCriticalSafetyRisk(message = '') {
+  const normalized = normalizeModerationText(message);
+  const matchedRules = [];
+  let category = null;
+  let reason = null;
+
+  const mark = (nextCategory, label, evidence, weight = 100) => {
+    matchedRules.push({
+      id: nextCategory,
+      weight,
+      evidence,
+      category: nextCategory,
+    });
+    category = category || nextCategory;
+    reason = reason || label;
+  };
+
+  const minorSignal = detectMinorAgeSignal(normalized);
+  if (minorSignal.matched) {
+    mark('minor_risk', minorSignal.label, minorSignal.evidence, 120);
+  }
+
+  for (const pattern of CRITICAL_SAFETY_PATTERNS.drugDirect) {
+    if (pattern.test(normalized.collapsed) || pattern.test(normalized.raw)) {
+      mark('drugs', 'Referencia a drogas o sustancias ilegales', pattern.source, 90);
+      break;
+    }
+  }
+
+  for (const pattern of CRITICAL_SAFETY_PATTERNS.abuseDirect) {
+    if (pattern.test(normalized.collapsed) || pattern.test(normalized.raw)) {
+      mark('coercion', 'Referencia a coercion, abuso o extorsion sexual', pattern.source, 95);
+      break;
+    }
+  }
+
+  const roomMeetupDrugRisk =
+    category === 'drugs' &&
+    /\b(lugar|ahora|ya|ven|vente|ubica|ubi|encuentro|junt[eo]|coordinar)\b/i.test(normalized.collapsed);
+
+  const type = roomMeetupDrugRisk ? 'drug_meetup' : category;
+  const blocked = matchedRules.length > 0;
+
+  return {
+    blocked,
+    type,
+    reason,
+    severity: blocked ? 'critical' : null,
+    matchedRules,
+    normalized,
+    riskScore: matchedRules.reduce((sum, rule) => sum + Number(rule.weight || 0), 0),
+  };
+}
+
 const hashMessage = (value = '') => {
   let hash = 5381;
   const input = String(value || '');
@@ -507,6 +997,9 @@ const logModerationEvent = async ({
   matchedRules,
   actionTaken,
   riskScore,
+  reason = GENERIC_EXTERNAL_BLOCK_MESSAGE,
+  severity = null,
+  detectedBy = 'anti_extraction_v1',
 }) => {
   if (!userId || !auth.currentUser || auth.currentUser.uid !== userId) return;
 
@@ -516,11 +1009,11 @@ const logModerationEvent = async ({
       roomId: roomId || 'global',
       message: String(message || '').slice(0, 500),
       result: actionTaken,
-      reason: GENERIC_EXTERNAL_BLOCK_MESSAGE,
-      severity: riskScore >= 10 ? 'high' : riskScore >= 6 ? 'medium' : 'low',
+      reason,
+      severity: severity || (riskScore >= 10 ? 'high' : riskScore >= 6 ? 'medium' : 'low'),
       action: actionTaken,
       muteMins: actionTaken === 'temporary_mute' ? MODERATION_CONFIG.sanctions.muteMinutes : 0,
-      detectedBy: 'anti_extraction_v1',
+      detectedBy,
       createdAt: serverTimestamp(),
       messageHash: hashMessage(message),
       normalizedIndicators: {
@@ -538,6 +1031,40 @@ const logModerationEvent = async ({
   } catch (error) {
     // no-op: logging must never block chat
     console.warn('[ANTI-SPAM] moderationLogs write failed:', error?.message || error);
+  }
+};
+
+const getCriticalSafetySuspendMinutes = (type) => {
+  if (type === 'minor_risk') return CRITICAL_SAFETY_CONFIG.minorSuspendHours * 60;
+  if (type === 'drug_meetup' || type === 'drugs') return CRITICAL_SAFETY_CONFIG.drugsSuspendHours * 60;
+  return CRITICAL_SAFETY_CONFIG.abuseSuspendHours * 60;
+};
+
+const buildCriticalSafetyReason = (type) => {
+  if (type === 'minor_risk') {
+    return 'Contenido bloqueado por riesgo de menores de edad. En Chactivo esto activa suspension inmediata.';
+  }
+  if (type === 'drug_meetup' || type === 'drugs') {
+    return 'Contenido bloqueado por drogas o sustancias ilegales. En Chactivo esto activa suspension inmediata.';
+  }
+  return 'Contenido bloqueado por coercion, abuso o explotacion sexual. En Chactivo esto activa suspension inmediata.';
+};
+
+const queueCriticalSafetyAlert = async ({ userId, roomId, message, risk }) => {
+  if (!userId || !auth.currentUser || auth.currentUser.uid !== userId || !risk?.blocked) return;
+
+  try {
+    await createModerationIncidentAlert({
+      type: risk.type,
+      severity: 'critical',
+      roomId,
+      reason: risk.reason || 'Incidente critico de seguridad',
+      message: String(message || '').slice(0, 500),
+      detectedBy: 'critical_safety_guard',
+      autoAction: 'temporary_suspend',
+    });
+  } catch (error) {
+    console.warn('[ANTI-SPAM] critical alert failed:', error?.message || error);
   }
 };
 
@@ -656,6 +1183,63 @@ const applyPenaltyIfNeeded = async ({
   };
 };
 
+const applyCriticalSafetyPenaltyIfNeeded = async ({
+  userId,
+  roomId,
+  message,
+  normalized,
+  matchedRules,
+  riskScore,
+  riskType,
+  dryRun,
+}) => {
+  const remainingMinutes = getCriticalSafetySuspendMinutes(riskType);
+  const reason = buildCriticalSafetyReason(riskType);
+
+  if (!userId || dryRun || !auth.currentUser || auth.currentUser.uid !== userId) {
+    return {
+      penaltyAction: 'temporary_suspend',
+      offenseCount: 1,
+      remainingMinutes,
+      reason,
+    };
+  }
+
+  const now = Date.now();
+  const state = await getModerationState(userId);
+  const nextOffenseCount = (state.offenseCount || 0) + 1;
+  const nextState = {
+    ...state,
+    offenseCount: nextOffenseCount,
+    strikes: Math.max(Number(state.strikes || 0), nextOffenseCount),
+    muteUntilMs: state.muteUntilMs || 0,
+    shadowbanUntilMs: state.shadowbanUntilMs || 0,
+    suspendUntilMs: Math.max(state.suspendUntilMs || 0, now + remainingMinutes * 60 * 1000),
+  };
+
+  await persistModerationState(userId, nextState);
+  await logModerationEvent({
+    userId,
+    roomId,
+    message,
+    normalized,
+    matchedRules,
+    actionTaken: 'critical_temporary_suspend',
+    riskScore,
+    reason,
+    severity: 'critical',
+    detectedBy: 'critical_safety_guard',
+  });
+  await queueCriticalSafetyAlert({ userId, roomId, message, risk: { blocked: true, type: riskType, reason } });
+
+  return {
+    penaltyAction: 'temporary_suspend',
+    offenseCount: nextOffenseCount,
+    remainingMinutes,
+    reason,
+  };
+};
+
 const deriveBlockedType = (primaryCategory) => {
   if (primaryCategory === 'email') return 'email';
   if (primaryCategory === 'phone_number') return 'phone_number';
@@ -711,6 +1295,69 @@ const buildBlockedResponse = (type, penalty = {}, fallbackReason = GENERIC_EXTER
     details: CTA_OPIN_BAUL,
   };
 };
+
+const buildCriticalSafetyBlockedResponse = (risk, penalty = {}) => ({
+  allowed: false,
+  type: 'temp_ban',
+  reason: penalty.reason || buildCriticalSafetyReason(risk?.type),
+  details: 'El incidente fue marcado como critico y enviado a moderacion.',
+  remainingMinutes: penalty.remainingMinutes || getCriticalSafetySuspendMinutes(risk?.type),
+});
+
+export async function validateCriticalSafetyMessage(message, userId, username, roomId, options = {}) {
+  const opts = {
+    dryRun: false,
+    ...options,
+  };
+
+  const raw = String(message || '');
+  const trimmed = raw.trim();
+
+  if (!trimmed) {
+    return { allowed: true, content: '', wasModified: false, riskScore: 0, matchedRules: [] };
+  }
+
+  const activeSanction = await checkTempBan(userId);
+  if (activeSanction.isBanned) {
+    return {
+      allowed: false,
+      content: trimmed,
+      type: 'temp_ban',
+      reason: activeSanction.reason || GENERIC_BLOCK_MESSAGE,
+      remainingMinutes: activeSanction.remainingMinutes || null,
+    };
+  }
+
+  const criticalRisk = detectCriticalSafetyRisk(trimmed);
+  if (!criticalRisk.blocked) {
+    return {
+      allowed: true,
+      content: trimmed,
+      wasModified: false,
+      riskScore: 0,
+      matchedRules: [],
+    };
+  }
+
+  const penalty = await applyCriticalSafetyPenaltyIfNeeded({
+    userId,
+    roomId,
+    message: trimmed,
+    normalized: criticalRisk.normalized,
+    matchedRules: criticalRisk.matchedRules,
+    riskScore: criticalRisk.riskScore,
+    riskType: criticalRisk.type,
+    dryRun: opts.dryRun,
+  });
+
+  return {
+    ...buildCriticalSafetyBlockedResponse(criticalRisk, penalty),
+    content: trimmed,
+    riskScore: criticalRisk.riskScore,
+    matchedRules: criticalRisk.matchedRules,
+    offenseCount: penalty.offenseCount,
+  };
+}
 
 const shouldApplyStrictMode = (userId) => {
   if (!userId) return true;
@@ -810,6 +1457,13 @@ export async function validateMessage(message, userId, username, roomId, options
       return { allowed: true, content: '', wasModified: false, riskScore: 0, matchedRules: [] };
     }
 
+    const criticalSafetyResult = await validateCriticalSafetyMessage(trimmed, userId, username, roomId, {
+      dryRun: opts.dryRun,
+    });
+    if (!criticalSafetyResult.allowed) {
+      return criticalSafetyResult;
+    }
+
     const now = Date.now();
 
     // Legacy duplicate spam guard (kept)
@@ -825,18 +1479,41 @@ export async function validateMessage(message, userId, username, roomId, options
     }
 
     const recentEntries = getContextEntries(roomId, userId, now);
+    const contextualCriticalRisk = detectContextualCriticalSafetyRisk(trimmed, recentEntries);
+    if (contextualCriticalRisk.blocked) {
+      const penalty = await applyCriticalSafetyPenaltyIfNeeded({
+        userId,
+        roomId,
+        message: trimmed,
+        normalized: contextualCriticalRisk.normalized,
+        matchedRules: contextualCriticalRisk.matchedRules,
+        riskScore: contextualCriticalRisk.riskScore,
+        riskType: contextualCriticalRisk.type,
+        dryRun: opts.dryRun,
+      });
+
+      return {
+        ...buildCriticalSafetyBlockedResponse(contextualCriticalRisk, penalty),
+        content: trimmed,
+        riskScore: contextualCriticalRisk.riskScore,
+        matchedRules: contextualCriticalRisk.matchedRules,
+        offenseCount: penalty.offenseCount,
+      };
+    }
+
     const risk = evaluateExternalContactRisk(trimmed, recentEntries);
     const strictMode = shouldApplyStrictMode(userId);
 
-    const entryForContext = {
-      timestamp: now,
-      compact: risk.normalized.compact,
-      collapsed: risk.normalized.collapsed,
-      digitsOnly: risk.normalized.digitsOnly,
-      mostlyNumeric: isMostlyNumericMessage(risk.normalized),
-      hasInvitation: risk.matchedRules.some((rule) => rule.id === 'invitation_phrase'),
-      hasPlatform: risk.matchedRules.some((rule) => rule.category === 'platform'),
-    };
+    const baseEntry = buildContextEntry(risk.normalized, now);
+    const entryForContext = finalizeContextEntry({
+      ...baseEntry,
+      hasInvitation:
+        risk.matchedRules.some((rule) => rule.id === 'invitation_phrase') ||
+        baseEntry.hasInvitation,
+      hasPlatform:
+        risk.matchedRules.some((rule) => rule.category === 'platform') ||
+        baseEntry.hasPlatform,
+    });
 
     pushContextEntry(roomId, userId, entryForContext);
 

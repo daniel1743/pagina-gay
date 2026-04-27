@@ -5,11 +5,11 @@ const EMAIL_REGEX = /\b[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}\b/gi;
 const EXTERNAL_LINK_REGEX = /\b(?:(?:https?:\/\/|www\.)\S+)\b/gi;
 const HANDLE_REGEX = /(^|\s)@[a-z0-9._-]{3,}\b/gi;
 const PLATFORM_HANDLE_REGEXES = [
-  /\b(?:instagram|ig|telegram|tiktok|facebook|fb)\s*[:\-]?\s*[a-z0-9._-]{3,}\b/gi,
-  /\b(?:whatsapp|wsp|wa\.me)\s*[:\-]?\s*(?:\+?\d[\d\s().-]{7,}\d|[a-z0-9._-]{3,})\b/gi,
+  /\b(?:instagram|ig|telegram|tiktok|facebook|fb|discord|signal|messenger|teams|skype)\s*[:\-]?\s*[a-z0-9._-]{3,}\b/gi,
+  /\b(?:whatsapp|wsp|wa\.me|sms|imessage|mensaje(?:s)?\s+de\s+texto)\s*[:\-]?\s*(?:\+?\d[\d\s().-]{7,}\d|[a-z0-9._-]{3,})\b/gi,
 ];
-const PLATFORM_REGEX = /\b(?:whatsapp|wsp|wa\.me|telegram|t\.me|instagram|ig|facebook|fb|tiktok)\b/gi;
-const CONTACT_PROMPT_REGEX = /\b(?:mi|agregame|agr[eé]game|escribeme|escr[ií]beme|hablame|h[aá]blame|contactame|cont[aá]ctame|dm|direct|inbox|numero|n[uú]mero)\b/gi;
+const PLATFORM_REGEX = /\b(?:whatsapp|wsp|wa\.me|telegram|t\.me|instagram|ig|facebook|fb|tiktok|discord|signal|messenger|teams|skype|sms|imessage|mensaje(?:s)?\s+de\s+texto)\b/gi;
+const CONTACT_PROMPT_REGEX = /\b(?:mi|agregame|agr[eé]game|escribeme|escr[ií]beme|hablame|h[aá]blame|contactame|cont[aá]ctame|dm|direct|inbox|numero|n[uú]mero|hablemos|te\s+paso|te\s+mando|por\s+fuera|otra\s+app|otra\s+aplicacion|afuera\s+de\s+chactivo|fuera\s+de\s+chactivo)\b/gi;
 
 const normalizeText = (value = '') => String(value || '').trim();
 

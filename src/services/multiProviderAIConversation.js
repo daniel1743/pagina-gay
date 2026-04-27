@@ -2,6 +2,7 @@ import { sendMessage } from './chatService';
 import { auth } from '@/config/firebase';
 import { validateMessageForPersonality, getPersonalityTopics } from '@/lib/ai/personalityTopics';
 import { validateMessageForSpam, isPenalized } from './spamDetectionService';
+import { startAITrace, finishAITrace, failAITrace } from '@/utils/runtimeDiagnostics';
 
 /**
  * 🔧 Genera UUID compatible con todos los navegadores
@@ -1318,8 +1319,11 @@ const fetchChatCompletion = async (providerKey, messages, isResponseToUser = fal
     console.error(`[MULTI AI] ERROR: Provider ${providerKey} sin configuración`);
     return null;
   }
-
-  console.log(`[MULTI AI] 🚀 Llamando a ${providerKey} (${provider.model})...`);
+  const traceId = startAITrace({
+    source: 'multi_ai',
+    provider: providerKey,
+    action: isResponseToUser ? 'reply_to_user' : 'generate_room_message',
+  });
 
   try {
     const response = await fetch(provider.apiUrl, {
@@ -1345,7 +1349,9 @@ const fetchChatCompletion = async (providerKey, messages, isResponseToUser = fal
 
     if (!response.ok) {
       const errorText = await response.text();
-      console.error(`[MULTI AI] ❌ Error ${providerKey}: ${response.status}`, errorText);
+      failAITrace(traceId, {
+        error: new Error(`HTTP ${response.status}: ${String(errorText || '').slice(0, 180)}`),
+      });
       return null;
     }
 
@@ -1377,16 +1383,13 @@ const fetchChatCompletion = async (providerKey, messages, isResponseToUser = fal
       }
       charCount = content.length;
       wordCount = countWords(content);
-      console.log(`[MULTI AI] 🔥 [FETCH] Mensaje truncado de ${originalChars} a ${charCount} caracteres (máximo ${maxChars})`);
     }
     
     // Luego truncar por palabras
     if (wordCount > maxWords) {
-      const originalWords = wordCount;
       content = trimToMaxWords(content, maxWords);
       wordCount = countWords(content);
       charCount = content.length;
-      console.log(`[MULTI AI] 🔥 [FETCH] Mensaje truncado de ${originalWords} a ${wordCount} palabras (máximo ${maxWords})`);
     }
     
     // Verificación final
@@ -1396,13 +1399,17 @@ const fetchChatCompletion = async (providerKey, messages, isResponseToUser = fal
       if (lastSpace > maxChars * 0.75) {
         content = content.substring(0, lastSpace).trim();
       }
-      console.log(`[MULTI AI] 🔥 [FETCH FINAL] Mensaje truncado a ${content.length} caracteres`);
     }
-    
-    console.log(`[MULTI AI] ✅ Respuesta de ${providerKey}: ${wordCount} palabras, ${content.length} caracteres - "${content.substring(0, 50)}..."`);
+
+    finishAITrace(traceId, {
+      summary: `${wordCount} palabras, ${content.length} caracteres`,
+      meta: {
+        truncated: content.length !== (data?.choices?.[0]?.message?.content?.trim() || '').length,
+      },
+    });
     return content;
   } catch (error) {
-    console.error(`[MULTI AI] ❌ Fetch error desde ${providerKey}:`, error.message);
+    failAITrace(traceId, { error });
     return null;
   }
 };

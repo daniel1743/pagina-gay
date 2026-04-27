@@ -32,6 +32,8 @@ import {
 } from '@/services/contactSafetyTelemetryService';
 import { getPublicProfilesByIds } from '@/services/userService';
 import { dispatchUserNotification } from '@/services/userNotificationDispatchService';
+import { validateCriticalSafetyMessage } from '@/services/antiSpamService';
+import { publishPrivateChatDebug } from '@/utils/runtimeDiagnostics';
 
 const OPIN_PRIVATE_REQUESTS_PER_HOUR = 4;
 const OPIN_PRIVATE_REQUEST_WINDOW_MS = 60 * 60 * 1000;
@@ -44,6 +46,9 @@ const PRIVATE_CHAT_CONTACT_UNLOCK_MIN_MESSAGES_PER_PARTICIPANT = 3;
 const PRIVATE_CHAT_CONTACT_UNLOCK_MIN_AGE_MS = 10 * 60 * 1000;
 const PRIVATE_CHAT_CONTACT_HISTORY_LIMIT = 40;
 const PRIVATE_CHAT_CONTACT_SHARE_TTL_MS = 24 * 60 * 60 * 1000;
+const USER_NOTIFICATIONS_LISTENER_LIMIT = 30;
+const PRIVATE_INBOX_LISTENER_LIMIT = 20;
+const PRIVATE_MATCH_STATE_LISTENER_LIMIT = 20;
 const sharedNotificationsListeners = new Map();
 
 const buildPrivateChatDebugError = (error) => ({
@@ -62,26 +67,7 @@ const emitPrivateChatDebug = (label, context = {}, error = null) => {
     ...context,
     ...(error ? { error: buildPrivateChatDebugError(error) } : {}),
   };
-
-  if (typeof window !== 'undefined') {
-    window.__lastPrivateChatDebug = payload;
-    const history = Array.isArray(window.__privateChatDebugHistory)
-      ? window.__privateChatDebugHistory
-      : [];
-    history.unshift(payload);
-    window.__privateChatDebugHistory = history.slice(0, 25);
-    window.printPrivateChatDebug = () => {
-      const latest = window.__lastPrivateChatDebug || null;
-      console.group('[PRIVATE_CHAT_DEBUG] latest');
-      console.log(latest);
-      console.groupEnd();
-      console.table(window.__privateChatDebugHistory || []);
-      return latest;
-    };
-  }
-
-  const consoleMethod = error ? console.error : console.info;
-  consoleMethod('[PRIVATE_CHAT_DEBUG]', payload);
+  publishPrivateChatDebug(label, payload, error);
   return payload;
 };
 
@@ -234,6 +220,27 @@ const enforcePrivateChatEarlyContactPolicy = async ({ chatId, chatRef, chatData,
   error.code = 'PRIVATE_CONTACT_LOCKED';
   error.contactGate = gate;
   error.contactDetection = detection;
+  throw error;
+};
+
+const enforcePrivateChatCriticalSafetyPolicy = async ({ chatId, userId, username, content, type }) => {
+  if (type !== 'text') return null;
+
+  const moderationResult = await validateCriticalSafetyMessage(
+    content,
+    userId,
+    username || 'Usuario',
+    chatId,
+    { dryRun: false }
+  );
+
+  if (moderationResult.allowed) {
+    return moderationResult;
+  }
+
+  const error = new Error(moderationResult.reason || 'Contenido bloqueado por seguridad critica.');
+  error.code = 'PRIVATE_CRITICAL_SAFETY_BLOCKED';
+  error.moderationResult = moderationResult;
   throw error;
 };
 
@@ -1309,6 +1316,13 @@ export const sendMessageToPrivateChat = async (chatId, { userId, username, avata
       : await fetchPrivateChatParticipantProfiles(participants);
     const recipientIds = participants.filter((participantId) => participantId !== userId);
     const normalizedContent = content.trim();
+    await enforcePrivateChatCriticalSafetyPolicy({
+      chatId,
+      userId,
+      username,
+      content: normalizedContent,
+      type: 'text',
+    });
     await enforcePrivateChatEarlyContactPolicy({
       chatId,
       chatRef,
@@ -1473,6 +1487,13 @@ export const sendRichPrivateChatMessage = async (
     if (type === 'text' && !normalizedContent) {
       throw new Error('EMPTY_TEXT_MESSAGE');
     }
+    await enforcePrivateChatCriticalSafetyPolicy({
+      chatId,
+      userId,
+      username,
+      content: normalizedContent,
+      type,
+    });
     await enforcePrivateChatEarlyContactPolicy({
       chatId,
       chatRef,
@@ -2288,7 +2309,7 @@ export const subscribeToNotifications = (userId, callback) => {
     const q = query(
       notificationsRef,
       orderBy('timestamp', 'desc'),
-      limit(100)
+      limit(USER_NOTIFICATIONS_LISTENER_LIMIT)
     );
 
     sharedEntry.unsubscribe = onSnapshot(
@@ -2354,8 +2375,13 @@ export const subscribeToPrivateInbox = (userId, callback) => {
   }
 
   const inboxRef = collection(db, 'users', userId, 'private_inbox');
-  return onSnapshot(
+  const q = query(
     inboxRef,
+    orderBy('updatedAt', 'desc'),
+    limit(PRIVATE_INBOX_LISTENER_LIMIT)
+  );
+  return onSnapshot(
+    q,
     (snapshot) => {
       const items = snapshot.docs
         .map((docSnap) => ({
@@ -2384,8 +2410,13 @@ export const subscribeToPrivateMatchState = (userId, callback) => {
   }
 
   const stateRef = collection(db, 'users', userId, 'private_match_state');
-  return onSnapshot(
+  const q = query(
     stateRef,
+    orderBy('updatedAtMs', 'desc'),
+    limit(PRIVATE_MATCH_STATE_LISTENER_LIMIT)
+  );
+  return onSnapshot(
+    q,
     (snapshot) => {
       const items = snapshot.docs
         .map((docSnap) => ({

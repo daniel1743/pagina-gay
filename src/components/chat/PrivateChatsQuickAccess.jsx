@@ -114,22 +114,22 @@ export default function PrivateChatsQuickAccess() {
 
   return (
     <aside className="fixed z-[120] left-3 right-3 bottom-[4.7rem] md:left-auto md:right-4 md:w-[340px] md:bottom-4 pointer-events-none">
-      <div className="pointer-events-auto rounded-2xl border border-cyan-500/20 bg-slate-950/88 backdrop-blur-md shadow-[0_12px_40px_rgba(3,7,18,0.55)]">
+      <div className="pointer-events-auto rounded-[24px] border border-slate-200 bg-white shadow-[0_18px_44px_rgba(15,23,42,0.14)]">
         <button
           type="button"
           onClick={() => setIsExpanded((prev) => !prev)}
-          className="w-full px-3 py-2.5 flex items-center justify-between text-left"
+          className="flex w-full items-center justify-between px-3 py-3 text-left"
         >
-          <span className="inline-flex items-center gap-2 text-[13px] font-semibold text-cyan-100">
-            <MessageCircle className="w-4 h-4 text-cyan-300" />
-            Privados recientes
-            <span className="inline-flex items-center justify-center h-5 min-w-[20px] px-1.5 rounded-full bg-cyan-500/20 text-cyan-200 text-[11px]">
+          <span className="inline-flex items-center gap-2 text-[13px] font-semibold text-slate-900">
+            <MessageCircle className="h-4 w-4 text-[#1473E6]" />
+            Conecta reciente
+            <span className="inline-flex h-5 min-w-[20px] items-center justify-center rounded-full border border-sky-100 bg-sky-50 px-1.5 text-[11px] font-semibold text-sky-700">
               {mergedChats.length}
             </span>
           </span>
           {isExpanded
-            ? <ChevronDown className="w-4 h-4 text-cyan-200/80" />
-            : <ChevronUp className="w-4 h-4 text-cyan-200/80" />}
+            ? <ChevronDown className="h-4 w-4 text-slate-400" />
+            : <ChevronUp className="h-4 w-4 text-slate-400" />}
         </button>
 
         {isExpanded && (
@@ -144,11 +144,11 @@ export default function PrivateChatsQuickAccess() {
                 return (
                   <div
                     key={itemKey || `${partnerName}-${recentChat.lastMessageAt || 0}`}
-                    className="group flex items-center gap-2 rounded-xl border border-slate-800/90 bg-slate-900/70 hover:bg-slate-900/95 px-2 py-2"
+                    className="group flex items-center gap-2 rounded-[18px] border border-slate-200 bg-white px-2.5 py-2.5 transition-colors hover:bg-slate-50"
                   >
-                    <Avatar className="h-8 w-8 ring-1 ring-cyan-400/35">
+                    <Avatar className="h-9 w-9 ring-1 ring-[#1473E6]/14">
                       <AvatarImage src={partnerAvatar} alt={partnerName} />
-                      <AvatarFallback className="bg-slate-800 text-cyan-100 text-xs">
+                      <AvatarFallback className="bg-slate-50 text-slate-700 text-xs">
                         {(partnerName || 'U').slice(0, 2).toUpperCase()}
                       </AvatarFallback>
                     </Avatar>
@@ -158,17 +158,17 @@ export default function PrivateChatsQuickAccess() {
                       onClick={() => handleOpenConversation(recentChat)}
                       className="flex-1 min-w-0 text-left"
                     >
-                      <p className="text-sm font-medium text-slate-100 truncate">{partnerName}</p>
-                      <p className="text-[11px] text-slate-400 truncate">
+                      <p className="truncate text-sm font-medium text-slate-900">{partnerName}</p>
+                      <p className="truncate text-[11px] text-slate-500">
                         {recentChat.lastMessagePreview || 'Toca para abrir conversación'}
                       </p>
                     </button>
 
                     <div className="flex flex-col items-end gap-1">
-                      <span className="text-[10px] text-slate-500">
+                      <span className="text-[10px] text-slate-400">
                         {formatRelativeTime(recentChat.lastMessageAt)}
                       </span>
-                      <span className={`text-[10px] px-1.5 py-0.5 rounded-full ${isOpen ? 'bg-emerald-500/20 text-emerald-200' : 'bg-slate-700/80 text-slate-200'}`}>
+                      <span className={`rounded-full px-1.5 py-0.5 text-[10px] ${isOpen ? 'bg-sky-50 text-sky-700' : 'bg-slate-100 text-slate-500'}`}>
                         {isOpen ? 'Abierto' : 'Abrir'}
                       </span>
                     </div>
@@ -178,7 +178,7 @@ export default function PrivateChatsQuickAccess() {
                       variant="ghost"
                       size="icon"
                       onClick={() => removeRecentPrivateChat(recentChat)}
-                      className="h-7 w-7 text-slate-400 hover:text-rose-300 hover:bg-rose-500/10 opacity-0 group-hover:opacity-100 transition-opacity"
+                      className="h-7 w-7 text-slate-400 opacity-0 transition-opacity group-hover:opacity-100 hover:bg-rose-50 hover:text-rose-500"
                       title="Quitar de recientes"
                     >
                       <X className="w-3.5 h-3.5" />

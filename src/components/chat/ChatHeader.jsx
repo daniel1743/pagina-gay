@@ -72,38 +72,40 @@ const ChatHeader = ({
 
   return (
     <>
-      <header className="bg-[var(--chat-header-surface)] backdrop-blur-xl border-b border-[var(--chat-divider)] h-14 px-3 sm:px-4 py-2 flex items-center justify-between shrink-0">
-      <div className="flex items-center gap-2 sm:gap-3 min-w-0 flex-1">
+      <header
+        className="flex h-[60px] shrink-0 items-center justify-between border-b border-[var(--chat-divider)] bg-[var(--chat-header-surface)] px-3 py-2.5 backdrop-blur-[18px] sm:px-4"
+        style={{ boxShadow: '0 1px 0 rgba(17,24,39,0.04)' }}
+      >
+      <div className="flex min-w-0 flex-1 items-center gap-2.5 sm:gap-3">
         {/* ✅ FLECHA ELIMINADA - A petición del usuario */}
         <Button
           variant="ghost"
           size="icon"
           onClick={onMenuClick}
-          className="lg:hidden relative rounded-2xl text-muted-foreground hover:text-foreground hover:bg-black/5 dark:hover:bg-white/5 min-w-[40px] min-h-[40px] sm:min-w-0 sm:min-h-0 flex-shrink-0"
+          className="relative min-h-[40px] min-w-[40px] flex-shrink-0 rounded-[14px] text-muted-foreground hover:bg-foreground/5 hover:text-foreground sm:min-h-0 sm:min-w-0 lg:hidden"
           aria-label={showMenuBadge ? 'Abrir menú con novedades' : 'Abrir menú'}
           title="Abrir menú"
         >
-          <Menu className="w-6 h-6" />
+          <Menu className="h-[18px] w-[18px]" />
           {showMenuBadge && (
-            <span className="pointer-events-none absolute -right-1 -top-1 inline-flex min-h-[18px] min-w-[18px] items-center justify-center rounded-full border border-white/10 bg-gradient-to-br from-fuchsia-500 to-pink-500 px-1 text-[10px] font-semibold leading-none text-white shadow-[0_0_18px_rgba(236,72,153,0.45)]">
-              1
+            <span className="pointer-events-none absolute right-0.5 top-0.5 inline-flex h-2.5 w-2.5 rounded-full border border-[var(--chat-header-surface)] bg-[#1473E6] shadow-[0_0_0_3px_rgba(20,115,230,0.12)]">
             </span>
           )}
         </Button>
         <div className="min-w-0 flex-1">
-          <h2 className="font-semibold tracking-tight text-foreground text-[20px] leading-6 truncate">
+          <h2 className="truncate text-[17px] font-semibold leading-5 tracking-[-0.02em] text-foreground sm:text-[18px]">
             {roomNames[currentRoom] || 'Chat'}
           </h2>
           <div className="mt-0.5 h-4 pr-1">
             {hasTicker ? (
               <p
                 key={`${currentRoom}-${tickerIndex}`}
-                className="text-[12px] font-normal text-muted-foreground leading-tight truncate whitespace-nowrap overflow-hidden animate-in fade-in duration-300"
+                className="animate-in fade-in truncate overflow-hidden whitespace-nowrap text-[12px] font-medium leading-tight text-muted-foreground duration-300"
               >
                 {tickerText}
               </p>
             ) : activityText ? (
-              <p className="text-[12px] font-normal text-muted-foreground leading-tight truncate whitespace-nowrap overflow-hidden">
+              <p className="truncate overflow-hidden whitespace-nowrap text-[12px] font-medium leading-tight text-muted-foreground">
                 {activityText}
               </p>
             ) : null}
@@ -111,18 +113,17 @@ const ChatHeader = ({
         </div>
       </div>
 
-      <div className="flex items-center gap-1 sm:gap-2 flex-shrink-0">
-        {/* Iconos elegantes junto a la campana */}
-        <div className="hidden sm:flex items-center gap-1.5">
+      <div className="flex flex-shrink-0 items-center gap-1 sm:gap-2">
+        <div className="hidden items-center gap-1 xl:flex">
           {typeof onRandomConnect === 'function' && (
             <Button
               variant="ghost"
               size="icon"
               onClick={onRandomConnect}
-              className={`min-w-[32px] min-h-[32px] w-8 h-8 p-0 rounded-2xl ${
+              className={`h-[34px] min-h-[34px] w-[34px] min-w-[34px] rounded-[14px] p-0 ${
                 isRandomConnectActive
-                  ? 'bg-cyan-500/10 text-cyan-300 hover:text-cyan-200'
-                  : 'text-muted-foreground hover:text-cyan-400 hover:bg-black/5 dark:hover:bg-white/5'
+                  ? 'border border-[#1473E6]/20 bg-[#1473E6]/8 text-[#1473E6] hover:text-[#0F67D8]'
+                  : 'text-muted-foreground hover:bg-foreground/5 hover:text-foreground'
               }`}
               aria-label={isRandomConnectActive ? 'Detener conexión al azar' : 'Conectar al azar'}
               title={isRandomConnectActive ? 'Detener conexión al azar' : 'Conectar al azar'}
@@ -136,7 +137,7 @@ const ChatHeader = ({
             variant="ghost"
             size="icon"
             onClick={onSimulate}
-            className="text-muted-foreground hover:text-purple-400 hover:bg-black/5 dark:hover:bg-white/5 rounded-2xl min-w-[32px] min-h-[32px] w-8 h-8 p-0"
+            className="h-[34px] min-h-[34px] w-[34px] min-w-[34px] rounded-[14px] p-0 text-muted-foreground/90 hover:bg-foreground/5 hover:text-foreground"
             aria-label="Simular - Ocultar chat y mostrar protector de pantalla"
             title="Simular - Ocultar chat y mostrar protector de pantalla"
           >
@@ -149,7 +150,7 @@ const ChatHeader = ({
           variant="ghost"
           size="icon"
           onClick={toggleTheme}
-          className="sm:hidden rounded-2xl text-muted-foreground hover:text-cyan-400 hover:bg-black/5 dark:hover:bg-white/5 min-w-[40px] min-h-[40px]"
+          className="min-h-[40px] min-w-[40px] rounded-[14px] text-muted-foreground hover:bg-foreground/5 hover:text-foreground sm:hidden"
           aria-label={theme === 'dark' ? 'Cambiar a tema claro' : 'Cambiar a tema oscuro'}
           title={theme === 'dark' ? 'Cambiar a tema claro' : 'Cambiar a tema oscuro'}
         >
@@ -160,10 +161,10 @@ const ChatHeader = ({
             variant="ghost"
             size="icon"
             onClick={handleToggleMute}
-            className={`min-w-[44px] min-h-[44px] sm:min-w-0 sm:min-h-0 rounded-2xl ${
+            className={`min-h-[40px] min-w-[40px] rounded-[14px] sm:min-h-0 sm:min-w-0 ${
               isMuted
-                ? 'text-muted-foreground hover:text-foreground hover:bg-black/5 dark:hover:bg-white/5'
-                : 'bg-cyan-500/10 text-cyan-400 hover:text-cyan-300'
+                ? 'text-muted-foreground hover:bg-foreground/5 hover:text-foreground'
+                : 'border border-[#1473E6]/16 bg-[#1473E6]/8 text-[#1473E6] hover:text-[#0F67D8]'
             }`}
             aria-label={isMuted ? 'Activar sonidos' : 'Silenciar sonidos'}
             title={isMuted ? 'Activar sonidos de notificación' : 'Silenciar sonidos'}

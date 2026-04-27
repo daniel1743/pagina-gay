@@ -1,6 +1,6 @@
 import React, { useState, useRef, useEffect, lazy, Suspense, useMemo, useCallback } from 'react';
 import { Button } from '@/components/ui/button';
-import { Send, Smile, Mic, Image, MessageSquarePlus, X, Reply } from 'lucide-react';
+import { Send, Smile, Mic, Image, MessageSquarePlus, X, Reply, MapPin, Sparkles, MessageCircle } from 'lucide-react';
 import { toast } from '@/components/ui/use-toast';
 import ComingSoonModal from '@/components/ui/ComingSoonModal';
 import { EmojiStyle, Categories } from 'emoji-picker-react';
@@ -60,6 +60,10 @@ const ONBOARDING_FIRST_MESSAGE_KEY = 'chactivo:onboarding:first_message_sent';
 const ONBOARDING_FOCUS_NUDGE_KEY = 'chactivo:onboarding:focus_nudge_shown';
 const ONBOARDING_SESSION_START_KEY = 'chactivo:onboarding:session_start_ts';
 const COMPOSER_GUIDANCE_AUTO_HIDE_MS = 6000;
+const PREVENTIVE_CHECKLIST_AUTO_HIDE_MS = 5000;
+const PREVENTIVE_RESCUE_AUTO_HIDE_MS = 5000;
+const PREVENTIVE_CHECKLIST_DISMISS_KEY = 'chactivo:onboarding:preventive_checklist_dismissed_until';
+const PREVENTIVE_UI_DISMISS_TTL_MS = 24 * 60 * 60 * 1000;
 
 const ROLE_CHIPS = [
   { value: 'activo', label: 'Soy Activo' },
@@ -110,6 +114,27 @@ const STRUCTURED_COMPOSER_CHIPS = [
   },
 ];
 
+const LOW_SIGNAL_PUBLIC_PATTERNS = new Set([
+  'hola',
+  'holaa',
+  'ola',
+  'buenas',
+  'buenas noches',
+  'hey',
+  'hi',
+  'alguien',
+  'alguno',
+  'alguna',
+  'q tal',
+  'que tal',
+  'activo',
+  'pasivo',
+  'versatil',
+  'activo?',
+  'pasivo?',
+  'versatil?',
+]);
+
 const ROLE_LABEL_BY_VALUE = {
   activo: 'Activo',
   pasivo: 'Pasivo',
@@ -134,6 +159,9 @@ const ChatInput = ({
   showOnboardingHints = false,
   isHeteroContext = false,
   photoUsageStats = { hourlyCount: 0, visibleCount: 0 },
+  currentUserComuna = '',
+  preventiveOpportunity = null,
+  onOpenPreventiveOpportunity,
 }) => {
   const { user, guestMessageCount } = useAuth();
   const [message, setMessage] = useState('');
@@ -148,6 +176,17 @@ const ChatInput = ({
   const [showPhotoTooltip, setShowPhotoTooltip] = useState(false);
   const [showComunaSelector, setShowComunaSelector] = useState(false);
   const [showFocusNudge, setShowFocusNudge] = useState(false);
+  const [showPreventiveRescue, setShowPreventiveRescue] = useState(false);
+  const [allowLowSignalSend, setAllowLowSignalSend] = useState(false);
+  const [preventiveChecklistDismissed, setPreventiveChecklistDismissed] = useState(() => {
+    if (typeof window === 'undefined') return false;
+    const storedUntil = Number(localStorage.getItem(PREVENTIVE_CHECKLIST_DISMISS_KEY) || 0);
+    if (!Number.isFinite(storedUntil) || storedUntil <= Date.now()) {
+      localStorage.removeItem(PREVENTIVE_CHECKLIST_DISMISS_KEY);
+      return false;
+    }
+    return true;
+  });
   const [onboardingDismissed, setOnboardingDismissed] = useState(() => {
     if (typeof window === 'undefined') return false;
     return sessionStorage.getItem(ONBOARDING_DISMISSED_KEY) === '1';
@@ -167,6 +206,8 @@ const ChatInput = ({
   const typingTimeoutRef = useRef(null);
   const focusNudgeTimeoutRef = useRef(null);
   const composerGuidanceTimeoutRef = useRef(null);
+  const preventiveChecklistTimeoutRef = useRef(null);
+  const preventiveRescueTimeoutRef = useRef(null);
   const photoInputRef = useRef(null);
 
   // ✨ COMPANION AI: Setear mensaje cuando viene de sugerencia externa
@@ -177,6 +218,11 @@ const ChatInput = ({
       textareaRef.current?.focus();
     }
   }, [externalMessage]);
+  useEffect(() => {
+    const normalizedComuna = normalizeComuna(currentUserComuna || '');
+    if (!normalizedComuna) return;
+    setSelectedComuna((previous) => previous || normalizedComuna);
+  }, [currentUserComuna]);
   const [comingSoonFeature, setComingSoonFeature] = useState({ name: '', description: '' });
   const wrapperRef = useRef(null);
   const textareaRef = useRef(null);
@@ -189,6 +235,10 @@ const ChatInput = ({
 
   const shouldShowComposerGuidance = !isHeteroContext && showOnboardingHints && !onboardingDismissed && !firstMessageSentInSession;
   const shouldShowOnboarding = shouldShowComposerGuidance;
+  const shouldShowPreventiveChecklist = !isHeteroContext
+    && showOnboardingHints
+    && !firstMessageSentInSession
+    && !preventiveChecklistDismissed;
   const assistantTopics = useMemo(() => getChactivoAssistantTopics(), []);
   const [assistantTopicKey, setAssistantTopicKey] = useState('how_it_works');
   const assistantReply = useMemo(() => (
@@ -221,6 +271,73 @@ const ChatInput = ({
     showOnboardingHints,
   ]);
 
+  const normalizeComposerMessage = (value = '') => (
+    String(value || '')
+      .replace(/\s+/g, ' ')
+      .replace(/\s*,\s*/g, ', ')
+      .replace(/,\s*,+/g, ', ')
+      .replace(/^,\s*|\s*,\s*$/g, '')
+      .trim()
+  );
+
+  const normalizedMessage = useMemo(
+    () => normalizeComposerMessage(message),
+    [message]
+  );
+  const normalizedMessageLower = normalizedMessage.toLowerCase();
+  const hasRoleSignal = useMemo(
+    () => Boolean(
+      selectedRole
+      || /\b(activo|pasivo|versatil|versátil|inter|solo mamar)\b/i.test(normalizedMessage)
+    ),
+    [normalizedMessage, selectedRole]
+  );
+  const hasComunaSignal = useMemo(
+    () => Boolean(
+      selectedComuna
+      || /\ben\s+[a-záéíóúñ]{3,}/i.test(normalizedMessage)
+    ),
+    [normalizedMessage, selectedComuna]
+  );
+  const hasPlaceSignal = useMemo(
+    () => /\b(tengo lugar|sin lugar|me muevo)\b/i.test(normalizedMessage),
+    [normalizedMessage]
+  );
+  const hasIntentSignal = useMemo(
+    () => /\b(busco|quiero|ando|hablar|charlar|conocer|ahora|disponible|juntarse|chat|hot|paja)\b/i.test(normalizedMessage),
+    [normalizedMessage]
+  );
+  const checklistItems = useMemo(() => ([
+    { key: 'role', label: 'Rol', done: hasRoleSignal },
+    { key: 'comuna', label: 'Comuna', done: hasComunaSignal },
+    { key: 'place', label: 'Lugar o me muevo', done: hasPlaceSignal },
+    { key: 'intent', label: 'Qué buscas', done: hasIntentSignal },
+  ]), [hasComunaSignal, hasIntentSignal, hasPlaceSignal, hasRoleSignal]);
+  const checklistDoneCount = checklistItems.filter((item) => item.done).length;
+  const isLowSignalDraft = useMemo(() => {
+    if (!normalizedMessageLower) return false;
+    if (LOW_SIGNAL_PUBLIC_PATTERNS.has(normalizedMessageLower)) return true;
+
+    const words = normalizedMessageLower.split(' ').filter(Boolean);
+    return (
+      words.length <= 2
+      && LOW_SIGNAL_PUBLIC_PATTERNS.has(words.join(' '))
+      && checklistDoneCount < 3
+    );
+  }, [checklistDoneCount, normalizedMessageLower]);
+  const preventiveSummary = useMemo(() => {
+    if (checklistDoneCount >= 4) {
+      return 'Tu mensaje ya tiene señales fuertes para destacar mejor.';
+    }
+    if (!normalizedMessage) {
+      return 'Completa esto antes de escribir y vas a recibir respuestas más útiles.';
+    }
+    if (isLowSignalDraft) {
+      return 'Ese mensaje todavía se ve genérico. Agrégale contexto antes de enviarlo.';
+    }
+    return `Tu mensaje tiene ${checklistDoneCount}/4 señales útiles.`;
+  }, [checklistDoneCount, isLowSignalDraft, normalizedMessage]);
+
   const persistSessionFlag = (key, value = '1') => {
     if (typeof window === 'undefined') return;
     sessionStorage.setItem(key, value);
@@ -248,6 +365,22 @@ const ChatInput = ({
     persistSessionFlag(ONBOARDING_DISMISSED_KEY, '1');
     trackOnboardingEvent('onboarding_dismissed', { reason });
   };
+
+  const dismissPreventiveChecklist = useCallback((reason = 'manual') => {
+    setPreventiveChecklistDismissed(true);
+    if (typeof window !== 'undefined') {
+      localStorage.setItem(
+        PREVENTIVE_CHECKLIST_DISMISS_KEY,
+        String(Date.now() + PREVENTIVE_UI_DISMISS_TTL_MS)
+      );
+    }
+    trackOnboardingEvent('preventive_checklist_dismissed', { reason });
+  }, []);
+
+  const dismissPreventiveRescue = useCallback((reason = 'manual') => {
+    setShowPreventiveRescue(false);
+    trackOnboardingEvent('preventive_rescue_dismissed', { reason });
+  }, []);
 
   const markFirstMessageSent = () => {
     if (firstMessageSentInSession) return;
@@ -309,6 +442,12 @@ const ChatInput = ({
       if (composerGuidanceTimeoutRef.current) {
         clearTimeout(composerGuidanceTimeoutRef.current);
       }
+      if (preventiveChecklistTimeoutRef.current) {
+        clearTimeout(preventiveChecklistTimeoutRef.current);
+      }
+      if (preventiveRescueTimeoutRef.current) {
+        clearTimeout(preventiveRescueTimeoutRef.current);
+      }
     };
   }, []);
 
@@ -337,6 +476,48 @@ const ChatInput = ({
     showQuickPhrases,
     showComunaSelector,
   ]);
+
+  useEffect(() => {
+    if (!shouldShowPreventiveChecklist) {
+      if (preventiveChecklistTimeoutRef.current) {
+        clearTimeout(preventiveChecklistTimeoutRef.current);
+        preventiveChecklistTimeoutRef.current = null;
+      }
+      return;
+    }
+
+    preventiveChecklistTimeoutRef.current = setTimeout(() => {
+      dismissPreventiveChecklist('timeout');
+    }, PREVENTIVE_CHECKLIST_AUTO_HIDE_MS);
+
+    return () => {
+      if (preventiveChecklistTimeoutRef.current) {
+        clearTimeout(preventiveChecklistTimeoutRef.current);
+        preventiveChecklistTimeoutRef.current = null;
+      }
+    };
+  }, [dismissPreventiveChecklist, shouldShowPreventiveChecklist]);
+
+  useEffect(() => {
+    if (!showPreventiveRescue) {
+      if (preventiveRescueTimeoutRef.current) {
+        clearTimeout(preventiveRescueTimeoutRef.current);
+        preventiveRescueTimeoutRef.current = null;
+      }
+      return;
+    }
+
+    preventiveRescueTimeoutRef.current = setTimeout(() => {
+      dismissPreventiveRescue('timeout');
+    }, PREVENTIVE_RESCUE_AUTO_HIDE_MS);
+
+    return () => {
+      if (preventiveRescueTimeoutRef.current) {
+        clearTimeout(preventiveRescueTimeoutRef.current);
+        preventiveRescueTimeoutRef.current = null;
+      }
+    };
+  }, [dismissPreventiveRescue, showPreventiveRescue]);
 
   // 📱 FIX MÓVIL: Asegurar que el textarea sea focusable y visible en dispositivos móviles
   useEffect(() => {
@@ -368,6 +549,9 @@ const ChatInput = ({
         // Notificar al padre que el input está enfocado
         onFocus?.(true);
         maybeShowFocusNudge();
+        if (shouldShowPreventiveChecklist) {
+          dismissPreventiveChecklist('input_focus');
+        }
 
         // ❌ REMOVIDO: scrollIntoView forzado que violaba la regla de no interrumpir lectura de historial
         // El ScrollManager ahora maneja esto correctamente respetando el estado del usuario
@@ -389,7 +573,7 @@ const ChatInput = ({
         }
       };
     }
-  }, [onFocus, onBlur, isGuest, onRequestNickname, showOnboardingHints, firstMessageSentInSession, isHeteroContext]);
+  }, [onFocus, onBlur, isGuest, onRequestNickname, showOnboardingHints, firstMessageSentInSession, isHeteroContext, dismissPreventiveChecklist, shouldShowPreventiveChecklist]);
 
   useEffect(() => {
     function handleClickOutside(event) {
@@ -539,8 +723,25 @@ const ChatInput = ({
     }
 
     if (message.trim() && !isSending) {
+      if (
+        shouldShowPreventiveChecklist
+        && isLowSignalDraft
+        && !allowLowSignalSend
+      ) {
+        setShowPreventiveRescue(false);
+        setPreventiveChecklistDismissed(true);
+        trackOnboardingEvent('preventive_rescue_shown', {
+          message_length: normalizedMessage.length,
+          checklist_done_count: checklistDoneCount,
+          has_match: Boolean(preventiveOpportunity),
+        });
+      }
+
       markFirstMessageSent();
       setShowFocusNudge(false);
+      setShowPreventiveRescue(false);
+      setAllowLowSignalSend(false);
+      setPreventiveChecklistDismissed(true);
       setIsSending(true);
       checkForSensitiveWords(message);
 
@@ -673,6 +874,7 @@ const ChatInput = ({
     setSelectedRole(roleValue);
     persistLocalValue(ONBOARDING_ROLE_KEY, roleValue);
     dismissOnboardingForSession('role_selected');
+    dismissPreventiveChecklist('role_selected');
     trackOnboardingEvent('onboarding_chip_click', {
       chip_type: 'role',
       chip_value: roleValue,
@@ -684,6 +886,7 @@ const ChatInput = ({
     setSelectedComuna(normalizedComuna);
     persistLocalValue(ONBOARDING_COMUNA_KEY, normalizedComuna);
     dismissOnboardingForSession('comuna_selected');
+    dismissPreventiveChecklist('comuna_selected');
     if (roomId && user?.id) {
       updatePresenceFields(roomId, {
         comuna: normalizedComuna || null,
@@ -698,19 +901,15 @@ const ChatInput = ({
   const handleMessageChange = (event) => {
     const nextMessage = event.target.value;
     setMessage(nextMessage);
+    setAllowLowSignalSend(false);
+    setShowPreventiveRescue(false);
+    if (nextMessage.trim().length > 0 && shouldShowPreventiveChecklist) {
+      dismissPreventiveChecklist('typing_started');
+    }
     if (!onboardingDismissed && nextMessage.trim().length > 0) {
       dismissOnboardingForSession();
     }
   };
-
-  const normalizeComposerMessage = (value = '') => (
-    String(value || '')
-      .replace(/\s+/g, ' ')
-      .replace(/\s*,\s*/g, ', ')
-      .replace(/,\s*,+/g, ', ')
-      .replace(/^,\s*|\s*,\s*$/g, '')
-      .trim()
-  );
 
   const getStructuredComposerSegments = (value = '') => (
     normalizeComposerMessage(value)
@@ -778,12 +977,43 @@ const ChatInput = ({
 
     textareaRef.current?.focus({ preventScroll: true });
     dismissOnboardingForSession('structured_chip_selected');
+    dismissPreventiveChecklist('structured_chip_selected');
     trackOnboardingEvent('onboarding_chip_click', {
       chip_type: 'composer_structure',
       chip_value: chip.key,
       chip_active: !activeStructuredComposerChips[chip.key],
     });
   }, [activeStructuredComposerChips, buildStructuredComposerSeed]);
+
+  const handlePreventiveExample = useCallback(() => {
+    const nextMessage = buildStructuredComposerSeed('me muevo')
+      || 'Activo en Maipú, me muevo, busco ahora';
+    setMessage(nextMessage);
+    setAllowLowSignalSend(false);
+    setShowPreventiveRescue(false);
+    dismissPreventiveChecklist('example_selected');
+    textareaRef.current?.focus({ preventScroll: true });
+    trackOnboardingEvent('preventive_rescue_example_click', {
+      checklist_done_count: checklistDoneCount,
+    });
+  }, [buildStructuredComposerSeed, checklistDoneCount]);
+
+  const handleAllowLowSignalSend = useCallback(() => {
+    setAllowLowSignalSend(true);
+    setShowPreventiveRescue(false);
+    textareaRef.current?.focus({ preventScroll: true });
+    trackOnboardingEvent('preventive_rescue_send_anyway', {
+      message_length: normalizedMessage.length,
+    });
+  }, [normalizedMessage.length]);
+
+  const handleOpenPreventiveMatch = useCallback(() => {
+    if (!preventiveOpportunity) return;
+    onOpenPreventiveOpportunity?.(preventiveOpportunity);
+    trackOnboardingEvent('preventive_rescue_open_match', {
+      target_user_id: preventiveOpportunity?.userId || preventiveOpportunity?.id || null,
+    });
+  }, [onOpenPreventiveOpportunity, preventiveOpportunity]);
 
   const buildPhotoBlockedDescription = () => {
     if (!isRegisteredUser) {
@@ -979,7 +1209,7 @@ const ChatInput = ({
 
   return (
     <div
-      className="bg-[var(--chat-bottom-surface)] backdrop-blur-xl border-t border-[var(--chat-divider)] px-3 py-2 sm:px-4 sm:py-2.5 shrink-0 relative z-40"
+      className="bg-[var(--chat-bottom-surface)] backdrop-blur-[18px] border-t border-[var(--chat-divider)] px-3 pt-2.5 pb-3 sm:px-4 sm:pt-3 sm:pb-3.5 shrink-0 relative z-40"
       ref={wrapperRef}
       style={{
         position: 'sticky',
@@ -1099,11 +1329,11 @@ const ChatInput = ({
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
               exit={{ opacity: 0, y: 20 }}
-              className="absolute bottom-full left-0 sm:left-4 mb-2 z-10 w-[calc(100vw-2rem)] sm:w-64 max-w-[16rem] bg-secondary p-2 rounded-lg shadow-lg border border-input"
+              className="absolute bottom-full left-0 z-10 mb-2 w-[calc(100vw-2rem)] max-w-[16rem] rounded-[18px] border border-[var(--chat-divider)] bg-[var(--chat-surface-feed)]/96 p-2 shadow-[var(--chat-card-shadow)] sm:left-4 sm:w-64"
             >
                 {(user?.quickPhrases && user.quickPhrases.length > 0) ? user.quickPhrases.map((phrase, i) => (
-                    <div key={i} onClick={() => handleQuickPhraseClick(phrase)} className="p-2 hover:bg-background rounded cursor-pointer text-sm">{phrase}</div>
-                )) : <div className="p-2 text-muted-foreground text-sm text-center">No tienes frases rápidas. Añádelas desde Ajustes.</div>}
+                    <div key={i} onClick={() => handleQuickPhraseClick(phrase)} className="cursor-pointer rounded-[14px] px-3 py-2 text-sm text-foreground transition-colors hover:bg-foreground/5">{phrase}</div>
+                )) : <div className="px-3 py-2 text-center text-sm text-muted-foreground">No tienes frases rápidas. Añádelas desde Ajustes.</div>}
             </motion.div>
         )}
       </AnimatePresence>
@@ -1115,14 +1345,15 @@ const ChatInput = ({
             initial={{ opacity: 0, y: -10 }}
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, y: -10 }}
-            className="mb-2 bg-secondary/50 border-l-4 border-cyan-400 rounded-r-lg p-2 flex items-start gap-2"
+            className="mb-2 flex items-start gap-2 rounded-[18px] border border-[var(--chat-divider)] bg-[var(--chat-surface-feed)]/90 px-3 py-2.5"
+            style={{ boxShadow: 'var(--chat-card-shadow)' }}
           >
-            <Reply className="w-4 h-4 text-cyan-400 flex-shrink-0 mt-0.5" />
+            <Reply className="w-4 h-4 text-[#1473E6] flex-shrink-0 mt-0.5" />
             <div className="flex-1 min-w-0">
-              <p className="text-xs font-semibold text-cyan-400 truncate">
+              <p className="truncate text-[12px] font-semibold text-[#1473E6]">
                 Respondiendo a {replyTo.username}
               </p>
-              <p className="text-xs text-muted-foreground truncate">
+              <p className="truncate text-[12px] text-muted-foreground">
                 {replyTo.content.length > 50
                   ? replyTo.content.substring(0, 50) + '...'
                   : replyTo.content
@@ -1144,7 +1375,13 @@ const ChatInput = ({
       </AnimatePresence>
 
       {shouldShowOnboarding && (
-        <div className="mb-2 rounded-2xl border border-white/10 bg-black/20 px-3 py-3">
+        <div
+          className="mb-2 rounded-[22px] border border-[var(--chat-divider)] px-3 py-3"
+          style={{
+            background: 'linear-gradient(180deg, rgba(255,255,255,0.04), rgba(255,255,255,0.02))',
+            boxShadow: 'var(--chat-card-shadow)',
+          }}
+        >
           <ChactivoAssistantCard
             topics={assistantTopics}
             activeTopicKey={assistantTopicKey}
@@ -1154,15 +1391,15 @@ const ChatInput = ({
             onDismiss={() => dismissOnboardingForSession('assistant_dismissed')}
           />
 
-          <div className="mt-3 border-t border-white/10 pt-3">
-          <p className="text-[11px] font-semibold uppercase tracking-[0.08em] text-cyan-300/90">
+          <div className="mt-3 border-t border-[var(--chat-divider)] pt-3">
+          <p className="text-[11px] font-semibold uppercase tracking-[0.08em] text-[#1473E6] dark:text-[#B8D4FF]">
             Cómo hablar aquí
           </p>
           <p className="mt-1 text-xs text-muted-foreground">
             Funciona mejor si dices tu rol, tu comuna y si tienes lugar o te mueves.
           </p>
           <p className="mt-1 text-xs text-foreground/90">
-            Ejemplo: <span className="font-medium text-cyan-100">Activo en Maipú, me muevo, busco pasivo ahora</span>
+            Ejemplo: <span className="font-medium text-foreground">Activo en Maipú, me muevo, busco pasivo ahora</span>
           </p>
 
           <div className="mt-3 flex flex-wrap gap-2">
@@ -1173,8 +1410,8 @@ const ChatInput = ({
                 onClick={() => handleRoleSelect(chip.value)}
                 className={`rounded-full border px-2.5 py-1 text-[11px] font-medium transition-colors ${
                   selectedRole === chip.value
-                    ? 'border-cyan-400/40 bg-cyan-500/15 text-cyan-100'
-                    : 'border-white/10 bg-white/5 text-muted-foreground hover:border-cyan-500/20 hover:text-cyan-100'
+                    ? 'border-[#1473E6]/25 bg-[#1473E6]/12 text-[#1473E6] dark:text-[#B8D4FF]'
+                    : 'border-[var(--chat-divider)] bg-foreground/[0.03] text-muted-foreground hover:border-[#1473E6]/20 hover:text-foreground'
                 }`}
               >
                 {chip.label}
@@ -1188,7 +1425,7 @@ const ChatInput = ({
                 key={template.key}
                 type="button"
                 onClick={() => handleOnboardingTemplateClick(template.message)}
-                className="rounded-full border border-fuchsia-500/20 bg-fuchsia-500/10 px-2.5 py-1 text-[11px] font-medium text-fuchsia-100 transition-colors hover:bg-fuchsia-500/15"
+                className="rounded-full border border-[var(--chat-divider)] bg-foreground/[0.03] px-2.5 py-1 text-[11px] font-medium text-muted-foreground transition-colors hover:border-[#1473E6]/20 hover:bg-[#1473E6]/8 hover:text-foreground"
               >
                 {template.label}
               </button>
@@ -1204,9 +1441,170 @@ const ChatInput = ({
             initial={{ opacity: 0, y: 8 }}
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, y: -6 }}
-            className="mb-2 rounded-2xl border border-cyan-500/20 bg-cyan-500/10 px-3 py-2 text-xs text-cyan-700 dark:text-cyan-100"
+            className="mb-2 rounded-[18px] border border-[#1473E6]/12 bg-[#1473E6]/8 px-3 py-2 text-xs text-[#0F67D8] dark:text-[#B8D4FF]"
           >
             Tip: di rol + comuna + si tienes lugar o te mueves. Eso recibe más respuesta que solo “hola”.
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {shouldShowPreventiveChecklist && (
+        <div className="mb-2 rounded-[20px] border border-[var(--chat-divider)] bg-[linear-gradient(180deg,rgba(20,115,230,0.08),rgba(255,255,255,0.02))] px-3 py-3">
+          <div className="flex items-start justify-between gap-3">
+            <div className="min-w-0">
+              <div className="flex items-center gap-2">
+                <span className="inline-flex h-8 w-8 items-center justify-center rounded-2xl border border-[#1473E6]/18 bg-[#1473E6]/10 text-[#1473E6] dark:text-[#B8D4FF]">
+                  <Sparkles className="h-4 w-4" />
+                </span>
+                <div className="min-w-0">
+                  <p className="text-[11px] font-semibold uppercase tracking-[0.08em] text-[#1473E6] dark:text-[#B8D4FF]">
+                    Antes de enviar
+                  </p>
+                  <p className="mt-1 text-xs text-foreground/90">
+                    {preventiveSummary}
+                  </p>
+                </div>
+              </div>
+            </div>
+            <div className="flex shrink-0 items-center gap-2">
+              <span className="rounded-full border border-[var(--chat-divider)] bg-background/60 px-2.5 py-1 text-[11px] font-semibold text-muted-foreground">
+                {checklistDoneCount}/4
+              </span>
+              <button
+                type="button"
+                onClick={() => dismissPreventiveChecklist('manual_close')}
+                aria-label="Cerrar ayuda antes de enviar"
+                className="inline-flex h-8 w-8 items-center justify-center rounded-full border border-[var(--chat-divider)] bg-background/60 text-muted-foreground transition-colors hover:text-foreground"
+              >
+                <X className="h-4 w-4" />
+              </button>
+            </div>
+          </div>
+
+          <div className="mt-3 flex flex-wrap gap-2">
+            {checklistItems.map((item) => (
+              <span
+                key={item.key}
+                className={`rounded-full border px-2.5 py-1 text-[11px] font-medium ${
+                  item.done
+                    ? 'border-emerald-500/20 bg-emerald-500/10 text-emerald-700 dark:text-emerald-200'
+                    : 'border-[var(--chat-divider)] bg-foreground/[0.03] text-muted-foreground'
+                }`}
+              >
+                {item.done ? `OK ${item.label}` : item.label}
+              </span>
+            ))}
+          </div>
+
+          <div className="mt-3 flex flex-wrap gap-2">
+            {!hasRoleSignal && ROLE_CHIPS.map((chip) => (
+              <button
+                key={chip.value}
+                type="button"
+                onClick={() => handleRoleSelect(chip.value)}
+                className="rounded-full border border-[var(--chat-divider)] bg-foreground/[0.03] px-2.5 py-1 text-[11px] font-medium text-muted-foreground transition-colors hover:border-[#1473E6]/20 hover:text-foreground"
+              >
+                {chip.label}
+              </button>
+            ))}
+
+            {!hasComunaSignal ? (
+              <button
+                type="button"
+                onClick={() => setShowComunaSelector(true)}
+                className="rounded-full border border-[var(--chat-divider)] bg-foreground/[0.03] px-2.5 py-1 text-[11px] font-medium text-muted-foreground transition-colors hover:border-[#1473E6]/20 hover:text-foreground"
+              >
+                <MapPin className="mr-1 inline h-3.5 w-3.5" />
+                Elegir comuna
+              </button>
+            ) : null}
+
+            {!hasPlaceSignal && STRUCTURED_COMPOSER_CHIPS
+              .filter((chip) => ['place', 'no-place', 'move'].includes(chip.key))
+              .map((chip) => (
+                <button
+                  key={chip.key}
+                  type="button"
+                  onClick={() => handleStructuredComposerChip(chip)}
+                  className="rounded-full border border-[var(--chat-divider)] bg-foreground/[0.03] px-2.5 py-1 text-[11px] font-medium text-muted-foreground transition-colors hover:border-[#1473E6]/20 hover:text-foreground"
+                >
+                  {chip.label}
+                </button>
+              ))}
+
+            {!hasIntentSignal ? (
+              <button
+                type="button"
+                onClick={handlePreventiveExample}
+                className="rounded-full border border-[#1473E6]/18 bg-[#1473E6]/8 px-2.5 py-1 text-[11px] font-medium text-[#1473E6] transition-colors hover:bg-[#1473E6]/12 dark:text-[#B8D4FF]"
+              >
+                Usar ejemplo útil
+              </button>
+            ) : null}
+          </div>
+        </div>
+      )}
+
+      <AnimatePresence>
+        {showPreventiveRescue && (
+          <motion.div
+            initial={{ opacity: 0, y: 8 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -6 }}
+            className="mb-2 rounded-[20px] border border-amber-500/18 bg-amber-500/8 px-3 py-3"
+          >
+            <div className="flex items-start justify-between gap-3">
+              <div className="min-w-0">
+                <p className="text-sm font-semibold text-foreground">
+                  Ese mensaje todavía se pierde en la sala
+                </p>
+                <p className="mt-1 text-xs text-muted-foreground">
+                  Agrega rol, comuna o lugar para que no se vea como otro “hola” más.
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => dismissPreventiveRescue('manual_close')}
+                aria-label="Cerrar ayuda de mensaje"
+                className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-full border border-amber-500/18 bg-white/70 text-muted-foreground transition-colors hover:text-foreground"
+              >
+                <X className="h-4 w-4" />
+              </button>
+            </div>
+
+            <div className="mt-3 flex flex-wrap gap-2">
+              <Button
+                type="button"
+                size="sm"
+                variant="outline"
+                onClick={handlePreventiveExample}
+                className="h-8 rounded-xl border-[#1473E6]/18 bg-white/70 text-xs"
+              >
+                Mejorar mensaje
+              </Button>
+
+              {preventiveOpportunity ? (
+                <Button
+                  type="button"
+                  size="sm"
+                  onClick={handleOpenPreventiveMatch}
+                  className="h-8 rounded-xl bg-cyan-500 text-xs text-slate-950 hover:bg-cyan-400"
+                >
+                  <MessageCircle className="mr-1.5 h-3.5 w-3.5" />
+                  Hablar con {preventiveOpportunity?.username || 'este usuario'}
+                </Button>
+              ) : null}
+
+              <Button
+                type="button"
+                size="sm"
+                variant="ghost"
+                onClick={handleAllowLowSignalSend}
+                className="h-8 rounded-xl text-xs text-muted-foreground hover:text-foreground"
+              >
+                Enviar igual
+              </Button>
+            </div>
           </motion.div>
         )}
       </AnimatePresence>
@@ -1226,8 +1624,8 @@ const ChatInput = ({
                   onClick={() => handleStructuredComposerChip(chip)}
                   className={`rounded-full border px-2.5 py-1 text-[11px] font-medium transition-colors ${
                     isActive
-                      ? 'border-cyan-400/40 bg-cyan-500/15 text-cyan-100'
-                      : 'border-white/10 bg-white/5 text-muted-foreground hover:border-cyan-500/20 hover:text-cyan-100'
+                      ? 'border-[#1473E6]/25 bg-[#1473E6]/12 text-[#1473E6] dark:text-[#B8D4FF]'
+                      : 'border-[var(--chat-divider)] bg-foreground/[0.03] text-muted-foreground hover:border-[#1473E6]/20 hover:text-foreground'
                   }`}
                 >
                   {chip.label}
@@ -1239,8 +1637,8 @@ const ChatInput = ({
               onClick={() => setShowComunaSelector((prev) => !prev)}
               className={`rounded-full border px-2.5 py-1 text-[11px] font-medium transition-colors ${
                 showComunaSelector || selectedComuna
-                  ? 'border-fuchsia-400/35 bg-fuchsia-500/12 text-fuchsia-100'
-                  : 'border-white/10 bg-white/5 text-muted-foreground hover:border-fuchsia-500/20 hover:text-fuchsia-100'
+                  ? 'border-[#1473E6]/25 bg-[#1473E6]/12 text-[#1473E6] dark:text-[#B8D4FF]'
+                  : 'border-[var(--chat-divider)] bg-foreground/[0.03] text-muted-foreground hover:border-[#1473E6]/20 hover:text-foreground'
               }`}
             >
               {selectedComuna ? `Comuna: ${selectedComuna}` : 'Elegir comuna'}
@@ -1248,16 +1646,22 @@ const ChatInput = ({
           </div>
 
           {showComunaSelector && (
-            <div className="rounded-2xl border border-white/10 bg-black/20 px-3 py-3">
+            <div
+              className="rounded-[20px] border border-[var(--chat-divider)] px-3 py-3"
+              style={{
+                background: 'rgba(255,255,255,0.04)',
+                boxShadow: 'var(--chat-card-shadow)',
+              }}
+            >
               <div className="flex items-center justify-between gap-3">
-                <p className="text-[11px] font-semibold uppercase tracking-[0.08em] text-fuchsia-200/90">
+                <p className="text-[11px] font-semibold uppercase tracking-[0.08em] text-[#1473E6] dark:text-[#B8D4FF]">
                   Tu comuna o ciudad
                 </p>
                 {selectedComuna ? (
                   <button
                     type="button"
                     onClick={() => handleComunaSelect('')}
-                    className="text-[11px] font-medium text-muted-foreground hover:text-fuchsia-100"
+                    className="text-[11px] font-medium text-muted-foreground hover:text-foreground"
                   >
                     Limpiar
                   </button>
@@ -1271,7 +1675,7 @@ const ChatInput = ({
                     handleComunaSelect(event.target.value);
                     setShowComunaSelector(false);
                   }}
-                  className="w-full rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-sm text-foreground outline-none transition-colors focus:border-fuchsia-400/40"
+                  className="w-full rounded-[16px] border border-[var(--chat-divider)] bg-[var(--chat-surface-feed)]/88 px-3 py-2 text-sm text-foreground outline-none transition-colors focus:border-[#1473E6]/28"
                 >
                   <option value="">Selecciona tu comuna o ciudad</option>
                   {COMUNA_OPTIONS.map((comunaOption) => (
@@ -1295,7 +1699,8 @@ const ChatInput = ({
 
       <form
         onSubmit={handleSubmit}
-        className="flex min-h-[48px] items-end gap-1.5 sm:gap-2 flex-nowrap rounded-[26px] border border-[var(--chat-divider)] bg-[var(--chat-composer-surface)] px-2 py-1"
+        className="flex min-h-[54px] flex-nowrap items-end gap-2 rounded-[26px] border border-[var(--chat-divider)] bg-[var(--chat-composer-shell)] px-3 py-1.5"
+        style={{ boxShadow: 'var(--chat-input-shadow)' }}
       >
         {/* ✅ Iconos comentados - Más espacio para el input */}
         {/* <Button
@@ -1316,10 +1721,10 @@ const ChatInput = ({
           variant="ghost"
           size="icon"
           onClick={() => { setShowEmojiPicker(prev => !prev); setShowQuickPhrases(false);}}
-          className={`min-w-[40px] min-h-[40px] h-[40px] w-[40px] rounded-full border border-transparent sm:min-w-0 sm:min-h-0 transition-colors ${
+          className={`h-[40px] min-h-[40px] w-[40px] min-w-[40px] rounded-full border border-transparent transition-colors sm:min-h-0 sm:min-w-0 ${
             showEmojiPicker
-              ? 'text-cyan-300 border-cyan-500/20 bg-cyan-500/10 hover:text-cyan-200 hover:bg-cyan-500/15'
-              : 'text-muted-foreground hover:text-cyan-400 hover:bg-black/5 dark:hover:bg-white/5'
+              ? 'text-[#1473E6] border-[#1473E6]/15 bg-[#1473E6]/8 hover:text-[#0F67D8] hover:bg-[#1473E6]/12'
+              : 'text-muted-foreground hover:bg-foreground/5 hover:text-foreground'
           }`}
           title="Selector de Emojis"
           aria-label={showEmojiPicker ? "Cerrar selector de emojis" : "Abrir selector de emojis"}
@@ -1339,10 +1744,10 @@ const ChatInput = ({
             onMouseLeave={() => setShowPhotoTooltip(false)}
             onFocus={() => setShowPhotoTooltip(true)}
             onBlur={() => setShowPhotoTooltip(false)}
-            className={`min-w-[40px] min-h-[40px] h-[40px] w-[40px] rounded-full border border-transparent sm:min-w-0 sm:min-h-0 transition-colors ${
+            className={`h-[40px] min-h-[40px] w-[40px] min-w-[40px] rounded-full border border-transparent transition-colors sm:min-h-0 sm:min-w-0 ${
               canSendPhotoNow && !reachedPhotoHourlyLimit
-                ? 'text-muted-foreground hover:text-cyan-400 hover:bg-black/5 dark:hover:bg-white/5'
-                : 'text-muted-foreground/80 hover:text-cyan-300'
+                ? 'text-muted-foreground hover:bg-foreground/5 hover:text-foreground'
+                : 'text-muted-foreground/80 hover:text-[#1473E6]'
             } ${isUploadingPhoto ? 'opacity-70' : ''}`}
             title={getPhotoTooltipText()}
             aria-label="Subir imagen al chat"
@@ -1352,7 +1757,7 @@ const ChatInput = ({
           </Button>
 
           {showPhotoTooltip && (
-            <div className="pointer-events-none absolute bottom-full left-1/2 z-30 mb-2 w-56 -translate-x-1/2 rounded-md border border-input bg-card/95 px-2 py-1 text-[11px] text-muted-foreground shadow-lg">
+            <div className="pointer-events-none absolute bottom-full left-1/2 z-30 mb-2 w-56 -translate-x-1/2 rounded-[14px] border border-[var(--chat-divider)] bg-[var(--chat-surface-feed)]/96 px-2.5 py-1.5 text-[11px] text-muted-foreground shadow-[var(--chat-card-shadow)]">
               {getPhotoTooltipText()}
             </div>
           )}
@@ -1381,7 +1786,7 @@ const ChatInput = ({
         <div className="relative flex-1 min-w-0 self-center">
           {!message.trim() && (
             <div className="pointer-events-none absolute inset-y-0 left-0 right-0 flex items-center overflow-hidden px-1.5 sm:px-2">
-              <div className="inline-flex min-w-max items-center gap-3 text-[15px] font-medium leading-5 text-muted-foreground/90 animate-[composer-marquee_18s_linear_infinite]">
+              <div className="inline-flex min-w-max items-center gap-3 text-[15px] font-normal leading-5 text-muted-foreground/90 animate-[composer-marquee_18s_linear_infinite]">
                 <span className="whitespace-nowrap">{composerPlaceholder}</span>
                 <span className="whitespace-nowrap" aria-hidden="true">{composerPlaceholder}</span>
               </div>
@@ -1406,7 +1811,7 @@ const ChatInput = ({
               }
             }}
             placeholder=""
-            className="flex-1 w-full bg-transparent border-none rounded-[24px] px-1.5 sm:px-2 py-[10px] text-[15px] font-medium leading-5 text-foreground focus:outline-none transition-all min-h-[24px] max-h-[140px] resize-none overflow-y-auto scrollbar-hide"
+            className="flex-1 w-full bg-transparent border-none rounded-[24px] px-1.5 sm:px-2 py-[10px] text-[15px] font-normal leading-[1.45] text-foreground focus:outline-none transition-all min-h-[24px] max-h-[140px] resize-none overflow-y-auto scrollbar-hide"
             aria-label="Campo de texto para escribir mensaje"
             maxLength={500}
             autoComplete="off"
@@ -1439,8 +1844,12 @@ const ChatInput = ({
           <Button
             type="submit"
             disabled={!message.trim() || isSending}
-            className="magenta-gradient text-white rounded-full relative overflow-hidden min-w-[40px] min-h-[40px] w-[40px] h-[40px] p-0"
-            style={{ transition: 'none' }}
+            className="text-white rounded-full relative overflow-hidden min-w-[40px] min-h-[40px] w-[40px] h-[40px] p-0 border-0"
+            style={{
+              transition: 'none',
+              background: 'var(--chat-send-solid)',
+              boxShadow: '0 8px 20px rgba(20, 115, 230, 0.22)',
+            }}
             size="icon"
             aria-label={isSending ? "Enviando mensaje..." : "Enviar mensaje"}
           >

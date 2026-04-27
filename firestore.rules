@@ -139,6 +139,26 @@ service cloud.firestore {
              !c.matches('.*([a-z0-9._%+-]+@[a-z0-9.-]+\\.[a-z]{2,}).*');
     }
 
+    function hasNoCriticalSafetyIntent(content) {
+      let c = content.lower();
+      return !c.matches('.*(soy\\s+menor|menor\\s+de\\s+edad|busco\\s+menores|videos?\\s+de\\s+menores|31\\s+al\\s+reves|31\\s+alrevez|casi\\s+18|18\\s+casi|-8\\s+anos?|cp|csam).*') &&
+             !c.matches('^\\s*((tengo|soy|edad|cumpli|cumplo)\\s*(de\\s*)?(1[0-7]))\\s*$') &&
+             !c.matches('.*((tengo|soy|edad|cumpli|cumplo)\\s*(de\\s*)?(1[0-7])\\s+anos?|(1[0-7])\\s+anos?).*') &&
+             !c.matches('.*(drogas?|falopa|falopita|tusi|cocaina|cocaína|perico|ketamina|keta|poppers?|saque|saquesito|mdma|molly|pasta\\s+base|cristal).*') &&
+             !c.matches('.*(te\\s+obligo|obligarte|forzarte|forzar|drogarte|te\\s+drogo|extors).*');
+    }
+
+    function hasNoActiveCriticalSafetySanction(userId) {
+      return !exists(/databases/$(database)/documents/userModerationState/$(userId)) || (
+        (get(/databases/$(database)/documents/userModerationState/$(userId)).data.contactSuspendUntil == null ||
+         get(/databases/$(database)/documents/userModerationState/$(userId)).data.contactSuspendUntil <= request.time) &&
+        (get(/databases/$(database)/documents/userModerationState/$(userId)).data.contactShadowbanUntil == null ||
+         get(/databases/$(database)/documents/userModerationState/$(userId)).data.contactShadowbanUntil <= request.time) &&
+        (get(/databases/$(database)/documents/userModerationState/$(userId)).data.contactMuteUntil == null ||
+         get(/databases/$(database)/documents/userModerationState/$(userId)).data.contactMuteUntil <= request.time)
+      );
+    }
+
     // ===========================
     // VALIDACIONES DE MENSAJES
     // ===========================
@@ -418,7 +438,10 @@ service cloud.firestore {
           ) &&
           (
             request.resource.data.type != 'text' ||
-            hasNoExternalContactIntent(request.resource.data.content)
+            (
+              hasNoExternalContactIntent(request.resource.data.content) &&
+              hasNoCriticalSafetyIntent(request.resource.data.content)
+            )
           )
         ) ||
         isValidAdminSeededMessage(roomId) ||
@@ -538,7 +561,11 @@ service cloud.firestore {
                         request.auth.uid in get(/databases/$(database)/documents/private_chats/$(chatId)).data.participants &&
                         (
                           // Mensaje normal de usuario
-                          (isValidMessage() && hasNoProhibitedWordsPrivate(request.resource.data.content.lower()))
+                          (
+                            isValidMessage() &&
+                            hasNoProhibitedWordsPrivate(request.resource.data.content.lower()) &&
+                            hasNoCriticalSafetyIntent(request.resource.data.content)
+                          )
                           ||
                           // Mensaje de sistema (notificación de salida)
                           (request.resource.data.type == 'system' &&

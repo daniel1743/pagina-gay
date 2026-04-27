@@ -117,6 +117,7 @@ const ChatOnlineUsersColumn = ({
   const [knownUsers, setKnownUsers] = useState([]);
   const [isExpanded, setIsExpanded] = useState(false);
   const cacheKey = useMemo(() => `${ONLINE_USERS_CACHE_PREFIX}${roomId}`, [roomId]);
+  const showStatusPanel = roomId !== 'principal';
 
   // Restaurar historial local (barato, sin lecturas extra)
   useEffect(() => {
@@ -312,15 +313,17 @@ const ChatOnlineUsersColumn = ({
         </p>
       </div>
 
-      <div className="px-3 pt-3">
-        <PresenceSidebarStatusPanel
-          roomId={roomId}
-          roomUsers={roomUsers}
-          user={currentUser}
-          onRequestNickname={onRequestNickname}
-          variant="desktop"
-        />
-      </div>
+      {showStatusPanel ? (
+        <div className="px-3 pt-3">
+          <PresenceSidebarStatusPanel
+            roomId={roomId}
+            roomUsers={roomUsers}
+            user={currentUser}
+            onRequestNickname={onRequestNickname}
+            variant="desktop"
+          />
+        </div>
+      ) : null}
 
       {contextualOpportunities.length > 0 ? (
         <ContextualOpportunitiesPanel

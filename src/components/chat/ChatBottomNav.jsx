@@ -5,11 +5,12 @@
 
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
-import { Archive, Sparkles, MessageCircle, Megaphone, MessagesSquare, X, Check, Clock3, Trash2 } from 'lucide-react';
+import { Archive, Sparkles, MessageCircle, Megaphone, MessagesSquare, X, Check, Clock3, Trash2, Search } from 'lucide-react';
 import { usePrivateChat } from '@/contexts/PrivateChatContext';
 import { toast } from '@/components/ui/use-toast';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Button } from '@/components/ui/button';
+import { ENABLE_BAUL } from '@/config/featureFlags';
 
 const formatRelativeTime = (timestampMs) => {
   if (!timestampMs) return 'Ahora';
@@ -23,6 +24,67 @@ const formatRelativeTime = (timestampMs) => {
   return `${diffDays} d`;
 };
 
+const getSuggestionRecurrenceLevel = (candidate = {}) => {
+  const openedCount = Number(candidate?.suggestionState?.openedCount || 0);
+  const successCount = Number(candidate?.suggestionState?.successCount || 0);
+  if (successCount >= 2 || openedCount >= 4) return 'alta';
+  if (successCount >= 1 || openedCount >= 2) return 'media';
+  return 'ninguna';
+};
+
+const getSuggestionRecurrenceRank = (candidate = {}) => {
+  const level = getSuggestionRecurrenceLevel(candidate);
+  if (level === 'alta') return 0;
+  if (level === 'media') return 1;
+  return 2;
+};
+
+const getRoleBucket = (roleLabel = '') => {
+  const normalized = `${roleLabel || ''}`.trim().toLowerCase();
+  if (!normalized) return 'otro';
+  if (normalized.includes('vers')) return 'versatil';
+  if (normalized.includes('pasiv') || normalized.includes('sumis')) return 'pasivo';
+  if (normalized.includes('activ') || normalized.includes('domin')) return 'activo';
+  return 'otro';
+};
+
+const isStrictRoleMatch = (selfRole, candidateRole) => {
+  const selfBucket = getRoleBucket(selfRole);
+  const candidateBucket = getRoleBucket(candidateRole);
+
+  if (candidateBucket === 'otro') return false;
+  if (selfBucket === 'activo') return candidateBucket === 'pasivo';
+  if (selfBucket === 'pasivo') return candidateBucket === 'activo';
+  if (selfBucket === 'versatil') return ['activo', 'pasivo', 'versatil'].includes(candidateBucket);
+  return true;
+};
+
+const getSuggestionRolePriority = (selfRole, candidateRole) => {
+  const selfBucket = getRoleBucket(selfRole);
+  const candidateBucket = getRoleBucket(candidateRole);
+
+  if (selfBucket === 'activo') {
+    if (candidateBucket === 'pasivo') return 0;
+    if (candidateBucket === 'versatil') return 1;
+    return 2;
+  }
+
+  if (selfBucket === 'pasivo') {
+    if (candidateBucket === 'activo') return 0;
+    if (candidateBucket === 'versatil') return 1;
+    return 2;
+  }
+
+  if (selfBucket === 'versatil') {
+    if (candidateBucket === 'versatil') return 0;
+    if (candidateBucket === 'activo') return 1;
+    if (candidateBucket === 'pasivo') return 2;
+    return 3;
+  }
+
+  return 4;
+};
+
 const ChatBottomNav = ({
   onOpenBaul,
   onOpenOpin,
@@ -31,8 +93,13 @@ const ChatBottomNav = ({
   pendingPrivateRequests = [],
   unreadPrivateMessages = {},
   privateInboxItems = [],
+  privateSuggestedUsers = [],
+  currentUserResolvedRole = '',
+  currentUserComuna = '',
+  onStartPrivateChat,
   onAcceptPrivateRequest,
   onDeclinePrivateRequest,
+  onOpenPrivates,
 }) => {
   const navigate = useNavigate();
   const location = useLocation();
@@ -45,10 +112,14 @@ const ChatBottomNav = ({
     maxOpenPrivateChats,
   } = usePrivateChat();
   const [isPrivatesSheetOpen, setIsPrivatesSheetOpen] = useState(false);
+  const [privatesTab, setPrivatesTab] = useState('suggested');
+  const [sheetQuery, setSheetQuery] = useState('');
+  const [openingSuggestedUserId, setOpeningSuggestedUserId] = useState(null);
+  const [shouldPulseConecta, setShouldPulseConecta] = useState(false);
   const isChat = location.pathname.startsWith('/chat');
   const isPrincipal = location.pathname === '/chat/principal' || location.pathname === '/chat';
   const isHeteroRoom = location.pathname.startsWith('/chat/hetero-general');
-  const isBaul = location.pathname.startsWith('/baul');
+  const isBaul = ENABLE_BAUL && location.pathname.startsWith('/baul');
   const isOpin = location.pathname.startsWith('/opin');
 
   const touchStartXRef = useRef(null);
@@ -130,6 +201,119 @@ const ChatBottomNav = ({
       .sort((a, b) => Number(b?.expiresAtMs || 0) - Number(a?.expiresAtMs || 0))
   ), [pendingPrivateRequests]);
 
+  const normalizedSheetQuery = sheetQuery.trim().toLowerCase();
+
+  const existingPrivatePartnerIds = useMemo(() => {
+    const ids = new Set();
+    mergedPrivateChats.forEach((chat) => {
+      const partnerId = chat?.partner?.userId || chat?.partner?.id;
+      if (partnerId) ids.add(partnerId);
+    });
+    return ids;
+  }, [mergedPrivateChats]);
+
+  const pendingRequestUserIds = useMemo(() => {
+    const ids = new Set();
+    normalizedPendingRequests.forEach((request) => {
+      const userId = request?.from?.userId || request?.from?.id;
+      if (userId) ids.add(userId);
+    });
+    return ids;
+  }, [normalizedPendingRequests]);
+
+  const filteredPrivateChats = useMemo(() => {
+    if (!normalizedSheetQuery) return mergedPrivateChats;
+    return mergedPrivateChats.filter((chat) => {
+      const partnerName = chat?.partner?.username || '';
+      const preview = chat?.lastMessagePreview || '';
+      return `${partnerName} ${preview}`.toLowerCase().includes(normalizedSheetQuery);
+    });
+  }, [mergedPrivateChats, normalizedSheetQuery]);
+
+  const baseSuggestedUsers = useMemo(() => {
+    const source = Array.isArray(privateSuggestedUsers) ? privateSuggestedUsers : [];
+
+    return source
+      .filter((candidate) => {
+        const userId = candidate?.userId || candidate?.id;
+        if (!userId) return false;
+        if (existingPrivatePartnerIds.has(userId)) return false;
+        if (pendingRequestUserIds.has(userId)) return false;
+
+        if (!normalizedSheetQuery) return true;
+        const haystack = [
+          candidate?.username || '',
+          candidate?.roleBadge || '',
+          candidate?.chatSeekingBadgeLabel || '',
+          candidate?.comuna || '',
+          candidate?.opportunityText || '',
+        ].join(' ').toLowerCase();
+        return haystack.includes(normalizedSheetQuery);
+      })
+      .sort((a, b) => {
+        if (Boolean(a?.sameComuna) !== Boolean(b?.sameComuna)) return a?.sameComuna ? -1 : 1;
+        if (getSuggestionRecurrenceRank(a) !== getSuggestionRecurrenceRank(b)) {
+          return getSuggestionRecurrenceRank(a) - getSuggestionRecurrenceRank(b);
+        }
+        if (getSuggestionRolePriority(currentUserResolvedRole, a?.roleBadge) !== getSuggestionRolePriority(currentUserResolvedRole, b?.roleBadge)) {
+          return getSuggestionRolePriority(currentUserResolvedRole, a?.roleBadge) - getSuggestionRolePriority(currentUserResolvedRole, b?.roleBadge);
+        }
+        return Number(b?.score || 0) - Number(a?.score || 0);
+      })
+      .slice(0, 60);
+  }, [
+    privateSuggestedUsers,
+    existingPrivatePartnerIds,
+    pendingRequestUserIds,
+    currentUserResolvedRole,
+    normalizedSheetQuery,
+  ]);
+
+  const suggestedPrivateUsers = useMemo(
+    () => baseSuggestedUsers.filter((candidate) => isStrictRoleMatch(currentUserResolvedRole, candidate?.roleBadge)),
+    [baseSuggestedUsers, currentUserResolvedRole]
+  );
+
+  const nearbySuggestedUsers = useMemo(
+    () => suggestedPrivateUsers.filter((candidate) => Boolean(candidate?.sameComuna)),
+    [suggestedPrivateUsers]
+  );
+
+  const recurrentSuggestedUsers = useMemo(
+    () => suggestedPrivateUsers
+      .filter((candidate) => (
+        Number(candidate?.score || 0) >= 64
+        || getSuggestionRecurrenceLevel(candidate) !== 'ninguna'
+        || candidate?.opportunitySource === 'opin'
+        || Boolean(candidate?.intentSummary)
+      ))
+      .slice(0, 6),
+    [suggestedPrivateUsers]
+  );
+
+  const recurrentUserIds = useMemo(
+    () => new Set(recurrentSuggestedUsers.map((candidate) => candidate?.userId || candidate?.id).filter(Boolean)),
+    [recurrentSuggestedUsers]
+  );
+
+  const localSuggestedUsers = useMemo(
+    () => nearbySuggestedUsers.filter((candidate) => !recurrentUserIds.has(candidate?.userId || candidate?.id)).slice(0, 8),
+    [nearbySuggestedUsers, recurrentUserIds]
+  );
+
+  const farSuggestedUsers = useMemo(
+    () => suggestedPrivateUsers.filter((candidate) => !candidate?.sameComuna && !recurrentUserIds.has(candidate?.userId || candidate?.id)).slice(0, 8),
+    [suggestedPrivateUsers, recurrentUserIds]
+  );
+
+  const alsoInterestingUsers = useMemo(
+    () => baseSuggestedUsers
+      .filter((candidate) => !recurrentUserIds.has(candidate?.userId || candidate?.id))
+      .filter((candidate) => !suggestedPrivateUsers.some((strictCandidate) => (strictCandidate?.userId || strictCandidate?.id) === (candidate?.userId || candidate?.id)))
+      .slice(0, 8),
+    [baseSuggestedUsers, recurrentUserIds, suggestedPrivateUsers]
+  );
+
   const totalUnreadPrivateMessages = useMemo(() => {
     const inboxTotal = mergedPrivateChats.reduce((sum, item) => sum + Number(item?.unreadCount || 0), 0);
     if (inboxTotal > 0) return inboxTotal;
@@ -143,6 +327,7 @@ const ChatBottomNav = ({
   })();
 
   const openLatestPrivateChat = () => {
+    onOpenPrivates?.();
     if (mergedPrivateChats.length === 0) {
       toast({
         title: 'Sin conversaciones privadas',
@@ -175,6 +360,9 @@ const ChatBottomNav = ({
   };
 
   const openPrivatesSheet = () => {
+    onOpenPrivates?.();
+    setPrivatesTab('suggested');
+    setSheetQuery('');
     setIsPrivatesSheetOpen(true);
   };
 
@@ -182,7 +370,53 @@ const ChatBottomNav = ({
     setIsPrivatesSheetOpen(false);
   };
 
+  useEffect(() => {
+    const shouldAnimate = !isPrivatesSheetOpen && (
+      normalizedPendingRequests.length > 0
+      || totalUnreadPrivateMessages > 0
+      || baseSuggestedUsers.length > 0
+    );
+
+    if (!shouldAnimate) {
+      setShouldPulseConecta(false);
+      return undefined;
+    }
+
+    let pulseTimeoutId = null;
+
+    const runPulse = () => {
+      setShouldPulseConecta(true);
+      pulseTimeoutId = window.setTimeout(() => {
+        setShouldPulseConecta(false);
+      }, 2200);
+    };
+
+    runPulse();
+    const intervalId = window.setInterval(runPulse, 16000);
+
+    return () => {
+      window.clearInterval(intervalId);
+      if (pulseTimeoutId) window.clearTimeout(pulseTimeoutId);
+    };
+  }, [isPrivatesSheetOpen, normalizedPendingRequests.length, totalUnreadPrivateMessages, baseSuggestedUsers.length]);
+
+  const handleStartSuggestedConversation = async (candidate) => {
+    if (!candidate?.userId || !onStartPrivateChat) return;
+    setOpeningSuggestedUserId(candidate.userId);
+    closePrivatesSheet();
+    navigate('/chat/principal');
+    try {
+      await onStartPrivateChat(candidate, {
+        silentSuccess: true,
+        source: 'privates_sheet_suggested',
+      });
+    } finally {
+      setOpeningSuggestedUserId(null);
+    }
+  };
+
   const handleOpenConversation = (chat) => {
+    onOpenPrivates?.();
     const result = openRecentPrivateChat({
       chatId: chat.chatId || null,
       partner: chat.partner || {},
@@ -244,7 +478,7 @@ const ChatBottomNav = ({
       },
     ]
     : [
-    {
+    ...(ENABLE_BAUL ? [{
       id: 'baul',
       icon: Archive,
       label: 'Baúl',
@@ -252,7 +486,7 @@ const ChatBottomNav = ({
       active: isBaul,
       path: '/baul',
       swipeEnabled: true,
-    },
+    }] : []),
     {
       id: 'opin',
       icon: Sparkles,
@@ -265,9 +499,9 @@ const ChatBottomNav = ({
     {
       id: 'privates',
       icon: MessagesSquare,
-      label: 'Privados',
+      label: 'Conecta',
       onClick: openPrivatesSheet,
-      active: isPrivatesSheetOpen || (mergedPrivateChats.length > 0 && isChat),
+      active: isPrivatesSheetOpen,
       path: null,
       swipeEnabled: false,
       badge: privateBadgeCount,
@@ -312,7 +546,7 @@ const ChatBottomNav = ({
     return [
       { id: 'chat', path: '/chat/principal' },
       { id: 'opin', path: '/opin' },
-      { id: 'baul', path: '/baul' },
+      ...(ENABLE_BAUL ? [{ id: 'baul', path: '/baul' }] : []),
     ];
   }, [isHeteroRoom]);
 
@@ -400,203 +634,425 @@ const ChatBottomNav = ({
     };
   }, [currentSwipeIndex, navigate, swipeTargets]);
 
+  const renderSuggestedUserRow = (candidate, { actionLabel = 'Hablar', compact = false } = {}) => {
+    const candidateId = candidate?.userId || candidate?.id;
+    const isOpening = openingSuggestedUserId && openingSuggestedUserId === candidateId;
+    const statusText = candidate?.chatSeekingBadgeLabel || candidate?.opportunityText || 'Disponible para conversar';
+    const whyText = candidate?.matchHeadline || null;
+    const reasonBadges = Array.isArray(candidate?.matchReasons) ? candidate.matchReasons.slice(0, 2) : [];
+    const recurrenceLevel = getSuggestionRecurrenceLevel(candidate);
+    const primaryMetaLabel = recurrenceLevel === 'alta'
+      ? 'Te aparece seguido'
+      : recurrenceLevel === 'media'
+        ? 'Ya hubo interés'
+        : candidate?.opportunityMeta || null;
+
+    return (
+      <div
+        key={candidateId}
+        className={`flex items-center gap-3 px-3 ${compact ? 'py-3' : 'py-3.5'}`}
+      >
+        <Avatar className="h-12 w-12 border border-slate-200">
+          <AvatarImage src={candidate?.avatar || ''} alt={candidate?.username || 'Usuario'} />
+          <AvatarFallback className="bg-slate-50 text-sm text-slate-700">
+            {(candidate?.username || 'US').slice(0, 2).toUpperCase()}
+          </AvatarFallback>
+        </Avatar>
+
+        <div className="min-w-0 flex-1">
+          <div className="flex items-center gap-2">
+            <p className="truncate text-sm font-semibold text-slate-900">{candidate?.username || 'Usuario'}</p>
+            {candidate?.roleBadge ? (
+              <span className="rounded-full bg-slate-100 px-2 py-0.5 text-[10px] font-medium text-slate-600">
+                {candidate.roleBadge}
+              </span>
+            ) : null}
+          </div>
+
+          <p className="mt-0.5 truncate text-xs text-slate-600">{statusText}</p>
+          {whyText ? (
+            <p className="mt-1 truncate text-[11px] font-medium text-emerald-700">
+              {whyText}
+            </p>
+          ) : null}
+
+          <div className="mt-1.5 flex flex-wrap items-center gap-1.5">
+            {reasonBadges.map((reason) => (
+              <span
+                key={`${candidateId}:${reason}`}
+                className="rounded-full bg-emerald-50 px-2 py-0.5 text-[10px] font-semibold text-emerald-700"
+              >
+                {reason}
+              </span>
+            ))}
+            {!reasonBadges.length && candidate?.comuna ? (
+              <span className="rounded-full bg-slate-100 px-2 py-0.5 text-[10px] font-semibold text-slate-500">
+                {candidate.comuna}
+              </span>
+            ) : null}
+            {primaryMetaLabel ? (
+              <span className={`rounded-full px-2 py-0.5 text-[10px] font-semibold ${
+                recurrenceLevel !== 'ninguna'
+                  ? 'bg-violet-50 text-violet-700'
+                  : 'bg-sky-50 text-sky-700'
+              }`}>
+                {primaryMetaLabel}
+              </span>
+            ) : null}
+          </div>
+        </div>
+
+        <Button
+          type="button"
+          size="sm"
+          disabled={isOpening}
+          onClick={() => handleStartSuggestedConversation(candidate)}
+          className="h-9 rounded-full bg-[#1473E6] px-3 text-xs text-white hover:bg-[#0F67D8]"
+        >
+          {isOpening ? 'Abriendo...' : actionLabel}
+        </Button>
+      </div>
+    );
+  };
+
   return (
     <>
       {isPrivatesSheetOpen && (
         <div className="lg:hidden fixed inset-0 z-[125]">
           <button
             type="button"
-            className="absolute inset-0 bg-black/55 backdrop-blur-[1px]"
+            className="absolute inset-0 bg-[rgba(17,24,39,0.42)] backdrop-blur-[2px]"
             onClick={closePrivatesSheet}
-            aria-label="Cerrar bandeja de privados"
+            aria-label="Cerrar bandeja de conecta"
           />
 
           <div
-            className="absolute left-0 right-0 bottom-0 mx-auto w-full max-w-md rounded-t-[28px] border border-border/70 bg-card/96 backdrop-blur-xl shadow-[0_-18px_48px_rgba(0,0,0,0.45)]"
+            className="absolute left-0 right-0 bottom-0 mx-auto w-full max-w-md rounded-t-[28px] border border-slate-200 bg-white shadow-[0_-18px_48px_rgba(15,23,42,0.18)]"
             style={{ paddingBottom: 'max(1rem, env(safe-area-inset-bottom))' }}
           >
-            <div className="mx-auto mt-2.5 h-1.5 w-12 rounded-full bg-muted-foreground/30" />
+            <div className="mx-auto mt-2.5 h-1.5 w-12 rounded-full bg-slate-300/80" />
 
             <div className="flex items-center justify-between px-4 pt-3 pb-2">
               <div className="min-w-0">
-                <h3 className="text-base font-bold text-foreground">Privados</h3>
-                <p className="text-xs text-muted-foreground">
-                  Solicitudes pendientes e historial de conversaciones
+                <h3 className="text-base font-bold text-slate-900">Conecta</h3>
+                <p className="text-xs text-slate-500">
+                  Sugeridos e historial privado dentro de Chactivo
                 </p>
               </div>
               <button
                 type="button"
                 onClick={closePrivatesSheet}
-                className="inline-flex h-9 w-9 items-center justify-center rounded-full border border-border/70 bg-secondary/40 text-muted-foreground hover:text-foreground hover:bg-secondary/60"
-                aria-label="Cerrar privados"
+                className="inline-flex h-9 w-9 items-center justify-center rounded-full border border-slate-200 bg-white text-slate-500 hover:bg-slate-100 hover:text-slate-900"
+                aria-label="Cerrar conecta"
               >
                 <X className="w-4 h-4" />
               </button>
             </div>
 
-            <div className="max-h-[68vh] overflow-y-auto px-3 pb-2 space-y-3">
-              <section>
-                <div className="flex items-center justify-between px-1 pb-2">
-                  <p className="text-xs font-semibold uppercase tracking-[0.18em] text-cyan-300">
-                    Solicitudes pendientes
-                  </p>
-                  <span className="text-[11px] text-muted-foreground">
-                    {normalizedPendingRequests.length}
-                  </span>
-                </div>
+            <div className="px-3 pb-2">
+              <div className="relative">
+                <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+                <input
+                  type="text"
+                  value={sheetQuery}
+                  onChange={(event) => setSheetQuery(event.target.value)}
+                  placeholder={privatesTab === 'chats' ? 'Buscar conversaciones...' : 'Buscar personas sugeridas...'}
+                  className="h-11 w-full rounded-2xl border border-slate-200 bg-slate-50 pl-10 pr-3 text-sm text-slate-900 outline-none placeholder:text-slate-400 focus:border-sky-300 focus:bg-white"
+                />
+              </div>
+            </div>
 
-                {normalizedPendingRequests.length === 0 ? (
-                  <div className="rounded-2xl border border-border/70 bg-secondary/20 px-4 py-4 text-center">
-                    <p className="text-sm text-foreground">No tienes solicitudes pendientes.</p>
-                    <p className="mt-1 text-xs text-muted-foreground">
-                      Cuando alguien te invite a un privado aparecerá aquí.
-                    </p>
+            <div className="px-3 pb-2">
+              <div className="grid grid-cols-2 gap-2 rounded-2xl bg-slate-100 p-1">
+                <button
+                  type="button"
+                  onClick={() => setPrivatesTab('chats')}
+                  className={`h-10 rounded-[14px] text-sm font-semibold transition-colors ${
+                    privatesTab === 'chats'
+                      ? 'bg-white text-slate-900 shadow-[0_4px_12px_rgba(15,23,42,0.08)]'
+                      : 'text-slate-500 hover:text-slate-800'
+                  }`}
+                >
+                  Chats
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setPrivatesTab('suggested')}
+                  className={`h-10 rounded-[14px] text-sm font-semibold transition-colors ${
+                    privatesTab === 'suggested'
+                      ? 'bg-white text-slate-900 shadow-[0_4px_12px_rgba(15,23,42,0.08)]'
+                      : 'text-slate-500 hover:text-slate-800'
+                  }`}
+                >
+                  Sugeridos
+                </button>
+              </div>
+            </div>
+
+            <div className="max-h-[68vh] overflow-y-auto px-3 pb-2 space-y-3">
+              {normalizedPendingRequests.length > 0 ? (
+                <section className="rounded-2xl border border-sky-200 bg-sky-50 p-3">
+                  <div className="flex items-center justify-between gap-3">
+                    <div className="min-w-0">
+                      <p className="text-xs font-semibold uppercase tracking-[0.18em] text-sky-700">
+                        Solicitudes pendientes
+                      </p>
+                      <p className="mt-1 text-xs text-slate-600">
+                        Nada se abre solo. Tú decides si aceptar o no.
+                      </p>
+                    </div>
+                    <span className="inline-flex h-7 min-w-[28px] items-center justify-center rounded-full bg-white px-2 text-xs font-bold text-sky-700">
+                      {normalizedPendingRequests.length}
+                    </span>
                   </div>
-                ) : (
-                  <div className="space-y-2">
+
+                  <div className="mt-3 space-y-2">
                     {normalizedPendingRequests.map((request) => {
                       const isGroupRequest = request?.type === 'private_group_invite_request';
                       const partnerName = request?.from?.username || 'Usuario';
                       const helperText = isGroupRequest
-                        ? `${partnerName} quiere sumar a ${request?.requestedUser?.username || 'otro usuario'} a un privado`
-                        : `${partnerName} te invitó a un chat privado`;
+                        ? `${partnerName} quiere sumar a ${request?.requestedUser?.username || 'otro usuario'}`
+                        : `${partnerName} quiere hablar contigo`;
 
                       return (
                         <div
                           key={request.notificationId}
-                          className="rounded-2xl border border-cyan-500/20 bg-cyan-500/5 p-3"
+                          className="rounded-2xl border border-white/80 bg-white px-3 py-2.5 shadow-[0_8px_20px_rgba(14,116,144,0.08)]"
                         >
-                          <div className="flex items-start gap-3">
-                            <Avatar className="h-11 w-11 border border-cyan-400/35">
+                          <div className="flex items-center gap-3">
+                            <Avatar className="h-11 w-11 border border-sky-100">
                               <AvatarImage src={request?.from?.avatar || ''} alt={partnerName} />
-                              <AvatarFallback className="bg-secondary text-sm">
+                              <AvatarFallback className="bg-slate-50 text-sm text-slate-700">
                                 {partnerName.slice(0, 2).toUpperCase()}
                               </AvatarFallback>
                             </Avatar>
 
                             <div className="min-w-0 flex-1">
-                              <div className="flex items-center gap-2">
-                                <p className="text-sm font-semibold text-foreground truncate">{partnerName}</p>
-                                <span className="rounded-full border border-cyan-500/25 bg-cyan-500/10 px-2 py-0.5 text-[10px] font-medium text-cyan-200">
-                                  Pendiente
-                                </span>
-                              </div>
-                              <p className="mt-1 text-xs text-muted-foreground leading-relaxed">
-                                {helperText}
-                              </p>
+                              <p className="truncate text-sm font-semibold text-slate-900">{partnerName}</p>
+                              <p className="truncate text-xs text-slate-500">{helperText}</p>
                             </div>
-                          </div>
 
-                          <div className="mt-3 flex gap-2">
-                            <Button
-                              type="button"
-                              size="sm"
-                              variant="outline"
-                              onClick={() => handleDeclineRequest(request)}
-                              className="flex-1 h-10 border-red-500/40 text-red-300 hover:bg-red-500/10 hover:text-red-200"
-                            >
-                              Declinar
-                            </Button>
-                            <Button
-                              type="button"
-                              size="sm"
-                              onClick={() => handleAcceptRequest(request)}
-                              className="flex-1 h-10 bg-gradient-to-r from-cyan-600 to-blue-600 hover:from-cyan-500 hover:to-blue-500 text-white"
-                            >
-                              <Check className="w-4 h-4 mr-1.5" />
-                              Aceptar
-                            </Button>
+                            <div className="flex items-center gap-1">
+                              <button
+                                type="button"
+                                onClick={() => handleDeclineRequest(request)}
+                                className="inline-flex h-9 w-9 items-center justify-center rounded-full border border-rose-200 bg-white text-rose-500 hover:bg-rose-50"
+                                aria-label="Declinar solicitud"
+                              >
+                                <X className="h-4 w-4" />
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => handleAcceptRequest(request)}
+                                className="inline-flex h-9 w-9 items-center justify-center rounded-full bg-[#1473E6] text-white hover:bg-[#0F67D8]"
+                                aria-label="Aceptar solicitud"
+                              >
+                                <Check className="h-4 w-4" />
+                              </button>
+                            </div>
                           </div>
                         </div>
                       );
                     })}
                   </div>
-                )}
-              </section>
+                </section>
+              ) : null}
 
-              <section>
-                <div className="flex items-center justify-between px-1 pb-2">
-                  <p className="text-xs font-semibold uppercase tracking-[0.18em] text-emerald-300">
-                    Historial de conversaciones
-                  </p>
-                  <span className="text-[11px] text-muted-foreground">
-                    {mergedPrivateChats.length}
-                  </span>
-                </div>
-
-                {mergedPrivateChats.length === 0 ? (
-                  <div className="rounded-2xl border border-border/70 bg-secondary/20 px-4 py-4 text-center">
-                    <p className="text-sm text-foreground">Aún no tienes conversaciones guardadas.</p>
-                    <p className="mt-1 text-xs text-muted-foreground">
-                      Cuando hables con alguien en privado, el historial aparecerá aquí como en una bandeja de mensajería.
+              {privatesTab === 'chats' ? (
+                <section className="space-y-2">
+                  <div className="flex items-center justify-between px-1">
+                    <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-600">
+                      Historial
                     </p>
+                    <span className="text-[11px] text-slate-500">{filteredPrivateChats.length}</span>
                   </div>
-                ) : (
-                  <div className="space-y-2">
-                    {mergedPrivateChats.map((chat) => {
-                      const partnerName = chat?.partner?.username || 'Usuario';
-                      const partnerAvatar = chat?.partner?.avatar || '';
-                      const isOpen = (openPrivateChats || []).some((item) => item.chatId === chat.chatId);
-                      const unreadMeta = chat?.chatId ? unreadPrivateMessages?.[chat.chatId] : null;
-                      const unreadCount = Number(chat?.unreadCount || unreadMeta?.count || 0);
-                      const lastPreview = chat?.lastMessagePreview || unreadMeta?.latestContent || 'Toca para abrir la conversación';
 
-                      return (
-                        <div
-                          key={chat.key}
-                          className="rounded-2xl border border-border/70 bg-secondary/20 p-3"
-                        >
-                          <div className="flex items-start gap-3">
-                            <Avatar className="h-11 w-11 border border-emerald-500/25">
-                              <AvatarImage src={partnerAvatar} alt={partnerName} />
-                              <AvatarFallback className="bg-secondary text-sm">
-                                {partnerName.slice(0, 2).toUpperCase()}
-                              </AvatarFallback>
-                            </Avatar>
+                  {filteredPrivateChats.length === 0 ? (
+                    <div className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-5 text-center">
+                      <p className="text-sm font-medium text-slate-900">Tu historial aún está vacío.</p>
+                      <p className="mt-1 text-xs leading-relaxed text-slate-500">
+                        Aquí quedarán guardadas tus conversaciones para seguir dentro de Chactivo, sin salir a otra app.
+                      </p>
+                    </div>
+                  ) : (
+                    <div className="overflow-hidden rounded-[22px] border border-slate-200 bg-white">
+                      {filteredPrivateChats.map((chat, index) => {
+                        const partnerName = chat?.partner?.username || 'Usuario';
+                        const partnerAvatar = chat?.partner?.avatar || '';
+                        const isOpen = (openPrivateChats || []).some((item) => item.chatId === chat.chatId);
+                        const unreadMeta = chat?.chatId ? unreadPrivateMessages?.[chat.chatId] : null;
+                        const unreadCount = Number(chat?.unreadCount || unreadMeta?.count || 0);
+                        const lastPreview = chat?.lastMessagePreview || unreadMeta?.latestContent || 'Toca para abrir la conversación';
 
+                        return (
+                          <div
+                            key={chat.key}
+                            className={`flex items-center gap-3 px-3 py-3 ${index !== 0 ? 'border-t border-slate-100' : ''}`}
+                          >
                             <button
                               type="button"
                               onClick={() => handleOpenConversation(chat)}
-                              className="min-w-0 flex-1 text-left"
+                              className="flex min-w-0 flex-1 items-center gap-3 text-left"
                             >
-                              <div className="flex items-center gap-2">
-                                <p className="text-sm font-semibold text-foreground truncate">{partnerName}</p>
+                              <Avatar className="h-12 w-12 border border-slate-200">
+                                <AvatarImage src={partnerAvatar} alt={partnerName} />
+                                <AvatarFallback className="bg-slate-50 text-sm text-slate-700">
+                                  {partnerName.slice(0, 2).toUpperCase()}
+                                </AvatarFallback>
+                              </Avatar>
+
+                              <div className="min-w-0 flex-1">
+                                <div className="flex items-center gap-2">
+                                  <p className="truncate text-sm font-semibold text-slate-900">{partnerName}</p>
+                                  {isOpen ? (
+                                    <span className="rounded-full bg-sky-50 px-2 py-0.5 text-[10px] font-medium text-sky-700">
+                                      Abierto
+                                    </span>
+                                  ) : null}
+                                </div>
+                                <p className="mt-0.5 truncate text-xs text-slate-500">{lastPreview}</p>
+                              </div>
+
+                              <div className="flex flex-col items-end gap-1.5 pl-2">
+                                <span className="text-[11px] text-slate-400">{formatRelativeTime(chat.lastMessageAt)}</span>
                                 {unreadCount > 0 ? (
-                                  <span className="rounded-full bg-emerald-500 px-2 py-0.5 text-[10px] font-bold text-white">
+                                  <span className="inline-flex min-w-[22px] items-center justify-center rounded-full bg-[#1473E6] px-1.5 py-0.5 text-[10px] font-bold text-white">
                                     {unreadCount > 99 ? '99+' : unreadCount}
                                   </span>
                                 ) : null}
-                                {isOpen ? (
-                                  <span className="rounded-full border border-emerald-500/25 bg-emerald-500/10 px-2 py-0.5 text-[10px] font-medium text-emerald-200">
-                                    Abierto
-                                  </span>
-                                ) : null}
-                              </div>
-                              <p className="mt-1 text-xs text-muted-foreground truncate">
-                                {lastPreview}
-                              </p>
-                              <div className="mt-2 flex items-center gap-1 text-[11px] text-muted-foreground">
-                                <Clock3 className="w-3.5 h-3.5" />
-                                {formatRelativeTime(chat.lastMessageAt)}
                               </div>
                             </button>
 
                             <button
                               type="button"
                               onClick={() => handleDeleteConversation(chat)}
-                              className="inline-flex h-9 w-9 items-center justify-center rounded-full border border-border/70 bg-background/60 text-muted-foreground hover:text-rose-300 hover:border-rose-500/40 hover:bg-rose-500/10"
+                              className="inline-flex h-9 w-9 items-center justify-center rounded-full text-slate-400 hover:bg-rose-50 hover:text-rose-500"
                               aria-label="Eliminar conversación"
                               title="Eliminar conversación de la bandeja"
                             >
-                              <Trash2 className="w-4 h-4" />
+                              <Trash2 className="h-4 w-4" />
                             </button>
                           </div>
-                        </div>
-                      );
-                    })}
+                        );
+                      })}
+                    </div>
+                  )}
+                </section>
+              ) : (
+                <section className="space-y-3">
+                  <div className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3">
+                    <p className="text-sm font-medium text-slate-900">
+                      {nearbySuggestedUsers.length > 0
+                        ? (currentUserComuna
+                          ? `Primero te mostramos personas de ${currentUserComuna}.`
+                          : 'Primero te mostramos personas que mejor encajan contigo.')
+                        : 'No hay matches cercanos. Escalamos a perfiles compatibles que igual pasan tus filtros.'}
+                    </p>
+                    <p className="mt-1 text-xs leading-relaxed text-slate-500">
+                      El orden prioriza compatibilidad, intereses, recurrencia y cercanía. Si no hay en tu comuna, bajamos a compatibles de otras zonas y luego a perfiles que también podrían interesarte.
+                    </p>
                   </div>
-                )}
-              </section>
+
+                  {baseSuggestedUsers.length === 0 ? (
+                    <div className="rounded-2xl border border-slate-200 bg-white px-4 py-5 text-center">
+                      <p className="text-sm font-medium text-slate-900">No hay sugeridos para este filtro.</p>
+                      <p className="mt-1 text-xs leading-relaxed text-slate-500">
+                        Ajusta la búsqueda o vuelve luego. Los sugeridos no dependen de que estén conectados, sino de compatibilidad e historial.
+                      </p>
+                    </div>
+                  ) : (
+                    <>
+                      {recurrentSuggestedUsers.length > 0 ? (
+                        <div className="space-y-2">
+                          <div className="flex items-center justify-between px-1">
+                            <p className="text-xs font-semibold uppercase tracking-[0.18em] text-sky-700">
+                              Recurrentes para ti
+                            </p>
+                            <span className="text-[11px] text-slate-500">{recurrentSuggestedUsers.length}</span>
+                          </div>
+
+                          <div className="overflow-hidden rounded-[22px] border border-slate-200 bg-white">
+                            {recurrentSuggestedUsers.map((candidate, index) => (
+                              <div
+                                key={candidate.userId || candidate.id}
+                                className={index !== 0 ? 'border-t border-slate-100' : ''}
+                              >
+                                {renderSuggestedUserRow(candidate, { actionLabel: 'Abrir' })}
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      ) : null}
+
+                      {localSuggestedUsers.length > 0 ? (
+                        <div className="space-y-2">
+                          <div className="flex items-center justify-between px-1">
+                            <p className="text-xs font-semibold uppercase tracking-[0.18em] text-sky-700">
+                              {currentUserComuna ? `En ${currentUserComuna} ahora` : 'Cerca de ti'}
+                            </p>
+                            <span className="text-[11px] text-slate-500">{localSuggestedUsers.length}</span>
+                          </div>
+
+                          <div className="overflow-hidden rounded-[22px] border border-slate-200 bg-white">
+                            {localSuggestedUsers.map((candidate, index) => (
+                              <div
+                                key={candidate.userId || candidate.id}
+                                className={index !== 0 ? 'border-t border-slate-100' : ''}
+                              >
+                              {renderSuggestedUserRow(candidate, { actionLabel: 'Abrir' })}
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      ) : null}
+
+                      {farSuggestedUsers.length > 0 ? (
+                        <div className="space-y-2">
+                          <div className="flex items-center justify-between px-1">
+                            <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-600">
+                              Otras comunas interesantes
+                            </p>
+                            <span className="text-[11px] text-slate-500">{farSuggestedUsers.length}</span>
+                          </div>
+
+                          <div className="overflow-hidden rounded-[22px] border border-slate-200 bg-white">
+                            {farSuggestedUsers.map((candidate, index) => (
+                              <div
+                                key={candidate.userId || candidate.id}
+                                className={index !== 0 ? 'border-t border-slate-100' : ''}
+                              >
+                                {renderSuggestedUserRow(candidate)}
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      ) : null}
+
+                      {alsoInterestingUsers.length > 0 ? (
+                        <div className="space-y-2">
+                          <div className="flex items-center justify-between px-1">
+                            <p className="text-xs font-semibold uppercase tracking-[0.18em] text-violet-700">
+                              También podría interesarte
+                            </p>
+                            <span className="text-[11px] text-slate-500">{alsoInterestingUsers.length}</span>
+                          </div>
+
+                          <div className="overflow-hidden rounded-[22px] border border-slate-200 bg-white">
+                            {alsoInterestingUsers.map((candidate, index) => (
+                              <div
+                                key={candidate.userId || candidate.id}
+                                className={index !== 0 ? 'border-t border-slate-100' : ''}
+                              >
+                                {renderSuggestedUserRow(candidate)}
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      ) : null}
+                    </>
+                  )}
+                </section>
+              )}
             </div>
           </div>
         </div>
@@ -609,7 +1065,7 @@ const ChatBottomNav = ({
         {items.map((item) => {
           const Icon = item.icon;
           const active = item.active;
-          const shouldPulsePrivates = item.id === 'privates' && Number(item.badge || 0) > 0 && !active;
+          const shouldPulsePrivates = item.id === 'privates' && !active && shouldPulseConecta;
           return (
             <button
               key={item.id}
@@ -619,11 +1075,11 @@ const ChatBottomNav = ({
               }`}
               aria-label={item.label}
             >
-              <span className={`relative inline-flex items-center justify-center rounded-full p-2 transition-colors ${shouldPulsePrivates ? 'animate-pulse' : ''} ${active ? 'bg-primary/10' : 'bg-transparent'}`}>
+              <span className={`relative inline-flex items-center justify-center rounded-full p-2 transition-colors ${shouldPulsePrivates ? 'animate-pulse bg-[#1473E6]/10' : ''} ${active ? 'bg-primary/10' : 'bg-transparent'}`}>
                 {shouldPulsePrivates ? (
-                  <span className="absolute inset-[-5px] rounded-full bg-emerald-500/15 blur-sm" />
+                  <span className="absolute inset-[-6px] rounded-full bg-sky-400/20 blur-sm" />
                 ) : null}
-                <Icon className="w-6 h-6 flex-shrink-0" strokeWidth={active ? 2.5 : 2} />
+                <Icon className="h-5 w-5 flex-shrink-0" strokeWidth={active ? 1.8 : 1.6} />
                 {item.badge ? (
                   <span className={`absolute -top-1.5 -right-2 min-w-[16px] h-4 px-1 rounded-full text-[10px] text-white font-semibold leading-4 text-center ${
                     normalizedPendingRequests.length > 0 ? 'bg-cyan-500' : 'bg-emerald-500'
@@ -632,7 +1088,7 @@ const ChatBottomNav = ({
                   </span>
                 ) : null}
               </span>
-              <span className={`text-[10px] font-medium truncate w-full text-center ${shouldPulsePrivates ? 'text-emerald-300' : ''}`}>{item.label}</span>
+              <span className={`w-full truncate text-center text-[10px] font-medium tracking-[-0.01em] ${shouldPulsePrivates ? 'text-[#1473E6]' : ''}`}>{item.label}</span>
             </button>
           );
         })}

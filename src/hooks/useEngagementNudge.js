@@ -13,6 +13,7 @@ import { useNavigate } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
 import { getMyOpinPosts } from '@/services/opinService';
 import { toast } from '@/components/ui/use-toast';
+import { ENABLE_BAUL } from '@/config/featureFlags';
 
 const BAUL_SCROLL_THRESHOLD_MS = 2 * 60 * 1000; // 2 min de sesión antes de sugerir Baúl
 const OPIN_ACTIVITY_COOLDOWN_MS = 24 * 60 * 60 * 1000; // 24h
@@ -179,6 +180,7 @@ export function useEngagementNudge() {
 
   // ✅ After chat scroll + session duration: Baúl discovery nudge
   const handleChatScroll = useCallback(() => {
+    if (!ENABLE_BAUL) return;
     if (!user || !userKey || isDisabled()) return;
 
     const visitedKey = `baul_visited:${userKey}`;

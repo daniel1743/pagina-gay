@@ -6,13 +6,13 @@ import { Button } from '@/components/ui/button';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Hash, Gamepad2, Users, Heart, User, LogIn, X, UserCheck, GitFork, UserMinus, Cake, CheckCircle, Lock, Sparkles, Archive, MessageCircle } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { subscribeToMultipleRoomCounts } from '@/services/presenceService';
 import { colorClasses, getVisibleRoomsForUser, roomsData } from '@/config/rooms';
 import { RegistrationRequiredModal } from '@/components/auth/RegistrationRequiredModal';
 import { AuthModal } from '@/components/auth/AuthModal';
 import { toast } from '@/components/ui/use-toast';
 import PresenceSidebarStatusPanel from '@/components/chat/PresenceSidebarStatusPanel';
 import { resolveProfileRole } from '@/config/profileRoles';
+import { ENABLE_BAUL } from '@/config/featureFlags';
 
 /**
  * ✅ SISTEMA DE ESTADOS DE ACTIVIDAD
@@ -84,6 +84,7 @@ const ChatSidebar = ({
   fallbackUsers = [],
   onUserClick,
   onRequestNickname,
+  onOpenPrivates,
 }) => {
   const logoSources = ["/transparente_logo.png"];
   const navigate = useNavigate();
@@ -195,7 +196,7 @@ const ChatSidebar = ({
     ? '1 persona activa ahora'
     : activeUsersInRoom != null
       ? `${activeUsersInRoom} personas activas ahora`
-      : 'Muévete sin fricción entre chat, perfiles y privados';
+      : 'Muévete sin fricción entre chat, perfiles y conecta';
 
   const closeSidebarIfMobile = () => {
     if (typeof window !== 'undefined' && window.innerWidth < 1024) onClose();
@@ -243,6 +244,7 @@ const ChatSidebar = ({
   };
 
   const handleOpenPrivatesShortcut = () => {
+    onOpenPrivates?.();
     if (mergedPrivateChats.length > 0) {
       openPrivateChatFromShortcut(mergedPrivateChats[0]);
       return;
@@ -287,9 +289,9 @@ const ChatSidebar = ({
             <MessageCircle className="h-4 w-4" />
           </div>
           <div className="min-w-0 flex-1">
-            <div className="text-sm font-semibold text-foreground">Privados</div>
+            <div className="text-sm font-semibold text-foreground">Conecta</div>
             <div className="text-[11px] leading-snug text-muted-foreground">
-              {mergedPrivateChats.length > 0 ? 'Abre el último privado activo' : 'Entra directo al chat principal'}
+              {mergedPrivateChats.length > 0 ? 'Abre el último chat activo' : 'Entra directo al chat principal'}
             </div>
           </div>
           {totalUnreadPrivateMessages > 0 ? (
@@ -299,19 +301,21 @@ const ChatSidebar = ({
           ) : null}
         </button>
 
-        <button
-          type="button"
-          onClick={handleOpenBaulShortcut}
-          className="group flex min-h-[52px] items-center gap-3 rounded-xl border border-cyan-500/20 bg-cyan-500/10 px-3 py-2.5 text-left transition-colors hover:bg-cyan-500/14"
-        >
-          <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-cyan-500/15 text-cyan-300">
-            <Archive className="h-4 w-4" />
-          </div>
-          <div className="min-w-0 flex-1">
-            <div className="text-sm font-semibold text-foreground">Ver perfiles</div>
-            <div className="text-[11px] leading-snug text-muted-foreground">Explora perfiles sin perder el foco del chat</div>
-          </div>
-        </button>
+        {ENABLE_BAUL && (
+          <button
+            type="button"
+            onClick={handleOpenBaulShortcut}
+            className="group flex min-h-[52px] items-center gap-3 rounded-xl border border-cyan-500/20 bg-cyan-500/10 px-3 py-2.5 text-left transition-colors hover:bg-cyan-500/14"
+          >
+            <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-cyan-500/15 text-cyan-300">
+              <Archive className="h-4 w-4" />
+            </div>
+            <div className="min-w-0 flex-1">
+              <div className="text-sm font-semibold text-foreground">Ver perfiles</div>
+              <div className="text-[11px] leading-snug text-muted-foreground">Explora perfiles sin perder el foco del chat</div>
+            </div>
+          </button>
+        )}
       </div>
 
       <button
@@ -330,6 +334,7 @@ const ChatSidebar = ({
 
   const openPrivateChatFromShortcut = (chat) => {
     if (!chat) return;
+    onOpenPrivates?.();
     const result = openRecentPrivateChat({
       chatId: chat.chatId || null,
       partner: chat.partner || {},
@@ -373,25 +378,12 @@ const ChatSidebar = ({
     return getVisibleRoomsForUser(user);
   }, [currentRoom, user]);
 
-  // Suscribirse a contadores en tiempo real para las salas visibles de este contexto
+  // Modo ahorro extremo: no abrimos listeners de presencia para salas no activas
+  // desde el sidebar. Solo mostramos el conteo de la sala actual, que ya existe
+  // en ChatPage, y evitamos multiplicar listeners por usuario/pestaña.
   useEffect(() => {
-    if (!user) {
-      setRoomCounts({});
-      return;
-    }
-
-    const roomIds = visibleRooms
-      .map(room => room.id)
-      .filter((roomId) => roomId && roomId !== currentRoom);
-    if (roomIds.length === 0) {
-      setRoomCounts({});
-      return;
-    }
-    const unsubscribe = subscribeToMultipleRoomCounts(roomIds, (counts) => {
-      setRoomCounts(counts);
-    });
-    return () => unsubscribe();
-  }, [user, visibleRooms, currentRoom]);
+    setRoomCounts({});
+  }, [currentRoom, visibleRooms.length, user?.id]);
 
   const handleRoomChange = (roomId, isSecondary = false) => {
     setCurrentRoom(roomId);
@@ -760,7 +752,9 @@ const ChatSidebar = ({
             <div className="space-y-1">
               {visibleRooms.map((room, index) => {
                 const IconComponent = room.icon;
-                const realUserCount = roomCounts[room.id] || 0;
+                const realUserCount = room.id === currentRoom
+                  ? Math.max(0, Number(currentRoomUserCount || 0))
+                  : (roomCounts[room.id] || 0);
                 
                 // ✅ Obtener estado de actividad
                 const activityStatus = getRoomActivityStatus(realUserCount);
@@ -916,21 +910,23 @@ const ChatSidebar = ({
                   <Sparkles className="w-5 h-5 text-purple-400 flex-shrink-0 mr-3" />
                   <span className="text-sm font-medium text-foreground">Tablón</span>
                 </Button>
-                <Button
-                  variant="ghost"
-                  className="w-full justify-start text-left h-auto py-2.5 px-3 hover:bg-accent/50 hover:border-l-2 hover:border-cyan-500 group"
-                  onClick={handleOpenBaulShortcut}
-                >
-                  <Archive className="w-5 h-5 text-cyan-400 flex-shrink-0 mr-3" />
-                  <span className="text-sm font-medium text-foreground">Baúl</span>
-                </Button>
+                {ENABLE_BAUL && (
+                  <Button
+                    variant="ghost"
+                    className="w-full justify-start text-left h-auto py-2.5 px-3 hover:bg-accent/50 hover:border-l-2 hover:border-cyan-500 group"
+                    onClick={handleOpenBaulShortcut}
+                  >
+                    <Archive className="w-5 h-5 text-cyan-400 flex-shrink-0 mr-3" />
+                    <span className="text-sm font-medium text-foreground">Baúl</span>
+                  </Button>
+                )}
                 <Button
                   variant="ghost"
                   className="w-full justify-start text-left h-auto py-2.5 px-3 hover:bg-accent/50 hover:border-l-2 hover:border-emerald-500 group"
                   onClick={handleOpenPrivatesShortcut}
                 >
                   <MessageCircle className="w-5 h-5 text-emerald-400 flex-shrink-0 mr-3" />
-                  <span className="text-sm font-medium text-foreground">Privados</span>
+                  <span className="text-sm font-medium text-foreground">Conecta</span>
                   {totalUnreadPrivateMessages > 0 ? (
                     <span className="ml-auto text-[10px] px-1.5 py-0.5 rounded-full bg-emerald-500 text-white border border-emerald-400/40">
                       {totalUnreadPrivateMessages > 99 ? '99+' : totalUnreadPrivateMessages}

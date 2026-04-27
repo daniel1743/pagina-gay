@@ -36,6 +36,7 @@ import {
 import { getPrivateChatSharedContacts } from '@/services/secureUserDataService';
 import { notificationSounds } from '@/services/notificationSounds';
 import { savePendingPrivateChatRestore } from '@/utils/privateChatRestore';
+import { ENABLE_PRIVATE_TYPING } from '@/config/featureFlags';
 
 const EmojiPicker = lazy(() => import('emoji-picker-react'));
 
@@ -53,6 +54,7 @@ const PRIVATE_EARLY_WARNING_MAX_MESSAGES = 4;
 const MOBILE_MINIMIZED_PRIVATE_CHAT_SAFE_BOTTOM = 132;
 const DESKTOP_MINIMIZED_PRIVATE_CHAT_SAFE_BOTTOM = 88;
 const MINIMIZED_PRIVATE_CHAT_SPACING = 56;
+const PRIVATE_CHAT_MINIMIZED_POSITION_PREFIX = 'chactivo:private_chat_minimized_position:v1:';
 
 const getTimestampMs = (value) => {
   if (!value) return null;
@@ -148,9 +150,9 @@ const getImageExtension = (contentType = '') => {
 
 const TypingDots = () => (
   <div className="inline-flex items-center gap-1">
-    <span className="h-2 w-2 animate-bounce rounded-full bg-zinc-400 [animation-delay:-0.2s]" />
-    <span className="h-2 w-2 animate-bounce rounded-full bg-zinc-400 [animation-delay:-0.1s]" />
-    <span className="h-2 w-2 animate-bounce rounded-full bg-zinc-400" />
+    <span className="h-2 w-2 animate-bounce rounded-full bg-slate-400 [animation-delay:-0.2s]" />
+    <span className="h-2 w-2 animate-bounce rounded-full bg-slate-400 [animation-delay:-0.1s]" />
+    <span className="h-2 w-2 animate-bounce rounded-full bg-slate-400" />
   </div>
 );
 
@@ -227,6 +229,7 @@ export default function PrivateChatWindowV2({
   const [isSubmittingContactShare, setIsSubmittingContactShare] = useState(false);
   const [contactShareNowMs, setContactShareNowMs] = useState(() => Date.now());
   const [isContactGuideDismissed, setIsContactGuideDismissed] = useState(false);
+  const [minimizedPosition, setMinimizedPosition] = useState(null);
 
   const inputRef = useRef(null);
   const fileInputRef = useRef(null);
@@ -235,6 +238,7 @@ export default function PrivateChatWindowV2({
   const typingTimeoutRef = useRef(null);
   const typingPublishedRef = useRef(false);
   const hasLoadedSnapshotRef = useRef(false);
+  const recentMessagesRef = useRef([]);
   const olderMessagesRef = useRef([]);
   const historyCursorRef = useRef(null);
   const isPrependingHistoryRef = useRef(false);
@@ -252,6 +256,16 @@ export default function PrivateChatWindowV2({
     startY: 0,
     deltaX: 0,
   });
+  const minimizedDragStateRef = useRef({
+    dragging: false,
+    pointerId: null,
+    startX: 0,
+    startY: 0,
+    startLeft: 0,
+    startTop: 0,
+    moved: false,
+  });
+  const canUsePrivateTyping = ENABLE_PRIVATE_TYPING && !isMobile && !isMinimized && !isPending;
 
   const chatParticipants = useMemo(() => {
     const fallback = [
@@ -481,13 +495,11 @@ export default function PrivateChatWindowV2({
   }, [chatId, conversationTitle, onEnterPrivate, onLeavePrivate, privateMarkerId, roomId, user?.id]);
 
   useEffect(() => {
-    if (!chatId || isPending) return undefined;
+    if (!chatId || isPending || isMinimized) return undefined;
     hasLoadedSnapshotRef.current = false;
-    setIsInitialMessagesLoading(true);
-    setOlderMessages([]);
-    setRecentMessages([]);
-    setHasMoreHistory(false);
-    historyCursorRef.current = null;
+    if (recentMessagesRef.current.length === 0 && olderMessagesRef.current.length === 0) {
+      setIsInitialMessagesLoading(true);
+    }
 
     const q = query(
       collection(db, 'private_chats', chatId, 'messages'),
@@ -528,7 +540,7 @@ export default function PrivateChatWindowV2({
     });
 
     return () => unsubscribe();
-  }, [chatId, isPending, user?.id]);
+  }, [chatId, isMinimized, isPending, user?.id]);
 
   useEffect(() => {
     if (optimisticMessages.length === 0) return;
@@ -542,6 +554,10 @@ export default function PrivateChatWindowV2({
 
     setOptimisticMessages((prev) => prev.filter((message) => !persistedClientIds.has(message?.clientId)));
   }, [olderMessages, optimisticMessages.length, recentMessages]);
+
+  useEffect(() => {
+    recentMessagesRef.current = Array.isArray(recentMessages) ? recentMessages : [];
+  }, [recentMessages]);
 
   useEffect(() => {
     if (!chatId) {
@@ -728,7 +744,7 @@ export default function PrivateChatWindowV2({
   useEffect(() => {
     if (!partner?.id && !partner?.userId) return undefined;
     const partnerId = primaryParticipant.userId;
-    if (!partnerId || isGroupChat) return undefined;
+    if (!partnerId || isGroupChat || isMinimized) return undefined;
 
     const unsubscribe = onSnapshot(doc(db, 'tarjetas', partnerId), (snapshot) => {
       if (!snapshot.exists()) return;
@@ -740,15 +756,25 @@ export default function PrivateChatWindowV2({
     });
 
     return () => unsubscribe();
-  }, [isGroupChat, partner?.id, partner?.userId, primaryParticipant.userId]);
+  }, [isGroupChat, isMinimized, partner?.id, partner?.userId, primaryParticipant.userId]);
 
   useEffect(() => {
-    if (!chatId || !user?.id || isPending) return undefined;
+    if (!chatId || !user?.id || !canUsePrivateTyping) {
+      setTypingUsers([]);
+      return undefined;
+    }
     return subscribeToPrivateChatTyping(chatId, user.id, setTypingUsers);
-  }, [chatId, isPending, user?.id]);
+  }, [canUsePrivateTyping, chatId, user?.id]);
 
   useEffect(() => {
-    if (!chatId || !user?.id || isPending) return undefined;
+    if (!chatId || !user?.id || !canUsePrivateTyping) {
+      if (typingTimeoutRef.current) clearTimeout(typingTimeoutRef.current);
+      if (typingPublishedRef.current) {
+        typingPublishedRef.current = false;
+        updatePrivateChatTypingStatus(chatId, user.id, false, user.username).catch(() => {});
+      }
+      return undefined;
+    }
     if (typingTimeoutRef.current) clearTimeout(typingTimeoutRef.current);
 
     if (!newMessage.trim()) {
@@ -772,7 +798,7 @@ export default function PrivateChatWindowV2({
     return () => {
       if (typingTimeoutRef.current) clearTimeout(typingTimeoutRef.current);
     };
-  }, [chatId, isPending, newMessage, user?.id, user?.username]);
+  }, [canUsePrivateTyping, chatId, newMessage, user?.id, user?.username]);
 
   useEffect(() => () => {
     if (chatId && user?.id && typingPublishedRef.current) {
@@ -1009,15 +1035,15 @@ export default function PrivateChatWindowV2({
 
   const renderStatusIcon = (status, className = 'h-3.5 w-3.5') => {
     if (status === 'sending') {
-      return <Clock strokeWidth={2.6} className={`${className} text-zinc-950/90`} />;
+      return <Clock strokeWidth={2.6} className={`${className} text-white/60`} />;
     }
     if (status === 'read') {
-      return <CheckCheck strokeWidth={2.8} className={`${className} text-blue-700 drop-shadow-[0_0_1px_rgba(255,255,255,0.55)]`} />;
+      return <CheckCheck strokeWidth={2.8} className={`${className} text-cyan-200 drop-shadow-[0_0_3px_rgba(186,230,253,0.45)]`} />;
     }
     if (status === 'delivered') {
-      return <CheckCheck strokeWidth={2.8} className={`${className} text-fuchsia-800 drop-shadow-[0_0_1px_rgba(255,255,255,0.35)]`} />;
+      return <CheckCheck strokeWidth={2.8} className={`${className} text-white/55`} />;
     }
-    return <Check strokeWidth={2.8} className={`${className} text-zinc-950`} />;
+    return <Check strokeWidth={2.8} className={`${className} text-white/72`} />;
   };
 
   const loadOlderMessages = async () => {
@@ -1254,7 +1280,6 @@ export default function PrivateChatWindowV2({
         focusInputSafely(inputRef.current);
       }
       console.error('[PRIVATE_CHAT_V2] Error sending private message:', error);
-      console.info('[PRIVATE_CHAT_DEBUG] Ejecuta window.printPrivateChatDebug?.() o inspecciona window.__lastPrivateChatDebug');
       toast({
         title: error?.code === 'PRIVATE_CONTACT_LOCKED' ? 'Aún no compartas contacto' : 'No pudimos enviar el mensaje',
         description: error?.message || 'Intenta de nuevo en un momento.',
@@ -1416,6 +1441,25 @@ export default function PrivateChatWindowV2({
     ? false
     : (isPartnerTyping || isPartnerRecentlyActiveInPrivate || partnerPresence.isOnline);
 
+  const minimizedPositionStorageKey = useMemo(() => {
+    if (!chatId) return null;
+    return `${PRIVATE_CHAT_MINIMIZED_POSITION_PREFIX}${chatId}`;
+  }, [chatId]);
+
+  const clampMinimizedPosition = React.useCallback((left, top) => {
+    if (typeof window === 'undefined') return { left, top };
+    const bubbleWidth = isMobile ? Math.min(232, Math.max(180, window.innerWidth - 24)) : 232;
+    const bubbleHeight = 58;
+    const minLeft = 8;
+    const maxLeft = Math.max(minLeft, window.innerWidth - bubbleWidth - 8);
+    const minTop = 8;
+    const maxTop = Math.max(minTop, window.innerHeight - bubbleHeight - 8);
+    return {
+      left: Math.min(Math.max(left, minLeft), maxLeft),
+      top: Math.min(Math.max(top, minTop), maxTop),
+    };
+  }, [isMobile]);
+
   const desktopStyle = isMobile ? {} : {
     right: `${16 + windowIndex * 392}px`,
     bottom: '16px',
@@ -1435,6 +1479,51 @@ export default function PrivateChatWindowV2({
       bottom: `${DESKTOP_MINIMIZED_PRIVATE_CHAT_SAFE_BOTTOM}px`,
       width: '232px',
     };
+
+  useEffect(() => {
+    if (!minimizedPositionStorageKey || typeof window === 'undefined') return;
+    try {
+      const raw = window.localStorage.getItem(minimizedPositionStorageKey);
+      if (!raw) {
+        setMinimizedPosition(null);
+        return;
+      }
+      const parsed = JSON.parse(raw);
+      if (!parsed || typeof parsed.left !== 'number' || typeof parsed.top !== 'number') {
+        setMinimizedPosition(null);
+        return;
+      }
+      setMinimizedPosition(clampMinimizedPosition(parsed.left, parsed.top));
+    } catch {
+      setMinimizedPosition(null);
+    }
+  }, [clampMinimizedPosition, minimizedPositionStorageKey]);
+
+  useEffect(() => {
+    if (!isMinimized || !minimizedPosition || typeof window === 'undefined') return;
+
+    const handleResize = () => {
+      setMinimizedPosition((prev) => {
+        if (!prev) return prev;
+        const next = clampMinimizedPosition(prev.left, prev.top);
+        if (next.left === prev.left && next.top === prev.top) return prev;
+        return next;
+      });
+    };
+
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  }, [clampMinimizedPosition, isMinimized, minimizedPosition]);
+
+  useEffect(() => {
+    if (!minimizedPositionStorageKey || typeof window === 'undefined') return;
+    if (!minimizedPosition) return;
+    try {
+      window.localStorage.setItem(minimizedPositionStorageKey, JSON.stringify(minimizedPosition));
+    } catch {
+      // noop
+    }
+  }, [minimizedPosition, minimizedPositionStorageKey]);
 
   useEffect(() => {
     if (isMinimized) return;
@@ -1458,6 +1547,78 @@ export default function PrivateChatWindowV2({
     setTimeout(() => {
       focusInputSafely(inputRef.current);
     }, 60);
+  };
+
+  const handleMinimizedPointerDown = (event) => {
+    if (event.button !== undefined && event.button !== 0) return;
+    if (event.target?.closest?.('[data-no-drag="true"]')) return;
+    if (typeof window === 'undefined') return;
+
+    const target = event.currentTarget;
+    const rect = target.getBoundingClientRect();
+    const fallbackLeft = rect.left;
+    const fallbackTop = rect.top;
+    const currentLeft = minimizedPosition?.left ?? fallbackLeft;
+    const currentTop = minimizedPosition?.top ?? fallbackTop;
+
+    minimizedDragStateRef.current = {
+      dragging: true,
+      pointerId: event.pointerId ?? null,
+      startX: event.clientX,
+      startY: event.clientY,
+      startLeft: currentLeft,
+      startTop: currentTop,
+      moved: false,
+    };
+
+    try {
+      target.setPointerCapture?.(event.pointerId);
+    } catch {
+      // noop
+    }
+  };
+
+  const handleMinimizedPointerMove = (event) => {
+    const drag = minimizedDragStateRef.current;
+    if (!drag.dragging) return;
+    if (drag.pointerId !== null && event.pointerId !== drag.pointerId) return;
+
+    const deltaX = event.clientX - drag.startX;
+    const deltaY = event.clientY - drag.startY;
+    const next = clampMinimizedPosition(drag.startLeft + deltaX, drag.startTop + deltaY);
+
+    if (!drag.moved && (Math.abs(deltaX) > 4 || Math.abs(deltaY) > 4)) {
+      drag.moved = true;
+    }
+
+    setMinimizedPosition(next);
+  };
+
+  const handleMinimizedPointerUp = (event) => {
+    const drag = minimizedDragStateRef.current;
+    if (!drag.dragging) return;
+    if (drag.pointerId !== null && event.pointerId !== drag.pointerId) return;
+
+    const wasMoved = drag.moved;
+    minimizedDragStateRef.current = {
+      dragging: false,
+      pointerId: null,
+      startX: 0,
+      startY: 0,
+      startLeft: 0,
+      startTop: 0,
+      moved: false,
+    };
+
+    try {
+      event.currentTarget.releasePointerCapture?.(event.pointerId);
+    } catch {
+      // noop
+    }
+
+    if (!wasMoved) {
+      handleRestore();
+    }
   };
 
   const triggerReply = (message) => {
@@ -1523,33 +1684,46 @@ export default function PrivateChatWindowV2({
   };
 
   if (isMinimized) {
+    const interactiveMinimizedStyle = minimizedPosition
+      ? {
+        left: `${minimizedPosition.left}px`,
+        top: `${minimizedPosition.top}px`,
+        right: 'auto',
+        bottom: 'auto',
+        width: isMobile ? 'min(232px, calc(100vw - 24px))' : '232px',
+      }
+      : minimizedStyle;
+
     return (
       <div
-        className="fixed z-[94] flex items-center gap-2 rounded-2xl border border-white/10 bg-zinc-950/95 px-2.5 py-2 text-white shadow-2xl backdrop-blur-xl"
-        style={minimizedStyle}
+        className="fixed z-[94] flex items-center gap-2 rounded-2xl border border-slate-200/90 bg-white/95 px-2.5 py-2 text-slate-900 shadow-[0_18px_44px_rgba(15,23,42,0.16)] backdrop-blur-xl touch-none select-none"
+        style={interactiveMinimizedStyle}
+        onPointerDown={handleMinimizedPointerDown}
+        onPointerMove={handleMinimizedPointerMove}
+        onPointerUp={handleMinimizedPointerUp}
+        onPointerCancel={handleMinimizedPointerUp}
       >
         <button
           type="button"
-          className="flex min-w-0 flex-1 items-center gap-3 text-left"
-          onClick={handleRestore}
+          className="flex min-w-0 flex-1 cursor-grab items-center gap-3 text-left active:cursor-grabbing"
         >
           <div className="relative">
-            <Avatar className="h-9 w-9 border border-white/10">
+            <Avatar className="h-9 w-9 border border-slate-200">
               <AvatarImage src={primaryParticipant.avatar} alt={conversationTitle} />
               <AvatarFallback>{conversationTitle.slice(0, 1).toUpperCase()}</AvatarFallback>
             </Avatar>
             {!isGroupChat ? (
               <span
                 className={[
-                  'absolute -bottom-0.5 -right-0.5 h-3 w-3 rounded-full border-2 border-zinc-950',
-                  shouldShowPartnerActiveDot ? 'bg-emerald-400' : 'bg-zinc-500',
+                  'absolute -bottom-0.5 -right-0.5 h-3 w-3 rounded-full border-2 border-white',
+                  shouldShowPartnerActiveDot ? 'bg-emerald-500' : 'bg-slate-300',
                 ].join(' ')}
               />
             ) : null}
           </div>
           <div className="min-w-0 flex-1">
             <div className="truncate text-sm font-semibold">{conversationTitle}</div>
-            <div className="truncate text-[11px] text-zinc-400">
+            <div className="truncate text-[11px] text-slate-500">
               {isPartnerTyping ? 'escribiendo...' : (buildPreview(messages[messages.length - 1]) || statusLabel)}
             </div>
           </div>
@@ -1559,8 +1733,9 @@ export default function PrivateChatWindowV2({
           type="button"
           variant="ghost"
           size="icon"
-          className="h-7 w-7 shrink-0 rounded-full text-zinc-300 hover:bg-white/10 hover:text-white"
+          className="h-7 w-7 shrink-0 rounded-full text-slate-500 hover:bg-slate-100 hover:text-slate-900"
           onClick={() => onClose?.(chatId)}
+          data-no-drag="true"
         >
           <X className="h-4 w-4" />
         </Button>
@@ -1571,22 +1746,22 @@ export default function PrivateChatWindowV2({
   return (
     <div
       className={[
-        'fixed z-[95] flex flex-col overflow-hidden border border-white/10 bg-zinc-950 text-white shadow-2xl backdrop-blur-xl',
+        'fixed z-[95] flex flex-col overflow-hidden border border-slate-200/90 bg-white/95 text-slate-900 shadow-[0_28px_70px_rgba(15,23,42,0.18)] backdrop-blur-xl',
         isMobile ? 'inset-0 rounded-none' : 'rounded-3xl',
       ].join(' ')}
       style={desktopStyle}
     >
-      <div className="flex items-center gap-3 border-b border-white/10 bg-white/5 px-4 py-3">
+      <div className="flex items-center gap-3 border-b border-slate-200/80 bg-white/92 px-4 py-3">
         <div className="relative">
-          <Avatar className="h-11 w-11 border border-white/10">
+          <Avatar className="h-11 w-11 border border-slate-200">
             <AvatarImage src={primaryParticipant.avatar} alt={conversationTitle} />
             <AvatarFallback>{conversationTitle.slice(0, 1).toUpperCase()}</AvatarFallback>
           </Avatar>
           {!isGroupChat ? (
             <span
               className={[
-                'absolute -bottom-0.5 -right-0.5 h-3.5 w-3.5 rounded-full border-2 border-zinc-950',
-                shouldShowPartnerActiveDot ? 'bg-emerald-400' : 'bg-zinc-500',
+                'absolute -bottom-0.5 -right-0.5 h-3.5 w-3.5 rounded-full border-2 border-white',
+                shouldShowPartnerActiveDot ? 'bg-emerald-500' : 'bg-slate-300',
               ].join(' ')}
             />
           ) : null}
@@ -1594,7 +1769,7 @@ export default function PrivateChatWindowV2({
 
         <div className="min-w-0 flex-1">
           <div className="truncate text-sm font-semibold">{conversationTitle}</div>
-          <div className="truncate text-xs text-zinc-400">
+          <div className="truncate text-xs text-slate-500">
             {statusLabel}
           </div>
         </div>
@@ -1604,7 +1779,7 @@ export default function PrivateChatWindowV2({
             type="button"
             variant="ghost"
             size="icon"
-            className="h-9 w-9 rounded-full text-zinc-300 hover:bg-white/10 hover:text-white"
+            className="h-9 w-9 rounded-full text-slate-500 hover:bg-slate-100 hover:text-slate-900"
             onClick={handleMinimize}
           >
             <Minus className="h-4 w-4" />
@@ -1613,7 +1788,7 @@ export default function PrivateChatWindowV2({
             type="button"
             variant="ghost"
             size="icon"
-            className="h-9 w-9 rounded-full text-zinc-300 hover:bg-white/10 hover:text-white"
+            className="h-9 w-9 rounded-full text-slate-500 hover:bg-slate-100 hover:text-slate-900"
             onClick={() => onClose?.(chatId)}
           >
             <X className="h-4 w-4" />
@@ -1622,24 +1797,24 @@ export default function PrivateChatWindowV2({
       </div>
 
       {!isGroupChat ? (
-        <div className="border-b border-white/10 bg-zinc-900/80 px-3 py-2">
+        <div className="border-b border-slate-200/80 bg-slate-50/80 px-3 py-2">
           <div className="mx-auto flex max-w-3xl flex-col gap-2">
             {partnerSharedContact?.phone ? (
-              <div className="rounded-2xl border border-emerald-400/20 bg-emerald-500/10 px-3 py-2">
-                <div className="text-[11px] font-semibold uppercase tracking-[0.14em] text-emerald-300">
+              <div className="rounded-2xl border border-sky-200 bg-sky-50 px-3 py-2">
+                <div className="text-[11px] font-semibold uppercase tracking-[0.14em] text-sky-700">
                   Contacto compartido
                 </div>
-                <div className="mt-1 text-sm text-white">
+                <div className="mt-1 text-sm text-slate-700">
                   {partnerSharedContact.username || conversationTitle} compartio su telefono:
                 </div>
-                <div className="mt-1 text-[11px] text-emerald-100/80">
+                <div className="mt-1 text-[11px] text-sky-700/80">
                   {partnerContactVisibilityState.expiresAtMs
                     ? formatRemainingDuration(partnerContactVisibilityState.expiresAtMs)
                     : 'vigencia activa'}
                 </div>
                 <a
                   href={`tel:${partnerSharedContact.phone}`}
-                  className="mt-1 inline-flex w-fit rounded-full border border-emerald-300/30 bg-black/20 px-3 py-1 text-sm font-semibold text-emerald-100 hover:bg-black/30"
+                  className="mt-1 inline-flex w-fit rounded-full border border-sky-200 bg-white px-3 py-1 text-sm font-semibold text-sky-700 hover:bg-sky-50"
                 >
                   {partnerSharedContact.phone}
                 </a>
@@ -1647,15 +1822,15 @@ export default function PrivateChatWindowV2({
             ) : null}
 
             {incomingContactShareRequest ? (
-              <div className="rounded-2xl border border-amber-300/20 bg-amber-500/10 px-3 py-2">
-                <div className="text-sm text-white">
+              <div className="rounded-2xl border border-amber-200 bg-amber-50 px-3 py-2">
+                <div className="text-sm text-slate-700">
                   {incomingContactRequester?.username || 'Esta persona'} quiere compartir su telefono contigo.
                 </div>
                 <div className="mt-2 flex flex-wrap gap-2">
                   <Button
                     type="button"
                     size="sm"
-                    className="rounded-full bg-emerald-500 text-zinc-950 hover:bg-emerald-400"
+                    className="rounded-full bg-blue-600 text-white hover:bg-blue-700"
                     disabled={isSubmittingContactShare}
                     onClick={() => handleRespondContactShare(true)}
                   >
@@ -1665,7 +1840,7 @@ export default function PrivateChatWindowV2({
                     type="button"
                     size="sm"
                     variant="ghost"
-                    className="rounded-full border border-white/10 bg-white/5 text-zinc-200 hover:bg-white/10 hover:text-white"
+                    className="rounded-full border border-slate-200 bg-white text-slate-700 hover:bg-slate-50 hover:text-slate-900"
                     disabled={isSubmittingContactShare}
                     onClick={() => handleRespondContactShare(false)}
                   >
@@ -1676,15 +1851,15 @@ export default function PrivateChatWindowV2({
             ) : null}
 
             {myContactShareRequest?.status === 'pending' ? (
-              <div className="rounded-2xl border border-white/10 bg-white/5 px-3 py-2 text-sm text-zinc-200">
+              <div className="rounded-2xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-600">
                 Tu solicitud para compartir telefono sigue pendiente.
               </div>
             ) : null}
 
             {mySharedContactVisibleToPartner ? (
-              <div className="rounded-2xl border border-cyan-300/20 bg-cyan-500/10 px-3 py-2 text-sm text-cyan-100">
+              <div className="rounded-2xl border border-blue-200 bg-blue-50 px-3 py-2 text-sm text-slate-700">
                 <div>Tu telefono ya fue compartido en este chat con aceptacion mutua.</div>
-                <div className="mt-1 text-[11px] text-cyan-100/80">
+                <div className="mt-1 text-[11px] text-blue-700/75">
                   {myContactVisibilityState.expiresAtMs
                     ? formatRemainingDuration(myContactVisibilityState.expiresAtMs)
                     : 'vigencia activa'}
@@ -1694,7 +1869,7 @@ export default function PrivateChatWindowV2({
                     type="button"
                     size="sm"
                     variant="ghost"
-                    className="rounded-full border border-cyan-200/20 bg-black/10 text-cyan-50 hover:bg-black/20 hover:text-white"
+                    className="rounded-full border border-blue-200 bg-white text-blue-700 hover:bg-blue-50 hover:text-blue-800"
                     disabled={isSubmittingContactShare}
                     onClick={handleRevokeContactShare}
                   >
@@ -1705,28 +1880,28 @@ export default function PrivateChatWindowV2({
             ) : null}
 
             {myContactVisibilityState.isExpired ? (
-              <div className="rounded-2xl border border-zinc-400/20 bg-zinc-500/10 px-3 py-2 text-sm text-zinc-200">
+              <div className="rounded-2xl border border-slate-200 bg-slate-100 px-3 py-2 text-sm text-slate-600">
                 Tu permiso de contacto en este chat ya vencio.
               </div>
             ) : null}
 
             {partnerContactVisibilityState.isExpired ? (
-              <div className="rounded-2xl border border-zinc-400/20 bg-zinc-500/10 px-3 py-2 text-sm text-zinc-200">
+              <div className="rounded-2xl border border-slate-200 bg-slate-100 px-3 py-2 text-sm text-slate-600">
                 El contacto compartido por la otra persona ya vencio.
               </div>
             ) : null}
 
             {!isContactGuideDismissed ? (
-              <div className="rounded-2xl border border-white/10 bg-white/5 px-3 py-2">
+              <div className="rounded-2xl border border-slate-200 bg-white px-3 py-2">
                 <div className="flex items-start justify-between gap-3">
-                  <div className="text-[12px] text-zinc-300">
+                  <div className="text-[12px] text-slate-600">
                     {contactShareStatusText}
                   </div>
                   <Button
                     type="button"
                     variant="ghost"
                     size="icon"
-                    className="h-7 w-7 shrink-0 rounded-full text-zinc-400 hover:bg-white/10 hover:text-white"
+                    className="h-7 w-7 shrink-0 rounded-full text-slate-400 hover:bg-slate-100 hover:text-slate-900"
                     onClick={handleDismissContactGuide}
                   >
                     <X className="h-4 w-4" />
@@ -1737,7 +1912,7 @@ export default function PrivateChatWindowV2({
                     <Button
                       type="button"
                       size="sm"
-                      className="rounded-full bg-white text-zinc-950 hover:bg-zinc-200"
+                      className="rounded-full bg-blue-600 text-white hover:bg-blue-700"
                       disabled={isSubmittingContactShare}
                       onClick={handleRequestContactShare}
                     >
@@ -1751,13 +1926,13 @@ export default function PrivateChatWindowV2({
         </div>
       ) : null}
 
-      <div ref={messagesScrollRef} className="flex-1 overflow-y-auto bg-gradient-to-b from-zinc-950 via-zinc-950 to-zinc-900 px-2.5 py-3">
+      <div ref={messagesScrollRef} className="flex-1 overflow-y-auto bg-gradient-to-b from-slate-50 via-white to-slate-50 px-2.5 py-3">
         <div className="mx-auto flex max-w-3xl flex-col gap-2">
           {isInitialMessagesLoading ? (
             <div className="space-y-2 px-1 pb-1">
-              <div className="ml-auto h-14 w-[58%] animate-pulse rounded-[22px] rounded-br-md bg-white/6" />
-              <div className="h-14 w-[66%] animate-pulse rounded-[22px] rounded-bl-md bg-white/6" />
-              <div className="ml-auto h-12 w-[44%] animate-pulse rounded-[22px] rounded-br-md bg-white/6" />
+              <div className="ml-auto h-14 w-[58%] animate-pulse rounded-[22px] rounded-br-md bg-slate-200/80" />
+              <div className="h-14 w-[66%] animate-pulse rounded-[22px] rounded-bl-md bg-slate-200/80" />
+              <div className="ml-auto h-12 w-[44%] animate-pulse rounded-[22px] rounded-br-md bg-slate-200/80" />
             </div>
           ) : null}
 
@@ -1769,7 +1944,7 @@ export default function PrivateChatWindowV2({
                 size="sm"
                 onClick={loadOlderMessages}
                 disabled={isLoadingOlderHistory}
-                className="rounded-full border border-white/10 bg-white/5 px-4 text-xs text-zinc-300 hover:bg-white/10 hover:text-white"
+                className="rounded-full border border-slate-200 bg-white px-4 text-xs text-slate-600 hover:bg-slate-50 hover:text-slate-900"
               >
                 {isLoadingOlderHistory ? 'Cargando mensajes anteriores...' : 'Cargar mensajes anteriores'}
               </Button>
@@ -1782,7 +1957,7 @@ export default function PrivateChatWindowV2({
 
             if (isSystem) {
               return (
-                <div key={message.id} className="text-center text-xs text-zinc-500">
+                <div key={message.id} className="text-center text-xs text-slate-400">
                   {message.content}
                 </div>
               );
@@ -1795,16 +1970,16 @@ export default function PrivateChatWindowV2({
                 className={['flex', isOwn ? 'justify-end' : 'justify-start'].join(' ')}
               >
                 {isMobile && swipeReplyMessageId === (message._realId || message.id) ? (
-                  <div className="pointer-events-none mr-2 flex items-center text-emerald-400">
+                  <div className="pointer-events-none mr-2 flex items-center text-blue-600">
                     <CornerUpLeft className="h-4 w-4" />
                   </div>
                 ) : null}
                 <div
                   className={[
-                    'max-w-[90%] sm:max-w-[88%] rounded-[22px] px-3 py-1.5 shadow-lg transition-opacity',
+                    'max-w-[90%] sm:max-w-[88%] rounded-[22px] px-3 py-1.5 shadow-[0_8px_22px_rgba(15,23,42,0.06)] transition-opacity',
                     isOwn
-                      ? 'rounded-br-md bg-emerald-500 text-zinc-950'
-                      : 'rounded-bl-md bg-zinc-800 text-white',
+                      ? 'rounded-br-md bg-[#1473E6] text-white'
+                      : 'rounded-bl-md border border-slate-200 bg-white text-slate-900',
                     message?._optimistic ? 'opacity-90' : '',
                   ].join(' ')}
                   style={
@@ -1820,8 +1995,8 @@ export default function PrivateChatWindowV2({
                   onTouchEnd={() => handleSwipeEnd(message)}
                   onTouchCancel={() => handleSwipeEnd(message)}
                 >
-                  {!isOwn ? (
-                    <div className="mb-0.5 text-[11px] font-medium text-zinc-300">
+                  {!isOwn && isGroupChat ? (
+                    <div className="mb-0.5 text-[11px] font-medium text-slate-500">
                       {message.username || primaryParticipant.username || 'Usuario'}
                     </div>
                   ) : null}
@@ -1831,8 +2006,8 @@ export default function PrivateChatWindowV2({
                       className={[
                         'mb-1 rounded-2xl border px-2.5 py-1.5 text-[11px] leading-tight shadow-sm',
                         isOwn
-                          ? 'border-white/30 bg-black/20 text-white'
-                          : 'border-white/15 bg-black/25 text-zinc-100',
+                          ? 'border-white/20 bg-white/15 text-white'
+                          : 'border-slate-200 bg-slate-50 text-slate-600',
                       ].join(' ')}
                     >
                       <div className="font-semibold">
@@ -1845,7 +2020,7 @@ export default function PrivateChatWindowV2({
                   ) : null}
 
                   {message.type === 'image' ? (
-                    <a href={message.content} target="_blank" rel="noreferrer" className="block overflow-hidden rounded-2xl bg-black/20">
+                    <a href={message.content} target="_blank" rel="noreferrer" className="block overflow-hidden rounded-2xl bg-slate-100">
                       <img
                         src={message.content}
                         alt="Imagen enviada"
@@ -1854,11 +2029,11 @@ export default function PrivateChatWindowV2({
                       />
                     </a>
                   ) : (
-                    <div className={['text-[14px] leading-[1.35]', isOwn ? 'text-zinc-950' : 'text-white'].join(' ')}>
+                    <div className={['text-[14px] leading-[1.35]', isOwn ? 'text-white' : 'text-slate-900'].join(' ')}>
                       <span className="whitespace-pre-wrap break-words">
                         {message.content}
                       </span>
-                      <span className={['ml-2 inline-flex items-center gap-1 align-bottom whitespace-nowrap text-[10px] font-medium', isOwn ? 'text-zinc-950/90' : 'text-zinc-300'].join(' ')}>
+                      <span className={['ml-2 inline-flex items-center gap-1 align-bottom whitespace-nowrap text-[10px] font-medium', isOwn ? 'text-blue-50/95' : 'text-slate-400'].join(' ')}>
                         <span>{formatMessageTime(message.timestamp)}</span>
                         {isOwn ? renderStatusIcon(status, 'h-3 w-3') : null}
                       </span>
@@ -1866,7 +2041,7 @@ export default function PrivateChatWindowV2({
                   )}
 
                   {message.type === 'image' ? (
-                    <div className={['mt-1 flex items-center gap-1 text-[10px] font-medium', isOwn ? 'justify-end text-zinc-950/90' : 'justify-end text-zinc-300'].join(' ')}>
+                    <div className={['mt-1 flex items-center gap-1 text-[10px] font-medium', isOwn ? 'justify-end text-blue-50/95' : 'justify-end text-slate-400'].join(' ')}>
                       <span>{formatMessageTime(message.timestamp)}</span>
                       {isOwn ? renderStatusIcon(status, 'h-3 w-3') : null}
                     </div>
@@ -1878,8 +2053,8 @@ export default function PrivateChatWindowV2({
 
           {isPartnerTyping ? (
             <div className="flex justify-start">
-              <div className="max-w-[70%] rounded-3xl rounded-bl-md bg-zinc-800 px-4 py-3 text-zinc-300 shadow-lg">
-                <div className="mb-1 text-[11px] font-medium text-zinc-400">
+              <div className="max-w-[70%] rounded-3xl rounded-bl-md border border-slate-200 bg-white px-4 py-3 text-slate-500 shadow-[0_8px_22px_rgba(15,23,42,0.06)]">
+                <div className="mb-1 text-[11px] font-medium text-slate-400">
                   {typingUsers[0]?.username || primaryParticipant.username || 'Usuario'}
                 </div>
                 <TypingDots />
@@ -1891,14 +2066,14 @@ export default function PrivateChatWindowV2({
       </div>
 
       {showEmojiPicker ? (
-        <div className="border-t border-white/10 bg-zinc-900/95 px-3 pb-3 pt-2">
+        <div className="border-t border-slate-200 bg-slate-50/90 px-3 pb-3 pt-2">
           <div className="mb-2 flex items-center justify-between">
-            <div className="text-xs font-medium text-zinc-400">Emoticones</div>
+            <div className="text-xs font-medium text-slate-500">Emoticones</div>
             <Button
               type="button"
               variant="ghost"
               size="sm"
-              className="h-8 px-2 text-zinc-400 hover:bg-white/10 hover:text-white"
+              className="h-8 px-2 text-slate-500 hover:bg-white hover:text-slate-900"
               onClick={() => setShowEmojiPicker(false)}
             >
               Cerrar
@@ -1909,15 +2084,15 @@ export default function PrivateChatWindowV2({
               <button
                 key={emoji}
                 type="button"
-                className="rounded-full bg-white/5 px-2 py-1 text-lg hover:bg-white/10"
+                className="rounded-full border border-slate-200 bg-white px-2 py-1 text-lg hover:bg-slate-50"
                 onClick={() => handleEmojiClick({ emoji })}
               >
                 {emoji}
               </button>
             ))}
           </div>
-          <div className={isMobile ? 'max-h-[280px] overflow-hidden rounded-2xl border border-white/10' : 'rounded-2xl border border-white/10'}>
-            <Suspense fallback={<div className="p-4 text-sm text-zinc-400">Cargando emoticones...</div>}>
+          <div className={isMobile ? 'max-h-[280px] overflow-hidden rounded-2xl border border-slate-200 bg-white' : 'rounded-2xl border border-slate-200 bg-white'}>
+            <Suspense fallback={<div className="p-4 text-sm text-slate-500">Cargando emoticones...</div>}>
               <EmojiPicker
                 onEmojiClick={handleEmojiClick}
                 autoFocusSearch={false}
@@ -1942,17 +2117,17 @@ export default function PrivateChatWindowV2({
         </div>
       ) : null}
 
-      <form onSubmit={handleSendMessage} className="border-t border-white/10 bg-zinc-950/95 px-3 py-3">
+      <form onSubmit={handleSendMessage} className="border-t border-slate-200 bg-white/95 px-3 py-3">
         {replyTo ? (
-          <div className="mb-2 flex items-start gap-2 rounded-2xl border border-fuchsia-400/30 bg-gradient-to-r from-fuchsia-500/14 via-violet-500/10 to-cyan-500/12 px-3 py-2 text-white shadow-[0_10px_30px_rgba(0,0,0,0.22)]">
-            <div className="mt-0.5 text-fuchsia-300">
+          <div className="mb-2 flex items-start gap-2 rounded-2xl border border-blue-200 bg-blue-50 px-3 py-2 text-slate-900 shadow-[0_8px_20px_rgba(15,23,42,0.06)]">
+            <div className="mt-0.5 text-blue-600">
               <CornerUpLeft className="h-4 w-4" />
             </div>
             <div className="min-w-0 flex-1">
-              <div className="text-[11px] font-semibold text-fuchsia-200">
+              <div className="text-[11px] font-semibold text-blue-700">
                 Respondiendo a {replyTo.username || 'Usuario'}
               </div>
-              <div className="truncate text-xs text-white/90">
+              <div className="truncate text-xs text-slate-600">
                 {replyTo.content || 'Mensaje'}
               </div>
             </div>
@@ -1960,7 +2135,7 @@ export default function PrivateChatWindowV2({
               type="button"
               variant="ghost"
               size="icon"
-              className="h-7 w-7 shrink-0 rounded-full text-white/70 hover:bg-white/10 hover:text-white"
+              className="h-7 w-7 shrink-0 rounded-full text-slate-400 hover:bg-white/80 hover:text-slate-900"
               onClick={() => setReplyTo(null)}
             >
               <X className="h-3.5 w-3.5" />
@@ -1968,7 +2143,7 @@ export default function PrivateChatWindowV2({
           </div>
         ) : null}
         {isGuestMode ? (
-          <div className="mb-2 flex items-center justify-between rounded-2xl border border-amber-400/20 bg-amber-500/10 px-3 py-2 text-[11px] text-amber-100">
+          <div className="mb-2 flex items-center justify-between rounded-2xl border border-amber-200 bg-amber-50 px-3 py-2 text-[11px] text-amber-800">
             <span>
               Invitado: {Math.min(guestPrivateSentCount, GUEST_PRIVATE_MESSAGES_LIMIT)}/{GUEST_PRIVATE_MESSAGES_LIMIT} mensajes privados.
               Sin fotos ni emojis.
@@ -1976,7 +2151,7 @@ export default function PrivateChatWindowV2({
             {guestPrivateSentCount >= GUEST_PRIVATE_MESSAGES_LIMIT ? (
               <button
                 type="button"
-                className="shrink-0 font-semibold text-amber-200 hover:text-white"
+                className="shrink-0 font-semibold text-amber-700 hover:text-amber-900"
                 onClick={() => showGuestRegistrationPrompt('seguir enviando mensajes privados')}
               >
                 Registrarme
@@ -1998,10 +2173,10 @@ export default function PrivateChatWindowV2({
             variant="ghost"
             size="icon"
             className={[
-              'h-11 w-11 shrink-0 rounded-full border border-white/10 bg-white/5',
+              'h-11 w-11 shrink-0 rounded-full border border-slate-200 bg-white',
               isGuestMode
-                ? 'text-zinc-500 hover:bg-white/5 hover:text-zinc-400'
-                : 'text-zinc-300 hover:bg-white/10 hover:text-white',
+                ? 'text-slate-300 hover:bg-white hover:text-slate-300'
+                : 'text-slate-500 hover:bg-slate-50 hover:text-slate-900',
             ].join(' ')}
             onClick={() => {
               if (isGuestMode) {
@@ -2019,10 +2194,10 @@ export default function PrivateChatWindowV2({
             variant="ghost"
             size="icon"
             className={[
-              'h-11 w-11 shrink-0 rounded-full border border-white/10 bg-white/5',
+              'h-11 w-11 shrink-0 rounded-full border border-slate-200 bg-white',
               isGuestMode
-                ? 'text-zinc-500 hover:bg-white/5 hover:text-zinc-400'
-                : 'text-zinc-300 hover:bg-white/10 hover:text-white',
+                ? 'text-slate-300 hover:bg-white hover:text-slate-300'
+                : 'text-slate-500 hover:bg-slate-50 hover:text-slate-900',
             ].join(' ')}
             onClick={() => {
               if (isGuestMode) {
@@ -2048,10 +2223,10 @@ export default function PrivateChatWindowV2({
                     ? 'Escribe un mensaje privado'
                     : (isPartnerTyping ? 'Responder...' : 'Escribe un mensaje')
               }
-              className="h-11 rounded-full border-white/10 bg-white/5 px-4 text-white placeholder:text-zinc-500 focus-visible:ring-emerald-500"
+              className="h-11 rounded-full border-slate-200 bg-white px-4 text-slate-900 placeholder:text-slate-400 focus-visible:ring-blue-500"
             />
             {shouldShowEarlyExternalWarning ? (
-              <p className="mt-1 px-2 text-[11px] text-zinc-500">
+              <p className="mt-1 px-2 text-[11px] text-slate-500">
                 Al inicio evita compartir telefono o redes. Primero conversen aqui y usa el boton de compartir cuando se habilite.
               </p>
             ) : null}
@@ -2060,7 +2235,7 @@ export default function PrivateChatWindowV2({
           <Button
             type="submit"
             size="icon"
-            className="h-11 w-11 shrink-0 rounded-full bg-emerald-500 text-zinc-950 hover:bg-emerald-400"
+            className="h-11 w-11 shrink-0 rounded-full bg-blue-600 text-white hover:bg-blue-700"
             disabled={!newMessage.trim()}
             onMouseDown={(event) => event.preventDefault()}
             onPointerDown={(event) => event.preventDefault()}

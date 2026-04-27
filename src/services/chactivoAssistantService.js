@@ -1,3 +1,5 @@
+import { startAITrace, finishAITrace, failAITrace } from '@/utils/runtimeDiagnostics';
+
 const DEEPSEEK_API_KEY = import.meta.env.VITE_DEEPSEEK_API_KEY;
 const DEEPSEEK_URL = 'https://api.deepseek.com/v1/chat/completions';
 const DEEPSEEK_MODEL = import.meta.env.VITE_DEEPSEEK_MODEL || 'deepseek-chat';
@@ -209,6 +211,12 @@ export function buildLocalChactivoAssistantInsight({
 
 export async function generateChactivoAssistantInsight({ roomId = 'principal', compactContext, question = '' }) {
   if (!DEEPSEEK_API_KEY) throw new Error('DeepSeek no esta configurado en el frontend.');
+  const traceId = startAITrace({
+    source: 'chactivo_assistant',
+    provider: 'deepseek',
+    action: 'generate_insight',
+    meta: { roomId },
+  });
 
   const systemPrompt = 'Eres Chactivo Assistant. Analizas salud operativa de una sala de chat para admin. Responde solo JSON valido con esquema {"summary":"","state":"active|mixed|fragile","healthScore":0-100,"topFindings":[""],"risks":[{"level":"critical|high|medium|low","title":"","detail":""}],"opportunities":[{"title":"","detail":""}],"nextActions":[""],"answerToQuestion":""}. No inventes datos ni propongas infraestructura cara.';
   const userPrompt = ['Analiza este contexto resumido de Chactivo.', question ? `Pregunta puntual del admin: ${question}` : 'Pregunta puntual del admin: como estuvo la sala y que corregir primero.', '', compactContext].join('\n');
@@ -240,6 +248,10 @@ export async function generateChactivoAssistantInsight({ roomId = 'principal', c
 
     const data = await response.json();
     const parsed = JSON.parse(jsonFence(data?.choices?.[0]?.message?.content || ''));
+    finishAITrace(traceId, {
+      summary: `Assistant respondió para ${roomId}`,
+      meta: { state: parsed?.state || 'mixed' },
+    });
     return {
       source: 'deepseek',
       generatedAtIso: new Date().toISOString(),
@@ -255,6 +267,7 @@ export async function generateChactivoAssistantInsight({ roomId = 'principal', c
     };
   } catch (error) {
     clearTimeout(timeoutId);
+    failAITrace(traceId, { error, meta: { roomId } });
     throw error;
   }
 }

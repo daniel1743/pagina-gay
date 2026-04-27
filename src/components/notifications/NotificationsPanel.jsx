@@ -335,7 +335,7 @@ const NotificationsPanel = ({ isOpen, onClose, notifications, onOpenPrivateChat 
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
-            className="fixed inset-0 z-[120] bg-black/45 backdrop-blur-[1px]"
+            className="fixed inset-0 z-[120] bg-[rgba(17,24,39,0.38)] backdrop-blur-[2px]"
             onClick={onClose}
           />
 
@@ -345,17 +345,17 @@ const NotificationsPanel = ({ isOpen, onClose, notifications, onOpenPrivateChat 
             animate={{ opacity: 1, x: 0, y: 0 }}
             exit={{ opacity: 0, x: 20, y: -10 }}
             transition={{ type: 'spring', stiffness: 300, damping: 30 }}
-            className="fixed top-16 right-4 z-[130] w-96 max-w-[calc(100vw-2rem)] overflow-hidden rounded-2xl border border-border bg-card shadow-2xl"
+            className="fixed right-4 top-16 z-[130] w-96 max-w-[calc(100vw-2rem)] overflow-hidden rounded-[24px] border border-slate-200 bg-white shadow-[0_28px_60px_rgba(15,23,42,0.18)]"
           >
             {/* Header */}
-            <div className="sticky top-0 z-20 border-b border-border bg-accent/95 p-4 backdrop-blur">
+            <div className="sticky top-0 z-20 border-b border-slate-200 bg-white p-4">
               <div className="flex items-center justify-between mb-3">
-                <h3 className="font-bold text-lg text-foreground">Conversaciones</h3>
+                <h3 className="text-[18px] font-semibold tracking-[-0.02em] text-foreground">Conversaciones</h3>
                 <Button
                   variant="ghost"
                   size="icon"
                   onClick={onClose}
-                  className="relative z-[1] h-9 w-9 rounded-full border border-border bg-background/80 hover:bg-background"
+                  className="relative z-[1] h-9 w-9 rounded-[14px] border border-slate-200 bg-white text-slate-500 hover:bg-slate-100 hover:text-slate-900"
                   title="Cerrar panel"
                 >
                   <X className="w-4 h-4" />
@@ -370,7 +370,7 @@ const NotificationsPanel = ({ isOpen, onClose, notifications, onOpenPrivateChat 
                   placeholder="Buscar conversaciones..."
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
-                  className="pl-9 bg-background border-border focus-visible:ring-cyan-400"
+                  className="border-slate-200 bg-white pl-9 focus-visible:ring-[#1473E6]"
                 />
               </div>
 
@@ -382,7 +382,7 @@ const NotificationsPanel = ({ isOpen, onClose, notifications, onOpenPrivateChat 
                       {sortedAndFilteredNotifications.length} conversaciones
                     </p>
                     {unreadNotifications.length > 0 && (
-                      <span className="px-2 py-0.5 bg-red-500 text-white text-xs font-bold rounded-full">
+                      <span className="rounded-full border border-white/10 bg-[#1473E6] px-2 py-0.5 text-xs font-bold text-white">
                         {unreadNotifications.length > 99 ? '99+' : unreadNotifications.length}
                       </span>
                     )}
@@ -394,7 +394,7 @@ const NotificationsPanel = ({ isOpen, onClose, notifications, onOpenPrivateChat 
                       size="sm"
                       onClick={handleMarkAllAsRead}
                       disabled={unreadNotifications.length === 0 || bulkAction !== null}
-                      className="h-8 rounded-full text-xs"
+                      className="h-8 rounded-full border-slate-200 bg-white text-xs hover:bg-slate-50"
                     >
                       <CheckCheck className="mr-1 h-3.5 w-3.5" />
                       Marcar todas leídas
@@ -405,7 +405,7 @@ const NotificationsPanel = ({ isOpen, onClose, notifications, onOpenPrivateChat 
                       size="sm"
                       onClick={handleDeleteAllNotifications}
                       disabled={notifications.length === 0 || bulkAction !== null}
-                      className="h-8 rounded-full text-xs text-red-500 hover:text-red-400"
+                      className="h-8 rounded-full border border-red-200 bg-white text-xs text-red-500 hover:bg-red-50 hover:text-red-600"
                     >
                       <Trash2 className="mr-1 h-3.5 w-3.5" />
                       Borrar todas
@@ -419,7 +419,7 @@ const NotificationsPanel = ({ isOpen, onClose, notifications, onOpenPrivateChat 
             <ScrollArea className="h-[500px]">
               {sortedAndFilteredNotifications.length === 0 ? (
                 <div className="flex flex-col items-center justify-center py-12 px-4">
-                  <div className="w-16 h-16 rounded-full bg-accent/50 flex items-center justify-center mb-4">
+                  <div className="mb-4 flex h-16 w-16 items-center justify-center rounded-full border border-slate-200 bg-slate-50">
                     <MessageSquare className="w-8 h-8 text-muted-foreground" />
                   </div>
                   <p className="text-sm font-medium text-foreground">
@@ -430,7 +430,7 @@ const NotificationsPanel = ({ isOpen, onClose, notifications, onOpenPrivateChat 
                   </p>
                 </div>
               ) : (
-                <div className="divide-y divide-border">
+                <div className="space-y-2 p-2">
                   {sortedAndFilteredNotifications.map((notification, index) => {
                     const isPinned = pinnedIds.has(notification.id);
                     const isUnread = !notification.read;
@@ -441,9 +441,11 @@ const NotificationsPanel = ({ isOpen, onClose, notifications, onOpenPrivateChat 
                       initial={{ opacity: 0, y: 20 }}
                       animate={{ opacity: 1, y: 0 }}
                       transition={{ delay: index * 0.05 }}
-                      className={`relative p-4 pr-28 hover:bg-accent/50 transition-colors ${
-                        isUnread ? 'bg-primary/5 border-l-4 border-l-red-500' : ''
-                      } ${isPinned ? 'bg-cyan-500/5' : ''}`}
+                      className={`relative rounded-[20px] border p-4 pr-28 transition-colors ${
+                        isUnread
+                          ? 'border-[#1473E6]/18 bg-blue-50'
+                          : 'border-slate-200 bg-white'
+                      } ${isPinned ? 'shadow-[0_0_0_1px_rgba(20,115,230,0.08)]' : ''} hover:bg-slate-50`}
                     >
                       {/* 📌 Botón de Pin + Badge No Leído */}
                       <div className="absolute top-2 right-2 z-10 flex items-center gap-1">
@@ -451,7 +453,7 @@ const NotificationsPanel = ({ isOpen, onClose, notifications, onOpenPrivateChat 
                           <motion.span
                             initial={{ scale: 0 }}
                             animate={{ scale: 1 }}
-                            className="min-w-[20px] rounded-full bg-red-500 px-2 py-1 text-center text-xs font-bold text-white"
+                            className="min-w-[20px] rounded-full bg-[#1473E6] px-2 py-1 text-center text-xs font-bold text-white"
                             style={{ fontSize: '11px' }}
                           >
                             1
@@ -461,7 +463,7 @@ const NotificationsPanel = ({ isOpen, onClose, notifications, onOpenPrivateChat 
                           <Button
                             variant="ghost"
                             size="icon"
-                            className="h-7 w-7 rounded-full bg-background/80"
+                            className="h-7 w-7 rounded-full bg-white text-slate-500 hover:bg-slate-100 hover:text-slate-900"
                             disabled={busyIds.has(notification.id)}
                             onClick={(e) => {
                               e.stopPropagation();
@@ -469,25 +471,25 @@ const NotificationsPanel = ({ isOpen, onClose, notifications, onOpenPrivateChat 
                             }}
                             title="Marcar como leída"
                           >
-                            <Check className="h-3.5 w-3.5 text-green-400" />
+                            <Check className="h-3.5 w-3.5 text-[#1473E6]" />
                           </Button>
                         )}
                         <Button
                           variant="ghost"
                           size="icon"
-                          className="h-7 w-7 rounded-full bg-background/80"
+                          className="h-7 w-7 rounded-full bg-white text-slate-500 hover:bg-slate-100 hover:text-slate-900"
                           onClick={(e) => {
                             e.stopPropagation();
                             togglePin(notification.id);
                           }}
                           title={isPinned ? 'Desfijar' : 'Fijar conversación'}
                         >
-                          <Pin className={`w-3 h-3 ${isPinned ? 'fill-cyan-400 text-cyan-400' : 'text-muted-foreground'}`} />
+                          <Pin className={`w-3 h-3 ${isPinned ? 'fill-[#1473E6] text-[#1473E6]' : 'text-muted-foreground'}`} />
                         </Button>
                         <Button
                           variant="ghost"
                           size="icon"
-                          className="h-7 w-7 rounded-full bg-background/80"
+                          className="h-7 w-7 rounded-full bg-white text-slate-500 hover:bg-red-50 hover:text-red-500"
                           disabled={busyIds.has(notification.id)}
                           onClick={(e) => {
                             e.stopPropagation();
@@ -510,7 +512,7 @@ const NotificationsPanel = ({ isOpen, onClose, notifications, onOpenPrivateChat 
                             }
                           }}
                         >
-                          <MessageSquare className="w-5 h-5 text-green-400 flex-shrink-0 mt-1" />
+                          <MessageSquare className="mt-1 h-5 w-5 flex-shrink-0 text-[#1473E6]" />
                           <div className="flex-1 min-w-0">
                             <p className="font-semibold text-sm text-foreground">
                               Mensaje de {notification.fromUsername || 'un usuario'}
@@ -522,7 +524,7 @@ const NotificationsPanel = ({ isOpen, onClose, notifications, onOpenPrivateChat 
                               {getContextualTimestamp(notification.timestamp)}
                             </p>
                             {notification.chatId && (
-                              <p className="text-xs text-green-400 mt-1 flex items-center gap-1">
+                              <p className="mt-1 flex items-center gap-1 text-xs text-[#1473E6]">
                                 <ExternalLink className="w-3 h-3" />
                                 Abrir chat privado
                               </p>
@@ -562,7 +564,7 @@ const NotificationsPanel = ({ isOpen, onClose, notifications, onOpenPrivateChat 
                                 )}
                               </p>
                               <div className="flex items-center gap-1.5 mt-0.5">
-                                <Video className="w-4 h-4 text-purple-400" />
+                                <Video className="w-4 h-4 text-[#1473E6]" />
                                 <p className="text-sm text-muted-foreground">
                                   quiere conectar en chat privado
                                 </p>
@@ -584,7 +586,7 @@ const NotificationsPanel = ({ isOpen, onClose, notifications, onOpenPrivateChat 
                                   onClick={() => handleRejectPrivateChat(notification)}
                                   variant="outline"
                                   size="sm"
-                                  className="w-full text-red-500 border-red-500 hover:bg-red-500/10"
+                                  className="w-full border-[rgba(239,68,68,0.18)] text-red-500 hover:bg-red-500/8"
                                 >
                                   <X className="w-4 h-4 mr-1" />
                                   Rechazar
@@ -598,7 +600,7 @@ const NotificationsPanel = ({ isOpen, onClose, notifications, onOpenPrivateChat 
                                 <Button
                                   onClick={() => handleAcceptPrivateChat(notification)}
                                   size="sm"
-                                  className="w-full magenta-gradient text-white"
+                                  className="w-full border-0 bg-[#1473E6] text-white hover:bg-[#0F67D8]"
                                 >
                                   <Check className="w-4 h-4 mr-1" />
                                   Aceptar
@@ -634,7 +636,7 @@ const NotificationsPanel = ({ isOpen, onClose, notifications, onOpenPrivateChat 
                             onClose();
                           }}
                         >
-                          <MessageCircle className="w-5 h-5 text-fuchsia-400 flex-shrink-0 mt-1" />
+                          <MessageCircle className="mt-1 h-5 w-5 flex-shrink-0 text-[#1473E6]" />
                           <div className="flex-1 min-w-0">
                             <p className="font-semibold text-sm text-foreground">
                               {notification.title || `${notification.fromUsername || 'Alguien'} respondió tu OPIN`}
@@ -650,7 +652,7 @@ const NotificationsPanel = ({ isOpen, onClose, notifications, onOpenPrivateChat 
                             <p className="text-xs font-medium text-muted-foreground mt-2">
                               {getContextualTimestamp(notification.timestamp || notification.createdAt)}
                             </p>
-                            <p className="text-xs text-fuchsia-400 mt-1 flex items-center gap-1">
+                            <p className="mt-1 flex items-center gap-1 text-xs text-[#1473E6]">
                               <ExternalLink className="w-3 h-3" />
                               Ver conversación en OPIN
                             </p>
@@ -673,7 +675,7 @@ const NotificationsPanel = ({ isOpen, onClose, notifications, onOpenPrivateChat 
                           {notification.type === 'ticket_resolved' ? (
                             <CheckCircle2 className="w-5 h-5 text-green-400 flex-shrink-0 mt-1" />
                           ) : (
-                            <Ticket className="w-5 h-5 text-purple-400 flex-shrink-0 mt-1" />
+                            <Ticket className="w-5 h-5 text-[#1473E6] flex-shrink-0 mt-1" />
                           )}
                           <div className="flex-1 min-w-0">
                             <p className="font-semibold text-sm text-foreground">
@@ -686,7 +688,7 @@ const NotificationsPanel = ({ isOpen, onClose, notifications, onOpenPrivateChat 
                               {getContextualTimestamp(notification.timestamp || notification.createdAt)}
                             </p>
                             {notification.ticketId && (
-                              <p className="text-xs text-purple-400 mt-1 flex items-center gap-1">
+                              <p className="mt-1 flex items-center gap-1 text-xs text-[#1473E6]">
                                 <ExternalLink className="w-3 h-3" />
                                 Ver ticket
                               </p>

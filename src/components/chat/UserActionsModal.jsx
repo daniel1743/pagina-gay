@@ -503,7 +503,7 @@ const UserActionsModal = ({
 
   return (
     <Dialog open={true} onOpenChange={onClose}>
-      <DialogContent className="bg-card border text-foreground max-w-md rounded-2xl p-0 max-h-[90dvh] overflow-hidden">
+      <DialogContent className="max-h-[90dvh] max-w-md overflow-hidden rounded-[24px] border border-slate-200 bg-white p-0 text-slate-900 shadow-[0_28px_60px_rgba(15,23,42,0.18)]">
         <DialogHeader className="p-6 pb-4">
           <DialogDescription className="sr-only">
             Acciones disponibles para interactuar con {targetUser?.username || 'este usuario'} y abrir una conversación privada.
@@ -518,15 +518,15 @@ const UserActionsModal = ({
                     ? 'premium-avatar-ring'
                     : ''
             }`}>
-              <Avatar className="w-16 h-16">
+              <Avatar className="h-16 w-16">
                 <AvatarImage src={targetUser.avatar} alt={targetUser.username} />
-                <AvatarFallback className="bg-secondary text-2xl">
+                <AvatarFallback className="bg-[var(--chat-bubble-incoming)] text-2xl">
                   {targetUser.username[0].toUpperCase()}
                 </AvatarFallback>
               </Avatar>
             </div>
             <div className="flex-1">
-              <DialogTitle className="text-2xl flex items-center gap-2">
+              <DialogTitle className="flex items-center gap-2 text-[22px] font-semibold tracking-[-0.02em]">
                 {targetUser.username}
                 {(targetUser.isPremium || targetUser.role === 'admin') && (
                   <CheckCircle className="w-5 h-5 text-[#FFD700]" />
@@ -554,12 +554,12 @@ const UserActionsModal = ({
                 <motion.div whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }}>
                   <Button
                     onClick={handlePrivateChatRequest}
-                    className="w-full justify-start h-auto py-3 text-left bg-cyan-500 hover:bg-cyan-500/90 text-white border border-cyan-400/40 shadow-sm"
+                    className="h-auto w-full justify-start border-0 bg-[#1473E6] py-3 text-left text-white shadow-[0_8px_20px_rgba(20,115,230,0.22)] hover:bg-[#0F67D8]"
                   >
                     <MessageCircle className="w-5 h-5 mr-3 text-white" />
                     <div className="flex-1">
                       <p className="font-semibold">Chat privado</p>
-                      <p className="text-xs text-cyan-50/90">
+                      <p className="text-xs text-white/80">
                         {isPremiumOrAdmin ? (
                           <span className="flex items-center gap-1">
                             <Crown className="w-3 h-3 text-amber-200" />
@@ -578,9 +578,9 @@ const UserActionsModal = ({
                   <Button
                     onClick={handleOpenMessageInput}
                     variant="outline"
-                    className="w-full justify-start h-auto py-3 text-left border-green-500/30 hover:bg-green-500/5"
+                    className="h-auto w-full justify-start rounded-[18px] border border-slate-200 bg-white py-3 text-left hover:bg-slate-50"
                   >
-                    <MessageSquare className="w-5 h-5 mr-3 text-green-400" />
+                    <MessageSquare className="w-5 h-5 mr-3 text-[#1473E6]" />
                     <div className="flex-1">
                       <p className="font-semibold">Mensaje directo</p>
                       <p className="text-xs text-muted-foreground">
@@ -602,9 +602,9 @@ const UserActionsModal = ({
                   <Button
                     onClick={handleViewProfile}
                     variant="outline"
-                    className="w-full justify-start h-auto py-3 text-left"
+                    className="h-auto w-full justify-start rounded-[18px] border border-slate-200 bg-white py-3 text-left hover:bg-slate-50"
                   >
-                    <User className="w-5 h-5 mr-3 text-cyan-400" />
+                    <User className="w-5 h-5 mr-3 text-[#1473E6]" />
                     <div>
                       <p className="font-semibold">Ver perfil</p>
                       <p className="text-xs text-muted-foreground">
@@ -619,12 +619,14 @@ const UserActionsModal = ({
                   <Button
                     onClick={handleToggleFavorite}
                     variant="outline"
-                    className={`w-full justify-start h-auto py-3 text-left ${
-                      isFavorite ? 'border-pink-400 bg-pink-400/10' : ''
+                    className={`h-auto w-full justify-start rounded-[18px] py-3 text-left ${
+                      isFavorite
+                        ? 'border-[#1473E6]/20 bg-[#1473E6]/8'
+                        : 'border-slate-200 bg-white hover:bg-slate-50'
                     }`}
                   >
                     <Heart
-                      className={`w-5 h-5 mr-3 ${isFavorite ? 'fill-pink-400 text-pink-400' : 'text-pink-400'}`}
+                      className={`w-5 h-5 mr-3 ${isFavorite ? 'fill-[#1473E6] text-[#1473E6]' : 'text-[#1473E6]'}`}
                     />
                     <div>
                       <p className="font-semibold">
@@ -644,9 +646,9 @@ const UserActionsModal = ({
                   <Button
                     onClick={handleOpenCommentInput}
                     variant="outline"
-                    className="w-full justify-start h-auto py-3 text-left"
+                    className="h-auto w-full justify-start rounded-[18px] border border-slate-200 bg-white py-3 text-left hover:bg-slate-50"
                   >
-                    <MessageSquare className="w-5 h-5 mr-3 text-cyan-400" />
+                    <MessageSquare className="w-5 h-5 mr-3 text-[#1473E6]" />
                     <div>
                       <p className="font-semibold">Dejar comentario</p>
                       <p className="text-xs text-muted-foreground">
@@ -661,12 +663,12 @@ const UserActionsModal = ({
                   <Button
                     onClick={handleBlockUser}
                     variant="outline"
-                    className="w-full justify-start h-auto py-3 text-left border-red-500/40 text-red-400 hover:bg-red-500/10"
+                    className="h-auto w-full justify-start rounded-[18px] border border-red-200 bg-white py-3 text-left text-red-500 hover:bg-red-50"
                   >
                     <Shield className="w-5 h-5 mr-3 text-red-400" />
                     <div>
                       <p className="font-semibold">Bloquear Usuario</p>
-                      <p className="text-xs text-red-300/80">
+                      <p className="text-xs text-red-400/90">
                         No podrán interactuar entre ustedes
                       </p>
                     </div>
@@ -675,8 +677,8 @@ const UserActionsModal = ({
 
                 {/* Moderación rápida para admin */}
                 {isCurrentUserAdmin && (
-                  <div className="mt-4 space-y-2 rounded-xl border border-red-500/30 bg-red-500/5 p-3">
-                    <p className="text-xs font-semibold uppercase tracking-wide text-red-300">
+                  <div className="mt-4 space-y-2 rounded-[18px] border border-red-200 bg-red-50/70 p-3">
+                    <p className="text-xs font-semibold uppercase tracking-wide text-red-500">
                       Admin Moderación
                     </p>
                     <div className="grid grid-cols-1 gap-2">
@@ -684,7 +686,7 @@ const UserActionsModal = ({
                         onClick={() => handleAdminSanction('warning')}
                         variant="outline"
                         disabled={isAdminProcessing}
-                        className="w-full justify-start h-auto py-2.5 text-left border-yellow-500/40 text-yellow-300 hover:bg-yellow-500/10"
+                        className="h-auto w-full justify-start border border-amber-200 bg-white py-2.5 text-left text-amber-600 hover:bg-amber-50"
                       >
                         <AlertTriangle className="w-4 h-4 mr-2" />
                         Advertir
@@ -693,7 +695,7 @@ const UserActionsModal = ({
                         onClick={() => handleAdminSanction('mute')}
                         variant="outline"
                         disabled={isAdminProcessing}
-                        className="w-full justify-start h-auto py-2.5 text-left border-orange-500/40 text-orange-300 hover:bg-orange-500/10"
+                        className="h-auto w-full justify-start border border-orange-200 bg-white py-2.5 text-left text-orange-500 hover:bg-orange-50"
                       >
                         <VolumeX className="w-4 h-4 mr-2" />
                         Silenciar 24h
@@ -702,7 +704,7 @@ const UserActionsModal = ({
                         onClick={() => handleAdminSanction('ban')}
                         variant="outline"
                         disabled={isAdminProcessing}
-                        className="w-full justify-start h-auto py-2.5 text-left border-red-500/50 text-red-300 hover:bg-red-500/15"
+                        className="h-auto w-full justify-start border border-red-200 bg-white py-2.5 text-left text-red-500 hover:bg-red-50"
                       >
                         <Ban className="w-4 h-4 mr-2" />
                         Expulsar
@@ -711,7 +713,7 @@ const UserActionsModal = ({
                         onClick={handleAdminDeleteUserMessages}
                         variant="outline"
                         disabled={isAdminProcessing}
-                        className="w-full justify-start h-auto py-2.5 text-left border-rose-500/40 text-rose-300 hover:bg-rose-500/10"
+                        className="h-auto w-full justify-start border border-rose-200 bg-white py-2.5 text-left text-rose-500 hover:bg-rose-50"
                       >
                         <Trash2 className="w-4 h-4 mr-2" />
                         Borrar mensajes de este usuario
@@ -720,7 +722,7 @@ const UserActionsModal = ({
                         onClick={handleAdminDeleteRoomMessages}
                         variant="outline"
                         disabled={isAdminProcessing}
-                        className="w-full justify-start h-auto py-2.5 text-left border-fuchsia-500/40 text-fuchsia-300 hover:bg-fuchsia-500/10"
+                        className="h-auto w-full justify-start border border-blue-200 bg-white py-2.5 text-left text-[#1473E6] hover:bg-blue-50"
                       >
                         <Trash2 className="w-4 h-4 mr-2" />
                         Vaciar sala actual
@@ -743,7 +745,7 @@ const UserActionsModal = ({
                         onClose();
                         navigate('/premium');
                       }}
-                      className="w-full gold-gradient text-gray-900 font-bold py-4"
+                      className="w-full border border-[rgba(217,119,6,0.14)] bg-[linear-gradient(180deg,rgba(255,248,235,1),rgba(252,232,188,1))] py-4 font-bold text-amber-950 hover:brightness-[0.99]"
                     >
                       <Crown className="w-5 h-5 mr-2" />
                       Desbloquear Mensajes Ilimitados
@@ -759,14 +761,14 @@ const UserActionsModal = ({
                 className="space-y-3"
               >
                 <div className="flex items-center justify-between">
-                  <h3 className="font-bold text-foreground">
+                  <h3 className="text-[18px] font-semibold tracking-[-0.02em] text-foreground">
                     {composeMode === 'comment' ? 'Comentario de Perfil' : 'Mensaje Directo'}
                   </h3>
                   <Button
                     variant="ghost"
                     size="icon"
                     onClick={() => setShowMessageInput(false)}
-                    className="text-muted-foreground"
+                    className="rounded-[14px] text-slate-500 hover:bg-slate-100 hover:text-slate-900"
                     aria-label="Cerrar formulario de mensaje"
                   >
                     <X className="w-4 h-4" />
@@ -781,7 +783,7 @@ const UserActionsModal = ({
                       ? `Escribe un comentario para ${targetUser.username}...`
                       : `Escribe un mensaje para ${targetUser.username}...`
                   }
-                  className="min-h-[120px] resize-none bg-secondary border-2 border-border focus:border-primary"
+                  className="min-h-[120px] resize-none rounded-[18px] border-slate-200 bg-white focus:border-[#1473E6]"
                   maxLength={500}
                 />
 
@@ -806,7 +808,7 @@ const UserActionsModal = ({
                     <Button
                       onClick={handleSendMessage}
                       disabled={!message.trim() || isSending}
-                      className="w-full magenta-gradient text-white"
+                      className="w-full border-0 bg-[#1473E6] text-white hover:bg-[#0F67D8]"
                     >
                       <Send className="w-4 h-4 mr-2" />
                       {isSending ? 'Enviando...' : composeMode === 'comment' ? 'Enviar Comentario' : 'Enviar Mensaje'}
@@ -828,7 +830,7 @@ const UserActionsModal = ({
           variant="ghost"
           size="icon"
           onClick={onClose}
-          className="absolute top-2 right-2 z-50 text-muted-foreground hover:text-foreground"
+          className="absolute top-2 right-2 z-50 rounded-[14px] text-slate-500 hover:bg-slate-100 hover:text-slate-900"
           aria-label="Cerrar modal"
         >
           <X className="w-5 h-5" />

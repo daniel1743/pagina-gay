@@ -22,6 +22,7 @@
 import { doc, getDoc, setDoc, addDoc, collection, serverTimestamp, Timestamp } from 'firebase/firestore';
 import { db, auth } from '@/config/firebase';
 import { createModerationIncidentAlert } from '@/services/moderationService';
+import { startAITrace, finishAITrace, failAITrace } from '@/utils/runtimeDiagnostics';
 
 // ═══════════════════════════════════════════════════════════════════
 // CONFIG
@@ -91,9 +92,16 @@ const LOCAL_RISK_PATTERNS = {
     /\bwhatsapp\b/i,
     /\bwsp\b/i,
     /\bwapp\b/i,
+    /\bwasap+\b/i,
+    /\bwassap+\b/i,
+    /\bguasap+\b/i,
+    /\bwhap+s+a+p+t?\b/i,
     /\btelegram\b/i,
+    /\btelegrm\b/i,
+    /\btlg\b/i,
     /\bsignal\b/i,
     /\bdiscord\b/i,
+    /\bteams?\b/i,
     /\binstagram\b/i,
     /\big\b/i,
     /\bcorreo\b/i,
@@ -182,6 +190,18 @@ Responde SOLO con JSON válido:
 // ═══════════════════════════════════════════════════════════════════
 
 const callModerationAI = async (url, apiKey, model, message) => {
+  const providerLabel = url.includes('deepseek')
+    ? 'deepseek'
+    : url.includes('openai')
+      ? 'openai'
+      : url.includes('dashscope') || url.includes('qwen')
+        ? 'qwen'
+        : 'moderation_ai';
+  const traceId = startAITrace({
+    source: 'moderation_ai',
+    provider: providerLabel,
+    action: 'moderate_message',
+  });
   const controller = new AbortController();
   const timeoutId = setTimeout(() => controller.abort(), 8000); // 8s timeout (moderación debe ser rápida)
 
@@ -212,13 +232,20 @@ const callModerationAI = async (url, apiKey, model, message) => {
 
     const data = await response.json();
     const text = data.choices?.[0]?.message?.content?.trim();
-    if (!text) throw new Error('Respuesta vacía');
+    if (!text) {
+      throw new Error('Respuesta vacía');
+    }
 
     // Parsear JSON (puede venir con markdown)
     const clean = text.replace(/```json\n?/g, '').replace(/```\n?/g, '').trim();
-    return JSON.parse(clean);
+    const parsed = JSON.parse(clean);
+    finishAITrace(traceId, {
+      summary: parsed?.safe === false ? `Moderación respondió unsafe (${parsed?.severity || 'sin severidad'})` : 'Moderación respondió safe',
+    });
+    return parsed;
   } catch (err) {
     clearTimeout(timeoutId);
+    failAITrace(traceId, { error: err });
     throw err;
   }
 };
@@ -285,7 +312,6 @@ async function runAIModeration(message) {
   if (DEEPSEEK_API_KEY) {
     try {
       aiResult = await callModerationAI(DEEPSEEK_URL, DEEPSEEK_API_KEY, 'deepseek-chat', message);
-      console.log('[MOD-AI] DeepSeek respondió:', JSON.stringify(aiResult));
     } catch (err) {
       console.warn('[MOD-AI] DeepSeek falló:', err.message);
     }
@@ -294,7 +320,6 @@ async function runAIModeration(message) {
   if (!aiResult && OPENAI_API_KEY) {
     try {
       aiResult = await callModerationAI(OPENAI_URL, OPENAI_API_KEY, 'gpt-4o-mini', message);
-      console.log('[MOD-AI] OpenAI respondió:', JSON.stringify(aiResult));
     } catch (err) {
       console.warn('[MOD-AI] OpenAI falló:', err.message);
     }
@@ -303,7 +328,6 @@ async function runAIModeration(message) {
   if (!aiResult && QWEN_API_KEY) {
     try {
       aiResult = await callModerationAI(QWEN_URL, QWEN_API_KEY, 'qwen2.5-7b-instruct', message);
-      console.log('[MOD-AI] Qwen respondió:', JSON.stringify(aiResult));
     } catch (err) {
       console.warn('[MOD-AI] Qwen falló:', err.message);
     }

@@ -18,6 +18,7 @@ import { doc, getDoc } from 'firebase/firestore';
 import { db } from '@/config/firebase';
 import { subscribeToSystemNotifications } from '@/services/systemNotificationsService';
 import { motion, AnimatePresence } from 'framer-motion';
+import { ENABLE_BAUL } from '@/config/featureFlags';
 
 const Header = () => {
   const logoSources = ["/transparente_logo.png"];
@@ -118,7 +119,7 @@ const Header = () => {
 
   const navItems = [
     { id: 'chat', label: 'Chat', icon: MessageSquare, to: '/chat/principal', active: location.pathname.startsWith('/chat') },
-    { id: 'baul', label: 'Baúl', icon: Archive, to: '/baul', active: location.pathname.startsWith('/baul') },
+    ...(ENABLE_BAUL ? [{ id: 'baul', label: 'Baúl', icon: Archive, to: '/baul', active: location.pathname.startsWith('/baul') }] : []),
     { id: 'opin', label: 'OPIN', icon: Sparkles, to: '/opin', active: location.pathname.startsWith('/opin') },
   ];
 

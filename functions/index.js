@@ -75,6 +75,117 @@ const MODERATION_ALERT_ALLOWED_TYPES = new Set([
   "high_risk_ai",
 ]);
 const MODERATION_ALERT_ALLOWED_SEVERITIES = new Set(["low", "medium", "high", "critical"]);
+const CRITICAL_CHAT_SAFETY_SUSPEND_MINUTES = {
+  minor_risk: 72 * 60,
+  drugs: 24 * 60,
+  drug_meetup: 24 * 60,
+  coercion: 24 * 60,
+};
+const CRITICAL_CHAT_SAFETY_PATTERNS = {
+  minor: [
+    /\bsoy\s+menor(?:es)?\b/i,
+    /\bmenor\s+de\s+edad\b/i,
+    /\bbusco\s+menores\b/i,
+    /\bde\s+menores\b/i,
+    /\bvideos?\s+de\s+menores\b/i,
+    /\b31\s+al\s+rev(?:e|é)s\b/i,
+    /\b31\s+alrevez\b/i,
+    /\bcasi\s+18\b/i,
+    /\b18\s+casi\b/i,
+    /\b-8\s*a(?:n|ñ)os?\b/i,
+    /\bcp\b/i,
+    /\bcsam\b/i,
+  ],
+  drugs: [
+    /\bdroga(?:s)?\b/i,
+    /\bfalopa\b/i,
+    /\bfalopita\b/i,
+    /\btusi\b/i,
+    /\bcoca[ií]na\b/i,
+    /\bperico\b/i,
+    /\bketamina\b/i,
+    /\bketa\b/i,
+    /\bpoppers?\b/i,
+    /\bsaque(?:sito)?\b/i,
+    /\bmdma\b/i,
+    /\bmolly\b/i,
+    /\bpasta\s+base\b/i,
+    /\bcristal\b/i,
+  ],
+  coercion: [
+    /\bte\s+obligo\b/i,
+    /\bobligarte\b/i,
+    /\bforzarte\b/i,
+    /\bforzar\b/i,
+    /\bdrogarte\b/i,
+    /\bte\s+drogo\b/i,
+    /\bextors/i,
+  ],
+};
+const CONTEXTUAL_ANTI_EVASION_QUERY_LIMIT = 12;
+const CONTEXTUAL_ANTI_EVASION_WINDOW = 6;
+const CONTEXTUAL_ANTI_EVASION_LOOKBACK_MS = 3 * 60 * 1000;
+const CONTEXTUAL_CONTACT_HINTS = [
+  "escr",
+  "escrib",
+  "escribeme",
+  "habla",
+  "hablame",
+  "busca",
+  "buscame",
+  "agrega",
+  "agregame",
+  "contacta",
+  "contactame",
+  "numero",
+  "num",
+  "wsp",
+  "wasap",
+  "whatsapp",
+  "telegram",
+  "tg",
+  "insta",
+  "instagram",
+  "ig",
+  "discord",
+  "signal",
+  "sms",
+  "otraapp",
+  "otraaplicacion",
+];
+const CONTEXTUAL_WEAK_CONTACT_HINTS = ["tele", "afuera", "fuera"];
+const CONTEXTUAL_MINOR_HINTS = [
+  "tengo",
+  "soy",
+  "edad",
+  "cumplo",
+  "cumpli",
+  "menor",
+  "menordeedad",
+  "colegio",
+  "liceo",
+  "secundaria",
+  "media",
+  "prepa",
+];
+const CONTEXTUAL_PLATFORM_TERMS = [
+  "telegram",
+  "tg",
+  "whatsapp",
+  "wsp",
+  "instagram",
+  "ig",
+  "discord",
+  "signal",
+  "sms",
+  "mensaje de texto",
+  "mensajes de texto",
+  "otra app",
+  "otra aplicacion",
+  "fuera de chactivo",
+];
+const CONTEXTUAL_BENIGN_NUMERIC_CONTEXT_REGEX =
+  /\b(?:cm|kg|kilos?|metros?|m|hrs?|horas?|hora|min|mins|minutos?|anos?|años?|edad|x|por\s+ciento|%|capitulo|episodio)\b/i;
 
 const chileDayFormatter = new Intl.DateTimeFormat("en-CA", {
   timeZone: CHILE_TIME_ZONE,
@@ -248,6 +359,51 @@ function buildDiscoverableUserLocation(userId, userData = {}) {
     precisionKmApprox: 1.1,
     syncedAt: FieldValue.serverTimestamp(),
   };
+}
+
+function buildPublicMirrorRelevantSnapshot(userData = {}) {
+  const ageNumber = Number.parseInt(String(userData.age ?? ""), 10);
+  const profileViews = Number.parseInt(String(userData.profileViews ?? "0"), 10);
+  const latitude = roundDiscoverableCoordinate(userData?.location?.latitude);
+  const longitude = roundDiscoverableCoordinate(userData?.location?.longitude);
+  const hasValidLocation = Number.isFinite(latitude) && Number.isFinite(longitude);
+
+  return {
+    username: normalizePublicString(userData.username, 30) || "Usuario",
+    avatar: normalizePublicString(userData.avatar, 500) || "",
+    description: normalizePublicString(userData.description, 500) || null,
+    estado: normalizePublicString(userData.estado, 100) || null,
+    bio: normalizePublicString(userData.bio || userData.description, 280) || null,
+    profileRole: normalizePublicRole(userData),
+    interests: normalizePublicStringArray(userData.interests, 5, 32),
+    comuna: normalizePublicString(userData.comuna, 80) || null,
+    age: Number.isFinite(ageNumber) ? ageNumber : null,
+    verified: Boolean(userData.verified),
+    isPremium: Boolean(userData.isPremium),
+    isProUser: Boolean(userData.isProUser),
+    canUploadSecondPhoto: Boolean(userData.canUploadSecondPhoto),
+    hasFeaturedCard: Boolean(userData.hasFeaturedCard),
+    hasRainbowBorder: Boolean(userData.hasRainbowBorder),
+    hasProBadge: Boolean(userData.hasProBadge),
+    profileVisible: userData.profileVisible !== false,
+    favoritesCount: Array.isArray(userData.favorites) ? userData.favorites.length : 0,
+    profileViews: Number.isFinite(profileViews) ? profileViews : 0,
+    locationEnabled: userData.locationEnabled === true,
+    isOnline: Boolean(userData.isOnline),
+    location: hasValidLocation
+      ? {
+          latitude,
+          longitude,
+        }
+      : null,
+  };
+}
+
+function hasRelevantPublicMirrorChange(previousData = null, nextData = null) {
+  if (!previousData && !nextData) return false;
+  if (!previousData || !nextData) return true;
+  return JSON.stringify(buildPublicMirrorRelevantSnapshot(previousData)) !==
+    JSON.stringify(buildPublicMirrorRelevantSnapshot(nextData));
 }
 
 async function isBlockedBetweenUsers(userAId, userBId) {
@@ -926,6 +1082,423 @@ async function cleanupDeletedMessageMediaFromEvent(event, label) {
   return null;
 }
 
+function normalizeCriticalSafetyText(value = "") {
+  const raw = String(value || "");
+  const lowered = raw
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase();
+  const collapsed = lowered.replace(/[|\\/:;,[\](){}<>]+/g, " ").replace(/\s+/g, " ").trim();
+  const digitsOnly = raw.replace(/\D/g, "");
+  const compact = collapsed.replace(/[^a-z0-9]/g, "");
+  const alphaOnly = collapsed.replace(/[^a-z]/g, "");
+  return { raw, collapsed, digitsOnly, compact, alphaOnly };
+}
+
+function compactTerm(term = "") {
+  return String(term || "")
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase()
+    .replace(/[^a-z0-9]/g, "");
+}
+
+function hasContextualFragment(normalized, terms = []) {
+  const compact = normalized.compact || "";
+  const tokens = String(normalized.collapsed || "").split(/\s+/).filter(Boolean);
+
+  return terms.some((term) => {
+    const normalizedTerm = compactTerm(term);
+    if (!normalizedTerm) return false;
+    if (normalizedTerm.length <= 3) {
+      return compact === normalizedTerm || tokens.includes(normalizedTerm);
+    }
+    return compact.includes(normalizedTerm);
+  });
+}
+
+function isBenignNumericContext(normalized) {
+  const collapsed = String(normalized?.collapsed || "");
+  if (!collapsed) return false;
+
+  return (
+    CONTEXTUAL_BENIGN_NUMERIC_CONTEXT_REGEX.test(collapsed) ||
+    /^\d{1,2}:\d{2}$/.test(collapsed) ||
+    /^\d{1,2}\/\d{1,2}$/.test(collapsed) ||
+    /^\d{1,2}\s*(?:am|pm)$/.test(collapsed)
+  );
+}
+
+function buildContextualGuardEntry(content = "", timestampMs = Date.now()) {
+  const normalized = normalizeCriticalSafetyText(content);
+  const hasPlatform = hasContextualFragment(normalized, CONTEXTUAL_PLATFORM_TERMS);
+  const hasExitHint = hasContextualFragment(normalized, ["fuera de chactivo", "otra app", "otra aplicacion"]);
+  const hasStrongContactHint = hasContextualFragment(normalized, CONTEXTUAL_CONTACT_HINTS);
+  const hasWeakContactHint = hasContextualFragment(normalized, CONTEXTUAL_WEAK_CONTACT_HINTS);
+  return {
+    timestampMs,
+    raw: normalized.raw,
+    collapsed: normalized.collapsed,
+    compact: normalized.compact,
+    digitsOnly: normalized.digitsOnly,
+    hasContactHint: hasStrongContactHint || (hasWeakContactHint && (hasPlatform || hasExitHint)),
+    hasMinorHint: hasContextualFragment(normalized, CONTEXTUAL_MINOR_HINTS),
+    hasPlatform,
+    hasExitHint,
+    hasBenignNumericContext: isBenignNumericContext(normalized),
+  };
+}
+
+function finalizeContextualGuardEntry(entry = {}) {
+  return {
+    ...entry,
+    hasRiskSignal: Boolean(
+      entry.hasContactHint ||
+      entry.hasMinorHint ||
+      entry.hasPlatform ||
+      entry.hasExitHint ||
+      (!entry.hasBenignNumericContext && String(entry.digitsOnly || "").length >= 5)
+    ),
+  };
+}
+
+function extractContextualMinorAge(entries = []) {
+  const parts = entries
+    .map((entry) => String(entry?.digitsOnly || "").trim())
+    .filter(Boolean)
+    .slice(-4);
+
+  const candidates = new Set();
+  parts.forEach((part) => {
+    if (/^\d{2}$/.test(part)) candidates.add(part);
+  });
+
+  for (let index = 0; index < parts.length - 1; index += 1) {
+    if (/^\d$/.test(parts[index]) && /^\d$/.test(parts[index + 1])) {
+      candidates.add(`${parts[index]}${parts[index + 1]}`);
+    }
+  }
+
+  for (const candidate of candidates) {
+    const age = Number(candidate);
+    if (age >= 10 && age <= 17) {
+      return age;
+    }
+  }
+
+  return null;
+}
+
+function shouldInspectContextualEvasion(content = "") {
+  const normalized = normalizeCriticalSafetyText(content);
+  const hasPlatform = hasContextualFragment(normalized, CONTEXTUAL_PLATFORM_TERMS);
+  const hasStrongContactHint = hasContextualFragment(normalized, CONTEXTUAL_CONTACT_HINTS);
+  const hasMinorHint = hasContextualFragment(normalized, CONTEXTUAL_MINOR_HINTS);
+
+  return (
+    (!isBenignNumericContext(normalized) && normalized.digitsOnly.length >= 5) ||
+    hasStrongContactHint ||
+    hasMinorHint ||
+    hasPlatform
+  );
+}
+
+function detectContextualChatSafetyRisk(currentContent = "", recentMessages = []) {
+  const nowMs = Date.now();
+  const recentEntries = recentMessages
+    .map((message) => finalizeContextualGuardEntry(buildContextualGuardEntry(message.content, message.timestampMs || nowMs)))
+    .filter((entry) => nowMs - entry.timestampMs <= CONTEXTUAL_ANTI_EVASION_LOOKBACK_MS)
+    .slice(-CONTEXTUAL_ANTI_EVASION_WINDOW);
+
+  const currentEntry = finalizeContextualGuardEntry(buildContextualGuardEntry(currentContent, nowMs));
+  const window = [...recentEntries, currentEntry].slice(-CONTEXTUAL_ANTI_EVASION_WINDOW);
+  const mergedCompact = window.map((entry) => entry.compact || "").join("");
+  const mergedCollapsed = window.map((entry) => entry.collapsed || "").join(" ");
+  const mergedDigits = window
+    .filter((entry) => !entry.hasBenignNumericContext)
+    .map((entry) => entry.digitsOnly || "")
+    .join("");
+  const ageCandidate = extractContextualMinorAge(window);
+  const hasMinorHint = window.some((entry) => entry.hasMinorHint);
+  const hasContactHint = window.some((entry) => entry.hasContactHint);
+  const hasPlatform = window.some((entry) => entry.hasPlatform);
+  const hasExitHint = window.some((entry) => entry.hasExitHint);
+  const suspiciousAttemptCount = window.filter((entry) => entry.hasRiskSignal).length;
+  const hasContactOrExitIntent = hasContactHint || hasPlatform || hasExitHint || mergedDigits.length >= 7;
+
+  if (hasMinorHint && ageCandidate && hasContactOrExitIntent) {
+    return {
+      blocked: true,
+      type: "minor_risk",
+      severity: "critical",
+      reason: `Combinacion critica detectada: menor de edad + contacto o salida (${ageCandidate})`,
+    };
+  }
+
+  if (
+    (hasMinorHint && ageCandidate) ||
+    mergedCompact.includes("soymenor") ||
+    mergedCompact.includes("menordeedad") ||
+    mergedCompact.includes("casi18") ||
+    mergedCompact.includes("18casi")
+  ) {
+    return {
+      blocked: true,
+      type: "minor_risk",
+      severity: "critical",
+      reason: ageCandidate
+        ? `Edad menor reconstruida por contexto reciente (${ageCandidate})`
+        : "Referencia fragmentada a menor de edad detectada por contexto reciente",
+    };
+  }
+
+  if ((hasContactHint || hasPlatform) && mergedDigits.length >= 7) {
+    return {
+      blocked: true,
+      type: "external_contact",
+      severity: "high",
+      reason: "Contacto externo fragmentado detectado por contexto reciente",
+    };
+  }
+
+  if (hasContactHint && hasPlatform) {
+    return {
+      blocked: true,
+      type: "external_contact",
+      severity: "high",
+      reason: "Invitacion a salir de Chactivo detectada por contexto reciente",
+    };
+  }
+
+  if (suspiciousAttemptCount >= 4 && hasContactOrExitIntent) {
+    return {
+      blocked: true,
+      type: "external_contact",
+      severity: "high",
+      reason: "Reincidencia contextual de evasion detectada en ventana reciente",
+    };
+  }
+
+  return { blocked: false };
+}
+
+async function loadRecentMessagesForContext(messagesRef, currentMessageId, userId) {
+  const snapshot = await messagesRef
+    .orderBy("timestamp", "desc")
+    .limit(CONTEXTUAL_ANTI_EVASION_QUERY_LIMIT)
+    .get()
+    .catch(() => null);
+
+  if (!snapshot || snapshot.empty) {
+    return [];
+  }
+
+  return snapshot.docs
+    .filter((docSnap) => docSnap.id !== currentMessageId)
+    .map((docSnap) => ({
+      id: docSnap.id,
+      content: String(docSnap.get("content") || "").trim(),
+      userId: String(docSnap.get("userId") || "").trim(),
+      type: String(docSnap.get("type") || "text").trim().toLowerCase(),
+      timestampMs: toMillis(docSnap.get("timestamp")),
+    }))
+    .filter((item) => item.userId === userId && item.type === "text" && item.content);
+}
+
+function detectCriticalChatSafetyRisk(message = "") {
+  const normalized = normalizeCriticalSafetyText(message);
+  const collapsed = normalized.collapsed;
+  const raw = normalized.raw;
+
+  for (const pattern of CRITICAL_CHAT_SAFETY_PATTERNS.minor) {
+    if (pattern.test(collapsed) || pattern.test(raw)) {
+      return {
+        blocked: true,
+        type: "minor_risk",
+        severity: "critical",
+        reason: "Referencia o solicitud vinculada a menores de edad",
+      };
+    }
+  }
+
+  if (
+    /^\s*(?:tengo|soy|edad|cumpli|cumplo)\s*(?:de\s*)?(1[0-7])\s*$/i.test(collapsed)
+  ) {
+    return {
+      blocked: true,
+      type: "minor_risk",
+      severity: "critical",
+      reason: "Declaracion de edad menor a 18",
+    };
+  }
+
+  if (
+    /\b(1[0-7])\s*(?:anos?)\b/i.test(collapsed) &&
+    !/\bcm\b/i.test(collapsed)
+  ) {
+    return {
+      blocked: true,
+      type: "minor_risk",
+      severity: "critical",
+      reason: "Edad menor a 18 detectada en el mensaje",
+    };
+  }
+
+  if (
+    /\b(?:tengo|soy|edad|cumpli|cumplo)\b[\s:,"'`.-]*(?:1[\s._\-]*[0-7])\b/i.test(collapsed) &&
+    !/\bcm\b/i.test(collapsed)
+  ) {
+    return {
+      blocked: true,
+      type: "minor_risk",
+      severity: "critical",
+      reason: "Edad menor a 18 detectada con formato fragmentado",
+    };
+  }
+
+  for (const pattern of CRITICAL_CHAT_SAFETY_PATTERNS.drugs) {
+    if (pattern.test(collapsed) || pattern.test(raw)) {
+      return {
+        blocked: true,
+        type: /\b(lugar|ahora|ya|ven|vente|ubi|ubicacion|encuentro|coordinar)\b/i.test(collapsed)
+          ? "drug_meetup"
+          : "drugs",
+        severity: "critical",
+        reason: "Referencia a drogas o sustancias ilegales",
+      };
+    }
+  }
+
+  for (const pattern of CRITICAL_CHAT_SAFETY_PATTERNS.coercion) {
+    if (pattern.test(collapsed) || pattern.test(raw)) {
+      return {
+        blocked: true,
+        type: "coercion",
+        severity: "critical",
+        reason: "Referencia a coercion, abuso o extorsion sexual",
+      };
+    }
+  }
+
+  return { blocked: false };
+}
+
+async function applyCriticalSafetyState(userId, riskType) {
+  if (!userId) return;
+
+  const suspendMinutes = CRITICAL_CHAT_SAFETY_SUSPEND_MINUTES[riskType] || (24 * 60);
+  const stateRef = db.collection("userModerationState").doc(userId);
+  const snapshot = await stateRef.get().catch(() => null);
+  const current = snapshot?.exists ? (snapshot.data() || {}) : {};
+  const offenseCount = Number(current.contactOffenseCount || 0) + 1;
+  const strikes = Math.max(Number(current.strikes || 0), offenseCount);
+  const nextSuspend = new Date(Date.now() + suspendMinutes * 60 * 1000);
+
+  await stateRef.set({
+    strikes,
+    contactOffenseCount: offenseCount,
+    contactSuspendUntil: nextSuspend,
+    updatedAt: FieldValue.serverTimestamp(),
+  }, { merge: true });
+}
+
+async function createCriticalSafetyAlertFromMessage({ userId, username, roomId, message, risk }) {
+  if (!risk?.blocked || !userId) return;
+
+  const roomKey = String(roomId || "principal").replace(/[^a-zA-Z0-9_-]/g, "_").slice(0, 32) || "principal";
+  const alertId = `${getChileDayString()}_${userId}_${risk.type}_${roomKey}`.slice(0, 140);
+  const alertRef = db.collection("moderation_alerts").doc(alertId);
+  const existingSnap = await alertRef.get().catch(() => null);
+  const now = FieldValue.serverTimestamp();
+
+  if (existingSnap?.exists) {
+    const existingData = existingSnap.data() || {};
+    await alertRef.set({
+      type: risk.type,
+      severity: "critical",
+      userId,
+      username: normalizePublicString(username || "Usuario", 80) || "Usuario",
+      roomId,
+      message: normalizePublicString(message, 500) || "[sin muestra]",
+      latestMessage: normalizePublicString(message, 500) || "[sin muestra]",
+      reason: normalizePublicString(risk.reason, 240) || "Incidente critico de seguridad",
+      status: "pending",
+      detectedBy: "critical_safety_backend",
+      autoAction: "temporary_suspend",
+      repeatCount: Number(existingData.repeatCount || 1) + 1,
+      lastDetectedAt: now,
+      updatedAt: now,
+    }, { merge: true });
+    return;
+  }
+
+  await alertRef.set({
+    type: risk.type,
+    severity: "critical",
+    userId,
+    username: normalizePublicString(username || "Usuario", 80) || "Usuario",
+    roomId,
+    message: normalizePublicString(message, 500) || "[sin muestra]",
+    latestMessage: normalizePublicString(message, 500) || "[sin muestra]",
+    reason: normalizePublicString(risk.reason, 240) || "Incidente critico de seguridad",
+    status: "pending",
+    detectedBy: "critical_safety_backend",
+    autoAction: "temporary_suspend",
+    repeatCount: 1,
+    createdAt: now,
+    detectedAt: now,
+    lastDetectedAt: now,
+    updatedAt: now,
+  }, { merge: true });
+}
+
+async function sanitizePrivateChatAfterCriticalRemoval({ chatId, removedContent, senderId }) {
+  if (!chatId) return [];
+
+  const safePreview = "Mensaje eliminado por seguridad";
+  const chatRef = db.collection("private_chats").doc(chatId);
+  const chatSnap = await chatRef.get().catch(() => null);
+  const chatData = chatSnap?.data() || {};
+  const participants = Array.isArray(chatData.participants)
+    ? chatData.participants.filter(Boolean)
+    : [];
+
+  const shouldRewritePreview =
+    String(chatData.lastMessage || "").trim() === String(removedContent || "").trim() &&
+    String(chatData.lastMessageSenderId || "").trim() === String(senderId || "").trim();
+
+  if (!shouldRewritePreview) {
+    return participants;
+  }
+
+  await chatRef.set({
+    lastMessage: safePreview,
+    lastMessageType: "system",
+    lastMessageSenderId: "system_moderator",
+    lastMessageAt: FieldValue.serverTimestamp(),
+    updatedAt: FieldValue.serverTimestamp(),
+  }, { merge: true });
+
+  if (participants.length === 0) {
+    return participants;
+  }
+
+  const batch = db.batch();
+  participants.forEach((participantId) => {
+    const inboxRef = db.collection("users").doc(participantId).collection("private_inbox").doc(chatId);
+    batch.set(inboxRef, {
+      lastMessagePreview: safePreview,
+      lastMessageSenderId: "system_moderator",
+      lastMessageType: "system",
+      lastMessageAt: FieldValue.serverTimestamp(),
+      updatedAt: FieldValue.serverTimestamp(),
+    }, { merge: true });
+  });
+  await batch.commit();
+
+  return participants;
+}
+
 function getDocTimestampMs(docSnap) {
   return toMillis(docSnap.get("timestamp"));
 }
@@ -1041,6 +1614,115 @@ async function acquireRetentionLock(roomId, owner) {
 
     return true;
   });
+}
+
+async function runRoomRetentionSweepForRoom(roomId, lockOwner) {
+  if (!roomId) {
+    return {
+      roomId: null,
+      skipped: true,
+      reason: "missing_room_id",
+      deletedMessages: 0,
+      deletedAssets: 0,
+    };
+  }
+
+  const lockAcquired = await acquireRetentionLock(roomId, lockOwner);
+  if (!lockAcquired) {
+    console.log(`[RETENTION] Lock busy, skip roomId=${roomId} owner=${lockOwner}`);
+    return {
+      roomId,
+      skipped: true,
+      reason: "lock_busy",
+      deletedMessages: 0,
+      deletedAssets: 0,
+    };
+  }
+
+  console.log(`[RETENTION] Lock acquired roomId=${roomId} owner=${lockOwner}`);
+
+  const messagesRef = db.collection("rooms").doc(roomId).collection("messages");
+  let retentionDeletedMessages = 0;
+  let retentionDeletedAssets = 0;
+  let safetyPasses = 0;
+  const MAX_PASSES = 100;
+
+  while (safetyPasses < MAX_PASSES) {
+    safetyPasses += 1;
+
+    const probeSnap = await messagesRef
+      .orderBy("timestamp", "desc")
+      .limit(ROOM_RETENTION_QUERY_LIMIT)
+      .get();
+
+    if (probeSnap.size < ROOM_RETENTION_QUERY_LIMIT) {
+      break;
+    }
+
+    const cutoffDoc = probeSnap.docs[ROOM_RETENTION_MAX_MESSAGES];
+    const cutoffTs = cutoffDoc.get("timestamp");
+
+    if (!cutoffTs) {
+      console.warn(`[RETENTION] Missing cutoff timestamp roomId=${roomId}, aborting loop`);
+      break;
+    }
+
+    const oldBatchSnap = await messagesRef
+      .orderBy("timestamp", "asc")
+      .endAt(cutoffTs)
+      .limit(ROOM_RETENTION_DELETE_BATCH)
+      .get();
+
+    if (oldBatchSnap.empty) {
+      console.warn(`[RETENTION] No candidates found at cutoff roomId=${roomId}, stopping`);
+      break;
+    }
+
+    const docsToDelete = oldBatchSnap.docs;
+    const batch = db.batch();
+    for (const docSnap of docsToDelete) {
+      batch.delete(docSnap.ref);
+    }
+    await batch.commit();
+
+    retentionDeletedMessages += docsToDelete.length;
+
+    for (const docSnap of docsToDelete) {
+      const messageData = docSnap.data() || {};
+      const assets = extractMediaPaths(messageData);
+      for (const asset of assets) {
+        await deleteStorageAsset(asset);
+        retentionDeletedAssets += 1;
+      }
+    }
+  }
+
+  if (safetyPasses >= MAX_PASSES) {
+    console.warn(`[RETENTION] Safety stop reached roomId=${roomId} passes=${MAX_PASSES}`);
+  }
+
+  if (retentionDeletedAssets > 0) {
+    await recordPhotoMetrics({ photoAssetsDeletedByRetention: retentionDeletedAssets }, new Date()).catch((error) => {
+      console.error("[PHOTO_PRIV] Error recording retention delete metrics", error);
+    });
+  }
+
+  const finalProbe = await messagesRef
+    .orderBy("timestamp", "desc")
+    .limit(ROOM_RETENTION_QUERY_LIMIT)
+    .get();
+
+  console.log(
+    `[RETENTION] Sweep done roomId=${roomId} deletedMessages=${retentionDeletedMessages} deletedAssets=${retentionDeletedAssets} finalProbeSize=${finalProbe.size}`
+  );
+
+  return {
+    roomId,
+    skipped: false,
+    deletedMessages: retentionDeletedMessages,
+    deletedAssets: retentionDeletedAssets,
+    finalProbeSize: finalProbe.size,
+  };
 }
 
 async function syncPhotoPrivilegeFromActivity(userId, roomId, nowDate) {
@@ -1256,31 +1938,10 @@ exports.notifyOnNewMessage = onDocumentCreated(
     const message = event.data?.data();
     if (!message) return;
     if (message.type === "system") return;
-
-    const senderId = message.senderId || message.userId;
-    if (!senderId) return;
-    const senderName = message.senderName || message.username || "Alguien";
-    const text = message.text || message.content || "Te envio un mensaje";
-
-    // Obtener info del chat para saber el destinatario
-    const chatDoc = await db.collection("private_chats").doc(event.params.chatId).get();
-    if (!chatDoc.exists) return;
-
-    const chatData = chatDoc.data();
-    const participants = chatData.participants || [];
-    const recipientId = participants.find((p) => p !== senderId);
-
-    if (!recipientId) return;
-
-    await sendPushToUser(recipientId, {
-      title: `${senderName} te escribio`,
-      body: text.length > 100 ? text.substring(0, 100) + "..." : text,
-    }, {
-      type: "dm",
-      chatId: event.params.chatId,
-      url: "/chat/principal",
-      tag: `dm_${event.params.chatId}`,
-    });
+    console.log(
+      `[DM_PUSH] notifyOnNewMessage skip chatId=${event.params.chatId} reason=handled_via_user_notification`
+    );
+    return null;
   }
 );
 
@@ -1579,6 +2240,143 @@ exports.sendPeakHourConnectionReminders = onSchedule(
   }
 );
 
+exports.enforceCriticalRoomSafety = onDocumentCreated(
+  "rooms/{roomId}/messages/{messageId}",
+  async (event) => {
+    const roomId = String(event.params.roomId || "").trim();
+    const messageId = String(event.params.messageId || "").trim();
+    const messageData = event.data?.data() || {};
+    const messageType = String(messageData.type || "text").trim().toLowerCase();
+    const userId = String(messageData.userId || "").trim();
+
+    if (!roomId || !messageId || messageType !== "text" || !userId) {
+      return null;
+    }
+
+    if (
+      userId === "system" ||
+      userId === "system_moderator" ||
+      userId.startsWith("system_") ||
+      userId.startsWith("bot_") ||
+      userId.startsWith("ai_")
+    ) {
+      return null;
+    }
+
+    const content = String(messageData.content || "").trim();
+    if (!content) return null;
+
+    let risk = detectCriticalChatSafetyRisk(content);
+    if (!risk.blocked && shouldInspectContextualEvasion(content)) {
+      const recentMessages = await loadRecentMessagesForContext(
+        db.collection("rooms").doc(roomId).collection("messages"),
+        messageId,
+        userId
+      );
+      risk = detectContextualChatSafetyRisk(content, recentMessages);
+    }
+    if (!risk.blocked) return null;
+
+    const messageRef = db.collection("rooms").doc(roomId).collection("messages").doc(messageId);
+
+    await Promise.all([
+      messageRef.delete().catch((error) => {
+        console.warn(`[CRITICAL_SAFETY] delete failed roomId=${roomId} messageId=${messageId}`, error?.message || error);
+      }),
+      applyCriticalSafetyState(userId, risk.type).catch((error) => {
+        console.warn(`[CRITICAL_SAFETY] state update failed userId=${userId}`, error?.message || error);
+      }),
+      createCriticalSafetyAlertFromMessage({
+        userId,
+        username: messageData.username,
+        roomId,
+        message: content,
+        risk,
+      }).catch((error) => {
+        console.warn(`[CRITICAL_SAFETY] alert creation failed userId=${userId}`, error?.message || error);
+      }),
+    ]);
+
+    console.log(
+      `[CRITICAL_SAFETY] removed roomId=${roomId} messageId=${messageId} userId=${userId} type=${risk.type}`
+    );
+
+    return null;
+  }
+);
+
+exports.enforceCriticalPrivateChatSafety = onDocumentCreated(
+  "private_chats/{chatId}/messages/{messageId}",
+  async (event) => {
+    const chatId = String(event.params.chatId || "").trim();
+    const messageId = String(event.params.messageId || "").trim();
+    const messageData = event.data?.data() || {};
+    const messageType = String(messageData.type || "text").trim().toLowerCase();
+    const userId = String(messageData.userId || "").trim();
+
+    if (!chatId || !messageId || messageType !== "text" || !userId) {
+      return null;
+    }
+
+    if (
+      userId === "system" ||
+      userId === "system_moderator" ||
+      userId.startsWith("system_") ||
+      userId.startsWith("bot_") ||
+      userId.startsWith("ai_")
+    ) {
+      return null;
+    }
+
+    const content = String(messageData.content || "").trim();
+    if (!content) return null;
+
+    let risk = detectCriticalChatSafetyRisk(content);
+    if (!risk.blocked && shouldInspectContextualEvasion(content)) {
+      const recentMessages = await loadRecentMessagesForContext(
+        db.collection("private_chats").doc(chatId).collection("messages"),
+        messageId,
+        userId
+      );
+      risk = detectContextualChatSafetyRisk(content, recentMessages);
+    }
+    if (!risk.blocked) return null;
+
+    const messageRef = db.collection("private_chats").doc(chatId).collection("messages").doc(messageId);
+
+    await Promise.all([
+      messageRef.delete().catch((error) => {
+        console.warn(`[CRITICAL_PRIVATE_SAFETY] delete failed chatId=${chatId} messageId=${messageId}`, error?.message || error);
+      }),
+      applyCriticalSafetyState(userId, risk.type).catch((error) => {
+        console.warn(`[CRITICAL_PRIVATE_SAFETY] state update failed userId=${userId}`, error?.message || error);
+      }),
+      createCriticalSafetyAlertFromMessage({
+        userId,
+        username: messageData.username,
+        roomId: `private:${chatId}`,
+        message: content,
+        risk,
+      }).catch((error) => {
+        console.warn(`[CRITICAL_PRIVATE_SAFETY] alert creation failed userId=${userId}`, error?.message || error);
+      }),
+      sanitizePrivateChatAfterCriticalRemoval({
+        chatId,
+        removedContent: content,
+        senderId: userId,
+      }).catch((error) => {
+        console.warn(`[CRITICAL_PRIVATE_SAFETY] preview sanitize failed chatId=${chatId}`, error?.message || error);
+      }),
+    ]);
+
+    console.log(
+      `[CRITICAL_PRIVATE_SAFETY] removed chatId=${chatId} messageId=${messageId} userId=${userId} type=${risk.type}`
+    );
+
+    return null;
+  }
+);
+
 /**
  * Recordatorios de eventos:
  * - 10 minutos antes (event_soon)
@@ -1825,90 +2623,21 @@ exports.enforceRoomRetention = onDocumentCreated(
       );
     }
 
-    console.log(`[RETENTION] Retention check roomId=${roomId} messageId=${messageId}`);
-
-    const lockOwner = `${messageId}:${event.id || "no_event_id"}`;
-    const lockAcquired = await acquireRetentionLock(roomId, lockOwner);
-
-    if (!lockAcquired) {
-      console.log(`[RETENTION] Lock busy, skip roomId=${roomId} messageId=${messageId}`);
-      return null;
-    }
-
-    console.log(`[RETENTION] Lock acquired roomId=${roomId} owner=${lockOwner}`);
-
     const messagesRef = db.collection("rooms").doc(roomId).collection("messages");
-    let retentionDeletedMessages = 0;
-    let retentionDeletedAssets = 0;
-    let totalDeletedMessages = 0;
-    let totalDeletedAssets = 0;
-    let policyDeletedMessages = 0;
-    let policyDeletedAssets = 0;
-    let safetyPasses = 0;
-    const MAX_PASSES = 100;
-
-    while (safetyPasses < MAX_PASSES) {
-      safetyPasses += 1;
-
-      const probeSnap = await messagesRef
-        .orderBy("timestamp", "desc")
-        .limit(ROOM_RETENTION_QUERY_LIMIT)
-        .get();
-
-      if (probeSnap.size < ROOM_RETENTION_QUERY_LIMIT) {
-        break;
-      }
-
-      const cutoffDoc = probeSnap.docs[ROOM_RETENTION_MAX_MESSAGES];
-      const cutoffTs = cutoffDoc.get("timestamp");
-
-      if (!cutoffTs) {
-        console.warn(`[RETENTION] Missing cutoff timestamp roomId=${roomId}, aborting loop`);
-        break;
-      }
-
-      console.log(`[RETENTION] Over limit roomId=${roomId} countReturned=${probeSnap.size}`);
-
-      const oldBatchSnap = await messagesRef
-        .orderBy("timestamp", "asc")
-        .endAt(cutoffTs)
-        .limit(ROOM_RETENTION_DELETE_BATCH)
-        .get();
-
-      if (oldBatchSnap.empty) {
-        console.warn(`[RETENTION] No candidates found at cutoff roomId=${roomId}, stopping`);
-        break;
-      }
-
-      console.log(`[RETENTION] Deleting old messages roomId=${roomId} numToDelete=${oldBatchSnap.size}`);
-
-      const docsToDelete = oldBatchSnap.docs;
-      const batch = db.batch();
-      for (const docSnap of docsToDelete) {
-        batch.delete(docSnap.ref);
-      }
-      await batch.commit();
-
-      retentionDeletedMessages += docsToDelete.length;
-      totalDeletedMessages += docsToDelete.length;
-
-      for (const docSnap of docsToDelete) {
-        const messageData = docSnap.data() || {};
-        const assets = extractMediaPaths(messageData);
-        for (const asset of assets) {
-          await deleteStorageAsset(asset);
-          retentionDeletedAssets += 1;
-          totalDeletedAssets += 1;
-        }
-      }
+    if (createdMessageData.type !== "image") {
+      return null;
     }
 
     try {
       const photoPolicyResult = await enforceImagePolicyForUser(messagesRef, roomId, createdMessageData);
-      policyDeletedMessages = photoPolicyResult.deletedMessages;
-      policyDeletedAssets = photoPolicyResult.deletedAssets;
-      totalDeletedMessages += photoPolicyResult.deletedMessages;
-      totalDeletedAssets += photoPolicyResult.deletedAssets;
+      if (photoPolicyResult.deletedMessages > 0 || photoPolicyResult.deletedAssets > 0) {
+        await recordPhotoMetrics({
+          photoMessagesDeletedByPhotoLimit: photoPolicyResult.deletedMessages,
+          photoAssetsDeletedByPhotoLimit: photoPolicyResult.deletedAssets,
+        }, new Date()).catch((error) => {
+          console.error("[PHOTO_PRIV] Error recording photo limit delete metrics", error);
+        });
+      }
 
       if (photoPolicyResult.hourlyOverflow > 0 || photoPolicyResult.visibleOverflow > 0) {
         console.log(
@@ -1919,32 +2648,43 @@ exports.enforceRoomRetention = onDocumentCreated(
       console.error(`[PHOTO_LIMIT] Error enforcing photo policy roomId=${roomId} messageId=${messageId}`, error);
     }
 
-    if (safetyPasses >= MAX_PASSES) {
-      console.warn(`[RETENTION] Safety stop reached roomId=${roomId} passes=${MAX_PASSES}`);
-    }
+    return null;
+  }
+);
 
-    if (retentionDeletedAssets > 0) {
-      await recordPhotoMetrics({ photoAssetsDeletedByRetention: retentionDeletedAssets }, new Date()).catch((error) => {
-        console.error("[PHOTO_PRIV] Error recording retention delete metrics", error);
-      });
-    }
+/**
+ * enforceRoomRetentionScheduled
+ * Job periódico: aplica retención por lote y evita correr barridos pesados por cada mensaje nuevo.
+ */
+exports.enforceRoomRetentionScheduled = onSchedule(
+  {
+    schedule: "every 15 minutes",
+    timeZone: CHILE_TIME_ZONE,
+    region: "us-central1",
+  },
+  async () => {
+    const roomRefs = await db.collection("rooms").listDocuments();
+    let processedRooms = 0;
+    let skippedRooms = 0;
+    let totalDeletedMessages = 0;
+    let totalDeletedAssets = 0;
 
-    if (policyDeletedMessages > 0 || policyDeletedAssets > 0) {
-      await recordPhotoMetrics({
-        photoMessagesDeletedByPhotoLimit: policyDeletedMessages,
-        photoAssetsDeletedByPhotoLimit: policyDeletedAssets,
-      }, new Date()).catch((error) => {
-        console.error("[PHOTO_PRIV] Error recording photo limit delete metrics", error);
-      });
+    for (const roomRef of roomRefs) {
+      const result = await runRoomRetentionSweepForRoom(
+        roomRef.id,
+        `scheduled:${Date.now()}:${roomRef.id}`
+      );
+      if (result?.skipped) {
+        skippedRooms += 1;
+        continue;
+      }
+      processedRooms += 1;
+      totalDeletedMessages += Number(result?.deletedMessages || 0);
+      totalDeletedAssets += Number(result?.deletedAssets || 0);
     }
-
-    const finalProbe = await messagesRef
-      .orderBy("timestamp", "desc")
-      .limit(ROOM_RETENTION_QUERY_LIMIT)
-      .get();
 
     console.log(
-      `[RETENTION] Retention done roomId=${roomId} deletedMessages=${totalDeletedMessages} deletedAssets=${totalDeletedAssets} retentionDeletedMessages=${retentionDeletedMessages} retentionDeletedAssets=${retentionDeletedAssets} policyDeletedMessages=${policyDeletedMessages} policyDeletedAssets=${policyDeletedAssets} finalProbeSize=${finalProbe.size}`
+      `[RETENTION] Scheduled run done processedRooms=${processedRooms} skippedRooms=${skippedRooms} deletedMessages=${totalDeletedMessages} deletedAssets=${totalDeletedAssets}`
     );
 
     return null;
@@ -3049,6 +3789,7 @@ exports.syncPublicUserProfileMirror = onDocumentWritten(
 
     const targetRef = db.collection(PUBLIC_USER_PROFILES_COLLECTION).doc(userId);
     const discoverableRef = db.collection(DISCOVERABLE_USER_LOCATIONS_COLLECTION).doc(userId);
+    const previousData = event.data?.before?.data?.() || null;
     const nextData = event.data?.after?.data?.() || null;
 
     if (!nextData) {
@@ -3057,6 +3798,11 @@ exports.syncPublicUserProfileMirror = onDocumentWritten(
         discoverableRef.delete().catch(() => {}),
       ]);
       console.log(`[PUBLIC_PROFILE] Deleted mirror userId=${userId}`);
+      return null;
+    }
+
+    if (!hasRelevantPublicMirrorChange(previousData, nextData)) {
+      console.log(`[PUBLIC_PROFILE] Skip sync userId=${userId} reason=no_relevant_public_change`);
       return null;
     }
 
