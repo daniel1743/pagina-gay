@@ -35,6 +35,7 @@ import {
 } from 'firebase/firestore';
 
 const recordTarjetaInteractionCallable = httpsCallable(functions, 'recordTarjetaInteraction');
+const updateTarjetaPresenceCallable = httpsCallable(functions, 'updateTarjetaPresence');
 const isBaulRuntimeEnabled = () => ENABLE_BAUL === true;
 
 const callTarjetaInteraction = async (action, targetUserId = null, payload = {}) => {
@@ -82,13 +83,18 @@ export const TARJETA_SCHEMA = {
   etnia: '',               // Latino, Caucásico, etc.
 
   // Ubicación
-  ubicacionTexto: '',      // "Santiago", "Ñuñoa", etc.
-  ubicacion: null,         // { latitude, longitude } para proximidad
-  ubicacionActiva: false,  // Si comparte ubicación
+  ubicacionTexto: '',      // Legacy: texto libre de ubicación
+  comuna: '',              // Comuna aproximada voluntaria, sin GPS exacto
+  ubicacion: null,         // Legacy: { latitude, longitude }; no se usa en Baúl activo
+  ubicacionActiva: false,  // Debe permanecer false mientras no exista consentimiento explícito
 
-  // Descripción
+  // Descripción e intención
   bio: '',                 // Descripción corta (max 200 chars)
-  buscando: '',            // Qué busca (max 100 chars)
+  buscando: '',            // Legacy: qué busca (max 100 chars)
+  intencion: '',           // Valor de catálogo: conversar, cita, amistad, panorama
+  intencionFrase: '',      // Frase breve visible en la tarjeta (max 100 chars)
+  intencionExpiracion: null,
+  mostrarEdad: true,
 
   // Horarios de conexión
   horariosConexion: {
@@ -161,6 +167,48 @@ export const HORARIOS_LABELS = {
   madrugada: 'Madrugada (00-6)'
 };
 
+export const INTENCIONES_BAUL = [
+  { value: 'conversar', label: 'Conversar' },
+  { value: 'cita', label: 'Cita' },
+  { value: 'amistad', label: 'Amistad' },
+  { value: 'panorama', label: 'Panorama' },
+];
+
+export function getBaulDayKey(date = new Date()) {
+  return new Intl.DateTimeFormat('sv-SE', { timeZone: 'America/Santiago' }).format(date);
+}
+
+export function getIntentExpirationMs(value) {
+  return getTimestampMs(value);
+}
+
+export function isTarjetaIntentActive(tarjeta, nowMs = Date.now()) {
+  const expirationMs = getIntentExpirationMs(tarjeta?.intencionExpiracion);
+  return !expirationMs || expirationMs > nowMs;
+}
+
+export function hasTarjetaIntent(tarjeta) {
+  return Boolean(String(tarjeta?.intencion || tarjeta?.buscando || tarjeta?.intencionFrase || '').trim());
+}
+
+export function filterTarjetasByIntent(tarjetas = [], filter = 'all', nowMs = Date.now()) {
+  const items = Array.isArray(tarjetas) ? tarjetas.filter(Boolean) : [];
+  if (filter === 'active') return items.filter((tarjeta) => hasTarjetaIntent(tarjeta) && isTarjetaIntentActive(tarjeta, nowMs));
+  if (filter === 'expired') return items.filter((tarjeta) => hasTarjetaIntent(tarjeta) && !isTarjetaIntentActive(tarjeta, nowMs));
+  return items;
+}
+
+export function sortTarjetasByDiscoveryMode(tarjetas = [], mode = 'profile') {
+  const items = [...(Array.isArray(tarjetas) ? tarjetas : [])];
+  if (mode === 'recent') {
+    return items.sort((a, b) => {
+      const updatedDiff = getTimestampMs(b.actualizadaEn || b.ultimaConexion) - getTimestampMs(a.actualizadaEn || a.ultimaConexion);
+      return updatedDiff || compareTarjetasBaul(a, b);
+    });
+  }
+  return items.sort(compareTarjetasBaul);
+}
+
 // ============================================
 // 🔧 FUNCIONES PRINCIPALES
 // ============================================
@@ -224,8 +272,8 @@ export async function crearTarjetaAutomatica(usuario) {
       try {
         await setDoc(doc(db, 'tarjetas', odIdUsuari), {
           odIdUsuari,
-          estaOnline: true,
-          ultimaConexion: serverTimestamp(),
+          estaOnline: false,
+          ultimaConexion: null,
           ...(Object.keys(proUpdates).length > 0 ? { ...proUpdates, actualizadaEn: serverTimestamp() } : {})
         }, { merge: true });
         console.log('[TARJETA] 🔄 Estado online actualizado');
@@ -250,10 +298,15 @@ export async function crearTarjetaAutomatica(usuario) {
       pesaje: null,
       etnia: '',
       ubicacionTexto: '',
+      comuna: '',
       ubicacion: null,
       ubicacionActiva: false,
       bio: '',
       buscando: '',
+      intencion: '',
+      intencionFrase: '',
+      intencionExpiracion: null,
+      mostrarEdad: true,
       horariosConexion: {
         manana: false,
         tarde: false,
@@ -263,8 +316,8 @@ export async function crearTarjetaAutomatica(usuario) {
       fotoUrl: avatar || '',
       fotoUrlThumb: avatar || '',
       fotoUrlFull: avatar || '',
-      estaOnline: true,
-      ultimaConexion: serverTimestamp(),
+      estaOnline: false,
+      ultimaConexion: null,
       likesRecibidos: 0,
       visitasRecibidas: 0,
       impresionesRecibidas: 0,
@@ -333,8 +386,8 @@ export async function actualizarTarjeta(odIdUsuari, datos) {
     // Campos permitidos para actualizar
     const camposPermitidos = [
       'nombre', 'edad', 'sexo', 'rol', 'alturaCm', 'pesaje', 'etnia',
-      'ubicacionTexto', 'ubicacion', 'ubicacionActiva',
-      'bio', 'buscando', 'horariosConexion',
+      'ubicacionTexto', 'ubicacion', 'ubicacionActiva', 'comuna',
+      'bio', 'buscando', 'intencion', 'intencionFrase', 'intencionExpiracion', 'mostrarEdad', 'horariosConexion',
       'fotoUrl', 'fotoUrlThumb', 'fotoUrlFull', 'fotoUrl2',
       'fotoSensible'
     ];
@@ -344,7 +397,7 @@ export async function actualizarTarjeta(odIdUsuari, datos) {
     for (const campo of camposPermitidos) {
       if (datos[campo] !== undefined) {
         // Convertir null a valor vacío para campos de texto
-        if (datos[campo] === null && ['nombre', 'sexo', 'rol', 'etnia', 'ubicacionTexto', 'bio', 'buscando'].includes(campo)) {
+        if (datos[campo] === null && ['nombre', 'sexo', 'rol', 'etnia', 'ubicacionTexto', 'comuna', 'bio', 'buscando', 'intencion', 'intencionFrase'].includes(campo)) {
           datosLimpios[campo] = '';
         } else {
           datosLimpios[campo] = datos[campo];
@@ -383,17 +436,12 @@ export async function actualizarTarjeta(odIdUsuari, datos) {
  */
 export async function actualizarEstadoOnline(odIdUsuari, estaOnline) {
   try {
-    if (!odIdUsuari) return;
-    if (!isBaulRuntimeEnabled()) return;
-
-    await setDoc(doc(db, 'tarjetas', odIdUsuari), {
-      odIdUsuari,
-      estaOnline,
-      ultimaConexion: serverTimestamp(),
-      actualizadaEn: serverTimestamp()
-    }, { merge: true });
+    if (!odIdUsuari || !isBaulRuntimeEnabled()) return { success: false, skipped: true };
+    const result = await updateTarjetaPresenceCallable({ online: Boolean(estaOnline) });
+    return result?.data || { success: false };
   } catch (error) {
-    console.error('[TARJETA] Error actualizando estado online:', error);
+    console.error('[TARJETA] Error actualizando estado online:', error?.code || error?.message);
+    return { success: false, reason: error?.code || 'error' };
   }
 }
 
@@ -493,16 +541,9 @@ export async function obtenerTarjetasCercanas(miUbicacion, miUserId, limite = 10
       let distanciaKm = null;
       let distanciaTexto = '';
 
-      if (miUbicacion && tarjeta.ubicacion && tarjeta.ubicacion.latitude && tarjeta.ubicacion.longitude) {
-        distanciaKm = calcularDistancia(
-          miUbicacion.latitude,
-          miUbicacion.longitude,
-          tarjeta.ubicacion.latitude,
-          tarjeta.ubicacion.longitude
-        );
-        distanciaTexto = formatearDistancia(distanciaKm);
-      } else if (tarjeta.ubicacionTexto) {
-        distanciaTexto = tarjeta.ubicacionTexto;
+      // La distancia GPS exacta está deshabilitada. Solo se muestra una comuna/texto aproximado.
+      if (tarjeta.comuna || tarjeta.ubicacionTexto) {
+        distanciaTexto = tarjeta.comuna || tarjeta.ubicacionTexto;
       } else {
         distanciaTexto = '';
         distanciaKm = 9999;
@@ -647,7 +688,7 @@ export async function obtenerTarjetasRecientes(miUserId, limite = 100) {
         estadoReal,
         estado: estadoReal,
         esMiTarjeta: docId === miUserId || data.odIdUsuari === miUserId,
-        distanciaTexto: data.ubicacionTexto || '',
+        distanciaTexto: data.comuna || data.ubicacionTexto || '',
         distanciaKm: 9999
       });
     });
@@ -730,85 +771,6 @@ export async function darLike(tarjetaId, miUserId, miUsername, miAvatar = '') {
       return { success: false, isMatch: false, reason: 'blocked' };
     }
     return { success: false, isMatch: false };
-  }
-}
-
-/**
- * Crear un match entre dos usuarios
- */
-async function crearMatch({ userA, userB }) {
-  try {
-    // Generar ID único ordenando los IDs para evitar duplicados
-    const sortedIds = [userA.odIdUsuari, userB.odIdUsuari].sort();
-    const matchId = `${sortedIds[0]}_${sortedIds[1]}`;
-
-    const matchRef = doc(db, 'matches', matchId);
-
-    // Verificar si ya existe el match
-    const existingMatch = await getDoc(matchRef);
-    if (existingMatch.exists()) {
-      console.log('[MATCH] Match ya existía:', matchId);
-      return { id: matchId, ...existingMatch.data(), alreadyExisted: true };
-    }
-
-    const matchData = {
-      id: matchId,
-      users: sortedIds,
-      userA: {
-        odIdUsuari: userA.odIdUsuari,
-        username: userA.username,
-        avatar: userA.avatar || '',
-        nombre: userA.nombre
-      },
-      userB: {
-        odIdUsuari: userB.odIdUsuari,
-        username: userB.username,
-        avatar: userB.avatar || '',
-        nombre: userB.nombre
-      },
-      createdAt: serverTimestamp(),
-      lastInteraction: serverTimestamp(),
-      status: 'active',
-      chatStarted: false,
-      unreadByA: true,
-      unreadByB: true
-    };
-
-    await setDoc(matchRef, matchData);
-    track('match_created', { match_id: matchId, user_a: userA.odIdUsuari, user_b: userB.odIdUsuari }, { user: { id: userA.odIdUsuari } }).catch(() => {});
-    console.log('[MATCH] ✅ Match creado:', matchId);
-
-    // Notificar a ambos usuarios
-    await agregarActividad(userA.odIdUsuari, {
-      tipo: 'match',
-      deUserId: userB.odIdUsuari,
-      deUsername: userB.nombre,
-      mensaje: `¡Hiciste match con ${userB.nombre}!`,
-      matchId,
-      timestamp: serverTimestamp()
-    });
-
-    await agregarActividad(userB.odIdUsuari, {
-      tipo: 'match',
-      deUserId: userA.odIdUsuari,
-      deUsername: userA.nombre,
-      mensaje: `¡Hiciste match con ${userA.nombre}!`,
-      matchId,
-      timestamp: serverTimestamp()
-    });
-
-    // Incrementar contador de actividad no leída
-    await updateDoc(doc(db, 'tarjetas', userA.odIdUsuari), {
-      actividadNoLeida: increment(1)
-    });
-    await updateDoc(doc(db, 'tarjetas', userB.odIdUsuari), {
-      actividadNoLeida: increment(1)
-    });
-
-    return { id: matchId, ...matchData, alreadyExisted: false };
-  } catch (error) {
-    console.error('[MATCH] Error creando match:', error);
-    return null;
   }
 }
 
@@ -1012,21 +974,21 @@ export async function enviarMensajeTarjeta(tarjetaId, miUserId, miUsername, mens
  */
 export async function registrarVisita(tarjetaId, miUserId, miUsername) {
   try {
-    if (!tarjetaId || !miUserId) return;
-    if (tarjetaId === miUserId) return; // No registrar visita propia
+    if (!tarjetaId || !miUserId || tarjetaId === miUserId) return { success: false, recorded: false };
     try {
       const blocked = await isBlockedBetween(miUserId, tarjetaId);
-      if (blocked) return;
+      if (blocked) return { success: false, recorded: false, reason: 'blocked' };
     } catch (blockError) {
-      console.warn('[TARJETA] Error verificando bloqueo en visita (continuando):', blockError.message);
+      console.warn('[TARJETA] Error verificando bloqueo en visita:', blockError.message);
     }
-
-    await callTarjetaInteraction('record_visit', tarjetaId);
-
-    track('tarjeta_view', { card_id: tarjetaId, viewer_id: miUserId }, { user: { id: miUserId } }).catch(() => {});
-
+    const resultado = await callTarjetaInteraction('record_visit', tarjetaId);
+    if (resultado?.recorded) {
+      track('tarjeta_view', { card_id: tarjetaId, viewer_id: miUserId }, { user: { id: miUserId } }).catch(() => {});
+    }
+    return { success: Boolean(resultado?.success), recorded: Boolean(resultado?.recorded), reason: resultado?.reason };
   } catch (error) {
-    console.error('[TARJETA] Error registrando visita:', error);
+    console.error('[TARJETA] Error registrando visita:', error?.code || error?.message);
+    return { success: false, recorded: false };
   }
 }
 
@@ -1041,19 +1003,15 @@ export async function registrarVisita(tarjetaId, miUserId, miUsername) {
  */
 export async function registrarImpresion(tarjetaId, miUserId, tarjetaData = null) {
   try {
-    if (!tarjetaId || !miUserId) return;
-    if (tarjetaId === miUserId) return;
-
-    const today = new Date().toISOString().slice(0, 10);
-    const impresionKey = `${miUserId}_${today}`;
-    const impresionesDe = tarjetaData?.impresionesDe || [];
-    if (impresionesDe.includes(impresionKey)) return; // Ya contó hoy
-
-    await callTarjetaInteraction('record_impression', tarjetaId);
-
-    track('tarjeta_impression', { card_id: tarjetaId, viewer_id: miUserId }, { user: { id: miUserId } }).catch(() => {});
+    if (!tarjetaId || !miUserId || tarjetaId === miUserId) return { success: false, recorded: false };
+    const resultado = await callTarjetaInteraction('record_impression', tarjetaId);
+    if (resultado?.recorded) {
+      track('tarjeta_impression', { card_id: tarjetaId, viewer_id: miUserId }, { user: { id: miUserId } }).catch(() => {});
+    }
+    return { success: Boolean(resultado?.success), recorded: Boolean(resultado?.recorded), reason: resultado?.reason };
   } catch (error) {
-    console.warn('[TARJETA] Error registrando impresión:', error?.message);
+    console.warn('[TARJETA] Error registrando impresión:', error?.code || error?.message);
+    return { success: false, recorded: false };
   }
 }
 
@@ -1093,9 +1051,11 @@ export async function dejarHuella(tarjetaId, miUserId, miUsername) {
       };
     }
 
-    track('tarjeta_huella', { card_id: tarjetaId, viewer_id: miUserId }, { user: { id: miUserId } }).catch(() => {});
-    console.log('[TARJETA] 👣 Huella dejada en', tarjetaId);
-    return { success: true };
+    if (resultado.recorded) {
+      track('tarjeta_huella', { card_id: tarjetaId, viewer_id: miUserId }, { user: { id: miUserId } }).catch(() => {});
+    }
+    console.log('[TARJETA] Huella procesada en', tarjetaId);
+    return { success: true, recorded: Boolean(resultado.recorded) };
   } catch (error) {
     console.error('[TARJETA] Error dejando huella:', error?.code, error?.message, error);
     if (error?.code === 'functions/permission-denied') {
@@ -1127,7 +1087,7 @@ export async function yaDejeHuella(tarjetaId, miUserId) {
   try {
     if (!tarjetaId || !miUserId) return false;
     const tarjeta = await obtenerTarjeta(tarjetaId);
-    const today = new Date().toISOString().slice(0, 10);
+    const today = getBaulDayKey();
     const huellaKey = `${miUserId}_${today}`;
     return tarjeta?.huellasDe?.includes(huellaKey) || false;
   } catch (error) {
@@ -1520,7 +1480,8 @@ function contarCamposConfigurados(tarjeta) {
   if (tarjeta?.bio?.trim()) count++;
   if (tarjeta?.edad && Number(tarjeta.edad) > 0) count++;
   if (tarjeta?.buscando?.trim()) count++;
-  if (tarjeta?.ubicacionTexto?.trim()) count++;
+  if (tarjeta?.comuna?.trim() || tarjeta?.ubicacionTexto?.trim()) count++;
+  if (tarjeta?.intencion?.trim() || tarjeta?.intencionFrase?.trim() || tarjeta?.buscando?.trim()) count++;
   if (tarjeta?.etnia?.trim()) count++;
   if (tarjeta?.alturaCm && Number(tarjeta.alturaCm) > 0) count++;
   if (tarjeta?.pesaje && Number(tarjeta.pesaje) > 0) count++;
@@ -1698,4 +1659,9 @@ export default {
   OPCIONES_ROL,
   OPCIONES_ETNIA,
   HORARIOS_LABELS,
+  INTENCIONES_BAUL,
+  getBaulDayKey,
+  isTarjetaIntentActive,
+  filterTarjetasByIntent,
+  sortTarjetasByDiscoveryMode,
 };

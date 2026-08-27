@@ -21,7 +21,8 @@ import {
   OPCIONES_SEXO,
   OPCIONES_ROL,
   OPCIONES_ETNIA,
-  HORARIOS_LABELS
+  HORARIOS_LABELS,
+  INTENCIONES_BAUL
 } from '@/services/tarjetaService';
 import { toast } from '@/components/ui/use-toast';
 import { compressImage } from '@/utils/imageCompressor';
@@ -31,6 +32,32 @@ import { LogIn } from 'lucide-react';
 // ✅ Cloudinary config (gratuito, no requiere Firebase Storage)
 const CLOUDINARY_CLOUD_NAME = 'dw9xypbzs';
 const CLOUDINARY_UPLOAD_PRESET = 'tarjetas_baul';
+const ALLOWED_IMAGE_TYPES = new Set(['image/jpeg', 'image/png', 'image/webp']);
+
+const toDateInputValue = (value) => {
+  if (!value) return '';
+  const milliseconds = typeof value?.toMillis === 'function'
+    ? value.toMillis()
+    : typeof value?.seconds === 'number'
+      ? value.seconds * 1000
+      : Date.parse(value);
+  if (!Number.isFinite(milliseconds)) return '';
+  const date = new Date(milliseconds);
+  const localDate = new Date(date.getTime() - date.getTimezoneOffset() * 60000);
+  return localDate.toISOString().slice(0, 10);
+};
+
+const toExpirationDate = (value) => {
+  if (!value) return null;
+  const date = new Date(`${value}T23:59:59`);
+  return Number.isNaN(date.getTime()) ? null : date;
+};
+
+const getMaxIntentDate = () => {
+  const date = new Date();
+  date.setDate(date.getDate() + 30);
+  return date.toISOString().slice(0, 10);
+};
 
 /**
  * Campo de selección
@@ -44,9 +71,11 @@ const CampoSelect = ({ label, value, onChange, opciones, placeholder }) => (
       className="w-full bg-gray-700/50 border border-gray-600 rounded-xl px-3 py-2.5 text-white focus:outline-none focus:border-cyan-500 transition-colors appearance-none"
     >
       <option value="">{placeholder}</option>
-      {opciones.map((op) => (
-        <option key={op} value={op}>{op}</option>
-      ))}
+      {opciones.map((op) => {
+        const optionValue = typeof op === 'string' ? op : op.value;
+        const optionLabel = typeof op === 'string' ? op : op.label;
+        return <option key={optionValue} value={optionValue}>{optionLabel}</option>;
+      })}
     </select>
   </div>
 );
@@ -171,8 +200,13 @@ const TarjetaEditor = ({ isOpen, onClose, tarjeta }) => {
     pesaje: null,
     etnia: '',
     ubicacionTexto: '',
+    comuna: '',
     bio: '',
     buscando: '',
+    intencion: '',
+    intencionFrase: '',
+    intencionExpiracion: '',
+    mostrarEdad: true,
     fotoSensible: false,
     horariosConexion: {
       manana: false,
@@ -216,8 +250,13 @@ const TarjetaEditor = ({ isOpen, onClose, tarjeta }) => {
         pesaje: tarjeta.pesaje || null,
         etnia: tarjeta.etnia || '',
         ubicacionTexto: tarjeta.ubicacionTexto || '',
+        comuna: tarjeta.comuna || tarjeta.ubicacionTexto || '',
         bio: tarjeta.bio || '',
         buscando: tarjeta.buscando || '',
+        intencion: tarjeta.intencion || '',
+        intencionFrase: tarjeta.intencionFrase || '',
+        intencionExpiracion: toDateInputValue(tarjeta.intencionExpiracion),
+        mostrarEdad: tarjeta.mostrarEdad !== false,
         fotoSensible: Boolean(
           tarjeta.fotoSensible ||
           tarjeta.contenidoSensible ||
@@ -305,8 +344,18 @@ const TarjetaEditor = ({ isOpen, onClose, tarjeta }) => {
         return;
       }
 
-      // Preparar datos a guardar (la foto ya se auto-guarda, no incluirla aquí)
-      const datosAGuardar = { ...datos };
+      // La foto ya se auto-guarda; la intención usa un Date serializable por Firestore.
+      const datosAGuardar = {
+        ...datos,
+        comuna: datos.comuna.trim().slice(0, 60),
+        ubicacionTexto: datos.comuna.trim().slice(0, 60),
+        intencion: datos.intencion || '',
+        intencionFrase: datos.intencionFrase.trim().slice(0, 100),
+        intencionExpiracion: datos.intencion ? toExpirationDate(datos.intencionExpiracion) : null,
+        mostrarEdad: Boolean(datos.mostrarEdad),
+        ubicacion: null,
+        ubicacionActiva: false,
+      };
 
       // ✅ USAR tarjeta.id como fallback si odIdUsuari no existe (tarjetas antiguas)
       const userId = tarjeta?.odIdUsuari || tarjeta?.id;
@@ -315,7 +364,7 @@ const TarjetaEditor = ({ isOpen, onClose, tarjeta }) => {
       console.log('[EDITOR] 📝 userId (odIdUsuari o id):', userId);
       console.log('[EDITOR] 📝 tarjeta.odIdUsuari:', tarjeta?.odIdUsuari);
       console.log('[EDITOR] 📝 tarjeta.id:', tarjeta?.id);
-      console.log('[EDITOR] 📝 Datos a guardar:', JSON.stringify(datosAGuardar, null, 2));
+      console.log('[EDITOR] 📝 Campos a guardar:', Object.keys(datosAGuardar).filter((key) => key !== 'fotoUrl' && key !== 'fotoUrlThumb' && key !== 'fotoUrlFull'));
 
       if (!userId) {
         console.error('[EDITOR] ❌ No hay ID de usuario en la tarjeta');
@@ -357,10 +406,10 @@ const TarjetaEditor = ({ isOpen, onClose, tarjeta }) => {
     if (!file) return;
 
     // Validar tipo
-    if (!file.type.startsWith('image/')) {
+    if (!ALLOWED_IMAGE_TYPES.has(file.type)) {
       toast({
         title: 'Archivo inválido',
-        description: 'Solo se permiten imágenes',
+        description: 'Solo se permiten imágenes JPG, PNG o WEBP',
         variant: 'destructive'
       });
       return;
@@ -494,7 +543,7 @@ const TarjetaEditor = ({ isOpen, onClose, tarjeta }) => {
     if (!isProUser) return;
     const file = e.target.files?.[0];
     if (!file) return;
-    if (!file.type.startsWith('image/')) {
+    if (!ALLOWED_IMAGE_TYPES.has(file.type)) {
       toast({ title: 'Archivo inválido', description: 'Solo se permiten imágenes', variant: 'destructive' });
       return;
     }
@@ -692,7 +741,7 @@ const TarjetaEditor = ({ isOpen, onClose, tarjeta }) => {
                 <input
                   ref={fileInputRef}
                   type="file"
-                  accept="image/*"
+                  accept="image/jpeg,image/png,image/webp"
                   onChange={handleFotoSelect}
                   className="hidden"
                 />
@@ -751,7 +800,7 @@ const TarjetaEditor = ({ isOpen, onClose, tarjeta }) => {
                   <input
                     ref={fileInput2Ref}
                     type="file"
-                    accept="image/*"
+                    accept="image/jpeg,image/png,image/webp"
                     onChange={handleFoto2Select}
                     className="hidden"
                   />
@@ -827,11 +876,11 @@ const TarjetaEditor = ({ isOpen, onClose, tarjeta }) => {
                 placeholder="Seleccionar"
               />
               <CampoTexto
-                label="Ubicación"
-                value={datos.ubicacionTexto}
-                onChange={(v) => updateDato('ubicacionTexto', v)}
-                placeholder="Santiago, Ñuñoa..."
-                maxLength={50}
+                label="Comuna aproximada"
+                value={datos.comuna}
+                onChange={(v) => updateDato('comuna', v)}
+                placeholder="Ñuñoa, Centro..."
+                maxLength={60}
               />
             </div>
 
@@ -845,12 +894,57 @@ const TarjetaEditor = ({ isOpen, onClose, tarjeta }) => {
               multiline
             />
 
-            {/* Buscando */}
+            {/* Intención temporal */}
+            <section className="rounded-2xl border border-cyan-500/20 bg-cyan-500/5 p-4 space-y-4" aria-labelledby="baul-intencion-title">
+              <div>
+                <h4 id="baul-intencion-title" className="text-sm font-semibold text-cyan-100">Tu intención en Baúl</h4>
+                <p className="text-xs text-gray-400 mt-1">Elige qué te gustaría encontrar ahora. La intención puede vencer para evitar información desactualizada.</p>
+              </div>
+              <CampoSelect
+                label="Quiero"
+                value={datos.intencion}
+                onChange={(v) => updateDato('intencion', v)}
+                opciones={INTENCIONES_BAUL}
+                placeholder="Seleccionar intención"
+              />
+              <CampoTexto
+                label="Frase breve"
+                value={datos.intencionFrase}
+                onChange={(v) => updateDato('intencionFrase', v)}
+                placeholder="Disponible para conversar este fin de semana..."
+                maxLength={100}
+              />
+              <div>
+                <label htmlFor="baul-intencion-expiracion" className="block text-sm font-medium text-gray-300 mb-1.5">Válida hasta</label>
+                <input
+                  id="baul-intencion-expiracion"
+                  type="date"
+                  value={datos.intencionExpiracion || ''}
+                  min={new Date().toISOString().slice(0, 10)}
+                  max={getMaxIntentDate()}
+                  onChange={(e) => updateDato('intencionExpiracion', e.target.value)}
+                  disabled={!datos.intencion}
+                  className="w-full bg-gray-700/50 border border-gray-600 rounded-xl px-3 py-2.5 text-white focus:outline-none focus:border-cyan-500 transition-colors disabled:opacity-50"
+                />
+                {!datos.intencion && <p className="text-xs text-gray-500 mt-1">Selecciona una intención para definir una expiración.</p>}
+              </div>
+              <label className="flex items-center gap-2 text-xs text-gray-300 cursor-pointer select-none">
+                <input
+                  type="checkbox"
+                  checked={datos.mostrarEdad !== false}
+                  onChange={(e) => updateDato('mostrarEdad', e.target.checked)}
+                  className="accent-cyan-500"
+                />
+                Mostrar mi edad en la tarjeta
+              </label>
+            </section>
+
+            {/* Compatibilidad con tarjetas antiguas */}
             <CampoTexto
-              label="¿Qué buscas?"
+              label="Texto adicional de búsqueda"
               value={datos.buscando}
               onChange={(v) => updateDato('buscando', v)}
-              placeholder="Amistad, encuentros, chat..."
+              placeholder="Una preferencia adicional (opcional)"
               maxLength={100}
             />
 

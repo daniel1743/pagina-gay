@@ -17,6 +17,8 @@ const opinService = read('../src/services/opinService.js');
 const opinPage = read('../src/pages/OpinFeedPage.jsx');
 const chatPage = read('../src/pages/ChatPage.jsx');
 const chatMessages = read('../src/components/chat/ChatMessages.jsx');
+const privateChat = read('../src/components/chat/PrivateChatWindowV2.jsx');
+const socialService = read('../src/services/socialService.js');
 
 const publicChatPath = 'chat_media/rooms/uid123/principal/message123/asset123.jpg';
 
@@ -84,5 +86,20 @@ const publicChatPath = 'chat_media/rooms/uid123/principal/message123/asset123.jp
     expect(chatMessages).toContain('const handleChatSharedImageError');
     expect(chatMessages).toContain('Imagen no disponible');
     expect(chatMessages).toContain('onError={handleChatSharedImageError}');
+  });
+});
+
+
+describe('contratos locales del chat privado activo', () => {
+  it('usa identidad pública segura, typing reglado y media privada restringida', () => {
+    expect(privateChat).toContain("getSafeAvatarSrc(primaryParticipant.avatar)");
+    expect(privateChat).toContain("ALLOWED_PRIVATE_IMAGE_TYPES = new Set(['image/jpeg', 'image/png', 'image/webp'])");
+    expect(privateChat).toContain('accept="image/jpeg,image/png,image/webp"');
+    expect(privateChat).toContain('chat_media/private/${user?.id || \'unknown\'}/${chatId}/${tempMessageId}/${assetId}.${extension}');
+    expect(socialService).toContain("doc(db, 'private_chats', chatId, 'typing', userId)");
+    expect(socialService).toContain("collection(db, 'private_chats', chatId, 'typing')");
+    expect(storageRules).toContain('allow read: if isPrivateChatParticipant(chatId);');
+    expect(storageRules).toContain("image/(jpeg|png|webp)");
+    expect(firestoreRules).toContain('match /typing/{typingUserId}');
   });
 });

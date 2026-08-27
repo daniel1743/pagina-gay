@@ -2041,8 +2041,8 @@ export const updatePrivateChatTypingStatus = async (
 ) => {
   if (!chatId || !userId) return;
 
-  // Usar roomPresence para evitar dependencia de nuevas reglas en private_chats/typing
-  const typingRef = doc(db, 'roomPresence', `private_${chatId}`, 'users', userId);
+  // El typing privado vive dentro del chat para que Rules pueda validar participantes.
+  const typingRef = doc(db, 'private_chats', chatId, 'typing', userId);
 
   if (isTyping) {
     await setDoc(
@@ -2072,7 +2072,7 @@ export const subscribeToPrivateChatTyping = (chatId, currentUserId, callback) =>
     return () => {};
   }
 
-  const typingRef = collection(db, 'roomPresence', `private_${chatId}`, 'users');
+  const typingRef = collection(db, 'private_chats', chatId, 'typing');
   const STALE_MS = 10000;
 
   return onSnapshot(

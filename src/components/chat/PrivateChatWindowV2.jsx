@@ -37,10 +37,12 @@ import { getPrivateChatSharedContacts } from '@/services/secureUserDataService';
 import { notificationSounds } from '@/services/notificationSounds';
 import { savePendingPrivateChatRestore } from '@/utils/privateChatRestore';
 import { ENABLE_PRIVATE_TYPING } from '@/config/featureFlags';
+import { getSafeAvatarSrc } from '@/utils/avatar';
 
 const EmojiPicker = lazy(() => import('emoji-picker-react'));
 
 const PHOTO_MAX_SIZE_BYTES = 140 * 1024;
+const ALLOWED_PRIVATE_IMAGE_TYPES = new Set(['image/jpeg', 'image/png', 'image/webp']);
 const RECENT_EMOJIS_STORAGE_KEY = 'private_chat_v2_recent_emojis';
 const INITIAL_PRIVATE_MESSAGES_LIMIT = 40;
 const PRIVATE_HISTORY_PAGE_SIZE = 40;
@@ -230,6 +232,8 @@ export default function PrivateChatWindowV2({
   const [contactShareNowMs, setContactShareNowMs] = useState(() => Date.now());
   const [isContactGuideDismissed, setIsContactGuideDismissed] = useState(false);
   const [minimizedPosition, setMinimizedPosition] = useState(null);
+  const [publicPartnerIdentity, setPublicPartnerIdentity] = useState(null);
+  const [unavailablePrivateImages, setUnavailablePrivateImages] = useState(() => new Set());
 
   const inputRef = useRef(null);
   const fileInputRef = useRef(null);
@@ -293,7 +297,8 @@ export default function PrivateChatWindowV2({
     () => chatParticipants.filter((participantItem) => participantItem.userId !== user?.id),
     [chatParticipants, user?.id]
   );
-  const primaryParticipant = otherParticipants[0] || normalizeParticipant(partner || {});
+  const fallbackPrimaryParticipant = otherParticipants[0] || normalizeParticipant(partner || {});
+  const primaryParticipant = publicPartnerIdentity || fallbackPrimaryParticipant;
   const conversationTitle = isGroupChat
     ? (title?.trim() || buildGroupTitle(chatParticipants, user?.id))
     : (primaryParticipant.username || 'Usuario');
@@ -302,6 +307,28 @@ export default function PrivateChatWindowV2({
     [otherParticipants]
   );
   const isPartnerTyping = typingUsers.length > 0;
+
+  useEffect(() => {
+    const partnerId = fallbackPrimaryParticipant.userId;
+    if (!partnerId || isGroupChat) {
+      setPublicPartnerIdentity(null);
+      return undefined;
+    }
+
+    const publicProfileRef = doc(db, 'public_user_profiles', partnerId);
+    return onSnapshot(publicProfileRef, (snapshot) => {
+      const data = snapshot.exists() ? snapshot.data() || {} : {};
+      setPublicPartnerIdentity(normalizeParticipant({
+        ...fallbackPrimaryParticipant,
+        userId: partnerId,
+        username: data.username || fallbackPrimaryParticipant.username,
+        avatar: data.avatar || fallbackPrimaryParticipant.avatar,
+        isPremium: data.isPremium ?? fallbackPrimaryParticipant.isPremium,
+      }));
+    }, () => {
+      setPublicPartnerIdentity(null);
+    });
+  }, [fallbackPrimaryParticipant.userId, fallbackPrimaryParticipant.username, fallbackPrimaryParticipant.avatar, fallbackPrimaryParticipant.isPremium, isGroupChat]);
   const privateMarkerId = isGroupChat ? chatId : (primaryParticipant.userId || null);
   const guestPrivateCounterStorageKey = useMemo(
     () => `${GUEST_PRIVATE_COUNTER_STORAGE_PREFIX}${user?.id || 'anon'}`,
@@ -1347,10 +1374,10 @@ export default function PrivateChatWindowV2({
       return;
     }
 
-    if (!selectedFile.type?.startsWith('image/')) {
+    if (!ALLOWED_PRIVATE_IMAGE_TYPES.has(selectedFile.type)) {
       toast({
         title: 'Archivo no permitido',
-        description: 'Solo se permiten imágenes.',
+        description: 'Solo se permiten imágenes JPG, PNG o WEBP.',
         variant: 'destructive',
       });
       return;
@@ -1725,7 +1752,7 @@ export default function PrivateChatWindowV2({
         >
           <div className="relative">
             <Avatar className="h-9 w-9 border border-slate-200">
-              <AvatarImage src={primaryParticipant.avatar} alt={conversationTitle} />
+              <AvatarImage src={getSafeAvatarSrc(primaryParticipant.avatar)} alt={conversationTitle} />
               <AvatarFallback>{conversationTitle.slice(0, 1).toUpperCase()}</AvatarFallback>
             </Avatar>
             {!isGroupChat ? (
@@ -1770,7 +1797,7 @@ export default function PrivateChatWindowV2({
       <div className="flex items-center gap-3 border-b border-slate-200/80 bg-white/92 px-4 py-3">
         <div className="relative">
           <Avatar className="h-11 w-11 border border-slate-200">
-            <AvatarImage src={primaryParticipant.avatar} alt={conversationTitle} />
+            <AvatarImage src={getSafeAvatarSrc(primaryParticipant.avatar)} alt={conversationTitle} />
             <AvatarFallback>{conversationTitle.slice(0, 1).toUpperCase()}</AvatarFallback>
           </Avatar>
           {!isGroupChat ? (
@@ -1980,6 +2007,11 @@ export default function PrivateChatWindowV2({
             }
 
             const status = isOwn ? messageStatus(message) : null;
+            const messageKey = message._realId || message.id || message.clientId;
+            const privateImageUrl = typeof message.content === 'string' && message.content.startsWith('https://')
+              ? message.content
+              : null;
+            const imageUnavailable = unavailablePrivateImages.has(messageKey);
             return (
               <div
                 key={message.id}
@@ -2036,14 +2068,19 @@ export default function PrivateChatWindowV2({
                   ) : null}
 
                   {message.type === 'image' ? (
-                    <a href={message.content} target="_blank" rel="noreferrer" className="block overflow-hidden rounded-2xl bg-slate-100">
-                      <img
-                        src={message.content}
-                        alt="Imagen enviada"
-                        className="max-h-64 w-full object-cover"
-                        loading="lazy"
-                      />
-                    </a>
+                    privateImageUrl && !imageUnavailable ? (
+                      <a href={privateImageUrl} target="_blank" rel="noreferrer" className="block overflow-hidden rounded-2xl bg-slate-100">
+                        <img
+                          src={privateImageUrl}
+                          alt="Imagen enviada"
+                          className="max-h-64 w-full object-cover"
+                          loading="lazy"
+                          onError={() => setUnavailablePrivateImages((previous) => new Set([...previous, messageKey]))}
+                        />
+                      </a>
+                    ) : (
+                      <div className="rounded-2xl border border-slate-200 bg-slate-50 px-3 py-3 text-xs text-slate-500">Imagen no disponible</div>
+                    )
                   ) : (
                     <div className={['text-[14px] leading-[1.35]', isOwn ? 'text-white' : 'text-slate-900'].join(' ')}>
                       <span className="whitespace-pre-wrap break-words">
@@ -2179,7 +2216,7 @@ export default function PrivateChatWindowV2({
           <input
             ref={fileInputRef}
             type="file"
-            accept="image/*"
+            accept="image/jpeg,image/png,image/webp"
             className="hidden"
             onChange={handlePhotoSelected}
           />
