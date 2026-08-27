@@ -1,10 +1,10 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <sitemapindex xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
-  <!-- ✅ CONSOLIDACIÓN (2026-04-09): el índice apunta solo al sitemap principal
+  <!-- ✅ CONSOLIDACIÓN (2026-08-27): el índice apunta solo al sitemap principal
        para evitar duplicación con sitemap-gay.xml, que repetía URLs ya presentes
        en sitemap.xml. -->
   <sitemap>
     <loc>https://chactivo.com/sitemap.xml</loc>
-    <lastmod>2026-04-09</lastmod>
+    <lastmod>2026-08-27</lastmod>
   </sitemap>
 </sitemapindex>

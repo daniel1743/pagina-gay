@@ -1,6 +1,6 @@
 # robots.txt para Chactivo - Chat Gay Internacional
 # URL principal: https://chactivo.com
-# Última actualización: 2026-04-09
+# Última actualización: 2026-08-27
 
 # Configuración para todos los bots
 User-agent: *
