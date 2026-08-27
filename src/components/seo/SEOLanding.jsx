@@ -42,7 +42,7 @@ const SEOLanding = ({
   keywords = 'chat gay, chat gay gratis, chat gay sin registro, chat gay anonimo, gay chat',
   ogImage = 'https://chactivo.com/og-preview.png',
   h1 = 'Chat Gay Gratis',
-  subtitle = 'Conecta con gente real ahora mismo',
+  subtitle = 'Conversa con la comunidad cuando haya actividad disponible',
   redirectDelay = 100, // ⚡ 100ms - casi instantáneo pero Google aún indexa
   canonicalPath = null,
   previewable = true,
@@ -51,12 +51,12 @@ const SEOLanding = ({
   supportingPoints = [],
   secondaryLinks = [],
   seoHeading = 'Bienvenido al mejor chat gay de habla hispana',
-  seoParagraph = 'Únete a nuestra comunidad de chat gay gratis. Miles de usuarios conectados las 24 horas. Chatea de forma anónima, sin registro y sin descargas. Disponible para Chile, Argentina, México, España, Brasil y toda Latinoamérica.',
+  seoParagraph = 'Chactivo ofrece un espacio de conversación LGBTQ+ en línea. Puedes entrar sin descargar una app y decidir qué información compartir. La disponibilidad de personas y respuestas depende de la actividad real de la comunidad.',
   seoBulletPoints = [
     'Chat gay gratis y sin registro',
     'Comunidad LGBTQ+ amigable',
     'Salas de chat por país y región',
-    '100% anónimo y seguro',
+    'Privacidad clara y normas visibles',
     'Desde cualquier dispositivo',
   ],
 }) => {
@@ -102,17 +102,15 @@ const SEOLanding = ({
   };
 
   const heroBadge = useMemo(() => {
-    if (chatRoom === 'principal') return 'Chile activo ahora';
-    return 'Gente conectando ahora';
+    if (chatRoom === 'principal') return 'Chat para Chile';
+    return 'Chat por región';
   }, [chatRoom]);
 
   const heroSubtext = shouldAutoRedirect
     ? 'Acceso inmediato'
     : 'Sin registro obligatorio · Acceso inmediato';
 
-  const heroLivePillLabel = chatRoom === 'principal'
-    ? 'Personas conectando ahora'
-    : 'Gente real entrando ahora';
+  const heroLivePillLabel = 'Revisa la actividad disponible';
 
   // 🔍 SEO - Actualizar meta tags dinámicamente
   useEffect(() => {
@@ -296,7 +294,7 @@ const SEOLanding = ({
         subtitle={subtitle}
         ctaLabel={ctaLabel}
         ctaSubtext={heroSubtext}
-        liveLabel={shouldAutoRedirect ? 'Entrando al chat' : 'En vivo ahora'}
+        liveLabel={shouldAutoRedirect ? 'Entrando al chat' : 'Chat en tiempo real'}
         livePillLabel={heroLivePillLabel}
         supportingPoints={supportingPoints}
         secondaryLinks={secondaryLinks}
@@ -330,15 +328,15 @@ export const SEOLandingChile = () => (
     title="Chat Gay Chile En Vivo | Entra Gratis y Habla al Instante | Chactivo"
     description="Entra al chat gay de Chile y habla al instante con hombres de Santiago y otras ciudades. Gratis, sin app y sin registro obligatorio en Chactivo."
     keywords="chat gay chile, chat gay en vivo chile, chat gay gratis chile, hablar al instante chile, chat principal chile"
-    h1="Entra y conversa con gente real"
-    subtitle="Chile activo ahora mismo. Entra gratis, habla al instante y conecta sin vueltas desde tu navegador."
+    h1="Entra y conversa con la comunidad"
+    subtitle="Entra gratis, revisa la actividad disponible y conversa desde tu navegador."
     canonicalPath="/"
     autoRedirect={false}
     ctaLabel="Entrar al chat principal"
     supportingPoints={[
       'Entrada directa al chat principal desde tu navegador.',
       'Cero descargas y menos pasos para empezar a hablar.',
-      'Gente real conectando ahora dentro de Chile.',
+      'La actividad visible depende de personas que estén usando la comunidad.',
     ]}
   />
 );
@@ -349,15 +347,15 @@ export const SEOLandingHome = () => (
     title="Chat Gay Chile En Vivo | Entra Gratis y Habla al Instante | Chactivo"
     description="Entra gratis al chat gay de Chile y habla al instante con hombres de Santiago y otras ciudades. Sin app, sin vueltas y sin registro obligatorio."
     keywords="chat gay chile, chat principal chile, chat gay en vivo chile, chat gay gratis chile, hablar al instante chile"
-    h1="Entra y conversa con gente real"
-    subtitle="Chat principal de Chile activo ahora mismo. Entra rápido, habla al instante y conecta con gente de Santiago y otras ciudades sin dar vueltas."
+    h1="Entra y conversa con la comunidad"
+    subtitle="Chat principal de Chile: entra rápido y conversa sin pasos largos desde tu navegador."
     canonicalPath="/"
     autoRedirect={false}
     ctaLabel="Entrar ahora"
     supportingPoints={[
       'Acceso inmediato al chat principal de Chile desde tu navegador.',
       'Ruta directa para conversar sin pasos largos ni descargas.',
-      'Gente real conectando ahora desde Santiago y otras ciudades.',
+      'La actividad visible cambia según la participación real de cada momento.',
     ]}
     secondaryLinks={[
       { href: '/chat/principal', label: 'Chat principal' },
@@ -375,7 +373,7 @@ export const SEOLandingHome = () => (
       'Chat principal de Chile con acceso inmediato',
       'Entrada enfocada en Santiago y ciudades chilenas',
       'Ruta directa para conversación en vivo sin app',
-      'Comunidad real y activa dentro de Chile',
+      'Actividad comunitaria visible cuando existe',
       'Superficies de apoyo como Santiago, +30 y FAQ',
     ]}
   />

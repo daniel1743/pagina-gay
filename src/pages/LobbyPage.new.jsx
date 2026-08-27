@@ -401,7 +401,7 @@ const LobbyPage = () => {
                     Espacio confidencial para conversar, pedir apoyo y conectar sin exponer tu identidad.
                   </p>
                   <div className="flex items-center gap-2 text-sm font-semibold text-green-400">
-                    <span>🔒 100% anónimo</span>
+                    <span>🔒 Privacidad clara</span>
                     <span>•</span>
                     <span>💬 Espacio seguro</span>
                     <span>→</span>
@@ -430,7 +430,7 @@ const LobbyPage = () => {
                   <div className="flex items-center gap-2 text-sm font-semibold text-purple-400">
                     <span>🎮 50+ activos</span>
                     <span>•</span>
-                    <span>⚡ Activo 24/7</span>
+                    <span>⚡ Según actividad</span>
                     <span>→</span>
                   </div>
                 </div>
@@ -456,8 +456,8 @@ const LobbyPage = () => {
                   </svg>
                 ))}
               </div>
-              <span className="text-2xl font-bold text-yellow-400">4.8/5</span>
-              <span className="text-sm text-muted-foreground">(247 opiniones)</span>
+              <span className="text-2xl font-bold text-yellow-400"></span>
+              <span className="text-sm text-muted-foreground"></span>
             </div>
 
             {/* Testimonio destacado */}

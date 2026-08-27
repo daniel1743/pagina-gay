@@ -50,7 +50,6 @@ import {
   contarMatchesNoLeidos
 } from '@/services/tarjetaService';
 import { getOrCreatePrivateChat } from '@/services/socialService';
-import { getCurrentLocation } from '@/services/geolocationService';
 import { toast } from '@/components/ui/use-toast';
 import { track, getSessionId } from '@/services/eventTrackingService';
 
@@ -183,7 +182,6 @@ const BaulSection = ({ isOpen = true, onClose, variant = 'modal' }) => {
   const [miTarjeta, setMiTarjeta] = useState(null);
   const [isLoading, setIsLoading] = useState(true);
   const [isRefreshing, setIsRefreshing] = useState(false);
-  const [miUbicacion, setMiUbicacion] = useState(null);
   const [likesData, setLikesData] = useState({}); // { odIdUsuari: boolean }
   const [huellasData, setHuellasData] = useState({}); // { odIdUsuari: boolean }
   const [loadingHuella, setLoadingHuella] = useState(null); // odIdUsuari en progreso
@@ -202,37 +200,15 @@ const BaulSection = ({ isOpen = true, onClose, variant = 'modal' }) => {
   const { setActivePrivateChat, maxOpenPrivateChats } = usePrivateChat();
 
   // Cargar tarjetas (sin dependencia de miUbicacion para evitar loop)
-  const cargarTarjetas = useCallback(async (mostrarLoading = true, ubicacionParam = null) => {
+  const cargarTarjetas = useCallback(async (mostrarLoading = true) => {
     const odIdUsuari = user?.id || null;
 
     if (mostrarLoading) setIsLoading(true);
     else setIsRefreshing(true);
 
     try {
-      // Usar ubicación pasada como parámetro o intentar obtener nueva
-      let ubicacion = ubicacionParam;
-
-      if (!ubicacion && canInteract) {
-        try {
-          // Timeout rápido de 3 segundos
-          const locationPromise = getCurrentLocation();
-          const timeoutPromise = new Promise((_, reject) =>
-            setTimeout(() => reject(new Error('Timeout')), 3000)
-          );
-          ubicacion = await Promise.race([locationPromise, timeoutPromise]);
-          setMiUbicacion(ubicacion);
-
-          // Guardar ubicación en background (no bloquear)
-          if (odIdUsuari) {
-            actualizarTarjeta(odIdUsuari, {
-              ubicacion: { latitude: ubicacion.latitude, longitude: ubicacion.longitude },
-              ubicacionActiva: true
-            }).catch(() => {});
-          }
-        } catch {
-          ubicacion = null;
-        }
-      }
+      // La ubicación exacta está desactivada por privacidad. Baúl usa orden reciente.
+      const ubicacion = null;
 
       // Obtener tarjetas
       let tarjetasCargadas = [];
@@ -856,20 +832,6 @@ const BaulSection = ({ isOpen = true, onClose, variant = 'modal' }) => {
                   })()}
                 </div>
 
-            {/* Info de ubicación */}
-            {!miUbicacion && canInteract && (
-              <div className="mt-6 p-4 bg-gray-800/50 rounded-xl border border-gray-700/50">
-                <div className="flex items-start gap-3">
-                  <MapPin className="w-5 h-5 text-orange-400 flex-shrink-0 mt-0.5" />
-                  <div>
-                    <h4 className="text-sm font-medium text-white">Activa tu ubicación</h4>
-                    <p className="text-xs text-gray-400 mt-1">
-                      Comparte tu ubicación para ver personas cerca de ti y aparecer en su baúl.
-                    </p>
-                  </div>
-                </div>
-              </div>
-            )}
           </div>
         )}
       </div>

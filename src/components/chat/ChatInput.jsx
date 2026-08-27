@@ -1765,6 +1765,7 @@ const ChatInput = ({
         <input
           ref={photoInputRef}
           type="file"
+          aria-label="Seleccionar una foto"
           accept="image/jpeg,image/jpg,image/png,image/webp,image/heic,image/heif"
           className="hidden"
           onChange={handlePhotoFileSelected}
@@ -1836,6 +1837,7 @@ const ChatInput = ({
         </div>
 
         <motion.div
+          tabIndex={-1}
           whileHover={{ scale: 1.05 }}
           whileTap={{ scale: 0.95 }}
           transition={{ duration: 0.1, ease: "easeOut" }}

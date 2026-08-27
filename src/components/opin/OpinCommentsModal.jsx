@@ -303,7 +303,9 @@ const OpinCommentsModal = ({
               </h2>
             </div>
             <button
+              type="button"
               onClick={onClose}
+              aria-label="Cerrar respuestas OPIN"
               className="p-2 hover:bg-white/5 rounded-lg transition-colors"
             >
               <X className="w-5 h-5" />
@@ -410,6 +412,11 @@ const OpinCommentsModal = ({
                     <div className="flex-1 min-w-0">
                       <p className="text-sm">
                         <span className="font-semibold text-foreground">{comment.username}</span>
+                        {comment.isAdminReply && comment.authorType === 'official_team' && (
+                          <span className="ml-1 rounded bg-cyan-500/20 px-1 py-0.5 text-[10px] font-medium text-cyan-300">
+                            equipo oficial
+                          </span>
+                        )}
                         {' '}
                         <span className="text-foreground/80">{sanitizeOpinPublicText(comment.comment || '')}</span>
                       </p>

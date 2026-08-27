@@ -125,7 +125,7 @@ const VerificationModal = ({ onClose, engagementTime }) => {
             </Button>
 
             <p className="text-xs text-center text-gray-400 mt-2">
-              💯 100% gratis • 🔒 Totalmente anónimo • ⚡ Sin email requerido
+              Acceso gratuito al chat público • ⚡ Registro rápido sin email cuando corresponda
             </p>
           </motion.div>
         </DialogContent>

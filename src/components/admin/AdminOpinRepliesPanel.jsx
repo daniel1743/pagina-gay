@@ -3,9 +3,9 @@
  *
  * Permite a admins:
  * - Ver todos los OPINs activos
- * - Responder como nombre personalizado (Equipo Chactivo, Moderador, etc.)
- * - Las respuestas se guardan como comentarios normales con isAdminReply: true
- * - Son visibles públicamente e indistinguibles de respuestas de usuarios
+ * - Publicar únicamente como identidad oficial de Chactivo
+ * - Las respuestas se guardan con isAdminReply: true para auditoría y transparencia
+ * - Son visibles públicamente como respuestas del equipo, no como usuarios
  */
 
 import React, { useState, useEffect } from 'react';
@@ -17,18 +17,14 @@ import {
   Send,
   X,
   MessageCircle,
-  User,
-  ChevronDown,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { toast } from '@/components/ui/use-toast';
 import {
   getOpinPostsForAdmin,
   addAdminReply,
   getPostComments,
-  ADMIN_REPLY_NAMES,
   OPIN_COLORS,
 } from '@/services/opinService';
 
@@ -40,10 +36,8 @@ export default function AdminOpinRepliesPanel() {
   const [replying, setReplying] = useState(false);
 
   // Form state
-  const [authorName, setAuthorName] = useState('Anónimo');
-  const [customName, setCustomName] = useState('');
+  const [authorName] = useState('Equipo Chactivo');
   const [replyText, setReplyText] = useState('');
-  const [showCustomName, setShowCustomName] = useState(false);
 
   // Preview de respuestas existentes
   const [previewReplies, setPreviewReplies] = useState([]);
@@ -73,9 +67,6 @@ export default function AdminOpinRepliesPanel() {
   const openReplyModal = async (post) => {
     setSelectedPost(post);
     setReplyText('');
-    setAuthorName('Anónimo'); // Por defecto responder como usuario anónimo
-    setCustomName('');
-    setShowCustomName(false);
     setReplyModalOpen(true);
 
     // Cargar respuestas existentes
@@ -100,7 +91,7 @@ export default function AdminOpinRepliesPanel() {
   const handleSubmitReply = async (e) => {
     e.preventDefault();
 
-    const finalAuthorName = showCustomName ? customName.trim() : authorName;
+    const finalAuthorName = authorName;
 
     if (!finalAuthorName) {
       toast({
@@ -150,8 +141,7 @@ export default function AdminOpinRepliesPanel() {
     }
   };
 
-  const isValidReply = replyText.trim().length >= 1 && replyText.length <= 150 &&
-    (showCustomName ? customName.trim().length >= 1 : authorName.length >= 1);
+  const isValidReply = replyText.trim().length >= 1 && replyText.length <= 150;
 
   return (
     <div className="space-y-6">
@@ -175,9 +165,8 @@ export default function AdminOpinRepliesPanel() {
       {/* Info box */}
       <div className="p-4 rounded-lg border border-cyan-500/30 bg-cyan-500/10">
         <p className="text-sm text-foreground">
-          <strong>Nota:</strong> Las respuestas que envíes aparecerán como respuestas normales de usuario.
-          Se guardan con marca interna <code className="bg-background/50 px-1 rounded">isAdminReply: true</code> para auditoría,
-          pero no se muestra esta información públicamente.
+          <strong>Transparencia:</strong> las respuestas se publicarán como <strong>Equipo Chactivo</strong> y llevarán una etiqueta visible de equipo oficial.
+          La marca <code className="bg-background/50 px-1 rounded">isAdminReply: true</code> queda además registrada para auditoría.
         </p>
       </div>
 
@@ -258,7 +247,9 @@ export default function AdminOpinRepliesPanel() {
               <div className="flex items-center justify-between p-4 border-b border-border">
                 <h3 className="text-lg font-bold text-foreground">Responder OPIN</h3>
                 <button
+                  type="button"
                   onClick={closeReplyModal}
+                  aria-label="Cerrar respuesta OPIN"
                   className="p-2 hover:bg-white/5 rounded-lg transition-colors"
                 >
                   <X className="w-5 h-5" />
@@ -292,7 +283,7 @@ export default function AdminOpinRepliesPanel() {
                         <span className="font-semibold text-foreground">{reply.username}</span>
                         {reply.isAdminReply && (
                           <span className="text-[10px] bg-cyan-500/20 text-cyan-300 px-1 py-0.5 rounded ml-1">
-                            admin
+                            equipo oficial
                           </span>
                         )}
                         {' '}{reply.comment}
@@ -304,88 +295,17 @@ export default function AdminOpinRepliesPanel() {
 
               {/* Formulario */}
               <form onSubmit={handleSubmitReply} className="p-4 space-y-4">
-                {/* Selector de nombre */}
+                {/* Identidad editorial transparente */}
                 <div>
                   <label className="text-sm font-medium text-foreground block mb-2">
-                    Responder como:
+                    Publicar como:
                   </label>
-
-                  {!showCustomName ? (
-                    <div className="space-y-3">
-                      {/* Usuarios anónimos / genéricos */}
-                      <div>
-                        <p className="text-xs text-muted-foreground mb-2">👤 Como usuario (para simular actividad):</p>
-                        <div className="flex flex-wrap gap-2">
-                          {ADMIN_REPLY_NAMES.filter(n => !['Equipo Chactivo', 'Moderador', 'Soporte', 'Comunidad'].includes(n)).map((name) => (
-                            <button
-                              key={name}
-                              type="button"
-                              onClick={() => setAuthorName(name)}
-                              className={`px-3 py-1.5 rounded-full text-sm transition-all border
-                                ${authorName === name
-                                  ? 'bg-purple-500/20 border-purple-500 text-purple-300'
-                                  : 'bg-white/5 border-white/10 text-foreground hover:bg-white/10'
-                                }`}
-                            >
-                              {name}
-                            </button>
-                          ))}
-                        </div>
-                      </div>
-
-                      {/* Equipo oficial */}
-                      <div>
-                        <p className="text-xs text-muted-foreground mb-2">🛡️ Como equipo oficial:</p>
-                        <div className="flex flex-wrap gap-2">
-                          {['Equipo Chactivo', 'Moderador', 'Soporte', 'Comunidad'].map((name) => (
-                            <button
-                              key={name}
-                              type="button"
-                              onClick={() => setAuthorName(name)}
-                              className={`px-3 py-1.5 rounded-full text-sm transition-all border
-                                ${authorName === name
-                                  ? 'bg-cyan-500/20 border-cyan-500 text-cyan-300'
-                                  : 'bg-white/5 border-white/10 text-foreground hover:bg-white/10'
-                                }`}
-                            >
-                              {name}
-                            </button>
-                          ))}
-                        </div>
-                      </div>
-
-                      <button
-                        type="button"
-                        onClick={() => setShowCustomName(true)}
-                        className="text-xs text-cyan-400 hover:text-cyan-300 flex items-center gap-1"
-                      >
-                        <User className="w-3 h-3" />
-                        Usar nombre personalizado
-                      </button>
-                    </div>
-                  ) : (
-                    <div className="space-y-2">
-                      <Input
-                        value={customName}
-                        onChange={(e) => setCustomName(e.target.value)}
-                        placeholder="Nombre personalizado..."
-                        maxLength={30}
-                        className="bg-background border-border"
-                        autoFocus
-                      />
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setShowCustomName(false);
-                          setCustomName('');
-                        }}
-                        className="text-xs text-muted-foreground hover:text-foreground flex items-center gap-1"
-                      >
-                        <ChevronDown className="w-3 h-3" />
-                        Volver a nombres predefinidos
-                      </button>
-                    </div>
-                  )}
+                  <div className="rounded-xl border border-cyan-500/30 bg-cyan-500/10 px-3 py-3">
+                    <p className="font-semibold text-cyan-200">{authorName}</p>
+                    <p className="mt-1 text-xs text-muted-foreground">
+                      Esta respuesta se mostrará públicamente como comunicación oficial del equipo. No se permiten nombres de usuarios ni identidades personalizadas.
+                    </p>
+                  </div>
                 </div>
 
                 {/* Texto de respuesta */}

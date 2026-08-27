@@ -22,19 +22,9 @@
 import { doc, getDoc, setDoc, addDoc, collection, serverTimestamp, Timestamp } from 'firebase/firestore';
 import { db, auth } from '@/config/firebase';
 import { createModerationIncidentAlert } from '@/services/moderationService';
-import { startAITrace, finishAITrace, failAITrace } from '@/utils/runtimeDiagnostics';
 
-// ═══════════════════════════════════════════════════════════════════
-// CONFIG
-// ═══════════════════════════════════════════════════════════════════
-
-const DEEPSEEK_API_KEY = import.meta.env.VITE_DEEPSEEK_API_KEY;
-const OPENAI_API_KEY = import.meta.env.VITE_OPENAI_API_KEY;
-const QWEN_API_KEY = import.meta.env.VITE_QWEN_API_KEY;
-
-const DEEPSEEK_URL = 'https://api.deepseek.com/v1/chat/completions';
-const OPENAI_URL = 'https://api.openai.com/v1/chat/completions';
-const QWEN_URL = 'https://dashscope.aliyuncs.com/compatible-mode/v1/chat/completions';
+// La moderación del navegador es local y determinista.
+// Las claves privadas y las llamadas a proveedores externos están prohibidas en VITE_*.
 
 // Escalación progresiva (en minutos)
 const ESCALATION = [
@@ -155,100 +145,8 @@ const LOCAL_RISK_PATTERNS = {
   ],
 };
 
-// ═══════════════════════════════════════════════════════════════════
-// SYSTEM PROMPT para IA
-// ═══════════════════════════════════════════════════════════════════
-
-const MODERATION_SYSTEM_PROMPT = `Eres un moderador de contenido para Chactivo, un chat gay de Chile.
-
-CONTEXTO IMPORTANTE:
-- Es un chat para hombres gay. El lenguaje sexual, coqueteo, jerga gay y picardía son NORMALES y PERMITIDOS.
-- Palabras como "coger", "culiar", "pico", "potito", "caliente", "activo", "pasivo", "versátil", "top", "bottom" son SEGURAS.
-- Los usuarios hablan de sexo, citas, relaciones, y eso está BIEN.
-- El humor subido de tono entre usuarios gay es parte de la cultura y es SEGURO.
-
-SOLO sancionar mensajes con INTENCIÓN CLARA de:
-1. ODIO/DISCRIMINACIÓN: homofobia, transfobia, racismo, misoginia, ataques a identidad
-2. ACOSO DIRECTO: amenazas, intimidación repetida contra un usuario específico
-3. CONTENIDO ILEGAL: menores, violencia explícita, doxxing
-
-NUNCA sancionar:
-- Lenguaje sexual entre adultos
-- Coqueteo o insinuaciones
-- Groserías casuales o jerga chilena ("wn", "ctm", "chucha")
-- Opiniones controvertidas expresadas respetuosamente
-- Humor ácido o sarcasmo
-
-IMPORTANTE: Ante la DUDA, el mensaje es SEGURO. Preferir falsos negativos sobre falsos positivos.
-
-Responde SOLO con JSON válido:
-{"safe": true} si el mensaje es seguro
-{"safe": false, "reason": "explicación breve en español", "severity": "low|medium|high"} si viola las reglas`;
-
-// ═══════════════════════════════════════════════════════════════════
-// AI API CALL (reutiliza patrón de nicoBot)
-// ═══════════════════════════════════════════════════════════════════
-
-const callModerationAI = async (url, apiKey, model, message) => {
-  const providerLabel = url.includes('deepseek')
-    ? 'deepseek'
-    : url.includes('openai')
-      ? 'openai'
-      : url.includes('dashscope') || url.includes('qwen')
-        ? 'qwen'
-        : 'moderation_ai';
-  const traceId = startAITrace({
-    source: 'moderation_ai',
-    provider: providerLabel,
-    action: 'moderate_message',
-  });
-  const controller = new AbortController();
-  const timeoutId = setTimeout(() => controller.abort(), 8000); // 8s timeout (moderación debe ser rápida)
-
-  try {
-    const response = await fetch(url, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${apiKey}`,
-      },
-      body: JSON.stringify({
-        model,
-        messages: [
-          { role: 'system', content: MODERATION_SYSTEM_PROMPT },
-          { role: 'user', content: `Analiza este mensaje: "${message}"` },
-        ],
-        temperature: 0.1, // Baja temperatura para consistencia
-        max_tokens: 100,
-      }),
-      signal: controller.signal,
-    });
-
-    clearTimeout(timeoutId);
-
-    if (!response.ok) {
-      throw new Error(`API ${response.status}`);
-    }
-
-    const data = await response.json();
-    const text = data.choices?.[0]?.message?.content?.trim();
-    if (!text) {
-      throw new Error('Respuesta vacía');
-    }
-
-    // Parsear JSON (puede venir con markdown)
-    const clean = text.replace(/```json\n?/g, '').replace(/```\n?/g, '').trim();
-    const parsed = JSON.parse(clean);
-    finishAITrace(traceId, {
-      summary: parsed?.safe === false ? `Moderación respondió unsafe (${parsed?.severity || 'sin severidad'})` : 'Moderación respondió safe',
-    });
-    return parsed;
-  } catch (err) {
-    clearTimeout(timeoutId);
-    failAITrace(traceId, { error: err });
-    throw err;
-  }
-};
+// La revisión remota de IA queda fuera del frontend. Las señales ambiguas
+// se registran como revisión diferida, sin enviar el contenido del usuario.
 
 function matchAnyPattern(patterns, message) {
   return patterns.some((pattern) => pattern.test(message));
@@ -304,36 +202,6 @@ function analyzeLocalRisk(message) {
     needsAIReview,
     primaryFlag,
   };
-}
-
-async function runAIModeration(message) {
-  let aiResult = null;
-
-  if (DEEPSEEK_API_KEY) {
-    try {
-      aiResult = await callModerationAI(DEEPSEEK_URL, DEEPSEEK_API_KEY, 'deepseek-chat', message);
-    } catch (err) {
-      console.warn('[MOD-AI] DeepSeek falló:', err.message);
-    }
-  }
-
-  if (!aiResult && OPENAI_API_KEY) {
-    try {
-      aiResult = await callModerationAI(OPENAI_URL, OPENAI_API_KEY, 'gpt-4o-mini', message);
-    } catch (err) {
-      console.warn('[MOD-AI] OpenAI falló:', err.message);
-    }
-  }
-
-  if (!aiResult && QWEN_API_KEY) {
-    try {
-      aiResult = await callModerationAI(QWEN_URL, QWEN_API_KEY, 'qwen2.5-7b-instruct', message);
-    } catch (err) {
-      console.warn('[MOD-AI] Qwen falló:', err.message);
-    }
-  }
-
-  return aiResult;
 }
 
 function buildHighRiskAlertPayload(message, roomId, violation, localRisk) {
@@ -697,27 +565,15 @@ export async function evaluateMessage(message, userId, username, roomId) {
       return { safe: true, detectedBy: 'local' };
     }
 
-    // 4. Solo lo ambiguo pero riesgoso sube a IA
-    const aiResult = await runAIModeration(message);
-
-    // Si todas las APIs fallan → permitir (fail-open, NUNCA castigar por error técnico)
-    if (!aiResult) {
-      console.log('[MOD-AI] Todas las APIs fallaron, mensaje permitido (fail-open)');
-      return { safe: true, detectedBy: 'local' };
-    }
-
-    // Si la IA dice que es seguro → permitir
-    if (aiResult.safe) {
-      return { safe: true, detectedBy: 'ai' };
-    }
-
-    // 5. VIOLACIÓN DETECTADA: aplicar escalación
-    return await applyEscalation(userId, username, message, roomId, {
-      safe: false,
-      reason: aiResult.reason || 'Contenido no permitido',
-      severity: aiResult.severity || 'low',
-      detectedBy: 'ai',
-    }, { localRisk });
+    // 4. Las señales ambiguas no se envían fuera del navegador.
+    // Se permite el mensaje y queda marcada la necesidad de revisión futura
+    // desde un backend autorizado, sin bloquear por un error técnico.
+    return {
+      safe: true,
+      detectedBy: 'local',
+      reviewDeferred: true,
+      reviewReason: localRisk.primaryFlag?.label || 'Señal ambigua',
+    };
   } catch (err) {
     console.error('[MOD-AI] Error general:', err);
     return { safe: true }; // Fail-open siempre

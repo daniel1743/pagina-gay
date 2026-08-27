@@ -135,7 +135,8 @@ export const useCompanionAI = ({
 
     const suggestionsText = await generateCompanionMessage('suggestFirstMessage', {
       roomName,
-      lastMessages: recentMessages
+      lastMessages: recentMessages,
+      roomTone,
     });
 
     // Parsear sugerencias (formato: "1. texto\n2. texto\n3. texto")

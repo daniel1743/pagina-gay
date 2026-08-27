@@ -182,38 +182,15 @@ service cloud.firestore {
              data.timestamp is timestamp;
     }
 
-    // ✅ SISTEMA DE IA: permite mensajes AI con control del usuario autenticado
-    // ✅ ACTUALIZADO: También permite mensajes sembrados (seed_user_*)
-    function isValidBotMessage() {
-      let data = request.resource.data;
-      return isAuthenticated() &&
-             'senderUid' in data &&
-             data.senderUid == request.auth.uid &&
-             'userId' in data &&
-             data.userId is string &&
-             (data.userId.matches('bot_.*') || data.userId.matches('ai_.*') || data.userId.matches('seed_user_.*')) &&
-             'username' in data &&
-             data.username is string &&
-             'content' in data &&
-             data.content is string &&
-             data.content.size() > 0 &&
-             data.content.size() <= 1000 &&
-             'type' in data &&
-             data.type in ['text', 'image', 'voice', 'system'] &&
-             'timestamp' in data &&
-             data.timestamp is timestamp;
-    }
+    // Los mensajes de usuario se validan con isValidMessage; no existen identidades artificiales.
 
-    // ✅ NUEVO: Permite mensajes de sistema (moderador, VOC, etc.)
+    // Avisos de sistema explícitos; no representan personas ni actividad espontánea.
     function isValidSystemMessage() {
       let data = request.resource.data;
-      return isAuthenticated() &&
+      return isAdmin() &&
              'userId' in data &&
              data.userId is string &&
-             (data.userId == 'system' ||
-              data.userId == 'system_moderator' ||
-              data.userId == 'system_voc' ||
-              data.userId.matches('system_.*')) &&
+             data.userId == 'system' &&
              'username' in data &&
              data.username is string &&
              'content' in data &&
@@ -394,19 +371,7 @@ service cloud.firestore {
 
       // ✅ Permitir usuarios anónimos también para presencia (necesario para el chat)
       allow create, update, delete: if isAuthenticated() &&
-                                      (
-                                        request.auth.uid == userId ||
-                                        (
-                                          isAdmin() &&
-                                          roomId == 'admin-testing' &&
-                                          userId.matches('^bot_.*')
-                                        ) ||
-                                        (
-                                          isAdmin() &&
-                                          roomId == 'principal' &&
-                                          userId.matches('^seed_user_.*')
-                                        )
-                                      );
+                                      request.auth.uid == userId;
     }
 
     // ===========================
@@ -444,7 +409,6 @@ service cloud.firestore {
             )
           )
         ) ||
-        isValidAdminSeededMessage(roomId) ||
         isValidSystemMessage() ||
         isValidRegisteredImageMessage(roomId);
 
@@ -469,14 +433,6 @@ service cloud.firestore {
 
       allow delete: if isAuthenticated() &&
                       (resource.data.userId == request.auth.uid || isAdmin());
-    }
-
-    // ===========================
-    // ADMIN SEEDED CHAT
-    // ===========================
-
-    match /admin_seeded_rooms/{roomId}/identities/{identityId} {
-      allow read, create, update, delete: if isAdmin();
     }
 
     // ===========================
@@ -992,14 +948,33 @@ service cloud.firestore {
       // ✅ Lectura pública
       allow read: if true;
 
-      // Crear: solo usuarios registrados
-      allow create: if isRegistered() &&
+      // Crear: usuarios registrados pueden publicar comentarios normales.
+      // Las marcas editoriales quedan reservadas a administradores y nunca pueden
+      // ser usadas por una cuenta común para aparentar ser el equipo.
+      allow create: if (
+                      isRegistered() &&
                       'userId' in request.resource.data &&
                       request.resource.data.userId == request.auth.uid &&
                       'comment' in request.resource.data &&
                       request.resource.data.comment is string &&
                       request.resource.data.comment.size() > 0 &&
-                      request.resource.data.comment.size() <= 500;
+                      request.resource.data.comment.size() <= 500 &&
+                      !request.resource.data.keys().hasAny(['isAdminReply', 'authorType'])
+                    ) || (
+                      isAdmin() &&
+                      'userId' in request.resource.data &&
+                      request.resource.data.userId == request.auth.uid &&
+                      'comment' in request.resource.data &&
+                      request.resource.data.comment is string &&
+                      request.resource.data.comment.size() > 0 &&
+                      request.resource.data.comment.size() <= 500 &&
+                      'username' in request.resource.data &&
+                      request.resource.data.username == 'Equipo Chactivo' &&
+                      'isAdminReply' in request.resource.data &&
+                      request.resource.data.isAdminReply == true &&
+                      'authorType' in request.resource.data &&
+                      request.resource.data.authorType == 'official_team'
+                    );
 
       // Eliminar: solo el autor
       allow delete: if isAuthenticated() &&

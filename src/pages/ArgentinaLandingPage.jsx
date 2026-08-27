@@ -253,7 +253,7 @@ const ArgentinaLandingPage = () => {
             El Chat Gay Más Grande de Argentina
           </h2>
           <p style={{ fontSize: '14px', color: '#555', marginBottom: '20px', lineHeight: '1.7' }}>
-            Chactivo es la <strong>comunidad LGBT+ más activa de Argentina</strong>, conectando miles de pibes gays, bisexuales y trans de todo el país. Desde Buenos Aires y Palermo hasta Córdoba, Rosario, Mendoza y cientos de ciudades más. <strong>100% gratis, sin registro obligatorio</strong>, y completamente anónimo. Sin vueltas, che.
+            Chactivo es la <strong>comunidad LGBT+ para Argentina</strong>, para conversar entre personas gays, bisexuales y trans. Desde Buenos Aires y Palermo hasta Córdoba, Rosario, Mendoza y otras ciudades. <strong>acceso sin costo y registro opcional</strong>; decide qué información compartir. Sin vueltas, che.
           </p>
 
           <h3 style={{ fontSize: '18px', fontWeight: '600', color: '#00f2fe', marginBottom: '12px', marginTop: '25px' }}>
@@ -264,7 +264,7 @@ const ArgentinaLandingPage = () => {
             <li><strong>Totalmente gratis</strong> - No pedimos tarjeta ni pagos ocultos</li>
             <li><strong>Anónimo y seguro</strong> - Tu privacidad es nuestra prioridad</li>
             <li><strong>Sin descargas</strong> - Funciona directo en tu navegador</li>
-            <li><strong>Comunidad respetuosa</strong> - Moderación activa 24/7</li>
+            <li><strong>Comunidad respetuosa</strong> - Controles contra spam y acoso</li>
           </ul>
 
           <h3 style={{ fontSize: '18px', fontWeight: '600', color: '#00f2fe', marginBottom: '12px' }}>

@@ -39,6 +39,7 @@ import SEOLanding, {
   SEOLandingSaoPaulo
 } from '@/components/seo/SEOLanding';
 import NoindexRouteNotice from '@/components/seo/NoindexRouteNotice';
+import NoindexMeta from '@/components/seo/NoindexMeta';
 import { ENABLE_BAUL } from '@/config/featureFlags';
 
 // ⚡ CODE SPLITTING - Lazy loading de páginas (reducción de 80% del bundle inicial)
@@ -334,6 +335,8 @@ function RewardInboxListener() {
 
 // ✅ Componente de rutas que está dentro del AuthProvider
 function AppRoutes() {
+  const isDevelopment = import.meta.env.DEV;
+
   return (
     <Router
       future={{
@@ -344,10 +347,13 @@ function AppRoutes() {
       {/* ⚡ SUSPENSE: Maneja la carga de componentes lazy */}
       <Suspense fallback={<PageLoader />}>
         <Routes>
-        {/* 🧪 PÁGINA DE PRUEBA - SIN wrappers (funciona correctamente) */}
-        <Route path="/test" element={<TestLandingPage />} />
-        {/* 🧪 MODAL DE PRUEBA - Solo modal de nickname */}
-        <Route path="/test-modal" element={<TestModalPage />} />
+        {/* 🧪 Herramientas de prueba solo para desarrollo; nunca se exponen en producción. */}
+        {isDevelopment && (
+          <>
+            <Route path="/test" element={<TestLandingPage />} />
+            <Route path="/test-modal" element={<TestModalPage />} />
+          </>
+        )}
         
         {/* 🚀 SEO LANDING MINIMALISTA - Google indexa, usuario ve 1 segundo y entra al chat */}
 
@@ -392,7 +398,7 @@ function AppRoutes() {
         <Route path="/es/madrid" element={<SEOLandingMadrid />} />
         <Route path="/modal-es" element={<Navigate to="/es" replace />} />
         <Route path="/modal-es/" element={<Navigate to="/es" replace />} />
-        <Route path="/es-test" element={<SEOLandingEspana />} />
+        {isDevelopment && <Route path="/es-test" element={<SEOLandingEspana />} />}
 
         {/* Trailing slashes - redirigen a la landing correspondiente */}
         <Route path="/es/" element={<SEOLandingEspana />} />
@@ -606,23 +612,25 @@ function AppRoutes() {
         <Route path="/anonymous-forum/" element={<Navigate to="/chat/principal" replace />} />
         <Route path="/foro-gay" element={<Navigate to="/chat/principal" replace />} />
         <Route path="/foro-gay/" element={<Navigate to="/chat/principal" replace />} />
-        <Route path="/thread/:threadId" element={<MainLayout><ThreadDetailPage /></MainLayout>} />
+        <Route path="/thread/:threadId" element={<NoindexMeta><MainLayout><ThreadDetailPage /></MainLayout></NoindexMeta>} />
 
         {/* 🎯 BAÚL - Página independiente */}
         <Route path="/baul" element={ENABLE_BAUL ? <MainLayout><BaulPage /></MainLayout> : <Navigate to="/chat/principal" replace />} />
 
         {/* 🎯 OPIN - Discovery Wall */}
-        <Route path="/opin" element={<OpinLayout><OpinFeedPage /></OpinLayout>} />
+        <Route path="/opin" element={<NoindexMeta><OpinLayout><OpinFeedPage /></OpinLayout></NoindexMeta>} />
         <Route
           path="/opin/new"
           element={
-            <PrivateRoute>
-              <MainLayout><OpinComposerPage /></MainLayout>
-            </PrivateRoute>
+            <NoindexMeta>
+              <PrivateRoute>
+                <MainLayout><OpinComposerPage /></MainLayout>
+              </PrivateRoute>
+            </NoindexMeta>
           }
         />
 
-        <Route path="/profile/:userId" element={<MainLayout><ProfileViewPage /></MainLayout>} />
+        <Route path="/profile/:userId" element={<NoindexMeta><MainLayout><ProfileViewPage /></MainLayout></NoindexMeta>} />
         <Route
           path="/profile"
           element={

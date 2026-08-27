@@ -1,13 +1,10 @@
 import React, { useEffect, useState } from 'react';
-import { AlertTriangle, Bot, Loader2, RefreshCw, Sparkles } from 'lucide-react';
+import { AlertTriangle, Bot, Loader2, RefreshCw } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import { Textarea } from '@/components/ui/textarea';
 import { toast } from '@/components/ui/use-toast';
 import { generateAdminRoomHistoryReport } from '@/services/adminRoomHistoryService';
 import {
   buildLocalChactivoAssistantInsight,
-  generateChactivoAssistantInsight,
-  isChactivoAssistantAvailable,
 } from '@/services/chactivoAssistantService';
 
 const ROOM_OPTIONS = [
@@ -43,40 +40,6 @@ const WINDOW_OPTIONS = [
   { value: '24h', label: 'Ultimas 24h' },
   { value: '7d', label: 'Ultimos 7 dias' },
 ];
-
-const DAILY_REMOTE_ANALYSIS_LIMIT = 4;
-const BUDGET_STORAGE_KEY = 'chactivo_assistant_daily_budget_v1';
-
-function getBudgetDateKey() {
-  return new Date().toISOString().slice(0, 10);
-}
-
-function readDailyBudgetUsage() {
-  try {
-    const raw = window.localStorage.getItem(BUDGET_STORAGE_KEY);
-    if (!raw) return { dateKey: getBudgetDateKey(), used: 0 };
-    const parsed = JSON.parse(raw);
-    if (parsed?.dateKey !== getBudgetDateKey()) {
-      return { dateKey: getBudgetDateKey(), used: 0 };
-    }
-    return {
-      dateKey: getBudgetDateKey(),
-      used: Number.isFinite(Number(parsed?.used)) ? Number(parsed.used) : 0,
-    };
-  } catch {
-    return { dateKey: getBudgetDateKey(), used: 0 };
-  }
-}
-
-function writeDailyBudgetUsage(used) {
-  window.localStorage.setItem(
-    BUDGET_STORAGE_KEY,
-    JSON.stringify({
-      dateKey: getBudgetDateKey(),
-      used,
-    })
-  );
-}
 
 function getWindowLabel(windowKey) {
   return WINDOW_OPTIONS.find((item) => item.value === windowKey)?.label || 'Ultimos 7 dias';
@@ -156,19 +119,12 @@ export default function AdminAIInsightsPanel({
 }) {
   const [selectedRoom, setSelectedRoom] = useState('principal');
   const [selectedWindow, setSelectedWindow] = useState('today');
-  const [question, setQuestion] = useState('');
   const [localInsight, setLocalInsight] = useState(null);
-  const [assistantInsight, setAssistantInsight] = useState(null);
   const [loadingLocal, setLoadingLocal] = useState(false);
-  const [loadingAssistant, setLoadingAssistant] = useState(false);
-  const [dailyBudgetUsed, setDailyBudgetUsed] = useState(() => readDailyBudgetUsage().used);
 
-  const assistantAvailable = isChactivoAssistantAvailable();
-  const dailyBudgetRemaining = Math.max(DAILY_REMOTE_ANALYSIS_LIMIT - dailyBudgetUsed, 0);
 
   useEffect(() => {
     setLocalInsight(null);
-    setAssistantInsight(null);
   }, [selectedRoom, selectedWindow]);
 
   const buildLocalInsight = async () => {
@@ -193,8 +149,7 @@ export default function AdminAIInsightsPanel({
         exitPages,
       });
       setLocalInsight(nextInsight);
-      setAssistantInsight(null);
-      return nextInsight;
+        return nextInsight;
     } catch (error) {
       console.error('Error generando resumen local admin IA:', error);
       toast({
@@ -205,55 +160,6 @@ export default function AdminAIInsightsPanel({
       return null;
     } finally {
       setLoadingLocal(false);
-    }
-  };
-
-  const handleAssistantAnalysis = async () => {
-    setLoadingAssistant(true);
-    try {
-      const insightBase =
-        localInsight && localInsight.roomId === selectedRoom && localInsight.windowKey === selectedWindow
-          ? localInsight
-          : await buildLocalInsight();
-
-      if (!insightBase) return;
-
-      if (!assistantAvailable) {
-        toast({
-          title: 'DeepSeek no esta activo',
-          description: 'Se dejo disponible el resumen local. La consulta remota no puede ejecutarse desde este frontend.',
-          variant: 'destructive',
-        });
-        return;
-      }
-
-      if (dailyBudgetRemaining <= 0) {
-        toast({
-          title: 'Cupo diario agotado',
-          description: `Ya usaste ${DAILY_REMOTE_ANALYSIS_LIMIT} consultas remotas hoy. Puedes seguir usando el resumen local sin costo IA.`,
-          variant: 'destructive',
-        });
-        return;
-      }
-
-      const nextAssistantInsight = await generateChactivoAssistantInsight({
-        roomId: selectedRoom,
-        compactContext: insightBase.compactContext,
-        question,
-      });
-      setAssistantInsight(nextAssistantInsight);
-      const nextUsed = dailyBudgetUsed + 1;
-      writeDailyBudgetUsage(nextUsed);
-      setDailyBudgetUsed(nextUsed);
-    } catch (error) {
-      console.error('Error consultando Chactivo Assistant:', error);
-      toast({
-        title: 'No se pudo consultar a Chactivo Assistant',
-        description: error?.message || 'Fallo la llamada a DeepSeek.',
-        variant: 'destructive',
-      });
-    } finally {
-      setLoadingAssistant(false);
     }
   };
 
@@ -270,17 +176,15 @@ export default function AdminAIInsightsPanel({
               Analisis admin bajo demanda. No escucha en tiempo real, no corre solo y no manda el historial completo al modelo.
             </p>
             <p className="mt-1 text-xs text-muted-foreground">
-              Modo economico: primero resume localmente la ventana corta y solo consulta DeepSeek cuando tu lo pides.
+              Modo local: resume una ventana corta sin enviar el historial a proveedores externos.
             </p>
           </div>
 
           <div className="rounded-xl border border-border bg-background/40 px-4 py-3 text-sm">
-            <div className="font-semibold">Estado IA remota</div>
-            <div className={assistantAvailable ? 'text-emerald-300' : 'text-yellow-300'}>
-              {assistantAvailable ? 'DeepSeek disponible en frontend' : 'Sin DeepSeek activo en frontend'}
-            </div>
+            <div className="font-semibold">Estado del análisis</div>
+            <div className="text-emerald-300">Modo local disponible</div>
             <div className="mt-2 text-xs text-muted-foreground">
-              Cupo remoto hoy: {dailyBudgetRemaining}/{DAILY_REMOTE_ANALYSIS_LIMIT}
+              No se envían mensajes ni claves a proveedores externos.
             </div>
           </div>
         </div>
@@ -316,32 +220,14 @@ export default function AdminAIInsightsPanel({
             </select>
           </div>
 
-          <div>
-            <label className="mb-2 block text-sm font-medium text-muted-foreground">Pregunta puntual para la IA</label>
-            <Textarea
-              value={question}
-              onChange={(event) => setQuestion(event.target.value)}
-              placeholder="Ejemplo: como estuvo la sala hoy, que fallo y que debo corregir primero sin gastar mucho."
-              className="min-h-[96px]"
-            />
-          </div>
         </div>
 
         <div className="mt-4 flex flex-wrap gap-3">
-          <Button onClick={buildLocalInsight} disabled={loadingLocal || loadingAssistant} className="gap-2">
+          <Button onClick={buildLocalInsight} disabled={loadingLocal} className="gap-2">
             {loadingLocal ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />}
             Resumen local
           </Button>
 
-          <Button
-            onClick={handleAssistantAnalysis}
-            disabled={loadingLocal || loadingAssistant || dailyBudgetRemaining <= 0}
-            variant="outline"
-            className="gap-2"
-          >
-            {loadingAssistant ? <Loader2 className="h-4 w-4 animate-spin" /> : <Sparkles className="h-4 w-4" />}
-            Preguntar a Chactivo Assistant
-          </Button>
         </div>
       </div>
 
@@ -467,69 +353,6 @@ export default function AdminAIInsightsPanel({
         </div>
       )}
 
-      {assistantInsight && (
-        <div className="glass-effect rounded-2xl border border-cyan-500/30 p-6">
-          <div className="mb-4 flex items-center justify-between gap-4">
-            <div>
-              <h3 className="text-xl font-bold">Respuesta de Chactivo Assistant</h3>
-              <p className="mt-1 text-sm text-muted-foreground">{assistantInsight.summary}</p>
-            </div>
-            <div className="text-right">
-              <div className="text-xs uppercase tracking-wide text-muted-foreground">Health score</div>
-              <div className="text-2xl font-bold text-cyan-300">{assistantInsight.healthScore ?? '-'}</div>
-            </div>
-          </div>
-
-          <div className="mb-6 rounded-xl border border-border bg-background/40 p-4">
-            <div className="text-xs uppercase tracking-wide text-muted-foreground">Estado estimado</div>
-            <div className="mt-2 text-lg font-semibold capitalize">{assistantInsight.state || 'mixed'}</div>
-            {assistantInsight.answerToQuestion ? <p className="mt-3 text-sm leading-6">{assistantInsight.answerToQuestion}</p> : null}
-          </div>
-
-          <div className="grid gap-4 xl:grid-cols-2">
-            <SectionList
-              title="Hallazgos IA"
-              items={assistantInsight.topFindings}
-              emptyText="Sin hallazgos devueltos por IA."
-              renderItem={(item) => <p className="text-sm leading-6">{item}</p>}
-            />
-
-            <SectionList
-              title="Riesgos IA"
-              items={assistantInsight.risks}
-              emptyText="Sin riesgos devueltos por IA."
-              renderItem={(risk) => (
-                <div className="space-y-2">
-                  <div className="flex items-center justify-between gap-3">
-                    <div className="font-semibold">{risk.title}</div>
-                    <RiskBadge level={risk.level} />
-                  </div>
-                  <p className="text-sm text-muted-foreground">{risk.detail}</p>
-                </div>
-              )}
-            />
-
-            <SectionList
-              title="Oportunidades IA"
-              items={assistantInsight.opportunities}
-              emptyText="Sin oportunidades devueltas por IA."
-              renderItem={(item) => (
-                <div className="space-y-2">
-                  <div className="font-semibold">{item.title}</div>
-                  <p className="text-sm text-muted-foreground">{item.detail}</p>
-                </div>
-              )}
-            />
-
-            <SectionList
-              title="Acciones propuestas IA"
-              items={assistantInsight.nextActions}
-              emptyText="Sin acciones devueltas por IA."
-              renderItem={(item) => <p className="text-sm leading-6">{item}</p>}
-            />
-          </div>
-        </div>
-      )}
     </div>
   );
 }

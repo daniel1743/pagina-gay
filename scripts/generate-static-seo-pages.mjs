@@ -16,11 +16,11 @@ const routes = [
     <main id="seo-shell">
       <header>
         <h1>Chat Gay Chile: entra gratis y conversa al instante</h1>
-        <p>Chactivo es una entrada rapida al chat gay de Chile. Habla con gente real, sin registro obligatorio y desde tu navegador.</p>
+        <p>Chactivo es una entrada rapida al chat gay de Chile. Habla con personas de la comunidad cuando haya participación disponible, sin registro obligatorio y desde tu navegador.</p>
       </header>
       <section>
-        <h2>Comunidad activa en Chile</h2>
-        <p>Encuentra conversacion en vivo, una comunidad LGBT+ activa y acceso inmediato al chat principal desde movil o desktop.</p>
+        <h2>Un punto de encuentro para conversar en Chile</h2>
+        <p>Encuentra una sala pública de conversación y acceso inmediato al chat principal desde móvil o desktop. La actividad puede variar según la participación del momento.</p>
       </section>
       <nav aria-label="Entradas principales">
         <ul>
@@ -51,7 +51,7 @@ const routes = [
       </header>
       <section>
         <h2>Entrada regional para separar mejor la demanda argentina</h2>
-        <p>La idea de esta landing es darle a Google una superficie mas coherente para Argentina y evitar que la home de Chile siga absorbiendo en exceso estas busquedas.</p>
+        <p>Esta entrada resume el acceso regional disponible para Argentina y conduce a la sala principal. La disponibilidad de conversaciones depende de la participación del momento.</p>
       </section>
       <nav aria-label="Entradas principales">
         <ul>
@@ -78,7 +78,7 @@ const routes = [
       </header>
       <section>
         <h2>Superficie local para no cargar todo sobre la home de Chile</h2>
-        <p>Esta landing busca capturar mejor la demanda de Mexico, mejorar relevancia regional y repartir el crecimiento internacional con mas orden.</p>
+        <p>Esta entrada resume el acceso regional disponible para México y conduce a la sala principal. La disponibilidad de conversaciones depende de la participación del momento.</p>
       </section>
       <nav aria-label="Entradas principales">
         <ul>
@@ -104,8 +104,8 @@ const routes = [
         <p>Entrada local para Ciudad de Mexico. Habla con hombres de CDMX desde una superficie mas especifica y conectada al hub de Mexico.</p>
       </header>
       <section>
-        <h2>Pagina satelite para reforzar el cluster Mexico</h2>
-        <p>Esta pagina existe para empezar a captar busquedas mas especificas de CDMX y empujarlas hacia el hub /mx con mejor relevancia local.</p>
+        <h2>Entrada local para Ciudad de México</h2>
+        <p>Esta página orienta a quienes buscan una conversación relacionada con Ciudad de México y conduce al hub regional o a la sala principal.</p>
       </section>
       <nav aria-label="Entradas principales">
         <ul>
@@ -157,8 +157,8 @@ const routes = [
         <p>Entrada local para Madrid. Habla con chicos de Madrid y alrededores desde una superficie mas afinada para esa busqueda.</p>
       </header>
       <section>
-        <h2>Refuerzo semantico del cluster Espana</h2>
-        <p>Esta pagina satelite ayuda a capturar long-tail de Madrid sin mezclar toda la demanda con el hub general /es.</p>
+        <h2>Entrada local para Madrid</h2>
+        <p>Esta página resume el acceso disponible para Madrid y conduce al hub de España o a la sala principal.</p>
       </section>
       <nav aria-label="Entradas principales">
         <ul>
@@ -210,8 +210,8 @@ const routes = [
         <p>Entrada local para Sao Paulo. Converse com homens da cidade desde uma superficie mais especifica e ligada ao hub do Brasil.</p>
       </header>
       <section>
-        <h2>Pagina satelite para reforcar o cluster Brasil</h2>
-        <p>Esta pagina ajuda a captar buscas mais especificas de Sao Paulo e leva essa intencao ao hub /br com mais contexto local.</p>
+        <h2>Entrada local para São Paulo</h2>
+        <p>Esta página resume el acceso disponible para São Paulo y conduce al hub de Brasil o a la sala principal.</p>
       </section>
       <nav aria-label="Entradas principales">
         <ul>
@@ -237,8 +237,8 @@ const routes = [
         <p>Entrada local para Buenos Aires. Conoce hombres de Capital, GBA y otras zonas cercanas desde una superficie mas afinada para esa busqueda.</p>
       </header>
       <section>
-        <h2>Pagina satelite para reforzar el cluster Argentina</h2>
-        <p>Esta pagina ayuda a captar una intencion mas concreta dentro de Argentina y empujarla hacia el hub /ar con mejor relevancia semantica.</p>
+        <h2>Entrada local para Buenos Aires</h2>
+        <p>Esta página resume el acceso disponible para Buenos Aires y conduce al hub de Argentina o a la sala principal.</p>
       </section>
       <nav aria-label="Entradas principales">
         <ul>
@@ -260,19 +260,19 @@ const routes = [
     <main id="seo-shell">
       <header>
         <h1>Preguntas frecuentes de Chactivo</h1>
-        <p>Todo lo esencial sobre privacidad, costo, moderacion, anonimato y funcionamiento del chat.</p>
+        <p>Información práctica sobre registro, costo, funcionamiento del chat y herramientas de seguridad disponibles.</p>
       </header>
       <section>
         <h2>Es gratis y necesito registrarme?</h2>
         <p>Si, el chat publico es gratis. El registro no es obligatorio para entrar y conversar.</p>
       </section>
       <section>
-        <h2>Es anonimo y seguro?</h2>
-        <p>Puedes entrar sin exponer datos personales. Hay moderacion y herramientas de reporte para mantener la experiencia util.</p>
+        <h2>¿Qué información necesito para entrar?</h2>
+        <p>El acceso público puede comenzar sin registro obligatorio. Evita compartir datos personales en una sala pública y utiliza bloqueo o reporte cuando corresponda.</p>
       </section>
       <section>
-        <h2>Puedo borrar mi cuenta y mis datos?</h2>
-        <p>Si. La plataforma contempla eliminacion de cuenta y datos, junto con una politica de privacidad centrada en el usuario.</p>
+        <h2>¿Dónde reviso privacidad y seguridad?</h2>
+        <p>Consulta las normas de comunidad y la política de privacidad vigentes. No compartas información sensible y recuerda que una conversación pública no equivale a anonimato absoluto.</p>
       </section>
       <nav aria-label="Entradas principales">
         <ul>
@@ -286,7 +286,7 @@ const routes = [
     route: '/mas-30',
     lang: 'es',
     title: 'Chat Gay Mayores de 30 en Chile | Conversacion Madura | Chactivo',
-    description: 'Chat gay para mayores de 30 en Chile con conversaciones maduras y gente real. Entra gratis, sin registro obligatorio, y conecta en Chactivo.',
+    description: 'Chat gay para mayores de 30 en Chile con conversaciones maduras y participación variable. Entra gratis, sin registro obligatorio, y conversa en Chactivo.',
     canonical: 'https://chactivo.com/mas-30',
     ogLocale: 'es_CL',
     seoShell: `

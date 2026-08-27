@@ -151,7 +151,7 @@ const GlobalStats = () => {
           className="mt-4 text-center"
         >
           <p className="text-sm text-muted-foreground">
-            💬 Únete ahora y sé parte de la comunidad LGBT+ más activa de Chile
+            💬 Únete ahora y participa en la comunidad LGBT+ de Chile
           </p>
         </motion.div>
       </motion.div>

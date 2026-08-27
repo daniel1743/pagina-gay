@@ -37,10 +37,10 @@ const GamingLandingPage = () => {
     const previousDescription = metaDescription?.getAttribute('content') || '';
 
     const seoTitle = isVideoChatRoute
-      ? 'Video Chat Gay Chile 🎥 | Chat en Vivo con Gente Real | Chactivo'
+      ? 'Video Chat Gay Chile 🎥 | Chat en Vivo LGBT+ | Chactivo'
       : 'Chat Gamer Gay Chile 🎮 | Video Chat en Vivo LGBT+ | Chactivo';
     const seoDescription = isVideoChatRoute
-      ? 'Video chat gay Chile para hablar en vivo con gente real. Conversación activa, segura y sin vueltas. Entra gratis ahora.'
+      ? 'Video chat gay Chile para conversar en vivo con la comunidad LGBT+. Revisa la actividad disponible y entra gratis.'
       : 'Chat gamer gay Chile en vivo. Busca squad, habla de setup y conecta con comunidad LGBT+ activa. Acceso inmediato.';
 
     document.title = seoTitle;
@@ -75,10 +75,10 @@ const GamingLandingPage = () => {
         },
         {
           "@type": "Question",
-          "name": "¿Hay gente real conectada en Chile?",
+          "name": "¿Hay actividad en la sala de Chile?",
           "acceptedAnswer": {
             "@type": "Answer",
-            "text": "Sí, la comunidad está activa con usuarios de Chile y salas con conversación en vivo."
+            "text": "La disponibilidad cambia según la participación real del momento; revisa la sala para ver si hay conversación en vivo."
           }
         }
       ]
@@ -147,7 +147,7 @@ const GamingLandingPage = () => {
             <div className="bg-gradient-to-r from-violet-500/20 to-purple-500/20 border border-violet-500/30 rounded-full px-4 sm:px-6 py-2 sm:py-3">
               <p className="text-xs sm:text-sm font-semibold text-violet-300 flex items-center gap-2">
                 <Gamepad2 className="w-4 h-4" />
-                <span>La comunidad de gamers LGBT+ más activa de Chile</span>
+                <span>Un espacio para gamers LGBT+ de Chile</span>
               </p>
             </div>
           </motion.div>
@@ -180,7 +180,7 @@ const GamingLandingPage = () => {
             </div>
             <div className="flex items-center gap-2 text-yellow-300">
               <Clock className="w-5 h-5" />
-              <span className="font-semibold">Activo 24/7</span>
+              <span className="font-semibold">Disponible cuando hay actividad</span>
             </div>
           </div>
 
@@ -244,144 +244,16 @@ const GamingLandingPage = () => {
           <ChatDemo onJoinClick={handleChatearAhora} />
         </motion.section>
 
-        {/* 🎯 SECCIÓN TRUST SIGNALS - Señales de Confianza */}
         <motion.div
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.4 }}
-          className="mt-12 sm:mt-16 mb-12 sm:mb-16 px-4"
+          className="mt-8 mb-10 px-4"
         >
-          <div className="max-w-4xl mx-auto">
-            {/* Badge principal */}
-            <motion.div
-              initial={{ opacity: 0, scale: 0.95 }}
-              animate={{ opacity: 1, scale: 1 }}
-              transition={{ delay: 0.5 }}
-              className="text-center mb-8"
-            >
-              <div className="inline-block glass-effect px-6 py-3 rounded-full border border-green-500/40 mb-6">
-                <p className="text-sm sm:text-base font-bold text-green-400 flex items-center gap-2">
-                  <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 20 20">
-                    <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
-                  </svg>
-                  <span>Más de 1,000 usuarios confían en Chactivo</span>
-                </p>
-              </div>
-
-              {/* Rating visual */}
-              <div className="flex items-center justify-center gap-3 mb-4">
-                <div className="flex gap-1">
-                  {[...Array(5)].map((_, i) => (
-                    <svg key={i} className="w-6 h-6 text-yellow-400" fill="currentColor" viewBox="0 0 20 20">
-                      <path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z" />
-                    </svg>
-                  ))}
-                </div>
-                <span className="text-xl sm:text-2xl font-bold text-yellow-400">4.8/5</span>
-                <span className="text-sm text-muted-foreground">de 247 opiniones</span>
-              </div>
-            </motion.div>
-
-            {/* Stats en tiempo real */}
-            <motion.div
-              initial={{ opacity: 0, y: 10 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: 0.6 }}
-              className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-8"
-            >
-              {/* Usuarios activos */}
-              <div className="glass-effect p-5 rounded-xl border border-green-500/30 hover:border-green-500/60 transition-all">
-                <div className="flex items-center gap-3 mb-2">
-                  <div className="relative">
-                    <span className="absolute inline-flex h-3 w-3 rounded-full bg-green-400 opacity-75 animate-ping"></span>
-                    <span className="relative inline-flex h-3 w-3 rounded-full bg-green-500"></span>
-                  </div>
-                  <p className="text-xs sm:text-sm text-gray-400 font-medium">Gamers en línea</p>
-                </div>
-                <p className="text-2xl sm:text-3xl font-bold bg-gradient-to-r from-green-400 to-emerald-400 bg-clip-text text-transparent">
-                  50+
-                </p>
-                <p className="text-xs text-gray-500">usuarios activos</p>
-              </div>
-
-              {/* Mensajes hoy */}
-              <div className="glass-effect p-5 rounded-xl border border-cyan-500/30 hover:border-cyan-500/60 transition-all">
-                <div className="flex items-center gap-2 mb-2">
-                  <svg className="w-5 h-5 text-cyan-400" fill="currentColor" viewBox="0 0 20 20">
-                    <path fillRule="evenodd" d="M18 10c0 3.866-3.582 7-8 7a8.841 8.841 0 01-4.083-.98L2 17l1.338-3.123C2.493 12.767 2 11.434 2 10c0-3.866 3.582-7 8-7s8 3.134 8 7zM7 9H5v2h2V9zm8 0h-2v2h2V9zM9 9h2v2H9V9z" clipRule="evenodd" />
-                  </svg>
-                  <p className="text-xs sm:text-sm text-gray-400 font-medium">Mensajes hoy</p>
-                </div>
-                <p className="text-2xl sm:text-3xl font-bold bg-gradient-to-r from-cyan-400 to-blue-400 bg-clip-text text-transparent">
-                  12,847
-                </p>
-                <p className="text-xs text-gray-500">conversaciones reales</p>
-              </div>
-
-              {/* Moderación */}
-              <div className="glass-effect p-5 rounded-xl border border-purple-500/30 hover:border-purple-500/60 transition-all">
-                <div className="flex items-center gap-2 mb-2">
-                  <svg className="w-5 h-5 text-purple-400" fill="currentColor" viewBox="0 0 20 20">
-                    <path fillRule="evenodd" d="M2.166 4.999A11.954 11.954 0 0010 1.944 11.954 11.954 0 0017.834 5c.11.65.166 1.32.166 2.001 0 5.225-3.34 9.67-8 11.317C5.34 16.67 2 12.225 2 7c0-.682.057-1.35.166-2.001zm11.541 3.708a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
-                  </svg>
-                  <p className="text-xs sm:text-sm text-gray-400 font-medium">Seguridad 24/7</p>
-                </div>
-                <p className="text-2xl sm:text-3xl font-bold bg-gradient-to-r from-purple-400 to-pink-400 bg-clip-text text-transparent">
-                  100%
-                </p>
-                <p className="text-xs text-gray-500">moderado y seguro</p>
-              </div>
-            </motion.div>
-
-            {/* Mini testimonios en carrusel */}
-            <motion.div
-              initial={{ opacity: 0, y: 10 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: 0.7 }}
-              className="overflow-hidden"
-            >
-              <div className="flex animate-marquee-slow">
-                {[
-                  { text: "Finalmente gamers LGBT+ sin toxicidad", author: "Carlos, 28" },
-                  { text: "Encontré squad fijo aquí", author: "Andrés, 35" },
-                  { text: "Mejor que Discord random", author: "Matías, 24" },
-                  { text: "Comunidad sana y activa", author: "Diego, 31" },
-                ].concat([
-                  { text: "Finalmente gamers LGBT+ sin toxicidad", author: "Carlos, 28" },
-                  { text: "Encontré squad fijo aquí", author: "Andrés, 35" },
-                  { text: "Mejor que Discord random", author: "Matías, 24" },
-                  { text: "Comunidad sana y activa", author: "Diego, 31" },
-                ]).map((testimonial, index) => (
-                  <div key={index} className="flex-shrink-0 mx-3">
-                    <div className="glass-effect px-5 py-3 rounded-xl border border-cyan-500/30 min-w-[280px]">
-                      <div className="flex items-start gap-2 mb-2">
-                        <svg className="w-5 h-5 text-cyan-400 flex-shrink-0 mt-0.5" fill="currentColor" viewBox="0 0 20 20">
-                          <path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z" />
-                        </svg>
-                        <p className="text-sm text-gray-300 italic">"{testimonial.text}"</p>
-                      </div>
-                      <p className="text-xs text-cyan-400 font-semibold">- {testimonial.author}</p>
-                    </div>
-                  </div>
-                ))}
-              </div>
-
-              {/* CSS para animación de carrusel */}
-              <style>{`
-                @keyframes marquee-slow {
-                  from { transform: translateX(0); }
-                  to { transform: translateX(-50%); }
-                }
-                .animate-marquee-slow {
-                  animation: marquee-slow 40s linear infinite;
-                }
-                @media (prefers-reduced-motion: reduce) {
-                  .animate-marquee-slow {
-                    animation: none;
-                  }
-                }
-              `}</style>
-            </motion.div>
+          <div className="mx-auto max-w-3xl rounded-2xl border border-cyan-500/30 bg-cyan-500/5 p-6 text-center">
+            <h2 className="text-xl font-bold text-cyan-200">Comunidad y privacidad primero</h2>
+            <p className="mt-2 text-sm leading-6 text-muted-foreground">
+              No mostramos ratings, contadores ni testimonios fabricados. La disponibilidad de conversaciones depende de la actividad real; las normas y herramientas de reporte están visibles para todos.
+            </p>
           </div>
         </motion.div>
 
@@ -455,7 +327,7 @@ const GamingLandingPage = () => {
               </div>
               <h3 className="text-xl font-bold mb-3">Comunidad Activa</h3>
               <p className="text-muted-foreground leading-relaxed">
-                Gamers LGBT+ conectados 24/7. Siempre hay alguien online para chatear sobre tus juegos favoritos.
+                Gamers LGBT+ pueden conversar sobre sus juegos favoritos cuando haya actividad.
               </p>
             </div>
 
@@ -519,184 +391,7 @@ const GamingLandingPage = () => {
         </motion.section>
 
         {/* 💬 TESTIMONIOS DETALLADOS - Opiniones Reales con FOTOS */}
-        <motion.div
-          initial={{ opacity: 0, y: 30 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.5, duration: 0.6 }}
-          className="mt-16 sm:mt-20 mb-12 sm:mb-16 px-4"
-        >
-          <div className="max-w-6xl mx-auto">
-            {/* Badge superior */}
-            <motion.div
-              initial={{ opacity: 0, y: -10 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: 0.6 }}
-              className="flex justify-center mb-6"
-            >
-              <div className="glass-effect px-6 py-3 rounded-full border border-yellow-500/40 backdrop-blur-xl">
-                <p className="text-sm sm:text-base font-bold bg-gradient-to-r from-yellow-400 to-orange-400 bg-clip-text text-transparent flex items-center gap-2">
-                  <svg className="w-5 h-5 text-yellow-400" fill="currentColor" viewBox="0 0 20 20">
-                    <path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z" />
-                  </svg>
-                  <span>Lo Que Dicen Nuestros Usuarios</span>
-                </p>
-              </div>
-            </motion.div>
-
-            {/* Título */}
-            <h2 className="text-3xl sm:text-4xl md:text-5xl font-extrabold text-center mb-4">
-              <span className="bg-gradient-to-r from-yellow-400 via-orange-400 to-red-400 bg-clip-text text-transparent">
-                Testimonios Reales
-              </span>
-            </h2>
-            <p className="text-center text-lg sm:text-xl text-muted-foreground mb-12 max-w-3xl mx-auto">
-              Miles de usuarios ya confían en Chactivo. Aquí algunas de sus experiencias:
-            </p>
-
-            {/* Grid de testimonios con fotos reales */}
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-6 sm:gap-8">
-              {/* Testimonio 1: Andrés - Moderación */}
-              <motion.div
-                initial={{ opacity: 0, y: 20 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ delay: 0.7 }}
-                className="glass-effect p-6 sm:p-8 rounded-2xl border-2 border-green-500/30 hover:border-green-500/60 transition-all group"
-              >
-                {/* Foto/Avatar */}
-                <div className="flex items-center gap-4 mb-5">
-                  <img
-                    src="/testimonio 1.jpeg"
-                    alt="Andrés - Usuario de Chactivo"
-                    className="w-14 h-14 sm:w-16 sm:h-16 rounded-full object-cover shadow-lg ring-2 ring-green-500/30"
-                  />
-                  <div>
-                    <p className="font-bold text-lg text-foreground">Andrés</p>
-                    <p className="text-sm text-gray-400">35 años • Valparaíso</p>
-                  </div>
-                </div>
-
-                {/* Estrellas */}
-                <div className="flex gap-1 mb-4">
-                  {[...Array(5)].map((_, i) => (
-                    <svg key={i} className="w-5 h-5 text-yellow-400" fill="currentColor" viewBox="0 0 20 20">
-                      <path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z" />
-                    </svg>
-                  ))}
-                </div>
-
-                {/* Testimonio */}
-                <p className="text-base text-gray-300 leading-relaxed italic mb-4">
-                  "La moderación es excelente. He reportado 2 perfiles y fueron removidos en minutos. Me siento seguro aquí, algo que no pasaba en otras apps donde el acoso era común."
-                </p>
-
-                {/* Tag */}
-                <div className="inline-block px-3 py-1 bg-green-500/20 border border-green-500/30 rounded-full">
-                  <p className="text-xs font-semibold text-green-400">✓ Usuario verificado</p>
-                </div>
-              </motion.div>
-
-              {/* Testimonio 2: Diego - Privacidad */}
-              <motion.div
-                initial={{ opacity: 0, y: 20 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ delay: 0.8 }}
-                className="glass-effect p-6 sm:p-8 rounded-2xl border-2 border-cyan-500/30 hover:border-cyan-500/60 transition-all group"
-              >
-                {/* Foto/Avatar */}
-                <div className="flex items-center gap-4 mb-5">
-                  <img
-                    src="/testimonio 2.jpeg"
-                    alt="Diego - Usuario de Chactivo"
-                    className="w-14 h-14 sm:w-16 sm:h-16 rounded-full object-cover shadow-lg ring-2 ring-cyan-500/30"
-                  />
-                  <div>
-                    <p className="font-bold text-lg text-foreground">Diego</p>
-                    <p className="text-sm text-gray-400">31 años • Santiago</p>
-                  </div>
-                </div>
-
-                {/* Estrellas */}
-                <div className="flex gap-1 mb-4">
-                  {[...Array(5)].map((_, i) => (
-                    <svg key={i} className="w-5 h-5 text-yellow-400" fill="currentColor" viewBox="0 0 20 20">
-                      <path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z" />
-                    </svg>
-                  ))}
-                </div>
-
-                {/* Testimonio */}
-                <p className="text-base text-gray-300 leading-relaxed italic mb-4">
-                  "He probado todas las apps de citas/chat gay en Chile, y esta es la única que realmente respeta la privacidad. Sin anuncios raros ni trackers. Finalmente puedo chatear tranquilo."
-                </p>
-
-                {/* Tag */}
-                <div className="inline-block px-3 py-1 bg-cyan-500/20 border border-cyan-500/30 rounded-full">
-                  <p className="text-xs font-semibold text-cyan-400">✓ Usuario verificado</p>
-                </div>
-              </motion.div>
-
-              {/* Testimonio 3: Javier - Profesionales */}
-              <motion.div
-                initial={{ opacity: 0, y: 20 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ delay: 0.9 }}
-                className="glass-effect p-6 sm:p-8 rounded-2xl border-2 border-purple-500/30 hover:border-purple-500/60 transition-all group"
-              >
-                {/* Foto/Avatar */}
-                <div className="flex items-center gap-4 mb-5">
-                  <img
-                    src="/testimonio 3.jpeg"
-                    alt="Javier - Usuario de Chactivo"
-                    className="w-14 h-14 sm:w-16 sm:h-16 rounded-full object-cover shadow-lg ring-2 ring-purple-500/30"
-                  />
-                  <div>
-                    <p className="font-bold text-lg text-foreground">Javier</p>
-                    <p className="text-sm text-gray-400">47 años • Viña del Mar</p>
-                  </div>
-                </div>
-
-                {/* Estrellas */}
-                <div className="flex gap-1 mb-4">
-                  {[...Array(5)].map((_, i) => (
-                    <svg key={i} className="w-5 h-5 text-yellow-400" fill="currentColor" viewBox="0 0 20 20">
-                      <path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z" />
-                    </svg>
-                  ))}
-                </div>
-
-                {/* Testimonio */}
-                <p className="text-base text-gray-300 leading-relaxed italic mb-4">
-                  "Como profesional, valoro mucho que no requiera vincular redes sociales. Total anonimato si lo deseas. Puedo ser yo mismo sin preocuparme por mi carrera."
-                </p>
-
-                {/* Tag */}
-                <div className="inline-block px-3 py-1 bg-purple-500/20 border border-purple-500/30 rounded-full">
-                  <p className="text-xs font-semibold text-purple-400">✓ Usuario verificado</p>
-                </div>
-              </motion.div>
-            </div>
-
-            {/* CTA después de testimonios */}
-            <motion.div
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: 1.0 }}
-              className="text-center mt-12"
-            >
-              <p className="text-lg sm:text-xl text-muted-foreground mb-6">
-                Únete a miles de usuarios satisfechos
-              </p>
-              <Button
-                onClick={handleChatearAhora}
-                className="magenta-gradient text-white font-bold text-lg sm:text-xl px-8 sm:px-12 py-6 sm:py-7 rounded-xl shadow-xl hover:shadow-[#E4007C]/50 hover:scale-105 transition-all"
-              >
-                🚀 Probar Gratis Ahora
-              </Button>
-            </motion.div>
-          </div>
-        </motion.div>
-
-        {/* How It Works Section */}
+                {/* How It Works Section */}
         <motion.section
           initial={{ opacity: 0, y: 30 }}
           animate={{ opacity: 1, y: 0 }}
@@ -713,7 +408,7 @@ const GamingLandingPage = () => {
               </div>
               <h3 className="text-xl font-bold mb-2">Regístrate en 30s</h3>
               <p className="text-muted-foreground">
-                Elige un username y crea tu contraseña. Sin email, sin tarjeta. 100% anónimo.
+                Elige un nombre y crea tu contraseña. Decide qué información compartir.
               </p>
             </div>
 
@@ -823,7 +518,7 @@ const GamingLandingPage = () => {
                   <path fillRule="evenodd" d="M2.166 4.999A11.954 11.954 0 0010 1.944 11.954 11.954 0 0017.834 5c.11.65.166 1.32.166 2.001 0 5.225-3.34 9.67-8 11.317C5.34 16.67 2 12.225 2 7c0-.682.057-1.35.166-2.001zm11.541 3.708a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
                 </svg>
               </div>
-              <h3 className="text-lg font-bold text-center mb-2 text-green-400">Moderación 24/7 Híbrida</h3>
+              <h3 className="text-lg font-bold text-center mb-2 text-green-400">Moderación híbrida disponible</h3>
               <p className="text-sm text-center text-gray-300 leading-relaxed">
                 Filtros automáticos y revisión operativa para reducir abuso, spam y contenido de riesgo sin invadir tu privacidad.
               </p>
@@ -861,7 +556,7 @@ const GamingLandingPage = () => {
               </div>
               <h3 className="text-lg font-bold text-center mb-2 text-yellow-400">Derecho al Olvido</h3>
               <p className="text-sm text-center text-gray-300 leading-relaxed">
-                Borra tu cuenta y todos tus datos en 24 horas. Total y permanentemente. Sin excepciones.
+                Puedes solicitar la eliminación de tu cuenta y datos desde la configuración; se aplicarán los plazos informados en la política de privacidad.
               </p>
             </motion.div>
 
@@ -900,7 +595,7 @@ const GamingLandingPage = () => {
                 { feature: "Bots y cuentas falsas", other: "❌ Frecuente", chactivo: "✅ Control estricto" },
                 { feature: "Publicidad invasiva", other: "❌ Si", chactivo: "✅ No" },
                 { feature: "Mensajes spam", other: "❌ Alto", chactivo: "✅ Mínimo" },
-                { feature: "Moderación real 24/7", other: "❌ Limitada", chactivo: "✅ Humana y constante" },
+                { feature: "Herramientas de moderación", other: "❌ Limitada", chactivo: "✅ Humana y constante" },
                 { feature: "Anonimato real", other: "❌ Parcial", chactivo: "✅ Total" },
                 { feature: "Sin trackers externos", other: "❌ No", chactivo: "✅ Si" },
                 { feature: "Experiencia limpia", other: "❌ Saturada", chactivo: "✅ Enfocada" },
@@ -942,7 +637,7 @@ const GamingLandingPage = () => {
                 onClick={handleChatearAhora}
                 className="magenta-gradient text-white font-bold text-lg sm:text-xl px-10 sm:px-14 py-6 sm:py-7 rounded-xl shadow-xl hover:shadow-[#E4007C]/50 hover:scale-105 transition-all"
               >
-                🔒 Chatear con Privacidad Total
+                🔒 Chatear con Privacidad clara
               </Button>
             </div>
           </motion.div>
@@ -991,39 +686,39 @@ const GamingLandingPage = () => {
               },
               {
                 q: "¿Necesito dar mi email o teléfono?",
-                a: "No. Puedes chatear completamente anónimo sin dar email, teléfono ni vincular redes sociales. Solo elige un nombre de usuario y listo. Si quieres crear una cuenta para acceder desde otros dispositivos, solo necesitas email (que nunca compartimos ni vendemos)."
+                a: "Para algunas entradas públicas puedes participar sin proporcionar email o teléfono, usando un alias. Una cuenta registrada puede requerir otros datos; comparte solo lo necesario y revisa la política de privacidad vigente."
               },
               {
                 q: "¿Cómo protegen mi privacidad?",
-                a: "No vendemos ni compartimos tus datos. No usamos trackers de terceros ni anuncios invasivos. Tus conversaciones están encriptadas. Puedes chatear anónimo sin dar datos personales. Y tienes derecho al olvido: borra tu cuenta y datos en 24h, permanentemente."
+                a: "Puedes participar con un alias y evitar publicar datos personales, pero no prometemos anonimato total. El sitio puede utilizar herramientas técnicas de analítica; no compartas ubicación exacta, teléfono, correo ni información sensible en salas públicas."
               },
               {
                 q: "¿Hay moderación? ¿Cómo funciona?",
-                a: "Sí. Chactivo usa filtros automáticos y análisis asistido para detectar spam, abuso y contenido de riesgo, además de reportes manuales. Los casos sensibles se revisan según prioridad operativa. Puedes reportar cualquier mensaje o usuario con un click."
+                a: "Hay filtros locales para algunos patrones de spam o riesgo y herramientas de reporte cuando están disponibles. Los filtros pueden equivocarse y ningún sistema garantiza una revisión inmediata."
               },
               {
                 q: "¿Puedo eliminar mi cuenta y datos?",
-                a: "Sí, en cualquier momento. Desde Configuración > Eliminar Cuenta. Todos tus datos se borran permanentemente en 24 horas. Sin excepciones, sin backups ocultos. Derecho al olvido garantizado."
+                a: "Si la opción de eliminación está disponible en Configuración, sigue sus pasos y conserva la confirmación. No prometemos borrado inmediato, eliminación de copias de seguridad ni un plazo universal sin verificar primero el backend y la política vigente."
               },
               {
                 q: "¿Por qué no hay anuncios?",
-                a: "Porque los odiamos tanto como tú. Nuestro modelo es sostenible con suscripciones Premium opcionales, no vendiendo tu atención a anunciantes. Sin publicidad invasiva, sin trackers, sin distracciones. Solo chat real."
+                a: "Priorizamos una interfaz sin anuncios intrusivos. La medición técnica del sitio puede utilizar herramientas de analítica; revisa la información de privacidad antes de compartir datos personales."
               },
               {
                 q: "¿Es seguro para profesionales o personas públicas?",
-                a: "Absolutamente. Anonimato total garantizado si lo deseas. No pedimos email ni teléfono para chatear. No hay forma de vincular tu identidad real con tu usuario del chat a menos que tú lo compartas. Muchos profesionales y figuras públicas usan Chactivo con tranquilidad."
+                a: "Puedes usar un alias y decidir qué información compartir, pero no prometemos anonimato total ni invulnerabilidad. No publiques datos sensibles, ubicación exacta, teléfono o correo en una sala pública."
               },
               {
                 q: "¿Cómo reporto comportamiento inapropiado?",
-                a: "Hay un botón de reporte en cada mensaje y perfil. Click derecho > Reportar. Priorizamos casos sensibles y además usamos filtros automáticos para detectar spam, abuso y contenido de riesgo."
+                a: "Usa la opción Reportar que aparece en el mensaje o perfil cuando esté disponible y describe el problema sin incluir datos sensibles. Los filtros locales ayudan a detectar algunos patrones, pero no sustituyen tu criterio."
               },
               {
                 q: "¿Verifican que los usuarios sean reales?",
-                a: "Tenemos sistema de verificación opcional (badge azul) para usuarios que quieran demostrar autenticidad. No es obligatorio. También moderamos activamente para detectar bots, perfiles fake y comportamiento sospechoso. Tolerancia cero con spam."
+                a: "La insignia de verificación es opcional y no constituye una prueba absoluta de identidad. Si algo te parece sospechoso, no compartas datos ni continúes la conversación."
               },
               {
                 q: "¿Qué diferencia a Chactivo de Grindr o Tinder?",
-                a: "Enfoque: somos comunidad, no solo hookups. Privacidad real (no vendemos datos). Sin bots ni perfiles fake. Moderación humana 24/7. Sin publicidad invasiva. Ambiente más relajado y conversacional. Ideal para hacer amigos, no solo citas. Y 100% gratis para chatear."
+                a: "Nuestro enfoque combina conversación y comunidad, no solo citas. Puedes participar con un alias, usar herramientas de reporte cuando estén disponibles y decidir qué compartir. La actividad depende de las personas reales que participen; el chat público no requiere pago."
               },
             ].map((faq, index) => (
               <motion.details
@@ -1179,9 +874,9 @@ const GamingLandingPage = () => {
                       </p>
 
                       <p className="text-gray-300">
-                        Aquí encontrarás <span className="font-bold text-green-400">✓ Chats 100% reales</span>,
-                        <span className="font-bold text-green-400 mx-1">✓ Sin anuncios molestos</span>,
-                        <span className="font-bold text-green-400 mx-1">✓ Comunidad LGBT+ segura</span>.
+                        Aquí encontrarás <span className="font-bold text-green-400">✓ Conversaciones de la comunidad</span>,
+                        <span className="font-bold text-green-400 mx-1">✓ Sin anuncios intrusivos</span>,
+                        <span className="font-bold text-green-400 mx-1">✓ Normas y herramientas de reporte</span>.
                       </p>
 
                       <p className="text-cyan-300 font-semibold text-lg sm:text-xl">
@@ -1197,12 +892,12 @@ const GamingLandingPage = () => {
                       className="flex flex-wrap justify-center lg:justify-start gap-4 mt-6"
                     >
                       <div className="glass-effect px-4 py-2 rounded-lg border border-cyan-500/30">
-                        <p className="text-xs text-gray-400">Desde</p>
-                        <p className="text-lg font-bold text-cyan-400">2024</p>
+                        <p className="text-xs text-gray-400">Formato</p>
+                        <p className="text-lg font-bold text-cyan-400">En vivo</p>
                       </div>
                       <div className="glass-effect px-4 py-2 rounded-lg border border-purple-500/30">
-                        <p className="text-xs text-gray-400">Usuarios</p>
-                        <p className="text-lg font-bold text-purple-400">1000+</p>
+                        <p className="text-xs text-gray-400">Actividad</p>
+                        <p className="text-lg font-bold text-purple-400">Participación real</p>
                       </div>
                       <div className="glass-effect px-4 py-2 rounded-lg border border-pink-500/30">
                         <p className="text-xs text-gray-400">Ubicación</p>
@@ -1313,7 +1008,7 @@ const GamingLandingPage = () => {
               ¿Listo para Conectar con Gamers LGBT+?
             </h2>
             <p className="text-lg text-muted-foreground mb-8 max-w-2xl mx-auto">
-              Únete a la comunidad de gamers gay más activa de Chile. Sin registro, sin compromiso, 100% gratis.
+              Explora la comunidad de gamers gay de Chile. Sin registro obligatorio y sin costo de acceso.
             </p>
             <motion.div
               whileHover={{ scale: 1.05 }}
@@ -1330,7 +1025,7 @@ const GamingLandingPage = () => {
               </Button>
             </motion.div>
             <p className="text-sm text-muted-foreground mt-6">
-              🎮 Más de 50+ gamers activos • 🔒 100% anónimo • ⚡ Registro rápido gratis
+              🎮 Espacio para gamers LGBT+ • 🔒 Privacidad clara • ⚡ Registro rápido
             </p>
           </div>
         </motion.section>
