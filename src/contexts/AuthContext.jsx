@@ -38,6 +38,8 @@ import {
 } from '@/utils/guestIdentity';
 import { crearTarjetaAutomatica } from '@/services/tarjetaService';
 import { ENABLE_BAUL } from '@/config/featureFlags';
+import { isSupabaseAuthEnabled } from '@/config/supabase';
+import { SupabaseAuthProvider } from './SupabaseAuthProvider';
 import { removeRewardFromUser, REWARD_TYPES } from '@/services/rewardsService';
 import { resolveProfileRole } from '@/config/profileRoles';
 import { ONBOARDING_COMUNA_KEY, normalizeComuna } from '@/config/comunas';
@@ -261,7 +263,7 @@ export const useAuth = () => {
   return context || DEFAULT_AUTH_CONTEXT;
 };
 
-export const AuthProvider = ({ children }) => {
+const FirebaseAuthProvider = ({ children }) => {
   const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(true);
   const [authReady, setAuthReady] = useState(false);
@@ -1469,4 +1471,11 @@ export const AuthProvider = ({ children }) => {
       {children}
     </AuthContext.Provider>
   );
+};
+
+export const AuthProvider = ({ children }) => {
+  if (isSupabaseAuthEnabled()) {
+    return <SupabaseAuthProvider>{children}</SupabaseAuthProvider>;
+  }
+  return <FirebaseAuthProvider>{children}</FirebaseAuthProvider>;
 };

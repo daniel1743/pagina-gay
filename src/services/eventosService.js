@@ -25,6 +25,7 @@ import {
 import { db, auth } from '@/config/firebase';
 import { isEventoFinalizado } from '@/utils/eventosUtils';
 import { incrementEventosParticipados } from '@/services/badgeService';
+import { supabase, isSupabaseAuthEnabled } from '@/config/supabase';
 
 // ═══════════════════════════════════════════════════════════════════
 // CREAR EVENTO
@@ -36,6 +37,19 @@ import { incrementEventosParticipados } from '@/services/badgeService';
  * @returns {Object} evento creado con id
  */
 export async function crearEvento({ nombre, descripcion, fechaInicio, duracionMinutos }) {
+  if (isSupabaseAuthEnabled()) {
+    const { data: authData } = await supabase.auth.getUser();
+    if (!authData?.user?.id) throw new Error('Debes estar autenticado');
+    if (!nombre?.trim()) throw new Error('El nombre es obligatorio');
+    if (!fechaInicio) throw new Error('La fecha de inicio es obligatoria');
+    if (!duracionMinutos || duracionMinutos < 5) throw new Error('Duración mínima: 5 minutos');
+    const inicioMs = fechaInicio instanceof Date ? fechaInicio.getTime() : Number(fechaInicio);
+    const finMs = inicioMs + Number(duracionMinutos) * 60 * 1000;
+    const roomId = `evento_${inicioMs}_${crypto.randomUUID().slice(0, 8)}`;
+    const { data, error } = await supabase.from('events').insert({ name: nombre.trim(), description: (descripcion || '').trim(), room_id: roomId, starts_at: new Date(inicioMs).toISOString(), ends_at: new Date(finMs).toISOString(), duration_minutes: Number(duracionMinutos), created_by: authData.user.id }).select('*').single();
+    if (error) throw error;
+    return mapSupabaseEvent(data);
+  }
   if (!auth.currentUser) throw new Error('Debes estar autenticado');
   if (!nombre?.trim()) throw new Error('El nombre es obligatorio');
   if (!fechaInicio) throw new Error('La fecha de inicio es obligatoria');
@@ -73,6 +87,16 @@ export async function crearEvento({ nombre, descripcion, fechaInicio, duracionMi
  * Obtener todos los eventos activos y programados (no finalizados)
  */
 export async function obtenerEventosVisibles() {
+  if (isSupabaseAuthEnabled()) {
+    try {
+      const { data, error } = await supabase.from('events').select('*').eq('active', true).order('starts_at', { ascending: true }).limit(100);
+      if (error) throw error;
+      return (data || []).map(mapSupabaseEvent).filter((event) => !isEventoFinalizado(event) || (Date.now() - new Date(event.fechaFin).getTime()) < 3600000);
+    } catch (error) {
+      console.warn('[EVENTOS] Error obteniendo eventos Supabase:', error?.message || error);
+      return [];
+    }
+  }
   try {
     const eventosRef = collection(db, 'eventos');
     const q = query(eventosRef, where('activo', '==', true));
@@ -100,6 +124,11 @@ export async function obtenerEventosVisibles() {
  * Obtener todos los eventos (para admin)
  */
 export async function obtenerTodosLosEventos() {
+  if (isSupabaseAuthEnabled()) {
+    const { data, error } = await supabase.from('events').select('*').order('starts_at', { ascending: false }).limit(100);
+    if (error) throw error;
+    return (data || []).map(mapSupabaseEvent);
+  }
   try {
     const eventosRef = collection(db, 'eventos');
     const q = query(eventosRef, orderBy('fechaInicio', 'desc'), limit(50));
@@ -116,6 +145,11 @@ export async function obtenerTodosLosEventos() {
  * Obtener un evento por ID
  */
 export async function obtenerEventoPorId(eventoId) {
+  if (isSupabaseAuthEnabled()) {
+    const { data, error } = await supabase.from('events').select('*').eq('id', eventoId).maybeSingle();
+    if (error) throw error;
+    return data ? mapSupabaseEvent(data) : null;
+  }
   try {
     const docSnap = await getDoc(doc(db, 'eventos', eventoId));
     if (!docSnap.exists()) return null;
@@ -136,6 +170,13 @@ export async function obtenerEventoPorId(eventoId) {
  * @returns {Function} unsubscribe
  */
 export function suscribirseAEventos(callback) {
+  if (isSupabaseAuthEnabled()) {
+    let active = true;
+    const load = async () => { const events = await obtenerEventosVisibles(); if (active) callback(events); };
+    void load();
+    const channel = supabase.channel('events-public').on('postgres_changes', { event: '*', schema: 'public', table: 'events' }, () => { void load(); }).subscribe();
+    return () => { active = false; void supabase.removeChannel(channel); };
+  }
   const eventosRef = collection(db, 'eventos');
   // Solo filtrar por activo, ordenar en cliente (evita necesidad de composite index)
   const q = query(eventosRef, where('activo', '==', true));
@@ -167,6 +208,19 @@ export function suscribirseAEventos(callback) {
  */
 export async function unirseAEvento(eventoId, user) {
   if (!eventoId || !user?.id) return false;
+
+  if (isSupabaseAuthEnabled()) {
+    try {
+      const { data: authData } = await supabase.auth.getUser();
+      if (authData?.user?.id !== user.id || authData.user.is_anonymous) return false;
+      const { error } = await supabase.from('event_attendees').upsert({ event_id: eventoId, user_id: user.id }, { onConflict: 'event_id,user_id' });
+      if (error) throw error;
+      return true;
+    } catch (error) {
+      console.warn('[EVENTOS] Error uniéndose en Supabase:', error?.message || error);
+      return false;
+    }
+  }
 
   try {
     const asistRef = doc(db, 'eventos', eventoId, 'asistentes', user.id);
@@ -203,6 +257,11 @@ export async function unirseAEvento(eventoId, user) {
  * Contar asistentes de un evento
  */
 export async function contarAsistentes(eventoId) {
+  if (isSupabaseAuthEnabled()) {
+    const { count, error } = await supabase.from('event_attendees').select('user_id', { count: 'exact', head: true }).eq('event_id', eventoId);
+    if (error) throw error;
+    return Number(count || 0);
+  }
   try {
     const snapshot = await getDocs(collection(db, 'eventos', eventoId, 'asistentes'));
     return snapshot.size;
@@ -214,6 +273,21 @@ export async function contarAsistentes(eventoId) {
 // ═══════════════════════════════════════════════════════════════════
 // MÉTRICAS / DASHBOARD ADMIN
 // ═══════════════════════════════════════════════════════════════════
+
+const mapSupabaseEvent = (row) => ({
+  id: row.id,
+  nombre: row.name,
+  descripcion: row.description || '',
+  roomId: row.room_id,
+  fechaInicio: row.starts_at,
+  fechaFin: row.ends_at,
+  duracionMinutos: row.duration_minutes,
+  creadoPor: row.created_by,
+  creadoEn: row.created_at,
+  activo: row.active,
+  estado: row.status,
+  asistentesCount: Number(row.attendees_count || 0),
+});
 
 const getTimestampMs = (value) => {
   if (!value) return 0;
@@ -258,7 +332,23 @@ const safeCount = async (queryRef, fallback = null) => {
  * Esto permite medir interés/participantes aunque no pulse "Recordarme".
  */
 export async function registrarParticipacionEvento(roomId, user) {
-  if (!roomId?.startsWith?.('evento_') || !user?.id || !auth.currentUser) return null;
+  if (!roomId?.startsWith?.('evento_') || !user?.id) return null;
+  if (isSupabaseAuthEnabled()) {
+    try {
+      const { data: authData } = await supabase.auth.getUser();
+      if (authData?.user?.id !== user.id || authData.user.is_anonymous) return null;
+      const { data: event, error: eventError } = await supabase.from('events').select('id').eq('room_id', roomId).maybeSingle();
+      if (eventError) throw eventError;
+      if (!event) return null;
+      const { error } = await supabase.from('event_attendees').upsert({ event_id: event.id, user_id: user.id }, { onConflict: 'event_id,user_id' });
+      if (error) throw error;
+      return event.id;
+    } catch (error) {
+      console.warn('[EVENTOS] Error registrando participación Supabase:', error?.message || error);
+      return null;
+    }
+  }
+  if (!auth.currentUser) return null;
 
   try {
     const eventosRef = collection(db, 'eventos');
@@ -299,6 +389,26 @@ export async function obtenerMetricasEvento(evento) {
       huboInteres: false,
       ultimaActividadMs: 0,
     };
+  }
+
+  if (isSupabaseAuthEnabled()) {
+    const [attendees, messages, replies, presence, latest] = await Promise.all([
+      supabase.from('event_attendees').select('user_id', { count: 'exact', head: true }).eq('event_id', evento.id),
+      supabase.from('messages').select('id', { count: 'exact', head: true }).eq('room_id', evento.roomId).is('deleted_at', null),
+      supabase.from('messages').select('id', { count: 'exact', head: true }).eq('room_id', evento.roomId).not('reply_to', 'is', null).is('deleted_at', null),
+      supabase.from('room_presence').select('user_id', { count: 'exact', head: true }).eq('room_id', evento.roomId).gt('last_seen_at', new Date(Date.now() - 10 * 60 * 1000).toISOString()),
+      supabase.from('messages').select('created_at').eq('room_id', evento.roomId).is('deleted_at', null).order('created_at', { ascending: false }).limit(1),
+    ]);
+    const errors = [attendees, messages, replies, presence, latest].map((item) => item.error).filter(Boolean);
+    if (errors.length) throw errors[0];
+    const participantes = Number(attendees.count || 0);
+    const mensajes = Number(messages.count || 0);
+    const respuestas = Number(replies.count || 0);
+    const conexionesActivas = Number(presence.count || 0);
+    const duracionHoras = Math.max((Number(evento.duracionMinutos) || 60) / 60, 0.25);
+    const mensajesPorHora = Number((mensajes / duracionHoras).toFixed(1));
+    const ultimaActividadMs = latest.data?.[0]?.created_at ? new Date(latest.data[0].created_at).getTime() : 0;
+    return { participantes, mensajes, respuestas, conexionesActivas, tasaRespuesta: mensajes > 0 ? Math.round((respuestas / mensajes) * 100) : 0, mensajesPorHora, traficoNivel: clasificarTrafico(mensajesPorHora), interesNivel: clasificarInteres(participantes), huboInteres: participantes > 0 || mensajes > 0, ultimaActividadMs };
   }
 
   const asistentesRef = collection(db, 'eventos', evento.id, 'asistentes');
@@ -373,6 +483,11 @@ export async function obtenerMetricasEventos(eventos = []) {
  * Desactivar un evento (soft delete)
  */
 export async function desactivarEvento(eventoId) {
+  if (isSupabaseAuthEnabled()) {
+    const { error } = await supabase.from('events').update({ active: false, status: 'cancelado' }).eq('id', eventoId);
+    if (error) throw error;
+    return true;
+  }
   try {
     await updateDoc(doc(db, 'eventos', eventoId), { activo: false });
     console.log('[EVENTOS] Evento desactivado:', eventoId);
@@ -387,6 +502,11 @@ export async function desactivarEvento(eventoId) {
  * Eliminar evento permanentemente
  */
 export async function eliminarEvento(eventoId) {
+  if (isSupabaseAuthEnabled()) {
+    const { error } = await supabase.from('events').delete().eq('id', eventoId);
+    if (error) throw error;
+    return true;
+  }
   try {
     await deleteDoc(doc(db, 'eventos', eventoId));
     console.log('[EVENTOS] Evento eliminado:', eventoId);

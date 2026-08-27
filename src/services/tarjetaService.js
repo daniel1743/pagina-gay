@@ -14,6 +14,8 @@ import { httpsCallable } from 'firebase/functions';
 import { track } from '@/services/eventTrackingService';
 import { isBlockedBetween } from '@/services/blockService';
 import { ENABLE_BAUL } from '@/config/featureFlags';
+import { isSupabaseAuthEnabled } from '@/config/supabase';
+import * as supabaseBaulService from '@/services/supabaseBaulService';
 import {
   doc,
   setDoc,
@@ -37,6 +39,7 @@ import {
 const recordTarjetaInteractionCallable = httpsCallable(functions, 'recordTarjetaInteraction');
 const updateTarjetaPresenceCallable = httpsCallable(functions, 'updateTarjetaPresence');
 const isBaulRuntimeEnabled = () => ENABLE_BAUL === true;
+const useSupabaseBaul = () => isBaulRuntimeEnabled() && isSupabaseAuthEnabled();
 
 const callTarjetaInteraction = async (action, targetUserId = null, payload = {}) => {
   if (!isBaulRuntimeEnabled()) {
@@ -218,6 +221,7 @@ export function sortTarjetasByDiscoveryMode(tarjetas = [], mode = 'profile') {
  * Se llama al registrarse o al entrar como invitado
  */
 export async function crearTarjetaAutomatica(usuario) {
+  if (useSupabaseBaul()) return supabaseBaulService.crearTarjetaAutomatica(usuario);
   try {
     console.log('[TARJETA] ========== CREAR TARJETA AUTOMÁTICA ==========');
     console.log('[TARJETA] Datos recibidos:', JSON.stringify(usuario, null, 2));
@@ -354,6 +358,7 @@ export async function crearTarjetaAutomatica(usuario) {
  * Obtener tarjeta de un usuario
  */
 export async function obtenerTarjeta(odIdUsuari) {
+  if (useSupabaseBaul()) return supabaseBaulService.obtenerTarjeta(odIdUsuari);
   try {
     if (!odIdUsuari) return null;
 
@@ -374,6 +379,7 @@ export async function obtenerTarjeta(odIdUsuari) {
  * Actualizar tarjeta del usuario actual
  */
 export async function actualizarTarjeta(odIdUsuari, datos) {
+  if (useSupabaseBaul()) return supabaseBaulService.actualizarTarjeta(odIdUsuari, datos);
   try {
     if (!odIdUsuari) {
       console.error('[TARJETA] ❌ Error: Se requiere odIdUsuari');
@@ -435,6 +441,7 @@ export async function actualizarTarjeta(odIdUsuari, datos) {
  * Actualizar estado online del usuario
  */
 export async function actualizarEstadoOnline(odIdUsuari, estaOnline) {
+  if (useSupabaseBaul()) return supabaseBaulService.actualizarEstadoOnline(odIdUsuari, estaOnline);
   try {
     if (!odIdUsuari || !isBaulRuntimeEnabled()) return { success: false, skipped: true };
     const result = await updateTarjetaPresenceCallable({ online: Boolean(estaOnline) });
@@ -462,6 +469,7 @@ const BAUL_CONFIG = {
  * @param {number} limite - Número máximo de tarjetas
  */
 export async function obtenerTarjetasCercanas(miUbicacion, miUserId, limite = 100) {
+  if (useSupabaseBaul()) return supabaseBaulService.obtenerTarjetasCercanas(miUbicacion, miUserId, limite);
   try {
     if (!isBaulRuntimeEnabled()) return [];
     console.log('[TARJETA] Buscando tarjetas cercanas para:', miUserId);
@@ -603,6 +611,7 @@ export async function obtenerTarjetasCercanas(miUbicacion, miUserId, limite = 10
  * Los usuarios nuevos van apareciendo y los antiguos salen del historial
  */
 export async function obtenerTarjetasRecientes(miUserId, limite = 100) {
+  if (useSupabaseBaul()) return supabaseBaulService.obtenerTarjetasRecientes(miUserId, limite);
   try {
     if (!isBaulRuntimeEnabled()) return [];
     console.log('[TARJETA] Buscando tarjetas recientes para usuario:', miUserId);
@@ -733,6 +742,7 @@ export async function obtenerTarjetasRecientes(miUserId, limite = 100) {
  * @returns {Object} { success: boolean, isMatch: boolean, matchData?: object }
  */
 export async function darLike(tarjetaId, miUserId, miUsername, miAvatar = '') {
+  if (useSupabaseBaul()) return supabaseBaulService.darLike(tarjetaId, miUserId, miUsername, miAvatar);
   try {
     if (!tarjetaId || !miUserId) {
       throw new Error('Se requiere tarjetaId y miUserId');
@@ -778,6 +788,7 @@ export async function darLike(tarjetaId, miUserId, miUsername, miAvatar = '') {
  * Obtener mis matches
  */
 export async function obtenerMisMatches(miUserId) {
+  if (useSupabaseBaul()) return supabaseBaulService.obtenerMisMatches(miUserId);
   try {
     if (!miUserId) return [];
 
@@ -830,6 +841,7 @@ export async function obtenerMisMatches(miUserId) {
  * Marcar match como leído
  */
 export async function marcarMatchLeido(matchId, miUserId) {
+  if (useSupabaseBaul()) return supabaseBaulService.marcarMatchLeido(matchId, miUserId);
   try {
     const matchRef = doc(db, 'matches', matchId);
     const matchDoc = await getDoc(matchRef);
@@ -851,6 +863,7 @@ export async function marcarMatchLeido(matchId, miUserId) {
  * Verificar si hay match entre dos usuarios
  */
 export async function verificarMatch(userId1, userId2) {
+  if (useSupabaseBaul()) return supabaseBaulService.verificarMatch(userId1, userId2);
   try {
     const sortedIds = [userId1, userId2].sort();
     const matchId = `${sortedIds[0]}_${sortedIds[1]}`;
@@ -880,6 +893,10 @@ export async function contarMatchesNoLeidos(miUserId) {
  * Quitar like de una tarjeta
  */
 export async function quitarLike(tarjetaId, miUserId) {
+  if (useSupabaseBaul()) {
+    const result = await supabaseBaulService.quitarLike(tarjetaId, miUserId);
+    return Boolean(result?.success && result?.liked === false);
+  }
   try {
     if (!tarjetaId || !miUserId) return false;
     const resultado = await callTarjetaInteraction('toggle_like', tarjetaId);
@@ -898,6 +915,7 @@ export async function quitarLike(tarjetaId, miUserId) {
  * Verificar si ya di like a una tarjeta
  */
 export async function yaLeDiLike(tarjetaId, miUserId) {
+  if (useSupabaseBaul()) return supabaseBaulService.yaLeDiLike(tarjetaId, miUserId);
   try {
     const tarjeta = await obtenerTarjeta(tarjetaId);
     return tarjeta?.likesDe?.includes(miUserId) || false;
@@ -910,6 +928,7 @@ export async function yaLeDiLike(tarjetaId, miUserId) {
  * Toggle like (dar o quitar)
  */
 export async function toggleLike(tarjetaId, miUserId, miUsername) {
+  if (useSupabaseBaul()) return supabaseBaulService.toggleLike(tarjetaId, miUserId, miUsername);
   const yaTieneLike = await yaLeDiLike(tarjetaId, miUserId);
 
   if (yaTieneLike) {
@@ -928,6 +947,7 @@ export async function toggleLike(tarjetaId, miUserId, miUsername) {
  * Es diferente al chat privado - es como dejar una nota
  */
 export async function enviarMensajeTarjeta(tarjetaId, miUserId, miUsername, mensaje) {
+  if (useSupabaseBaul()) return supabaseBaulService.enviarMensajeTarjeta(tarjetaId, miUsername, mensaje);
   try {
     if (!tarjetaId || !miUserId || !mensaje?.trim()) {
       throw new Error('Datos incompletos');
@@ -973,6 +993,7 @@ export async function enviarMensajeTarjeta(tarjetaId, miUserId, miUsername, mens
  * Registrar visita a una tarjeta
  */
 export async function registrarVisita(tarjetaId, miUserId, miUsername) {
+  if (useSupabaseBaul()) return supabaseBaulService.registrarVisita(tarjetaId, miUserId, miUsername);
   try {
     if (!tarjetaId || !miUserId || tarjetaId === miUserId) return { success: false, recorded: false };
     try {
@@ -1002,6 +1023,7 @@ export async function registrarVisita(tarjetaId, miUserId, miUsername) {
  * Rate limit: 1 por usuario por tarjeta por día (no spam al hacer scroll)
  */
 export async function registrarImpresion(tarjetaId, miUserId, tarjetaData = null) {
+  if (useSupabaseBaul()) return supabaseBaulService.registrarImpresion(tarjetaId, miUserId, tarjetaData);
   try {
     if (!tarjetaId || !miUserId || tarjetaId === miUserId) return { success: false, recorded: false };
     const resultado = await callTarjetaInteraction('record_impression', tarjetaId);
@@ -1027,6 +1049,7 @@ const HUELLAS_MAX_POR_DIA = 15; // Máximo de huellas que un usuario puede dejar
  * Máx 1 por usuario por tarjeta por día; máx 15 huellas total por día
  */
 export async function dejarHuella(tarjetaId, miUserId, miUsername) {
+  if (useSupabaseBaul()) return supabaseBaulService.dejarHuella(tarjetaId, miUserId, miUsername);
   try {
     if (!tarjetaId || !miUserId) {
       throw new Error('Datos incompletos');
@@ -1118,6 +1141,7 @@ async function agregarActividad(tarjetaId, actividad) {
  * Obtener actividad reciente de mi tarjeta (feed)
  */
 export async function obtenerMiActividad(miUserId, limite = 20) {
+  if (useSupabaseBaul()) return supabaseBaulService.obtenerMiActividad(miUserId, limite);
   try {
     if (!isBaulRuntimeEnabled()) return [];
     if (!miUserId) return [];
@@ -1193,6 +1217,7 @@ export async function verificarInteresMutuo(userId1, userId2) {
  * Para panel "Quién te vio, quién te escribió, quién te dio like, popularidad"
  */
 export async function obtenerMetricasTarjeta(miUserId) {
+  if (useSupabaseBaul()) return supabaseBaulService.obtenerMetricasTarjeta(miUserId);
   try {
     if (!isBaulRuntimeEnabled()) return null;
     if (!miUserId) return null;
@@ -1287,6 +1312,7 @@ export async function marcarActividadLeida(miUserId) {
  * Suscribirse a cambios en mi tarjeta (tiempo real)
  */
 export function suscribirseAMiTarjeta(miUserId, callback) {
+  if (useSupabaseBaul()) return supabaseBaulService.suscribirseAMiTarjeta(miUserId, callback);
   if (!isBaulRuntimeEnabled()) return () => {};
   if (!miUserId) return () => {};
 

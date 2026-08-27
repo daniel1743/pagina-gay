@@ -10,6 +10,7 @@ import {
 import { useAuth } from '@/contexts/AuthContext';
 import { Button } from '@/components/ui/button';
 import { toast } from '@/components/ui/use-toast';
+import { isSupabaseAuthEnabled } from '@/config/supabase';
 import { collection, query, orderBy, onSnapshot, doc, updateDoc, getDoc, limit } from 'firebase/firestore';
 import { db } from '@/config/firebase';
 import {
@@ -86,6 +87,13 @@ import AdminRoomHistoryPanel from '@/components/admin/AdminRoomHistoryPanel';
 import AdminAIInsightsPanel from '@/components/admin/AdminAIInsightsPanel';
 
 const AdminPage = () => {
+  if (isSupabaseAuthEnabled()) {
+    return (
+      <div className="mx-auto max-w-2xl p-8 text-center text-slate-600">
+        El panel administrativo histórico está temporalmente desactivado en modo Supabase hasta completar su adapter seguro.
+      </div>
+    );
+  }
   const navigate = useNavigate();
   const { user, switchToGenericIdentity } = useAuth();
   const [reports, setReports] = useState([]);

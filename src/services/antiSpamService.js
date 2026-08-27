@@ -9,6 +9,7 @@ import {
 } from 'firebase/firestore';
 import { checkDuplicateSpamBeforeSend } from '@/services/moderationAIService';
 import { createModerationIncidentAlert } from '@/services/moderationService';
+import { supabase, isSupabaseAuthEnabled } from '@/config/supabase';
 
 /**
  * Anti-Extraction + Anti-External-Contact moderation
@@ -930,6 +931,11 @@ export function detectCriticalSafetyRisk(message = '') {
   };
 }
 
+const getActiveAuthUserId = async () => {
+  if (isSupabaseAuthEnabled()) return (await supabase?.auth?.getUser())?.data?.user?.id || null;
+  return auth.currentUser?.uid || null;
+};
+
 const hashMessage = (value = '') => {
   let hash = 5381;
   const input = String(value || '');
@@ -940,19 +946,34 @@ const hashMessage = (value = '') => {
 };
 
 const getModerationState = async (userId) => {
-  if (!userId || !auth.currentUser || auth.currentUser.uid !== userId) {
-    return {
-      offenseCount: 0,
-      muteUntilMs: 0,
-      suspendUntilMs: 0,
-      shadowbanUntilMs: 0,
-      strikes: 0,
-    };
+  if (!userId) {
+    return { offenseCount: 0, muteUntilMs: 0, suspendUntilMs: 0, shadowbanUntilMs: 0, strikes: 0 };
+  }
+
+  const activeUserId = await getActiveAuthUserId();
+  if (!activeUserId || activeUserId !== userId) {
+    return { offenseCount: 0, muteUntilMs: 0, suspendUntilMs: 0, shadowbanUntilMs: 0, strikes: 0 };
   }
 
   const cached = moderationStateCache.get(userId);
   if (cached && Date.now() - cached.fetchedAt <= MODERATION_CONFIG.cacheTtlMs) {
     return cached.state;
+  }
+
+  if (isSupabaseAuthEnabled()) {
+    const { data, error } = await supabase.rpc('get_my_moderation_state');
+    if (error) throw error;
+    const state = {
+      offenseCount: Number(data?.strikes || 0),
+      muteUntilMs: Number(data?.muteUntilMs || 0),
+      suspendUntilMs: Number(data?.suspendUntilMs || 0),
+      shadowbanUntilMs: Number(data?.shadowbanUntilMs || 0),
+      strikes: Number(data?.strikes || 0),
+      permanentBan: Boolean(data?.permanentBan),
+      lastReason: data?.lastReason || '',
+    };
+    moderationStateCache.set(userId, { state, fetchedAt: Date.now() });
+    return state;
   }
 
   const snapshot = await getDoc(doc(db, 'userModerationState', userId));
@@ -971,7 +992,23 @@ const getModerationState = async (userId) => {
 };
 
 const persistModerationState = async (userId, state) => {
-  if (!userId || !auth.currentUser || auth.currentUser.uid !== userId) return;
+  const activeUserId = await getActiveAuthUserId();
+  if (!userId || !activeUserId || activeUserId !== userId) return;
+
+  if (isSupabaseAuthEnabled()) {
+    const now = Date.now();
+    const actionType = state.suspendUntilMs > now ? 'temp_ban' : state.muteUntilMs > now ? 'mute' : state.shadowbanUntilMs > now ? 'shadowban' : 'warning';
+    const expiry = state.suspendUntilMs > now ? state.suspendUntilMs : state.muteUntilMs > now ? state.muteUntilMs : state.shadowbanUntilMs > now ? state.shadowbanUntilMs : 0;
+    const { error } = await supabase.rpc('record_moderation_violation', {
+      target_action_type: actionType,
+      target_reason: 'Regla automatica de seguridad del chat',
+      duration_minutes: expiry ? Math.max(1, Math.ceil((expiry - now) / 60000)) : null,
+      source: 'anti_spam_local_guard',
+    });
+    if (error) throw error;
+    moderationStateCache.set(userId, { state, fetchedAt: Date.now() });
+    return;
+  }
 
   await setDoc(
     doc(db, 'userModerationState', userId),
@@ -1001,9 +1038,31 @@ const logModerationEvent = async ({
   severity = null,
   detectedBy = 'anti_extraction_v1',
 }) => {
-  if (!userId || !auth.currentUser || auth.currentUser.uid !== userId) return;
+  const activeUserId = await getActiveAuthUserId();
+  if (!userId || !activeUserId || activeUserId !== userId) return;
 
   try {
+    if (isSupabaseAuthEnabled()) {
+      const { error } = await supabase.rpc('record_moderation_event', {
+        target_user_id: userId,
+        event_type: 'moderation_violation',
+        event_metadata: {
+          roomId: roomId || 'global',
+          actionTaken,
+          reason: String(reason || '').slice(0, 240),
+          severity: severity || (riskScore >= 10 ? 'high' : riskScore >= 6 ? 'medium' : 'low'),
+          detectedBy,
+          riskScore: Number(riskScore || 0),
+          messageHash: hashMessage(message),
+          indicators: {
+            digitsLen: normalized?.digitsOnly?.length || 0,
+            matchedRuleIds: (matchedRules || []).map((rule) => rule.id).slice(0, 20),
+          },
+        },
+      });
+      if (error) throw error;
+      return;
+    }
     await addDoc(collection(db, 'moderationLogs'), {
       userId,
       roomId: roomId || 'global',
@@ -1051,7 +1110,9 @@ const buildCriticalSafetyReason = (type) => {
 };
 
 const queueCriticalSafetyAlert = async ({ userId, roomId, message, risk }) => {
-  if (!userId || !auth.currentUser || auth.currentUser.uid !== userId || !risk?.blocked) return;
+  const activeUserId = await getActiveAuthUserId();
+  if (!userId || !activeUserId || activeUserId !== userId || !risk?.blocked) return;
+  if (isSupabaseAuthEnabled()) return;
 
   try {
     await createModerationIncidentAlert({
@@ -1117,7 +1178,8 @@ const applyPenaltyIfNeeded = async ({
   riskScore,
   dryRun,
 }) => {
-  if (!userId || dryRun || !auth.currentUser || auth.currentUser.uid !== userId) {
+  const activeUserId = await getActiveAuthUserId();
+  if (!userId || dryRun || !activeUserId || activeUserId !== userId) {
     return {
       penaltyAction: 'warn_and_block_message',
       offenseCount: 1,
@@ -1195,8 +1257,9 @@ const applyCriticalSafetyPenaltyIfNeeded = async ({
 }) => {
   const remainingMinutes = getCriticalSafetySuspendMinutes(riskType);
   const reason = buildCriticalSafetyReason(riskType);
+  const activeUserId = await getActiveAuthUserId();
 
-  if (!userId || dryRun || !auth.currentUser || auth.currentUser.uid !== userId) {
+  if (!userId || dryRun || !activeUserId || activeUserId !== userId) {
     return {
       penaltyAction: 'temporary_suspend',
       offenseCount: 1,

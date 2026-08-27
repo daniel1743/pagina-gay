@@ -4,6 +4,7 @@ import { auth } from '@/config/firebase';
 import { httpsCallable } from 'firebase/functions';
 import { functions } from '@/config/firebase';
 import { recordAPISignal } from '@/utils/runtimeDiagnostics';
+import { supabase, isSupabaseAuthEnabled } from '@/config/supabase';
 
 // Moderación local únicamente. No se leen claves privadas ni se hacen llamadas
 // a proveedores externos desde el navegador.
@@ -19,6 +20,24 @@ const CONTACT_SAFETY_RISK_MIN = 3;
 const createModerationIncidentAlertCallable = httpsCallable(functions, 'createModerationIncidentAlert');
 
 export const createModerationIncidentAlert = async (payload) => {
+  if (isSupabaseAuthEnabled()) {
+    const { data: authData } = await supabase.auth.getUser();
+    if (!authData?.user?.id) return { success: false, skipped: true };
+    const { data, error } = await supabase.rpc('record_moderation_event', {
+      target_user_id: authData.user.id,
+      event_type: 'moderation_incident',
+      event_metadata: {
+        type: String(payload?.type || 'unknown').slice(0, 80),
+        severity: String(payload?.severity || 'medium').slice(0, 40),
+        roomId: String(payload?.roomId || 'global').slice(0, 100),
+        reason: String(payload?.reason || '').slice(0, 240),
+        detectedBy: String(payload?.detectedBy || 'local').slice(0, 80),
+        autoAction: String(payload?.autoAction || '').slice(0, 80),
+      },
+    });
+    if (error) throw error;
+    return { success: true, id: data };
+  }
   try {
     const result = await createModerationIncidentAlertCallable(payload);
     recordAPISignal({

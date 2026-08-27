@@ -7,6 +7,8 @@
 
 import imageCompression from 'browser-image-compression';
 import { auth } from '@/config/firebase';
+import { isSupabaseAuthEnabled } from '@/config/supabase';
+import { uploadProfilePhotoToSupabase } from '@/services/supabaseMediaService';
 
 const CLOUDINARY_CLOUD_NAME = 'dw9xypbzs';
 const CLOUDINARY_UPLOAD_PRESET = 'tarjetas_baul';
@@ -60,6 +62,10 @@ const getAuthenticatedUserId = (requestedUserId = null) => {
  * asociados a invitados o a un UID diferente del usuario autenticado.
  */
 export const uploadProfilePhoto = async (file, userId = null) => {
+  if (isSupabaseAuthEnabled()) {
+    const uploaded = await uploadProfilePhotoToSupabase(file, userId);
+    return uploaded.url;
+  }
   const currentUserId = getAuthenticatedUserId(userId);
 
   const validation = validateImageFile(file);

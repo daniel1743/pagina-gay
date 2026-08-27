@@ -1,5 +1,6 @@
 import { httpsCallable } from 'firebase/functions';
 import { functions } from '@/config/firebase';
+import { isSupabaseAuthEnabled } from '@/config/supabase';
 
 const dispatchUserNotificationCallable = httpsCallable(functions, 'dispatchUserNotification');
 const ENABLED_NOTIFICATION_ACTIONS = new Set([
@@ -11,6 +12,9 @@ const ENABLED_NOTIFICATION_ACTIONS = new Set([
 ]);
 
 export const dispatchUserNotification = async (action, payload = {}) => {
+  if (isSupabaseAuthEnabled()) {
+    return { skipped: true, action, reason: 'supabase_notifications_are_server_side' };
+  }
   if (!action) {
     throw new Error('Notification action is required');
   }

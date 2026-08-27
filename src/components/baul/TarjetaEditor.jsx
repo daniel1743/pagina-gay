@@ -27,6 +27,8 @@ import {
 import { toast } from '@/components/ui/use-toast';
 import { compressImage } from '@/utils/imageCompressor';
 import { useAuth } from '@/contexts/AuthContext';
+import { isSupabaseAuthEnabled } from '@/config/supabase';
+import { SUPABASE_MEDIA_BUCKETS, uploadSupabaseMedia } from '@/services/supabaseMediaService';
 import { LogIn } from 'lucide-react';
 
 // ✅ Cloudinary config (gratuito, no requiere Firebase Storage)
@@ -455,9 +457,19 @@ const TarjetaEditor = ({ isOpen, onClose, tarjeta }) => {
       const compressed = await Promise.race([compressionPromise, timeoutPromise]);
       console.log('[FOTO] ✅ Comprimida:', compressed.sizeKB, 'KB');
 
-      // ✅ Subir a Cloudinary (gratis, sin Firebase Storage)
       // ✅ USAR tarjeta.id como fallback si odIdUsuari no existe (tarjetas antiguas)
       const userId = tarjeta?.odIdUsuari || tarjeta?.id;
+      if (isSupabaseAuthEnabled()) {
+        const uploaded = await uploadSupabaseMedia({ file: compressed.blob, bucket: SUPABASE_MEDIA_BUCKETS.card, pathPrefix: `${userId}/foto1`, pathPrefixIncludesUser: true, maxBytes: 140 * 1024, maxDimension: 960 });
+        const autoSaveResult = await actualizarTarjeta(userId, { fotoUrl: uploaded.url, fotoUrlThumb: uploaded.url, fotoUrlFull: uploaded.url, fotoPath: uploaded.path, fotoBucket: uploaded.bucket });
+        if (!autoSaveResult) throw new Error('No se pudo guardar la foto en tu perfil');
+        if (previewUrl) URL.revokeObjectURL(previewUrl);
+        setFotoPreview(null); setNuevaFotoUrl(uploaded.url); setIsSubiendoFoto(false);
+        toast({ title: '✅ Foto actualizada', description: 'Tu foto ya está visible para otros usuarios' });
+        return;
+      }
+      // ✅ Subir a Cloudinary (fallback histórico)
+      console.log('[FOTO] Usuario de tarjeta:', userId);
       console.log('[FOTO] Usuario de tarjeta:', userId);
       console.log('[FOTO] tarjeta.odIdUsuari:', tarjeta?.odIdUsuari);
       console.log('[FOTO] tarjeta.id:', tarjeta?.id);
@@ -560,6 +572,14 @@ const TarjetaEditor = ({ isOpen, onClose, tarjeta }) => {
     try {
       const compressed = await compressImage(file, 'tarjeta');
       const userId = tarjeta?.odIdUsuari || tarjeta?.id;
+      if (isSupabaseAuthEnabled()) {
+        const uploaded = await uploadSupabaseMedia({ file: compressed.blob, bucket: SUPABASE_MEDIA_BUCKETS.card, pathPrefix: `${userId}/foto2`, pathPrefixIncludesUser: true, maxBytes: 140 * 1024, maxDimension: 960 });
+        const saved = await actualizarTarjeta(userId, { fotoUrl2: uploaded.url, foto2Path: uploaded.path, foto2Bucket: uploaded.bucket });
+        if (!saved) throw new Error('No se pudo guardar la segunda foto en la tarjeta');
+        URL.revokeObjectURL(previewUrl); setFoto2Preview(null); setNuevaFoto2Url(uploaded.url); setIsSubiendoFoto2(false);
+        toast({ title: '✅ Segunda foto guardada', description: 'Tu segunda foto PRO ya es visible' });
+        return;
+      }
       const formData = new FormData();
       formData.append('file', compressed.blob);
       formData.append('upload_preset', CLOUDINARY_UPLOAD_PRESET);

@@ -8,6 +8,8 @@ import {
   trackUserLogin as trackAnalyticsLogin,
   trackUserRegister as trackAnalyticsRegister,
 } from '@/services/analyticsService';
+import { isSupabaseAuthEnabled } from '@/config/supabase';
+
 import {
   trackRegistration,
   trackLogin,
@@ -45,12 +47,13 @@ export const getSessionId = () => {
 };
 
 const getUserMeta = (user) => {
-  const authUser = auth.currentUser;
+  const authUser = isSupabaseAuthEnabled() ? null : auth.currentUser;
+  const hasSupabaseSession = isSupabaseAuthEnabled() && Boolean(user?.id) && !user?.isGuest && !user?.isAnonymous;
   return {
     userId: user?.id || authUser?.uid || null,
     isGuest: !!user?.isGuest,
     isAnonymous: !!(user?.isAnonymous || authUser?.isAnonymous),
-    isAuthenticated: !!authUser,
+    isAuthenticated: isSupabaseAuthEnabled() ? hasSupabaseSession : !!authUser,
   };
 };
 

@@ -6,7 +6,6 @@ import { toast } from '@/components/ui/use-toast';
 import { createEsencia, subscribeToActiveEsencias, triggerManualShuffle, getManualShuffleSeed } from '@/services/esenciasService';
 import CreateEsenciaModal from '@/components/esencias/CreateEsenciaModal';
 import EsenciaCard from '@/components/esencias/EsenciaCard';
-import { auth } from '@/config/firebase';
 
 const EsenciasColumn = ({
   showMobileLauncher = true,
@@ -107,13 +106,13 @@ const EsenciasColumn = ({
 
   /** Genera un nombre para invitados: "Invitado 234" usando los últimos dígitos del uid */
   const getGuestDisplayName = () => {
-    const uid = auth.currentUser?.uid || user?.id || '';
+    const uid = user?.id || '';
     const digits = uid.replace(/\D/g, '').slice(-3) || Math.floor(Math.random() * 900 + 100);
     return `Invitado ${digits}`;
   };
 
   const handleOpenModal = () => {
-    const resolvedUserId = auth.currentUser?.uid || user?.id;
+    const resolvedUserId = user?.id;
 
     if (!resolvedUserId) {
       toast({
@@ -128,7 +127,7 @@ const EsenciasColumn = ({
   };
 
   const handleCreateEsencia = async (mensaje) => {
-    const resolvedUserId = auth.currentUser?.uid || user?.id;
+    const resolvedUserId = user?.id;
     const rawUsername = (user?.username || '').trim();
     const resolvedUsername = (!rawUsername || rawUsername.toLowerCase() === 'invitado')
       ? getGuestDisplayName()

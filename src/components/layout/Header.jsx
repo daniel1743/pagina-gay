@@ -19,6 +19,7 @@ import { db } from '@/config/firebase';
 import { getUnreadNotificationsCount } from '@/services/systemNotificationsService';
 import { motion, AnimatePresence } from 'framer-motion';
 import { ENABLE_BAUL } from '@/config/featureFlags';
+import { isSupabaseAuthEnabled } from '@/config/supabase';
 
 const Header = () => {
   const logoSources = ["/transparente_logo.png"];
@@ -57,6 +58,11 @@ const Header = () => {
       // Primero verificar si ya está en el objeto user
       if (user.role === 'admin' || user.role === 'administrator' || user.role === 'superAdmin') {
         setIsAdmin(true);
+        return;
+      }
+
+      if (isSupabaseAuthEnabled()) {
+        setIsAdmin(false);
         return;
       }
 

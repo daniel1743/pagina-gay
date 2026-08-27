@@ -6,6 +6,7 @@ import {
   updateDoc,
 } from 'firebase/firestore';
 import { db, auth } from '@/config/firebase';
+import { supabase, isSupabaseAuthEnabled } from '@/config/supabase';
 
 /**
  * Servicio de Verificación de Cuenta
@@ -19,6 +20,18 @@ import { db, auth } from '@/config/firebase';
  * @param {string} userId - ID del usuario
  */
 export const recordUserConnection = async (userId) => {
+  if (isSupabaseAuthEnabled()) {
+    try {
+      const { data: authData } = await supabase.auth.getUser();
+      if (authData?.user?.id !== userId || authData.user.is_anonymous) return null;
+      const { data, error } = await supabase.rpc('record_user_connection');
+      if (error) throw error;
+      return data;
+    } catch (error) {
+      console.warn('[VERIFICATION] Error registrando conexión Supabase:', error?.message || error);
+      return null;
+    }
+  }
   try {
     const today = new Date().toISOString().split('T')[0]; // YYYY-MM-DD
     const connectionRef = doc(db, 'user_connections', userId);
@@ -139,6 +152,18 @@ export const recordUserConnection = async (userId) => {
  * @param {string} userId - ID del usuario
  */
 export const verifyUser = async (userId) => {
+  if (isSupabaseAuthEnabled()) {
+    try {
+      const { data: authData } = await supabase.auth.getUser();
+      if (authData?.user?.id !== userId) return false;
+      const { data, error } = await supabase.rpc('set_my_verification', { target_verified: true });
+      if (error) throw error;
+      return Boolean(data);
+    } catch (error) {
+      console.warn('[VERIFICATION] Error verificando en Supabase:', error?.message || error);
+      return false;
+    }
+  }
   try {
     const connectionRef = doc(db, 'user_connections', userId);
     const userRef = doc(db, 'users', userId);
@@ -167,6 +192,18 @@ export const verifyUser = async (userId) => {
  * @param {string} userId - ID del usuario
  */
 export const unverifyUser = async (userId) => {
+  if (isSupabaseAuthEnabled()) {
+    try {
+      const { data: authData } = await supabase.auth.getUser();
+      if (authData?.user?.id !== userId) return false;
+      const { data, error } = await supabase.rpc('set_my_verification', { target_verified: false });
+      if (error) throw error;
+      return Boolean(data);
+    } catch (error) {
+      console.warn('[VERIFICATION] Error retirando verificación Supabase:', error?.message || error);
+      return false;
+    }
+  }
   try {
     const connectionRef = doc(db, 'user_connections', userId);
     const userRef = doc(db, 'users', userId);
@@ -197,6 +234,18 @@ export const unverifyUser = async (userId) => {
  * @returns {Promise<object>} Estado de verificación
  */
 export const getUserVerificationStatus = async (userId) => {
+  if (isSupabaseAuthEnabled()) {
+    try {
+      const { data: authData } = await supabase.auth.getUser();
+      if (authData?.user?.id !== userId) return null;
+      const { data, error } = await supabase.rpc('get_my_verification_status');
+      if (error) throw error;
+      return data;
+    } catch (error) {
+      console.warn('[VERIFICATION] Error leyendo Supabase:', error?.message || error);
+      return null;
+    }
+  }
   try {
     const connectionRef = doc(db, 'user_connections', userId);
     const connectionSnap = await getDoc(connectionRef);
@@ -239,6 +288,21 @@ export const getUserVerificationStatus = async (userId) => {
  * @returns {Promise<boolean>} true si puede mantener, false si pierde verificación
  */
 export const checkVerificationMaintenance = async (userId) => {
+  if (isSupabaseAuthEnabled()) {
+    try {
+      const status = await getUserVerificationStatus(userId);
+      if (!status?.verified || !status?.lastConnectionDate) return false;
+      const daysSinceLastConnection = Math.floor((Date.now() - new Date(status.lastConnectionDate).getTime()) / (1000 * 60 * 60 * 24));
+      if (daysSinceLastConnection > 3) {
+        await unverifyUser(userId);
+        return false;
+      }
+      return true;
+    } catch (error) {
+      console.warn('[VERIFICATION] Error manteniendo verificación Supabase:', error?.message || error);
+      return false;
+    }
+  }
   try {
     const connectionRef = doc(db, 'user_connections', userId);
     const connectionSnap = await getDoc(connectionRef);

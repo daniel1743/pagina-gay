@@ -18,7 +18,9 @@ import {
   writeBatch,
 } from 'firebase/firestore';
 import { ref as storageRef, deleteObject } from 'firebase/storage';
-import { db, auth, storage } from '@/config/firebase';
+import { db, auth } from '@/config/firebase';
+import { isSupabaseAuthEnabled } from '@/config/supabase';
+import * as supabaseChatService from '@/services/supabaseChatService';
 import { trackMessageSent, trackFirstMessage } from '@/services/ga4Service';
 import { checkRateLimit, recordMessage } from '@/services/rateLimitService';
 import { moderateMessage } from '@/services/moderationService';
@@ -523,6 +525,16 @@ const doSendMessage = async (roomId, messageData, isAnonymous = false, options =
  * 📊 Incluye monitoreo de rendimiento
  */
 export const sendMessage = async (roomId, messageData, isAnonymous = false, skipQueue = false, options = {}) => {
+  if (isSupabaseAuthEnabled()) {
+    const result = await supabaseChatService.sendMessage(roomId, {
+      ...messageData,
+      type: messageData?.type || messageData?.messageType || 'text',
+      content: messageData?.content ?? messageData?.text ?? '',
+      clientId: messageData?.clientId || messageData?.id || generateUUID(),
+    });
+    if (result?.error) throw result.error;
+    return result?.message || null;
+  }
   // 📊 Medir velocidad de envío
   const perfMonitor = getPerformanceMonitor();
 
@@ -675,6 +687,7 @@ const writeCachedMessages = (roomId, messageLimit, messages) => {
  * ⚡ Carga inicial con getDocs para mostrar mensajes de inmediato; onSnapshot para tiempo real
  */
 export const subscribeToRoomMessages = (roomId, callback, messageLimit = 30) => {
+  if (isSupabaseAuthEnabled()) return supabaseChatService.subscribeToRoomMessages(roomId, callback, messageLimit);
   if (typeof callback !== 'function') return () => {};
 
   const listenerKey = getRealtimeListenerKey('rooms', roomId, messageLimit);
@@ -791,6 +804,7 @@ export const subscribeToRoomMessages = (roomId, callback, messageLimit = 30) => 
 };
 
 export const addReactionToMessage = async (roomId, messageId, reactionType) => {
+  if (isSupabaseAuthEnabled()) return supabaseChatService.toggleMessageReaction(roomId, messageId, reactionType);
   console.log('[REACTION SERVICE] 📥 Recibido:', { roomId, messageId, reactionType });
 
   if (!roomId || !messageId || !reactionType) {
@@ -837,6 +851,7 @@ export const deleteMessageWithMedia = async (
   messageData = null,
   options = {}
 ) => {
+  if (isSupabaseAuthEnabled()) return supabaseChatService.deleteMessageWithMedia(roomId, messageId, options);
   if (!roomId || !messageId) {
     throw new Error('INVALID_DELETE_PARAMS');
   }
@@ -914,6 +929,7 @@ export const deleteUserMessagesInRoom = async (
   targetUserId,
   options = {}
 ) => {
+  if (isSupabaseAuthEnabled()) return supabaseChatService.deleteMessagesByUser(roomId, targetUserId, options);
   if (!roomId || !targetUserId) {
     throw new Error('INVALID_DELETE_PARAMS');
   }
@@ -952,6 +968,7 @@ export const deleteUserMessagesInRoom = async (
 };
 
 export const deleteAllMessagesInRoom = async (roomId, options = {}) => {
+  if (isSupabaseAuthEnabled()) return supabaseChatService.deleteAllMessages(roomId, options);
   if (!roomId) {
     throw new Error('INVALID_DELETE_PARAMS');
   }
@@ -999,6 +1016,7 @@ export const deleteAllMessagesInRoom = async (roomId, options = {}) => {
  * Marca todos los mensajes de la sala que NO sean del usuario actual
  */
 export const markMessagesAsRead = async (roomId, currentUserId) => {
+  if (isSupabaseAuthEnabled()) return supabaseChatService.markMessagesAsRead(roomId, currentUserId);
   try {
     const messagesRef = collection(db, 'rooms', roomId, 'messages');
     const q = query(
@@ -1253,6 +1271,16 @@ const doSendSecondaryMessage = async (roomId, messageData, isAnonymous = false) 
  * Usa la colección 'secondary-rooms' en lugar de 'rooms'
  */
 export const sendSecondaryMessage = async (roomId, messageData, isAnonymous = false, skipQueue = false) => {
+  if (isSupabaseAuthEnabled()) {
+    const result = await supabaseChatService.sendMessage(roomId, {
+      ...messageData,
+      type: messageData?.type || messageData?.messageType || 'text',
+      content: messageData?.content ?? messageData?.text ?? '',
+      clientId: messageData?.clientId || messageData?.id || generateUUID(),
+    });
+    if (result?.error) throw result.error;
+    return result?.message || null;
+  }
   const perfMonitor = getPerformanceMonitor();
 
   try {
@@ -1279,6 +1307,7 @@ export const sendSecondaryMessage = async (roomId, messageData, isAnonymous = fa
  * Usa la colección 'secondary-rooms' en lugar de 'rooms'
  */
 export const subscribeToSecondaryRoomMessages = (roomId, callback, messageLimit = 30) => {
+  if (isSupabaseAuthEnabled()) return supabaseChatService.subscribeToRoomMessages(roomId, callback);
   if (typeof callback !== 'function') return () => {};
 
   const listenerKey = getRealtimeListenerKey('secondary-rooms', roomId, messageLimit);
@@ -1347,6 +1376,7 @@ export const subscribeToSecondaryRoomMessages = (roomId, callback, messageLimit 
  * Marca mensajes como leídos en salas secundarias
  */
 export const markSecondaryMessagesAsRead = async (roomId, currentUserId) => {
+  if (isSupabaseAuthEnabled()) return supabaseChatService.markMessagesAsRead(roomId, currentUserId);
   try {
     const messagesRef = collection(db, 'secondary-rooms', roomId, 'messages');
     const q = query(
@@ -1372,6 +1402,7 @@ export const markSecondaryMessagesAsRead = async (roomId, currentUserId) => {
  * Agrega reacción a mensaje en sala secundaria
  */
 export const addReactionToSecondaryMessage = async (roomId, messageId, reaction) => {
+  if (isSupabaseAuthEnabled()) return supabaseChatService.toggleMessageReaction(roomId, messageId, reaction);
   try {
     if (!ALLOWED_REACTION_TYPES.has(reaction)) {
       throw new Error('INVALID_REACTION_TYPE');

@@ -22,6 +22,7 @@
 import { doc, getDoc, setDoc, addDoc, collection, serverTimestamp, Timestamp } from 'firebase/firestore';
 import { db, auth } from '@/config/firebase';
 import { createModerationIncidentAlert } from '@/services/moderationService';
+import { supabase, isSupabaseAuthEnabled } from '@/config/supabase';
 
 // La moderación del navegador es local y determinista.
 // Las claves privadas y las llamadas a proveedores externos están prohibidas en VITE_*.
@@ -246,6 +247,7 @@ function buildHighRiskAlertPayload(message, roomId, violation, localRisk) {
 }
 
 async function queueHighRiskModerationAlert({ message, roomId, violation, localRisk }) {
+  if (isSupabaseAuthEnabled()) return;
   try {
     const payload = buildHighRiskAlertPayload(message, roomId, violation, localRisk);
     if (!payload) return;
@@ -419,7 +421,29 @@ async function getModerationState(userId) {
     return cached;
   }
 
-  // 2. Firestore
+  // 2. Supabase RPC; Firebase queda solo como fallback histórico.
+  if (isSupabaseAuthEnabled()) {
+    try {
+      const { data, error } = await supabase.rpc('get_my_moderation_state');
+      if (error) throw error;
+      const state = {
+        strikes: Number(data?.strikes || 0),
+        lastStrikeAt: Number(data?.lastStrikeAt || 0),
+        muteUntil: Number(data?.muteUntilMs || 0),
+        lastReason: data?.lastReason || '',
+        _fetchedAt: Date.now(),
+      };
+      moderationStateCache.set(userId, state);
+      return state;
+    } catch (err) {
+      console.warn('[MOD-AI] Error leyendo estado Supabase:', err?.message || err);
+      const safeFallback = { strikes: 0, lastStrikeAt: 0, muteUntil: 0, lastReason: '', _fetchedAt: Date.now() };
+      moderationStateCache.set(userId, safeFallback);
+      return safeFallback;
+    }
+  }
+
+  // 3. Firestore histórico/fallback
   try {
     const docRef = doc(db, 'userModerationState', userId);
     const snap = await getDoc(docRef);
@@ -450,6 +474,19 @@ async function getModerationState(userId) {
  */
 async function updateModerationState(userId, newState) {
   try {
+    if (isSupabaseAuthEnabled()) {
+      const now = Date.now();
+      const muteUntil = Number(newState.muteUntil || 0);
+      const { error } = await supabase.rpc('record_moderation_violation', {
+        target_action_type: muteUntil > now ? 'mute' : 'warning',
+        target_reason: String(newState.lastReason || 'Moderación automática').slice(0, 240),
+        duration_minutes: muteUntil > now ? Math.max(1, Math.ceil((muteUntil - now) / 60000)) : null,
+        source: 'moderation_local_review',
+      });
+      if (error) throw error;
+      moderationStateCache.set(userId, { ...newState, _fetchedAt: Date.now() });
+      return;
+    }
     const docRef = doc(db, 'userModerationState', userId);
     const firestoreData = {
       strikes: newState.strikes,
@@ -470,6 +507,23 @@ async function updateModerationState(userId, newState) {
  */
 async function logModeration(userId, username, message, roomId, result) {
   try {
+    if (isSupabaseAuthEnabled()) {
+      const { error } = await supabase.rpc('record_moderation_event', {
+        target_user_id: userId,
+        event_type: 'moderation_ai_review',
+        event_metadata: {
+          username: String(username || '').slice(0, 80),
+          roomId: String(roomId || 'global').slice(0, 100),
+          result: result?.safe ? 'safe' : 'violation',
+          reason: String(result?.reason || '').slice(0, 240),
+          severity: result?.severity || null,
+          action: result?.action || null,
+          detectedBy: result?.detectedBy || 'local',
+        },
+      });
+      if (error) throw error;
+      return;
+    }
     await addDoc(collection(db, 'moderationLogs'), {
       userId,
       username,

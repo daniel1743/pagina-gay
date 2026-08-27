@@ -19,6 +19,8 @@ const missingVars = Object.entries(requiredEnvVars)
   .map(([key]) => key);
 
 const supabaseEnabledByFlag = String(requiredEnvVars.VITE_ENABLE_SUPABASE || '').toLowerCase() === 'true';
+const authProvider = String(import.meta.env.VITE_AUTH_PROVIDER || 'firebase').trim().toLowerCase();
+const supabaseAuthEnabledByProvider = authProvider === 'supabase';
 
 if (missingVars.length > 0) {
   const errorMessage = `⚠️ [SUPABASE] Variables faltantes: ${missingVars.join(', ')}`;
@@ -98,6 +100,11 @@ export const isSupabaseConfigured = () => {
 };
 
 export const isSupabaseEnabled = () => supabaseEnabledByFlag;
+
+// Auth cambia a Supabase solo cuando el entorno lo declara explícitamente.
+// Esto evita un corte accidental mientras se completan tablas, RLS y migración de usuarios.
+export const isSupabaseAuthEnabled = () => supabaseAuthEnabledByProvider && isSupabaseConfigured();
+export const getAuthProvider = () => (isSupabaseAuthEnabled() ? 'supabase' : 'firebase');
 
 // Helper para obtener el usuario actual
 export const getCurrentUser = async () => {

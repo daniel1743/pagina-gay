@@ -11,6 +11,7 @@ import { Switch } from '@/components/ui/switch';
 import { toast } from '@/components/ui/use-toast';
 import { checkUsernameAvailability } from '@/services/userService';
 import { COMUNA_OPTIONS, normalizeComuna } from '@/config/comunas';
+import { isSupabaseAuthEnabled } from '@/config/supabase';
 
 const ROLES = ['Activo', 'Pasivo', 'Versátil', 'Trans', 'No Binario', 'Fluido', 'Otro'];
 const INTERESTS = [
@@ -51,6 +52,7 @@ const EditProfileModal = ({ isOpen, onClose }) => {
     comuna: normalizeComuna(user?.comuna) || '',
     profileRole: getInitialProfileRole(),
     interests: user?.interests || [],
+    phone: user?.phone || '',
   });
   const [isSaving, setIsSaving] = useState(false);
   const [usernameError, setUsernameError] = useState('');
@@ -65,6 +67,7 @@ const EditProfileModal = ({ isOpen, onClose }) => {
         comuna: normalizeComuna(user.comuna) || '',
         profileRole: getInitialProfileRole(),
         interests: user.interests || [],
+        phone: user.phone || '',
         profileVisible: user.profileVisible !== false,
       });
       setUsernameError('');
@@ -121,6 +124,7 @@ const EditProfileModal = ({ isOpen, onClose }) => {
         profileRole: formData.profileRole,
         interests: formData.interests,
         profileVisible: formData.profileVisible,
+        ...(isSupabaseAuthEnabled() ? { phone: formData.phone } : {}),
       });
 
       toast({
@@ -229,6 +233,25 @@ const EditProfileModal = ({ isOpen, onClose }) => {
               Esto ayuda a mostrarte gente de tu zona en el chat y en coincidencias cercanas.
             </p>
           </div>
+
+          {isSupabaseAuthEnabled() && (
+            <div>
+              <Label htmlFor="phone" className="font-bold text-foreground">Teléfono privado</Label>
+              <Input
+                id="phone"
+                value={formData.phone || ''}
+                onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
+                placeholder="Solo se comparte con tu consentimiento"
+                maxLength={40}
+                inputMode="tel"
+                autoComplete="tel"
+                className="mt-1 bg-background border-2 border-border focus:border-primary text-foreground"
+              />
+              <p className="text-xs text-muted-foreground mt-1">
+                No aparece en tu perfil público. Solo podrá mostrarse en un chat privado si ambos aceptan y la autorización sigue vigente.
+              </p>
+            </div>
+          )}
 
           {/* Descripción */}
           <div>

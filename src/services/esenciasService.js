@@ -11,6 +11,7 @@ import {
   where,
 } from 'firebase/firestore';
 import { db } from '@/config/firebase';
+import { supabase, isSupabaseAuthEnabled } from '@/config/supabase';
 
 const ESENCIAS_COLLECTION = 'esencias';
 const ESENCIA_DURATION_MS = 7 * 24 * 60 * 60 * 1000; // 1 semana
@@ -26,6 +27,12 @@ const toMillis = (value) => {
   if (value instanceof Date) return value.getTime();
   if (typeof value === 'number') return value;
   return 0;
+};
+
+const normalizeSupabaseEsencia = (row) => {
+  const createdAtMs = new Date(row.created_at).getTime() || 0;
+  const expiresAtMs = new Date(row.expires_at).getTime() || 0;
+  return { id: row.id, esenciaId: row.id, userId: row.user_id, username: row.profiles?.username || 'Usuario', avatar: row.profiles?.avatar_url || '', mensaje: row.message, createdAt: row.created_at, expiresAt: row.expires_at, createdAtMs, expiresAtMs };
 };
 
 const normalizeEsenciaDoc = (docSnap) => {
@@ -103,6 +110,16 @@ const normalizeMessage = (mensaje) => {
  * Crear una esencia con expiración automática de 1 semana.
  */
 export const createEsencia = async (userId, username, avatar, mensaje) => {
+  if (isSupabaseAuthEnabled()) {
+    if (!userId || typeof userId !== 'string') throw new Error('userId inválido para crear esencia');
+    const mensajeNormalizado = normalizeMessage(mensaje);
+    const { data: authData } = await supabase.auth.getUser();
+    if (authData?.user?.id !== userId) throw new Error('Sesión Supabase no autorizada');
+    const nowMs = Date.now(); const expiresAtMs = nowMs + ESENCIA_DURATION_MS;
+    const { data, error } = await supabase.from('esencias').insert({ user_id: userId.trim(), message: mensajeNormalizado, expires_at: new Date(expiresAtMs).toISOString() }).select('*, profiles(username,avatar_url)').single();
+    if (error) throw error;
+    return normalizeSupabaseEsencia(data);
+  }
   if (!userId || typeof userId !== 'string') {
     throw new Error('userId inválido para crear esencia');
   }
@@ -147,6 +164,21 @@ export const subscribeToActiveEsencias = (onUpdate, onError) => {
     throw new Error('subscribeToActiveEsencias requiere un callback onUpdate');
   }
 
+  if (isSupabaseAuthEnabled()) {
+    let active = true;
+    let latestEsencias = [];
+    const emitActive = () => { if (active) onUpdate(computeActiveEsencias(latestEsencias)); };
+    const load = async () => {
+      const { data, error } = await supabase.from('esencias').select('*, profiles(username,avatar_url)').gt('expires_at', new Date().toISOString()).order('expires_at', { ascending: true }).order('created_at', { ascending: false }).limit(SNAPSHOT_FETCH_LIMIT);
+      if (error) { onError?.(error); return; }
+      latestEsencias = (data || []).map(normalizeSupabaseEsencia); emitActive();
+    };
+    void load();
+    const channel = supabase.channel('esencias-public').on('postgres_changes', { event: '*', schema: 'public', table: 'esencias' }, () => { void load(); }).subscribe();
+    const refresh = setInterval(() => { void load(); }, QUERY_REFRESH_INTERVAL_MS);
+    const prune = setInterval(emitActive, PRUNE_INTERVAL_MS);
+    return () => { active = false; clearInterval(refresh); clearInterval(prune); void supabase.removeChannel(channel); };
+  }
   const esenciasRef = collection(db, ESENCIAS_COLLECTION);
   let latestEsencias = [];
   let unsubscribeSnapshot = null;

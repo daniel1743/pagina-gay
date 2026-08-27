@@ -26,12 +26,11 @@ import { Button } from '@/components/ui/button';
 import { trackPageView, trackPageExit } from '@/services/eventTrackingService';
 import { useCanonical } from '@/hooks/useCanonical';
 import { subscribeToLastActivity, subscribeToMultipleRoomCounts } from '@/services/presenceService';
+import { subscribeToRoomMessages } from '@/services/chatService';
 import { getVisibleRooms } from '@/config/rooms';
 import ChatDemo from '@/components/landing/ChatDemo';
 import { SkeletonCard, SkeletonRoomsGrid } from '@/components/ui/SkeletonLoader';
 import PeakHoursIndicator from '@/components/lobby/PeakHoursIndicator';
-import { collection, query, orderBy, limit, onSnapshot } from 'firebase/firestore';
-import { db } from '@/config/firebase';
 
 // ✅ cardData ahora se genera dinámicamente en el componente para usar contadores reales
 
@@ -203,25 +202,12 @@ const LobbyPage = () => {
 
   // ✅ P0 costo: un solo listener para ultimo mensaje + mensajes recientes
   useEffect(() => {
-    const messagesRef = collection(db, 'rooms', 'principal', 'messages');
-    const q = query(messagesRef, orderBy('timestamp', 'desc'), limit(3));
-
-    const unsubscribe = onSnapshot(q, (snapshot) => {
-      const messages = snapshot.docs.map((doc) => ({
-        id: doc.id,
-        ...doc.data(),
-      }));
-
-      setLastMessageTimestamp(messages[0]?.timestamp || null);
-
-      if (showWelcomeBack) {
-        setRecentMessages(messages.reverse());
-      } else {
-        setRecentMessages([]);
-      }
-    });
-
-    return () => unsubscribe();
+    const unsubscribe = subscribeToRoomMessages('principal', (messages = []) => {
+      const recent = [...messages].slice(-3);
+      setLastMessageTimestamp(recent.at(-1)?.timestamp || recent.at(-1)?.createdAt || null);
+      setRecentMessages(showWelcomeBack ? recent : []);
+    }, 3);
+    return () => unsubscribe?.();
   }, [showWelcomeBack]);
 
   // ✅ Calcular total de usuarios reales (usado en hero)

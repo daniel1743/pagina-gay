@@ -35,7 +35,11 @@ import { isBlockedBetween } from '@/services/blockService';
 import { validateOpinPublicText } from '@/services/opinSafetyService';
 import { recordBlockedContactAttempt } from '@/services/contactSafetyTelemetryService';
 import { getPublicProfilesByIds } from '@/services/userService';
+import { isSupabaseAuthEnabled } from '@/config/supabase';
+import * as supabaseOpinService from '@/services/supabaseOpinService';
 import { dispatchUserNotification } from '@/services/userNotificationDispatchService';
+
+const useSupabaseOpin = () => isSupabaseAuthEnabled();
 
 const assertCanInteractWithUser = async (targetUserId) => {
   if (!auth.currentUser || !targetUserId) return;
@@ -238,6 +242,7 @@ export const OPIN_REACTIONS = [
  * Sin límite de cantidad - puedes publicar cuantos quieras respetando el cooldown
  */
 export const canCreatePost = async () => {
+  if (useSupabaseOpin()) return supabaseOpinService.canCreatePost();
   if (!auth.currentUser) {
     return { canCreate: false, reason: 'no_auth' };
   }
@@ -327,7 +332,9 @@ export const canCreatePost = async () => {
 /**
  * ✅ Crear un nuevo post de OPIN
  */
-export const createOpinPost = async ({
+export const createOpinPost = async (params) => {
+  if (useSupabaseOpin()) return supabaseOpinService.createOpinPost(params);
+  let {
   title = '',
   text,
   color = 'purple',
@@ -337,7 +344,7 @@ export const createOpinPost = async ({
   contactMethod = 'chactivo',
   contactValue = '',
   imageUrl = ''
-}) => {
+  } = params || {};
   if (!auth.currentUser) {
     throw new Error('Usuario no autenticado');
   }
@@ -438,6 +445,7 @@ export const createOpinPost = async ({
  * Query sin índice extra: orderBy createdAt, filtrado en cliente.
  */
 export const getOpinFeed = async (limitCount = OPIN_FEED_DEFAULT_LIMIT) => {
+  if (useSupabaseOpin()) return supabaseOpinService.getOpinFeed(limitCount);
   const postsRef = collection(db, 'opin_posts');
   const now = Timestamp.now();
   const nowMs = now.toMillis();
@@ -504,6 +512,7 @@ export const getOpinFeed = async (limitCount = OPIN_FEED_DEFAULT_LIMIT) => {
  * ✅ Incrementar contador de vistas
  */
 export const incrementViewCount = async (postId) => {
+  if (useSupabaseOpin()) return supabaseOpinService.incrementViewCount(postId);
   const postRef = doc(db, 'opin_posts', postId);
 
   try {
@@ -523,6 +532,7 @@ export const incrementViewCount = async (postId) => {
  * ✅ Incrementar contador de clicks a perfil
  */
 export const incrementProfileClickCount = async (postId) => {
+  if (useSupabaseOpin()) return supabaseOpinService.incrementProfileClickCount(postId);
   const postRef = doc(db, 'opin_posts', postId);
 
   try {
@@ -601,7 +611,9 @@ const logAction = async (actionType, postId) => {
 /**
  * ✅ Editar post del usuario
  */
-export const editOpinPost = async (postId, { title, text, color, status, type, contactMethod, contactValue, imageUrl }) => {
+export const editOpinPost = async (postId, updates) => {
+  if (useSupabaseOpin()) return supabaseOpinService.editOpinPost(postId, updates);
+  const { title, text, color, status, type, contactMethod, contactValue, imageUrl } = updates || {};
   if (!auth.currentUser) {
     throw new Error('Usuario no autenticado');
   }
@@ -680,6 +692,7 @@ export const editOpinPost = async (postId, { title, text, color, status, type, c
  * ✅ Eliminar post del usuario
  */
 export const deleteOpinPost = async (postId) => {
+  if (useSupabaseOpin()) return supabaseOpinService.deleteOpinPost(postId);
   if (!auth.currentUser) {
     throw new Error('Usuario no autenticado');
   }
@@ -711,6 +724,7 @@ export const deleteOpinPost = async (postId) => {
   return { success: true, remaining: limitCheck.remaining - 1 };
 };
 export const getMyOpinPosts = async (limitCount = 10) => {
+  if (useSupabaseOpin()) return supabaseOpinService.getMyOpinPosts(limitCount);
   if (!auth.currentUser) {
     return [];
   }
@@ -734,6 +748,7 @@ export const getMyOpinPosts = async (limitCount = 10) => {
 };
 
 export const getMyActiveOpinIntent = async () => {
+  if (useSupabaseOpin()) return supabaseOpinService.getMyActiveOpinIntent();
   const nowMs = Date.now();
   const posts = await getMyOpinPosts(12);
   return posts.find((post) => (
@@ -757,6 +772,7 @@ const chunkArray = (items = [], size = 10) => {
 };
 
 export const getOpenOpinIntentsByUserIds = async (userIds = []) => {
+  if (useSupabaseOpin()) return supabaseOpinService.getOpenOpinIntentsByUserIds(userIds);
   const uniqueUserIds = Array.from(new Set(
     (Array.isArray(userIds) ? userIds : [])
       .map((value) => String(value || '').trim())
@@ -800,6 +816,7 @@ export const getOpenOpinIntentsByUserIds = async (userIds = []) => {
 };
 
 export const getOpinPostById = async (postId) => {
+  if (useSupabaseOpin()) return supabaseOpinService.getOpinPostById(postId);
   if (!postId) return null;
   const postRef = doc(db, 'opin_posts', postId);
   const postDoc = await getDoc(postRef);
@@ -837,6 +854,7 @@ export const savePersistedFollowedOpinPostIds = async (postIds = []) => {
 };
 
 export const updateOpinStatus = async (postId, status) => {
+  if (useSupabaseOpin()) return supabaseOpinService.updateOpinStatus(postId, status);
   if (!auth.currentUser) {
     throw new Error('Usuario no autenticado');
   }
@@ -920,6 +938,7 @@ export const getTimeSinceCreated = (createdAt) => {
  * ✅ Toggle like en un post (like/unlike)
  */
 export const toggleLike = async (postId) => {
+  if (useSupabaseOpin()) return supabaseOpinService.toggleLike(postId);
   if (!auth.currentUser) {
     throw new Error('Usuario no autenticado');
   }
@@ -966,6 +985,7 @@ export const toggleLike = async (postId) => {
  * ✅ Verificar si el usuario actual dio like a un post
  */
 export const hasUserLiked = (post) => {
+  if (useSupabaseOpin()) return supabaseOpinService.hasUserLiked(post, post?.currentUserId);
   if (!auth.currentUser) return false;
   const likedBy = post.likedBy || [];
   return likedBy.includes(auth.currentUser.uid);
@@ -981,6 +1001,7 @@ export const hasUserLiked = (post) => {
  * Un usuario puede tener múltiples reacciones diferentes en el mismo post.
  */
 export const toggleReaction = async (postId, emoji) => {
+  if (useSupabaseOpin()) return supabaseOpinService.toggleReaction(postId, emoji);
   if (!auth.currentUser) {
     throw new Error('Usuario no autenticado');
   }
@@ -1100,6 +1121,7 @@ export const getTotalReactionCount = (post) => {
  * ✅ Agregar comentario a un post
  */
 export const addComment = async (postId, commentText) => {
+  if (useSupabaseOpin()) return supabaseOpinService.addComment(postId, commentText);
   if (!auth.currentUser) {
     throw new Error('Usuario no autenticado');
   }
@@ -1207,6 +1229,7 @@ export const addComment = async (postId, commentText) => {
  * ✅ Obtener comentarios de un post
  */
 export const getPostComments = async (postId, limitCount = 100) => {
+  if (useSupabaseOpin()) return supabaseOpinService.getPostComments(postId, limitCount);
   const commentsRef = collection(db, 'opin_comments');
 
   let snapshot;
@@ -1430,6 +1453,7 @@ export const seedStableOpinExamples = async () => {
  * ✅ Eliminar comentario (solo el autor)
  */
 export const deleteComment = async (commentId) => {
+  if (useSupabaseOpin()) return supabaseOpinService.deleteComment(commentId);
   if (!auth.currentUser) {
     throw new Error('Usuario no autenticado');
   }

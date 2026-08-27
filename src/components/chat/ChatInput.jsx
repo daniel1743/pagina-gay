@@ -7,6 +7,8 @@ import { EmojiStyle, Categories } from 'emoji-picker-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useAuth } from '@/contexts/AuthContext';
 import { storage } from '@/config/firebase';
+import { isSupabaseAuthEnabled } from '@/config/supabase';
+import { uploadPublicChatPhotoToSupabase } from '@/services/supabaseMediaService';
 import { ref as storageRef, uploadBytes, getDownloadURL, deleteObject } from 'firebase/storage';
 import imageCompression from 'browser-image-compression';
 import { updatePresenceFields, updateTypingStatus } from '@/services/presenceService';
@@ -1103,31 +1105,43 @@ const ChatInput = ({
         ? crypto.randomUUID()
         : `msg_${Date.now()}_${Math.random().toString(36).slice(2, 9)}`;
       const assetId = `${Date.now()}_${Math.random().toString(36).slice(2, 7)}`;
-      const extension = getImageExtension(optimizedFile.type);
-      const mediaPath = `chat_media/rooms/${user?.id || 'unknown'}/${roomId || 'principal'}/${tempMessageId}/${assetId}.${extension}`;
+      let downloadURL = '';
+      let mediaAsset;
 
-      const fileRef = storageRef(storage, mediaPath);
-      uploadedFileRef = fileRef;
-      await uploadBytes(fileRef, optimizedFile, {
-        contentType: optimizedFile.type,
-        customMetadata: {
-          roomId: roomId || 'principal',
-          userId: user?.id || '',
-          feature: 'chat_photo_access',
-        },
-      });
-
-      const downloadURL = await getDownloadURL(fileRef);
+      if (isSupabaseAuthEnabled()) {
+        const uploaded = await uploadPublicChatPhotoToSupabase(optimizedFile, roomId || 'principal', tempMessageId);
+        downloadURL = uploaded.url || '';
+        mediaAsset = {
+          kind: 'image',
+          path: uploaded.path,
+          bucket: uploaded.bucket,
+          mimeType: uploaded.mimeType,
+          size: uploaded.size,
+        };
+      } else {
+        const extension = getImageExtension(optimizedFile.type);
+        const mediaPath = `chat_media/rooms/${user?.id || 'unknown'}/${roomId || 'principal'}/${tempMessageId}/${assetId}.${extension}`;
+        const fileRef = storageRef(storage, mediaPath);
+        uploadedFileRef = fileRef;
+        await uploadBytes(fileRef, optimizedFile, {
+          contentType: optimizedFile.type,
+          customMetadata: {
+            roomId: roomId || 'principal',
+            userId: user?.id || '',
+            feature: 'chat_photo_access',
+          },
+        });
+        downloadURL = await getDownloadURL(fileRef);
+        mediaAsset = {
+          kind: 'image',
+          path: mediaPath,
+          contentType: optimizedFile.type,
+          sizeBytes: optimizedFile.size,
+        };
+      }
 
       await onSendMessage(downloadURL, 'image', replyTo, {
-        media: [
-          {
-            kind: 'image',
-            path: mediaPath,
-            contentType: optimizedFile.type,
-            sizeBytes: optimizedFile.size,
-          },
-        ],
+        media: [mediaAsset],
       });
 
       toast({
@@ -1142,7 +1156,9 @@ const ChatInput = ({
 
       const normalizedCode = String(error?.code || '').toLowerCase();
       const description = normalizedCode.includes('permission-denied') || normalizedCode.includes('unauthorized')
-        ? 'Firebase rechazó la subida. Revisa que tu sesión esté activa y que las reglas de Storage y Firestore estén desplegadas.'
+        ? (isSupabaseAuthEnabled()
+          ? 'Supabase rechazó la subida. Revisa la sesión y las políticas del bucket Storage.'
+          : 'Firebase rechazó la subida. Revisa que tu sesión esté activa y que las reglas de Storage y Firestore estén desplegadas.')
         : error?.message || 'Reintenta en unos segundos.';
       toast({
         title: 'No se pudo subir la foto',

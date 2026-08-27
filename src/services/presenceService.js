@@ -32,6 +32,8 @@ import { actualizarEstadoOnline } from '@/services/tarjetaService';
 import { resolveProfileRole } from '@/config/profileRoles';
 import { trackListenerStart, trackListenerStop } from '@/utils/listenerMonitor';
 import { getComunaKey, normalizeComuna } from '@/config/comunas';
+import { isSupabaseAuthEnabled } from '@/config/supabase';
+import * as supabasePresenceService from '@/services/supabasePresenceService';
 
 const isBotUserId = (userId = '') =>
   userId === 'system' ||
@@ -116,6 +118,7 @@ export const isUserAvailableForConversation = (user = {}, now = Date.now()) => {
 };
 
 export const setAvailabilityForConversation = async (roomId, enabled = true) => {
+  if (isSupabaseAuthEnabled()) return supabasePresenceService.setAvailabilityForConversation(roomId, enabled);
   if (!auth.currentUser || !roomId) return;
 
   const presenceRef = doc(db, 'roomPresence', roomId, 'users', auth.currentUser.uid);
@@ -140,6 +143,7 @@ export const setAvailabilityForConversation = async (roomId, enabled = true) => 
 };
 
 export const getRoomPresenceUser = async (roomId, userId) => {
+  if (isSupabaseAuthEnabled()) return supabasePresenceService.getRoomPresenceUser(roomId, userId);
   if (!roomId || !userId) return null;
   const presenceSnap = await getDoc(doc(db, 'roomPresence', roomId, 'users', userId));
   if (!presenceSnap.exists()) return null;
@@ -150,6 +154,10 @@ export const getRoomPresenceUser = async (roomId, userId) => {
 };
 
 export const validateUserAvailabilityInRoom = async (roomId, userId) => {
+  if (isSupabaseAuthEnabled()) {
+    const available = await supabasePresenceService.validateUserAvailabilityInRoom(roomId, userId);
+    return available ? { valid: true } : { valid: false, reason: 'unavailable' };
+  }
   const presenceUser = await getRoomPresenceUser(roomId, userId);
   if (!presenceUser) {
     return { valid: false, reason: 'missing' };
@@ -167,6 +175,7 @@ export const validateUserAvailabilityInRoom = async (roomId, userId) => {
  * ✅ Sincroniza tarjeta Baúl: usuarios registrados actualizan ultimaConexion/estaOnline
  */
 export const joinRoom = async (roomId, userData) => {
+  if (isSupabaseAuthEnabled()) return supabasePresenceService.joinRoom(roomId, userData);
   if (!auth.currentUser) return;
 
   // ⚠️ BLOQUEADOR DE BOTS: NO permitir que bots se registren en presencia
@@ -233,6 +242,7 @@ export const joinRoom = async (roomId, userData) => {
  * ✅ Sincroniza tarjeta Baúl: marca estaOnline=false al desconectar
  */
 export const leaveRoom = async (roomId) => {
+  if (isSupabaseAuthEnabled()) return supabasePresenceService.leaveRoom(roomId);
   if (!auth.currentUser) return;
 
   const presenceRef = doc(db, 'roomPresence', roomId, 'users', auth.currentUser.uid);
@@ -254,6 +264,7 @@ export const leaveRoom = async (roomId) => {
  * Marcar usuario como "en chat privado" (visible para otros en la sala)
  */
 export const setInPrivateChat = async (roomId, partnerId, partnerUsername) => {
+  if (isSupabaseAuthEnabled()) return supabasePresenceService.setInPrivateChat(roomId, partnerId, partnerUsername);
   if (!auth.currentUser || !roomId) return;
   const presenceRef = doc(db, 'roomPresence', roomId, 'users', auth.currentUser.uid);
   try {
@@ -275,6 +286,7 @@ export const setInPrivateChat = async (roomId, partnerId, partnerUsername) => {
  * Quitar marca de "en chat privado"
  */
 export const clearInPrivateChat = async (roomId) => {
+  if (isSupabaseAuthEnabled()) return supabasePresenceService.clearInPrivateChat(roomId);
   if (!auth.currentUser || !roomId) return;
   const presenceRef = doc(db, 'roomPresence', roomId, 'users', auth.currentUser.uid);
   try {
@@ -292,6 +304,7 @@ export const clearInPrivateChat = async (roomId) => {
  * Actualizar campos en la presencia de sala (ej: isProUser cuando cambia en tiempo real)
  */
 export const updatePresenceFields = async (roomId, fields) => {
+  if (isSupabaseAuthEnabled()) return supabasePresenceService.updatePresenceFields(roomId, fields);
   if (!auth.currentUser || !roomId) return;
   const presenceRef = doc(db, 'roomPresence', roomId, 'users', auth.currentUser.uid);
   try {
@@ -311,6 +324,7 @@ export const updatePresenceFields = async (roomId, fields) => {
  * ⚠️ NO hace queries de getDoc - solo retorna lo que está en roomPresence
  */
 export const subscribeToRoomUsers = (roomId, callback) => {
+  if (isSupabaseAuthEnabled()) return supabasePresenceService.subscribeToRoomUsers(roomId, callback, ROOM_USERS_LISTENER_LIMIT);
   const usersRef = query(
     collection(db, 'roomPresence', roomId, 'users'),
     orderBy('lastSeenMs', 'desc'),
@@ -369,6 +383,7 @@ export const subscribeToRoomUsers = (roomId, callback) => {
  * Cuenta usuarios reales por sala escuchando roomPresence/{roomId}/users.
  */
 export const subscribeToMultipleRoomCounts = (roomIds, callback) => {
+  if (isSupabaseAuthEnabled()) return supabasePresenceService.subscribeToMultipleRoomCounts(roomIds, callback);
   if (!Array.isArray(roomIds) || roomIds.length === 0) {
     callback({});
     return () => {};
@@ -487,6 +502,7 @@ export const subscribeToRoomUserCount = (roomId, callback) => {
  * ✅ HABILITADO: Actualizar actividad del usuario (sin queries)
  */
 export const updateUserActivity = async (roomId, options = {}) => {
+  if (isSupabaseAuthEnabled()) return supabasePresenceService.updateUserActivity(roomId, options);
   if (!auth.currentUser) return;
 
   const presenceRef = doc(db, 'roomPresence', roomId, 'users', auth.currentUser.uid);
@@ -584,11 +600,13 @@ export const removeBotPresenceForTesting = async (roomId, botUserId) => {
  * ❌ DESHABILITADO: Typing status
  */
 export const subscribeToTypingUsers = (roomId, currentUserId, callback) => {
+  if (isSupabaseAuthEnabled()) return supabasePresenceService.subscribeToTypingUsers(roomId, currentUserId, callback);
   callback([]);
   return () => {};
 };
 
-export const updateTypingStatus = async () => {
+export const updateTypingStatus = async (...args) => {
+  if (isSupabaseAuthEnabled()) return supabasePresenceService.updateTypingStatus(...args);
   return Promise.resolve();
 };
 

@@ -17,6 +17,7 @@
 
 import { doc, updateDoc, arrayUnion, getDoc, serverTimestamp } from 'firebase/firestore';
 import { db, auth } from '@/config/firebase';
+import { supabase, isSupabaseAuthEnabled } from '@/config/supabase';
 
 class MessageDeliveryService {
   constructor() {
@@ -80,6 +81,12 @@ class MessageDeliveryService {
    * Marcar mensaje como entregado (cuando otro usuario lo recibe)
    */
   async markAsDelivered(roomId, messageId, receiverUserId) {
+    if (isSupabaseAuthEnabled()) {
+      if (!messageId || !receiverUserId) return;
+      const { error } = await supabase.from('message_receipts').upsert({ message_id: messageId, user_id: receiverUserId, delivered_at: new Date().toISOString() }, { onConflict: 'message_id,user_id' });
+      if (error) console.warn('[DELIVERY] Error de receipt entregado Supabase:', error.message);
+      return;
+    }
     try {
       // Solo marcar si no soy el remitente
       const messageRef = doc(db, 'rooms', roomId, 'messages', messageId);
@@ -131,6 +138,12 @@ class MessageDeliveryService {
    * Marcar mensaje como leído
    */
   async markAsRead(roomId, messageId, readerUserId) {
+    if (isSupabaseAuthEnabled()) {
+      if (!messageId || !readerUserId) return;
+      const { error } = await supabase.from('message_receipts').upsert({ message_id: messageId, user_id: readerUserId, read_at: new Date().toISOString() }, { onConflict: 'message_id,user_id' });
+      if (error) console.warn('[DELIVERY] Error de receipt leído Supabase:', error.message);
+      return;
+    }
     try {
       const messageRef = doc(db, 'rooms', roomId, 'messages', messageId);
       const messageSnap = await getDoc(messageRef);

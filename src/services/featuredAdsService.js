@@ -13,6 +13,7 @@ import {
   writeBatch,
 } from 'firebase/firestore';
 import { db } from '@/config/firebase';
+import { supabase, isSupabaseAuthEnabled } from '@/config/supabase';
 import localFeaturedAds from '@/data/featuredChannels.json';
 import {
   sanitizeFeaturedAdInput,
@@ -27,6 +28,8 @@ const toMillis = (value) => {
   const parsed = toDateOrNull(value);
   return parsed ? parsed.getTime() : null;
 };
+
+const normalizeSupabaseAd = (row) => normalizeDoc({ id: row.id, data: () => ({ ...row, ctaText: row.cta_text, mediaType: row.media_type, mediaUrl: row.media_url, blurEnabled: row.blur_enabled, blurStrength: row.blur_strength, isActive: row.is_active, sortOrder: row.sort_order, startsAt: row.starts_at, endsAt: row.ends_at, clickCount: row.click_count, createdAt: row.created_at, updatedAt: row.updated_at }) });
 
 const normalizeDoc = (docSnap) => {
   const data = docSnap.data() || {};
@@ -99,6 +102,11 @@ const getFallbackAds = () =>
     .filter((ad) => ad.isActive)
     .sort(byDisplayOrder);
 
+const toSupabasePayload = (adInput) => {
+  const payload = toFirestorePayload(adInput);
+  return { title: payload.title, description: payload.description, platform: payload.platform, cta_text: payload.ctaText, url: payload.url, media_type: payload.mediaType, media_url: payload.mediaUrl || null, blur_enabled: payload.blurEnabled, blur_strength: payload.blurStrength, badge: payload.badge, is_active: payload.isActive, sort_order: payload.sortOrder, starts_at: payload.startsAt, ends_at: payload.endsAt };
+};
+
 const toFirestorePayload = (adInput) => {
   const validated = validateFeaturedAd(adInput);
   if (!validated.isValid) {
@@ -127,6 +135,13 @@ export const subscribeFeaturedAdsPublic = (onUpdate, onError) => {
   if (typeof onUpdate !== 'function') {
     throw new Error('subscribeFeaturedAdsPublic requiere onUpdate callback.');
   }
+  if (isSupabaseAuthEnabled()) {
+    let active = true;
+    const load = async () => { try { const { data, error } = await supabase.from('featured_ads').select('*').eq('is_active', true).order('sort_order', { ascending: true }); if (error) throw error; const ads = (data || []).map(normalizeSupabaseAd).filter((ad) => shouldShowBySchedule(ad.startsAt, ad.endsAt)); if (active) onUpdate(ads); } catch (error) { onError?.(error); if (active) onUpdate([]); } };
+    void load();
+    const channel = supabase.channel('featured-ads-public').on('postgres_changes', { event: '*', schema: 'public', table: 'featured_ads' }, () => { void load(); }).subscribe();
+    return () => { active = false; void supabase.removeChannel(channel); };
+  }
 
   const adsRef = collection(db, FEATURED_ADS_COLLECTION);
   const adsQuery = query(adsRef, orderBy('sortOrder', 'asc'));
@@ -150,6 +165,13 @@ export const subscribeFeaturedAdsAdmin = (onUpdate, onError) => {
   if (typeof onUpdate !== 'function') {
     throw new Error('subscribeFeaturedAdsAdmin requiere onUpdate callback.');
   }
+  if (isSupabaseAuthEnabled()) {
+    let active = true;
+    const load = async () => { try { const { data, error } = await supabase.from('featured_ads').select('*').order('sort_order', { ascending: true }); if (error) throw error; if (active) onUpdate((data || []).map(normalizeSupabaseAd).sort(byDisplayOrder)); } catch (error) { onError?.(error); } };
+    void load();
+    const channel = supabase.channel('featured-ads-admin').on('postgres_changes', { event: '*', schema: 'public', table: 'featured_ads' }, () => { void load(); }).subscribe();
+    return () => { active = false; void supabase.removeChannel(channel); };
+  }
 
   const adsRef = collection(db, FEATURED_ADS_COLLECTION);
   const adsQuery = query(adsRef, orderBy('sortOrder', 'asc'));
@@ -169,6 +191,12 @@ export const subscribeFeaturedAdsAdmin = (onUpdate, onError) => {
 
 export const createFeaturedAd = async (adInput) => {
   const payload = toFirestorePayload(adInput);
+  if (isSupabaseAuthEnabled()) {
+    const { data: authData } = await supabase.auth.getUser();
+    const { data, error } = await supabase.from('featured_ads').insert({ ...toSupabasePayload(adInput), created_by: authData?.user?.id || null }).select('id').single();
+    if (error) throw error;
+    return data.id;
+  }
   const adsRef = collection(db, FEATURED_ADS_COLLECTION);
   const createdRef = await addDoc(adsRef, {
     ...payload,
@@ -182,6 +210,11 @@ export const createFeaturedAd = async (adInput) => {
 export const updateFeaturedAd = async (adId, adInput) => {
   if (!adId) throw new Error('ID de anuncio invalido.');
   const payload = toFirestorePayload(adInput);
+  if (isSupabaseAuthEnabled()) {
+    const { error } = await supabase.from('featured_ads').update(toSupabasePayload(adInput)).eq('id', adId);
+    if (error) throw error;
+    return;
+  }
   const adRef = doc(db, FEATURED_ADS_COLLECTION, adId);
   await updateDoc(adRef, {
     ...payload,
@@ -191,11 +224,13 @@ export const updateFeaturedAd = async (adId, adInput) => {
 
 export const deleteFeaturedAd = async (adId) => {
   if (!adId) throw new Error('ID de anuncio invalido.');
+  if (isSupabaseAuthEnabled()) { const { error } = await supabase.from('featured_ads').delete().eq('id', adId); if (error) throw error; return; }
   await deleteDoc(doc(db, FEATURED_ADS_COLLECTION, adId));
 };
 
 export const toggleFeaturedAdActive = async (adId, isActive) => {
   if (!adId) throw new Error('ID de anuncio invalido.');
+  if (isSupabaseAuthEnabled()) { const { error } = await supabase.from('featured_ads').update({ is_active: Boolean(isActive) }).eq('id', adId); if (error) throw error; return; }
   await updateDoc(doc(db, FEATURED_ADS_COLLECTION, adId), {
     isActive: Boolean(isActive),
     updatedAt: serverTimestamp(),
@@ -204,6 +239,10 @@ export const toggleFeaturedAdActive = async (adId, isActive) => {
 
 export const reorderFeaturedAds = async (orderedIds = []) => {
   if (!Array.isArray(orderedIds) || orderedIds.length === 0) return;
+  if (isSupabaseAuthEnabled()) {
+    for (const [index, id] of orderedIds.entries()) { const { error } = await supabase.from('featured_ads').update({ sort_order: index + 1 }).eq('id', id); if (error) throw error; }
+    return;
+  }
   const batch = writeBatch(db);
   orderedIds.forEach((id, index) => {
     const adRef = doc(db, FEATURED_ADS_COLLECTION, id);
@@ -230,6 +269,11 @@ export const normalizeReorderedAds = (ads, draggedId, targetId) => {
 };
 
 export const ensureSortOrderForAds = async () => {
+  if (isSupabaseAuthEnabled()) {
+    const { data, error } = await supabase.from('featured_ads').select('id,sort_order').order('sort_order', { ascending: true }); if (error) throw error;
+    for (const [index, ad] of (data || []).entries()) { if (ad.sort_order !== index + 1) { const result = await supabase.from('featured_ads').update({ sort_order: index + 1 }).eq('id', ad.id); if (result.error) throw result.error; } }
+    return;
+  }
   const adsRef = collection(db, FEATURED_ADS_COLLECTION);
   const snapshot = await getDocs(query(adsRef, orderBy('sortOrder', 'asc')));
   const ads = snapshot.docs.map(normalizeDoc).sort(byDisplayOrder);
@@ -252,6 +296,7 @@ export const ensureSortOrderForAds = async () => {
 
 export const trackFeaturedAdClick = async (adId) => {
   if (!adId) return;
+  if (isSupabaseAuthEnabled()) { const { error } = await supabase.rpc('record_featured_ad_click', { target_ad_id: adId }); if (error) console.warn('[FEATURED_ADS] No se pudo registrar click Supabase:', error.message); return; }
   try {
     await updateDoc(doc(db, FEATURED_ADS_COLLECTION, adId), {
       clickCount: increment(1),

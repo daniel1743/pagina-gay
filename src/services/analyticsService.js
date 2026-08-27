@@ -9,6 +9,7 @@ import {
   Timestamp,
 } from 'firebase/firestore';
 import { db, auth } from '@/config/firebase';
+import { supabase, isSupabaseAuthEnabled } from '@/config/supabase';
 
 /**
  * Servicio de Analytics en tiempo real
@@ -61,6 +62,13 @@ const isIgnorableFirestoreInternalError = (error) => {
  */
 export const trackEvent = async (eventType, eventData = {}) => {
   try {
+    if (isSupabaseAuthEnabled()) {
+      const metadata = { ...eventData };
+      ['message', 'content', 'privateMessage', 'phone', 'email'].forEach((key) => delete metadata[key]);
+      const { error } = await supabase.rpc('record_analytics_event', { target_event_type: eventType, target_session_id: eventData.sessionId || eventData.session_id || null, target_metadata: metadata });
+      if (error) console.warn('[ANALYTICS] Supabase event failed:', error.message);
+      return;
+    }
     if (!auth.currentUser?.uid) return;
     if (!ANALYTICS_CALLABLE_ENABLED) return;
   } catch (error) {
@@ -179,6 +187,16 @@ export const trackPageExit = async (pagePath, timeSpent = 0, extraData = {}) => 
  * @returns {Promise<object>} Estadísticas del día
  */
 export const getTodayStats = async () => {
+  if (isSupabaseAuthEnabled()) {
+    try {
+      const { data, error } = await supabase.rpc('get_analytics_day', { target_day: new Date().toISOString().split('T')[0] });
+      if (error) throw error;
+      return data;
+    } catch (error) {
+      console.warn('[ANALYTICS] Error leyendo estadísticas Supabase:', error?.message || error);
+      return null;
+    }
+  }
   try {
     const today = new Date().toISOString().split('T')[0];
     const statsRef = doc(db, 'analytics_stats', today);
@@ -209,6 +227,18 @@ export const getTodayStats = async () => {
  * @returns {Promise<object>} Estadísticas de ayer
  */
 export const getYesterdayStats = async () => {
+  if (isSupabaseAuthEnabled()) {
+    try {
+      const yesterday = new Date();
+      yesterday.setDate(yesterday.getDate() - 1);
+      const { data, error } = await supabase.rpc('get_analytics_day', { target_day: yesterday.toISOString().split('T')[0] });
+      if (error) throw error;
+      return data;
+    } catch (error) {
+      console.warn('[ANALYTICS] Error leyendo estadísticas Supabase:', error?.message || error);
+      return null;
+    }
+  }
   try {
     const yesterday = new Date();
     yesterday.setDate(yesterday.getDate() - 1);
@@ -256,6 +286,15 @@ export const calculatePercentageChange = (current, previous) => {
  * @returns {Promise<Array>} Array de estadísticas
  */
 export const getStatsForDays = async (days = 7) => {
+  if (isSupabaseAuthEnabled()) {
+    const maxDays = Math.min(Math.max(Number(days) || 7, 1), 30);
+    const today = new Date();
+    const values = await Promise.all(Array.from({ length: maxDays }, (_, index) => {
+      const date = new Date(today); date.setDate(date.getDate() - index);
+      return supabase.rpc('get_analytics_day', { target_day: date.toISOString().split('T')[0] }).then(({ data, error }) => { if (error) throw error; return data; });
+    }));
+    return values.reverse();
+  }
   try {
     // OPTIMIZACIÓN: Limitar a máximo 30 días
     const maxDays = Math.min(days, 30);
@@ -308,6 +347,13 @@ export const getStatsForDays = async (days = 7) => {
  * @returns {Promise<Array>} Array de eventos más comunes
  */
 export const getMostUsedFeatures = async (limit = 10) => {
+  if (isSupabaseAuthEnabled()) {
+    try {
+      const days = await getStatsForDays(7);
+      const totals = days.reduce((acc, day) => ({ page_view: acc.page_view + Number(day.pageViews || 0), user_register: acc.user_register + Number(day.registrations || 0), user_login: acc.user_login + Number(day.logins || 0), message_sent: acc.message_sent + Number(day.messagesSent || 0), room_created: acc.room_created + Number(day.roomsCreated || 0), room_joined: acc.room_joined + Number(day.roomsJoined || 0), page_exit: acc.page_exit + Number(day.pageExits || 0) }), { page_view: 0, user_register: 0, user_login: 0, message_sent: 0, room_created: 0, room_joined: 0, page_exit: 0 });
+      return Object.entries(totals).map(([eventType, count]) => ({ eventType, count })).sort((a, b) => b.count - a.count).slice(0, limit);
+    } catch (error) { console.warn('[ANALYTICS] Error leyendo funciones Supabase:', error?.message || error); return []; }
+  }
   try {
     const today = new Date();
     const stats = [];
@@ -368,6 +414,15 @@ export const getMostUsedFeatures = async (limit = 10) => {
  * @returns {Promise<Array>} Array de páginas con más abandonos
  */
 export const getExitPages = async (limit = 10) => {
+  if (isSupabaseAuthEnabled()) {
+    try {
+      const { data, error } = await supabase.from('analytics_events').select('metadata').eq('event_date', new Date().toISOString().split('T')[0]).eq('event_type', 'page_exit').limit(5000);
+      if (error) throw error;
+      const counts = {};
+      (data || []).forEach(({ metadata }) => { const path = metadata?.pagePath || metadata?.page_path; if (path) counts[path] = (counts[path] || 0) + 1; });
+      return Object.entries(counts).map(([pagePath, count]) => ({ pagePath, count })).sort((a, b) => b.count - a.count).slice(0, limit);
+    } catch (error) { console.warn('[ANALYTICS] Error leyendo abandonos Supabase:', error?.message || error); return []; }
+  }
   try {
     const today = new Date();
     const exitPages = {};
@@ -417,6 +472,12 @@ export const getExitPages = async (limit = 10) => {
  * @returns {function} Función para desuscribirse
  */
 export const subscribeToTodayStats = (callback, errorCallback) => {
+  if (isSupabaseAuthEnabled()) {
+    const load = async () => { try { callback(await getTodayStats()); } catch (error) { errorCallback?.(error); } };
+    void load();
+    const channel = supabase.channel('analytics-today').on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'analytics_events' }, () => { void load(); }).subscribe();
+    return () => { void supabase.removeChannel(channel); };
+  }
   const today = new Date().toISOString().split('T')[0];
   const statsRef = doc(db, 'analytics_stats', today);
 
@@ -460,6 +521,16 @@ export const subscribeToTodayStats = (callback, errorCallback) => {
  * @returns {Promise<object>} Usuarios únicos por evento
  */
 export const getUniqueUsersToday = async () => {
+  if (isSupabaseAuthEnabled()) {
+    try {
+      const today = new Date().toISOString().split('T')[0];
+      const { data, error } = await supabase.from('analytics_events').select('user_id,event_type').eq('event_date', today).in('event_type', ['user_login', 'user_register', 'message_sent']).limit(5000);
+      if (error) throw error;
+      const sets = { user_login: new Set(), user_register: new Set(), message_sent: new Set() };
+      (data || []).forEach((row) => { if (row.user_id && sets[row.event_type]) sets[row.event_type].add(row.user_id); });
+      return { uniqueLogins: sets.user_login.size, uniqueRegistrations: sets.user_register.size, uniqueMessageSenders: sets.message_sent.size };
+    } catch (error) { console.warn('[ANALYTICS] Error leyendo usuarios únicos Supabase:', error?.message || error); return { uniqueLogins: 0, uniqueRegistrations: 0, uniqueMessageSenders: 0 }; }
+  }
   try {
     const today = new Date().toISOString().split('T')[0];
     const eventsRef = collection(db, 'analytics_events');
@@ -513,6 +584,20 @@ export const getUniqueUsersToday = async () => {
  */
 export const getFunnelMetrics = async (days = 7) => {
   const dayCount = Math.min(Math.max(days, 1), 30);
+  if (isSupabaseAuthEnabled()) {
+    try {
+      const start = new Date(); start.setDate(start.getDate() - dayCount + 1);
+      const rawEventTypes = ['landing_view', 'entry_to_chat', 'auth_page_view', 'auth_submit', 'auth_success', 'user_register', 'user_login', 'chat_room_view', 'first_message_sent'];
+      const { data, error } = await supabase.from('analytics_events').select('id,user_id,session_id,event_type,event_date').gte('event_date', start.toISOString().split('T')[0]).in('event_type', rawEventTypes).limit(20000);
+      if (error) throw error;
+      const sets = Object.fromEntries(rawEventTypes.map((type) => [type, new Set()]));
+      (data || []).forEach((row) => { const key = row.session_id ? `sess:${row.session_id}` : row.user_id ? `user:${row.user_id}` : `evt:${row.id}`; if (sets[row.event_type]) sets[row.event_type].add(key); if (['user_register', 'user_login', 'auth_success'].includes(row.event_type)) sets.auth_success.add(key); });
+      const orderedSteps = [{ key: 'landing_view', label: 'Landing vista' }, { key: 'entry_to_chat', label: 'Entrada al chat' }, { key: 'auth_page_view', label: 'Vista de auth' }, { key: 'auth_submit', label: 'Submit auth' }, { key: 'auth_success', label: 'Auth exitosa' }, { key: 'chat_room_view', label: 'Vista de sala' }, { key: 'first_message_sent', label: 'Primer mensaje' }];
+      const steps = orderedSteps.map((step, index) => { const count = sets[step.key].size; const previousCount = index ? sets[orderedSteps[index - 1].key].size : 0; return { ...step, count, conversionFromPrev: index ? (previousCount > 0 ? (count / previousCount) * 100 : 0) : 100 }; });
+      const first = steps[0]?.count || 0; const last = steps.at(-1)?.count || 0;
+      return { days: dayCount, steps, overallConversion: first > 0 ? (last / first) * 100 : 0 };
+    } catch (error) { console.warn('[ANALYTICS] Error leyendo embudo Supabase:', error?.message || error); return { days: dayCount, steps: [], overallConversion: 0 }; }
+  }
   const today = new Date();
   const eventsRef = collection(db, 'analytics_events');
 
@@ -626,6 +711,18 @@ export const getFunnelMetrics = async (days = 7) => {
  * @returns {Promise<object>} Distribución de tiempo
  */
 export const getTimeDistribution = async () => {
+  if (isSupabaseAuthEnabled()) {
+    try {
+      const { data, error } = await supabase.from('analytics_events').select('metadata').eq('event_type', 'page_exit').eq('event_date', new Date().toISOString().split('T')[0]).limit(5000);
+      if (error) throw error;
+      const distribution = {};
+      (data || []).forEach(({ metadata }) => { const seconds = Number(metadata?.timeOnPage ?? metadata?.time_on_page); if (Number.isFinite(seconds)) { const bucket = getTimeBucket(seconds); distribution[bucket] = (distribution[bucket] || 0) + 1; } });
+      const totalUsers = Object.values(distribution).reduce((sum, count) => sum + count, 0);
+      const averages = { '0-3s': 1.5, '3-10s': 6.5, '10-30s': 20, '30-60s': 45, '1-3m': 120, '3-5m': 240, '5m+': 360 };
+      const averageSeconds = totalUsers ? Math.round(Object.entries(distribution).reduce((sum, [bucket, count]) => sum + (averages[bucket] || 0) * count, 0) / totalUsers) : 0;
+      return { distribution, totalUsers, averageSeconds };
+    } catch (error) { console.warn('[ANALYTICS] Error leyendo duración Supabase:', error?.message || error); return { distribution: {}, totalUsers: 0, averageSeconds: 0 }; }
+  }
   try {
     const today = new Date().toISOString().split('T')[0];
     const statsRef = doc(db, 'analytics_stats', today);
@@ -683,6 +780,15 @@ export const getTimeDistribution = async () => {
  * @returns {Promise<object>} Fuentes de tráfico
  */
 export const getTrafficSources = async () => {
+  if (isSupabaseAuthEnabled()) {
+    try {
+      const { data, error } = await supabase.from('analytics_events').select('metadata').eq('event_date', new Date().toISOString().split('T')[0]).limit(5000);
+      if (error) throw error;
+      const sources = {}; const campaigns = {};
+      (data || []).forEach(({ metadata }) => { const source = metadata?.source || metadata?.trafficSource || metadata?.utm_source; const campaign = metadata?.campaign || metadata?.utm_campaign; if (source) sources[source] = (sources[source] || 0) + 1; if (campaign) campaigns[campaign] = (campaigns[campaign] || 0) + 1; });
+      return { sources, campaigns, totalUsers: Object.values(sources).reduce((sum, count) => sum + count, 0) };
+    } catch (error) { console.warn('[ANALYTICS] Error leyendo tráfico Supabase:', error?.message || error); return { sources: {}, campaigns: {}, totalUsers: 0 }; }
+  }
   try {
     const today = new Date().toISOString().split('T')[0];
     const statsRef = doc(db, 'analytics_stats', today);
@@ -723,6 +829,11 @@ export const getTrafficSources = async () => {
  * @returns {Promise<number>} Número de usuarios activos
  */
 export const getActiveUsersNow = async (roomId = 'principal') => {
+  if (isSupabaseAuthEnabled()) {
+    const { count, error } = await supabase.from('room_presence').select('user_id', { count: 'exact', head: true }).eq('room_id', roomId).eq('is_online', true).gte('last_seen_at', new Date(Date.now() - 5 * 60 * 1000).toISOString());
+    if (error) throw error;
+    return Number(count || 0);
+  }
   try {
     const fiveMinutesAgo = new Date(Date.now() - 5 * 60 * 1000);
 
@@ -747,6 +858,12 @@ export const getActiveUsersNow = async (roomId = 'principal') => {
  * @returns {function} Función para desuscribirse
  */
 export const subscribeToActiveUsers = (callback, roomId = 'principal') => {
+  if (isSupabaseAuthEnabled()) {
+    const load = async () => { try { callback(await getActiveUsersNow(roomId)); } catch (error) { console.warn('[ANALYTICS] Error en usuarios activos Supabase:', error?.message || error); callback(0); } };
+    void load();
+    const channel = supabase.channel(`analytics-presence:${roomId}`).on('postgres_changes', { event: '*', schema: 'public', table: 'room_presence', filter: `room_id=eq.${roomId}` }, () => { void load(); }).subscribe();
+    return () => { void supabase.removeChannel(channel); };
+  }
   const fiveMinutesAgo = new Date(Date.now() - 5 * 60 * 1000);
   const presenceRef = collection(db, 'roomPresence', roomId, 'users');
   const q = query(

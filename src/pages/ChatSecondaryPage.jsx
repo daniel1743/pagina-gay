@@ -35,7 +35,6 @@ import {
   cleanInactiveUsers 
 } from '@/services/presenceService';
 import { validateMessage, detectCriticalSafetyRisk, checkTempBan } from '@/services/antiSpamService';
-import { auth, db } from '@/config/firebase';
 import { checkUserSanctions, createSanction, SANCTION_TYPES, SANCTION_REASONS } from '@/services/sanctionsService';
 import { roomsData } from '@/config/rooms';
 import { trackPageView, trackPageExit, trackRoomJoined, trackMessageSent } from '@/services/eventTrackingService';
@@ -454,7 +453,7 @@ const ChatSecondaryPage = () => {
           currentRoom,
           {
             clientId,
-            userId: auth.currentUser?.uid || user.id,
+            userId: user.id,
             username: user.username || 'Usuario',
             avatar: messageAvatar,
             isPremium: user.isPremium || false,
@@ -532,7 +531,7 @@ const ChatSecondaryPage = () => {
   };
 
   const handleMessageReaction = async (messageId, reaction) => {
-    if (!auth.currentUser || user?.isGuest || user?.isAnonymous) {
+    if (!user || user?.isGuest || user?.isAnonymous) {
       toast({
         title: "Regístrate para reaccionar",
         description: "Los usuarios no registrados no pueden dar likes. Regístrate para interactuar más.",
@@ -760,7 +759,7 @@ const ChatSecondaryPage = () => {
   };
 
   const handlePrivateChatRequest = async (targetUser) => {
-    if (!auth.currentUser) {
+    if (!user) {
       toast({
         title: "Regístrate para chatear en privado",
         description: "Los usuarios no registrados no pueden enviar mensajes privados.",

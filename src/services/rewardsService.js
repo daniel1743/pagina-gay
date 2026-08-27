@@ -15,6 +15,7 @@ import {
   setDoc,
 } from 'firebase/firestore';
 import { db, auth } from '@/config/firebase';
+import { supabase, isSupabaseAuthEnabled } from '@/config/supabase';
 
 /**
  * Servicio de Recompensas y Reconocimiento
@@ -137,6 +138,23 @@ const revokeChatPhotoPrivilegeByAdmin = async (userId) => {
  * @returns {Promise<string>} ID de la recompensa creada
  */
 export const createReward = async (rewardData) => {
+  if (isSupabaseAuthEnabled()) {
+    const { data: authData } = await supabase.auth.getUser();
+    if (!authData?.user?.id) throw new Error('Debes estar autenticado');
+    const expirationDate = new Date();
+    expirationDate.setMonth(expirationDate.getMonth() + 1);
+    const { data, error } = await supabase.rpc('admin_create_reward', {
+      target_user_id: rewardData.userId,
+      target_reward_type: rewardData.type,
+      target_reason: rewardData.reason || null,
+      target_reason_description: rewardData.reasonDescription || null,
+      target_expires_at: expirationDate.toISOString(),
+      target_notes: rewardData.notes || null,
+      target_metrics: rewardData.metrics || {},
+    });
+    if (error) throw error;
+    return data;
+  }
   if (!auth.currentUser) {
     throw new Error('Debes estar autenticado');
   }
@@ -194,6 +212,7 @@ export const createReward = async (rewardData) => {
  * @param {Date} expiresAt - Fecha de expiración
  */
 export const applyRewardToUser = async (userId, rewardType, expiresAt) => {
+  if (isSupabaseAuthEnabled()) return true;
   try {
     const userRef = doc(db, 'users', userId);
     const updates = {};
@@ -291,6 +310,18 @@ export const applyRewardToUser = async (userId, rewardType, expiresAt) => {
  * @returns {Promise<Array>} Lista de recompensas activas
  */
 export const getUserActiveRewards = async (userId) => {
+  if (isSupabaseAuthEnabled()) {
+    try {
+      const { data: authData } = await supabase.auth.getUser();
+      if (authData?.user?.id !== userId) return [];
+      const { data, error } = await supabase.rpc('get_my_active_rewards');
+      if (error) throw error;
+      return data || [];
+    } catch (error) {
+      console.warn('[REWARDS] Error leyendo Supabase:', error?.message || error);
+      return [];
+    }
+  }
   try {
     const rewardsRef = collection(db, 'rewards');
     const q = query(
@@ -319,6 +350,13 @@ export const getUserActiveRewards = async (userId) => {
  * @returns {Promise<Array>} Lista de recompensas
  */
 export const getAllRewards = async (status = null) => {
+  if (isSupabaseAuthEnabled()) {
+    let request = supabase.from('user_rewards').select('*').order('created_at', { ascending: false }).limit(100);
+    if (status) request = request.eq('status', status);
+    const { data, error } = await request;
+    if (error) throw error;
+    return data || [];
+  }
   try {
     const rewardsRef = collection(db, 'rewards');
     let q;
@@ -359,6 +397,11 @@ export const getAllRewards = async (status = null) => {
  * @param {string} reason - Razón de la revocación
  */
 export const revokeReward = async (rewardId, adminId, reason = '') => {
+  if (isSupabaseAuthEnabled()) {
+    const { data, error } = await supabase.rpc('admin_revoke_reward', { target_reward_id: rewardId, target_revoke_reason: reason || null });
+    if (error) throw error;
+    return Boolean(data);
+  }
   try {
     const rewardRef = doc(db, 'rewards', rewardId);
     const rewardSnap = await getDoc(rewardRef);
@@ -393,6 +436,7 @@ export const revokeReward = async (rewardId, adminId, reason = '') => {
  * @param {string} rewardType - Tipo de recompensa
  */
 export const removeRewardFromUser = async (userId, rewardType) => {
+  if (isSupabaseAuthEnabled()) return false;
   try {
     const userRef = doc(db, 'users', userId);
     const updates = {};
@@ -479,6 +523,14 @@ export const removeRewardFromUser = async (userId, rewardType) => {
  * @returns {function} Función para desuscribirse
  */
 export const subscribeToRewards = (callback) => {
+  if (isSupabaseAuthEnabled()) {
+    if (typeof callback !== 'function') return () => {};
+    let active = true;
+    const load = async () => { const rewards = await getAllRewards(); if (active) callback(rewards); };
+    void load();
+    const channel = supabase.channel('user-rewards-admin').on('postgres_changes', { event: '*', schema: 'public', table: 'user_rewards' }, () => { void load(); }).subscribe();
+    return () => { active = false; void supabase.removeChannel(channel); };
+  }
   const rewardsRef = collection(db, 'rewards');
   const q = query(
     rewardsRef,
@@ -506,6 +558,25 @@ export const subscribeToRewards = (callback) => {
  * @returns {Promise<object>} Estadísticas
  */
 export const getRewardStats = async () => {
+  if (isSupabaseAuthEnabled()) {
+    try {
+      const rewards = await getAllRewards();
+      return {
+        total: rewards.length,
+        active: rewards.filter((reward) => reward.status === 'active' && (!reward.expires_at || new Date(reward.expires_at) > new Date())).length,
+        premium: rewards.filter((reward) => reward.reward_type === REWARD_TYPES.PREMIUM_1_MONTH).length,
+        verified: rewards.filter((reward) => reward.reward_type === REWARD_TYPES.VERIFIED_1_MONTH).length,
+        specialAvatar: rewards.filter((reward) => reward.reward_type === REWARD_TYPES.SPECIAL_AVATAR).length,
+        featured: rewards.filter((reward) => reward.reward_type === REWARD_TYPES.FEATURED_USER).length,
+        pro: rewards.filter((reward) => reward.reward_type === REWARD_TYPES.PRO_USER).length,
+        chatPhoto: rewards.filter((reward) => reward.reward_type === REWARD_TYPES.CHAT_PHOTO_ACCESS).length,
+        revoked: rewards.filter((reward) => reward.status === 'revoked').length,
+      };
+    } catch (error) {
+      console.warn('[REWARDS] Error calculando estadísticas Supabase:', error?.message || error);
+      return { total: 0, active: 0, premium: 0, verified: 0, specialAvatar: 0, featured: 0, pro: 0, chatPhoto: 0, revoked: 0 };
+    }
+  }
   try {
     const rewardsRef = collection(db, 'rewards');
     const snapshot = await getDocs(query(rewardsRef));
@@ -545,6 +616,16 @@ export const getRewardStats = async () => {
  * @returns {Promise<Array>} Top 20 usuarios
  */
 export const getTop20ActiveUsers = async () => {
+  if (isSupabaseAuthEnabled()) {
+    try {
+      const { data, error } = await supabase.rpc('get_top_20_active_users');
+      if (error) throw error;
+      return (data || []).map((row) => ({ id: row.user_id, username: row.username || 'Usuario', avatar: row.avatar_url || null, isPremium: Boolean(row.is_premium), verified: Boolean(row.verified), email: row.email || null, createdAt: row.profile_created_at || null, metrics: row.metrics || {} }));
+    } catch (error) {
+      console.warn('[REWARDS] Error calculando ranking Supabase:', error?.message || error);
+      return [];
+    }
+  }
   try {
     const usersRef = collection(db, 'users');
     const sanctionsRef = collection(db, 'sanctions');
@@ -658,6 +739,14 @@ export const getTop20ActiveUsers = async () => {
  * @returns {function} función para desuscribirse
  */
 export const subscribeToUserRewards = (userId, callback) => {
+  if (isSupabaseAuthEnabled()) {
+    if (!userId || typeof callback !== 'function') { callback?.([]); return () => {}; }
+    let active = true;
+    const load = async () => { const rewards = await getUserActiveRewards(userId); if (active) callback(rewards); };
+    void load();
+    const channel = supabase.channel(`user-rewards:${userId}`).on('postgres_changes', { event: '*', schema: 'public', table: 'user_rewards', filter: `user_id=eq.${userId}` }, () => { void load(); }).subscribe();
+    return () => { active = false; void supabase.removeChannel(channel); };
+  }
   if (!userId) {
     callback([]);
     return () => {};

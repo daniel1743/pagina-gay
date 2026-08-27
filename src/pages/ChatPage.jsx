@@ -94,6 +94,7 @@ import { clearSeoFunnelContext, readSeoFunnelContext } from '@/utils/seoFunnelCo
 import { hasValidGuestCommunityAccess, syncGuestCommunityAccess } from '@/utils/communityPolicyGuard';
 import { ENABLE_BAUL } from '@/config/featureFlags';
 import '@/utils/chatDiagnostics'; // 🔍 Cargar diagnóstico en consola
+import { isSupabaseAuthEnabled } from '@/config/supabase';
 import { 
   trackChatLoad, 
   trackMessagesLoad, 
@@ -102,6 +103,12 @@ import {
   startTiming,
   endTiming,
 } from '@/utils/performanceMonitor';
+
+const getActiveAuthUserId = (appUser = null) => (
+  isSupabaseAuthEnabled() ? (appUser?.id || null) : (auth.currentUser?.uid || null)
+);
+
+const hasActiveAuthUser = (appUser = null) => Boolean(getActiveAuthUserId(appUser));
 
 const roomWelcomeMessages = {
   // 'global': '¡Bienvenido a Chat Global! Habla de lo que quieras.', // ⚠️ DESACTIVADA
@@ -3147,7 +3154,7 @@ const ChatPage = () => {
   sendNextRandomConnectInviteRef.current = sendNextRandomConnectInvite;
 
   const handleToggleRandomConnect = useCallback(() => {
-    if (!auth.currentUser || !user?.id) {
+    if (!hasActiveAuthUser(user) || !user?.id) {
       setRegistrationModalFeature('chat privado');
       setShowRegistrationModal(true);
       return;
@@ -5187,6 +5194,7 @@ const ChatPage = () => {
           userId: currentUserId,
         },
         notificationId: item.id,
+        requestId: item.requestId || item.entity_id || null,
         source: item.source || 'manual',
         suggestedStarter: item.suggestedStarter || '',
         systemPrompt: item.systemPrompt || '',
@@ -5507,7 +5515,7 @@ const ChatPage = () => {
   }, [user?.id, isPageVisible, getPrivateChatWindowState, getPrivateRequestSurfaceScope, isPrivateUiKeyActive, rememberPrivateUiKey, showPrivateConversationToast]); // refs manejan el estado mutable
 
   useEffect(() => {
-    if (!authReady || !user?.id || auth.currentUser?.uid !== user.id) {
+    if (!authReady || !user?.id || getActiveAuthUserId(user) !== user.id) {
       setPrivateInboxItems([]);
       return;
     }
@@ -5527,7 +5535,7 @@ const ChatPage = () => {
   }, [authReady, shouldListenPrivateSurfaceData, user?.id, isPageVisible]);
 
   useEffect(() => {
-    if (!authReady || !user?.id || auth.currentUser?.uid !== user.id) {
+    if (!authReady || !user?.id || getActiveAuthUserId(user) !== user.id) {
       setPrivateMatchStateItems([]);
       return;
     }
@@ -5623,7 +5631,7 @@ const ChatPage = () => {
     console.log('[REACTION] 🎯 Intentando reacción:', { messageId, reaction, currentRoom, userId: user?.id });
 
     // ⚠️ RESTRICCIÓN: Usuarios no autenticados o anónimos NO pueden dar reacciones
-    if (!auth.currentUser || auth.currentUser.isAnonymous || user?.isGuest || user?.isAnonymous || !user?.id) {
+    if (!hasActiveAuthUser(user) || (!isSupabaseAuthEnabled() && auth.currentUser?.isAnonymous) || user?.isGuest || user?.isAnonymous || !user?.id) {
       console.log('[REACTION] ❌ Usuario no autenticado o invitado');
       toast({
         title: "¿Te gustó? Regístrate para reaccionar",
@@ -6021,8 +6029,8 @@ const ChatPage = () => {
     // ✅ A partir de aquí usamos el usuario efectivo (puede ser invitado auto-creado)
     // ✅ Chat principal: SIEMPRE permitir enviar mensajes (registrados e invitados)
     // Solo Baúl (cambio foto) y OPIN (publicar) requieren registro
-    if (auth.currentUser) {
-      // Si hay auth, esperar a que esté disponible
+    if (!isSupabaseAuthEnabled() && auth.currentUser) {
+      // En el fallback Firebase, esperar a que Auth esté disponible
       let attempts = 0;
       const maxAttempts = 30;
 
@@ -6343,12 +6351,12 @@ const ChatPage = () => {
               } else if (validation.type === 'private_redirect') {
                 toast({
                   title: "Usa el privado interno",
-                  description: auth.currentUser
+                  description: Boolean(currentUser?.id)
                     ? "Si quieres seguir 1 a 1, toca el nombre del usuario y usa Invitar a privado dentro de Chactivo."
                     : "Para pasar a privado dentro de Chactivo primero debes registrarte.",
                   variant: "default",
                   duration: 8000,
-                  action: auth.currentUser
+                  action: Boolean(currentUser?.id)
                     ? undefined
                     : {
                         label: "Registrarme",
@@ -6419,10 +6427,9 @@ const ChatPage = () => {
           .catch(() => true) // Si falla validación, permitir envío (fail-open)
       : Promise.resolve(true);
 
-    // ⚡ INSTANTÁNEO: Enviar mensaje a Firestore en segundo plano (NO bloquear UI)
-    // El mensaje optimista ya está visible, Firestore se sincroniza en background
-    // ✅ CRÍTICO: Usar auth.currentUser.uid directamente (ya validado arriba)
-    // Firestore rules requieren que data.userId == request.auth.uid exactamente
+    // ⚡ INSTANTÁNEO: Enviar mensaje al backend activo en segundo plano (NO bloquear UI)
+    // El mensaje optimista ya está visible; el backend seleccionado se sincroniza en background
+    // El adapter valida el userId contra la sesión del proveedor activo.
 
     // 📊 PERFORMANCE MONITOR: Capturar tiempo de inicio ANTES del Promise chain
     const messageSendStartTime = performance.now();
@@ -6434,10 +6441,10 @@ const ChatPage = () => {
         // ✅ GARANTIZAR AVATAR: Nunca enviar null o undefined
         const messageAvatar = resolveChatAvatar(currentUser.avatar);
 
-        // 🔍 TRACE: Intentando escribir en Firebase
+        // 🔍 TRACE: Intentando escribir en el backend activo
         traceEvent(TRACE_EVENTS.FIREBASE_WRITE_ATTEMPT, {
           traceId: clientId,
-          userId: auth.currentUser?.uid || currentUser.id,
+          userId: getActiveAuthUserId(currentUser) || currentUser.id,
           roomId: currentRoom,
           content: content.substring(0, 50),
         });
@@ -6453,7 +6460,7 @@ const ChatPage = () => {
       currentRoom,
       {
         clientId, // ✅ F1: Pasar clientId para correlación
-        userId: auth.currentUser?.uid || currentUser.id, // ✅ Fallback si no hay auth aún
+        userId: getActiveAuthUserId(currentUser) || currentUser.id, // ✅ Fallback si no hay auth aún
         username: currentUser.username || 'Usuario', // ✅ FIX: Fallback si username es undefined
         avatar: messageAvatar, // ✅ SIEMPRE tiene valor válido
         isPremium: currentUser.isPremium || false,
@@ -6477,13 +6484,13 @@ const ChatPage = () => {
       .then((sentMessage) => {
         if (!sentMessage) return; // Validación falló o no se envió
         
-        // 🔍 TRACE: Escritura en Firebase exitosa
+        // 🔍 TRACE: Escritura en el backend activo exitosa
         traceEvent(TRACE_EVENTS.FIREBASE_WRITE_SUCCESS, {
           traceId: clientId,
           messageId: sentMessage.id,
           userId: currentUser.id,
           roomId: currentRoom,
-          firestoreId: sentMessage.id,
+          backendMessageId: sentMessage.id,
         });
         
         // ✅ Mensaje enviado exitosamente - se actualizará automáticamente vía onSnapshot
@@ -6538,9 +6545,12 @@ const ChatPage = () => {
               if (!modResult.safe) {
                 console.log(`[MOD-AI] Violación detectada post-send:`, modResult);
 
-                // Eliminar mensaje de Firestore
+                // Eliminar mediante el backend activo; Firebase solo queda en fallback histórico.
                 if (sentMessage?.id) {
-                  deleteDoc(doc(db, 'rooms', currentRoom, 'messages', sentMessage.id)).catch(e =>
+                  const deletePromise = isSupabaseAuthEnabled()
+                    ? deleteMessageWithMedia(currentRoom, sentMessage.id)
+                    : deleteDoc(doc(db, 'rooms', currentRoom, 'messages', sentMessage.id));
+                  deletePromise.catch(e =>
                     console.warn('[MOD-AI] Error eliminando mensaje:', e.message)
                   );
                 }
@@ -6696,7 +6706,7 @@ const ChatPage = () => {
         currentRoom,
         {
           clientId: optimisticMessage.clientId,
-          userId: auth.currentUser.uid,
+          userId: getActiveAuthUserId(user),
           username: user.username,
           avatar: messageAvatar, // ✅ SIEMPRE tiene valor válido
           isPremium: user.isPremium,
@@ -6782,7 +6792,7 @@ const ChatPage = () => {
     if (!targetUserId || !user?.id) return;
     if (targetUserId === user.id) return;
 
-    if (!auth.currentUser) {
+    if (!hasActiveAuthUser(user)) {
       setShowRegistrationModal(true);
       setRegistrationModalFeature('chat privado');
       return;
@@ -6859,13 +6869,13 @@ const ChatPage = () => {
   const openOrCreatePrivateChatWithTarget = useCallback(async (targetUser, options = {}) => {
     const targetUserId = targetUser?.userId || targetUser?.id || null;
     const hasRealAuthenticatedUid = Boolean(
-      auth.currentUser?.uid &&
+      getActiveAuthUserId(user) &&
       user?.id &&
-      auth.currentUser.uid === user.id &&
+      getActiveAuthUserId(user) === user.id &&
       !String(user.id).startsWith('temp_')
     );
 
-    if (!auth.currentUser || !user?.id) {
+    if (!hasActiveAuthUser(user) || !user?.id) {
       setPendingPrivateTarget(targetUser || null);
       setPendingPrivateOptions(options || null);
       openNicknameModal('private_chat_request');
@@ -7162,7 +7172,7 @@ const ChatPage = () => {
 
   useEffect(() => {
     if (!user?.id || !pendingPrivateTarget) return;
-    if (!authReady || auth.currentUser?.uid !== user.id || String(user.id).startsWith('temp_')) return;
+    if (!authReady || getActiveAuthUserId(user) !== user.id || String(user.id).startsWith('temp_')) return;
 
     const targetToOpen = pendingPrivateTarget;
     const optionsToUse = pendingPrivateOptions || {};
@@ -7507,7 +7517,7 @@ const ChatPage = () => {
           });
         }
 
-        const result = await respondToPrivateChatRequest(currentUserId, notificationId, accepted);
+        const result = await respondToPrivateChatRequest(currentUserId, requestToHandle?.requestId || notificationId, accepted);
         
         if (accepted && result?.chatId) {
           if (optimisticChatId && result.chatId !== optimisticChatId) {

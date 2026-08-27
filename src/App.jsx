@@ -18,6 +18,7 @@ import ErrorBoundary from '@/components/ui/ErrorBoundary';
 import { useVersionChecker } from '@/hooks/useVersionChecker';
 import { useSessionTracking } from '@/hooks/useSessionTracking';
 import { subscribeToUserRewards, REWARD_TYPES } from '@/services/rewardsService';
+import { isSupabaseAuthEnabled } from '@/config/supabase';
 import { arrayUnion, doc, getDoc, serverTimestamp, updateDoc } from 'firebase/firestore';
 import { db } from '@/config/firebase';
 import PerformanceSummaryButton from '@/components/PerformanceSummaryButton'; // 📊 Performance Monitor Button
@@ -205,7 +206,7 @@ function RewardInboxListener() {
   const seenInProfileRef = useRef(new Set());
 
   useEffect(() => {
-    if (!user?.id || user?.isGuest || user?.isAnonymous) {
+    if (isSupabaseAuthEnabled() || !user?.id || user?.isGuest || user?.isAnonymous) {
       seenInProfileRef.current = new Set();
       return;
     }
@@ -306,12 +307,14 @@ function RewardInboxListener() {
     }
 
     // Persistencia robusta: guardar también en perfil del usuario (evita re-show tras limpieza de cache/localStorage)
-    updateDoc(doc(db, 'users', user.id), {
-      rewardModalSeenIds: arrayUnion(currentReward.id),
-      rewardModalSeenUpdatedAt: serverTimestamp(),
-    }).catch((error) => {
-      console.warn('[REWARDS] No se pudo persistir rewardModalSeenIds en perfil:', error?.message || error);
-    });
+    if (!isSupabaseAuthEnabled()) {
+      updateDoc(doc(db, 'users', user.id), {
+        rewardModalSeenIds: arrayUnion(currentReward.id),
+        rewardModalSeenUpdatedAt: serverTimestamp(),
+      }).catch((error) => {
+        console.warn('[REWARDS] No se pudo persistir rewardModalSeenIds en perfil:', error?.message || error);
+      });
+    }
     seenInProfileRef.current.add(currentReward.id);
 
     // Refrescar perfil para que se muestren arcoíris, badge, segunda foto, etc.

@@ -37,6 +37,7 @@ import { updateGuestName } from '@/utils/guestIdentity';
 import { toast } from '@/components/ui/use-toast';
 import { doc, getDoc } from 'firebase/firestore';
 import { db } from '@/config/firebase';
+import { isSupabaseAuthEnabled } from '@/config/supabase';
 import AvatarSelector from '@/components/profile/AvatarSelector';
 import {
   canRequestPush,
@@ -104,6 +105,11 @@ export function AvatarMenu() {
       // Primero verificar si ya está en el objeto user
       if (user.role === 'admin' || user.role === 'administrator' || user.role === 'superAdmin') {
         setIsAdmin(true);
+        return;
+      }
+
+      if (isSupabaseAuthEnabled()) {
+        setIsAdmin(false);
         return;
       }
 
