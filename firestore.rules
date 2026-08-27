@@ -74,9 +74,15 @@ service cloud.firestore {
              data.media is list &&
              data.media.size() == 1 &&
              data.media[0] is map &&
-             data.media[0].keys().hasAny(['path']) &&
+             data.media[0].keys().hasAll(['kind', 'path', 'contentType', 'sizeBytes']) &&
+             data.media[0].kind == 'image' &&
              data.media[0].path is string &&
-             data.media[0].path.matches('^chat_media/principal/[^/]+/.+');
+             data.media[0].path.matches('^chat_media/rooms/' + request.auth.uid + '/principal/[^/]+/[^/]+$') &&
+             data.media[0].contentType is string &&
+             data.media[0].contentType.matches('image/.*') &&
+             data.media[0].sizeBytes is number &&
+             data.media[0].sizeBytes > 0 &&
+             data.media[0].sizeBytes <= 140 * 1024;
     }
 
     function isValidRegisteredImageMessage(roomId) {

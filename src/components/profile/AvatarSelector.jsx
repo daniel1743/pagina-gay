@@ -8,7 +8,6 @@ import { useAuth } from '@/contexts/AuthContext';
 import { toast } from '@/components/ui/use-toast';
 import { useNavigate } from 'react-router-dom';
 import { DEFAULT_CATALOG, canUserUseAvatar, getAvatarsByTier } from '@/lib/avatars/dicebearCatalog';
-import { saveAvatarSelection } from '@/lib/avatars/avatarStorage';
 
 const AvatarSelector = ({ isOpen, onClose, currentAvatar, onSelect }) => {
   const { user } = useAuth();
@@ -114,20 +113,22 @@ const AvatarSelector = ({ isOpen, onClose, currentAvatar, onSelect }) => {
     const selectedAvatar = DEFAULT_CATALOG.find(a => a.id === selectedAvatarId);
     if (!selectedAvatar) return;
 
+    if (!user?.id || user.isGuest || user.isAnonymous) {
+      toast({
+        title: 'Inicia sesión para continuar',
+        description: 'Los avatares de perfil solo están disponibles para cuentas registradas.',
+        variant: 'destructive',
+      });
+      return;
+    }
+
     setIsSaving(true);
     try {
-      // Guardar en Firebase/localStorage
-      await saveAvatarSelection({
-        id: selectedAvatar.id,
-        seed: selectedAvatar.seed,
-        style: selectedAvatar.style,
-        svg: selectedAvatar.svg,
-      });
-
-      // Llamar callback con el SVG
-      if (onSelect) {
-        onSelect(selectedAvatar.svg);
+      // El consumidor persiste y actualiza el contexto en una única operación.
+      if (!onSelect) {
+        throw new Error('No se configuró el guardado del avatar.');
       }
+      await onSelect(selectedAvatar.svg);
 
       toast({
         title: "✅ Avatar Actualizado",

@@ -948,6 +948,19 @@
   background: linear-gradient(to bottom, rgba(15, 23, 42, 0.24), rgba(15, 23, 42, 0.38)) !important;
 }
 
+.chat-image-error {
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  min-width: 150px !important;
+  min-height: 72px !important;
+  padding: 12px 16px !important;
+  color: #94a3b8 !important;
+  background: rgba(15, 23, 42, 0.72) !important;
+  font-size: 12px !important;
+  font-weight: 600 !important;
+}
+
 .chat-image-reveal-pill {
   display: inline-flex !important;
   align-items: center !important;

@@ -7,7 +7,7 @@ import { EmojiStyle, Categories } from 'emoji-picker-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useAuth } from '@/contexts/AuthContext';
 import { storage } from '@/config/firebase';
-import { ref as storageRef, uploadBytes, getDownloadURL } from 'firebase/storage';
+import { ref as storageRef, uploadBytes, getDownloadURL, deleteObject } from 'firebase/storage';
 import imageCompression from 'browser-image-compression';
 import { updatePresenceFields, updateTypingStatus } from '@/services/presenceService';
 import { notificationSounds, initAudioOnFirstGesture } from '@/services/notificationSounds';
@@ -142,6 +142,7 @@ const ROLE_LABEL_BY_VALUE = {
 };
 
 const PHOTO_MAX_SIZE_BYTES = 140 * 1024;
+const CHAT_IMAGE_TYPES = ['image/jpeg', 'image/jpg', 'image/png', 'image/webp'];
 const PHOTO_HOURLY_LIMIT = 3;
 const PHOTO_VISIBLE_LIMIT = 3;
 
@@ -1085,16 +1086,17 @@ const ChatInput = ({
       showPhotoBlockedToast();
       return;
     }
-    if (!selectedFile.type?.startsWith('image/')) {
+    if (!CHAT_IMAGE_TYPES.includes(String(selectedFile.type || '').toLowerCase())) {
       toast({
-        title: 'Archivo no permitido',
-        description: 'Solo se permiten archivos de imagen.',
+        title: 'Formato no compatible',
+        description: 'Usa una imagen JPG, PNG o WEBP. HEIC/HEIF y GIF no se pueden comprimir aquí de forma fiable.',
         variant: 'destructive',
       });
       return;
     }
 
     setIsUploadingPhoto(true);
+    let uploadedFileRef = null;
     try {
       const optimizedFile = await compressImageForChat(selectedFile);
       const tempMessageId = (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function')
@@ -1105,6 +1107,7 @@ const ChatInput = ({
       const mediaPath = `chat_media/rooms/${user?.id || 'unknown'}/${roomId || 'principal'}/${tempMessageId}/${assetId}.${extension}`;
 
       const fileRef = storageRef(storage, mediaPath);
+      uploadedFileRef = fileRef;
       await uploadBytes(fileRef, optimizedFile, {
         contentType: optimizedFile.type,
         customMetadata: {
@@ -1133,9 +1136,17 @@ const ChatInput = ({
         duration: 4200,
       });
     } catch (error) {
+      if (uploadedFileRef) {
+        await deleteObject(uploadedFileRef).catch(() => {});
+      }
+
+      const normalizedCode = String(error?.code || '').toLowerCase();
+      const description = normalizedCode.includes('permission-denied') || normalizedCode.includes('unauthorized')
+        ? 'Firebase rechazó la subida. Revisa que tu sesión esté activa y que las reglas de Storage y Firestore estén desplegadas.'
+        : error?.message || 'Reintenta en unos segundos.';
       toast({
         title: 'No se pudo subir la foto',
-        description: error?.message || 'Reintenta en unos segundos.',
+        description,
         variant: 'destructive',
       });
     } finally {
@@ -1766,7 +1777,7 @@ const ChatInput = ({
           ref={photoInputRef}
           type="file"
           aria-label="Seleccionar una foto"
-          accept="image/jpeg,image/jpg,image/png,image/webp,image/heic,image/heif"
+          accept="image/jpeg,image/jpg,image/png,image/webp"
           className="hidden"
           onChange={handlePhotoFileSelected}
         />

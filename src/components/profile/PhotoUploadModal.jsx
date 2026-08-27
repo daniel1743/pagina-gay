@@ -4,11 +4,11 @@ import { Button } from '@/components/ui/button';
 import { Upload, X, Image as ImageIcon, Loader2, Check } from 'lucide-react';
 import { motion } from 'framer-motion';
 import { toast } from '@/components/ui/use-toast';
-import { uploadProfilePhoto, validateImageFile } from '@/services/photoUploadService';
+import { uploadProfilePhoto, validateImageFile, PROFILE_IMAGE_TARGET_MAX_KB } from '@/services/photoUploadService';
 import { useAuth } from '@/contexts/AuthContext';
 
 const PhotoUploadModal = ({ isOpen, onClose, onUploadSuccess }) => {
-  const { updateProfile } = useAuth();
+  const { user, updateProfile } = useAuth();
   const [selectedFile, setSelectedFile] = useState(null);
   const [preview, setPreview] = useState(null);
   const [isUploading, setIsUploading] = useState(false);
@@ -50,12 +50,22 @@ const PhotoUploadModal = ({ isOpen, onClose, onUploadSuccess }) => {
       return;
     }
 
+    if (!user?.id || user.isGuest || user.isAnonymous) {
+      toast({
+        title: 'Inicia sesión para continuar',
+        description: 'Las fotos de perfil solo están disponibles para cuentas registradas.',
+        variant: 'destructive',
+      });
+      return;
+    }
+
     setIsUploading(true);
     setUploadProgress(0);
+    let progressInterval;
 
     try {
-      // Simular progreso (la compresión y subida pueden tardar)
-      const progressInterval = setInterval(() => {
+      // Progreso orientativo: la subida de Cloudinary no expone porcentaje real.
+      progressInterval = setInterval(() => {
         setUploadProgress((prev) => {
           if (prev >= 90) {
             clearInterval(progressInterval);
@@ -97,6 +107,7 @@ const PhotoUploadModal = ({ isOpen, onClose, onUploadSuccess }) => {
         variant: "destructive",
       });
     } finally {
+      if (progressInterval) clearInterval(progressInterval);
       setIsUploading(false);
       setUploadProgress(0);
     }
@@ -148,7 +159,7 @@ const PhotoUploadModal = ({ isOpen, onClose, onUploadSuccess }) => {
             Subir Foto de Perfil
           </DialogTitle>
           <DialogDescription className="text-muted-foreground text-sm">
-            Sube una foto personalizada para tu perfil. Se comprimirá automáticamente a un tamaño óptimo (máximo 150 KB).
+            Sube una foto personalizada para tu perfil. Se comprimirá automáticamente a un tamaño óptimo (máximo {PROFILE_IMAGE_TARGET_MAX_KB} KB).
           </DialogDescription>
         </DialogHeader>
 
@@ -159,13 +170,22 @@ const PhotoUploadModal = ({ isOpen, onClose, onUploadSuccess }) => {
               onDragOver={handleDragOver}
               onDrop={handleDrop}
               className="border-2 border-dashed border-[#E4007C]/50 rounded-xl p-12 text-center hover:border-[#E4007C] transition-colors cursor-pointer bg-accent/20"
+              role="button"
+              tabIndex={0}
+              aria-label="Seleccionar una foto de perfil"
+              onKeyDown={(event) => {
+                if (event.key === 'Enter' || event.key === ' ') {
+                  event.preventDefault();
+                  fileInputRef.current?.click();
+                }
+              }}
               onClick={() => fileInputRef.current?.click()}
             >
               <ImageIcon className="w-16 h-16 mx-auto mb-4 text-[#E4007C]" />
               <p className="text-lg font-semibold mb-2">Arrastra una imagen aquí</p>
               <p className="text-sm text-muted-foreground mb-4">o haz clic para seleccionar</p>
               <p className="text-xs text-muted-foreground">
-                Formatos: JPG, PNG, WEBP (máximo 10 MB)
+                Formatos: JPG, PNG, WEBP (máximo 10 MB antes de comprimir)
               </p>
               <input
                 ref={fileInputRef}
@@ -210,7 +230,7 @@ const PhotoUploadModal = ({ isOpen, onClose, onUploadSuccess }) => {
                   <div className="flex justify-between items-center">
                     <span className="text-sm text-muted-foreground">Tamaño después de compresión:</span>
                     <span className="text-sm font-medium text-[#E4007C]">
-                      ~100-150 KB
+                      hasta {PROFILE_IMAGE_TARGET_MAX_KB} KB
                     </span>
                   </div>
                 </div>
@@ -270,7 +290,7 @@ const PhotoUploadModal = ({ isOpen, onClose, onUploadSuccess }) => {
           {/* Información adicional */}
           <div className="bg-blue-500/10 border border-blue-500/30 rounded-lg p-4">
             <p className="text-sm text-blue-300">
-              <strong>💡 Nota:</strong> Tu imagen será comprimida automáticamente a un tamaño máximo de 150 KB para optimizar el rendimiento y velocidad.
+              <strong>Nota:</strong> Tu imagen será comprimida automáticamente a un tamaño máximo de {PROFILE_IMAGE_TARGET_MAX_KB} KB para optimizar el rendimiento y velocidad.
               La calidad se mantendrá lo mejor posible.
             </p>
           </div>

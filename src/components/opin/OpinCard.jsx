@@ -34,6 +34,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import { toast } from '@/components/ui/use-toast';
 import { track, getSessionId } from '@/services/eventTrackingService';
 import { sanitizeOpinPublicText } from '@/services/opinSafetyService';
+import { getSafeAvatarSrc, handleAvatarImageError } from '@/utils/avatar';
 
 const COMMENTS_INLINE_LIMIT = 16;
 
@@ -53,6 +54,7 @@ const OpinCard = forwardRef(({
   const [expanded, setExpanded] = useState(false);
   const [showMenu, setShowMenu] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
+  const [postImageFailed, setPostImageFailed] = useState(false);
 
   // Estados para Baúl
   const [showBaulModal, setShowBaulModal] = useState(false);
@@ -363,29 +365,29 @@ const OpinCard = forwardRef(({
         return {
           Icon: CrownIcon,
           label: 'Crush',
-          badgeClass: 'border-fuchsia-500/30 bg-fuchsia-500/15 text-fuchsia-200 shadow-[0_0_8px_rgba(217,70,239,0.1)]',
-          borderClass: 'border-fuchsia-500/10 shadow-[0_4px_20px_rgba(217,70,239,0.05)] hover:border-fuchsia-500/25 hover:shadow-[0_8px_30px_rgba(217,70,239,0.15)]',
+          badgeClass: 'border-fuchsia-300/40 bg-fuchsia-300/10 text-fuchsia-100 shadow-[0_0_16px_rgba(217,70,239,0.14)]',
+          borderClass: 'border-fuchsia-300/25 shadow-[0_12px_32px_rgba(217,70,239,0.10)] hover:border-fuchsia-200/50 hover:shadow-[0_18px_44px_rgba(217,70,239,0.18)]',
         };
       case 'encuentro':
         return {
           Icon: FireIcon,
           label: 'Cita / Encuentro',
-          badgeClass: 'border-orange-500/30 bg-orange-500/15 text-orange-200 shadow-[0_0_8px_rgba(249,115,22,0.1)]',
-          borderClass: 'border-orange-500/10 shadow-[0_4px_20px_rgba(249,115,22,0.05)] hover:border-orange-500/25 hover:shadow-[0_8px_30px_rgba(249,115,22,0.15)]',
+          badgeClass: 'border-amber-300/40 bg-amber-300/10 text-amber-100 shadow-[0_0_16px_rgba(245,158,11,0.14)]',
+          borderClass: 'border-amber-300/25 shadow-[0_12px_32px_rgba(245,158,11,0.10)] hover:border-amber-200/50 hover:shadow-[0_18px_44px_rgba(245,158,11,0.18)]',
         };
       case 'amistad':
         return {
           Icon: UserGroupIcon,
           label: 'Amistad',
-          badgeClass: 'border-cyan-500/30 bg-cyan-500/15 text-cyan-200 shadow-[0_0_8px_rgba(6,182,212,0.1)]',
-          borderClass: 'border-cyan-500/10 shadow-[0_4px_20px_rgba(6,182,212,0.05)] hover:border-cyan-500/25 hover:shadow-[0_8px_30px_rgba(6,182,212,0.15)]',
+          badgeClass: 'border-cyan-300/40 bg-cyan-300/10 text-cyan-100 shadow-[0_0_16px_rgba(6,182,212,0.14)]',
+          borderClass: 'border-cyan-300/25 shadow-[0_12px_32px_rgba(6,182,212,0.10)] hover:border-cyan-200/50 hover:shadow-[0_18px_44px_rgba(6,182,212,0.18)]',
         };
       default:
         return {
           Icon: Note01Icon,
           label: 'Nota',
-          badgeClass: 'border-white/10 bg-white/5 text-muted-foreground',
-          borderClass: 'border-white/10 shadow-[0_8px_30px_rgba(0,0,0,0.2)] hover:border-white/20 hover:shadow-[0_16px_40px_rgba(0,0,0,0.28)]',
+          badgeClass: 'border-slate-400/30 bg-slate-400/10 text-slate-200',
+          borderClass: 'border-slate-500/25 shadow-[0_12px_32px_rgba(15,23,42,0.30)] hover:border-slate-300/40 hover:shadow-[0_18px_44px_rgba(15,23,42,0.45)]',
         };
     }
   };
@@ -396,7 +398,7 @@ const OpinCard = forwardRef(({
     <>
       <div
         ref={setRefs}
-        className={`group relative h-full rounded-2xl border bg-gradient-to-b from-white/[0.045] to-white/[0.015] px-4 py-4 backdrop-blur-md transition-all duration-300 hover:-translate-y-0.5 ${categoryMeta.borderClass} ${post.isStable ? 'ring-1 ring-purple-400/30' : ''}`}
+        className={`group relative h-full rounded-[26px] border bg-[#101827]/90 px-5 py-5 backdrop-blur-xl transition-all duration-200 hover:-translate-y-1 hover:bg-[#142136] ${categoryMeta.borderClass} ${post.isStable ? 'ring-1 ring-cyan-300/40' : ''}`}
       >
         <div className="flex-1 min-w-0 flex flex-col h-full">
           {/* Cabecera */}
@@ -419,13 +421,14 @@ const OpinCard = forwardRef(({
           </div>
 
           {/* Imagen del anuncio si la tiene */}
-          {post.imageUrl && (
+          {post.imageUrl && !postImageFailed && (
             <div className="relative w-full h-44 rounded-xl overflow-hidden mb-3 border border-white/5 shadow-inner">
               <img
                 src={post.imageUrl}
                 alt={post.title || 'Anuncio'}
                 className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105"
                 loading="lazy"
+                onError={() => setPostImageFailed(true)}
               />
               <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-transparent" />
             </div>
@@ -442,12 +445,13 @@ const OpinCard = forwardRef(({
               >
                 {authorAvatar ? (
                   <img
-                    src={authorAvatar}
+                    src={getSafeAvatarSrc(authorAvatar)}
                     alt={authorDisplayName}
-                    className="w-8 h-8 rounded-full object-cover ring-2 ring-purple-500/20"
+                    className="w-8 h-8 rounded-full object-cover ring-2 ring-cyan-300/25"
+                    onError={handleAvatarImageError}
                   />
                 ) : (
-                  <div className={`w-8 h-8 rounded-full bg-gradient-to-br ${colorConfig.gradient} flex items-center justify-center text-xs font-semibold text-white ring-2 ring-purple-500/20`}>
+                  <div className={`w-8 h-8 rounded-full bg-gradient-to-br ${colorConfig.gradient} flex items-center justify-center text-xs font-semibold text-white ring-2 ring-cyan-300/25`}>
                     {authorInitial}
                   </div>
                 )}
@@ -455,12 +459,13 @@ const OpinCard = forwardRef(({
             ) : (
               authorAvatar ? (
                 <img
-                  src={authorAvatar}
+                  src={getSafeAvatarSrc(authorAvatar)}
                   alt={authorDisplayName}
-                  className="w-8 h-8 rounded-full object-cover ring-2 ring-purple-500/20 flex-shrink-0"
+                  className="w-8 h-8 rounded-full object-cover ring-2 ring-cyan-300/30 flex-shrink-0"
+                  onError={handleAvatarImageError}
                 />
               ) : (
-                <div className={`w-8 h-8 rounded-full bg-gradient-to-br ${colorConfig.gradient} flex items-center justify-center text-xs font-semibold text-white ring-2 ring-purple-500/20 flex-shrink-0`}>
+                <div className={`w-8 h-8 rounded-full bg-gradient-to-br ${colorConfig.gradient} flex items-center justify-center text-xs font-semibold text-white ring-2 ring-cyan-300/25 flex-shrink-0`}>
                   {authorInitial}
                 </div>
               )
@@ -470,7 +475,7 @@ const OpinCard = forwardRef(({
               <div className="flex items-center gap-1.5 min-w-0 flex-wrap text-[11px] text-muted-foreground">
                 <span
                   onClick={handleAuthorClick}
-                  className={`font-semibold truncate ${!isOwner ? 'text-purple-300 hover:text-purple-200 cursor-pointer' : 'text-foreground'}`}
+                  className={`font-semibold truncate ${!isOwner ? 'text-cyan-200 hover:text-cyan-100 cursor-pointer' : 'text-foreground'}`}
                 >
                   {authorDisplayName}
                 </span>
@@ -503,7 +508,7 @@ const OpinCard = forwardRef(({
             {isLongText && (
               <button
                 onClick={(e) => { e.stopPropagation(); setExpanded(!expanded); }}
-                className="text-xs text-purple-400 hover:text-purple-300 mt-1 flex items-center gap-0.5 font-medium"
+                className="text-xs text-cyan-200 hover:text-cyan-100 mt-1 flex items-center gap-0.5 font-medium"
               >
                 {expanded ? (
                   <>Ver menos <HugeiconsIcon icon={ArrowUp01Icon} size={12} color="currentColor" /></>
@@ -518,41 +523,47 @@ const OpinCard = forwardRef(({
           <div className="mt-3.5 pt-2 flex items-center gap-1.5 border-t border-white/5">
             <button
               onClick={(e) => handleVote(e, '💎')}
-              title="Voto Glamour"
-              className={`px-2.5 py-1 rounded-full text-[10px] font-semibold border flex items-center gap-1 transition-all ${
+              title="Marcar apoyo"
+              aria-label={`Marcar apoyo${localReactionCounts['💎'] > 0 ? ` (${localReactionCounts['💎']})` : ''}`}
+              aria-pressed={myActiveReactions.includes('💎')}
+              className={`px-2.5 py-1.5 rounded-xl text-[10px] font-semibold border flex items-center gap-1 transition-all ${
                 myActiveReactions.includes('💎')
                   ? 'border-fuchsia-500/40 bg-fuchsia-500/10 text-fuchsia-200 shadow-[0_0_8px_rgba(217,70,239,0.15)] font-bold'
                   : 'border-white/5 bg-white/5 text-muted-foreground hover:bg-white/10 hover:text-foreground'
               }`}
             >
               <HugeiconsIcon icon={Diamond01Icon} size={14} color="currentColor" />
-              <span>Glamour</span>
+              <span>Apoyo</span>
               {localReactionCounts['💎'] > 0 && <span className="ml-0.5 font-bold text-[9px]">{localReactionCounts['💎']}</span>}
             </button>
             <button
               onClick={(e) => handleVote(e, '🔥')}
-              title="Voto Fuego"
-              className={`px-2.5 py-1 rounded-full text-[10px] font-semibold border flex items-center gap-1 transition-all ${
+              title="Marcar química"
+              aria-label={`Marcar química${localReactionCounts['🔥'] > 0 ? ` (${localReactionCounts['🔥']})` : ''}`}
+              aria-pressed={myActiveReactions.includes('🔥')}
+              className={`px-2.5 py-1.5 rounded-xl text-[10px] font-semibold border flex items-center gap-1 transition-all ${
                 myActiveReactions.includes('🔥')
                   ? 'border-orange-500/40 bg-orange-500/10 text-orange-200 shadow-[0_0_8px_rgba(249,115,22,0.15)] font-bold'
                   : 'border-white/5 bg-white/5 text-muted-foreground hover:bg-white/10 hover:text-foreground'
               }`}
             >
               <HugeiconsIcon icon={FireIcon} size={14} color="currentColor" />
-              <span>Fuego</span>
+              <span>Química</span>
               {localReactionCounts['🔥'] > 0 && <span className="ml-0.5 font-bold text-[9px]">{localReactionCounts['🔥']}</span>}
             </button>
             <button
               onClick={(e) => handleVote(e, '⭐')}
-              title="Voto Favorito"
-              className={`px-2.5 py-1 rounded-full text-[10px] font-semibold border flex items-center gap-1 transition-all ${
+              title="Marcar favorito"
+              aria-label={`Marcar favorito${localReactionCounts['⭐'] > 0 ? ` (${localReactionCounts['⭐']})` : ''}`}
+              aria-pressed={myActiveReactions.includes('⭐')}
+              className={`px-2.5 py-1.5 rounded-xl text-[10px] font-semibold border flex items-center gap-1 transition-all ${
                 myActiveReactions.includes('⭐')
                   ? 'border-yellow-500/40 bg-yellow-500/10 text-yellow-200 shadow-[0_0_8px_rgba(234,179,8,0.15)] font-bold'
                   : 'border-white/5 bg-white/5 text-muted-foreground hover:bg-white/10 hover:text-foreground'
               }`}
             >
               <HugeiconsIcon icon={StarIcon} size={14} color="currentColor" />
-              <span>Fav</span>
+              <span>Favorito</span>
               {localReactionCounts['⭐'] > 0 && <span className="ml-0.5 font-bold text-[9px]">{localReactionCounts['⭐']}</span>}
             </button>
           </div>
@@ -712,8 +723,9 @@ const OpinCard = forwardRef(({
                         <div key={reply.id} className="flex items-start gap-2">
                           {reply.avatar ? (
                             <img
-                              src={reply.avatar}
+                              src={getSafeAvatarSrc(reply.avatar)}
                               alt={reply.username}
+                              onError={handleAvatarImageError}
                               className="w-5 h-5 rounded-full flex-shrink-0 object-cover"
                             />
                           ) : (

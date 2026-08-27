@@ -47,12 +47,13 @@ const assertCanInteractWithUser = async (targetUserId) => {
 
 // 🎨 Colores disponibles para posts OPIN
 export const OPIN_COLORS = {
-  purple: { name: 'Purple', gradient: 'from-purple-500 to-purple-700', bg: 'bg-purple-500/10', border: 'border-purple-500/50' },
-  pink: { name: 'Pink', gradient: 'from-pink-500 to-pink-700', bg: 'bg-pink-500/10', border: 'border-pink-500/50' },
-  cyan: { name: 'Cyan', gradient: 'from-cyan-500 to-cyan-700', bg: 'bg-cyan-500/10', border: 'border-cyan-500/50' },
-  orange: { name: 'Orange', gradient: 'from-orange-500 to-orange-700', bg: 'bg-orange-500/10', border: 'border-orange-500/50' },
-  green: { name: 'Green', gradient: 'from-green-500 to-green-700', bg: 'bg-green-500/10', border: 'border-green-500/50' },
-  blue: { name: 'Blue', gradient: 'from-blue-500 to-blue-700', bg: 'bg-blue-500/10', border: 'border-blue-500/50' },
+  // Las claves son parte del contrato de posts existentes; solo cambia la expresión visual.
+  purple: { name: 'Cyan profundo', gradient: 'from-cyan-400 to-blue-600', bg: 'bg-cyan-400/10', border: 'border-cyan-300/40' },
+  pink: { name: 'Fucsia', gradient: 'from-fuchsia-400 to-rose-500', bg: 'bg-fuchsia-400/10', border: 'border-fuchsia-300/40' },
+  cyan: { name: 'Turquesa', gradient: 'from-teal-300 to-cyan-600', bg: 'bg-teal-300/10', border: 'border-teal-300/40' },
+  orange: { name: 'Ámbar', gradient: 'from-amber-300 to-orange-600', bg: 'bg-amber-300/10', border: 'border-amber-300/40' },
+  green: { name: 'Esmeralda', gradient: 'from-emerald-300 to-teal-600', bg: 'bg-emerald-300/10', border: 'border-emerald-300/40' },
+  blue: { name: 'Índigo', gradient: 'from-indigo-300 to-violet-600', bg: 'bg-indigo-300/10', border: 'border-indigo-300/40' },
 };
 
 export const OPIN_STATUS_OPTIONS = [
@@ -96,8 +97,8 @@ export const OPIN_STATUS_OPTIONS = [
 const DEFAULT_OPIN_STATUS = OPIN_STATUS_OPTIONS[0].value;
 const OPEN_OPIN_STATUSES = new Set(['buscando', 'hablando', 'quiero_mas']);
 const OPIN_ACTIVE_WINDOW_MS = 60 * 24 * 60 * 60 * 1000;
-const OPIN_FEED_QUERY_CAP = 80;
-const OPIN_FEED_DEFAULT_LIMIT = 24;
+const OPIN_FEED_QUERY_CAP = 100;
+const OPIN_FEED_DEFAULT_LIMIT = 36;
 
 export const isValidOpinStatus = (status) => OPIN_STATUS_OPTIONS.some((item) => item.value === status);
 export const isOpenOpinIntentStatus = (status) => OPEN_OPIN_STATUSES.has(status || DEFAULT_OPIN_STATUS);
@@ -172,14 +173,12 @@ const resolveOpinIdentity = (post = {}, profileData = null) => {
 
 const hydrateOpinPostsWithProfiles = async (posts = []) => {
   const safePosts = Array.isArray(posts) ? posts : [];
+  // El snapshot histórico de un post puede contener una URL antigua o rota.
+  // Se hidratan todos los autores con userId para poder usar el espejo público
+  // actual sin mutar el post ni exponer datos privados.
   const userIdsToHydrate = Array.from(new Set(
     safePosts
-      .filter((post) => {
-        const hasUserId = Boolean(post?.userId);
-        if (!hasUserId) return false;
-        return isGenericOpinIdentity(post?.username) || !sanitizeOpinIdentityValue(post?.avatar);
-      })
-      .map((post) => String(post.userId).trim())
+      .map((post) => String(post?.userId || '').trim())
       .filter(Boolean)
   ));
 
@@ -1216,7 +1215,7 @@ export const getPostComments = async (postId, limitCount = 100) => {
     const q = query(
       commentsRef,
       where('postId', '==', postId),
-      orderBy('createdAt', 'asc'),
+      orderBy('createdAt', 'desc'),
       limit(limitCount)
     );
     snapshot = await getDocs(q);
@@ -1234,7 +1233,7 @@ export const getPostComments = async (postId, limitCount = 100) => {
   const comments = snapshot.docs.map(doc => ({
     id: doc.id,
     ...doc.data(),
-  }));
+  })).sort((a, b) => getTimestampMs(b.createdAt) - getTimestampMs(a.createdAt));
 
   console.log(`💬 [OPIN] Comentarios cargados: ${comments.length} para post ${postId}`);
 
@@ -1476,7 +1475,7 @@ export const getReplyPreview = async (postId, previewLimit = 3) => {
     const q = query(
       commentsRef,
       where('postId', '==', postId),
-      orderBy('createdAt', 'asc'),
+      orderBy('createdAt', 'desc'),
       limit(previewLimit)
     );
     snapshot = await getDocs(q);
@@ -1493,7 +1492,7 @@ export const getReplyPreview = async (postId, previewLimit = 3) => {
   const replies = snapshot.docs.map(doc => ({
     id: doc.id,
     ...doc.data(),
-  }));
+  })).sort((a, b) => getTimestampMs(b.createdAt) - getTimestampMs(a.createdAt));
 
   return replies;
 };

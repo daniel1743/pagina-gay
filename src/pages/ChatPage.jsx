@@ -87,6 +87,7 @@ import { registrarParticipacionEvento } from '@/services/eventosService';
 import { resolveProfileRole } from '@/config/profileRoles';
 import { COMUNA_OPTIONS, getComunaKey, normalizeComuna, ONBOARDING_COMUNA_KEY } from '@/config/comunas';
 import { MessageCircle } from 'lucide-react';
+import { getSafeAvatarSrc, handleAvatarImageError } from '@/utils/avatar';
 import { getOpenOpinIntentsByUserIds, getOpinPostActivityMs, getOpinStatusMeta } from '@/services/opinService';
 import { readPendingPrivateChatRestore, clearPendingPrivateChatRestore } from '@/utils/privateChatRestore';
 import { clearSeoFunnelContext, readSeoFunnelContext } from '@/utils/seoFunnelContext';
@@ -835,19 +836,8 @@ const QUICK_STARTER_PHRASES = [
 ];
 
 const MAX_OPEN_PRIVATE_CHATS = 3;
-const DEFAULT_CHAT_AVATAR = '/avatar_por_defecto.jpeg';
 const HETERO_INDEXING_ENABLED = false;
-
-const resolveChatAvatar = (avatar) => {
-  if (!avatar || typeof avatar !== 'string') return DEFAULT_CHAT_AVATAR;
-  const normalized = avatar.trim().toLowerCase();
-  if (!normalized) return DEFAULT_CHAT_AVATAR;
-  if (normalized === 'undefined' || normalized === 'null') return DEFAULT_CHAT_AVATAR;
-  if (normalized.includes('api.dicebear.com')) return DEFAULT_CHAT_AVATAR;
-  if (normalized.startsWith('data:image/svg+xml')) return DEFAULT_CHAT_AVATAR;
-  if (normalized.startsWith('blob:')) return DEFAULT_CHAT_AVATAR;
-  return avatar;
-};
+const resolveChatAvatar = (avatar) => getSafeAvatarSrc(avatar);
 
 const formatRelativePulse = (timestampMs, nowMs = Date.now()) => {
   if (!timestampMs) return 'sin actividad reciente';
@@ -7967,8 +7957,9 @@ const ChatPage = () => {
                         <div className="flex items-center gap-2">
                           <div className="relative h-10 w-10 overflow-hidden rounded-full border border-white/10">
                             <img
-                              src={item.avatar}
+                              src={getSafeAvatarSrc(item.avatar)}
                               alt={item.username}
+                              onError={handleAvatarImageError}
                               className="h-full w-full object-cover"
                               loading="lazy"
                             />

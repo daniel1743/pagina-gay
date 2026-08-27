@@ -104,23 +104,17 @@ const ProfilePage = () => {
     setPhotoUploadOpen(true);
   };
 
-  const handlePhotoUploadSuccess = async (photoURL) => {
-    // La foto ya se actualizó en el perfil a través de updateProfile en PhotoUploadModal
-    // Solo necesitamos actualizar el estado local si es necesario
-    try {
-      await updateProfile({ avatar: photoURL });
-    } catch (error) {
-      console.error('Error actualizando foto en perfil:', error);
-    }
+  const handlePhotoUploadSuccess = () => {
+    // PhotoUploadModal ya actualiza el contexto y users/{uid} una sola vez.
+    // Se conserva el callback para no romper la API del modal.
   };
 
   const handleAvatarSelect = async (newAvatar) => {
-    // El AvatarSelector ya guarda en Firebase, solo actualizamos el estado local
     try {
       await updateProfile({ avatar: newAvatar });
-      // El toast ya se muestra en AvatarSelector, no es necesario duplicar
     } catch (error) {
-      console.error('Error actualizando avatar en perfil:', error);
+      console.error('Error guardando avatar seleccionado:', error);
+      throw error;
     }
   };
 
