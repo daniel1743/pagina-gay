@@ -16,7 +16,7 @@ import { AvatarMenu } from '@/components/layout/AvatarMenu'; // ⚡ NUEVO: Menu 
 // import { GuestUsernameModal } from '@/components/auth/GuestUsernameModal';
 import { doc, getDoc } from 'firebase/firestore';
 import { db } from '@/config/firebase';
-import { subscribeToSystemNotifications } from '@/services/systemNotificationsService';
+import { getUnreadNotificationsCount } from '@/services/systemNotificationsService';
 import { motion, AnimatePresence } from 'framer-motion';
 import { ENABLE_BAUL } from '@/config/featureFlags';
 
@@ -92,7 +92,7 @@ const Header = () => {
   //   }, 150);
   // };
 
-  // ⚡ NUEVO: Suscribirse a notificaciones para TODOS (invitados + registrados)
+  // Badge liviano: evita mantener un listener realtime permanente en el header.
   useEffect(() => {
     if (!user) {
       setUnreadNotificationsCount(0);
@@ -106,15 +106,42 @@ const Header = () => {
       return;
     }
 
-    console.log('[Header] ✅ Suscribiéndose a notificaciones con ID real:', user.id);
+    let cancelled = false;
+    let intervalId = null;
 
-    // ✅ Suscribirse solo cuando tengamos ID real de Firebase
-    const unsubscribe = subscribeToSystemNotifications(user.id, (notifications) => {
-      const unreadCount = notifications.filter(n => !n.read).length;
-      setUnreadNotificationsCount(unreadCount);
-    });
+    const refreshUnreadCount = async () => {
+      if (cancelled) return;
+      if (typeof document !== 'undefined' && document.visibilityState !== 'visible') {
+        return;
+      }
 
-    return () => unsubscribe();
+      try {
+        const unreadCount = await getUnreadNotificationsCount(user.id);
+        if (!cancelled) {
+          setUnreadNotificationsCount(unreadCount);
+        }
+      } catch {
+        if (!cancelled) {
+          setUnreadNotificationsCount(0);
+        }
+      }
+    };
+
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === 'visible') {
+        refreshUnreadCount();
+      }
+    };
+
+    refreshUnreadCount();
+    intervalId = window.setInterval(refreshUnreadCount, 180000);
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+
+    return () => {
+      cancelled = true;
+      if (intervalId) window.clearInterval(intervalId);
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+    };
   }, [user]);
 
   const navItems = [

@@ -3,10 +3,8 @@ import { functions } from '@/config/firebase';
 
 const dispatchUserNotificationCallable = httpsCallable(functions, 'dispatchUserNotification');
 const ENABLED_NOTIFICATION_ACTIONS = new Set([
-  'direct_message',
   'private_chat_request',
   'private_chat_request_response',
-  'private_chat_reopened',
   'private_group_invite_request',
   'private_group_invite_rejected',
   'private_group_chat_ready',

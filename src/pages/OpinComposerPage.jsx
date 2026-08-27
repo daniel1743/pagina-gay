@@ -32,6 +32,9 @@ const OpinComposerPage = () => {
     const colorKeys = Object.keys(OPIN_COLORS);
     return colorKeys[Math.floor(Math.random() * colorKeys.length)];
   });
+  const [type, setType] = useState('crush'); // 'crush' | 'encuentro' | 'amistad'
+  const [contactMethod, setContactMethod] = useState('chactivo'); // 'chactivo' | 'whatsapp' | 'sms'
+  const [contactValue, setContactValue] = useState('');
   const [editingPostId, setEditingPostId] = useState(null);
   const [loadingExisting, setLoadingExisting] = useState(false);
   const [activeIntentToReplace, setActiveIntentToReplace] = useState(null);
@@ -110,6 +113,9 @@ const OpinComposerPage = () => {
       setText(post.text || '');
       setStatus(post.status || OPIN_STATUS_OPTIONS[0].value);
       setSelectedColor(post.color && OPIN_COLORS[post.color] ? post.color : 'purple');
+      setType(post.type || 'crush');
+      setContactMethod(post.contactMethod || 'chactivo');
+      setContactValue(post.contactValue || '');
     } catch (error) {
       toast({ description: error?.message || 'No se pudo cargar la intención.', variant: 'destructive' });
       navigate('/opin');
@@ -129,6 +135,9 @@ const OpinComposerPage = () => {
           text: text.trim(),
           color: selectedColor,
           status,
+          type,
+          contactMethod,
+          contactValue,
         });
         toast({ description: 'Intención actualizada' });
       } else {
@@ -136,6 +145,9 @@ const OpinComposerPage = () => {
           text: text.trim(),
           color: selectedColor,
           status,
+          type,
+          contactMethod,
+          contactValue,
           userProfile: {
             username: userProfile?.username || user?.displayName || 'Anónimo',
             avatar: userProfile?.avatar || user?.photoURL || '',
@@ -290,6 +302,121 @@ const OpinComposerPage = () => {
 
             {/* Indicador de color */}
             <div className={`absolute left-0 top-0 bottom-0 w-1 rounded-full bg-gradient-to-b ${colorConfig.gradient}`} />
+          </div>
+
+          {/* Selector de Categoría / Tipo */}
+          <div className="px-4 space-y-2">
+            <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">¿Qué quieres publicar?</p>
+            <div className="grid grid-cols-3 gap-2">
+              <button
+                type="button"
+                onClick={() => setType('crush')}
+                className={`py-2.5 px-3 rounded-xl border text-xs font-semibold flex flex-col items-center gap-1 transition-all ${
+                  type === 'crush'
+                    ? 'border-fuchsia-500/40 bg-fuchsia-500/10 text-fuchsia-200 shadow-[0_0_15px_rgba(217,70,239,0.15)]'
+                    : 'border-white/10 bg-white/5 text-muted-foreground hover:bg-white/10 hover:text-foreground'
+                }`}
+              >
+                <span className="text-lg">👑</span>
+                <span>Crush</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => setType('encuentro')}
+                className={`py-2.5 px-3 rounded-xl border text-xs font-semibold flex flex-col items-center gap-1 transition-all ${
+                  type === 'encuentro'
+                    ? 'border-orange-500/40 bg-orange-500/10 text-orange-200 shadow-[0_0_15px_rgba(249,115,22,0.15)]'
+                    : 'border-white/10 bg-white/5 text-muted-foreground hover:bg-white/10 hover:text-foreground'
+                }`}
+              >
+                <span className="text-lg">🔥</span>
+                <span>Cita / Encuentro</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => setType('amistad')}
+                className={`py-2.5 px-3 rounded-xl border text-xs font-semibold flex flex-col items-center gap-1 transition-all ${
+                  type === 'amistad'
+                    ? 'border-cyan-500/40 bg-cyan-500/10 text-cyan-200 shadow-[0_0_15px_rgba(6,182,212,0.15)]'
+                    : 'border-white/10 bg-white/5 text-muted-foreground hover:bg-white/10 hover:text-foreground'
+                }`}
+              >
+                <span className="text-lg">💬</span>
+                <span>Amistad / Charla</span>
+              </button>
+            </div>
+          </div>
+
+          {/* Selector de Contacto Seguro */}
+          <div className="px-4 space-y-3">
+            <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Método de contacto para interesados</p>
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+              <button
+                type="button"
+                onClick={() => { setContactMethod('chactivo'); setContactValue(''); }}
+                className={`py-2.5 px-3 rounded-xl border text-xs font-medium flex items-center justify-center gap-2 transition-all ${
+                  contactMethod === 'chactivo'
+                    ? 'border-purple-500/40 bg-purple-500/10 text-purple-200 shadow-[0_0_15px_rgba(168,85,247,0.15)]'
+                    : 'border-white/10 bg-white/5 text-muted-foreground hover:bg-white/10 hover:text-foreground'
+                }`}
+              >
+                <span>💬</span>
+                <span className="flex flex-col items-start text-left">
+                  <span className="font-semibold">Chactivo Privado</span>
+                  <span className="text-[9px] text-purple-400">Más seguro</span>
+                </span>
+              </button>
+              <button
+                type="button"
+                onClick={() => setContactMethod('whatsapp')}
+                className={`py-2.5 px-3 rounded-xl border text-xs font-medium flex items-center justify-center gap-2 transition-all ${
+                  contactMethod === 'whatsapp'
+                    ? 'border-green-500/40 bg-green-500/10 text-green-200 shadow-[0_0_15px_rgba(34,197,94,0.15)]'
+                    : 'border-white/10 bg-white/5 text-muted-foreground hover:bg-white/10 hover:text-foreground'
+                }`}
+              >
+                <span>🟢</span>
+                <span className="flex flex-col items-start text-left">
+                  <span className="font-semibold">WhatsApp</span>
+                  <span className="text-[9px] text-green-400">Enlace seguro</span>
+                </span>
+              </button>
+              <button
+                type="button"
+                onClick={() => setContactMethod('sms')}
+                className={`py-2.5 px-3 rounded-xl border text-xs font-medium flex items-center justify-center gap-2 transition-all ${
+                  contactMethod === 'sms'
+                    ? 'border-cyan-500/40 bg-cyan-500/10 text-cyan-200 shadow-[0_0_15px_rgba(6,182,212,0.15)]'
+                    : 'border-white/10 bg-white/5 text-muted-foreground hover:bg-white/10 hover:text-foreground'
+                }`}
+              >
+                <span>📱</span>
+                <span className="flex flex-col items-start text-left">
+                  <span className="font-semibold">SMS Directo</span>
+                  <span className="text-[9px] text-cyan-400">Enlace SMS</span>
+                </span>
+              </button>
+            </div>
+
+            {/* Input de número en caso de WhatsApp/SMS */}
+            {contactMethod !== 'chactivo' && (
+              <div className="space-y-1.5 animate-fadeIn">
+                <label className="text-[11px] font-semibold text-muted-foreground">
+                  Número de teléfono (con código de país, ej: +56912345678)
+                </label>
+                <input
+                  type="tel"
+                  required
+                  value={contactValue}
+                  onChange={(e) => setContactValue(e.target.value)}
+                  placeholder="Ej: +56912345678"
+                  className="w-full px-4 py-2.5 rounded-xl border border-white/10 bg-white/5 text-foreground placeholder:text-muted-foreground focus:outline-none focus:border-purple-500/40 focus:ring-1 focus:ring-purple-500/40 transition-all text-sm"
+                />
+                <p className="text-[10px] text-muted-foreground leading-relaxed">
+                  ⚠️ Por seguridad, **tu número real nunca se mostrará impreso en la tarjeta**. Solo se creará un botón seguro de redirección directa.
+                </p>
+              </div>
+            )}
           </div>
 
           <div className="px-4">

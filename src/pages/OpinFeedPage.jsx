@@ -1,3 +1,4 @@
+import { HugeiconsIcon } from '@hugeicons/react';
 /**
  * OpinFeedPage - OPIN con señales de retorno
  */
@@ -26,6 +27,32 @@ import OpinCommentsModal from '@/components/opin/OpinCommentsModal';
 import { toast } from '@/components/ui/use-toast';
 import { trackPageView, trackPageExit, track } from '@/services/eventTrackingService';
 import { sanitizeOpinPublicText } from '@/services/opinSafetyService';
+
+import {
+  EarthIcon,
+  CrownIcon,
+  FireIcon,
+  UserGroupIcon,
+  BubbleChatIcon,
+  Calendar01Icon,
+  City01Icon,
+  CircleQuestionMarkIcon,
+  HeartIcon,
+  FlashIcon
+} from '@hugeicons/core-free-icons';
+
+const CATEGORY_FILTERS = [
+  { id: 'all', label: 'Todos', icon: EarthIcon, activeClass: 'bg-purple-500/20 text-purple-200 border border-purple-500/30 shadow-[0_0_10px_rgba(168,85,247,0.1)]' },
+  { id: 'crush', label: 'Busco conocer', icon: CrownIcon, activeClass: 'bg-fuchsia-500/20 text-fuchsia-200 border border-fuchsia-500/30 shadow-[0_0_10px_rgba(217,70,239,0.1)]' },
+  { id: 'conversar', label: 'Conversar', icon: BubbleChatIcon, activeClass: 'bg-blue-500/20 text-blue-200 border border-blue-500/30 shadow-[0_0_10px_rgba(59,130,246,0.1)]' },
+  { id: 'encuentro', label: 'Encuentro', icon: FireIcon, activeClass: 'bg-orange-500/20 text-orange-200 border border-orange-500/30 shadow-[0_0_10px_rgba(249,115,22,0.1)]' },
+  { id: 'evento', label: 'Evento', icon: Calendar01Icon, activeClass: 'bg-emerald-500/20 text-emerald-200 border border-emerald-500/30 shadow-[0_0_10px_rgba(16,185,129,0.1)]' },
+  { id: 'comunidad', label: 'Comunidad', icon: City01Icon, activeClass: 'bg-indigo-500/20 text-indigo-200 border border-indigo-500/30 shadow-[0_0_10px_rgba(99,102,241,0.1)]' },
+  { id: 'pregunta', label: 'Pregunta', icon: CircleQuestionMarkIcon, activeClass: 'bg-yellow-500/20 text-yellow-200 border border-yellow-500/30 shadow-[0_0_10px_rgba(234,179,8,0.1)]' },
+  { id: 'relacion', label: 'Relación', icon: HeartIcon, activeClass: 'bg-rose-500/20 text-rose-200 border border-rose-500/30 shadow-[0_0_10px_rgba(244,63,94,0.1)]' },
+  { id: 'casual', label: 'Casual', icon: FlashIcon, activeClass: 'bg-violet-500/20 text-violet-200 border border-violet-500/30 shadow-[0_0_10px_rgba(139,92,246,0.1)]' },
+  { id: 'amistad', label: 'Amistad', icon: UserGroupIcon, activeClass: 'bg-cyan-500/20 text-cyan-200 border border-cyan-500/30 shadow-[0_0_10px_rgba(6,182,212,0.1)]' }
+];
 
 const OPIN_FEED_LIMIT = 24;
 const FOLLOWED_STORAGE_PREFIX = 'opin:followed_posts:';
@@ -158,6 +185,7 @@ const OpinFeedPage = () => {
   const [deferredInstallPrompt, setDeferredInstallPrompt] = useState(null);
   const [activatingPush, setActivatingPush] = useState(false);
   const [activeFilter, setActiveFilter] = useState('all');
+  const [selectedTypeFilter, setSelectedTypeFilter] = useState('all'); // 'all' | 'crush' | 'encuentro' | 'amistad'
   const [followedPostIds, setFollowedPostIds] = useState([]);
   const [previousVisitAt, setPreviousVisitAt] = useState(0);
   const [activitySummary, setActivitySummary] = useState(null);
@@ -772,17 +800,27 @@ const OpinFeedPage = () => {
   ];
 
   const filteredPosts = useMemo(() => {
+    let base = [];
     switch (activeFilter) {
       case 'new_activity':
-        return newActivityPosts;
+        base = newActivityPosts;
+        break;
       case 'followed':
-        return followedPosts;
+        base = followedPosts;
+        break;
       case 'mine':
-        return ownPosts;
+        base = ownPosts;
+        break;
       default:
-        return posts;
+        base = posts;
+        break;
     }
-  }, [activeFilter, posts, newActivityPosts, followedPosts, ownPosts]);
+
+    if (selectedTypeFilter !== 'all') {
+      return base.filter((p) => p.type === selectedTypeFilter);
+    }
+    return base;
+  }, [activeFilter, selectedTypeFilter, posts, newActivityPosts, followedPosts, ownPosts]);
 
   const activeIntentMetrics = useMemo(() => {
     if (!myActiveIntent) return null;
@@ -913,6 +951,27 @@ const OpinFeedPage = () => {
                   <span className={`ml-1 ${isActive ? 'text-black/70' : 'text-muted-foreground'}`}>
                     {filter.count}
                   </span>
+                </button>
+              );
+            })}
+          </div>
+
+          {/* Filtros secundarios por Intención */}
+          <div className="flex flex-nowrap overflow-x-auto gap-2 mt-2.5 pt-2.5 border-t border-white/5 pb-2 scrollbar-hide -mx-4 px-4 sm:mx-0 sm:px-0 sm:flex-wrap">
+            {CATEGORY_FILTERS.map((cat) => {
+              const Icon = cat.icon;
+              return (
+                <button
+                  key={cat.id}
+                  onClick={() => setSelectedTypeFilter(cat.id)}
+                  className={`shrink-0 flex items-center gap-1.5 px-3 py-1.5 rounded-full text-[11px] font-semibold transition-all ${
+                    selectedTypeFilter === cat.id
+                      ? cat.activeClass
+                      : 'bg-white/5 text-muted-foreground border border-transparent hover:bg-white/10 hover:text-foreground'
+                  }`}
+                >
+                  <HugeiconsIcon icon={Icon} size={14} color="currentColor" />
+                  {cat.label}
                 </button>
               );
             })}

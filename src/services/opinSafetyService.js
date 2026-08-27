@@ -1,3 +1,5 @@
+import { detectCriticalSafetyRisk } from '@/services/antiSpamService';
+
 const OPIN_PUBLIC_BLOCK_MESSAGE = 'Por seguridad, no compartas telefonos, redes ni usuarios externos en OPIN. Usa Buzon o chat interno.';
 
 const PHONE_CANDIDATE_REGEX = /\+?\d[\d\s().-]{6,}\d/g;
@@ -43,6 +45,21 @@ export const validateOpinPublicText = (value = '') => {
       blockedType: null,
       matchedRules: [],
     };
+  }
+
+  // Validar riesgos de seguridad críticos (menores, drogas, abuso, etc.)
+  try {
+    const safetyRisk = detectCriticalSafetyRisk(text);
+    if (safetyRisk && safetyRisk.blocked) {
+      return {
+        allowed: false,
+        reason: safetyRisk.reason || 'Contenido inapropiado detectado.',
+        blockedType: safetyRisk.category || 'safety_risk',
+        matchedRules: [{ id: safetyRisk.category || 'safety_risk' }],
+      };
+    }
+  } catch (error) {
+    console.warn('Error running detectCriticalSafetyRisk:', error);
   }
 
   const matchedRules = [];

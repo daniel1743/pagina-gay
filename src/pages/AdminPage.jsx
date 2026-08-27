@@ -100,6 +100,9 @@ const AdminPage = () => {
   const [showSanctionsFAQ, setShowSanctionsFAQ] = useState(false);
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState('dashboard');
+  const [isDocumentVisible, setIsDocumentVisible] = useState(
+    typeof document === 'undefined' ? true : document.visibilityState === 'visible'
+  );
 
   // Estados para búsqueda de usuarios
   const [userSearchTerm, setUserSearchTerm] = useState('');
@@ -340,7 +343,12 @@ const AdminPage = () => {
 
   // Cargar reportes en tiempo real
   useEffect(() => {
-    if (!isAdmin) return;
+    const shouldSubscribeReports =
+      isAdmin &&
+      isDocumentVisible &&
+      (activeTab === 'dashboard' || activeTab === 'reports');
+
+    if (!shouldSubscribeReports) return;
 
     const reportsRef = collection(db, 'reports');
     const q = query(reportsRef, orderBy('createdAt', 'desc'), limit(50));
@@ -373,11 +381,21 @@ const AdminPage = () => {
     });
 
     return () => unsubscribe();
-  }, [isAdmin]);
+  }, [activeTab, isAdmin, isDocumentVisible]);
 
   // Suscribirse a estadísticas de analytics en tiempo real
   useEffect(() => {
+    const shouldSubscribeAnalytics =
+      isAdmin &&
+      isDocumentVisible &&
+      (activeTab === 'dashboard' || activeTab === 'analytics');
+
     if (!isAdmin) {
+      setLoading(false);
+      return;
+    }
+
+    if (!shouldSubscribeAnalytics) {
       setLoading(false);
       return;
     }
@@ -439,7 +457,7 @@ const AdminPage = () => {
       if (unsubscribe) unsubscribe();
       clearTimeout(timeout);
     };
-  }, [isAdmin]);
+  }, [activeTab, isAdmin, isDocumentVisible]);
 
   // 🔍 DEBUGGER: Interceptar errores de permisos de tickets
   useEffect(() => {
@@ -462,7 +480,12 @@ const AdminPage = () => {
 
   // Cargar tickets en tiempo real
   useEffect(() => {
-    if (!isAdmin) return;
+    const shouldSubscribeTickets =
+      isAdmin &&
+      isDocumentVisible &&
+      (activeTab === 'dashboard' || activeTab === 'tickets');
+
+    if (!shouldSubscribeTickets) return;
 
     const unsubscribe = subscribeToTickets((ticketsData) => {
       setTickets(ticketsData);
@@ -478,11 +501,16 @@ const AdminPage = () => {
     });
 
     return () => unsubscribe();
-  }, [isAdmin]);
+  }, [activeTab, isAdmin, isDocumentVisible]);
 
   // Cargar sanciones en tiempo real
   useEffect(() => {
-    if (!isAdmin) return;
+    const shouldSubscribeSanctions =
+      isAdmin &&
+      isDocumentVisible &&
+      (activeTab === 'dashboard' || activeTab === 'sanctions');
+
+    if (!shouldSubscribeSanctions) return;
 
     const unsubscribe = subscribeToSanctions((sanctionsData) => {
       setSanctions(sanctionsData);
@@ -505,11 +533,16 @@ const AdminPage = () => {
     });
 
     return () => unsubscribe();
-  }, [isAdmin]);
+  }, [activeTab, isAdmin, isDocumentVisible]);
 
   // Cargar recompensas en tiempo real
   useEffect(() => {
-    if (!isAdmin) return;
+    const shouldSubscribeRewards =
+      isAdmin &&
+      isDocumentVisible &&
+      activeTab === 'rewards';
+
+    if (!shouldSubscribeRewards) return;
 
     const unsubscribe = subscribeToRewards((rewardsData) => {
       setRewards(rewardsData);
@@ -531,11 +564,16 @@ const AdminPage = () => {
     });
 
     return () => unsubscribe();
-  }, [isAdmin]);
+  }, [activeTab, isAdmin, isDocumentVisible]);
 
   // Cargar TOP 20 usuarios más activos
   useEffect(() => {
-    if (!isAdmin) return;
+    const shouldLoadTop20 =
+      isAdmin &&
+      isDocumentVisible &&
+      activeTab === 'rewards';
+
+    if (!shouldLoadTop20) return;
 
     const loadTop20 = async () => {
       setLoadingTop20(true);
@@ -550,11 +588,16 @@ const AdminPage = () => {
     };
 
     loadTop20();
-  }, [isAdmin]);
+  }, [activeTab, isAdmin, isDocumentVisible]);
 
   // Cargar análisis de uso y abandono
   useEffect(() => {
-    if (!isAdmin) return;
+    const shouldLoadAnalytics =
+      isAdmin &&
+      isDocumentVisible &&
+      (activeTab === 'dashboard' || activeTab === 'analytics');
+
+    if (!shouldLoadAnalytics) return;
 
     const loadAnalytics = async () => {
       try {
@@ -575,7 +618,7 @@ const AdminPage = () => {
     };
 
     loadAnalytics();
-  }, [isAdmin]);
+  }, [activeTab, isAdmin, isDocumentVisible]);
 
   // Actualizar estado de reporte
   const handleUpdateReportStatus = async (reportId, newStatus, reporterId = null) => {
@@ -901,6 +944,17 @@ const AdminPage = () => {
   // Establecer título del documento
   useEffect(() => {
     document.title = "Panel Admin - Chactivo";
+  }, []);
+
+  useEffect(() => {
+    if (typeof document === 'undefined') return undefined;
+
+    const handleVisibilityChange = () => {
+      setIsDocumentVisible(document.visibilityState === 'visible');
+    };
+
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+    return () => document.removeEventListener('visibilitychange', handleVisibilityChange);
   }, []);
 
   if (!isAdmin) {

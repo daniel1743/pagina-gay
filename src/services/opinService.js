@@ -138,6 +138,11 @@ export const normalizeOpinPost = (post) => ({
   likedBy: post?.likedBy || [],
   lastCommentAt: post?.lastCommentAt || null,
   lastInteractionAt: post?.lastInteractionAt || post?.createdAt || null,
+  title: post?.title || '',
+  type: post?.type || 'crush',
+  contactMethod: post?.contactMethod || 'chactivo',
+  contactValue: post?.contactValue || '',
+  imageUrl: post?.imageUrl || '',
 });
 
 const sanitizeOpinIdentityValue = (value) => String(value || '').trim();
@@ -217,9 +222,11 @@ const diversifyOpinPosts = (posts, limitCount) => {
   return selected;
 };
 
-// 🔥 Reacciones eróticas/sugestivas para OPIN
+// 🔥 Reacciones eróticas/sugestivas y de glamour para OPIN
 export const OPIN_REACTIONS = [
+  { emoji: '💎', label: 'Glamour' },
   { emoji: '🔥', label: 'Fuego' },
+  { emoji: '⭐', label: 'Favorito' },
   { emoji: '🍑', label: 'Peach' },
   { emoji: '🍆', label: 'Berenjena' },
   { emoji: '😈', label: 'Diablito' },
@@ -229,14 +236,12 @@ export const OPIN_REACTIONS = [
 
 /**
  * ✅ Verificar si el usuario puede crear un post
- * Regla: Cooldown de 2 horas entre publicaciones (anti-spam)
  * Sin límite de cantidad - puedes publicar cuantos quieras respetando el cooldown
  */
 export const canCreatePost = async () => {
   if (!auth.currentUser) {
     return { canCreate: false, reason: 'no_auth' };
   }
-
   // Usuarios invitados NO pueden publicar
   if (auth.currentUser.isAnonymous) {
     return { canCreate: false, reason: 'guest_user' };
@@ -323,7 +328,17 @@ export const canCreatePost = async () => {
 /**
  * ✅ Crear un nuevo post de OPIN
  */
-export const createOpinPost = async ({ title = '', text, color = 'purple', userProfile, status = DEFAULT_OPIN_STATUS }) => {
+export const createOpinPost = async ({
+  title = '',
+  text,
+  color = 'purple',
+  userProfile,
+  status = DEFAULT_OPIN_STATUS,
+  type = 'crush',
+  contactMethod = 'chactivo',
+  contactValue = '',
+  imageUrl = ''
+}) => {
   if (!auth.currentUser) {
     throw new Error('Usuario no autenticado');
   }
@@ -384,10 +399,14 @@ export const createOpinPost = async ({ title = '', text, color = 'purple', userP
     username,
     avatar,
     profileId: auth.currentUser.uid,
-    title: '',
+    title: title.trim(),
     text: text.trim(),
     color: color,
     status,
+    type,
+    contactMethod,
+    contactValue: contactValue.trim(),
+    imageUrl: imageUrl.trim(),
     createdAt: serverTimestamp(),
     expiresAt: expiresAt,
     isActive: true,
@@ -500,6 +519,8 @@ export const incrementViewCount = async (postId) => {
   }
 };
 
+
+
 /**
  * ✅ Incrementar contador de clicks a perfil
  */
@@ -582,7 +603,7 @@ const logAction = async (actionType, postId) => {
 /**
  * ✅ Editar post del usuario
  */
-export const editOpinPost = async (postId, { title, text, color, status }) => {
+export const editOpinPost = async (postId, { title, text, color, status, type, contactMethod, contactValue, imageUrl }) => {
   if (!auth.currentUser) {
     throw new Error('Usuario no autenticado');
   }
@@ -640,6 +661,10 @@ export const editOpinPost = async (postId, { title, text, color, status }) => {
     ...(text && { text: text.trim() }),
     ...(color && OPIN_COLORS[color] && { color }),
     ...(status && isValidOpinStatus(status) && { status }),
+    ...(type !== undefined && { type }),
+    ...(contactMethod !== undefined && { contactMethod }),
+    ...(contactValue !== undefined && { contactValue: contactValue.trim() }),
+    ...(imageUrl !== undefined && { imageUrl: imageUrl.trim() }),
     lastInteractionAt: serverTimestamp(),
     editedAt: serverTimestamp(),
   };
@@ -661,7 +686,6 @@ export const deleteOpinPost = async (postId) => {
     throw new Error('Usuario no autenticado');
   }
 
-  // Verificar límite de acciones
   const limitCheck = await checkActionLimit();
   if (!limitCheck.canAct) {
     throw new Error(`Has alcanzado el límite de 4 ediciones/eliminaciones en 24h. Espera un poco.`);
@@ -676,7 +700,6 @@ export const deleteOpinPost = async (postId) => {
 
   const postData = postDoc.data();
 
-  // Solo el autor puede eliminar
   if (postData.userId !== auth.currentUser.uid) {
     throw new Error('No tienes permiso para eliminar este post');
   }
@@ -689,10 +712,6 @@ export const deleteOpinPost = async (postId) => {
   console.log('🗑️ [OPIN] Post eliminado:', postId);
   return { success: true, remaining: limitCheck.remaining - 1 };
 };
-
-/**
- * ✅ Obtener posts del usuario actual
- */
 export const getMyOpinPosts = async (limitCount = 10) => {
   if (!auth.currentUser) {
     return [];

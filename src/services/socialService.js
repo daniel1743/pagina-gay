@@ -500,6 +500,7 @@ export const signalPrivateChatOpen = async ({
   title = '',
   created = false,
 }) => {
+  const PRIVATE_CHAT_REOPEN_NOTIFICATIONS_ENABLED = false;
   let stage = 'validate_input';
   try {
     if (!chatId || !fromUserId || !toUserId) {
@@ -523,6 +524,17 @@ export const signalPrivateChatOpen = async ({
     const conversationTitle = typeof chatData?.title === 'string' && chatData.title.trim()
       ? chatData.title
       : title;
+
+    if (!PRIVATE_CHAT_REOPEN_NOTIFICATIONS_ENABLED) {
+      emitPrivateChatDebug('private_chat_open_signal_skipped', {
+        stage: 'cost_control',
+        chatId,
+        fromUserId,
+        toUserId,
+        created,
+      });
+      return { success: true, skipped: true, reason: 'cost_control' };
+    }
 
     stage = 'write_notification';
     await dispatchUserNotification('private_chat_reopened', {

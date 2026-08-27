@@ -507,9 +507,7 @@ const doSendMessage = async (roomId, messageData, isAnonymous = false, options =
       : Promise.resolve(),
     isAnonymous && auth.currentUser
       ? setDoc(doc(db, 'guests', auth.currentUser.uid), { messageCount: increment(1), lastMessageAt: serverTimestamp() }, { merge: true }).catch(() => {})
-      : !isAnonymous && !isBot && messageData.userId
-        ? updateDoc(doc(db, 'users', messageData.userId), { messageCount: increment(1), lastMessageAt: serverTimestamp() }).catch(() => {})
-        : Promise.resolve()
+      : Promise.resolve()
   ]).catch(() => {});
 
   // GA4 tracking en background
@@ -707,7 +705,7 @@ const writeCachedMessages = (roomId, messageLimit, messages) => {
  * Suscripción a mensajes en tiempo real - orden estable (nuevo->viejo en query, se invierte en cliente)
  * ⚡ Carga inicial con getDocs para mostrar mensajes de inmediato; onSnapshot para tiempo real
  */
-export const subscribeToRoomMessages = (roomId, callback, messageLimit = 60) => {
+export const subscribeToRoomMessages = (roomId, callback, messageLimit = 30) => {
   if (typeof callback !== 'function') return () => {};
 
   const listenerKey = getRealtimeListenerKey('rooms', roomId, messageLimit);
@@ -1307,7 +1305,7 @@ export const sendSecondaryMessage = async (roomId, messageData, isAnonymous = fa
  * Suscripción a mensajes en tiempo real para salas secundarias
  * Usa la colección 'secondary-rooms' en lugar de 'rooms'
  */
-export const subscribeToSecondaryRoomMessages = (roomId, callback, messageLimit = 60) => {
+export const subscribeToSecondaryRoomMessages = (roomId, callback, messageLimit = 30) => {
   if (typeof callback !== 'function') return () => {};
 
   const listenerKey = getRealtimeListenerKey('secondary-rooms', roomId, messageLimit);

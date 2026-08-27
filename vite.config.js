@@ -7,8 +7,6 @@ import iframeRouteRestorationPlugin from './plugins/vite-plugin-iframe-route-res
 import generateVersionPlugin from './vite-plugin-generate-version.js';
 
 const isDev = process.env.NODE_ENV !== 'production';
-const reactPath = path.resolve(__dirname, './node_modules/react');
-const reactDomPath = path.resolve(__dirname, './node_modules/react-dom');
 
 const configHorizonsViteErrorHandler = `
 const observer = new MutationObserver((mutations) => {
@@ -317,15 +315,9 @@ export default defineConfig({
 		},
 	},
 	resolve: {
-		extensions: ['.jsx', '.js', '.tsx', '.ts', '.json', ],
-		dedupe: ['react', 'react-dom'],
+		extensions: ['.jsx', '.js', '.tsx', '.ts', '.json'],
 		alias: {
 			'@': path.resolve(__dirname, './src'),
-			react: reactPath,
-			'react-dom': reactDomPath,
-			'react-dom/client': path.resolve(reactDomPath, './client.js'),
-			'react/jsx-runtime': path.resolve(reactPath, './jsx-runtime.js'),
-			'react/jsx-dev-runtime': path.resolve(reactPath, './jsx-dev-runtime.js'),
 		},
 	},
 	// ⚡ OPTIMIZACIÓN: Pre-bundlear dependencias pesadas para dev server más rápido
