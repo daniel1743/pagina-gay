@@ -195,3 +195,7 @@ El producto todavía no debe anunciar “fotos totalmente operativas” hasta co
 13. [`avatar.js`](../../src/utils/avatar.js)
 14. [`avatar-and-media-contract.test.js`](../../tests/avatar-and-media-contract.test.js)
 15. [`firebase.json`](../../firebase.json)
+
+## Registro de entrega local
+
+El commit local de esta auditoría es `30459a15cd2d739dacf507e51bf99b5d21eec133` (`fix: repair media avatars and redesign opin locally`). La rama local quedó limpia y está **un commit por delante de `origin/audit/revision-extensa-2026`**. No se hizo push.
