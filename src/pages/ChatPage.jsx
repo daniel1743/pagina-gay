@@ -73,8 +73,6 @@ import {
 } from '@/services/socialService';
 import { subscribeToBlockedUsers, isBlocked, isBlockedBetween } from '@/services/blockService';
 import { requestNotificationPermission, canRequestPush, setupForegroundMessages } from '@/services/pushNotificationService';
-// ⚠️ MODERADOR ELIMINADO (06/01/2026) - A petición del usuario
-// import { sendModeratorWelcome } from '@/services/moderatorWelcome';
 // Actividad artificial eliminada: la sala solo acepta sesiones reales o anónimas autenticadas.
 import { track, getSessionId, trackPageView, trackPageExit, trackRoomJoined, trackMessageSent } from '@/services/eventTrackingService';
 import { useCanonical } from '@/hooks/useCanonical';
@@ -83,7 +81,6 @@ import { roomsData, canAccessRoom } from '@/config/rooms';
 import { traceEvent, TRACE_EVENTS, isMessageTraceEnabled } from '@/utils/messageTrace';
 import { startEngagementTracking, hasReachedOneHourLimit, getTotalEngagementTime, hasSeenEngagementModal, markEngagementModalAsShown } from '@/services/engagementService';
 import { notificationSounds, initAudioOnFirstGesture } from '@/services/notificationSounds';
-import { monitorActivityAndSendVOC, resetVOCCooldown } from '@/services/vocService';
 import ProCongratsModal from '@/components/rewards/ProCongratsModal';
 import { markReminderPopupShown, wasReminderPopupShown, cleanOldReminders } from '@/utils/eventReminderUtils';
 import { registrarParticipacionEvento } from '@/services/eventosService';
@@ -1604,8 +1601,6 @@ const ChatPage = () => {
   const unsubscribeRef = useRef(null);
   const aiActivatedRef = useRef(false); // Flag para evitar activaciones múltiples de IA
   const lastUserCountRef = useRef(0); // Para evitar ejecuciones innecesarias del useEffect
-  // ⚠️ MODERADOR ELIMINADO (06/01/2026) - A petición del usuario
-  // const moderatorWelcomeSentRef = useRef(new Set()); // Para evitar mensajes duplicados del moderador
   const previousMessageCountRef = useRef(0); // Para detectar nuevos mensajes y reproducir sonido
   const lastUserCountsRef = useRef({ total: 0, active: 0, real: 0 }); // Para rastrear conteos de usuarios
   const previousRealUserCountRef = useRef(0); // Para detectar cuando usuarios se desconectan y reproducir sonido
@@ -3714,9 +3709,9 @@ const ChatPage = () => {
     }
 
     if (headerActivitySnapshot.visibleOnlineCount >= 6) {
-      items.push(`${headerActivitySnapshot.visibleOnlineCount} personas conectadas ahora`);
+      items.push(`${headerActivitySnapshot.visibleOnlineCount} actividad disponible`);
     } else if (headerActivitySnapshot.hasConnectedPeople) {
-      items.push('Hay personas conectadas ahora');
+      items.push('Hay actividad disponible');
     } else {
       items.push('Tu mensaje puede activar la sala en segundos');
     }
@@ -3988,38 +3983,38 @@ const ChatPage = () => {
         title: 'Video Chat Gay Gamers Chile 🎮 | Sala Gaming LGBT+ | Chactivo',
         description: 'Video chat gay gamers Chile para hablar de LoL, Valorant, Minecraft y más. Comunidad LGBT+ gamer activa, segura y sin toxicidad.',
         ogTitle: 'Chat Gay para Gamers Chile 🎮 | Comunidad Gaming LGBT+',
-        ogDescription: '🎮 Conecta con gamers LGBT+ de Chile. Sala activa 24/7 con +50 gamers. Todas las plataformas: PC, PS5, Xbox, Switch, Móvil. ¡Únete ahora!'
+        ogDescription: '🎮 Conecta con gamers LGBT+ de Chile. Participa cuando haya actividad real. PC, PS5, Xbox, Switch y móvil.'
       },
       'mas-30': {
         title: 'Chat Gay +30 Años Chile 💪 | Sala Mayores LGBT+ | Chactivo',
-        description: '💪 Chat gay para mayores de 30 años en Chile. Conversación madura, sin presión. Conoce gays de tu edad en Santiago, Valparaíso y todo Chile. Comunidad LGBT+ +30 activa 24/7.',
+        description: '💪 Chat gay para mayores de 30 años en Chile. Conversación madura, sin presión. Conoce gays de tu edad en Santiago, Valparaíso y todo Chile. Comunidad LGBT+ +30 para conversar cuando haya actividad.',
         ogTitle: 'Chat Gay +30 Años Chile | Comunidad Madura LGBT+',
         ogDescription: '💪 Sala exclusiva para mayores de 30. Conversación madura, respeto y buena onda. Conoce gays de tu generación.'
       },
       'santiago': {
         title: 'Chat Gay Santiago Chile 🏙️ | Sala LGBT+ Capital | Chactivo',
-        description: '🏙️ Chat gay Santiago Chile. Conecta con gays de la capital en tiempo real. Salas temáticas, conversación segura, comunidad LGBT+ activa 24/7. ¡Regístrate gratis!',
+        description: '🏙️ Chat gay Santiago Chile. Conecta con gays de la capital en tiempo real. Salas temáticas, conversación segura, comunidad LGBT+ para conversar cuando haya actividad. ¡Regístrate gratis!',
         ogTitle: 'Chat Gay Santiago | Conoce LGBT+ de la Capital',
         ogDescription: '🏙️ Sala exclusiva de Santiago. Conecta con gays de Providencia, Las Condes, Ñuñoa y toda la capital.'
       },
       // ⚠️ SALA GLOBAL - DESACTIVADA (reemplazada por 'principal')
       // 'global': {
       //   title: 'Chat Global - Chat Gay Chile 💬 | Sala General LGBT+ | Chactivo',
-      //   description: '💬 Sala de chat gay general Chile. Todos los temas bienvenidos: amistad, relaciones, gaming, cultura. Conversación libre, ambiente relajado. La sala más activa de Chactivo. ¡Regístrate en 30 segundos!',
+      //   description: '💬 Sala de chat gay general de Chile. Amistad, relaciones, gaming y cultura. Conversación libre, ambiente relajado.',
       //   ogTitle: 'Chat Global | Chat Gay Chile General 💬',
       //   ogDescription: '💬 La sala más popular de Chactivo. Todos los temas, todos bienvenidos. Ambiente relajado y conversación real.'
       // },
       'principal': {
         title: 'Chat Gay Chile Gratis 💬 | En Vivo Sin Registro | Chactivo',
-        description: 'Chat gay Chile en vivo. Entra gratis en segundos, conoce gente real y conversa sin registro obligatorio.',
+        description: 'Chat gay Chile en vivo. Entra gratis en segundos, revisa la actividad disponible y conversa sin registro obligatorio.',
         ogTitle: 'Chat Gay Chile Gratis 💬 | En Vivo Sin Registro',
-        ogDescription: 'Conecta con gente real de Chile en segundos: chat en vivo, gratis y sin registro obligatorio.'
+        ogDescription: 'Conversa con la comunidad de Chile en segundos: chat en vivo, gratis y sin registro obligatorio.'
       },
       'hetero-general': {
         title: 'Chat Hetero Gratis 💬 | En Vivo y Activo | Chactivo',
-        description: 'Chat hetero en vivo. Conoce gente real, conversa en tiempo real y entra sin pasos complejos.',
+        description: 'Chat hetero en vivo. Conversa en tiempo real y entra sin pasos complejos.',
         ogTitle: 'Chat Hetero Gratis 💬 | En Vivo y Activo',
-        ogDescription: 'Conecta con personas reales en una sala hetero activa, rápida y sin fricción.'
+        ogDescription: 'Conversa en una sala hetero en tiempo real, rápida y sin fricción.'
       }
     };
 
@@ -4825,32 +4820,6 @@ const ChatPage = () => {
     //   title: `👋 ¡${user.username} se ha unido a la sala!`,
     //   description: `Estás en #${roomId}`,
     // });
-
-    // 👮 Mensaje de bienvenida del moderador (solo una vez)
-    // ⚠️ MODERADOR COMENTADO (06/01/2026) - Desactivado a petición del usuario
-    /*
-    const moderatorKey = `${roomId}_${user.id}`;
-    const hasSeenModerator = sessionStorage.getItem(`moderator_welcome_${moderatorKey}`);
-    
-    // Verificar también en el ref para evitar duplicados en el mismo render
-    if (!hasSeenModerator && !moderatorWelcomeSentRef.current.has(moderatorKey)) {
-      // Marcar inmediatamente para evitar duplicados
-      moderatorWelcomeSentRef.current.add(moderatorKey);
-      sessionStorage.setItem(`moderator_welcome_${moderatorKey}`, 'true');
-      
-      setTimeout(() => {
-        // ✅ FIX: Validar que username existe antes de enviar bienvenida
-        if (user?.username) {
-        sendModeratorWelcome(roomId, user.username);
-        }
-      }, 2000); // Enviar después de 2 segundos
-    }
-    */
-
-    // ⚠️ BOTS ELIMINADOS (06/01/2026) - A petición del usuario
-    // 🌱 Sembrar conversaciones genuinas en "Chat Principal"
-    // checkAndSeedConversations(roomId);
-
 
     // Cleanup: desuscribirse y remover presencia cuando se desmonta o cambia de sala
     return () => {
@@ -6567,9 +6536,6 @@ const ChatPage = () => {
           roomId: currentRoom,
           contentLength: content.length,
         });
-
-        // 🎯 VOC: Resetear cooldown cuando hay nueva actividad
-        resetVOCCooldown(currentRoom);
 
         // ⚡ LATENCY CHECK: Solo log en consola (sin toast al usuario)
         const latency = Date.now() - optimisticMessage.timestampMs;

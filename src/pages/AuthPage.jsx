@@ -232,6 +232,7 @@ const AuthPage = () => {
                       <button
                         type="button"
                         onClick={() => setShowLoginPassword(!showLoginPassword)}
+                        aria-label={showLoginPassword ? 'Ocultar contraseña' : 'Mostrar contraseña'}
                         className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-500 hover:text-gray-400 transition-colors"
                       >
                         {showLoginPassword ? (
@@ -336,6 +337,7 @@ const AuthPage = () => {
                       <button
                         type="button"
                         onClick={() => setShowRegisterPassword(!showRegisterPassword)}
+                        aria-label={showRegisterPassword ? 'Ocultar contraseña' : 'Mostrar contraseña'}
                         className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-500 hover:text-gray-400 transition-colors"
                       >
                         {showRegisterPassword ? (

@@ -893,6 +893,7 @@ const OpinFeedPage = () => {
             <div className="flex items-center gap-3">
               <button
                 onClick={() => navigate(-1)}
+                aria-label="Volver"
                 className="p-1.5 -ml-1 hover:bg-white/10 rounded-lg transition-colors"
               >
                 <ArrowLeft className="w-5 h-5" />
@@ -912,6 +913,7 @@ const OpinFeedPage = () => {
               <button
                 onClick={loadFeed}
                 disabled={loading}
+                aria-label="Actualizar oportunidades"
                 className="p-2 hover:bg-white/10 rounded-lg transition-colors"
                 title="Actualizar oportunidades"
               >

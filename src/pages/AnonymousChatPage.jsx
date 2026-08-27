@@ -22,7 +22,7 @@ const AnonymousChatPage = () => {
       metaDescription.name = 'description';
       document.head.appendChild(metaDescription);
     }
-    metaDescription.content = '🔒 Sala de Apoyo Anónima - Espacio seguro y confidencial para la comunidad LGBT+ en Chile. Chat de apoyo emocional, consejos y recursos. 100% anónimo y protegido.';
+    metaDescription.content = '🔒 Sala de Apoyo Anónima - Espacio seguro y confidencial para la comunidad LGBT+ en Chile. Chat de apoyo emocional, consejos y recursos. privado y con normas claras.';
 
     let robotsMeta = document.querySelector('meta[name="robots"]');
     if (!robotsMeta) {
@@ -72,7 +72,7 @@ const AnonymousChatPage = () => {
   ];
 
   const features = [
-    "Chat en tiempo real 24/7",
+    "Chat en tiempo real según la actividad",
     "Moderación activa para tu seguridad",
     "Recursos de apoyo y bienestar",
     "Comunidad empática y respetuosa",

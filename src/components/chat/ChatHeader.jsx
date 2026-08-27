@@ -132,14 +132,14 @@ const ChatHeader = ({
             </Button>
           )}
 
-          {/* Icono SIMULAR - Protector de pantalla */}
+          {/* Protector de pantalla / modo privacidad */}
           <Button
             variant="ghost"
             size="icon"
             onClick={onSimulate}
             className="h-[34px] min-h-[34px] w-[34px] min-w-[34px] rounded-[14px] p-0 text-muted-foreground/90 hover:bg-foreground/5 hover:text-foreground"
-            aria-label="Simular - Ocultar chat y mostrar protector de pantalla"
-            title="Simular - Ocultar chat y mostrar protector de pantalla"
+            aria-label="Ocultar chat y activar modo privacidad"
+            title="Ocultar chat y activar modo privacidad"
           >
             <Eye className="w-4 h-4" />
           </Button>

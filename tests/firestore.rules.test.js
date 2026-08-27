@@ -1,12 +1,13 @@
 /**
  * Tests de seguridad para Firestore Rules
- * Ejecutar con: npm run test:firestore
+ * Ejecutar con: npm run test:firestore (requiere Firebase Emulator Suite en localhost:8080)
  *
  * IMPORTANTE: Requiere Firebase Emulators instalados
  * Instalación: npm install -g firebase-tools
  * Iniciar emuladores: firebase emulators:start
  */
 
+import { afterAll, afterEach, beforeAll, describe, test } from 'vitest';
 import {
   assertFails,
   assertSucceeds,

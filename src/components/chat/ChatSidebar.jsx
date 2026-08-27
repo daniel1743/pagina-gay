@@ -274,7 +274,7 @@ const ChatSidebar = ({
           <p className="mt-1 text-xs leading-relaxed text-muted-foreground">
             {mobile
               ? activeUsersLabel
-              : 'Aquí van acciones rápidas. Los conectados en tiempo real ya están a la derecha.'}
+              : 'Aquí van acciones rápidas. La columna de la derecha muestra la disponibilidad cuando hay presencia real.'}
           </p>
         </div>
       </div>
@@ -455,6 +455,15 @@ const ChatSidebar = ({
           <motion.div
             className="flex items-center gap-3 cursor-pointer"
             onClick={() => navigate('/landing')}
+            onKeyDown={(event) => {
+              if (event.key === 'Enter' || event.key === ' ') {
+                event.preventDefault();
+                navigate('/landing');
+              }
+            }}
+            role="link"
+            tabIndex={0}
+            aria-label="Volver a la página de inicio de Chactivo"
             whileHover={{ scale: 1.02 }}
             whileTap={{ scale: 0.98 }}
           >
@@ -690,7 +699,7 @@ const ChatSidebar = ({
               </motion.div>
             </motion.div>
           ) : (
-            <motion.div whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }}>
+            <motion.div tabIndex={-1} whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }}>
               <Button onClick={() => setShowAuthModal(true)} className="w-full magenta-gradient text-white font-bold py-3">
                 <LogIn className="w-4 h-4 mr-2" />
                 Iniciar Sesión
@@ -715,6 +724,15 @@ const ChatSidebar = ({
           <motion.div
             className="flex items-center gap-3 cursor-pointer"
             onClick={() => navigate('/landing')}
+            onKeyDown={(event) => {
+              if (event.key === 'Enter' || event.key === ' ') {
+                event.preventDefault();
+                navigate('/landing');
+              }
+            }}
+            role="link"
+            tabIndex={0}
+            aria-label="Volver a la página de inicio de Chactivo"
             whileHover={{ scale: 1.02 }}
             whileTap={{ scale: 0.98 }}
           >
@@ -1116,7 +1134,7 @@ const ChatSidebar = ({
               </motion.div>
             </motion.div>
           ) : (
-            <motion.div whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }}>
+            <motion.div tabIndex={-1} whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }}>
               <Button onClick={() => {
                 setShowAuthModal(true);
                 onClose(); // Cerrar sidebar en móvil al abrir modal

@@ -335,7 +335,7 @@ const GlobalLandingPage = () => {
       document.head.appendChild(ensuredMeta);
     }
     
-    ensuredMeta.content = 'Chat gay online en Chactivo para hablar en vivo con gente real. Entra gratis, sin registro obligatorio, y conecta rápido desde tu navegador.';
+    ensuredMeta.content = 'Chat gay online en Chactivo para conversar con la comunidad. Entra gratis, sin registro obligatorio, y revisa la actividad disponible desde tu navegador.';
 
     return () => {
       // Restore title
@@ -618,131 +618,19 @@ const GlobalLandingPage = () => {
           className="mt-6 sm:mt-8 mb-6 sm:mb-8 px-3"
         >
           <div className="max-w-4xl mx-auto">
-            {/* Badge principal */}
-            <motion.div
-              initial={{ opacity: 0, scale: 0.95 }}
-              animate={{ opacity: 1, scale: 1 }}
-              transition={{ delay: 0.7 }}
-              className="text-center mb-8"
-            >
-              <div className="inline-block glass-effect px-6 py-3 rounded-full border border-green-500/40 mb-6">
-                <p className="text-sm sm:text-base font-bold text-green-400 flex items-center gap-2">
-                  <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 20 20">
-                    <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
-                  </svg>
-                  <span>Más de 1,000 usuarios confían en Chactivo</span>
+            <div className="text-center mb-8">
+              <div className="inline-block glass-effect px-6 py-3 rounded-full border border-cyan-500/40 mb-4">
+                <p className="text-sm sm:text-base font-bold text-cyan-300">
+                  Conversación comunitaria con reglas claras
                 </p>
               </div>
+              <p className="mx-auto max-w-2xl text-sm sm:text-base text-muted-foreground">
+                No mostramos ratings, contadores ni testimonios fabricados. La disponibilidad de mensajes y
+                respuestas depende de la participación real de la comunidad.
+              </p>
+            </div>
 
-              {/* Rating visual */}
-              <div className="flex items-center justify-center gap-3 mb-4">
-                <div className="flex gap-1">
-                  {[...Array(5)].map((_, i) => (
-                    <svg key={i} className="w-6 h-6 text-yellow-400" fill="currentColor" viewBox="0 0 20 20">
-                      <path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z" />
-                    </svg>
-                  ))}
-                </div>
-                <span className="text-xl sm:text-2xl font-bold text-yellow-400">4.8/5</span>
-                <span className="text-sm text-muted-foreground">de 247 opiniones</span>
-              </div>
-            </motion.div>
-
-            {/* Stats en tiempo real */}
-            <motion.div
-              initial={{ opacity: 0, y: 10 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: 0.8 }}
-              className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-8"
-            >
-              {/* Usuarios activos */}
-              <div className="glass-effect p-5 rounded-xl border border-green-500/30 hover:border-green-500/60 transition-all">
-                <div className="flex items-center gap-3 mb-2">
-                  <div className="relative">
-                    <span className="absolute inline-flex h-3 w-3 rounded-full bg-green-400 opacity-75 animate-ping"></span>
-                    <span className="relative inline-flex h-3 w-3 rounded-full bg-green-500"></span>
-                  </div>
-                  <p className="text-xs sm:text-sm text-gray-400 font-medium">En línea ahora</p>
-                </div>
-                <p className="text-2xl sm:text-3xl font-bold bg-gradient-to-r from-green-400 to-emerald-400 bg-clip-text text-transparent">
-                  150+
-                </p>
-                <p className="text-xs text-gray-500">usuarios activos</p>
-              </div>
-
-              {/* Mensajes hoy */}
-              <div className="glass-effect p-5 rounded-xl border border-cyan-500/30 hover:border-cyan-500/60 transition-all">
-                <div className="flex items-center gap-2 mb-2">
-                  <svg className="w-5 h-5 text-cyan-400" fill="currentColor" viewBox="0 0 20 20">
-                    <path fillRule="evenodd" d="M18 10c0 3.866-3.582 7-8 7a8.841 8.841 0 01-4.083-.98L2 17l1.338-3.123C2.493 12.767 2 11.434 2 10c0-3.866 3.582-7 8-7s8 3.134 8 7zM7 9H5v2h2V9zm8 0h-2v2h2V9zM9 9h2v2H9V9z" clipRule="evenodd" />
-                  </svg>
-                  <p className="text-xs sm:text-sm text-gray-400 font-medium">Mensajes hoy</p>
-                </div>
-                <p className="text-2xl sm:text-3xl font-bold bg-gradient-to-r from-cyan-400 to-blue-400 bg-clip-text text-transparent">
-                  12,847
-                </p>
-                <p className="text-xs text-gray-500">conversaciones reales</p>
-              </div>
-
-              {/* Moderación */}
-              <div className="glass-effect p-5 rounded-xl border border-purple-500/30 hover:border-purple-500/60 transition-all">
-                <div className="flex items-center gap-2 mb-2">
-                  <svg className="w-5 h-5 text-purple-400" fill="currentColor" viewBox="0 0 20 20">
-                    <path fillRule="evenodd" d="M2.166 4.999A11.954 11.954 0 0010 1.944 11.954 11.954 0 0017.834 5c.11.65.166 1.32.166 2.001 0 5.225-3.34 9.67-8 11.317C5.34 16.67 2 12.225 2 7c0-.682.057-1.35.166-2.001zm11.541 3.708a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
-                  </svg>
-                  <p className="text-xs sm:text-sm text-gray-400 font-medium">Seguridad 24/7</p>
-                </div>
-                <p className="text-2xl sm:text-3xl font-bold bg-gradient-to-r from-purple-400 to-pink-400 bg-clip-text text-transparent">
-                  100%
-                </p>
-                <p className="text-xs text-gray-500">moderado y seguro</p>
-              </div>
-            </motion.div>
-
-            {/* Mini testimonios - Tono WhatsApp, directo y corto */}
-            <motion.div
-              initial={{ opacity: 0, y: 10 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: 0.4 }}
-              className="overflow-hidden"
-            >
-              <div className="flex animate-marquee-slow">
-                {[
-                  { text: "Al fin un chat real, sin bots", author: "Carlos, 28" },
-                  { text: "Gente real hablando de verdad", author: "Andrés, 35" },
-                  { text: "Sin perfiles falsos ni spam", author: "Matías, 24" },
-                  { text: "Funciona de verdad", author: "Diego, 31" },
-                ].concat([
-                  { text: "Al fin un chat real, sin bots", author: "Carlos, 28" },
-                  { text: "Gente real hablando de verdad", author: "Andrés, 35" },
-                  { text: "Sin perfiles falsos ni spam", author: "Matías, 24" },
-                  { text: "Funciona de verdad", author: "Diego, 31" },
-                ]).map((testimonial, index) => (
-                  <div key={index} className="flex-shrink-0 mx-2">
-                    <div className="bg-gray-800/50 backdrop-blur-sm px-4 py-2.5 rounded-lg border border-purple-500/30 min-w-[240px]">
-                      <p className="text-sm text-white font-medium mb-1">"{testimonial.text}"</p>
-                      <p className="text-xs text-purple-300">- {testimonial.author}</p>
-                    </div>
-                  </div>
-                ))}
-              </div>
-
-              {/* CSS para animación de carrusel */}
-              <style>{`
-                @keyframes marquee-slow {
-                  from { transform: translateX(0); }
-                  to { transform: translateX(-50%); }
-                }
-                .animate-marquee-slow {
-                  animation: marquee-slow 40s linear infinite;
-                }
-                @media (prefers-reduced-motion: reduce) {
-                  .animate-marquee-slow {
-                    animation: none;
-                  }
-                }
-              `}</style>
-            </motion.div>
+            {/* Las métricas de actividad se muestran solo cuando exista una fuente verificable. */}
           </div>
         </motion.div>
 
@@ -789,7 +677,7 @@ const GlobalLandingPage = () => {
               </div>
               <h3 className="text-lg font-bold mb-2">Chatea ya</h3>
               <p className="text-sm text-muted-foreground">
-                Entra y habla con gente real. Sin vueltas.
+                Entra y participa cuando haya actividad real. Sin vueltas.
               </p>
             </div>
 
@@ -799,7 +687,7 @@ const GlobalLandingPage = () => {
               </div>
               <h3 className="text-lg font-bold mb-2">Conecta</h3>
               <p className="text-sm text-muted-foreground">
-                Encuentra con quién hablar. Gente real, conversación real.
+                Encuentra con quién hablar y decide qué compartir. La actividad depende de la participación real.
               </p>
             </div>
           </div>
@@ -911,15 +799,15 @@ const GlobalLandingPage = () => {
                       className="space-y-3 text-base sm:text-lg leading-relaxed"
                     >
                       <p className="text-gray-300">
-                        Creé <span className="font-bold text-cyan-400">Chactivo</span> porque estaba <span className="font-bold text-red-400">harto</span> de las apps falsas. Llenas de bots, perfiles fake y publicidad por todos lados.
+                        Creé <span className="font-bold text-cyan-400">Chactivo</span> porque quería una alternativa comunitaria frente a las experiencias con perfiles automatizados, ruido y publicidad invasiva.
                       </p>
 
                       <p className="text-gray-300">
-                        Acá es simple: <span className="font-bold text-green-400">Gente real</span>, <span className="font-bold text-green-400">sin vueltas</span>, <span className="font-bold text-green-400">sin estafas</span>.
+                        Acá es simple: <span className="font-bold text-green-400">conversación clara</span>, <span className="font-bold text-green-400">sin vueltas</span> y herramientas de reporte cuando estén disponibles.
                       </p>
 
                       <p className="text-cyan-300 font-bold text-lg sm:text-xl">
-                        Un espacio hecho por y para nosotros. Gente de trabajo, gente real. 🇨🇱
+                        Un espacio hecho por y para nosotros. La comunidad crece con participación real. 🇨🇱
                       </p>
                     </motion.div>
 
@@ -931,12 +819,12 @@ const GlobalLandingPage = () => {
                       className="flex flex-wrap justify-center lg:justify-start gap-4 mt-6"
                     >
                       <div className="glass-effect px-4 py-2 rounded-lg border border-cyan-500/30">
-                        <p className="text-xs text-gray-400">Desde</p>
-                        <p className="text-lg font-bold text-cyan-400">2024</p>
+                        <p className="text-xs text-gray-400">Proyecto</p>
+                        <p className="text-lg font-bold text-cyan-400">Comunitario</p>
                       </div>
                       <div className="glass-effect px-4 py-2 rounded-lg border border-purple-500/30">
-                        <p className="text-xs text-gray-400">Usuarios</p>
-                        <p className="text-lg font-bold text-purple-400">1000+</p>
+                        <p className="text-xs text-gray-400">Actividad</p>
+                        <p className="text-lg font-bold text-purple-400">Participación real</p>
                       </div>
                       <div className="glass-effect px-4 py-2 rounded-lg border border-pink-500/30">
                         <p className="text-xs text-gray-400">Ubicación</p>
@@ -1055,7 +943,7 @@ const GlobalLandingPage = () => {
               ¿Listo para Conectar con Gays de Todo Chile?
             </h2>
             <p className="text-lg text-muted-foreground mb-8 max-w-2xl mx-auto">
-              Únete a la sala más activa de Chactivo. Conversación real, ambiente relajado, 100% gratis.
+              Entra a la sala principal y participa cuando haya actividad. Acceso sin costo.
             </p>
             <motion.div
               whileHover={{ scale: 1.05 }}
@@ -1072,7 +960,7 @@ const GlobalLandingPage = () => {
               </Button>
             </motion.div>
             <p className="text-sm text-muted-foreground mt-6">
-              💬 La sala más popular • 🔒 100% anónimo • ⚡ Registro rápido gratis
+              💬 Sala principal • 🔒 Privacidad clara • ⚡ Registro opcional
             </p>
           </div>
         </motion.section>

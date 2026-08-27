@@ -5,19 +5,14 @@ import { httpsCallable } from 'firebase/functions';
 import { functions } from '@/config/firebase';
 import { recordAPISignal } from '@/utils/runtimeDiagnostics';
 
-// ✅ DESACTIVADO (05/01/2026): OpenAI NO puede llamarse desde frontend
-// Motivo: CORS bloqueado + API key expuesta = riesgo de seguridad
-// La moderación ahora se hace solo en antiSpamService.js (palabras prohibidas)
-const OPENAI_API_KEY = import.meta.env.VITE_OPENAI_API_KEY;
-const isOpenAIAvailable = false; // ← FORZADO A FALSE
-
-const PROVIDERS = {
-  openai: {
-    apiKey: isOpenAIAvailable ? OPENAI_API_KEY : null,
-    apiUrl: import.meta.env.VITE_OPENAI_API_URL || 'https://api.openai.com/v1/chat/completions',
-    model: import.meta.env.VITE_OPENAI_MODEL || 'gpt-4o-mini'
-  }
-};
+// Moderación local únicamente. No se leen claves privadas ni se hacen llamadas
+// a proveedores externos desde el navegador.
+const LOCAL_MODERATION_PATTERNS = [
+  { type: 'minor_risk', severity: 'critical', pattern: /\b(soy menor|menor de edad|1[0-7]\s*a[nñ]os)\b/i },
+  { type: 'violence', severity: 'high', pattern: /\b(te voy a matar|matarte|apu[nñ]alar|te voy a golpear)\b/i },
+  { type: 'hate_speech', severity: 'high', pattern: /\b(homofob|transfob|racist|nazi)\w*\b/i },
+  { type: 'external_contact', severity: 'medium', pattern: /\b(whatsapp|telegram|discord|instagram|correo)\b/i },
+];
 
 const CONTACT_SAFETY_ALERT_LIMIT = 20;
 const CONTACT_SAFETY_RISK_MIN = 3;
@@ -48,103 +43,20 @@ export const createModerationIncidentAlert = async (payload) => {
 /**
  * 🔍 MODERACIÓN: Analiza mensaje con ChatGPT para detectar contenido sensible
  */
-export const moderateMessage = async (message, userId, username, roomId) => {
-  try {
-    const provider = PROVIDERS.openai;
-    // ✅ Verificación mejorada: verificar que la API key existe y es válida
-    if (!isOpenAIAvailable || !provider?.apiKey || !provider?.apiUrl || provider.apiKey.trim() === '') {
-      console.warn('[MODERACIÓN] OpenAI no configurado, saltando moderación');
-      return { safe: true };
-    }
+export const moderateMessage = async (message) => {
+  const content = String(message || '').trim();
+  if (!content) return { safe: true, detectedBy: 'local' };
 
-    const moderationPrompt = `Eres un moderador de contenido para una plataforma de chat LGBT. Analiza el siguiente mensaje y determina si contiene:
+  const violation = LOCAL_MODERATION_PATTERNS.find(({ pattern }) => pattern.test(content));
+  if (!violation) return { safe: true, detectedBy: 'local' };
 
-1. ODIO/DISCRIMINACIÓN: insultos homofóbicos, transfóbicos, racistas, misóginos, o cualquier forma de odio
-2. OFENSAS: lenguaje ofensivo, acoso, bullying
-3. SUICIDIO/AUTOLESIÓN: menciones de suicidio, autolesión, ideación suicida, planes de suicidio
-4. ACOSO: acoso repetitivo, amenazas, intimidación
-
-Mensaje a analizar: "${message}"
-
-Responde SOLO con un JSON válido en este formato:
-{
-  "safe": true/false,
-  "type": "hate_speech" | "offensive" | "suicide" | "self_harm" | "harassment" | null,
-  "severity": "low" | "medium" | "high" | "critical" | null,
-  "reason": "explicación breve del problema detectado" | null,
-  "needsHelp": true/false (solo true si es suicidio/autolesión)
-}
-
-Si el mensaje es seguro, responde: {"safe": true, "type": null, "severity": null, "reason": null, "needsHelp": false}
-Si detectas algún problema, responde con el JSON correspondiente.`;
-
-    const response = await fetch(provider.apiUrl, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        Authorization: `Bearer ${provider.apiKey}`
-      },
-      body: JSON.stringify({
-        model: provider.model,
-        messages: [
-          {
-            role: 'system',
-            content: 'Eres un moderador de contenido experto. Analiza mensajes y responde SOLO con JSON válido, sin texto adicional.'
-          },
-          {
-            role: 'user',
-            content: moderationPrompt
-          }
-        ],
-        temperature: 0.3, // Baja temperatura para respuestas más consistentes
-        max_tokens: 200
-      })
-    });
-
-    if (!response.ok) {
-      console.error('[MODERACIÓN] Error en API:', response.status);
-      return { safe: true }; // Si falla, asumir seguro para no bloquear
-    }
-
-    const data = await response.json();
-    const content = data?.choices?.[0]?.message?.content?.trim() || '{}';
-    
-    // Intentar parsear JSON (puede venir con markdown)
-    let moderationResult;
-    try {
-      // Limpiar markdown si existe
-      const cleanContent = content.replace(/```json\n?/g, '').replace(/```\n?/g, '').trim();
-      moderationResult = JSON.parse(cleanContent);
-    } catch (e) {
-      console.error('[MODERACIÓN] Error parseando respuesta:', content);
-      return { safe: true };
-    }
-
-    // Si no es seguro, crear alerta
-    if (!moderationResult.safe && moderationResult.type) {
-      await createModerationAlert({
-        type: moderationResult.type,
-        severity: moderationResult.severity || 'medium',
-        userId,
-        username,
-        message,
-        roomId,
-        reason: moderationResult.reason,
-        needsHelp: moderationResult.needsHelp || false
-      });
-
-      // Si es suicidio/autolesión, ofrecer ayuda
-      if (moderationResult.needsHelp && (moderationResult.type === 'suicide' || moderationResult.type === 'self_harm')) {
-        console.warn('[MODERACIÓN] 🚨 ALERTA CRÍTICA: Suicidio/autolesión detectado');
-        // Esto se manejará en el componente de chat para mostrar ayuda
-      }
-    }
-
-    return moderationResult;
-  } catch (error) {
-    console.error('[MODERACIÓN] Error:', error);
-    return { safe: true }; // Si falla, asumir seguro
-  }
+  return {
+    safe: false,
+    type: violation.type,
+    severity: violation.severity,
+    reason: 'Señal detectada por reglas locales; requiere revisión según las políticas de la comunidad.',
+    detectedBy: 'local',
+  };
 };
 
 /**

@@ -6,13 +6,13 @@ import { track, trackPageExit, trackPageView } from '@/services/eventTrackingSer
 const LANDING_VARIANTS = {
   home: {
     canonicalPath: '/hetero',
-    title: 'Chat Hetero Activo | Conoce Gente Real Ahora | Chactivo',
+    title: 'Chat Hetero Activo | Conversa en Tiempo Real | Chactivo',
     description:
-      'Chat hetero activo para conocer personas reales en tiempo real. Entra sin complicaciones y empieza a conversar.',
+      'Chat hetero activo para conversar en tiempo real. Revisa la actividad disponible y entra sin complicaciones.',
     intentBadge: 'Entrada simple',
     entryKey: 'hetero-home',
     hero: {
-      h1: 'Conoce gente real hoy mismo',
+      h1: 'Conversa en tiempo real',
       subtext:
         'Una entrada clara, sin ruido y con una sola accion: ver quien esta activo y empezar a conversar.',
       selectorTitle: 'Elige como quieres entrar',

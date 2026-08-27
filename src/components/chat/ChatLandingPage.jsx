@@ -36,88 +36,20 @@ const ROOM_CONTENT = {
   'global': {
     title: 'Conversas Libres',
     subtitle: 'Chat gay chileno sin filtros',
-    description: 'La sala más activa de Chile. Conoce gays de todo el país, conversa de cualquier tema sin presión. Ambiente relajado, sin juicios.',
+    description: 'Una sala de conversación de Chile. Conoce gays de todo el país, conversa de cualquier tema sin presión. Ambiente relajado, sin juicios.',
     icon: '💬',
     features: [
-      'Chat en tiempo real 24/7',
-      'Usuarios activos todos los días',
+      'Chat en tiempo real según la actividad',
+      'Participación real de la comunidad',
       'Moderación contra spam y acoso',
-      'Completamente gratis y anónimo'
+      'Acceso sin costo y privacidad clara'
     ],
-    stats: {
-      users: '500+',
-      messages: '10K+',
-      rating: '4.8'
-    },
     ctaPrimary: 'Entrar al chat gratis',
     ctaSecondary: 'Crear cuenta',
-    testimonials: [
-      { text: 'Conocí gente increíble acá', author: 'Usuario de Santiago' },
-      { text: 'La mejor comunidad gay de Chile', author: 'Usuario de Valpo' }
-    ]
-  },
-  'gaming': {
-    title: 'Sala Gaming',
-    subtitle: 'Chat gay para gamers chilenos',
-    description: 'Conecta con gamers LGBT+ de Chile. Comparte tus juegos favoritos, forma teams, encuentra amigos con tus mismos gustos.',
-    icon: '🎮',
-    features: [
-      'Gamers LGBT+ activos',
-      'Comparte streams y clips',
-      'Forma equipos y parties',
-      'Todos los juegos bienvenidos'
-    ],
-    stats: {
-      users: '200+',
-      messages: '5K+',
-      rating: '4.9'
-    },
     ctaPrimary: 'Unirme a Gaming',
     ctaSecondary: 'Registrarme',
-    testimonials: [
-      { text: 'Encontré mi squad acá!', author: 'Gamer de Conce' },
-      { text: 'La mejor comunidad gamer gay', author: 'Streamer de Stgo' }
-    ]
-  },
-  'mas-30': {
-    title: 'Sala +30',
-    subtitle: 'Chat gay para mayores de 30',
-    description: 'Espacio para hombres maduros LGBT+. Conversaciones sin presión, gente de tu edad, ambiente relajado y respetuoso.',
-    icon: '💪',
-    features: [
-      'Solo mayores de 30 años',
-      'Conversaciones maduras',
-      'Sin presión de hookups',
-      'Ambiente respetuoso'
-    ],
-    stats: {
-      users: '150+',
-      messages: '3K+',
-      rating: '4.7'
-    },
     ctaPrimary: 'Entrar a +30',
     ctaSecondary: 'Crear cuenta',
-    testimonials: [
-      { text: 'Al fin un espacio para mi edad', author: 'Usuario 35 años' },
-      { text: 'Conversaciones de calidad', author: 'Usuario 42 años' }
-    ]
-  },
-  'santiago': {
-    title: 'Sala Santiago',
-    subtitle: 'Chat gay de la capital',
-    description: 'Conecta con gays de Santiago y alrededores. Organiza juntadas, conoce gente de tu comuna, entérate de eventos LGBT+ locales.',
-    icon: '🏙️',
-    features: [
-      'Solo gays de Santiago',
-      'Organiza juntadas locales',
-      'Eventos LGBT+ de la capital',
-      'Conoce gente de tu zona'
-    ],
-    stats: {
-      users: '300+',
-      messages: '8K+',
-      rating: '4.8'
-    },
     ctaPrimary: 'Chatear en Santiago',
     ctaSecondary: 'Unirme ahora',
     testimonials: [
@@ -256,29 +188,9 @@ const ChatLandingPage = ({ roomSlug }) => {
             </Button>
           </motion.div>
 
-          {/* Stats */}
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            transition={{ delay: 0.6, duration: 0.5 }}
-            className="flex flex-wrap justify-center gap-8 mb-12"
-          >
-            <div className="text-center">
-              <div className="text-3xl font-bold text-purple-600">{content.stats.users}</div>
-              <div className="text-sm text-gray-500">Usuarios activos</div>
-            </div>
-            <div className="text-center">
-              <div className="text-3xl font-bold text-pink-600">{content.stats.messages}</div>
-              <div className="text-sm text-gray-500">Mensajes/mes</div>
-            </div>
-            <div className="text-center">
-              <div className="flex items-center gap-1">
-                <span className="text-3xl font-bold text-yellow-600">{content.stats.rating}</span>
-                <Star className="w-6 h-6 text-yellow-500 fill-yellow-500" />
-              </div>
-              <div className="text-sm text-gray-500">Valoración</div>
-            </div>
-          </motion.div>
+          <div className="mb-12 text-center text-sm text-gray-500 dark:text-gray-400">
+            La disponibilidad de respuestas depende de la participación real; no mostramos contadores inventados.
+          </div>
         </div>
 
         {/* Features Grid */}
@@ -300,37 +212,6 @@ const ChatLandingPage = ({ roomSlug }) => {
           ))}
         </motion.div>
 
-        {/* Testimonials */}
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 1, duration: 0.5 }}
-          className="mb-12"
-        >
-          <h2 className="text-3xl font-bold text-center mb-8">
-            Lo que dicen nuestros usuarios
-          </h2>
-          <div className="grid md:grid-cols-2 gap-6 max-w-4xl mx-auto">
-            {content.testimonials.map((testimonial, index) => (
-              <Card key={index} className="bg-gradient-to-br from-purple-50 to-pink-50 dark:from-purple-900/20 dark:to-pink-900/20 border-2 border-purple-200 dark:border-purple-800">
-                <CardContent className="p-6">
-                  <div className="flex items-start gap-3">
-                    <Heart className="w-6 h-6 text-pink-500 flex-shrink-0 mt-1" />
-                    <div>
-                      <p className="text-gray-700 dark:text-gray-300 mb-3 italic">
-                        "{testimonial.text}"
-                      </p>
-                      <p className="text-sm text-gray-500 dark:text-gray-400 font-semibold">
-                        — {testimonial.author}
-                      </p>
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
-            ))}
-          </div>
-        </motion.div>
-
         {/* Benefits Section */}
         <motion.div
           initial={{ opacity: 0, y: 20 }}
@@ -348,7 +229,7 @@ const ChatLandingPage = ({ roomSlug }) => {
               </div>
               <h3 className="font-bold text-lg mb-2">100% Seguro</h3>
               <p className="text-gray-600 dark:text-gray-400">
-                Moderación activa 24/7. Cero tolerancia al acoso o spam.
+                Herramientas y normas contra spam y acoso.
               </p>
             </div>
             <div className="text-center">
@@ -401,7 +282,7 @@ const ChatLandingPage = ({ roomSlug }) => {
             ¿Listo para conocer gente increíble?
           </h2>
           <p className="text-xl mb-8 opacity-90">
-            Únete a miles de usuarios LGBT+ en Chile
+            Participa en una comunidad LGBT+ de Chile
           </p>
           <Button
             onClick={handleJoinChat}

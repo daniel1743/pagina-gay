@@ -429,7 +429,6 @@ export const createOpinPost = async ({
 };
 
 /** Mínimo de OPINs estables que siempre debe haber en el feed (panel admin) */
-export const OPIN_MIN_STABLE = 20;
 
 /**
  * ✅ Obtener feed de posts activos
@@ -1265,16 +1264,14 @@ export const getStableOpinPosts = async () => {
 
 /**
  * ✅ Crear OPIN estable (solo admin)
- * No expira. Se muestra siempre en feed hasta OPIN_MIN_STABLE.
+ * Las publicaciones permanecen según las reglas de caducidad del producto.
  *
  * @param {object} params
  * @param {string} params.title - Título opcional
  * @param {string} params.text - Texto del OPIN (requerido)
  * @param {string} params.color - Color del OPIN
- * @param {string} params.customUsername - Username personalizado para seeding (opcional)
- * @param {string} params.customAvatar - Avatar personalizado para seeding (opcional)
  */
-export const createStableOpinPost = async ({ title = '', text, color = 'purple', customUsername = '', customAvatar = '' }) => {
+export const createStableOpinPost = async ({ title = '', text, color = 'purple' }) => {
   if (!auth.currentUser) {
     throw new Error('Usuario no autenticado');
   }
@@ -1303,24 +1300,21 @@ export const createStableOpinPost = async ({ title = '', text, color = 'purple',
   }
   const c = OPIN_COLORS[color] ? color : 'purple';
 
-  // Si se proporciona customUsername, usar ese (para seeding desde admin)
-  // Si no, usar el username del usuario actual
-  let username = customUsername?.trim() || '';
-  let avatar = customAvatar?.trim() || '';
+  // Las publicaciones estables usan siempre la identidad real del administrador.
+  let username = '';
+  let avatar = '';
 
-  if (!username) {
-    try {
-      const userDoc = await getDoc(doc(db, 'users', auth.currentUser.uid));
-      if (userDoc.exists()) {
-        const d = userDoc.data();
-        username = d.username || 'Chactivo';
-        avatar = avatar || d.avatar || '';
-      } else {
-        username = 'Chactivo';
-      }
-    } catch (_) {
+  try {
+    const userDoc = await getDoc(doc(db, 'users', auth.currentUser.uid));
+    if (userDoc.exists()) {
+      const d = userDoc.data();
+      username = d.username || 'Chactivo';
+      avatar = d.avatar || '';
+    } else {
       username = 'Chactivo';
     }
+  } catch (_) {
+    username = 'Chactivo';
   }
 
   const postsRef = collection(db, 'opin_posts');
@@ -1335,7 +1329,6 @@ export const createStableOpinPost = async ({ title = '', text, color = 'purple',
     createdAt: serverTimestamp(),
     isActive: true,
     isStable: true,
-    isSeeded: !!customUsername, // Marcar si fue creado con username personalizado
     viewCount: 0,
     profileClickCount: 0,
     likeCount: 0,
@@ -1344,7 +1337,7 @@ export const createStableOpinPost = async ({ title = '', text, color = 'purple',
   };
 
   const docRef = await addDoc(postsRef, data);
-  console.log('✅ [OPIN] Estable creado:', docRef.id, customUsername ? `(seeded: ${username})` : '');
+  console.log('✅ [OPIN] Estable creado:', docRef.id, 'como', username);
   return { postId: docRef.id, ...data };
 };
 
@@ -1424,69 +1417,14 @@ export const deleteStableOpinPost = async (postId) => {
   return { success: true };
 };
 
-// Nombres genéricos para seeding automático
-const OPIN_SEED_USERNAMES = [
-  'Carlos_28', 'JuanMadrid', 'Alex_BCN', 'DavidGym', 'MiguelVLC',
-  'Pablo_Fit', 'Sergio23', 'Andres_M', 'Dani_SEV', 'Ruben_BIO',
-  'JorgeNight', 'Mario_Tech', 'Adrian_Art', 'Hugo_Run', 'Iker_MAD',
-  'Leo_Gaming', 'Nacho_Cook', 'Raul_Photo', 'Alvaro_29', 'Oscar_BCN'
-];
-
-const OPIN_SEED_EXAMPLES = [
-  { title: 'Amigos', text: 'Busco amistad para charlar, salir y pasarlo bien. Sin dramas, buena onda.', color: 'purple' },
-  { title: 'Citas', text: 'Busco conocer a alguien con quien conectar. Citas tranquilas, café o algo más.', color: 'pink' },
-  { title: 'Gaming', text: 'Busco gente para jugar en PC o consola. Coop, competitivo o solo pasar el rato.', color: 'cyan' },
-  { title: 'Salir', text: 'Busco plan para salir: bares, fiestas, conciertos. Siempre abierto a sugerencias.', color: 'orange' },
-  { title: 'Deportes', text: 'Busco alguien para gym, running o deporte en general. Motivación mutua.', color: 'green' },
-  { title: 'Cine y series', text: 'Busco con quien hablar de pelis y series. Recomendaciones y maratones.', color: 'blue' },
-  { title: 'Música', text: 'Busco gente con gustos parecidos para hablar de música, ir a conciertos o tocar.', color: 'purple' },
-  { title: 'Viajes', text: 'Busco compañía para viajes o planes de escapada. Rutas, playa o ciudad.', color: 'pink' },
-  { title: 'Café y charla', text: 'Busco charlar tranquilo, café o té. Conversación sin presión.', color: 'orange' },
-  { title: 'Netflix & chill', text: 'Busco plan relajado en casa. Series, películas y buena compañía.', color: 'cyan' },
-  { title: 'Fitness', text: 'Busco motivación para entrenar. Gym, yoga o lo que sea, juntos mejor.', color: 'green' },
-  { title: 'Noche out', text: 'Busco salir de fiesta. Bares, discos o lo que se arme. Buena vibra.', color: 'blue' },
-  { title: 'Cocina', text: 'Busco alguien para cocinar juntos o probar restaurantes. Amante de la comida.', color: 'purple' },
-  { title: 'Fotografía', text: 'Busco salir a hacer fotos o hablar de fotografía. Urban, retratos, paisaje.', color: 'pink' },
-  { title: 'Libros', text: 'Busco intercambiar recomendaciones de libros y hablar de lo que leemos.', color: 'cyan' },
-  { title: 'Mascotas', text: 'Busco gente que ame los animales. Paseos con perros, fotos de gatos, etc.', color: 'orange' },
-  { title: 'Tecnología', text: 'Busco hablar de tech, apps, juegos o proyectos. Geek friendly.', color: 'green' },
-  { title: 'Arte y cultura', text: 'Busco ir a expos, museos o eventos culturales. Compartir gustos.', color: 'blue' },
-  { title: 'Senderismo', text: 'Busco compañía para rutas y naturaleza. Caminatas, miradores, aire libre.', color: 'purple' },
-  { title: 'Vida tranquila', text: 'Busco conexión real, sin prisa. Charlas, risas y buenos momentos.', color: 'pink' },
-];
-
 /**
- * ✅ Crear OPINs estables de ejemplo hasta completar OPIN_MIN_STABLE (solo admin)
- * Cada OPIN se crea con un username genérico diferente para simular actividad real.
- * @returns {Promise<number>} Número de posts creados
+ * El seeding artificial de OPIN está desactivado.
+ * La comunidad solo debe ver publicaciones creadas por usuarios reales.
  */
 export const seedStableOpinExamples = async () => {
-  if (!auth.currentUser) {
-    throw new Error('Usuario no autenticado');
-  }
-
-  const current = await getStableOpinPosts();
-  const need = Math.max(0, OPIN_MIN_STABLE - current.length);
-  if (need === 0) {
-    return 0;
-  }
-
-  let created = 0;
-  for (let i = 0; i < need && i < OPIN_SEED_EXAMPLES.length; i++) {
-    const ex = OPIN_SEED_EXAMPLES[i];
-    // Usar un username genérico diferente para cada OPIN
-    const customUsername = OPIN_SEED_USERNAMES[i % OPIN_SEED_USERNAMES.length];
-
-    await createStableOpinPost({
-      title: ex.title,
-      text: ex.text,
-      color: ex.color,
-      customUsername, // Usar nombre genérico para seeding
-    });
-    created++;
-  }
-  console.log(`🌱 [OPIN] Seed: ${created} estables creados con usernames genéricos`);
-  return created;
+  const error = new Error('El seeding artificial de OPIN está desactivado.');
+  error.code = 'ARTIFICIAL_SEEDING_DISABLED';
+  throw error;
 };
 
 /**
@@ -1603,34 +1541,17 @@ export const canViewAllReplies = () => {
 // 🛡️ ADMIN — Respuestas Editoriales
 // ============================================================
 
-/** Nombres predefinidos para respuestas de admin */
-export const ADMIN_REPLY_NAMES = [
-  // Usuarios anónimos (para simular actividad real)
-  'Anónimo',
-  'Usuario',
-  'Alguien',
-  // Nombres genéricos de usuarios
-  'Carlos_23',
-  'Diego_fit',
-  'JuanM',
-  'AndresVLC',
-  'Pablo_28',
-  // Equipo oficial
-  'Equipo Chactivo',
-  'Moderador',
-  'Soporte',
-  'Comunidad',
-];
+/** Identidad única permitida para respuestas editoriales transparentes. */
+export const ADMIN_REPLY_NAMES = ['Equipo Chactivo'];
 
 /**
- * ✅ Agregar respuesta editorial (Admin)
- * Crea una respuesta como contenido semilla, con nombre personalizado
- * Visible públicamente, indistinguible de respuestas normales en UI
- * Internamente marcado como isAdminReply: true
+ * Agregar respuesta editorial (Admin).
+ * Las respuestas se publican de forma visible como Equipo Chactivo y se marcan
+ * para auditoría; nunca se pueden presentar como un usuario de la comunidad.
  *
  * @param {string} postId - ID del OPIN
  * @param {string} text - Texto de la respuesta
- * @param {string} authorName - Nombre a mostrar (ej: "Equipo Chactivo")
+ * @param {string} authorName - Debe ser exactamente "Equipo Chactivo"
  */
 export const addAdminReply = async (postId, text, authorName) => {
   if (!auth.currentUser) {
@@ -1645,8 +1566,9 @@ export const addAdminReply = async (postId, text, authorName) => {
     throw new Error('La respuesta no puede superar 150 caracteres');
   }
 
-  if (!authorName || authorName.trim().length < 1) {
-    throw new Error('Debes especificar un nombre de autor');
+  const normalizedAuthorName = authorName?.trim();
+  if (normalizedAuthorName !== ADMIN_REPLY_NAMES[0]) {
+    throw new Error('Las respuestas editoriales solo pueden publicarse como Equipo Chactivo');
   }
 
   const commentsRef = collection(db, 'opin_comments');
@@ -1656,11 +1578,12 @@ export const addAdminReply = async (postId, text, authorName) => {
   const replyData = {
     postId: postId,
     userId: auth.currentUser.uid, // Admin que lo creó (para auditoría)
-    username: authorName.trim(),
-    avatar: '', // Sin avatar para respuestas editoriales (usa inicial)
+    username: normalizedAuthorName,
+    avatar: '',
     comment: text.trim(),
     createdAt: serverTimestamp(),
-    isAdminReply: true, // Marca interna - NO mostrar en UI
+    isAdminReply: true,
+    authorType: 'official_team',
   };
 
   const docRef = await addDoc(commentsRef, replyData);
@@ -1687,7 +1610,7 @@ export const addAdminReply = async (postId, text, authorName) => {
     });
   }
 
-  console.log('🛡️ [OPIN] Respuesta editorial agregada:', docRef.id, 'como', authorName);
+  console.log('🛡️ [OPIN] Respuesta editorial agregada:', docRef.id, 'como Equipo Chactivo');
 
   return { id: docRef.id, ...replyData };
 };

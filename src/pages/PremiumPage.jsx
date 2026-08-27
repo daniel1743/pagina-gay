@@ -23,7 +23,7 @@ const PremiumPage = () => {
     { icon: <Sparkles className="w-5 h-5" />, text: "Acceso a eventos exclusivos" },
     { icon: <Crown className="w-5 h-5" />, text: "Badge Premium visible" },
     { icon: <Check className="w-5 h-5" />, text: "Salas privadas VIP" },
-    { icon: <Check className="w-5 h-5" />, text: "Soporte prioritario 24/7" },
+    { icon: <Check className="w-5 h-5" />, text: "Soporte prioritario según disponibilidad" },
   ];
 
   const handleUpgrade = () => {
@@ -170,7 +170,7 @@ const PremiumPage = () => {
               ¿Por qué Premium?
             </h3>
             <p className="text-muted-foreground max-w-2xl mx-auto">
-              Únete a miles de miembros Premium que disfrutan de una experiencia sin límites,
+              Explora las funciones Premium disponibles para personalizar tu experiencia,
               acceso exclusivo a eventos y la mejor forma de conectar con la comunidad LGBTQ+
               de Santiago. Tu apoyo nos ayuda a mantener Chactivo seguro y en constante mejora.
             </p>

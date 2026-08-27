@@ -176,11 +176,11 @@ const PWAInstallBanner = () => {
               </div>
               <div className="text-center p-2 bg-white/5 rounded-lg backdrop-blur-sm">
                 <Shield className="w-5 h-5 text-cyan-400 mx-auto mb-1" />
-                <p className="text-[10px] text-gray-300 font-medium">100% seguro</p>
+                <p className="text-[10px] text-gray-300 font-medium">Instalación opcional</p>
               </div>
               <div className="text-center p-2 bg-white/5 rounded-lg backdrop-blur-sm">
                 <Wifi className="w-5 h-5 text-green-400 mx-auto mb-1" />
-                <p className="text-[10px] text-gray-300 font-medium">Funciona offline</p>
+                <p className="text-[10px] text-gray-300 font-medium">Acceso desde tu inicio</p>
               </div>
             </div>
 

@@ -25,11 +25,11 @@ const AnonymousForumPage = () => {
 
     if (metaDescription) {
       previousDescription = metaDescription.getAttribute('content');
-      metaDescription.content = "Foro gay Chile 100% anónimo. Comparte experiencias, haz preguntas y lee confesiones sin revelar tu identidad. Entra ahora.";
+      metaDescription.content = "Foro gay Chile con privacidad clara. Comparte experiencias, haz preguntas y lee confesiones sin revelar tu identidad. Entra ahora.";
     } else {
       metaDescription = document.createElement('meta');
       metaDescription.name = 'description';
-      metaDescription.content = "Foro gay Chile 100% anónimo. Comparte experiencias, haz preguntas y lee confesiones sin revelar tu identidad. Entra ahora.";
+      metaDescription.content = "Foro gay Chile con privacidad clara. Comparte experiencias, haz preguntas y lee confesiones sin revelar tu identidad. Entra ahora.";
       document.head.appendChild(metaDescription);
     }
 
@@ -49,7 +49,7 @@ const AnonymousForumPage = () => {
       "headline": "Foro Anónimo Gay Chile - Confesiones y Experiencias",
       "description": "Espacio seguro y anónimo para la comunidad LGBT+ en Chile. Comparte experiencias, pide consejos y conecta sin revelar tu identidad.",
       // Requerido para rich results de foro: al menos text/image/video
-      "text": "Foro gay 100% anónimo para compartir experiencias, dudas y apoyo entre la comunidad LGBT+ en Chile.",
+      "text": "Foro gay con privacidad clara para compartir experiencias, dudas y apoyo entre la comunidad LGBT+ en Chile.",
       // Requerido por Search Console en DiscussionForumPosting
       "datePublished": "2026-02-21T00:00:00-03:00",
       "dateModified": new Date().toISOString(),
@@ -239,7 +239,7 @@ const AnonymousForumPage = () => {
               Foro Gay Chile - Comunidad LGBT+ Anónima
             </h1>
             <p className="text-muted-foreground max-w-3xl mx-auto text-base sm:text-lg mb-4">
-              El foro gay más activo de Chile. Comunidad de apoyo mutuo 24/7, sin censura y completamente anónima.
+              Un espacio gay de Chile para compartir experiencias, preguntas y apoyo mutuo con normas claras.
             </p>
             <div className="flex flex-wrap justify-center gap-2 text-xs sm:text-sm">
               <button

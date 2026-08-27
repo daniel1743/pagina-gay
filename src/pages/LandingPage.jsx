@@ -134,7 +134,7 @@ export default function LandingPage() {
           <div className="bg-gray-900/50 backdrop-blur-sm border border-gray-800 rounded-xl p-6 text-center">
             <div className="text-4xl mb-3">⚡</div>
             <h3 className="text-xl font-bold text-purple-400 mb-2">100% Activo</h3>
-            <p className="text-gray-400">Usuarios reales conectados 24/7 listos para chatear</p>
+            <p className="text-gray-400">Conversación comunitaria disponible según la actividad real</p>
           </div>
           <div className="bg-gray-900/50 backdrop-blur-sm border border-gray-800 rounded-xl p-6 text-center">
             <div className="text-4xl mb-3">😈</div>
