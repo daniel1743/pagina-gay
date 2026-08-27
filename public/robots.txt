@@ -25,8 +25,11 @@ Allow: /ar/buenos-aires
 Allow: /es/madrid
 Allow: /br/sao-paulo
 
-# ✅ PERMITIR sala pública principal
+# ✅ PERMITIR sala pública principal para que el crawler pueda leer su noindex dinámico
 Allow: /chat/principal
+
+# /opin y /chat/principal permanecen rastreables para que los meta robots noindex
+# puedan ser descubiertos; no están incluidos en el sitemap por ser superficies dinámicas.
 
 # ⏸️ TEMPORAL (2026-03-26): no enumerar /chat/* residuales o dependientes de landing
 # mientras no sean destinos indexables autónomos estables

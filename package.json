@@ -10,7 +10,7 @@
     "dev": "vite --host localhost --port 3000",
     "build": "vite build",
     "postbuild": "node scripts/generate-static-seo-pages.mjs",
-    "test": "vitest run tests/safety-and-local-services.test.js tests/firestore.rules.static.test.js tests/avatar-and-media-contract.test.js tests/cards-service-contract.test.js tests/supabase-migration-contract.test.js",
+    "test": "vitest run tests/safety-and-local-services.test.js tests/firestore.rules.static.test.js tests/avatar-and-media-contract.test.js tests/cards-service-contract.test.js tests/supabase-migration-contract.test.js tests/public-surface-contract.test.js",
     "test:unit": "vitest run tests/safety-and-local-services.test.js",
     "test:security": "vitest run tests/safety-and-local-services.test.js tests/firestore.rules.static.test.js",
     "preview": "vite preview --host localhost --port 3000",

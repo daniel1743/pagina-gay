@@ -4040,7 +4040,9 @@ const ChatPage = () => {
       robotsMeta.setAttribute('name', 'robots');
       document.head.appendChild(robotsMeta);
     }
-    const shouldNoindexRoom = roomId === 'hetero-general' && !HETERO_INDEXING_ENABLED;
+    // Las salas contienen UGC dinámico y no son destinos SEO estables. Solo el vertical
+    // hetero puede optar explícitamente por indexación cuando su bandera esté habilitada.
+    const shouldNoindexRoom = roomId !== 'hetero-general' || !HETERO_INDEXING_ENABLED;
     robotsMeta.setAttribute(
       'content',
       shouldNoindexRoom ? 'noindex, nofollow, noarchive, nosnippet' : 'index, follow, max-image-preview:large'

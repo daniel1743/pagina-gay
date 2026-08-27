@@ -3,8 +3,6 @@ import { motion } from 'framer-motion';
 import { useNavigate } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { ArrowLeft } from 'lucide-react';
-import Header from '@/components/layout/Header';
-import Footer from '@/components/layout/Footer';
 import { useCanonical, usePageMeta } from '@/hooks/useCanonical';
 
 const FAQPage = () => {
@@ -59,10 +57,8 @@ const FAQPage = () => {
   ];
 
   return (
-    <div className="flex flex-col min-h-screen">
-      <Header />
-      <main className="flex-1 pt-16 sm:pt-20">
-        <div className="container mx-auto px-4 sm:px-6 lg:px-8 py-8 sm:py-12 max-w-4xl">
+    <main className="flex-1">
+      <div className="container mx-auto px-4 sm:px-6 lg:px-8 py-8 sm:py-12 max-w-4xl">
           {/* Botón de regreso */}
           <motion.div
             initial={{ opacity: 0, x: -20 }}
@@ -131,16 +127,14 @@ const FAQPage = () => {
               ¿Más dudas? Contáctanos
             </p>
             <Button
-              onClick={() => navigate('/landing')}
+              onClick={() => navigate('/')}
               className="magenta-gradient text-white font-bold text-base sm:text-lg px-6 sm:px-8 py-3 sm:py-4 rounded-xl shadow-lg hover:shadow-[#E4007C]/50 hover:scale-105 transition-all"
             >
               Volver al Inicio
             </Button>
           </motion.div>
-        </div>
-      </main>
-      <Footer />
-    </div>
+      </div>
+    </main>
   );
 };
 

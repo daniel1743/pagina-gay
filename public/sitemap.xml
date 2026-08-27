@@ -67,34 +67,8 @@
     <priority>0.9</priority>
     <mobile:mobile/>
   </url>
-  <url>
-    <loc>https://chactivo.com/mx/cdmx</loc>
-    <lastmod>2026-08-27</lastmod>
-    <changefreq>weekly</changefreq>
-    <priority>0.8</priority>
-    <mobile:mobile/>
-  </url>
-  <url>
-    <loc>https://chactivo.com/ar/buenos-aires</loc>
-    <lastmod>2026-08-27</lastmod>
-    <changefreq>weekly</changefreq>
-    <priority>0.8</priority>
-    <mobile:mobile/>
-  </url>
-  <url>
-    <loc>https://chactivo.com/es/madrid</loc>
-    <lastmod>2026-08-27</lastmod>
-    <changefreq>weekly</changefreq>
-    <priority>0.8</priority>
-    <mobile:mobile/>
-  </url>
-  <url>
-    <loc>https://chactivo.com/br/sao-paulo</loc>
-    <lastmod>2026-08-27</lastmod>
-    <changefreq>weekly</changefreq>
-    <priority>0.8</priority>
-    <mobile:mobile/>
-  </url>
+  <!-- Satélites /mx/cdmx, /ar/buenos-aires, /es/madrid y /br/sao-paulo quedan fuera:
+       son accesos regionales noindex hasta que tengan contenido y demanda propia verificables. -->
 
   <!-- ✅ PREGUNTAS FRECUENTES (FAQ - Pública) -->
   <url>
@@ -116,14 +90,8 @@
   <!-- ⏸️ TEMPORAL (2026-04-02): /chat, /chat/global, /chat/amistad, /chat/quedar-ya y
        /chat/conversas-libres quedan fuera del sitemap; se conservan solo como rutas legacy noindex -->
 
-  <!-- ✅ SALAS DE CHAT ACTIVAS (Chile) -->
-  <url>
-    <loc>https://chactivo.com/chat/principal</loc>
-    <lastmod>2026-08-27</lastmod>
-    <changefreq>hourly</changefreq>
-    <priority>0.9</priority>
-    <mobile:mobile/>
-  </url>
+  <!-- ⏸️ CHAT DINÁMICO: /chat/principal y demás salas contienen UGC y no se incluyen en el sitemap.
+       Se mantienen accesibles desde las landings, pero la propia ruta establece noindex. -->
   <!-- ⏸️ TEMPORAL (2026-03-26): /chat/santiago, /chat/mas-30 y salas /chat/* internacionales
        salen del sitemap mientras no sean destinos públicos indexables autónomos -->
   <!-- ⏸️ TEMPORAL (2026-03-24): /chat/hetero-general fuera de sitemap mientras no se quiere indexar -->

@@ -32,6 +32,21 @@
     --input: 225 14% 14%;
     --ring: 335 100% 65%;
 
+    /* Design system gradual: nuevos componentes deben consumir estos roles. */
+    --surface: 224 17% 8%;
+    --surface-elevated: 224 17% 11%;
+    --surface-hover: 224 17% 14%;
+    --border-subtle: 0 0% 100% / 0.12;
+    --text-primary: 0 0% 100%;
+    --text-secondary: 224 10% 72%;
+    --text-tertiary: 224 10% 58%;
+    --success: 158 64% 44%;
+    --warning: 38 92% 50%;
+    --error: 0 84% 60%;
+    --focus: 188 100% 50%;
+    --disabled: 225 14% 40%;
+    --font-ui: Inter, system-ui, sans-serif;
+
     --chat-background-base: #0f1115;
     --chat-surface-feed: #13161c;
     --chat-bubble-incoming: #1a1f27;
@@ -93,6 +108,20 @@
     --input: 210 25% 94%;
     --ring: 335 100% 65%;
 
+    --surface: 0 0% 100%;
+    --surface-elevated: 0 0% 100%;
+    --surface-hover: 210 25% 96%;
+    --border-subtle: 220 13% 88%;
+    --text-primary: 222 24% 8%;
+    --text-secondary: 220 9% 38%;
+    --text-tertiary: 220 9% 48%;
+    --success: 158 64% 34%;
+    --warning: 32 90% 38%;
+    --error: 0 72% 45%;
+    --focus: 198 88% 38%;
+    --disabled: 220 9% 60%;
+    --font-ui: Inter, system-ui, sans-serif;
+
     --chat-background-base: #f6f7f9;
     --chat-surface-feed: #ffffff;
     --chat-bubble-incoming: #f2f4f7;
@@ -139,6 +168,26 @@
       radial-gradient(circle at top left, rgba(20, 115, 230, 0.05), transparent 20%),
       radial-gradient(circle at top right, rgba(17, 24, 39, 0.025), transparent 16%),
       linear-gradient(180deg, rgba(247, 248, 250, 1) 0%, rgba(247, 248, 250, 1) 100%);
+  }
+
+  :where(button, a[href], input, textarea, select, [tabindex]:not([tabindex="-1"])):focus-visible {
+    outline: 3px solid hsl(var(--focus));
+    outline-offset: 3px;
+  }
+
+  :where(button, input, textarea, select):disabled {
+    cursor: not-allowed;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    scroll-behavior: auto !important;
+    transition-duration: 0.01ms !important;
   }
 }
 
