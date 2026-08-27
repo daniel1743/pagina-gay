@@ -37,6 +37,7 @@ import {
   hasGuestIdentity,
 } from '@/utils/guestIdentity';
 import { crearTarjetaAutomatica } from '@/services/tarjetaService';
+import { ENABLE_BAUL } from '@/config/featureFlags';
 import { removeRewardFromUser, REWARD_TYPES } from '@/services/rewardsService';
 import { resolveProfileRole } from '@/config/profileRoles';
 import { ONBOARDING_COMUNA_KEY, normalizeComuna } from '@/config/comunas';
@@ -642,6 +643,7 @@ export const AuthProvider = ({ children }) => {
 
   // ✅ BAÚL: Crear tarjeta automática solo para usuarios REGISTRADOS con auth lista
   useEffect(() => {
+    if (!ENABLE_BAUL) return;
     if (!authReady || !user?.id) return;
     if (user.isGuest || user.isAnonymous) return;
     if (!auth.currentUser?.uid || auth.currentUser.uid !== user.id) return;
@@ -682,7 +684,8 @@ export const AuthProvider = ({ children }) => {
     user?.canUploadSecondPhoto,
     user?.hasFeaturedCard,
     user?.hasRainbowBorder,
-    user?.hasProBadge
+    user?.hasProBadge,
+    ENABLE_BAUL,
   ]);
 
   // 🔄 Sincronizar perfil en tiempo real (premios PRO, verificación, premium, etc.)

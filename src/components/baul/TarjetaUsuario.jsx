@@ -22,6 +22,7 @@ import {
 import { getColorRol, getEmojiEstado, formatearHorarios, obtenerFotoPrincipal } from '@/services/tarjetaService';
 import { getBadgeConfig } from '@/services/badgeService';
 import { useAuth } from '@/contexts/AuthContext';
+import { getSafeAvatarSrc, handleAvatarImageError } from '@/utils/avatar';
 
 /**
  * Indicador de estado (🟢🟠⚫)
@@ -301,8 +302,9 @@ const TarjetaUsuario = ({
       <div className="relative aspect-[4/5] bg-gradient-to-br from-gray-700 to-gray-800 z-[1]">
         {hasPhoto ? (
           <img
-            src={fotoMostrar}
+            src={getSafeAvatarSrc(fotoMostrar)}
             alt={tarjeta.nombre}
+            onError={handleAvatarImageError}
             className={`w-full h-full object-cover transition ${
               shouldBlur
                 ? (isPreviewLocked ? 'blur-[18px] scale-[1.08] brightness-50 saturate-0' : 'blur-[10px] scale-[1.02]')

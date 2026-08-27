@@ -1,7 +1,8 @@
 import React, { useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { ArrowRight, Users } from 'lucide-react';
+import { AlertCircle, ArrowRight, Users } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
+import { ENABLE_BAUL } from '@/config/featureFlags';
 import BaulSection from '@/components/baul/BaulSection';
 import { Button } from '@/components/ui/button';
 import { trackPageView, trackPageExit } from '@/services/eventTrackingService';
@@ -33,6 +34,31 @@ const BaulPage = () => {
       navigate('/chat/principal');
     }
   };
+
+  if (!ENABLE_BAUL) {
+    return (
+      <div className="-mt-16 sm:-mt-20">
+        <div className="min-h-[calc(100dvh-4rem)] flex flex-col items-center justify-center px-6 py-12 text-center">
+          <div className="w-14 h-14 rounded-2xl bg-amber-500/15 border border-amber-400/25 flex items-center justify-center mb-4">
+            <AlertCircle className="w-7 h-7 text-amber-300" />
+          </div>
+          <p className="text-xs font-semibold uppercase tracking-[0.18em] text-amber-300">Servicio pausado</p>
+          <h1 className="text-2xl font-bold text-foreground mt-2">Baúl de Perfiles</h1>
+          <p className="text-sm text-muted-foreground mt-2 max-w-md">
+            Las tarjetas, likes y matches están temporalmente desactivados mientras se completa su backend seguro. No es un problema de tu cuenta ni de tu foto.
+          </p>
+          <div className="mt-6 flex flex-col sm:flex-row gap-3">
+            <Button onClick={() => navigate('/chat/principal')} className="magenta-gradient text-white font-semibold">
+              Ir al chat <ArrowRight className="w-4 h-4 ml-2" />
+            </Button>
+            <Button variant="outline" onClick={() => navigate('/opin')}>
+              Ir a OPIN
+            </Button>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   if (!user) {
     return (

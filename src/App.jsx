@@ -40,7 +40,6 @@ import SEOLanding, {
 } from '@/components/seo/SEOLanding';
 import NoindexRouteNotice from '@/components/seo/NoindexRouteNotice';
 import NoindexMeta from '@/components/seo/NoindexMeta';
-import { ENABLE_BAUL } from '@/config/featureFlags';
 
 // ⚡ CODE SPLITTING - Lazy loading de páginas (reducción de 80% del bundle inicial)
 // Estas páginas se cargan solo cuando el usuario navega a ellas
@@ -615,7 +614,7 @@ function AppRoutes() {
         <Route path="/thread/:threadId" element={<NoindexMeta><MainLayout><ThreadDetailPage /></MainLayout></NoindexMeta>} />
 
         {/* 🎯 BAÚL - Página independiente */}
-        <Route path="/baul" element={ENABLE_BAUL ? <MainLayout><BaulPage /></MainLayout> : <Navigate to="/chat/principal" replace />} />
+        <Route path="/baul" element={<MainLayout><BaulPage /></MainLayout>} />
 
         {/* 🎯 OPIN - Discovery Wall */}
         <Route path="/opin" element={<NoindexMeta><OpinLayout><OpinFeedPage /></OpinLayout></NoindexMeta>} />
