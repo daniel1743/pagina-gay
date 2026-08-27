@@ -82,10 +82,8 @@ import {
 import OpinStablesPanel from '@/components/admin/OpinStablesPanel';
 import AdminOpinRepliesPanel from '@/components/admin/AdminOpinRepliesPanel';
 import AdminEventosPanel from '@/components/admin/AdminEventosPanel';
-import BotControlPanel from '@/components/admin/BotControlPanel';
 import AdminFeaturedAdsPanel from '@/components/admin/AdminFeaturedAdsPanel';
 import AdminTopParticipantsPanel from '@/components/admin/AdminTopParticipantsPanel';
-import AdminSeededChatPanel from '@/components/admin/AdminSeededChatPanel';
 import AdminRoomHistoryPanel from '@/components/admin/AdminRoomHistoryPanel';
 import AdminAIInsightsPanel from '@/components/admin/AdminAIInsightsPanel';
 
@@ -1027,7 +1025,6 @@ const AdminPage = () => {
             <TabsTrigger value="rewards">Recompensas</TabsTrigger>
             <TabsTrigger value="featured-ads">Canales Destacados</TabsTrigger>
             <TabsTrigger value="top-participants">Top Participantes</TabsTrigger>
-            <TabsTrigger value="seeded-chat">Sala Asistida</TabsTrigger>
             <TabsTrigger value="forum">Foro</TabsTrigger>
             <TabsTrigger value="opin">OPIN estables</TabsTrigger>
             <TabsTrigger value="opin-replies">Responder OPINs</TabsTrigger>
@@ -1038,7 +1035,6 @@ const AdminPage = () => {
             <TabsTrigger value="moderation">Moderación</TabsTrigger>
             <TabsTrigger value="generator">Generador</TabsTrigger>
             <TabsTrigger value="eventos">Eventos</TabsTrigger>
-            <TabsTrigger value="bots">Bots</TabsTrigger>
           </TabsList>
 
           {/* Dashboard Tab */}
@@ -2037,10 +2033,6 @@ const AdminPage = () => {
 
           <TabsContent value="top-participants" className="space-y-6">
             <AdminTopParticipantsPanel />
-          </TabsContent>
-
-          <TabsContent value="seeded-chat" className="space-y-6">
-            <AdminSeededChatPanel />
           </TabsContent>
 
           {/* Foro Tab - Gestión del Foro Anónimo */}
@@ -3160,9 +3152,6 @@ const AdminPage = () => {
             <AdminEventosPanel />
           </TabsContent>
 
-          <TabsContent value="bots" className="space-y-6">
-            <BotControlPanel />
-          </TabsContent>
         </Tabs>
 
         {/* Footer Info */}

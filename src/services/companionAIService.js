@@ -5,18 +5,12 @@
  * - NO invasivo
  * - NO presiona
  * - NO pide datos personales
- * - Usa OpenAI para generar mensajes contextuales
+ * - Puede ofrecer ayuda contextual local cuando la interfaz la solicita
  */
 
-import OpenAI from 'openai';
-
-// ✅ DESACTIVADO (05/01/2026): OpenAI NO puede llamarse desde frontend
-// Motivo: CORS bloqueado + API key expuesta = riesgo de seguridad
-// TODO: Mover a Cloud Functions cuando se reactive
-const OPENAI_API_KEY = import.meta.env.VITE_OPENAI_API_KEY;
-const isOpenAIAvailable = false; // ← FORZADO A FALSE
-
-// ❌ DESACTIVADO: No crear instancia de OpenAI desde frontend
+// El acompañamiento permanece local y desactivado para proveedores externos.
+// Si se habilita en el futuro, la llamada debe vivir en un backend seguro.
+const isOpenAIAvailable = false;
 const openai = null;
 
 /**
@@ -117,7 +111,7 @@ const FALLBACK_MESSAGES = {
 };
 
 /**
- * Genera mensaje de acompañamiento usando OpenAI
+ * Genera un mensaje de acompañamiento usando la política local desactivada
  *
  * @param {String} scenario - Tipo de escenario (firstMessageHelp, suggestFirstMessage, passiveReader, generalHelp)
  * @param {Object} context - Contexto adicional (roomName, lastMessages, userQuestion, etc.)
@@ -160,7 +154,7 @@ export const generateCompanionMessage = async (scenario, context = {}) => {
         break;
     }
 
-    console.log(`🤖 [COMPANION AI] Generando mensaje para escenario: ${scenario}`);
+    console.log(`[COMPANION] Generando ayuda para escenario: ${scenario}`);
 
     const response = await openai.chat.completions.create({
       model: 'gpt-4o-mini', // Modelo rápido y económico

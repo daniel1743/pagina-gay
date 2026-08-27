@@ -329,8 +329,8 @@ module.exports = router;
 
 Tu `.env` ya tiene Qwen configurado:
 ```bash
-VITE_QWEN_API_KEY=sk-8731692a80b04360b4c9b8a72b9f5fb1
-```
+VITE_QWEN_API_KEY=
+
 
 **Verificar si Qwen permite CORS desde frontend** o si también necesita backend.
 
@@ -411,7 +411,7 @@ Si el usuario sigue sin poder entrar después de este fix, las causas posibles s
 **NUNCA** subir las API keys a GitHub:
 ```bash
 # ❌ MAL
-VITE_OPENAI_API_KEY=sk-proj-...
+VITE_OPENAI_API_KEY=
 
 # ✅ BIEN
 # VITE_OPENAI_API_KEY=TU_API_KEY_AQUI

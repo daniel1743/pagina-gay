@@ -60,7 +60,6 @@ Disallow: /chat/hetero-general
 
 # ❌ BLOQUEAR panel de administración y herramientas
 Disallow: /admin/
-Disallow: /seed-conversaciones
 Disallow: /admin
 
 # ❌ BLOQUEAR rutas dinámicas sin valor SEO individual

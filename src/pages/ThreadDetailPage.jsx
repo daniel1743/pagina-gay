@@ -7,7 +7,6 @@ import { ArrowLeft, MessageCircle, TrendingUp, Heart, Send, Clock, X, ArrowRight
 import { motion, AnimatePresence } from 'framer-motion';
 import { toast } from '@/components/ui/use-toast';
 import { getThreadById, getReplies, voteThread, voteReply } from '@/services/forumService'; // Asegúrate de importar lo necesario
-import { forumSeedData } from '@/data/forumSeedData';
 import AuthorBadge from '@/components/forum/AuthorBadge'; // ✅ Importar componente reutilizable
 
 const ThreadDetailPage = () => {
@@ -32,17 +31,17 @@ const ThreadDetailPage = () => {
     const loadThread = async () => {
       setLoading(true);
       try {
-        // ... (Tu lógica de carga original está bien, la mantengo igual)
-        const seedThread = forumSeedData.find(t => t.id === threadId);
-        if (seedThread) {
-          setThread({ ...seedThread, timestamp: seedThread.timestamp || Date.now() });
-          setReplies(seedThread.repliesData || []);
+        const loadedThread = await getThreadById(threadId);
+        if (!loadedThread) {
+          setThread(null);
+          setReplies([]);
           setLoading(false);
           return;
         }
-        // Fallback Firestore...
-        // (Asumimos que esta parte sigue igual por brevedad)
-        setLoading(false); 
+        setThread(loadedThread);
+        const loadedReplies = await getReplies(threadId);
+        setReplies(Array.isArray(loadedReplies) ? loadedReplies : []);
+        setLoading(false);
       } catch (error) {
         console.error(error);
         setLoading(false);

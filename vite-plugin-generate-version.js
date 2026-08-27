@@ -13,7 +13,7 @@ export default function generateVersionPlugin() {
         let gitHash = 'unknown';
         
         try {
-          gitHash = execSync('git rev-parse --short HEAD', { encoding: 'utf-8' }).trim();
+          gitHash = execSync('git rev-parse --short HEAD', { encoding: 'utf-8', stdio: ['ignore', 'pipe', 'ignore'] }).trim();
         } catch (error) {
           // Si git no está disponible, usar solo timestamp
           console.warn('⚠️ Git no disponible, usando solo timestamp para versión');

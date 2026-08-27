@@ -75,8 +75,7 @@ import { subscribeToBlockedUsers, isBlocked, isBlockedBetween } from '@/services
 import { requestNotificationPermission, canRequestPush, setupForegroundMessages } from '@/services/pushNotificationService';
 // ⚠️ MODERADOR ELIMINADO (06/01/2026) - A petición del usuario
 // import { sendModeratorWelcome } from '@/services/moderatorWelcome';
-// ⚠️ BOTS ELIMINADOS (06/01/2026) - A petición del usuario
-// import { checkAndSeedConversations } from '@/services/seedConversationsService';
+// Actividad artificial eliminada: la sala solo acepta sesiones reales o anónimas autenticadas.
 import { track, getSessionId, trackPageView, trackPageExit, trackRoomJoined, trackMessageSent } from '@/services/eventTrackingService';
 import { useCanonical } from '@/hooks/useCanonical';
 import { checkUserSanctions, createSanction, SANCTION_TYPES, SANCTION_REASONS } from '@/services/sanctionsService';
@@ -85,7 +84,6 @@ import { traceEvent, TRACE_EVENTS, isMessageTraceEnabled } from '@/utils/message
 import { startEngagementTracking, hasReachedOneHourLimit, getTotalEngagementTime, hasSeenEngagementModal, markEngagementModalAsShown } from '@/services/engagementService';
 import { notificationSounds, initAudioOnFirstGesture } from '@/services/notificationSounds';
 import { monitorActivityAndSendVOC, resetVOCCooldown } from '@/services/vocService';
-import { generateNicoWelcome, sendNicoQuestion, getLastNicoMessageAge, NICO, QUESTION_INTERVAL_MS } from '@/services/nicoBot';
 import ProCongratsModal from '@/components/rewards/ProCongratsModal';
 import { markReminderPopupShown, wasReminderPopupShown, cleanOldReminders } from '@/utils/eventReminderUtils';
 import { registrarParticipacionEvento } from '@/services/eventosService';
@@ -124,8 +122,6 @@ const roomWelcomeMessages = {
   'morbosear': 'Sala para conversar con un toque de morbo. ¡Con respeto!',
 };
 
-// 🤖 NICO BOT: DESACTIVADO POR SPAM EN SALA PRINCIPAL
-const NICO_BOT_ENABLED = false;
 const PRIVATE_MATCH_IDLE_MS = 30000;
 const PRIVATE_MATCH_NO_RESPONSE_MS = 20000;
 const PRIVATE_MATCH_FRUSTRATION_MS = 20000;
@@ -1627,13 +1623,9 @@ const ChatPage = () => {
   const firstSnapshotReceivedRef = useRef(false); // Marca llegada del primer snapshot (aunque venga vacío)
   const loadingFallbackTimeoutRef = useRef(null); // Cambio a carga lenta
   const loadingExtendedTimeoutRef = useRef(null); // Carga anormalmente lenta
-  const nicoWelcomedUsersRef = useRef(new Set()); // 🤖 NICO: Usuarios ya bienvenidos esta sesion
-  const nicoQuestionIntervalRef = useRef(null); // 🤖 NICO: Intervalo de preguntas cada 30min
-  const nicoPreviousRoomUsersRef = useRef(null); // 🤖 NICO: null = primer render (no enviar bienvenidas)
-  const messagesRef = useRef([]); // 🤖 NICO: Ref a mensajes actuales (para closures)
-  const roomUsersRef = useRef([]); // 🤖 NICO: Ref a usuarios actuales (para closures)
+  const messagesRef = useRef([]);
+  const roomUsersRef = useRef([]);
 
-  // 🤖 NICO: Sincronizar refs con estado actual
   messagesRef.current = messages;
   roomUsersRef.current = roomUsers;
 
@@ -4512,8 +4504,6 @@ const ChatPage = () => {
       loadingExtendedTimeoutRef.current = null;
     }
     aiActivatedRef.current = false; // Resetear flag de IA cuando cambia de sala
-    nicoWelcomedUsersRef.current = new Set(); // 🤖 NICO: Resetear bienvenidas al cambiar de sala
-    nicoPreviousRoomUsersRef.current = null; // 🤖 NICO: null = primer render (no enviar bienvenidas al entrar a sala)
 
     // 📊 PERFORMANCE MONITOR: Iniciar medición de carga del chat
     chatLoadStartTimeRef.current = performance.now();
@@ -5065,132 +5055,6 @@ const ChatPage = () => {
   //   });
   //   return () => unsubscribe();
   // }, [user?.id]);
-
-  // 🤖 NICO BOT: Toast de bienvenida personal al entrar a sala
-  useEffect(() => {
-    if (!NICO_BOT_ENABLED) return;
-    if (!user?.id || !currentRoom) return;
-    const username = user?.username || user?.displayName || 'Usuario';
-
-    // Delay de 2s para que el chat cargue primero
-    const timer = setTimeout(async () => {
-      const welcomeText = await generateNicoWelcome(username, messagesRef.current);
-      toast({
-        title: `👋 ${NICO.username}`,
-        description: welcomeText,
-        duration: 5000,
-      });
-    }, 2000);
-
-    return () => clearTimeout(timer);
-    // Solo al entrar a una sala (cambio de currentRoom)
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [currentRoom]);
-
-  // 🤖 NICO BOT: Notificar a los demás cuando alguien se conecta (toast, NO mensaje en chat)
-  useEffect(() => {
-    if (!NICO_BOT_ENABLED) return;
-    if (!user?.id || !roomUsers || roomUsers.length === 0) return;
-
-    // Obtener IDs actuales (sin bots, sistema ni yo mismo)
-    const currentUserIds = new Set();
-    const currentUserMap = new Map();
-    for (const u of roomUsers) {
-      const uid = u.userId || u.id;
-      if (uid && uid !== 'system' && !uid.startsWith('bot_') && !uid.startsWith('static_bot_') && uid !== user.id) {
-        currentUserIds.add(uid);
-        currentUserMap.set(uid, u);
-      }
-    }
-
-    // Primer render: solo registrar usuarios existentes
-    if (nicoPreviousRoomUsersRef.current === null) {
-      nicoPreviousRoomUsersRef.current = currentUserIds;
-      return;
-    }
-
-    // Detectar usuarios NUEVOS
-    const previousIds = nicoPreviousRoomUsersRef.current;
-    const newUserIds = [];
-    for (const uid of currentUserIds) {
-      if (!previousIds.has(uid) && !nicoWelcomedUsersRef.current.has(uid)) {
-        newUserIds.push(uid);
-      }
-    }
-
-    // Actualizar referencia anterior
-    nicoPreviousRoomUsersRef.current = currentUserIds;
-
-    // Si hay usuarios nuevos, elegir UNO al azar y mostrar toast
-    if (newUserIds.length > 0) {
-      // Marcar todos como notificados
-      newUserIds.forEach(uid => nicoWelcomedUsersRef.current.add(uid));
-
-      // Elegir uno al azar para el toast
-      const randomUid = newUserIds[Math.floor(Math.random() * newUserIds.length)];
-      const randomUser = currentUserMap.get(randomUid);
-
-      if (randomUser?.username) {
-        // Delay corto para no interrumpir inmediatamente
-        setTimeout(() => {
-          toast({
-            title: `${randomUser.username} se ha conectado 👋`,
-            description: newUserIds.length > 1
-              ? `y ${newUserIds.length - 1} más · ¡Salúdalos!`
-              : '¡Salúdalo!',
-            duration: 3000,
-          });
-        }, 1500);
-      }
-    }
-  }, [roomUsers, user?.id]);
-
-  // 🤖 NICO BOT: Pregunta caliente cada 30 minutos
-  useEffect(() => {
-    if (!NICO_BOT_ENABLED) return;
-    if (!user?.id || !currentRoom) return;
-
-    // Limpiar intervalo anterior
-    if (nicoQuestionIntervalRef.current) {
-      clearInterval(nicoQuestionIntervalRef.current);
-    }
-
-    // Funcion que verifica y envia pregunta (usa refs para valores frescos)
-    const checkAndSendQuestion = () => {
-      // Solo enviar si hay al menos 2 usuarios reales
-      const realCount = countRealUsers(roomUsersRef.current);
-      if (realCount < 2) return;
-
-      // Verificar edad del ultimo mensaje de Nico
-      const currentMessages = messagesRef.current;
-      const lastNicoAge = getLastNicoMessageAge(currentMessages);
-      if (lastNicoAge < QUESTION_INTERVAL_MS) return;
-
-      // Delay aleatorio (0-60s) para evitar colision entre clientes
-      const randomDelay = Math.random() * 60000;
-      setTimeout(() => {
-        // Re-verificar despues del delay (con refs frescos)
-        const freshMessages = messagesRef.current;
-        const freshAge = getLastNicoMessageAge(freshMessages);
-        if (freshAge < QUESTION_INTERVAL_MS) return;
-
-        sendNicoQuestion(currentRoom, freshMessages);
-      }, randomDelay);
-    };
-
-    // Primera verificacion despues de 2 minutos (dar tiempo a que cargue todo)
-    const initialTimeout = setTimeout(checkAndSendQuestion, 120000);
-
-    // Verificar cada 5 minutos (el intervalo real es de 30min, verificamos seguido por si acaso)
-    nicoQuestionIntervalRef.current = setInterval(checkAndSendQuestion, 5 * 60 * 1000);
-
-    return () => {
-      clearTimeout(initialTimeout);
-      if (nicoQuestionIntervalRef.current) {
-        clearInterval(nicoQuestionIntervalRef.current);
-      }
-    };
-  }, [currentRoom, user?.id, countRealUsers]); // No incluir messages/roomUsers para evitar re-crear el intervalo
 
   const openPrivateChatWindow = useCallback((chatPayload) => {
     activatePrivateSurfaces();

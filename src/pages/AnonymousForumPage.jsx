@@ -6,7 +6,6 @@ import { ArrowLeft, Plus, MessageCircle, TrendingUp, MessageSquare, ArrowRight, 
 import { motion, AnimatePresence } from 'framer-motion';
 import { toast } from '@/components/ui/use-toast';
 import { getThreads, createThread } from '@/services/forumService';
-import { forumSeedData } from '@/data/forumSeedData';
 import CreateThreadModal from '@/components/forum/CreateThreadModal';
 import AuthorBadge from '@/components/forum/AuthorBadge'; // ✅ IMPORTADO
 
@@ -177,19 +176,12 @@ const AnonymousForumPage = () => {
     const loadThreads = async () => {
       setLoading(true);
       try {
-        const seedThreads = forumSeedData
-          .filter(t => selectedCategory === 'Todos' || t.category === selectedCategory)
-          .map(t => ({
-            id: t.id,
-            title: t.title,
-            content: t.content,
-            category: t.category,
-            authorDisplay: t.authorDisplay,
-            replies: t.replies,
-            likes: t.likes,
-            timestamp: t.timestamp,
-          }));
-        setThreads(seedThreads);
+        const loadedThreads = await getThreads(
+          selectedCategory === 'Todos' ? null : selectedCategory,
+          sortBy,
+          null,
+        );
+        setThreads(Array.isArray(loadedThreads) ? loadedThreads : []);
       } catch (error) {
         setThreads([]);
       } finally {

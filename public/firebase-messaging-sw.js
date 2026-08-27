@@ -8,7 +8,7 @@ importScripts('https://www.gstatic.com/firebasejs/10.8.0/firebase-app-compat.js'
 importScripts('https://www.gstatic.com/firebasejs/10.8.0/firebase-messaging-compat.js');
 
 firebase.initializeApp({
-  apiKey: 'AIzaSyDXIxaMpL6F0U6g21WgIjZzBDMUqearAwc',
+  apiKey: 'REDACTED_FIREBASE_WEB_API_KEY',
   authDomain: 'chat-gay-3016f.firebaseapp.com',
   projectId: 'chat-gay-3016f',
   storageBucket: 'chat-gay-3016f.firebasestorage.app',

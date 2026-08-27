@@ -22,8 +22,8 @@ dir .env
 
 **Variables requeridas:**
 ```env
-VITE_FIREBASE_API_KEY=tu_api_key
-VITE_FIREBASE_AUTH_DOMAIN=chat-gay-3016f.firebaseapp.com
+VITE_FIREBASE_API_KEY=
+
 VITE_FIREBASE_PROJECT_ID=chat-gay-3016f
 VITE_FIREBASE_STORAGE_BUCKET=chat-gay-3016f.appspot.com
 VITE_FIREBASE_MESSAGING_SENDER_ID=tu_sender_id

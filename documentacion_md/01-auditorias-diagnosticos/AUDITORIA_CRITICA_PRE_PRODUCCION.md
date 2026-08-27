@@ -78,8 +78,8 @@ systemPrompt: `Eres un bot asistente amigable del chat...`
 
 **Problema:**
 ```env
-VITE_GEMINI_API_KEY=AIzaSyCztlhKh33ffQdvFiYIFhfR1IIXSBpbj0g
-```
+VITE_GEMINI_API_KEY=
+
 
 **Por qué es crítico:**
 1. La API key de Gemini está en `.env` con prefijo `VITE_`
@@ -87,7 +87,7 @@ VITE_GEMINI_API_KEY=AIzaSyCztlhKh33ffQdvFiYIFhfR1IIXSBpbj0g
 3. Cualquiera puede ver la key en el código fuente del navegador:
    ```javascript
    // En el bundle de producción:
-   const e="AIzaSyCztlhKh33ffQdvFiYIFhfR1IIXSBpbj0g"
+   const e="REDACTED_FIREBASE_WEB_API_KEY"
    ```
 
 4. Con esta key, un atacante puede:

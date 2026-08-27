@@ -14,8 +14,8 @@ VITE_SUPABASE_ANON_KEY=tu-anon-key-aqui
 # ============================================
 # FIREBASE (Mantener durante migración)
 # ============================================
-VITE_FIREBASE_API_KEY=tu-api-key-aqui
-VITE_FIREBASE_AUTH_DOMAIN=tu-proyecto.firebaseapp.com
+VITE_FIREBASE_API_KEY=
+
 VITE_FIREBASE_PROJECT_ID=tu-proyecto-id
 VITE_FIREBASE_STORAGE_BUCKET=tu-proyecto.appspot.com
 VITE_FIREBASE_MESSAGING_SENDER_ID=123456789

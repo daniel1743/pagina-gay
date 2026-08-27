@@ -52,7 +52,6 @@ const AdminPage = lazy(() => import('@/pages/AdminPage'));
 const AdminTicketsPage = lazy(() => import('@/pages/AdminTicketsPage'));
 const TicketDetailPage = lazy(() => import('@/pages/TicketDetailPage'));
 const AdminCleanup = lazy(() => import('@/pages/AdminCleanup'));
-const SeedConversaciones = lazy(() => import('@/pages/SeedConversaciones'));
 const AnonymousChatPage = lazy(() => import('@/pages/AnonymousChatPage'));
 const ThreadDetailPage = lazy(() => import('@/pages/ThreadDetailPage'));
 const Mas30LandingPage = lazy(() => import('@/pages/Mas30LandingPage'));
@@ -661,14 +660,6 @@ function AppRoutes() {
           element={
             <PrivateRoute>
               <MainLayout><TicketDetailPage /></MainLayout>
-            </PrivateRoute>
-          }
-        />
-        <Route
-          path="/seed-conversaciones"
-          element={
-            <PrivateRoute>
-              <SeedConversaciones />
             </PrivateRoute>
           }
         />

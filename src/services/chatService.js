@@ -242,22 +242,18 @@ const doSendMessage = async (roomId, messageData, isAnonymous = false, options =
   const messageType = messageData.type || 'text';
   const isTextMessage = messageType === 'text';
 
-  // Los usuarios invitados deben existir como sesión anónima real.
-  // No se permite fabricar remitentes temporales sin auth.
-  const isAdminSeededMessage = Boolean(
-    options?.allowAdminSeededInPrincipal &&
-    messageData.userId?.startsWith('seed_user_') &&
-    auth.currentUser
-  );
+  // Los invitados deben existir como sesiones anónimas reales.
+  // No se permite fabricar remitentes temporales ni habilitar excepciones de siembra.
+  const isAdminSeededMessage = false;
 
   const isSystemMessage = messageData.userId?.startsWith('system') ||
                          messageData.userId?.startsWith('bot_') ||
                          messageData.userId?.startsWith('ai_') ||
                          messageData.userId?.startsWith('seed_user_');
 
-  // 🔒 Hard-block: nunca permitir bots/IA/seed en la sala principal.
-  if (roomId === 'principal' && isAutomatedSenderId(messageData.userId || '') && !isAdminSeededMessage) {
-    throw new Error('Bots bloqueados en sala principal');
+  // 🔒 Hard-block global: nunca permitir bots/IA/seed en ninguna sala.
+  if (isAutomatedSenderId(messageData.userId || '') && !isAdminSeededMessage) {
+    throw new Error('AUTOMATED_HUMAN_SIMULATION_DISABLED');
   }
 
   // Para usuarios autenticados, validar que userId coincida
@@ -584,38 +580,11 @@ export const sendMessage = async (roomId, messageData, isAnonymous = false, skip
 };
 
 /**
- * Envío especializado para botEngine.
- * Usa el flujo estándar de sendMessage, pero fuerza trazabilidad BOT.
+ * Barrera permanente contra actividad artificial.
+ * La IA futura no puede escribir como una persona dentro del chat.
  */
-export const sendBotMessageFromEngine = async (roomId, messageData = {}) => {
-  if (roomId !== 'admin-testing') {
-    throw new Error(`BOT_ENGINE bloqueado: roomId "${roomId}" no permitido`);
-  }
-
-  const username = messageData.username || 'bot_engine';
-  const userId = messageData.userId || `bot_${username}`;
-  const avatar = messageData.avatar || `https://api.dicebear.com/7.x/avataaars/svg?seed=${encodeURIComponent(username)}`;
-
-  return sendMessage(
-    roomId,
-    {
-      ...messageData,
-      userId,
-      username,
-      avatar,
-      isPremium: false,
-      trace: {
-        origin: 'BOT',
-        source: 'BOT_ENGINE',
-        actorId: userId,
-        actorType: 'BOT_CONVERSATION',
-        system: 'botEngine',
-        traceId: generateUUID(),
-        createdAt: Date.now(),
-      },
-    },
-    false
-  );
+export const sendBotMessageFromEngine = async () => {
+  throw new Error('AUTOMATED_HUMAN_SIMULATION_DISABLED');
 };
 
 
@@ -1112,6 +1081,10 @@ const doSendSecondaryMessage = async (roomId, messageData, isAnonymous = false) 
                          messageData.userId?.startsWith('bot_') ||
                          messageData.userId?.startsWith('ai_') ||
                          messageData.userId?.startsWith('seed_user_');
+
+  if (isAutomatedSenderId(messageData.userId || '')) {
+    throw new Error('AUTOMATED_HUMAN_SIMULATION_DISABLED');
+  }
 
   if (auth.currentUser && !isSystemMessage && messageData.userId !== auth.currentUser.uid) {
     console.warn('[SEND SECONDARY] ⚠️ userId no coincide con auth.currentUser.uid, corrigiendo...');

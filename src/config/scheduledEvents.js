@@ -81,7 +81,6 @@ export const SCHEDULED_EVENTS = {
   //     description: '¿Qué estás viendo? Comparte series y películas LGBT+ que te gusten',
   //     emoji: '🎬',
   //     color: 'purple',
-  //     moderator: 'bot_alejandro' // Bot que modera el evento
   //   },
   //   {
   //     id: 'conversas_miercoles_confesiones',
@@ -91,7 +90,6 @@ export const SCHEDULED_EVENTS = {
   //     description: 'Espacio seguro para compartir experiencias, dudas y consejos',
   //     emoji: '💭',
   //     color: 'pink',
-  //     moderator: 'bot_mateo'
   //   },
   //   {
   //     id: 'conversas_viernes_social',
@@ -101,7 +99,6 @@ export const SCHEDULED_EVENTS = {
   //     description: 'Cuenta tu semana, organiza juntadas, encuentra planes para el fin de semana',
   //     emoji: '🍻',
   //     color: 'blue',
-  //     moderator: 'bot_carlos'
   //   },
   //   {
   //     id: 'conversas_domingo_chill',
@@ -111,7 +108,6 @@ export const SCHEDULED_EVENTS = {
   //     description: 'Conversación tranquila para cerrar la semana y preparar la nueva',
   //     emoji: '☕',
   //     color: 'green',
-  //     moderator: 'bot_miguel'
   //   }
   // ],
 
@@ -124,7 +120,6 @@ export const SCHEDULED_EVENTS = {
       description: 'Comparte tips, estrategias y forma equipos para ranked',
       emoji: '🎯',
       color: 'purple',
-      moderator: 'bot_javier'
     },
     {
       id: 'gaming_viernes_streams',
@@ -134,7 +129,6 @@ export const SCHEDULED_EVENTS = {
       description: 'Comparte tus clips, streams y mejores jugadas de la semana',
       emoji: '📺',
       color: 'pink',
-      moderator: 'bot_javier'
     },
     {
       id: 'gaming_sabado_marathon',
@@ -144,7 +138,6 @@ export const SCHEDULED_EVENTS = {
       description: 'Sesión larga de gaming. Trae tu juego favorito y comparte la experiencia',
       emoji: '🎮',
       color: 'blue',
-      moderator: 'bot_javier'
     }
   ],
 
@@ -157,7 +150,6 @@ export const SCHEDULED_EVENTS = {
       description: 'Comparte tu sabiduría: relaciones, carrera, vida como gay +30',
       emoji: '💬',
       color: 'purple',
-      moderator: 'bot_alejandro'
     },
     {
       id: 'mas30_viernes_planes',
@@ -167,7 +159,6 @@ export const SCHEDULED_EVENTS = {
       description: 'Recomienda libros, vinos, lugares, eventos culturales LGBT+',
       emoji: '🍷',
       color: 'pink',
-      moderator: 'bot_fernando'
     },
     {
       id: 'mas30_domingo_bienestar',
@@ -177,7 +168,6 @@ export const SCHEDULED_EVENTS = {
       description: 'Salud mental, autocuidado, fitness. Comparte tu rutina',
       emoji: '🧘',
       color: 'green',
-      moderator: 'bot_miguel'
     }
   ],
 
@@ -190,7 +180,6 @@ export const SCHEDULED_EVENTS = {
       description: 'Organiza juntadas, comparte eventos LGBT+ de la semana en Stgo',
       emoji: '🎉',
       color: 'purple',
-      moderator: 'bot_carlos'
     },
     {
       id: 'santiago_viernes_noche',
@@ -200,7 +189,6 @@ export const SCHEDULED_EVENTS = {
       description: '¿Dónde salen? Recomienda bares, clubs, fiestas LGBT+ en Santiago',
       emoji: '🌃',
       color: 'pink',
-      moderator: 'bot_david'
     },
     {
       id: 'santiago_sabado_explore',
@@ -210,7 +198,6 @@ export const SCHEDULED_EVENTS = {
       description: 'Recomienda lugares, cafés, parques LGBT-friendly en la capital',
       emoji: '🗺️',
       color: 'blue',
-      moderator: 'bot_fernando'
     }
   ]
 };

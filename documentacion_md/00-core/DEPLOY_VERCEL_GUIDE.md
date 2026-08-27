@@ -33,7 +33,7 @@ En Vercel Dashboard:
 En Project Settings → Environment Variables, agrega:
 
 ```
-VITE_FIREBASE_API_KEY=tu_api_key
+VITE_FIREBASE_API_KEY=
 VITE_FIREBASE_AUTH_DOMAIN=tu_auth_domain
 VITE_FIREBASE_PROJECT_ID=tu_project_id
 VITE_FIREBASE_STORAGE_BUCKET=tu_storage_bucket

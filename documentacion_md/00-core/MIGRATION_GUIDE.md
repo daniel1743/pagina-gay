@@ -34,7 +34,7 @@ npm install firebase
 
 Ejemplo de `.env`:
 ```env
-VITE_FIREBASE_API_KEY=AIzaSyC...
+VITE_FIREBASE_API_KEY=
 VITE_FIREBASE_AUTH_DOMAIN=chactivo-12345.firebaseapp.com
 VITE_FIREBASE_PROJECT_ID=chactivo-12345
 VITE_FIREBASE_STORAGE_BUCKET=chactivo-12345.appspot.com
