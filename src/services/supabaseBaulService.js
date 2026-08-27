@@ -61,6 +61,10 @@ export const mapSupabaseCardToLegacy = (row = {}, profile = {}) => {
   const expiresAt = row.intent_expires_at || null;
   const active = !expiresAt || toDateMs(expiresAt) > Date.now();
   const displayAge = row.mostrar_edad ? identity.age : null;
+  const hasStoredCardMedia = Boolean(row.foto_path && row.foto_bucket);
+  const primaryPhoto = hasStoredCardMedia
+    ? (row.foto_url || '')
+    : (identity.avatar || row.foto_url || '');
   return {
     id: row.user_id,
     odIdUsuari: row.user_id,
@@ -84,9 +88,9 @@ export const mapSupabaseCardToLegacy = (row = {}, profile = {}) => {
     intentExpiresAt: expiresAt,
     intentActive: active,
     mostrarEdad: Boolean(row.mostrar_edad),
-    fotoUrl: row.foto_url || identity.avatar || '',
-    fotoUrlThumb: row.foto_url || identity.avatar || '',
-    fotoUrlFull: row.foto_url || identity.avatar || '',
+    fotoUrl: primaryPhoto,
+    fotoUrlThumb: primaryPhoto,
+    fotoUrlFull: primaryPhoto,
     fotoPath: row.foto_path || null,
     fotoBucket: row.foto_bucket || null,
     foto2Path: row.foto2_path || null,

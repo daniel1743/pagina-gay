@@ -14,11 +14,9 @@ import { suscribirseAEventos, unirseAEvento } from '@/services/eventosService';
 import { isEventoActivo, isEventoProgramado, formatCountdown, formatFechaEvento, toMs } from '@/utils/eventosUtils';
 import { setEventReminder, removeEventReminder, hasEventReminder } from '@/utils/eventReminderUtils';
 import { requestNotificationPermission } from '@/services/pushNotificationService';
-import { getCurrentScheduledEventOccurrence, getNextScheduledEventOccurrence } from '@/config/scheduledEvents';
+import { isSupabaseAuthEnabled } from '@/config/supabase';
 
 const PRE_EVENT_WINDOW_MS = 12 * 60 * 60 * 1000; // Mostrar próximos eventos hasta 12h antes
-const AUTO_EVENT_LOOKAHEAD_MS = 48 * 60 * 60 * 1000; // Fallback automático: próximos 2 días
-const AUTO_EVENT_DURATION_MINUTES = 30;
 
 export default function EventoBanner({ currentRoomId, onEventoActivoConRecordatorio }) {
   const navigate = useNavigate();
@@ -55,12 +53,18 @@ export default function EventoBanner({ currentRoomId, onEventoActivoConRecordato
     } catch {}
   }, [dismissedEventIds, dismissedStorageKey]);
 
-  // Suscripción real-time a eventos
+  // Los eventos se consultan solo a través del flujo Supabase-first.
+  // Firebase queda fuera de esta función porque ya no es el backend operativo de eventos.
   useEffect(() => {
+    if (!isSupabaseAuthEnabled()) {
+      setEventos([]);
+      return undefined;
+    }
+
     const unsub = suscribirseAEventos((eventosData) => {
       setEventos(eventosData);
     });
-    return () => unsub();
+    return () => unsub?.();
   }, []);
 
   // Encontrar el evento más relevante: activo > próximo más cercano
@@ -73,33 +77,7 @@ export default function EventoBanner({ currentRoomId, onEventoActivoConRecordato
     msHastaEventoProgramado > 0 &&
     msHastaEventoProgramado <= PRE_EVENT_WINDOW_MS;
 
-  const normalizedRoomId = !currentRoomId || String(currentRoomId).startsWith('evento_')
-    ? 'principal'
-    : currentRoomId;
-
-  // Fallback: eventos automáticos semanales por sala (sin depender de Firestore/admin)
-  const autoEventoActivo = getCurrentScheduledEventOccurrence(
-    normalizedRoomId,
-    new Date(),
-    AUTO_EVENT_DURATION_MINUTES
-  );
-  const autoEventoProgramado = getNextScheduledEventOccurrence(
-    normalizedRoomId,
-    new Date(),
-    AUTO_EVENT_DURATION_MINUTES
-  );
-  const msHastaAutoEvento = autoEventoProgramado
-    ? toMs(autoEventoProgramado.fechaInicio) - Date.now()
-    : null;
-  const mostrarAutoEventoProgramado = !!autoEventoProgramado &&
-    msHastaAutoEvento > 0 &&
-    msHastaAutoEvento <= AUTO_EVENT_LOOKAHEAD_MS;
-
-  const evento =
-    eventoActivo ||
-    (mostrarEventoProgramado ? eventoProgramado : null) ||
-    autoEventoActivo ||
-    (mostrarAutoEventoProgramado ? autoEventoProgramado : null);
+  const evento = eventoActivo || (mostrarEventoProgramado ? eventoProgramado : null);
 
   // Sincronizar estado de recordatorio con localStorage
   useEffect(() => {

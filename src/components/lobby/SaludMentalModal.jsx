@@ -33,15 +33,18 @@ const SaludMentalModal = ({ isOpen, onClose }) => {
         break;
       case 'psychologist':
         toast({
-          title: '🚧 Psicólogos Reales Próximamente',
-          description: 'Estamos trabajando para conectar a profesionales contigo. Te avisaremos cuando esté listo.',
+          title: 'Apoyo profesional no disponible',
+          description: 'Chactivo no ofrece sesiones psicológicas desde esta sección. Si existe una urgencia, contacta los servicios de emergencia o apoyo profesional de tu zona.',
         });
         break;
       case 'anonymous-chat':
         handleNavigation('/anonymous-chat');
         break;
       case 'forum':
-        handleNavigation('/anonymous-chat');
+        toast({
+          title: 'Foro no disponible',
+          description: 'El foro anónimo está pausado. No se crea ni se muestra contenido de ejemplo.',
+        });
         break;
       default:
         break;
@@ -52,7 +55,7 @@ const SaludMentalModal = ({ isOpen, onClose }) => {
     {
       id: 'anonymous-chat',
       title: 'Sala de Apoyo Anónima',
-      description: 'Conecta y habla libremente con otros en un espacio con privacidad clara.',
+      description: 'Revisa los límites y normas antes de decidir si quieres conversar.',
       icon: <Users className="w-8 h-8 text-cyan-400" />,
       premium: false,
     },
@@ -66,14 +69,14 @@ const SaludMentalModal = ({ isOpen, onClose }) => {
      {
       id: 'forum',
       title: 'Foro Anónimo',
-      description: 'Haz preguntas y comparte experiencias en un foro moderado y seguro.',
+      description: 'El foro está pausado. Esta opción no publica ni muestra contenido de ejemplo.',
       icon: <MessageCircle className="w-8 h-8 text-yellow-400" />,
       premium: false,
     },
     {
       id: 'psychologist',
       title: 'Habla con un Psicólogo',
-      description: 'Conéctate con psicólogos profesionales para una sesión (próximamente).',
+      description: 'No hay sesiones profesionales disponibles desde Chactivo.',
       icon: <User className="w-8 h-8 text-green-400" />,
       premium: false,
     }
@@ -88,7 +91,7 @@ const SaludMentalModal = ({ isOpen, onClose }) => {
             Centro de Salud Mental
           </DialogTitle>
           <DialogDescription className="text-muted-foreground">
-            Tu espacio seguro para el bienestar emocional. No estás solo/a.
+            Recursos informativos y límites claros. Chactivo no es un servicio de emergencia ni reemplaza apoyo profesional.
           </DialogDescription>
         </DialogHeader>
 

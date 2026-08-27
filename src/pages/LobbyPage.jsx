@@ -25,122 +25,13 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, Di
 import { Button } from '@/components/ui/button';
 import { trackPageView, trackPageExit } from '@/services/eventTrackingService';
 import { useCanonical } from '@/hooks/useCanonical';
-import { subscribeToLastActivity, subscribeToMultipleRoomCounts } from '@/services/presenceService';
 import { subscribeToRoomMessages } from '@/services/chatService';
-import { getVisibleRooms } from '@/config/rooms';
-import ChatDemo from '@/components/landing/ChatDemo';
+import { isSupabaseAuthEnabled } from '@/config/supabase';
 import { SkeletonCard, SkeletonRoomsGrid } from '@/components/ui/SkeletonLoader';
+import ChatDemo from '@/components/landing/ChatDemo';
 import PeakHoursIndicator from '@/components/lobby/PeakHoursIndicator';
 
 // ✅ cardData ahora se genera dinámicamente en el componente para usar contadores reales
-
-// ✅ OPTIMIZADO FASE 1: News Ticker con Intersection Observer (pausa cuando no está visible)
-const NewsTicker = () => {
-  const tickerRef = React.useRef(null);
-  const [isVisible, setIsVisible] = React.useState(true);
-
-  const newsItems = [
-    { id: 1, text: "🏳️‍🌈 Participación real en Chat Principal" },
-    { id: 2, text: "💬 Nuevo: OPIN para descubrir perfiles y conectar" },
-    { id: 3, text: "🛡️ Moderación activa para mantener buena convivencia" },
-    { id: 4, text: "📌 Completa tu perfil para obtener más respuestas" },
-  ];
-
-  React.useEffect(() => {
-    const observer = new IntersectionObserver(
-      (entries) => {
-        entries.forEach(entry => {
-          setIsVisible(entry.isIntersecting);
-        });
-      },
-      { threshold: 0.1 }
-    );
-
-    if (tickerRef.current) {
-      observer.observe(tickerRef.current);
-    }
-
-    return () => {
-      if (tickerRef.current) {
-        observer.unobserve(tickerRef.current);
-      }
-    };
-  }, []);
-
-  return (
-    <div
-      ref={tickerRef}
-      className="relative w-full overflow-hidden carousel-container py-4 sm:py-6 my-6 sm:my-8"
-      role="region"
-      aria-label="Noticias de la comunidad"
-    >
-      <div className="absolute inset-y-0 left-0 w-16 sm:w-24 bg-gradient-to-r from-background to-transparent z-10 pointer-events-none"></div>
-      <div className="absolute inset-y-0 right-0 w-16 sm:w-24 bg-gradient-to-l from-background to-transparent z-10 pointer-events-none"></div>
-      <div className={`flex ${isVisible ? 'animate-marquee' : ''}`} aria-hidden="true">
-        {newsItems.concat(newsItems).map((item, index) => (
-          <div key={index} className="flex-shrink-0 mx-4 sm:mx-8 flex items-center">
-            <span className="text-sm sm:text-base md:text-lg font-semibold text-muted-foreground whitespace-nowrap">{item.text}</span>
-          </div>
-        ))}
-      </div>
-      <style>{`
-        @keyframes marquee {
-          from { transform: translateX(0); }
-          to { transform: translateX(-50%); }
-        }
-        .animate-marquee {
-          animation: marquee 60s linear infinite;
-        }
-        @media (prefers-reduced-motion: reduce) {
-          .animate-marquee {
-            animation: none;
-          }
-        }
-      `}</style>
-    </div>
-  );
-};
-
-const VideoSection = ({ onComingSoon }) => {
-  const videos = [
-    { id: 1, title: "Marcha del Orgullo Santiago 2024 - Resumen y mejores momentos", thumbnailText: "🏳️‍🌈 Pride Santiago 2024", description: "Miles de personas marcharon por Alameda exigiendo igualdad de derechos" },
-    { id: 2, title: "Testimonios: Vivir siendo LGBT+ en Chile", thumbnailText: "🎤 Voces de la comunidad", description: "Historias reales de jóvenes LGBT+ en Santiago y regiones" },
-    { id: 3, title: "Guía práctica: Citas seguras y consentimiento", thumbnailText: "💕 Citas Seguras", description: "Tips de seguridad para encuentros, apps de citas y red flags a detectar" },
-  ];
-
-  return (
-    <div className="w-full max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-8 sm:py-12">
-      <h2 className="text-2xl sm:text-3xl md:text-4xl font-bold text-center mb-8 sm:mb-12">Videos Destacados</h2>
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6 sm:gap-8">
-        {videos.map(video => (
-          <motion.div
-            key={video.id}
-            className="glass-effect rounded-2xl p-4 sm:p-6 cursor-pointer hover:border-accent/50 transition-all focus:outline-none focus:ring-2 focus:ring-accent/30"
-            whileHover={{ scale: 1.02, y: -3 }}
-            whileTap={{ scale: 0.98 }}
-            onClick={() => onComingSoon('la sección de videos', 'Pronto podrás ver contenido educativo, entretenimiento LGBT+ y testimonios de la comunidad directamente aquí.')}
-            role="button"
-            tabIndex={0}
-            aria-label={`Ver video: ${video.title}`}
-            onKeyDown={(e) => {
-              if (e.key === 'Enter' || e.key === ' ') {
-                e.preventDefault();
-                onComingSoon('la sección de videos', 'Pronto podrás ver contenido educativo, entretenimiento LGBT+ y testimonios de la comunidad directamente aquí.');
-              }
-            }}
-          >
-            <div className="aspect-video bg-gradient-to-br from-secondary to-secondary/50 rounded-lg mb-4 flex items-center justify-center border border-border">
-              <span className="text-lg font-bold text-center px-4">{video.thumbnailText}</span>
-            </div>
-            <h3 className="font-bold text-lg mb-2 text-foreground">{video.title}</h3>
-            <p className="text-sm text-muted-foreground leading-relaxed">{video.description}</p>
-          </motion.div>
-        ))}
-      </div>
-    </div>
-  );
-};
-
 
 const LobbyPage = () => {
   console.log('🏠 [LOBBY PAGE] ========== COMPONENTE INICIADO ==========');
@@ -159,15 +50,10 @@ const LobbyPage = () => {
   // const [showAdModal, setShowAdModal] = useState(false);
   const [showComingSoon, setShowComingSoon] = useState(false);
   const [comingSoonFeature, setComingSoonFeature] = useState({ name: '', description: '' });
-  const [lastActivity, setLastActivity] = useState(null);
-  const [, forceUpdate] = useState(0);
   const [showQuickSignup, setShowQuickSignup] = useState(false);
   // ⚠️ MODAL INVITADO ELIMINADO - Solo registro normal
   // const [showGuestModal, setShowGuestModal] = useState(false);
-  const [roomCounts, setRoomCounts] = useState({});
   const [recentMessages, setRecentMessages] = useState([]);
-  const [lastMessageTimestamp, setLastMessageTimestamp] = useState(null);
-  const visibleRooms = getVisibleRooms();
   const pageStartRef = useRef(Date.now());
 
   // ✅ Determinar si mostrar Hero Section (SOLO para usuarios NO logueados)
@@ -181,66 +67,19 @@ const LobbyPage = () => {
   console.log('🏠 [LOBBY PAGE] user.isGuest:', user?.isGuest);
   console.log('🏠 [LOBBY PAGE] user.isAnonymous:', user?.isAnonymous);
 
-  // ❌ DESHABILITADO TEMPORALMENTE - Loop infinito de Firebase (07/01/2026)
-  // subscribeToMultipleRoomCounts creaba 75+ listeners activos simultáneos
-  // Causó 500,000+ lecturas en 6 minutos
-  // TODO: Re-habilitar con throttling y deduplicación
+  // El preview de mensajes solo se consulta en el flujo Supabase-first.
   useEffect(() => {
-    // ✅ HOTFIX: Valores estáticos temporales (0 usuarios en todas las salas)
-    const roomIds = visibleRooms.map(room => room.id);
-    const staticCounts = roomIds.reduce((acc, id) => ({ ...acc, [id]: 0 }), {});
-    setRoomCounts(staticCounts);
+    if (!showWelcomeBack || !isSupabaseAuthEnabled()) {
+      setRecentMessages([]);
+      return undefined;
+    }
 
-    // ❌ COMENTADO - Loop infinito
-    // const unsubscribe = subscribeToMultipleRoomCounts(roomIds, (counts) => {
-    //   setRoomCounts(counts);
-    // });
-    // return () => unsubscribe();
-
-    return () => {}; // Cleanup vacío
-  }, []);
-
-  // ✅ P0 costo: un solo listener para ultimo mensaje + mensajes recientes
-  useEffect(() => {
     const unsubscribe = subscribeToRoomMessages('principal', (messages = []) => {
-      const recent = [...messages].slice(-3);
-      setLastMessageTimestamp(recent.at(-1)?.timestamp || recent.at(-1)?.createdAt || null);
-      setRecentMessages(showWelcomeBack ? recent : []);
+      setRecentMessages([...messages].slice(-3));
     }, 3);
+
     return () => unsubscribe?.();
   }, [showWelcomeBack]);
-
-  // ✅ Calcular total de usuarios reales (usado en hero)
-  const calculateTotalUsers = () => {
-    let total = 0;
-    visibleRooms.forEach(room => {
-      const realCount = roomCounts[room.id] || 0;
-      total += realCount;
-    });
-    return total;
-  };
-
-  // ✅ Calcular si hay salas activas (sin mostrar números específicos en tarjeta)
-  const hasActiveRooms = () => {
-    return visibleRooms.some(room => {
-      const realCount = roomCounts[room.id] || 0;
-      return realCount > 0;
-    });
-  };
-
-  // Helper para calcular el tiempo relativo
-  const getTimeAgo = (timestamp) => {
-    if (!timestamp) return null;
-
-    const now = Date.now();
-    const time = timestamp.toMillis ? timestamp.toMillis() : timestamp;
-    const diffInSeconds = Math.floor((now - time) / 1000);
-
-    if (diffInSeconds < 60) return `hace ${diffInSeconds}s`;
-    if (diffInSeconds < 3600) return `hace ${Math.floor(diffInSeconds / 60)}m`;
-    if (diffInSeconds < 86400) return `hace ${Math.floor(diffInSeconds / 3600)}h`;
-    return `hace ${Math.floor(diffInSeconds / 86400)}d`;
-  };
 
   // ✅ Generar cardData dinámicamente con contadores reales
   // ✅ FASE 1: QUICK WINS - Solo features funcionales (sin "Próximamente")
@@ -252,19 +91,19 @@ const LobbyPage = () => {
       description: "Conversaciones en tiempo real. Entra al chat principal y participa cuando haya actividad.",
       modal: 'RoomsModal',
       variant: "primary",
-      badge: "Activo",
-      stats: { label: hasActiveRooms() ? 'Chat activo ahora' : 'Únete y chatea', icon: Users },
+      badge: null,
+      stats: { label: 'Ver estado de la sala', icon: Users },
       accentColor: "cyan"
     },
     {
       id: 'denuncias',
       icon: <Shield className="w-8 h-8" />,
       title: "Centro de Seguridad",
-      description: "Reporta comportamiento inadecuado de forma anónima. Tu bienestar es nuestra prioridad.",
+      description: "Señala comportamiento inadecuado para su revisión. No compartas datos personales innecesarios.",
       modal: 'DenunciaModal',
       variant: "default",
       badge: null,
-      stats: { label: "⚠️ Denuncia anónima", icon: Shield },
+      stats: { label: "⚠️ Reporte para revisión", icon: Shield },
       accentColor: "orange"
     },
     // ⚠️ TEMPORALMENTE OCULTO: Tarjeta Premium
@@ -289,11 +128,11 @@ const LobbyPage = () => {
     id: 'opin',
     icon: <Sparkles className="w-8 h-8" />,
     title: "OPIN - Descubrimiento",
-    description: "Publica lo que buscas y deja que otros te descubran. Posts activos 24h. Encuentra conexiones reales más allá del chat efímero.",
+    description: "Publica una intención y descubre si la comunidad responde. La actividad y las respuestas dependen de la participación real.",
     onClick: () => navigate('/opin'),
     variant: "default",
-    badge: "🆕 Nuevo",
-    stats: { label: "💜 Descubre perfiles", icon: Users },
+    badge: null,
+    stats: { label: "Publica una intención", icon: Users },
     accentColor: "purple",
     isHorizontal: true // ✅ Flag para tarjeta horizontal
   };
@@ -388,16 +227,6 @@ const LobbyPage = () => {
     pageStartRef.current = Date.now();
     trackPageView('/lobby', 'Chat Gay Chile - Chactivo', { user });
 
-    // Suscribirse a la última actividad global
-    const unsubscribeActivity = subscribeToLastActivity((activity) => {
-      setLastActivity(activity);
-    });
-
-    // Actualizar el contador de tiempo cada 10 segundos
-    const interval = setInterval(() => {
-      forceUpdate(prev => prev + 1);
-    }, 10000);
-
     // Event listener para abrir Centro de Seguridad desde el footer
     const handleOpenDenunciaModal = () => {
       setActiveModal('DenunciaModal');
@@ -408,39 +237,9 @@ const LobbyPage = () => {
     return () => {
       const timeOnPage = Math.round((Date.now() - pageStartRef.current) / 1000);
       trackPageExit('/lobby', timeOnPage, { user });
-      unsubscribeActivity();
-      clearInterval(interval);
       window.removeEventListener('openDenunciaModal', handleOpenDenunciaModal);
     };
   }, []);
-
-  // 🔥 Carrusel de imágenes - 5 modelos que cambian cada 3 segundos
-  const [currentImageIndex, setCurrentImageIndex] = useState(0);
-  const modelImages = [
-    '/MODELO 1.jpeg',
-    '/MODELO 2.jpeg',
-    '/MODELO 3.jpeg',
-    '/MODELO 4.jpeg',
-    '/MODELO 5.jpeg'
-  ];
-
-  // Cambiar imagen cada 3 segundos
-  useEffect(() => {
-    if (!showHeroSection) return;
-    
-    const interval = setInterval(() => {
-      setCurrentImageIndex((prevIndex) => (prevIndex + 1) % modelImages.length);
-    }, 3000); // 3 segundos
-
-    return () => clearInterval(interval);
-  }, [showHeroSection, modelImages.length]);
-
-  // Debug: Verificar que el carrusel se renderice
-  useEffect(() => {
-    if (showHeroSection) {
-      console.log('🔥 Carrusel activo - Imagen actual:', currentImageIndex, modelImages[currentImageIndex]);
-    }
-  }, [showHeroSection, currentImageIndex, modelImages]);
 
   // ✅ Calcular días activo del usuario
   const calculateActiveDays = (createdAt) => {
@@ -485,46 +284,10 @@ const LobbyPage = () => {
           <div className="absolute inset-0 bg-gradient-to-br from-purple-900/20 via-pink-900/20 to-blue-900/20 animate-pulse"></div>
 
           <div className="relative max-w-5xl mx-auto">
-            {/* Contador de usuarios en tiempo real - MEJORADO FASE 1 */}
-            <motion.div
-              initial={{ scale: 0.9 }}
-              animate={{ scale: 1 }}
-              transition={{ duration: 0.5, delay: 0.2 }}
-              className="flex flex-col items-center gap-4 mb-6"
-            >
-              {/* Contador grande animado */}
-              <motion.div
-                initial={{ opacity: 0, y: -20 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ duration: 0.6, delay: 0.3 }}
-                className="glass-effect px-8 py-5 rounded-2xl border-2 border-green-500/40 shadow-lg shadow-green-500/20"
-              >
-                <div className="flex items-center gap-4">
-                  <div className="relative">
-                    {/* Dot pulsante */}
-                    <span className="absolute inline-flex h-5 w-5 rounded-full bg-green-400 opacity-75 animate-ping"></span>
-                    <span className="relative inline-flex h-5 w-5 rounded-full bg-green-500 shadow-lg shadow-green-500/50"></span>
-                  </div>
-                  <div className="text-center">
-                    <motion.div
-                      initial={{ scale: 0.5 }}
-                      animate={{ scale: 1 }}
-                      transition={{
-                        type: "spring",
-                        stiffness: 260,
-                        damping: 20,
-                        delay: 0.4
-                      }}
-                      className="text-4xl sm:text-5xl md:text-6xl font-extrabold bg-gradient-to-r from-green-400 to-emerald-400 bg-clip-text text-transparent mb-1"
-                    >
-                      {calculateTotalUsers()}
-                    </motion.div>
-                    <p className="text-sm sm:text-base font-semibold text-green-400">
-                      USUARIOS ACTIVOS AHORA 🔥
-                    </p>
-                  </div>
-                </div>
-              </motion.div>
+            <div className="rounded-2xl border border-cyan-500/20 bg-cyan-500/5 px-5 py-4 text-center">
+              <p className="text-sm font-semibold text-cyan-200">La actividad se muestra sin contadores promocionales</p>
+              <p className="mt-1 text-xs leading-5 text-muted-foreground">Entra a una sala para comprobar el estado real de la conversación.</p>
+            </div>
 
               {/* Tagline */}
               <div className="glass-effect px-6 py-2 rounded-full border border-cyan-500/30">
@@ -533,21 +296,6 @@ const LobbyPage = () => {
                 </p>
               </div>
 
-              {/* Última Actividad */}
-              {lastActivity && lastActivity.timestamp && (
-                <motion.div
-                  initial={{ opacity: 0, y: -10 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  transition={{ duration: 0.4, delay: 0.3 }}
-                  className="glass-effect px-4 py-2 rounded-lg border border-cyan-500/20"
-                >
-                  <p className="text-xs sm:text-sm text-cyan-400">
-                    <span className="font-semibold">{lastActivity.username}</span> se conectó recientemente
-                  </p>
-                </motion.div>
-              )}
-            </motion.div>
-
             {/* ✅ HERO SEO: H1 optimizado para SEO */}
             <motion.h1
               initial={{ opacity: 0 }}
@@ -555,7 +303,7 @@ const LobbyPage = () => {
               transition={{ delay: 0.3 }}
               className="text-3xl sm:text-4xl md:text-5xl lg:text-6xl font-extrabold text-center mb-4 sm:mb-6 leading-tight px-4"
             >
-              Chat Gay Chile: Chatea Gratis y Conecta con Personas Reales 🏳️‍🌈
+              Chat Gay Chile: conversa y participa en la comunidad 🏳️‍🌈
             </motion.h1>
 
             {/* Subtítulo del Hero */}
@@ -565,7 +313,7 @@ const LobbyPage = () => {
               transition={{ delay: 0.4 }}
               className="text-base sm:text-lg md:text-xl text-center text-muted-foreground mb-8 sm:mb-10 max-w-3xl mx-auto px-4 leading-relaxed"
             >
-              Entra como invitado y chatea gratis por 1 mes, o regístrate para desbloquear chats privados, likes, avatares y más. ¡Cientos de chicos activos ahora!
+              Entra al chat y decide cómo participar. La actividad visible depende de las personas que estén usando la comunidad en ese momento.
             </motion.p>
 
             {/* ✅ CTA PRINCIPAL DEL HERO - OPTIMIZADO */}
@@ -639,183 +387,37 @@ const LobbyPage = () => {
               </Button>
             </motion.div>
 
-            {/* 💬 SECCIÓN TESTIMONIOS - Opiniones Reales de Usuarios */}
-            <motion.div
-              initial={{ opacity: 0, y: 30 }}
+            {/* Estado de comunidad: sin testimonios ni actividad sintética */}
+            <motion.section
+              initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: 0.7, duration: 0.6 }}
               className="mt-16 sm:mt-20 mb-12 sm:mb-16 px-4"
             >
-              <div className="max-w-6xl mx-auto">
-                {/* Badge superior */}
-                <motion.div
-                  initial={{ opacity: 0, y: -10 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  transition={{ delay: 0.8 }}
-                  className="flex justify-center mb-6"
-                >
-                  <div className="glass-effect px-6 py-3 rounded-full border border-yellow-500/40 backdrop-blur-xl">
-                    <p className="text-sm sm:text-base font-bold bg-gradient-to-r from-yellow-400 to-orange-400 bg-clip-text text-transparent flex items-center gap-2">
-                      <svg className="w-5 h-5 text-yellow-400" fill="currentColor" viewBox="0 0 20 20">
-                        <path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z" />
-                      </svg>
-                      <span>Lo Que Dicen Nuestros Usuarios</span>
-                    </p>
-                  </div>
-                </motion.div>
-
-                {/* Título */}
-                <h2 className="text-3xl sm:text-4xl md:text-5xl font-extrabold text-center mb-4">
-                  <span className="bg-gradient-to-r from-yellow-400 via-orange-400 to-red-400 bg-clip-text text-transparent">
-                    Testimonios Reales
-                  </span>
-                </h2>
-                <p className="text-center text-lg sm:text-xl text-muted-foreground mb-12 max-w-3xl mx-auto">
-                  Miles de usuarios ya confían en Chactivo. Aquí algunas de sus experiencias:
+              <div className="mx-auto max-w-4xl rounded-3xl border border-cyan-500/20 bg-cyan-500/5 p-6 text-center sm:p-10">
+                <p className="text-sm font-semibold uppercase tracking-[0.18em] text-cyan-300">Actividad verificable</p>
+                <h2 className="mt-3 text-3xl font-extrabold sm:text-4xl">Participa cuando encuentres una conversación útil</h2>
+                <p className="mx-auto mt-4 max-w-2xl text-base leading-7 text-muted-foreground">
+                  No usamos testimonios, ratings ni contadores para aparentar movimiento. El chat, OPIN y las respuestas muestran únicamente actividad que proviene de la comunidad.
                 </p>
-
-                {/* Grid de testimonios */}
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-6 sm:gap-8">
-                  {/* Testimonio 1: Andrés - Moderación */}
-                  <motion.div
-                    initial={{ opacity: 0, y: 20 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    transition={{ delay: 0.9 }}
-                    className="glass-effect p-6 sm:p-8 rounded-2xl border-2 border-green-500/30 hover:border-green-500/60 transition-all group"
-                  >
-                    {/* Foto/Avatar */}
-                    <div className="flex items-center gap-4 mb-5">
-                      <img
-                        src="/testimonio 1.jpeg"
-                        alt="Andrés - Usuario de Chactivo"
-                        className="w-14 h-14 sm:w-16 sm:h-16 rounded-full object-cover shadow-lg ring-2 ring-green-500/30"
-                      />
-                      <div>
-                        <p className="font-bold text-lg text-foreground">Andrés</p>
-                        <p className="text-sm text-gray-400">35 años • Valparaíso</p>
-                      </div>
-                    </div>
-
-                    {/* Estrellas */}
-                    <div className="flex gap-1 mb-4">
-                      {[...Array(5)].map((_, i) => (
-                        <svg key={i} className="w-5 h-5 text-yellow-400" fill="currentColor" viewBox="0 0 20 20">
-                          <path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z" />
-                        </svg>
-                      ))}
-                    </div>
-
-                    {/* Testimonio */}
-                    <p className="text-base text-gray-300 leading-relaxed italic mb-4">
-                      "La moderación es excelente. He reportado 2 perfiles y fueron removidos en minutos. Me siento seguro aquí, algo que no pasaba en otras apps donde el acoso era común."
-                    </p>
-
-                    {/* Tag */}
-                    <div className="inline-block px-3 py-1 bg-green-500/20 border border-green-500/30 rounded-full">
-                      <p className="text-xs font-semibold text-green-400">✓ Usuario verificado</p>
-                    </div>
-                  </motion.div>
-
-                  {/* Testimonio 2: Diego - Privacidad */}
-                  <motion.div
-                    initial={{ opacity: 0, y: 20 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    transition={{ delay: 1.0 }}
-                    className="glass-effect p-6 sm:p-8 rounded-2xl border-2 border-cyan-500/30 hover:border-cyan-500/60 transition-all group"
-                  >
-                    {/* Foto/Avatar */}
-                    <div className="flex items-center gap-4 mb-5">
-                      <img
-                        src="/testimonio 2.jpeg"
-                        alt="Diego - Usuario de Chactivo"
-                        className="w-14 h-14 sm:w-16 sm:h-16 rounded-full object-cover shadow-lg ring-2 ring-cyan-500/30"
-                      />
-                      <div>
-                        <p className="font-bold text-lg text-foreground">Diego</p>
-                        <p className="text-sm text-gray-400">31 años • Santiago</p>
-                      </div>
-                    </div>
-
-                    {/* Estrellas */}
-                    <div className="flex gap-1 mb-4">
-                      {[...Array(5)].map((_, i) => (
-                        <svg key={i} className="w-5 h-5 text-yellow-400" fill="currentColor" viewBox="0 0 20 20">
-                          <path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z" />
-                        </svg>
-                      ))}
-                    </div>
-
-                    {/* Testimonio */}
-                    <p className="text-base text-gray-300 leading-relaxed italic mb-4">
-                      "He probado todas las apps de citas/chat gay en Chile, y esta es la única que realmente respeta la privacidad. Sin anuncios raros ni trackers. Finalmente puedo chatear tranquilo."
-                    </p>
-
-                    {/* Tag */}
-                    <div className="inline-block px-3 py-1 bg-cyan-500/20 border border-cyan-500/30 rounded-full">
-                      <p className="text-xs font-semibold text-cyan-400">✓ Usuario verificado</p>
-                    </div>
-                  </motion.div>
-
-                  {/* Testimonio 3: Javier - Profesionales */}
-                  <motion.div
-                    initial={{ opacity: 0, y: 20 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    transition={{ delay: 1.1 }}
-                    className="glass-effect p-6 sm:p-8 rounded-2xl border-2 border-purple-500/30 hover:border-purple-500/60 transition-all group"
-                  >
-                    {/* Foto/Avatar */}
-                    <div className="flex items-center gap-4 mb-5">
-                      <img
-                        src="/testimonio 3.jpeg"
-                        alt="Javier - Usuario de Chactivo"
-                        className="w-14 h-14 sm:w-16 sm:h-16 rounded-full object-cover shadow-lg ring-2 ring-purple-500/30"
-                      />
-                      <div>
-                        <p className="font-bold text-lg text-foreground">Javier</p>
-                        <p className="text-sm text-gray-400">47 años • Viña del Mar</p>
-                      </div>
-                    </div>
-
-                    {/* Estrellas */}
-                    <div className="flex gap-1 mb-4">
-                      {[...Array(5)].map((_, i) => (
-                        <svg key={i} className="w-5 h-5 text-yellow-400" fill="currentColor" viewBox="0 0 20 20">
-                          <path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z" />
-                        </svg>
-                      ))}
-                    </div>
-
-                    {/* Testimonio */}
-                    <p className="text-base text-gray-300 leading-relaxed italic mb-4">
-                      "Como profesional, valoro mucho que no requiera vincular redes sociales. Total anonimato si lo deseas. Puedo ser yo mismo sin preocuparme por mi carrera."
-                    </p>
-
-                    {/* Tag */}
-                    <div className="inline-block px-3 py-1 bg-purple-500/20 border border-purple-500/30 rounded-full">
-                      <p className="text-xs font-semibold text-purple-400">✓ Usuario verificado</p>
-                    </div>
-                  </motion.div>
-                </div>
-
-                {/* CTA después de testimonios */}
-                <motion.div
-                  initial={{ opacity: 0, y: 20 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  transition={{ delay: 1.2 }}
-                  className="text-center mt-12"
-                >
-                  <p className="text-lg sm:text-xl text-muted-foreground mb-6">
-                    Participa cuando haya actividad real
-                  </p>
+                <div className="mt-6 flex flex-col justify-center gap-3 sm:flex-row">
                   <Button
-                    onClick={() => navigate('/auth', { state: { redirectTo: '/chat/principal' } })}
-                    className="magenta-gradient text-white font-bold text-lg sm:text-xl px-8 sm:px-12 py-6 sm:py-7 rounded-xl shadow-xl hover:shadow-[#E4007C]/50 hover:scale-105 transition-all"
+                    type="button"
+                    onClick={() => navigate('/chat/principal')}
+                    className="magenta-gradient min-h-12 rounded-xl px-7 text-base font-bold text-white"
                   >
-                    🚀 Probar Gratis Ahora
+                    Revisar el chat principal
                   </Button>
-                </motion.div>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    onClick={() => navigate('/opin')}
+                    className="min-h-12 rounded-xl border-cyan-500/40 px-7 text-base font-semibold text-cyan-300 hover:bg-cyan-500/10"
+                  >
+                    Explorar OPIN
+                  </Button>
+                </div>
               </div>
-            </motion.div>
+            </motion.section>
 
             {/* ✅ SECCIÓN DEL CREADOR - Mensaje personal REDISEÑADO */}
             <motion.div
@@ -918,16 +520,14 @@ const LobbyPage = () => {
                           className="space-y-3 text-base sm:text-lg leading-relaxed"
                         >
                           <p className="text-gray-300">
-                            Creé <span className="font-bold text-cyan-400">Chactivo</span> porque estaba harto de las apps llenas de
-                            <span className="font-semibold text-red-400 line-through mx-1">publicidad invasiva</span>,
-                            <span className="font-semibold text-red-400 line-through mx-1">bots falsos</span> y
-                            <span className="font-semibold text-red-400 line-through mx-1">perfiles fake</span>.
+                            Creé <span className="font-bold text-cyan-400">Chactivo</span> para ofrecer una alternativa a las experiencias llenas de
+                            <span className="font-semibold text-red-400 line-through mx-1">ruido promocional</span> y actividad que no se puede comprobar.
                           </p>
 
                           <p className="text-gray-300">
-                            Aquí encontrarás <span className="font-bold text-green-400">✓ Chats 100% reales</span>,
-                            <span className="font-bold text-green-400 mx-1">✓ Sin anuncios molestos</span>,
-                            <span className="font-bold text-green-400 mx-1">✓ Comunidad LGBT+ segura</span>.
+                            Aquí encontrarás <span className="font-bold text-green-400">✓ Conversaciones sin relleno</span>,
+                            <span className="font-bold text-green-400 mx-1">✓ Interfaz sin ruido promocional</span>,
+                            <span className="font-bold text-green-400 mx-1">✓ Normas y controles visibles</span>.
                           </p>
 
                           <p className="text-cyan-300 font-semibold text-lg sm:text-xl">
@@ -1119,11 +719,11 @@ const LobbyPage = () => {
           {/* Título principal */}
           <h2 className="text-3xl sm:text-4xl md:text-5xl font-extrabold text-center mb-4">
             <span className="bg-gradient-to-r from-cyan-400 via-green-400 to-emerald-400 bg-clip-text text-transparent">
-              Privacidad Real, No Promesas Vacías
+              Privacidad explicada con claridad
             </span>
           </h2>
           <p className="text-center text-lg sm:text-xl text-muted-foreground mb-12 max-w-3xl mx-auto">
-            Mientras otras apps venden tus datos, nosotros los protegemos. Aquí está la diferencia:
+            Conoce qué puedes compartir, qué controles existen y qué límites tiene el servicio:
           </p>
 
           {/* Grid de características únicas */}
@@ -1140,9 +740,9 @@ const LobbyPage = () => {
                   <path fillRule="evenodd" d="M5 9V7a5 5 0 0110 0v2a2 2 0 012 2v5a2 2 0 01-2 2H5a2 2 0 01-2-2v-5a2 2 0 012-2zm8-2v2H7V7a3 3 0 016 0z" clipRule="evenodd" />
                 </svg>
               </div>
-              <h3 className="text-lg font-bold text-center mb-2 text-cyan-400">Sin Recolección de Datos</h3>
+              <h3 className="text-lg font-bold text-center mb-2 text-cyan-400">Datos y privacidad explicados</h3>
               <p className="text-sm text-center text-gray-300 leading-relaxed">
-                No vendemos tu información. No rastreamos tu actividad. Tu privacidad es tuya, no un producto.
+                La política de privacidad describe qué información puede tratar el servicio y para qué. No compartas datos sensibles en una sala pública.
               </p>
             </motion.div>
 
@@ -1158,9 +758,9 @@ const LobbyPage = () => {
                   <path fillRule="evenodd" d="M10 9a3 3 0 100-6 3 3 0 000 6zm-7 9a7 7 0 1114 0H3z" clipRule="evenodd" />
                 </svg>
               </div>
-              <h3 className="text-lg font-bold text-center mb-2 text-purple-400">Anonimato 100% Real</h3>
+              <h3 className="text-lg font-bold text-center mb-2 text-purple-400">Privacidad con límites claros</h3>
               <p className="text-sm text-center text-gray-300 leading-relaxed">
-                Chatea sin email ni número de teléfono. Ni siquiera necesitas una cuenta para probar.
+                Puedes usar un alias cuando la función lo permita, pero una conversación pública no equivale a anonimato total. No compartas datos sensibles.
               </p>
             </motion.div>
 
@@ -1176,9 +776,9 @@ const LobbyPage = () => {
                   <path fillRule="evenodd" d="M2.166 4.999A11.954 11.954 0 0010 1.944 11.954 11.954 0 0017.834 5c.11.65.166 1.32.166 2.001 0 5.225-3.34 9.67-8 11.317C5.34 16.67 2 12.225 2 7c0-.682.057-1.35.166-2.001zm11.541 3.708a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
                 </svg>
               </div>
-              <h3 className="text-lg font-bold text-center mb-2 text-green-400">Filtros y Moderación Activa</h3>
+              <h3 className="text-lg font-bold text-center mb-2 text-green-400">Herramientas de control</h3>
               <p className="text-sm text-center text-gray-300 leading-relaxed">
-                Filtros automáticos y revisión operativa para reducir abuso, spam y contenido de riesgo sin romper la privacidad.
+                Bloquea o reporta cuando esas herramientas estén disponibles y revisa las normas antes de publicar. No prometemos moderación instantánea.
               </p>
             </motion.div>
 
@@ -1194,9 +794,9 @@ const LobbyPage = () => {
                   <path fillRule="evenodd" d="M13.477 14.89A6 6 0 015.11 6.524l8.367 8.368zm1.414-1.414L6.524 5.11a6 6 0 018.367 8.367zM18 10a8 8 0 11-16 0 8 8 0 0116 0z" clipRule="evenodd" />
                 </svg>
               </div>
-              <h3 className="text-lg font-bold text-center mb-2 text-red-400">Cero Publicidad Invasiva</h3>
+              <h3 className="text-lg font-bold text-center mb-2 text-red-400">Información transparente</h3>
               <p className="text-sm text-center text-gray-300 leading-relaxed">
-                Sin anuncios de terceros. Sin trackers. Modelo sostenible con suscripciones opcionales, no con tus datos.
+                La política de privacidad explica qué información puede tratar el servicio. No afirmamos ausencia absoluta de seguimiento sin una verificación técnica vigente.
               </p>
             </motion.div>
 
@@ -1212,9 +812,9 @@ const LobbyPage = () => {
                   <path fillRule="evenodd" d="M9 2a1 1 0 00-.894.553L7.382 4H4a1 1 0 000 2v10a2 2 0 002 2h8a2 2 0 002-2V6a1 1 0 100-2h-3.382l-.724-1.447A1 1 0 0011 2H9zM7 8a1 1 0 012 0v6a1 1 0 11-2 0V8zm5-1a1 1 0 00-1 1v6a1 1 0 102 0V8a1 1 0 00-1-1z" clipRule="evenodd" />
                 </svg>
               </div>
-              <h3 className="text-lg font-bold text-center mb-2 text-yellow-400">Derecho al Olvido</h3>
+              <h3 className="text-lg font-bold text-center mb-2 text-yellow-400">Gestión de cuenta</h3>
               <p className="text-sm text-center text-gray-300 leading-relaxed">
-                Borra tu cuenta y todos tus datos en 24 horas. Total y permanentemente. Sin excepciones.
+                Consulta las opciones de cuenta y la política de privacidad para conocer el proceso aplicable. Los plazos dependen del backend y sus copias.
               </p>
             </motion.div>
 
@@ -1230,52 +830,35 @@ const LobbyPage = () => {
                   <path fillRule="evenodd" d="M18 8a6 6 0 01-7.743 5.743L10 14l-1 1-1 1H6v2H2v-4l4.257-4.257A6 6 0 1118 8zm-6-4a1 1 0 100 2 2 2 0 012 2 1 1 0 102 0 4 4 0 00-4-4z" clipRule="evenodd" />
                 </svg>
               </div>
-              <h3 className="text-lg font-bold text-center mb-2 text-blue-400">Encriptación de Mensajes</h3>
+              <h3 className="text-lg font-bold text-center mb-2 text-blue-400">Privacidad del canal</h3>
               <p className="text-sm text-center text-gray-300 leading-relaxed">
-                Tus conversaciones están protegidas. Solo tú y tu chat pueden leerlas.
+                La protección depende del canal y de su configuración técnica. No describimos el chat como cifrado de extremo a extremo sin validación específica.
               </p>
             </motion.div>
           </div>
 
-          {/* Tabla comparativa */}
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 1.1 }}
-            className="max-w-3xl mx-auto glass-effect p-6 sm:p-8 rounded-2xl border-2 border-cyan-500/30"
+          <section
+            aria-labelledby="verified-capabilities-title"
+            className="mx-auto max-w-3xl rounded-2xl border border-cyan-500/20 bg-cyan-500/5 p-6 sm:p-8"
           >
-            <h3 className="text-2xl font-bold text-center mb-6 bg-gradient-to-r from-cyan-400 to-purple-400 bg-clip-text text-transparent">
-              Chactivo vs Otras Apps
+            <h3 id="verified-capabilities-title" className="text-2xl font-bold text-center text-cyan-200">
+              Lo que sí puedes comprobar aquí
             </h3>
-            <div className="space-y-4">
-              {[
-                { feature: "Venden tus datos", other: "❌ Si", chactivo: "✅ No" },
-                { feature: "Bots y cuentas falsas", other: "❌ Frecuente", chactivo: "✅ Control estricto" },
-                { feature: "Publicidad invasiva", other: "❌ Si", chactivo: "✅ No" },
-                { feature: "Mensajes spam", other: "❌ Alto", chactivo: "✅ Mínimo" },
-                { feature: "Normas y reportes", other: "❌ Limitada", chactivo: "✅ Según disponibilidad" },
-                { feature: "Anonimato real", other: "❌ Parcial", chactivo: "✅ Total" },
-                { feature: "Sin trackers externos", other: "❌ No", chactivo: "✅ Si" },
-                { feature: "Experiencia limpia", other: "❌ Saturada", chactivo: "✅ Enfocada" },
-                { feature: "Privacidad primero", other: "❌ No", chactivo: "✅ Si" },
-              ].map((item, index) => (
-                <div key={index} className="grid grid-cols-3 gap-4 items-center py-3 border-b border-border/50 last:border-0">
-                  <p className="text-sm sm:text-base text-gray-300">{item.feature}</p>
-                  <div className="text-center">
-                    <span className="text-xs sm:text-sm text-red-300">{item.other}</span>
-                  </div>
-                  <div className="text-center">
-                    <span className="text-xs sm:text-sm text-green-300 font-medium">{item.chactivo}</span>
-                  </div>
-                </div>
-              ))}
-              <div className="grid grid-cols-3 gap-4 pt-4">
-                <p className="text-xs text-gray-500"></p>
-                <p className="text-center text-xs sm:text-sm font-bold text-red-400">Otras Apps</p>
-                <p className="text-center text-xs sm:text-sm font-bold text-green-400">Chactivo</p>
+            <div className="mt-6 grid gap-4 sm:grid-cols-3">
+              <div className="rounded-xl border border-border/60 bg-background/30 p-4 text-center">
+                <p className="font-semibold">Chat y OPIN</p>
+                <p className="mt-2 text-sm leading-6 text-muted-foreground">Dos entradas visibles para conversar o publicar una intención.</p>
+              </div>
+              <div className="rounded-xl border border-border/60 bg-background/30 p-4 text-center">
+                <p className="font-semibold">Actividad real</p>
+                <p className="mt-2 text-sm leading-6 text-muted-foreground">No rellenamos la interfaz con perfiles, mensajes o contadores de muestra.</p>
+              </div>
+              <div className="rounded-xl border border-border/60 bg-background/30 p-4 text-center">
+                <p className="font-semibold">Normas visibles</p>
+                <p className="mt-2 text-sm leading-6 text-muted-foreground">Consulta límites, privacidad y opciones de ayuda antes de participar.</p>
               </div>
             </div>
-          </motion.div>
+          </section>
 
           {/* 🎯 CTA INTERMEDIO - Después de Privacy */}
           <motion.div
@@ -1286,16 +869,16 @@ const LobbyPage = () => {
           >
             <div className="glass-effect max-w-2xl mx-auto p-8 sm:p-10 rounded-2xl border border-green-500/30">
               <h3 className="text-2xl sm:text-3xl font-bold mb-4 bg-gradient-to-r from-green-400 to-cyan-400 bg-clip-text text-transparent">
-                ¿Cansado de apps que venden tus datos?
+                ¿Quieres conocer los límites antes de participar?
               </h3>
               <p className="text-base sm:text-lg text-muted-foreground mb-6 leading-relaxed">
-                Prueba una plataforma que respeta tu privacidad de verdad. Sin trucos, sin letra pequeña.
+                Revisa las normas y la política de privacidad. Comparte solo lo necesario y usa las herramientas de control cuando estén disponibles.
               </p>
               <Button
                 onClick={() => navigate('/auth', { state: { redirectTo: '/chat/principal' } })}
                 className="magenta-gradient text-white font-bold text-lg sm:text-xl px-10 sm:px-14 py-6 sm:py-7 rounded-xl shadow-xl hover:shadow-[#E4007C]/50 hover:scale-105 transition-all"
               >
-                🔒 Chatear con Privacidad Total
+                Entrar al chat y revisar las normas
               </Button>
             </div>
           </motion.div>
@@ -1330,7 +913,7 @@ const LobbyPage = () => {
                 </div>
                 <h3 className="text-xl sm:text-2xl font-bold mb-3">Acceso Rápido y Gratis</h3>
                 <p className="text-sm sm:text-base text-muted-foreground leading-relaxed mb-4">
-                  Sin registro obligatorio. Entra al chat y participa cuando haya actividad.
+                  Según la sala, puedes usar un alias o necesitar registro. Revisa los requisitos antes de participar.
                 </p>
                 <div className="inline-block px-4 py-2 bg-green-500/20 border border-green-500/30 rounded-full">
                   <p className="text-xs sm:text-sm font-semibold text-green-400">⚡ Acceso rápido</p>
@@ -1349,7 +932,7 @@ const LobbyPage = () => {
                 </div>
                 <h3 className="text-xl sm:text-2xl font-bold mb-3">Entra al Chat Principal</h3>
                 <p className="text-sm sm:text-base text-muted-foreground leading-relaxed mb-4">
-                  Una sola sala para concentrar usuarios reales y evitar la sensación de vacío.
+                  Una sala principal para participar cuando quieras conversar. La actividad visible depende de la comunidad.
                 </p>
                 <div className="inline-block px-4 py-2 bg-purple-500/20 border border-purple-500/30 rounded-full">
                   <p className="text-xs sm:text-sm font-semibold text-purple-400">🎯 Todo en un solo lugar</p>
@@ -1368,7 +951,7 @@ const LobbyPage = () => {
                 </div>
                 <h3 className="text-xl sm:text-2xl font-bold mb-3">Conoce Gente Real</h3>
                 <p className="text-sm sm:text-base text-muted-foreground leading-relaxed mb-4">
-                  Chat en vivo, eventos, amistades y más. 100% personas reales de Chile.
+                  Chat en vivo y comunidad. Participa con criterio y comparte solo lo necesario.
                 </p>
                 <div className="inline-block px-4 py-2 bg-[#E4007C]/20 border border-[#E4007C]/30 rounded-full">
                   <p className="text-xs sm:text-sm font-semibold text-[#E4007C]">💬 Sin bots ni fakes</p>
@@ -1514,11 +1097,6 @@ const LobbyPage = () => {
           </motion.section>
         )}
 
-        {/* NewsTicker - Solo para visitantes */}
-        {showHeroSection && (
-          <NewsTicker />
-        )}
-
         {/* Estadísticas Globales - Solo visible para usuarios NO registrados */}
         {showHeroSection && (
           <GlobalStats />
@@ -1532,132 +1110,29 @@ const LobbyPage = () => {
             transition={{ duration: 0.5 }}
             className="max-w-7xl mx-auto"
           >
-            {/* ✅ STATS EN TIEMPO REAL - Solo para usuarios logueados */}
-            {showWelcomeBack && (
-              <motion.div
-                initial={{ opacity: 0, y: 20 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ duration: 0.5 }}
-                className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-10 sm:mb-12"
-              >
-                {/* Online ahora */}
-                <div className="glass-effect p-5 rounded-xl border border-green-500/30 hover:border-green-500/60 transition-all">
-                  <div className="flex items-center gap-3 mb-2">
-                    <div className="relative">
-                      <span className="absolute inline-flex h-3 w-3 rounded-full bg-green-400 opacity-75 animate-ping"></span>
-                      <span className="relative inline-flex h-3 w-3 rounded-full bg-green-500"></span>
-                    </div>
-                    <p className="text-xs sm:text-sm text-foreground/72 dark:text-gray-300 font-semibold">En línea ahora</p>
-                  </div>
-                  <p className="text-2xl sm:text-3xl font-bold bg-gradient-to-r from-green-400 to-emerald-400 bg-clip-text text-transparent">
-                    {calculateTotalUsers()}
-                  </p>
-                  <p className="text-xs font-medium text-foreground/62 dark:text-gray-400">participantes visibles</p>
-                </div>
-
-                {/* Mensajes hoy */}
-                <div className="glass-effect p-5 rounded-xl border border-cyan-500/30 hover:border-cyan-500/60 transition-all">
-                  <div className="flex items-center gap-2 mb-2">
-                    <MessageSquare className="w-4 h-4 text-cyan-400" />
-                    <p className="text-xs sm:text-sm text-foreground/72 dark:text-gray-300 font-semibold">Mensajes hoy</p>
-                  </div>
-                  <p className="text-2xl sm:text-3xl font-bold bg-gradient-to-r from-cyan-400 to-blue-400 bg-clip-text text-transparent">
-                    847
-                  </p>
-                  <p className="text-xs font-medium text-foreground/62 dark:text-gray-400">conversaciones</p>
-                </div>
-
-                {/* Sala más activa */}
-                <div className="glass-effect p-5 rounded-xl border border-purple-500/30 hover:border-purple-500/60 transition-all cursor-pointer" onClick={() => navigate('/chat/principal')}>
-                  <div className="flex items-center gap-2 mb-2">
-                    <Zap className="w-4 h-4 text-purple-400" />
-                    <p className="text-xs sm:text-sm text-foreground/72 dark:text-gray-300 font-semibold">Más activa</p>
-                  </div>
-                  <p className="text-2xl sm:text-3xl font-bold bg-gradient-to-r from-purple-400 to-pink-400 bg-clip-text text-transparent">
-                    Principal
-                  </p>
-                  <p className="text-xs text-purple-700 dark:text-purple-300 font-bold">Click para unirte →</p>
-                </div>
-
-                {/* Herramientas de seguridad */}
-                <div className="glass-effect p-5 rounded-xl border border-orange-500/30 hover:border-orange-500/60 transition-all">
-                  <div className="flex items-center gap-2 mb-2">
-                    <Shield className="w-4 h-4 text-orange-400" />
-                    <p className="text-xs sm:text-sm text-foreground/72 dark:text-gray-300 font-semibold">Seguridad</p>
-                  </div>
-                  <p className="text-2xl sm:text-3xl font-bold bg-gradient-to-r from-orange-400 to-red-400 bg-clip-text text-transparent">
-                    Disponible según capacidad
-                  </p>
-                  <p className="text-xs font-medium text-foreground/62 dark:text-gray-400">herramientas disponibles</p>
-                </div>
-              </motion.div>
-            )}
-
-            {/* ✅ QUICK ACCESS - Sala Más Activa (Solo usuarios logueados) */}
             {showWelcomeBack && recentMessages.length > 0 && (
-              <motion.div
-                initial={{ opacity: 0, y: 20 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ duration: 0.5, delay: 0.2 }}
-                className="mb-10 sm:mb-12 glass-effect p-6 sm:p-8 rounded-2xl border-2 border-green-500/50 hover:border-green-500/80 transition-all shadow-lg shadow-green-500/10"
+              <section
+                aria-labelledby="recent-conversations-title"
+                className="mb-10 rounded-2xl border border-border/70 bg-card/60 p-6 sm:mb-12 sm:p-8"
               >
-                <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-6">
-                  {/* Info de la sala */}
-                  <div className="flex-1">
-                    <div className="flex items-center gap-3 mb-4">
-                      <div className="relative">
-                        <span className="absolute inline-flex h-5 w-5 rounded-full bg-green-400 opacity-75 animate-ping"></span>
-                        <span className="relative inline-flex h-5 w-5 rounded-full bg-green-500 shadow-lg shadow-green-500/50"></span>
-                      </div>
-                      <div>
-                        <h3 className="text-xl sm:text-2xl font-bold text-green-400 flex items-center gap-2">
-                          🔥 Sala Principal
-                          <span className="text-sm font-medium text-foreground/68 dark:text-gray-300">- Ahora</span>
-                        </h3>
-                        <p className="text-sm font-medium text-foreground/72 dark:text-gray-300">
-                          {roomCounts['principal'] || 0} participantes visibles en este momento
-                        </p>
-                      </div>
-                    </div>
-
-                    {/* Preview de mensajes */}
-                    <div className="space-y-2 bg-secondary/75 dark:bg-black/25 rounded-xl p-4 border border-border/80">
-                      <p className="text-xs text-foreground/62 dark:text-gray-400 font-semibold mb-2">Últimas conversaciones:</p>
-                      {recentMessages.map((msg, index) => (
-                        <motion.div
-                          key={msg.id}
-                          initial={{ opacity: 0, x: -20 }}
-                          animate={{ opacity: 1, x: 0 }}
-                          transition={{ delay: index * 0.1 }}
-                          className="flex items-start gap-2"
-                        >
-                          <span className="text-sm font-semibold text-cyan-700 dark:text-cyan-300 flex-shrink-0">
-                            {msg.username}:
-                          </span>
-                          <span className="text-sm text-foreground/84 dark:text-gray-200 line-clamp-1">
-                            {msg.content?.substring(0, 60)}{msg.content?.length > 60 ? '...' : ''}
-                          </span>
-                        </motion.div>
-                      ))}
-                    </div>
+                <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+                  <div>
+                    <h3 id="recent-conversations-title" className="text-xl font-bold text-cyan-200">Conversaciones recientes</h3>
+                    <p className="mt-1 text-sm text-muted-foreground">Vista previa de mensajes reales disponibles en la sala principal.</p>
                   </div>
-
-                  {/* CTA */}
-                  <div className="w-full md:w-auto flex-shrink-0">
-                    <Button
-                      onClick={() => navigate('/chat/principal')}
-                      className="w-full md:w-auto magenta-gradient text-white font-bold text-base sm:text-lg px-8 py-6 rounded-xl shadow-xl hover:shadow-[#E4007C]/50 hover:scale-105 transition-all flex items-center justify-center gap-2"
-                    >
-                      <Zap className="w-5 h-5" />
-                      Unirse Ahora
-                      <ArrowRight className="w-5 h-5" />
-                    </Button>
-                    <p className="text-xs text-center font-medium text-foreground/68 dark:text-gray-300 mt-2">
-                      Únete a la conversación en vivo
-                    </p>
-                  </div>
+                  <Button type="button" onClick={() => navigate('/chat/principal')} className="min-h-11 rounded-xl bg-primary px-5 font-semibold text-primary-foreground">
+                    Abrir chat
+                  </Button>
                 </div>
-              </motion.div>
+                <div className="mt-5 space-y-2 rounded-xl border border-border/70 bg-background/40 p-4">
+                  {recentMessages.map((msg) => (
+                    <p key={msg.id} className="truncate text-sm text-muted-foreground">
+                      <span className="font-semibold text-cyan-200">{msg.username || 'Participante'}:</span>{' '}
+                      {msg.content?.substring(0, 100)}{msg.content?.length > 100 ? '…' : ''}
+                    </p>
+                  ))}
+                </div>
+              </section>
             )}
 
             {/* ✅ DASHBOARD PERSONAL COMPACTO - Solo usuarios logueados */}
@@ -1715,71 +1190,6 @@ const LobbyPage = () => {
               </motion.div>
             )}
 
-            {/* ✅ FEED DE ACTIVIDAD RECIENTE - Solo usuarios logueados */}
-            {showWelcomeBack && (
-              <motion.div
-                initial={{ opacity: 0, y: 20 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ duration: 0.5, delay: 0.4 }}
-                className="mb-10 sm:mb-12 glass-effect p-6 rounded-xl border border-purple-500/30"
-              >
-                <div className="flex items-center justify-between mb-4">
-                  <h3 className="text-lg sm:text-xl font-bold text-purple-400 flex items-center gap-2">
-                    📢 Actividad Reciente
-                  </h3>
-                  <span className="text-xs text-gray-500">Última actualización: ahora</span>
-                </div>
-                <div className="space-y-3">
-                  {/* Última actividad global */}
-                  {lastActivity && lastActivity.timestamp && (
-                    <motion.div
-                      initial={{ opacity: 0, x: -20 }}
-                      animate={{ opacity: 1, x: 0 }}
-                      className="flex items-center gap-3 p-3 bg-green-900/20 rounded-lg border border-green-500/30"
-                    >
-                      <div className="w-10 h-10 rounded-full bg-gradient-to-br from-green-500 to-emerald-500 flex items-center justify-center flex-shrink-0">
-                        <Users className="w-5 h-5 text-white" />
-                      </div>
-                      <div className="flex-1 min-w-0">
-                        <p className="text-sm text-gray-300">
-                          <span className="font-semibold text-green-400">{lastActivity.username}</span>
-                          {' '}se conectó
-                        </p>
-                        <p className="text-xs text-gray-500">En línea</p>
-                      </div>
-                      <div className="relative">
-                        <span className="absolute inline-flex h-3 w-3 rounded-full bg-green-400 opacity-75 animate-ping"></span>
-                        <span className="relative inline-flex h-3 w-3 rounded-full bg-green-500"></span>
-                      </div>
-                    </motion.div>
-                  )}
-
-                  {/* Sala más activa */}
-                  <motion.div
-                    initial={{ opacity: 0, x: -20 }}
-                    animate={{ opacity: 1, x: 0 }}
-                    transition={{ delay: 0.1 }}
-                    className="flex items-center gap-3 p-3 bg-cyan-900/20 rounded-lg border border-cyan-500/30 cursor-pointer hover:bg-cyan-900/30 transition-all"
-                    onClick={() => navigate('/chat/principal')}
-                  >
-                    <div className="w-10 h-10 rounded-full bg-gradient-to-br from-cyan-500 to-blue-500 flex items-center justify-center flex-shrink-0">
-                      <MessageSquare className="w-5 h-5 text-white" />
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <p className="text-sm text-gray-300">
-                        <span className="font-semibold text-cyan-400">Sala Principal:</span>
-                        {' '}{roomCounts['principal'] || 0} participantes visibles ahora
-                      </p>
-                      <p className="text-xs text-cyan-400 font-semibold">Click para unirte →</p>
-                    </div>
-                    <Zap className="w-5 h-5 text-cyan-400" />
-                  </motion.div>
-
-                  {/* Foro oculto temporalmente */}
-                </div>
-              </motion.div>
-            )}
-
             {/* Título de sección: Explora */}
             <div className="text-center mb-8 sm:mb-10">
               <h2 className="text-2xl sm:text-3xl md:text-4xl font-bold mb-3 sm:mb-4 bg-gradient-to-r from-cyan-400 via-purple-400 to-pink-400 bg-clip-text text-transparent leading-tight">
@@ -1792,7 +1202,7 @@ const LobbyPage = () => {
 
             {/* Indicador de horas pico */}
             <div className="max-w-7xl mx-auto mb-4">
-              <PeakHoursIndicator totalOnline={calculateTotalUsers()} />
+              <PeakHoursIndicator />
             </div>
 
             {/* ✅ GRID PRINCIPAL 3x2 - SIMÉTRICO Y PERFECTO */}
@@ -1816,12 +1226,12 @@ const LobbyPage = () => {
                 key="opin-discovery"
                 icon={<Sparkles className="w-8 h-8" />}
                 title="OPIN - Descubrimiento"
-                description="Publica lo que buscas y descubre perfiles interesantes. Posts activos 24h. Encuentra conexiones reales más allá del chat efímero."
+                description="Publica una intención y descubre si la comunidad responde. La actividad y las respuestas dependen de la participación real."
                 onClick={() => navigate('/opin')}
                 index={1}
                 variant="default"
-                badge="🆕 Nuevo"
-                stats={{ label: "💜 Descubre perfiles", icon: Users }}
+                badge={null}
+                stats={{ label: "Publica una intención", icon: Users }}
                 accentColor="purple"
               />
 
@@ -1856,11 +1266,6 @@ const LobbyPage = () => {
             </div>
           </motion.div>
         </div>
-
-        {/* COMENTADO - VideoSection "Próximamente" (Tarea 1.3) */}
-        {/* <div className="mb-16">
-          <VideoSection onComingSoon={handleFeatureComingSoon} />
-        </div> */}
 
       </div>
 

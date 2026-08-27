@@ -10,9 +10,11 @@ import { Camera, Send, X, ShieldAlert } from 'lucide-react';
 import { toast } from '@/components/ui/use-toast';
 import { useAuth } from '@/contexts/AuthContext';
 import { createReport } from '@/services/reportService';
+import { isSupabaseAuthEnabled } from '@/config/supabase';
 
 const DenunciaModal = ({ isOpen, onClose }) => {
   const { user } = useAuth();
+  const reportsReady = isSupabaseAuthEnabled();
   const [denunciaType, setDenunciaType] = useState('acoso');
   const [otraDenuncia, setOtraDenuncia] = useState('');
   const [descripcion, setDescripcion] = useState('');
@@ -28,10 +30,18 @@ const DenunciaModal = ({ isOpen, onClose }) => {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+    if (!reportsReady) {
+      toast({
+        title: 'Denuncias pausadas',
+        description: 'El almacenamiento seguro de denuncias aún no está configurado. No se envió nada.',
+        variant: 'destructive',
+      });
+      return;
+    }
     setIsSubmitting(true);
 
     try {
-      // Guardar denuncia en Firestore
+      // Guardar denuncia en Supabase
       await createReport({
         reporterUsername: user?.username || 'Anónimo',
         type: denunciaType,
@@ -76,11 +86,16 @@ const DenunciaModal = ({ isOpen, onClose }) => {
             Formulario de Denuncia
           </DialogTitle>
           <DialogDescription className="text-gray-300">
-            Ayúdanos a mantener Chactivo un lugar seguro para todos.
+            Ayúdanos a señalar conductas que deban revisarse. No compartas datos personales innecesarios.
           </DialogDescription>
         </DialogHeader>
 
         <form onSubmit={handleSubmit} className="px-6 pb-6 space-y-4 max-h-[70vh] overflow-y-auto scrollbar-hide">
+          {!reportsReady && (
+            <div className="rounded-xl border border-amber-400/30 bg-amber-400/10 px-3 py-3 text-sm text-amber-100">
+              Las denuncias están pausadas hasta configurar el almacenamiento Supabase. El formulario no enviará datos mientras tanto.
+            </div>
+          )}
           <div>
             <Label className="font-bold text-gray-200">Tipo de Denuncia</Label>
             <RadioGroup value={denunciaType} onValueChange={setDenunciaType} className="mt-2 grid grid-cols-2 gap-2">
@@ -132,7 +147,7 @@ const DenunciaModal = ({ isOpen, onClose }) => {
             </Button>
           </div>
 
-          <Button type="submit" disabled={isSubmitting} className="w-full bg-red-600 hover:bg-red-700 text-white font-bold py-3 text-lg">
+          <Button type="submit" disabled={isSubmitting || !reportsReady} className="w-full bg-red-600 hover:bg-red-700 text-white font-bold py-3 text-lg">
             <Send className="mr-2 h-5 w-5" />
             {isSubmitting ? 'Enviando...' : 'Enviar Denuncia'}
           </Button>

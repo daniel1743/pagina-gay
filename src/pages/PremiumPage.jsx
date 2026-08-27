@@ -13,7 +13,7 @@ const PremiumPage = () => {
   useCanonical('/premium');
 
   const navigate = useNavigate();
-  const { user, upgradeToPremium } = useAuth();
+  const { user } = useAuth();
   const [showComingSoon, setShowComingSoon] = React.useState(false);
   const [comingSoonFeature, setComingSoonFeature] = React.useState({ name: '', description: '' });
 
@@ -28,16 +28,12 @@ const PremiumPage = () => {
 
   const handleUpgrade = () => {
     setComingSoonFeature({
-      name: 'el sistema de pagos',
-      description: 'Estamos integrando pasarelas de pago seguras (Mercado Pago, WebPay) para que puedas actualizar a Premium de forma fácil y confiable. ¡Pronto podrás disfrutar de todos los beneficios!'
+      name: 'Premium en preparación',
+      description: 'El checkout y las funciones de pago todavía no están habilitados. Esta pantalla es informativa y no realiza ningún cobro.'
     });
     setShowComingSoon(true);
   };
 
-  const handleUpgradeDemo = () => {
-    upgradeToPremium();
-    navigate('/profile');
-  };
 
   React.useEffect(() => {
     document.title = "Premium - Chactivo | Chat Gay Chile";
@@ -85,10 +81,10 @@ const PremiumPage = () => {
               <Crown className="w-12 h-12 text-purple-950" />
             </div>
             <h1 className="text-4xl md:text-5xl font-bold mb-4 bg-gradient-to-r from-yellow-400 via-fuchsia-400 to-purple-400 bg-clip-text text-transparent">
-              Chactivo Premium
+              Chactivo Premium en preparación
             </h1>
             <p className="text-xl text-muted-foreground">
-              Desbloquea todo el potencial de la comunidad
+              La compra todavía no está habilitada
             </p>
           </motion.div>
 
@@ -131,13 +127,13 @@ const PremiumPage = () => {
               className="glass-effect rounded-3xl p-8 border-2 border-yellow-400 relative overflow-hidden"
             >
               <div className="absolute top-0 right-0 gold-gradient text-purple-950 px-4 py-1 rounded-bl-2xl font-bold text-sm">
-                POPULAR
+                EN PREPARACIÓN
               </div>
               <h2 className="text-2xl font-bold mb-2 bg-gradient-to-r from-yellow-400 to-fuchsia-400 bg-clip-text text-transparent">
                 Plan Premium
               </h2>
-              <p className="text-4xl font-bold mb-2 text-foreground">$9.990</p>
-              <p className="text-sm text-muted-foreground mb-6">por mes</p>
+              <p className="text-3xl font-bold mb-2 text-foreground">No disponible</p>
+              <p className="text-sm text-muted-foreground mb-6">El precio se definirá cuando exista checkout.</p>
               <ul className="space-y-3 mb-8">
                 {features.map((feature, index) => (
                   <li key={index} className="flex items-center text-foreground">
@@ -154,7 +150,7 @@ const PremiumPage = () => {
                   className="w-full gold-gradient text-purple-950 font-bold text-lg hover:scale-105 transition-transform"
                 >
                   <Crown className="w-5 h-5 mr-2" />
-                  Actualizar Ahora
+                  Ver estado de Premium
                 </Button>
               </div>
             </motion.div>
@@ -170,9 +166,7 @@ const PremiumPage = () => {
               ¿Por qué Premium?
             </h3>
             <p className="text-muted-foreground max-w-2xl mx-auto">
-              Explora las funciones Premium disponibles para personalizar tu experiencia,
-              acceso exclusivo a eventos y la mejor forma de conectar con la comunidad LGBTQ+
-              de Santiago. Tu apoyo nos ayuda a mantener Chactivo seguro y en constante mejora.
+              Esta página conserva una vista informativa para usuarios autenticados. Las funciones Premium, los eventos y el cobro no están habilitados; no se debe interpretar esta pantalla como una oferta activa. Cuando exista una implementación verificable, se actualizarán aquí las condiciones y el precio.
             </p>
           </motion.div>
         </div>

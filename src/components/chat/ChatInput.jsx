@@ -6,10 +6,8 @@ import ComingSoonModal from '@/components/ui/ComingSoonModal';
 import { EmojiStyle, Categories } from 'emoji-picker-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useAuth } from '@/contexts/AuthContext';
-import { storage } from '@/config/firebase';
 import { isSupabaseAuthEnabled } from '@/config/supabase';
 import { uploadPublicChatPhotoToSupabase } from '@/services/supabaseMediaService';
-import { ref as storageRef, uploadBytes, getDownloadURL, deleteObject } from 'firebase/storage';
 import imageCompression from 'browser-image-compression';
 import { updatePresenceFields, updateTypingStatus } from '@/services/presenceService';
 import { notificationSounds, initAudioOnFirstGesture } from '@/services/notificationSounds';
@@ -234,7 +232,7 @@ const ChatInput = ({
   const visiblePhotoCount = Number(photoUsageStats?.visibleCount || 0);
   const reachedPhotoHourlyLimit = hourlyPhotoCount >= PHOTO_HOURLY_LIMIT;
   const hasVisiblePhotoLimit = visiblePhotoCount >= PHOTO_VISIBLE_LIMIT;
-  const canSendPhotoNow = isRegisteredUser && roomId === 'principal';
+  const canSendPhotoNow = isRegisteredUser && roomId === 'principal' && isSupabaseAuthEnabled();
 
   const shouldShowComposerGuidance = !isHeteroContext && showOnboardingHints && !onboardingDismissed && !firstMessageSentInSession;
   const shouldShowOnboarding = shouldShowComposerGuidance;
@@ -1022,6 +1020,9 @@ const ChatInput = ({
     if (!isRegisteredUser) {
       return 'Debes iniciar sesión para subir fotos.';
     }
+    if (!isSupabaseAuthEnabled()) {
+      return 'La subida de fotos está pausada hasta configurar Supabase Storage.';
+    }
     if (roomId !== 'principal') {
       return 'Las fotos solo están habilitadas en la sala Principal.';
     }
@@ -1046,18 +1047,14 @@ const ChatInput = ({
 
   const showPhotoBlockedToast = () => {
     toast({
-      title: !isRegisteredUser ? 'Debes iniciar sesión' : 'Límite de fotos',
+      title: !isRegisteredUser
+        ? 'Debes iniciar sesión'
+        : !isSupabaseAuthEnabled()
+          ? 'Fotos pausadas'
+          : 'Límite de fotos',
       description: buildPhotoBlockedDescription(),
       duration: 4500,
     });
-  };
-
-  const getImageExtension = (contentType = '') => {
-    if (contentType.includes('png')) return 'png';
-    if (contentType.includes('webp')) return 'webp';
-    if (contentType.includes('heic')) return 'heic';
-    if (contentType.includes('heif')) return 'heif';
-    return 'jpg';
   };
 
   const compressImageForChat = async (file) => {
@@ -1098,7 +1095,6 @@ const ChatInput = ({
     }
 
     setIsUploadingPhoto(true);
-    let uploadedFileRef = null;
     try {
       const optimizedFile = await compressImageForChat(selectedFile);
       const tempMessageId = (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function')
@@ -1108,58 +1104,36 @@ const ChatInput = ({
       let downloadURL = '';
       let mediaAsset;
 
-      if (isSupabaseAuthEnabled()) {
-        const uploaded = await uploadPublicChatPhotoToSupabase(optimizedFile, roomId || 'principal', tempMessageId);
-        downloadURL = uploaded.url || '';
-        mediaAsset = {
-          kind: 'image',
-          path: uploaded.path,
-          bucket: uploaded.bucket,
-          mimeType: uploaded.mimeType,
-          size: uploaded.size,
-        };
-      } else {
-        const extension = getImageExtension(optimizedFile.type);
-        const mediaPath = `chat_media/rooms/${user?.id || 'unknown'}/${roomId || 'principal'}/${tempMessageId}/${assetId}.${extension}`;
-        const fileRef = storageRef(storage, mediaPath);
-        uploadedFileRef = fileRef;
-        await uploadBytes(fileRef, optimizedFile, {
-          contentType: optimizedFile.type,
-          customMetadata: {
-            roomId: roomId || 'principal',
-            userId: user?.id || '',
-            feature: 'chat_photo_access',
-          },
-        });
-        downloadURL = await getDownloadURL(fileRef);
-        mediaAsset = {
-          kind: 'image',
-          path: mediaPath,
-          contentType: optimizedFile.type,
-          sizeBytes: optimizedFile.size,
-        };
+      if (!isSupabaseAuthEnabled()) {
+        throw new Error('SUPABASE_REQUIRED_FOR_PUBLIC_MEDIA');
       }
+
+      const uploaded = await uploadPublicChatPhotoToSupabase(optimizedFile, roomId || 'principal', tempMessageId);
+      downloadURL = uploaded.url || '';
+      mediaAsset = {
+        kind: 'image',
+        path: uploaded.path,
+        bucket: uploaded.bucket,
+        mimeType: uploaded.mimeType,
+        size: uploaded.size,
+      };
 
       await onSendMessage(downloadURL, 'image', replyTo, {
         media: [mediaAsset],
       });
 
       toast({
-        title: 'Foto publicada',
-        description: 'Mientras más chateas, más aumentará tu cupo y desbloquearás beneficios prioritarios.',
+        title: 'Foto enviada',
+        description: 'La imagen se envió al chat y quedará sujeta a las normas de la sala.',
         duration: 4200,
       });
     } catch (error) {
-      if (uploadedFileRef) {
-        await deleteObject(uploadedFileRef).catch(() => {});
-      }
-
       const normalizedCode = String(error?.code || '').toLowerCase();
       const description = normalizedCode.includes('permission-denied') || normalizedCode.includes('unauthorized')
-        ? (isSupabaseAuthEnabled()
-          ? 'Supabase rechazó la subida. Revisa la sesión y las políticas del bucket Storage.'
-          : 'Firebase rechazó la subida. Revisa que tu sesión esté activa y que las reglas de Storage y Firestore estén desplegadas.')
-        : error?.message || 'Reintenta en unos segundos.';
+        ? 'Supabase rechazó la subida. Revisa la sesión y las políticas del bucket Storage.'
+        : error?.message === 'SUPABASE_REQUIRED_FOR_PUBLIC_MEDIA'
+          ? 'La subida de fotos está pausada hasta configurar Supabase Storage.'
+          : error?.message || 'Reintenta en unos segundos.';
       toast({
         title: 'No se pudo subir la foto',
         description,

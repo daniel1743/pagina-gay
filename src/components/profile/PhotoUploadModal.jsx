@@ -64,7 +64,7 @@ const PhotoUploadModal = ({ isOpen, onClose, onUploadSuccess }) => {
     let progressInterval;
 
     try {
-      // Progreso orientativo: la subida de Cloudinary no expone porcentaje real.
+      // Progreso orientativo: Storage no expone porcentaje real en este flujo.
       progressInterval = setInterval(() => {
         setUploadProgress((prev) => {
           if (prev >= 90) {
@@ -81,8 +81,11 @@ const PhotoUploadModal = ({ isOpen, onClose, onUploadSuccess }) => {
       clearInterval(progressInterval);
       setUploadProgress(100);
 
-      // Actualizar perfil del usuario
-      await updateProfile({ avatar: photoURL });
+      // Confirmar que la URL quedó persistida en el perfil antes de cerrar.
+      const profileUpdated = await updateProfile({ avatar: photoURL });
+      if (!profileUpdated) {
+        throw new Error('No se pudo guardar la foto en el perfil.');
+      }
 
       toast({
         title: "✅ Foto subida exitosamente",
@@ -103,7 +106,9 @@ const PhotoUploadModal = ({ isOpen, onClose, onUploadSuccess }) => {
       console.error('Error subiendo foto:', error);
       toast({
         title: "Error al subir foto",
-        description: error.message || "No se pudo subir la foto. Intenta de nuevo.",
+        description: error?.message === 'SUPABASE_REQUIRED_FOR_PROFILE_PHOTOS'
+          ? 'La subida de fotos está pausada hasta configurar Supabase Storage.'
+          : error.message || "No se pudo subir la foto. Intenta de nuevo.",
         variant: "destructive",
       });
     } finally {
@@ -166,20 +171,11 @@ const PhotoUploadModal = ({ isOpen, onClose, onUploadSuccess }) => {
         <div className="p-6 space-y-6">
           {/* Área de carga */}
           {!preview ? (
-            <div
+            <label
+              htmlFor="profile-photo-input"
               onDragOver={handleDragOver}
               onDrop={handleDrop}
-              className="border-2 border-dashed border-[#E4007C]/50 rounded-xl p-12 text-center hover:border-[#E4007C] transition-colors cursor-pointer bg-accent/20"
-              role="button"
-              tabIndex={0}
-              aria-label="Seleccionar una foto de perfil"
-              onKeyDown={(event) => {
-                if (event.key === 'Enter' || event.key === ' ') {
-                  event.preventDefault();
-                  fileInputRef.current?.click();
-                }
-              }}
-              onClick={() => fileInputRef.current?.click()}
+              className="block cursor-pointer rounded-xl border-2 border-dashed border-[#E4007C]/50 bg-accent/20 p-12 text-center transition-colors hover:border-[#E4007C] focus-within:border-[#E4007C] focus-within:ring-2 focus-within:ring-[#E4007C]/60"
             >
               <ImageIcon className="w-16 h-16 mx-auto mb-4 text-[#E4007C]" />
               <p className="text-lg font-semibold mb-2">Arrastra una imagen aquí</p>
@@ -188,13 +184,14 @@ const PhotoUploadModal = ({ isOpen, onClose, onUploadSuccess }) => {
                 Formatos: JPG, PNG, WEBP (máximo 10 MB antes de comprimir)
               </p>
               <input
+                id="profile-photo-input"
                 ref={fileInputRef}
                 type="file"
                 accept="image/jpeg,image/jpg,image/png,image/webp"
                 onChange={handleFileSelect}
-                className="hidden"
+                className="sr-only"
               />
-            </div>
+            </label>
           ) : (
             <div className="space-y-4">
               {/* Preview de la imagen */}
@@ -207,6 +204,7 @@ const PhotoUploadModal = ({ isOpen, onClose, onUploadSuccess }) => {
                 <Button
                   variant="ghost"
                   size="icon"
+                  type="button"
                   onClick={handleRemove}
                   className="absolute top-2 right-2 bg-black/50 hover:bg-black/70 text-white"
                 >
@@ -260,6 +258,7 @@ const PhotoUploadModal = ({ isOpen, onClose, onUploadSuccess }) => {
           <div className="flex gap-3 pt-4">
             <Button
               variant="outline"
+              type="button"
               onClick={onClose}
               className="flex-1"
               disabled={isUploading}
@@ -268,6 +267,7 @@ const PhotoUploadModal = ({ isOpen, onClose, onUploadSuccess }) => {
             </Button>
             {preview && (
               <Button
+                type="button"
                 onClick={handleUpload}
                 className="flex-1 bg-gradient-to-r from-[#E4007C] to-cyan-500 hover:from-[#ff0087] hover:to-cyan-400 text-white font-bold"
                 disabled={isUploading}
@@ -300,6 +300,7 @@ const PhotoUploadModal = ({ isOpen, onClose, onUploadSuccess }) => {
         <Button
           variant="ghost"
           size="icon"
+          type="button"
           onClick={onClose}
           className="absolute top-2 right-2 z-50 text-muted-foreground hover:text-foreground hover:bg-accent rounded-full"
           disabled={isUploading}

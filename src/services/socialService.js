@@ -1486,6 +1486,9 @@ export const sendRichPrivateChatMessage = async (
     clientId = null,
   }
 ) => {
+  if (type === 'image' && !useSupabasePrivateChat()) {
+    throw new Error('SUPABASE_REQUIRED_FOR_PRIVATE_MEDIA');
+  }
   if (useSupabasePrivateChat()) return supabasePrivateChatService.sendRichPrivateChatMessage(chatId, { userId, username, avatar, content, type, media, senderIsPremium, replyTo, clientId });
   let stage = 'validate_input';
   if (!chatId || !userId || !content) {

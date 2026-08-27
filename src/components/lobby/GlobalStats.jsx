@@ -1,161 +1,58 @@
-import React, { useState, useEffect } from 'react';
-import { motion } from 'framer-motion';
-import { Users, TrendingUp, Activity } from 'lucide-react';
-import { subscribeToMultipleRoomCounts } from '@/services/presenceService';
-import { getVisibleRooms } from '@/config/rooms';
-import AnimatedNumber from '@/components/ui/AnimatedNumber';
+import { HugeiconsIcon } from '@hugeicons/react';
+import {
+  ArrowRight01Icon,
+  BubbleChatIcon,
+  InformationCircleIcon,
+  UserGroupIcon,
+} from '@hugeicons/core-free-icons';
 
 const GlobalStats = () => {
-  const [roomCounts, setRoomCounts] = useState({});
-  const visibleRooms = getVisibleRooms();
-
-  // ❌ DESHABILITADO TEMPORALMENTE - Loop infinito de Firebase (07/01/2026)
-  // subscribeToMultipleRoomCounts creaba 75+ listeners activos simultáneos
-  // Causó 500,000+ lecturas en 6 minutos
-  // TODO: Re-habilitar con throttling y deduplicación
-  useEffect(() => {
-    // ✅ HOTFIX: Valores estáticos temporales (0 usuarios en todas las salas)
-    const roomIds = visibleRooms.map((room) => room.id);
-    const staticCounts = roomIds.reduce((acc, id) => ({ ...acc, [id]: 0 }), {});
-    setRoomCounts(staticCounts);
-
-    // ❌ COMENTADO - Loop infinito
-    // const unsubscribe = subscribeToMultipleRoomCounts(roomIds, (counts) => {
-    //   setRoomCounts(counts);
-    // });
-    // return () => unsubscribe();
-
-    return () => {}; // Cleanup vacío
-  }, []);
-
-  const getRoomStats = () => {
-    const stats = visibleRooms.map((room) => {
-      const count = roomCounts[room.id] || 0;
-
-      return {
-        id: room.id,
-        name: room.name,
-        count: count
-      };
-    });
-
-    stats.sort((a, b) => b.count - a.count);
-    return stats;
-  };
-
-  const stats = getRoomStats();
-  const totalUsers = stats.reduce((sum, room) => sum + room.count, 0);
-  const mostActiveRoom = stats[0];
-  const mostActiveCount = mostActiveRoom?.count ?? 0;
-
   return (
-    <div className="w-full max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 mb-8 sm:mb-12">
-      <motion.div
-        initial={{ opacity: 0, y: -20 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.6 }}
-        className="glassmorphism-card rounded-2xl p-5 sm:p-6 lg:p-8"
-      >
-        {/* Header */}
-        <div className="flex items-center justify-center gap-2 sm:gap-3 mb-6 sm:mb-8">
-          <Activity className="w-5 h-5 sm:w-6 sm:h-6 text-primary animate-pulse" />
-          <h2 className="text-xl sm:text-2xl font-bold magenta-gradient-text">Actividad en Tiempo Real</h2>
-          <Activity className="w-5 h-5 sm:w-6 sm:h-6 text-primary animate-pulse" />
-        </div>
-
-        {/* Stats Grid */}
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 sm:gap-6">
-          {/* ✅ Cambiado: De estadísticas a acción inmediata */}
-          <motion.div
-            whileHover={{ scale: 1.02 }}
-            className="flex items-center gap-3 sm:gap-4 p-4 sm:p-5 rounded-xl bg-gradient-to-r from-blue-500/10 to-cyan-500/10 border border-blue-500/20"
-          >
-            <div className="p-3 rounded-full bg-blue-500/20">
-              <span className="text-3xl">🔥</span>
-            </div>
-            <div className="flex-1 min-w-0">
-              <p className="text-lg sm:text-xl font-bold text-blue-400 mb-1">
-                Hay conversación activa ahora
-              </p>
-              <div className="flex items-center gap-1 mt-1 sm:mt-2">
-                <div className="w-2 h-2 rounded-full bg-green-500 animate-pulse"></div>
-                <span className="text-xs text-green-500 font-medium">Únete y empieza a chatear</span>
-              </div>
-            </div>
-          </motion.div>
-
-          {/* ✅ Cambiado: De estadísticas a acción inmediata */}
-          <motion.div
-            whileHover={{ scale: 1.02 }}
-            className="flex items-center gap-3 sm:gap-4 p-4 sm:p-5 rounded-xl bg-gradient-to-r from-purple-500/10 to-pink-500/10 border border-purple-500/20"
-          >
-            <div className="p-3 rounded-full bg-purple-500/20">
-              <span className="text-3xl">💬</span>
-            </div>
-            <div className="flex-1 min-w-0">
-              <p className="text-lg sm:text-xl font-bold text-purple-400 mb-1">
-                Únete y empieza a chatear en segundos
-              </p>
-              <div className="flex items-center gap-2 mt-1 sm:mt-2">
-                <span className="text-xs sm:text-sm font-semibold text-pink-400">
-                  {mostActiveRoom?.name ? `Sala activa: ${mostActiveRoom.name}` : 'Entra al chat principal'}
-                </span>
-              </div>
-            </div>
-          </motion.div>
-        </div>
-
-        {/* ✅ Cambiado: De Top 3 a llamados a la acción */}
-        <div className="mt-6 sm:mt-8 pt-6 sm:pt-8 border-t border-border">
-          <p className="text-xs sm:text-sm text-muted-foreground mb-4 sm:mb-5 text-center font-semibold">
-            🚀 Sala Disponible
-          </p>
-
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 sm:gap-4">
-            {stats.slice(0, 3).map((room, index) => (
-              <motion.div
-                key={room.id}
-                initial={{ opacity: 0, x: -20 }}
-                animate={{ opacity: 1, x: 0 }}
-                transition={{ delay: index * 0.1 }}
-                className="flex items-center gap-3 p-3 rounded-lg bg-gradient-to-r from-primary/5 to-primary/10 border border-primary/10 hover:border-primary/30 transition-all cursor-pointer"
-              >
-                <div
-                  className={`flex items-center justify-center w-8 h-8 rounded-full ${
-                    index === 0
-                      ? 'bg-yellow-500/20 text-yellow-400'
-                      : index === 1
-                      ? 'bg-gray-400/20 text-gray-300'
-                      : 'bg-orange-500/20 text-orange-400'
-                  } font-bold`}
-                >
-                  {index + 1}
-                </div>
-
-                <div className="flex-1 min-w-0">
-                  <p className="text-sm font-semibold truncate">{room.name}</p>
-                  <span className="text-xs text-green-400 font-medium">
-                    🔥 Entra ahora
-                  </span>
-                </div>
-              </motion.div>
-            ))}
+    <section
+      aria-labelledby="community-status-title"
+      className="mx-auto mb-8 w-full max-w-6xl px-4 sm:mb-12 sm:px-6 lg:px-8"
+    >
+      <div className="rounded-2xl border border-border/70 bg-card/70 p-5 shadow-sm sm:p-6 lg:p-8">
+        <div className="flex items-start gap-3">
+          <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl border border-cyan-300/20 bg-cyan-300/10 text-cyan-200">
+            <HugeiconsIcon icon={UserGroupIcon} size={22} color="currentColor" aria-hidden="true" />
+          </div>
+          <div>
+            <h2 id="community-status-title" className="text-xl font-bold sm:text-2xl">Estado de la comunidad</h2>
+            <p className="mt-1 text-sm leading-6 text-muted-foreground">La presencia se muestra únicamente cuando existe una fuente real y disponible.</p>
           </div>
         </div>
 
-        {/* Call to Action */}
-        <motion.div
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          transition={{ delay: 0.5 }}
-          className="mt-4 text-center"
-        >
-          <p className="text-sm text-muted-foreground">
-            💬 Únete ahora y participa en la comunidad LGBT+ de Chile
-          </p>
-        </motion.div>
-      </motion.div>
-    </div>
+        <div className="mt-6 rounded-xl border border-amber-300/20 bg-amber-300/5 p-4 sm:p-5">
+          <div className="flex items-start gap-3">
+            <HugeiconsIcon icon={InformationCircleIcon} size={21} color="currentColor" className="mt-0.5 shrink-0 text-amber-200" aria-hidden="true" />
+            <div>
+              <h3 className="font-semibold text-amber-100">No hay un contador de actividad disponible</h3>
+              <p className="mt-1 text-sm leading-6 text-muted-foreground">
+                No mostramos “usuarios activos ahora”, rankings de salas ni números de relleno. Entra al chat para comprobar el estado real y decide si quieres participar.
+              </p>
+            </div>
+          </div>
+        </div>
+
+        <nav aria-label="Acciones de la comunidad" className="mt-6 flex flex-col gap-3 sm:flex-row">
+          <a
+            href="/chat/principal"
+            className="inline-flex min-h-12 items-center justify-center rounded-xl bg-gradient-to-r from-fuchsia-500 to-cyan-400 px-5 text-sm font-bold text-slate-950 transition hover:from-fuchsia-400 hover:to-cyan-300 focus:outline-none focus:ring-2 focus:ring-cyan-200 focus:ring-offset-2 focus:ring-offset-background"
+          >
+            <HugeiconsIcon icon={BubbleChatIcon} size={19} color="currentColor" className="mr-2" aria-hidden="true" />
+            Revisar el chat principal
+            <HugeiconsIcon icon={ArrowRight01Icon} size={18} color="currentColor" className="ml-2" aria-hidden="true" />
+          </a>
+          <a
+            href="/opin"
+            className="inline-flex min-h-12 items-center justify-center rounded-xl border border-border/70 bg-background/40 px-5 text-sm font-semibold text-foreground transition hover:bg-accent focus:outline-none focus:ring-2 focus:ring-cyan-200 focus:ring-offset-2 focus:ring-offset-background"
+          >
+            Explorar OPIN
+          </a>
+        </nav>
+      </div>
+    </section>
   );
 };
 

@@ -18,7 +18,7 @@ import {
   writeBatch,
 } from 'firebase/firestore';
 import { ref as storageRef, deleteObject } from 'firebase/storage';
-import { db, auth } from '@/config/firebase';
+import { db, auth, storage } from '@/config/firebase';
 import { isSupabaseAuthEnabled } from '@/config/supabase';
 import * as supabaseChatService from '@/services/supabaseChatService';
 import { trackMessageSent, trackFirstMessage } from '@/services/ga4Service';

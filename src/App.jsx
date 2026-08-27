@@ -22,11 +22,10 @@ import { isSupabaseAuthEnabled } from '@/config/supabase';
 import { arrayUnion, doc, getDoc, serverTimestamp, updateDoc } from 'firebase/firestore';
 import { db } from '@/config/firebase';
 import PerformanceSummaryButton from '@/components/PerformanceSummaryButton'; // 📊 Performance Monitor Button
-import GlobalLandingPage from '@/pages/GlobalLandingPage'; // Landing principal - crítica para SEO
 import ChatBottomNav from '@/components/chat/ChatBottomNav';
 
 // 🚀 SEO LANDING MINIMALISTA - 1 segundo y redirige al chat
-import SEOLanding, {
+import {
   SEOLandingHome,
   SEOLandingChile,
   SEOLandingArgentina,
@@ -57,10 +56,7 @@ const AnonymousChatPage = lazy(() => import('@/pages/AnonymousChatPage'));
 const ThreadDetailPage = lazy(() => import('@/pages/ThreadDetailPage'));
 const Mas30LandingPage = lazy(() => import('@/pages/Mas30LandingPage'));
 const SantiagoLandingPage = lazy(() => import('@/pages/SantiagoLandingPage'));
-const SpainLandingPage = lazy(() => import('@/pages/SpainLandingPage'));
-const BrazilLandingPage = lazy(() => import('@/pages/BrazilLandingPage'));
-const MexicoLandingPage = lazy(() => import('@/pages/MexicoLandingPage'));
-const ArgentinaLandingPage = lazy(() => import('@/pages/ArgentinaLandingPage'));
+const GlobalLandingPage = lazy(() => import('@/pages/GlobalLandingPage'));
 const TestLandingPage = lazy(() => import('@/pages/TestLandingPage'));
 const TestModalPage = lazy(() => import('@/pages/TestModalPage'));
 const FAQPage = lazy(() => import('@/pages/FAQPage'));
@@ -234,7 +230,7 @@ function RewardInboxListener() {
   }, [user?.id, user?.isGuest, user?.isAnonymous]);
 
   useEffect(() => {
-    if (!user?.id || user?.isGuest || user?.isAnonymous) {
+    if (isSupabaseAuthEnabled() || !user?.id || user?.isGuest || user?.isAnonymous) {
       setPendingRewards([]);
       setCurrentReward(null);
       return () => {};

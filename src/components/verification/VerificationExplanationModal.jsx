@@ -12,10 +12,10 @@ const VerificationExplanationModal = ({ isOpen, onClose, verificationStatus }) =
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2 text-2xl">
             <Shield className="w-6 h-6 text-green-400" />
-            Sistema de Verificación de Cuenta
+            Insignia de participación
           </DialogTitle>
           <DialogDescription className="text-base">
-            Obtén y mantén tu insignia de verificación
+            Se obtiene por continuidad de acceso; no verifica identidad ni garantiza seguridad
           </DialogDescription>
         </DialogHeader>
 
@@ -29,7 +29,7 @@ const VerificationExplanationModal = ({ isOpen, onClose, verificationStatus }) =
             {verified ? (
               <div className="flex items-center gap-2 text-green-400">
                 <CheckCircle className="w-5 h-5" />
-                <span className="font-bold">¡Estás Verificado!</span>
+                <span className="font-bold">¡Tienes la insignia de participación!</span>
               </div>
             ) : (
               <div className="space-y-2">
@@ -44,7 +44,7 @@ const VerificationExplanationModal = ({ isOpen, onClose, verificationStatus }) =
                   />
                 </div>
                 <p className="text-sm text-muted-foreground">
-                  Te faltan <span className="font-bold text-purple-400">{daysUntilVerification} días</span> para verificarte
+                  Te faltan <span className="font-bold text-purple-400">{daysUntilVerification} días</span> para obtener la insignia
                 </p>
               </div>
             )}
@@ -54,16 +54,15 @@ const VerificationExplanationModal = ({ isOpen, onClose, verificationStatus }) =
           <div className="space-y-3">
             <h3 className="font-semibold text-lg flex items-center gap-2">
               <Calendar className="w-5 h-5 text-blue-400" />
-              Requisitos para Verificarte
+              Requisitos para obtener la insignia
             </h3>
             <div className="space-y-2 pl-7">
               <div className="flex items-start gap-2">
                 <CheckCircle className="w-5 h-5 text-green-400 mt-0.5 flex-shrink-0" />
                 <div>
-                  <p className="font-medium">30 días consecutivos conectándote</p>
+                  <p className="font-medium">                30 días consecutivos de acceso</p>
                   <p className="text-sm text-muted-foreground">
-                    Debes conectarte al menos una vez al día durante 30 días seguidos. 
-                    No importa cuánto tiempo estés conectado, solo que te conectes cada día.
+                    Debes acceder al menos una vez al día durante 30 días seguidos. Esto solo indica continuidad de acceso; no confirma quién eres ni valida el contenido de tu perfil.
                   </p>
                 </div>
               </div>
@@ -84,7 +83,7 @@ const VerificationExplanationModal = ({ isOpen, onClose, verificationStatus }) =
             <div className="space-y-3 border-t pt-4">
               <h3 className="font-semibold text-lg flex items-center gap-2">
                 <AlertTriangle className="w-5 h-5 text-yellow-400" />
-                Mantener tu Verificación
+                Mantener la insignia
               </h3>
               <div className="space-y-2 pl-7">
                 <div className="flex items-start gap-2">
@@ -92,7 +91,7 @@ const VerificationExplanationModal = ({ isOpen, onClose, verificationStatus }) =
                   <div>
                     <p className="font-medium">Máximo 3 días sin conexión</p>
                     <p className="text-sm text-muted-foreground">
-                      Para mantener tu verificación, no debes pasar más de 3 días sin conectarte.
+                      Para mantener la insignia, no debes pasar más de 3 días sin acceder.
                     </p>
                   </div>
                 </div>
@@ -101,7 +100,7 @@ const VerificationExplanationModal = ({ isOpen, onClose, verificationStatus }) =
                   <div>
                     <p className="font-medium">Si pasas 4 días sin conexión</p>
                     <p className="text-sm text-muted-foreground">
-                      Al cuarto día sin conexión, perderás tu verificación y deberás cumplir los 30 días consecutivos nuevamente.
+                      Al cuarto día sin acceso, perderás la insignia y deberás cumplir nuevamente el periodo consecutivo.
                     </p>
                   </div>
                 </div>
@@ -111,7 +110,7 @@ const VerificationExplanationModal = ({ isOpen, onClose, verificationStatus }) =
 
           {/* Beneficios */}
           <div className="space-y-3 border-t pt-4">
-            <h3 className="font-semibold text-lg">Beneficios de estar Verificado</h3>
+            <h3 className="font-semibold text-lg">Qué indica la insignia</h3>
             <ul className="space-y-2 pl-7">
               <li className="flex items-start gap-2">
                 <CheckCircle className="w-4 h-4 text-green-400 mt-1 flex-shrink-0" />
@@ -119,11 +118,11 @@ const VerificationExplanationModal = ({ isOpen, onClose, verificationStatus }) =
               </li>
               <li className="flex items-start gap-2">
                 <CheckCircle className="w-4 h-4 text-green-400 mt-1 flex-shrink-0" />
-                <span className="text-sm">Mayor confianza en la comunidad</span>
+                <span className="text-sm">Señala continuidad de acceso, no verificación de identidad</span>
               </li>
               <li className="flex items-start gap-2">
                 <CheckCircle className="w-4 h-4 text-green-400 mt-1 flex-shrink-0" />
-                <span className="text-sm">Demuestra tu compromiso con la plataforma</span>
+                <span className="text-sm">Puede ayudar a contextualizar la antigüedad de la participación</span>
               </li>
             </ul>
           </div>

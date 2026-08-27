@@ -30,7 +30,7 @@ const trackEvent = (eventName, params = {}) => {
       try {
         window.gtag('event', eventName, params);
         // Solo loggear en desarrollo (opcional)
-        if (process.env.NODE_ENV === 'development') {
+        if (import.meta.env.DEV) {
           console.log(`[GA4] Evento enviado: ${eventName}`, params);
         }
       } catch (error) {

@@ -13,6 +13,7 @@ import {
   serverTimestamp,
   limit,
   setDoc,
+  increment,
 } from 'firebase/firestore';
 import { db, auth } from '@/config/firebase';
 import { supabase, isSupabaseAuthEnabled } from '@/config/supabase';

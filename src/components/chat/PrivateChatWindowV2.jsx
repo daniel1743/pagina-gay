@@ -3,7 +3,7 @@ import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { toast } from '@/components/ui/use-toast';
-import { db, storage } from '@/config/firebase';
+import { db } from '@/config/firebase';
 import {
   collection,
   query,
@@ -21,7 +21,6 @@ import {
   setDoc,
   updateDoc,
 } from 'firebase/firestore';
-import { ref as storageRef, uploadBytes, getDownloadURL } from 'firebase/storage';
 import imageCompression from 'browser-image-compression';
 import { Check, CheckCheck, Clock, CornerUpLeft, ImagePlus, Minus, Send, Smile, X } from 'lucide-react';
 import { EmojiStyle, Categories } from 'emoji-picker-react';
@@ -150,14 +149,6 @@ const buildReplyPayload = (message, fallbackUsername = 'Usuario') => ({
   content: message?.type === 'image' ? '📷 Foto' : buildPreview(message),
   type: message?.type || 'text',
 });
-
-const getImageExtension = (contentType = '') => {
-  if (contentType.includes('png')) return 'png';
-  if (contentType.includes('webp')) return 'webp';
-  if (contentType.includes('heic')) return 'heic';
-  if (contentType.includes('heif')) return 'heif';
-  return 'jpg';
-};
 
 const TypingDots = () => (
   <div className="inline-flex items-center gap-1">
@@ -1537,46 +1528,26 @@ export default function PrivateChatWindowV2({
       const tempMessageId = typeof crypto !== 'undefined' && crypto.randomUUID
         ? crypto.randomUUID()
         : `private_msg_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
-      const assetId = `${Date.now()}_${Math.random().toString(36).slice(2, 7)}`;
-      let downloadURL = '';
       let mediaAsset;
 
-      if (isSupabaseAuthEnabled()) {
-        const uploaded = await uploadPrivateChatPhotoToSupabase(optimizedFile, chatId, tempMessageId);
-        downloadURL = uploaded.url || '';
-        mediaAsset = {
-          kind: 'image',
-          path: uploaded.path,
-          bucket: uploaded.bucket,
-          mimeType: uploaded.mimeType,
-          size: uploaded.size,
-        };
-      } else {
-        const extension = getImageExtension(optimizedFile.type);
-        const mediaPath = `chat_media/private/${user?.id || 'unknown'}/${chatId}/${tempMessageId}/${assetId}.${extension}`;
-        const fileRef = storageRef(storage, mediaPath);
-        await uploadBytes(fileRef, optimizedFile, {
-          contentType: optimizedFile.type,
-          customMetadata: {
-            roomId: `private_${chatId}`,
-            userId: user.id,
-            feature: 'chat_photo_access_private_v2',
-          },
-        });
-        downloadURL = await getDownloadURL(fileRef);
-        mediaAsset = {
-          kind: 'image',
-          path: mediaPath,
-          contentType: optimizedFile.type,
-          sizeBytes: optimizedFile.size,
-        };
+      if (!isSupabaseAuthEnabled()) {
+        throw new Error('SUPABASE_REQUIRED_FOR_PRIVATE_MEDIA');
       }
+
+      const uploaded = await uploadPrivateChatPhotoToSupabase(optimizedFile, chatId, tempMessageId);
+      mediaAsset = {
+        kind: 'image',
+        path: uploaded.path,
+        bucket: uploaded.bucket,
+        mimeType: uploaded.mimeType,
+        size: uploaded.size,
+      };
 
       await sendRichPrivateChatMessage(chatId, {
         userId: user.id,
         username: user.username,
         avatar: user.avatar,
-        content: isSupabaseAuthEnabled() ? 'Imagen' : downloadURL,
+        content: 'Imagen',
         type: 'image',
         media: [mediaAsset],
         senderIsPremium: Boolean(user?.isPremium),
@@ -1594,7 +1565,9 @@ export default function PrivateChatWindowV2({
       console.error('[PRIVATE_CHAT_V2] Error sending private image:', error);
       toast({
         title: 'No se pudo subir la foto',
-        description: error?.message || 'Intenta nuevamente.',
+        description: error?.message === 'SUPABASE_REQUIRED_FOR_PRIVATE_MEDIA'
+          ? 'El envío de fotos privadas está pausado hasta configurar Supabase Storage.'
+          : error?.message || 'Intenta nuevamente.',
         variant: 'destructive',
       });
     } finally {

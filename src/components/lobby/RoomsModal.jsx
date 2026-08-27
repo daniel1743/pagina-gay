@@ -1,31 +1,14 @@
-import React, { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { useAuth } from '@/contexts/AuthContext';
-import { Users, Hash, Gamepad2, Heart, Search, Crown, Plus, X, GitFork, UserMinus, UserCheck, Cake, MessageSquare, Lock } from 'lucide-react';
+import { Search, Crown, Plus, X, MessageSquare, Lock } from 'lucide-react';
 import { toast } from '@/components/ui/use-toast';
-import { subscribeToMultipleRoomCounts } from '@/services/presenceService';
 import { roomsData, colorClasses, getVisibleRoomsForUser } from '@/config/rooms';
 import { RegistrationRequiredModal } from '@/components/auth/RegistrationRequiredModal';
-
-/**
- * ✅ SISTEMA DE ESTADOS DE ACTIVIDAD
- * Determina el estado de actividad de una sala basado en usuarios reales
- */
-const getRoomActivityStatus = (realUserCount) => {
-  if (realUserCount === 0) {
-    return { status: null, color: null, pulseIntensity: 0 };
-  } else if (realUserCount >= 1 && realUserCount <= 5) {
-    return { status: 'ACTIVA', color: 'green', pulseIntensity: 1 };
-  } else if (realUserCount >= 6 && realUserCount <= 15) {
-    return { status: 'MUY ACTIVA', color: 'orange', pulseIntensity: 2 };
-  } else {
-    return { status: 'MUY ACTIVA', color: 'orange', pulseIntensity: 3 };
-  }
-};
 
 const RoomsModal = ({ isOpen, onClose }) => {
   const navigate = useNavigate();
@@ -33,31 +16,7 @@ const RoomsModal = ({ isOpen, onClose }) => {
   const [showRegistrationModal, setShowRegistrationModal] = useState(false);
   const [pendingRoomId, setPendingRoomId] = useState(null);
   const [searchTerm, setSearchTerm] = useState('');
-  const [roomCounts, setRoomCounts] = useState({});
-
-  // ✅ MODIFICADO: Usuarios anónimos pueden ver el modal pero solo acceder a "conversas-libres"
-  // No redirigimos automáticamente, permitimos que vean las salas disponibles
-
-  // ❌ DESHABILITADO TEMPORALMENTE - Loop infinito de Firebase (07/01/2026)
-  // subscribeToMultipleRoomCounts creaba 75+ listeners activos simultáneos
-  // Causó 500,000+ lecturas en 6 minutos
-  // TODO: Re-habilitar con throttling y deduplicación
-  useEffect(() => {
-    if (!user || user.isAnonymous || user.isGuest) return;
-
-    // ✅ HOTFIX: Valores estáticos temporales (0 usuarios en todas las salas)
-    const roomIds = roomsData.map(room => room.id);
-    const staticCounts = roomIds.reduce((acc, id) => ({ ...acc, [id]: 0 }), {});
-    setRoomCounts(staticCounts);
-
-    // ❌ COMENTADO - Loop infinito
-    // const unsubscribe = subscribeToMultipleRoomCounts(roomIds, (counts) => {
-    //   setRoomCounts(counts);
-    // });
-    // return () => unsubscribe();
-
-    return () => {}; // Cleanup vacío
-  }, [user]);
+  // La presencia no se consulta aquí: no mostramos contadores sin una fuente real validada.
 
   // 🔒 Usuario normal: principal. Admin: principal + admin-testing.
   const visibleRooms = getVisibleRoomsForUser(user);
@@ -92,7 +51,7 @@ const RoomsModal = ({ isOpen, onClose }) => {
             Chat Principal
           </DialogTitle>
           <DialogDescription className="text-muted-foreground">
-            Todo ocurre en una sola sala para concentrar usuarios reales.
+            Selecciona una sala para participar. La actividad puede variar y no se representa con contadores de relleno.
           </DialogDescription>
         </DialogHeader>
 
@@ -119,14 +78,7 @@ const RoomsModal = ({ isOpen, onClose }) => {
           <div className="max-h-[60vh] overflow-y-auto grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 pr-2 scrollbar-hide">
             {filteredRooms.map((room, index) => {
               const IconComponent = room.icon;
-              const realUserCount = roomCounts[room.id] || 0;
-
-              // ✅ Obtener estado de actividad
-              const activityStatus = getRoomActivityStatus(realUserCount);
-
               const isAnonymousUser = user && (user.isAnonymous || user.isGuest);
-              // const isGlobalRoom = room.id === 'global'; // ⚠️ DESACTIVADA
-              const isPrincipalRoom = room.id === 'principal'; // Sala principal nueva
               // 🔒 Salas restringidas: mas-30, santiago, gaming requieren autenticación
               const restrictedRooms = ['mas-30', 'santiago', 'gaming'];
               const isRestrictedRoom = restrictedRooms.includes(room.id);
@@ -156,13 +108,14 @@ const RoomsModal = ({ isOpen, onClose }) => {
               };
 
               return (
-                <motion.div
+                <motion.button
+                  type="button"
                   key={room.id}
                   initial={{ opacity: 0, y: 20 }}
                   animate={{ opacity: 1, y: 0 }}
                   transition={{ duration: 0.4, delay: index * 0.05 }}
                   onClick={handleRoomClick}
-                  className={`relative glass-effect p-5 rounded-xl flex flex-col gap-3 cursor-pointer transition-all border group ${
+                  className={`relative w-full text-left glass-effect p-5 rounded-xl flex flex-col gap-3 cursor-pointer transition-all border group ${
                     !canAccess ? 'opacity-75 hover:opacity-90 hover:border-orange-500' : 'hover:border-primary'
                   }`}
                 >
@@ -191,69 +144,11 @@ const RoomsModal = ({ isOpen, onClose }) => {
                     {room.description}
                   </p>
 
-                  {/* ✅ Indicador de actividad con estados */}
-                  <div className="flex items-center justify-between mt-auto pt-2 border-t border-border">
-                    <div className="flex items-center gap-2">
-                      <span className="text-lg">🔥</span>
-                      <span className={`text-sm font-bold ${colorClasses[room.color]}`}>
-                        {activityStatus.status ? `${activityStatus.status}` : 'Únete y rompe el hielo'}
-                      </span>
-                    </div>
-
-                    {/* Indicador de actividad con puntos y pulsación */}
-                    {activityStatus.status && (
-                      <div className="flex items-center gap-1.5">
-                        <motion.div
-                          className={`w-2 h-2 rounded-full ${
-                            activityStatus.color === 'green' 
-                              ? 'bg-green-500' 
-                              : 'bg-orange-500'
-                          }`}
-                          animate={
-                            activityStatus.pulseIntensity >= 2
-                              ? {
-                                  scale: activityStatus.pulseIntensity === 3 
-                                    ? [1, 1.8, 1, 1.8, 1]
-                                    : [1, 1.5, 1],
-                                  opacity: activityStatus.pulseIntensity === 3
-                                    ? [1, 0.4, 1, 0.4, 1]
-                                    : [1, 0.6, 1],
-                                  boxShadow: activityStatus.pulseIntensity === 3
-                                    ? [
-                                        '0 0 0 0 rgba(249, 115, 22, 0.7)',
-                                        '0 0 0 8px rgba(249, 115, 22, 0)',
-                                        '0 0 0 0 rgba(249, 115, 22, 0.7)',
-                                        '0 0 0 8px rgba(249, 115, 22, 0)',
-                                        '0 0 0 0 rgba(249, 115, 22, 0.7)'
-                                      ]
-                                    : [
-                                        '0 0 0 0 rgba(249, 115, 22, 0.7)',
-                                        '0 0 0 6px rgba(249, 115, 22, 0)',
-                                        '0 0 0 0 rgba(249, 115, 22, 0.7)'
-                                      ]
-                                }
-                              : {
-                                  scale: [1, 1.2, 1],
-                                  opacity: [1, 0.8, 1]
-                                }
-                          }
-                          transition={{
-                            duration: activityStatus.pulseIntensity === 3 ? 1.2 : activityStatus.pulseIntensity === 2 ? 1.5 : 2,
-                            repeat: Infinity,
-                            ease: "easeInOut"
-                          }}
-                        />
-                        <span className={`text-xs font-semibold ${
-                          activityStatus.color === 'green' 
-                            ? 'text-green-500' 
-                            : 'text-orange-500'
-                        }`}>
-                          {activityStatus.pulseIntensity >= 3 ? 'A reventar' : 'Entra ahora'}
-                        </span>
-                      </div>
-                    )}
+                  <div className="mt-auto flex items-center justify-between border-t border-border pt-2">
+                    <span className="text-sm font-medium text-muted-foreground">Actividad no disponible</span>
+                    <span className="text-xs text-muted-foreground">Compruébala dentro de la sala</span>
                   </div>
-                </motion.div>
+                </motion.button>
               );
             })}
           </div>

@@ -1,6 +1,5 @@
 import {
   collection,
-  addDoc,
   query,
   orderBy,
   getDocs,
@@ -14,93 +13,43 @@ import { supabase, isSupabaseAuthEnabled } from '@/config/supabase';
 import { createSystemNotification, NOTIFICATION_TYPES } from '@/services/systemNotificationsService';
 
 /**
- * Crea una nueva denuncia en Firestore
+ * Crea una nueva denuncia en Supabase cuando el flujo Supabase-first está configurado
  * @param {object} reportData - Datos de la denuncia
  * @returns {Promise<string>} ID de la denuncia creada
  */
 export const createReport = async (reportData) => {
-  if (isSupabaseAuthEnabled()) {
-    const { data: authData } = await supabase.auth.getUser();
-    if (!authData?.user?.id) throw new Error('Debes estar autenticado para enviar una denuncia');
-    const reason = reportData.reason || reportData.type || reportData.reasonKey || 'other';
-    const description = reportData.description || (reason ? `Reporte: ${reason}` : 'Reporte enviado');
-    const safeDescription = description.length >= 10 ? description : `Reporte: ${description}`;
-    const { data, error } = await supabase.from('reports').insert({
-      reporter_id: authData.user.id,
-      reported_user_id: reportData.reportedUserId || reportData.targetId || null,
-      message_id: reportData.messageId || null,
-      private_message_id: reportData.privateMessageId || null,
-      reason: String(reason).slice(0, 120),
-      details: String(safeDescription).slice(0, 1000),
-      status: 'open',
-    }).select('id').single();
-    if (error) throw error;
-    try {
-      await createSystemNotification(authData.user.id, {
-        type: NOTIFICATION_TYPES.ANNOUNCEMENT,
-        title: 'Reporte recibido',
-        message: 'Tu reporte fue recibido por moderación. Te avisaremos si cambia su estado.',
-        icon: '📋',
-        priority: 'high',
-        createdBy: 'system',
-      });
-    } catch (notificationError) {
-      console.warn('[REPORTS] No se pudo crear el aviso Supabase:', notificationError?.message || notificationError);
-    }
-    return data.id;
-  }
-  if (!auth.currentUser) {
-    throw new Error('Debes estar autenticado para enviar una denuncia');
+  if (!isSupabaseAuthEnabled()) {
+    throw new Error('SUPABASE_REQUIRED_FOR_REPORTS');
   }
 
-  const reportsRef = collection(db, 'reports');
-
+  const { data: authData } = await supabase.auth.getUser();
+  if (!authData?.user?.id) throw new Error('Debes estar autenticado para enviar una denuncia');
   const reason = reportData.reason || reportData.type || reportData.reasonKey || 'other';
   const description = reportData.description || (reason ? `Reporte: ${reason}` : 'Reporte enviado');
   const safeDescription = description.length >= 10 ? description : `Reporte: ${description}`;
-
-  const report = {
-    reporterId: auth.currentUser.uid,
-    reporterUsername: reportData.reporterUsername || 'Anónimo',
-    // ✅ NUEVO ESQUEMA (mínimo requerido)
-    reportedUserId: reportData.reportedUserId || reportData.targetId || null,
-    context: reportData.context || 'chat',
-    messageId: reportData.messageId || null,
-    reason,
-    // ✅ Campos legacy para compatibilidad con admin UI/reglas actuales
-    type: reportData.type || reportData.reasonKey || reason, // 'acoso', 'violencia', 'drogas', 'ventas', 'otras'
-    otherType: reportData.otherType || null,
-    description: safeDescription,
-    targetUsername: reportData.targetUsername || reportData.reportedUsername || null,
-    targetId: reportData.targetId || reportData.reportedUserId || null,
-    roomId: reportData.roomId || null,
-    evidence: reportData.evidence || [], // URLs de capturas
-    status: reportData.statusOverride || 'open', // 'open', 'reviewed', 'resolved', 'rejected'
-    createdAt: serverTimestamp(),
-    updatedAt: serverTimestamp(),
-    reviewedBy: null,
-    reviewNotes: null,
-  };
-
-  const docRef = await addDoc(reportsRef, report);
-  
-  // ✅ NUEVO: Enviar notificación automática al usuario que reportó
+  const { data, error } = await supabase.from('reports').insert({
+    reporter_id: authData.user.id,
+    reported_user_id: reportData.reportedUserId || reportData.targetId || null,
+    message_id: reportData.messageId || null,
+    private_message_id: reportData.privateMessageId || null,
+    reason: String(reason).slice(0, 120),
+    details: String(safeDescription).slice(0, 1000),
+    status: 'open',
+  }).select('id').single();
+  if (error) throw error;
   try {
-    await createSystemNotification(auth.currentUser.uid, {
+    await createSystemNotification(authData.user.id, {
       type: NOTIFICATION_TYPES.ANNOUNCEMENT,
-      title: '📋 Reporte Recibido',
-      message: `Tu reporte ha sido recibido y está en manos de nuestro equipo de administradores. Te mantendremos informado sobre el progreso de tu caso.`,
+      title: 'Reporte recibido',
+      message: 'Tu reporte fue registrado y pasa a revisión según la configuración del sitio.',
       icon: '📋',
-      link: null,
       priority: 'high',
       createdBy: 'system',
     });
-  } catch (error) {
-    console.error('Error enviando notificación de reporte recibido:', error);
-    // No lanzar error, el reporte ya se creó exitosamente
+  } catch (notificationError) {
+    console.warn('[REPORTS] No se pudo crear el aviso Supabase:', notificationError?.message || notificationError);
   }
-  
-  return docRef.id;
+  return data.id;
 };
 
 /**

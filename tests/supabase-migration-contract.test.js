@@ -49,6 +49,7 @@ const tarjetaEditor = read('src/components/baul/TarjetaEditor.jsx');
 const baulService = read('src/services/supabaseBaulService.js');
 const app = read('src/App.jsx');
 const rewardsService = read('src/services/rewardsService.js');
+const opinService = read('src/services/opinService.js');
 const allSql = [identity, chat, social, security, rpc, privateChatRpc, opinMetrics, privateContacts, moderationRpc, publicChatModeration, systemNotifications, chatStates, reportsModeration, events, verification, rewards, activityRanking, tickets, analytics, dailyLimits, esencias, forum, contactSafety, badges, featuredAds, baulMediaPaths, chatRepliesProfileGuards, privateRepliesRpc, securityDefinerGrants, baulSetLike, baulMatchReads, baulMediaReadPolicies, ticketLogHardening, privateRequestNotificationState, explicitTableGrants].join('\\n');
 
 describe('Supabase migration contract', () => {
@@ -123,6 +124,8 @@ describe('Supabase migration contract', () => {
     expect(baulMediaReadPolicies).toContain("bucket_id = 'card-media'");
     expect(baulMediaReadPolicies).toContain('c.foto2_path = name');
     expect(baulService).toContain('refreshSignedMediaUrl');
+    expect(baulService).toContain('hasStoredCardMedia');
+    expect(baulService).toContain('identity.avatar || row.foto_url');
     expect(baulService).toContain("from('room_presence')");
     expect(baulService).toContain('actualizarEstadoOnline = async (userId, estaOnline, roomId =');
     expect(baulSetLike).toContain('set_baul_like');
@@ -212,6 +215,11 @@ describe('Supabase migration contract', () => {
     expect(app).toContain('isSupabaseAuthEnabled() || !user?.id');
     expect(app).toContain('if (!isSupabaseAuthEnabled()) {');
     expect(rewardsService).toContain('if (isSupabaseAuthEnabled()) {');
+  });
+
+  it('keeps OPIN reply previews on the active Supabase provider', () => {
+    expect(opinService).toContain('if (useSupabaseOpin()) return supabaseOpinService.getReplyPreview(postId, previewLimit);');
+    expect(opinService).toContain('if (useSupabaseOpin()) return supabaseOpinService.getRecentReplyPreview(postId, previewLimit);');
   });
 
   it('keeps the public-photo contract consistent end to end', () => {

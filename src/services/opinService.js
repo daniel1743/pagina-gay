@@ -1492,6 +1492,7 @@ export const deleteComment = async (commentId) => {
  * Usado para mostrar respuestas inline en OpinCard sin necesidad de auth
  */
 export const getReplyPreview = async (postId, previewLimit = 3) => {
+  if (useSupabaseOpin()) return supabaseOpinService.getReplyPreview(postId, previewLimit);
   const commentsRef = collection(db, 'opin_comments');
 
   let snapshot;
@@ -1522,6 +1523,7 @@ export const getReplyPreview = async (postId, previewLimit = 3) => {
 };
 
 export const getRecentReplyPreview = async (postId, previewLimit = 6) => {
+  if (useSupabaseOpin()) return supabaseOpinService.getRecentReplyPreview(postId, previewLimit);
   const commentsRef = collection(db, 'opin_comments');
 
   let snapshot;

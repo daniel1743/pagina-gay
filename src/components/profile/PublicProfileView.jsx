@@ -5,6 +5,7 @@
  */
 import React from 'react';
 import { motion } from 'framer-motion';
+import { getSafeAvatarSrc, handleAvatarImageError, getAvatarInitial } from '@/utils/avatar';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import {
   CheckCircle,
@@ -22,7 +23,9 @@ import {
 
 const formatCompact = (value) => {
   const number = Number(value || 0);
-  if (!Number.isFinite(number) || number <= 0) return '0';
+  if (value === null || value === undefined || value === '') return '—';
+  if (!Number.isFinite(number) || number < 0) return '—';
+  if (number === 0) return '0';
   if (number >= 1000000) return `${(number / 1000000).toFixed(1)}M`;
   if (number >= 1000) return `${(number / 1000).toFixed(1)}K`;
   return String(number);
@@ -109,9 +112,13 @@ const PublicProfileView = ({
               isAdminRole ? 'admin-avatar-ring' : profile.verified ? 'verified-avatar-ring' : profile.isPremium ? 'premium-avatar-ring' : ''
             }`}>
               <Avatar className="w-24 h-24 md:w-28 md:h-28">
-                <AvatarImage src={profile.avatar} alt={profile.username} />
+                <AvatarImage
+                  src={getSafeAvatarSrc(profile.avatar)}
+                  alt={profile.username || 'Perfil'}
+                  onError={handleAvatarImageError}
+                />
                 <AvatarFallback className="text-2xl bg-[#413e62] text-white">
-                  {profile.username?.[0]?.toUpperCase() || '?'}
+                  {getAvatarInitial(profile.username)}
                 </AvatarFallback>
               </Avatar>
             </div>
@@ -136,7 +143,7 @@ const PublicProfileView = ({
                 )}
                 {profile.verified && (
                   <span className="px-2.5 py-1 rounded-full bg-blue-500/15 text-blue-200 border border-blue-400/25 inline-flex items-center gap-1">
-                    <Shield className="w-3.5 h-3.5" /> Verificado
+                    <Shield className="w-3.5 h-3.5" /> Participación verificada
                   </span>
                 )}
                 {memberSince && (
@@ -212,9 +219,13 @@ const PublicProfileView = ({
                   className="w-full flex items-center gap-3 rounded-xl border border-border/70 bg-secondary/25 hover:bg-secondary/45 px-3 py-2 transition-colors text-left"
                 >
                   <Avatar className="w-9 h-9">
-                    <AvatarImage src={friend.avatar} alt={friend.username} />
+                    <AvatarImage
+                      src={getSafeAvatarSrc(friend.avatar)}
+                      alt={friend.username || 'Conexión'}
+                      onError={handleAvatarImageError}
+                    />
                     <AvatarFallback className="bg-muted text-foreground text-xs">
-                      {friend.username?.slice(0, 2).toUpperCase()}
+                      {getAvatarInitial(friend.username)}
                     </AvatarFallback>
                   </Avatar>
                   <div className="min-w-0 flex-1">

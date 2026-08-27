@@ -20,6 +20,7 @@ import { getUserVerificationStatus } from '@/services/verificationService';
 import { getFavorites } from '@/services/socialService';
 import { useCanonical } from '@/hooks/useCanonical';
 import { normalizeComuna } from '@/config/comunas';
+import { getAvatarInitial } from '@/utils/avatar';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -157,7 +158,7 @@ const ProfilePage = () => {
                     <Avatar className="w-32 h-32 md:w-40 md:h-40">
                     <AvatarImage src={user.avatar} alt={user.username} />
                     <AvatarFallback className="text-4xl bg-[#413e62]">
-                        {user.username[0].toUpperCase()}
+                        {getAvatarInitial(user.username)}
                     </AvatarFallback>
                     </Avatar>
                 </div>
@@ -205,7 +206,7 @@ const ProfilePage = () => {
                   {user.verified && (
                     <span className="bg-[#1DA1F2] text-white px-3 py-1 rounded-full text-xs font-bold flex items-center gap-1">
                       <Shield className="w-4 h-4" />
-                      Verificado
+                      Participación verificada
                     </span>
                   )}
                   {user.profileVisible === false && (
@@ -214,7 +215,7 @@ const ProfilePage = () => {
                     </span>
                   )}
                 </div>
-                <p className="text-muted-foreground mb-2">"{user.description || '¡Hola! Soy nuevo en Chactivo.'}"</p>
+                <p className="text-muted-foreground mb-2">{user.description || 'Sin descripción todavía.'}</p>
                 {user.estado && (
                   <p className="text-sm font-medium text-cyan-400 mb-2">{user.estado}</p>
                 )}
@@ -263,7 +264,7 @@ const ProfilePage = () => {
                   }`}
                 >
                   <Shield className="w-4 h-4 mr-2" />
-                  {user.verified ? 'Verificación' : 'Verificar Cuenta'}
+                  {user.verified ? 'Participación verificada' : 'Obtener insignia'}
                 </Button>
                 <Button
                   onClick={() => setShowVerificationFAQ(!showVerificationFAQ)}
@@ -290,9 +291,9 @@ const ProfilePage = () => {
             {!user.verified && verificationStatus && (
               <div className="mt-8 mb-8 glass-effect p-6 rounded-xl border border-blue-500/30">
                 <div className="flex items-center justify-between mb-4">
-                  <h3 className="text-lg font-semibold flex items-center gap-2">
+                    <h3 className="text-lg font-semibold flex items-center gap-2">
                     <Shield className="w-5 h-5 text-blue-400" />
-                    Progreso de Verificación
+                    Progreso de participación
                   </h3>
                   <span className="text-sm text-muted-foreground">
                     {verificationStatus.consecutiveDays} / 30 días
@@ -306,8 +307,8 @@ const ProfilePage = () => {
                 </div>
                 <p className="text-sm text-muted-foreground">
                   {verificationStatus.daysUntilVerification > 0 
-                    ? `Te faltan ${verificationStatus.daysUntilVerification} días consecutivos para verificarte`
-                    : '¡Estás a punto de verificarte!'
+                    ? `Te faltan ${verificationStatus.daysUntilVerification} días consecutivos para obtener la insignia`
+                    : '¡Estás cerca de obtener la insignia!'
                   }
                 </p>
               </div>

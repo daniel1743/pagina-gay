@@ -13,7 +13,7 @@ const AnonymousChatPage = () => {
   useCanonical('/anonymous-chat');
 
   useEffect(() => {
-    document.title = "Sala de Apoyo Anónima - Chactivo | Chat Gay Chile";
+    document.title = "Recursos y conversación LGBT+ | Chactivo";
     
     // ✅ SEO: Meta description específica
     let metaDescription = document.querySelector('meta[name="description"]');
@@ -22,7 +22,7 @@ const AnonymousChatPage = () => {
       metaDescription.name = 'description';
       document.head.appendChild(metaDescription);
     }
-    metaDescription.content = '🔒 Sala de Apoyo Anónima - Espacio seguro y confidencial para la comunidad LGBT+ en Chile. Chat de apoyo emocional, consejos y recursos. privado y con normas claras.';
+    metaDescription.content = 'Recursos y conversación para la comunidad LGBT+ en Chile. Revisa las normas, decide qué compartir y entra al chat disponible.';
 
     let robotsMeta = document.querySelector('meta[name="robots"]');
     if (!robotsMeta) {
@@ -34,9 +34,7 @@ const AnonymousChatPage = () => {
   }, []);
 
   const handleRegister = () => {
-    // Abrir modal de registro rápido si existe
-    const event = new CustomEvent('openQuickSignup');
-    window.dispatchEvent(event);
+    navigate('/auth', { state: { redirectTo: '/chat/principal' } });
   };
 
   const handleLogin = () => {
@@ -51,32 +49,32 @@ const AnonymousChatPage = () => {
   const benefits = [
     {
       icon: <Shield className="w-6 h-6" />,
-      title: "Espacio 100% Seguro",
-      description: "Solo usuarios registrados pueden participar. Tu privacidad está protegida."
+      title: "Normas claras",
+      description: "Revisa las normas y comparte solo la información que consideres necesaria."
     },
     {
       icon: <Heart className="w-6 h-6" />,
-      title: "Apoyo Emocional",
-      description: "Comparte experiencias y recibe apoyo de una comunidad comprensiva."
+      title: "Compartir con cuidado",
+      description: "La plataforma no es un servicio de emergencia ni sustituye apoyo profesional."
     },
     {
       icon: <Lock className="w-6 h-6" />,
-      title: "Totalmente Anónimo",
-      description: "Tu identidad está protegida. Habla libremente sin miedo."
+      title: "Controles disponibles",
+      description: "Usa un alias cuando la función lo permita y utiliza bloquear o reportar cuando estén disponibles."
     },
     {
       icon: <Users className="w-6 h-6" />,
-      title: "Comunidad Activa",
-      description: "Conecta con personas que entienden tu experiencia."
+      title: "Actividad variable",
+      description: "No damos por hecho que haya respuestas: la disponibilidad depende de la participación real."
     }
   ];
 
   const features = [
     "Chat en tiempo real según la actividad",
-    "Moderación activa para tu seguridad",
-    "Recursos de apoyo y bienestar",
-    "Comunidad empática y respetuosa",
-    "Sin censura, con respeto mutuo"
+    "Herramientas de reporte cuando estén disponibles",
+    "Normas y límites del servicio visibles",
+    "Decide cuánto compartir",
+    "No es un servicio de emergencia"
   ];
 
   return (
@@ -85,7 +83,7 @@ const AnonymousChatPage = () => {
       <header className="bg-[#22203a]/80 backdrop-blur-sm border-b border-[#413e62] p-4 flex items-center justify-between sticky top-0 z-50">
         <div className="flex items-center gap-3">
           <Shield className="w-6 h-6 text-cyan-400" />
-          <h2 className="font-bold text-gray-100 text-lg">Sala de Apoyo Anónima</h2>
+          <h2 className="font-bold text-gray-100 text-lg">Recursos y conversación LGBT+</h2>
         </div>
         <div className="flex items-center gap-2">
           {/* Quick Escape Button */}
@@ -121,15 +119,15 @@ const AnonymousChatPage = () => {
         >
           <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-cyan-500/20 border border-cyan-500/30 mb-6">
             <Lock className="w-4 h-4 text-cyan-400" />
-            <span className="text-sm text-cyan-300">Espacio Protegido y Confidencial</span>
+            <span className="text-sm text-cyan-300">Información y límites claros</span>
           </div>
           
           <h1 className="text-4xl md:text-6xl font-extrabold mb-6 bg-gradient-to-r from-cyan-400 via-purple-400 to-pink-400 bg-clip-text text-transparent">
-            Sala de Apoyo Anónima
+            Recursos y conversación LGBT+
           </h1>
           
           <p className="text-xl md:text-2xl text-gray-300 max-w-3xl mx-auto mb-8">
-            Un espacio seguro y confidencial donde puedes compartir, recibir apoyo y conectar con una comunidad que te entiende.
+            Una página informativa para revisar límites, normas y opciones de conversación. No prometemos anonimato total ni disponibilidad constante.
           </p>
 
           <div className="flex flex-col sm:flex-row gap-4 justify-center items-center mb-12">
@@ -155,9 +153,9 @@ const AnonymousChatPage = () => {
 
           <div className="flex items-center justify-center gap-2 text-sm text-gray-400">
             <CheckCircle className="w-4 h-4 text-green-400" />
-            <span>Registro en menos de 30 segundos</span>
+            <span>Registro gratuito; revisa los requisitos</span>
             <span>•</span>
-            <span>100% Gratis</span>
+            <span>Sin pago para el chat público</span>
             <span>•</span>
             <span>Sin tarjeta de crédito</span>
           </div>
@@ -193,8 +191,7 @@ const AnonymousChatPage = () => {
               ¿Por qué registrarse?
             </h2>
             <p className="text-gray-300 text-lg max-w-2xl mx-auto">
-              Esta sala es un espacio protegido donde solo usuarios registrados pueden participar. 
-              Esto garantiza un ambiente seguro, respetuoso y libre de spam.
+              Esta página no inicia una conversación de apoyo independiente. Si quieres conversar, el acceso disponible es el chat principal y sus normas aplican allí.
             </p>
           </div>
 
@@ -214,7 +211,7 @@ const AnonymousChatPage = () => {
               className="bg-gradient-to-r from-cyan-500 to-purple-500 hover:from-cyan-600 hover:to-purple-600 text-white font-bold text-xl px-12 py-6 rounded-xl shadow-lg hover:scale-105 transition-transform"
             >
               <Shield className="w-6 h-6 mr-3" />
-              Acceder a la Sala de Apoyo
+              Entrar al Chat Principal
               <ArrowRight className="w-6 h-6 ml-3" />
             </Button>
           </div>
@@ -231,15 +228,15 @@ const AnonymousChatPage = () => {
             <div className="flex flex-col sm:flex-row items-center justify-center gap-6">
               <div className="flex items-center gap-2">
                 <Shield className="w-5 h-5 text-cyan-400" />
-                <span className="text-sm text-gray-300">Moderación Activa</span>
+                <span className="text-sm text-gray-300">Reportes y controles</span>
               </div>
               <div className="flex items-center gap-2">
                 <Lock className="w-5 h-5 text-purple-400" />
-                <span className="text-sm text-gray-300">Privacidad Garantizada</span>
+                <span className="text-sm text-gray-300">Privacidad con límites claros</span>
               </div>
               <div className="flex items-center gap-2">
                 <Heart className="w-5 h-5 text-pink-400" />
-                <span className="text-sm text-gray-300">Comunidad Empática</span>
+                <span className="text-sm text-gray-300">Participación responsable</span>
               </div>
             </div>
           </div>

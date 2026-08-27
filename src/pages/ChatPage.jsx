@@ -6436,7 +6436,7 @@ const ChatPage = () => {
     // 📊 PERFORMANCE MONITOR: Capturar tiempo de inicio ANTES del Promise chain
     const messageSendStartTime = performance.now();
 
-    Promise.all([validationPromise])
+    return Promise.all([validationPromise])
       .then(([isValid]) => {
         if (!isValid) return; // Validación falló, no enviar
         
@@ -6484,8 +6484,13 @@ const ChatPage = () => {
         );
       })
       .then((sentMessage) => {
-        if (!sentMessage) return; // Validación falló o no se envió
-        
+        if (!sentMessage?.id) {
+          if (messageType === 'image') {
+            throw new Error('MESSAGE_NOT_CONFIRMED');
+          }
+          return null;
+        }
+
         // 🔍 TRACE: Escritura en el backend activo exitosa
         traceEvent(TRACE_EVENTS.FIREBASE_WRITE_SUCCESS, {
           traceId: clientId,
@@ -6673,6 +6678,7 @@ const ChatPage = () => {
         //     duration: 5000,
         //   });
         // }
+        throw error;
       });
   };
 
