@@ -2,8 +2,7 @@
 import React from 'react';
 import * as AvatarPrimitive from '@radix-ui/react-avatar';
 import { cn } from '@/lib/utils';
-
-const DEFAULT_AVATAR_SRC = '/avatar_por_defecto.jpeg';
+import { DEFAULT_AVATAR_SRC, getSafeAvatarSrc, isAllowedAvatarSrc } from '@/utils/avatar';
 
 const Avatar = React.forwardRef(({ className, ...props }, ref) => (
   <AvatarPrimitive.Root
@@ -17,26 +16,23 @@ const Avatar = React.forwardRef(({ className, ...props }, ref) => (
 ));
 Avatar.displayName = AvatarPrimitive.Root.displayName;
 
-const isInvalidAvatarSrc = (src) => {
-  if (!src || typeof src !== 'string') return true;
-  const normalized = src.trim().toLowerCase();
-
-  if (!normalized) return true;
-  if (normalized === 'undefined' || normalized === 'null') return true;
-  if (normalized.includes('api.dicebear.com')) return true;
-  // Evita errores de blob expirado persistido en Firestore/localStorage.
-  if (normalized.startsWith('blob:')) return true;
-
-  return false;
-};
-
-const AvatarImage = React.forwardRef(({ className, src, fetchPriority, ...props }, ref) => {
-  const safeSrc = isInvalidAvatarSrc(src) ? DEFAULT_AVATAR_SRC : src;
+const AvatarImage = React.forwardRef(({ className, src, fetchPriority, onError, ...props }, ref) => {
+  const safeSrc = getSafeAvatarSrc(src);
+  const handleError = (event) => {
+    // Radix recibe el error para activar AvatarFallback. El src de respaldo
+    // evita que el navegador deje un icono de imagen rota si el recurso remoto
+    // existe en datos pero ya no está disponible.
+    if (onError) onError(event);
+    if (isAllowedAvatarSrc(event?.currentTarget?.src) && event.currentTarget.src !== DEFAULT_AVATAR_SRC) {
+      event.currentTarget.src = DEFAULT_AVATAR_SRC;
+    }
+  };
 
   return (
     <AvatarPrimitive.Image
       ref={ref}
       src={safeSrc}
+      onError={handleError}
       className={cn('aspect-square h-full w-full rounded-full object-cover', className)}
       {...(fetchPriority ? { fetchpriority: fetchPriority } : {})}
       {...props}

@@ -19,6 +19,11 @@ service cloud.firestore {
       return isAuthenticated() && request.auth.uid == userId;
     }
 
+    function isBlockedPair(userA, userB) {
+      return exists(/databases/$(database)/documents/blocks/$(userA)/blockedUsers/$(userB)) ||
+             exists(/databases/$(database)/documents/blocks/$(userB)/blockedUsers/$(userA));
+    }
+
     function isPremium() {
       return isAuthenticated() &&
              get(/databases/$(database)/documents/users/$(request.auth.uid)).data.isPremium == true;
@@ -74,9 +79,15 @@ service cloud.firestore {
              data.media is list &&
              data.media.size() == 1 &&
              data.media[0] is map &&
-             data.media[0].keys().hasAny(['path']) &&
+             data.media[0].keys().hasAll(['kind', 'path', 'contentType', 'sizeBytes']) &&
+             data.media[0].kind == 'image' &&
              data.media[0].path is string &&
-             data.media[0].path.matches('^chat_media/principal/[^/]+/.+');
+             data.media[0].path.matches('^chat_media/rooms/' + request.auth.uid + '/principal/[^/]+/[^/]+$') &&
+             data.media[0].contentType is string &&
+             data.media[0].contentType.matches('image/.*') &&
+             data.media[0].sizeBytes is number &&
+             data.media[0].sizeBytes > 0 &&
+             data.media[0].sizeBytes <= 140 * 1024;
     }
 
     function isValidRegisteredImageMessage(roomId) {
@@ -92,6 +103,22 @@ service cloud.firestore {
              data.content.size() <= 1000 &&
              hasValidChatImageMedia() &&
              !isAutomatedSenderId(data.userId);
+    }
+
+    function hasValidPrivateChatImageMedia(chatId) {
+      let data = request.resource.data;
+      return 'media' in data &&
+             data.media is list &&
+             data.media.size() == 1 &&
+             data.media[0] is map &&
+             data.media[0].kind == 'image' &&
+             data.media[0].path is string &&
+             data.media[0].path.matches('^chat_media/private/' + request.auth.uid + '/' + chatId + '/[^/]+/[^/]+$') &&
+             data.media[0].contentType is string &&
+             data.media[0].contentType.matches('image/(jpeg|png|webp)') &&
+             data.media[0].sizeBytes is number &&
+             data.media[0].sizeBytes > 0 &&
+             data.media[0].sizeBytes <= 140 * 1024;
     }
 
     // ===========================
@@ -182,38 +209,15 @@ service cloud.firestore {
              data.timestamp is timestamp;
     }
 
-    // ✅ SISTEMA DE IA: permite mensajes AI con control del usuario autenticado
-    // ✅ ACTUALIZADO: También permite mensajes sembrados (seed_user_*)
-    function isValidBotMessage() {
-      let data = request.resource.data;
-      return isAuthenticated() &&
-             'senderUid' in data &&
-             data.senderUid == request.auth.uid &&
-             'userId' in data &&
-             data.userId is string &&
-             (data.userId.matches('bot_.*') || data.userId.matches('ai_.*') || data.userId.matches('seed_user_.*')) &&
-             'username' in data &&
-             data.username is string &&
-             'content' in data &&
-             data.content is string &&
-             data.content.size() > 0 &&
-             data.content.size() <= 1000 &&
-             'type' in data &&
-             data.type in ['text', 'image', 'voice', 'system'] &&
-             'timestamp' in data &&
-             data.timestamp is timestamp;
-    }
+    // Los mensajes de usuario se validan con isValidMessage; no existen identidades artificiales.
 
-    // ✅ NUEVO: Permite mensajes de sistema (moderador, VOC, etc.)
+    // Avisos de sistema explícitos; no representan personas ni actividad espontánea.
     function isValidSystemMessage() {
       let data = request.resource.data;
-      return isAuthenticated() &&
+      return isAdmin() &&
              'userId' in data &&
              data.userId is string &&
-             (data.userId == 'system' ||
-              data.userId == 'system_moderator' ||
-              data.userId == 'system_voc' ||
-              data.userId.matches('system_.*')) &&
+             data.userId == 'system' &&
              'username' in data &&
              data.username is string &&
              'content' in data &&
@@ -369,13 +373,42 @@ service cloud.firestore {
       match /private_inbox/{conversationId} {
         allow read: if isOwner(userId);
 
-        allow create, update: if isAuthenticated() &&
-                                request.resource.data.conversationId == conversationId &&
-                                request.resource.data.participants is list &&
-                                userId in request.resource.data.participants &&
-                                request.auth.uid in request.resource.data.participants;
+      allow create: if isAuthenticated() &&
+                      request.resource.data.conversationId == conversationId &&
+                      request.resource.data.chatId == conversationId &&
+                      request.resource.data.participants is list &&
+                      request.resource.data.participants.size() >= 2 &&
+                      request.resource.data.participants.size() <= 4 &&
+                      userId in request.resource.data.participants &&
+                      request.auth.uid in request.resource.data.participants &&
+                      request.resource.data.keys().hasOnly([
+                        'conversationId', 'chatId', 'participants', 'participantProfiles', 'isGroup',
+                        'otherUserId', 'otherUserDisplayName', 'otherUserAvatar', 'title',
+                        'lastMessagePreview', 'lastMessageSenderId', 'lastMessageType', 'lastMessageAt',
+                        'isPinned', 'isMinimized', 'isOpen', 'isTyping', 'presence', 'conversationState',
+                        'unreadCount', 'updatedAt'
+                      ]) &&
+                      request.resource.data.lastMessagePreview is string &&
+                      request.resource.data.lastMessagePreview.size() <= 140 &&
+                      request.resource.data.updatedAt is timestamp;
 
-        allow delete: if isOwner(userId);
+      allow update: if isAuthenticated() &&
+                      request.resource.data.conversationId == resource.data.conversationId &&
+                      request.resource.data.chatId == resource.data.chatId &&
+                      request.resource.data.participants == resource.data.participants &&
+                      userId in resource.data.participants &&
+                      request.auth.uid in resource.data.participants &&
+                      request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+                        'participantProfiles', 'otherUserId', 'otherUserDisplayName', 'otherUserAvatar', 'title',
+                        'lastMessagePreview', 'lastMessageSenderId', 'lastMessageType', 'lastMessageAt',
+                        'isPinned', 'isMinimized', 'isOpen', 'isTyping', 'presence', 'conversationState',
+                        'unreadCount', 'updatedAt'
+                      ]) &&
+                      request.resource.data.lastMessagePreview is string &&
+                      request.resource.data.lastMessagePreview.size() <= 140 &&
+                      request.resource.data.updatedAt is timestamp;
+
+      allow delete: if isOwner(userId);
       }
 
       match /private_match_state/{targetUserId} {
@@ -394,19 +427,7 @@ service cloud.firestore {
 
       // ✅ Permitir usuarios anónimos también para presencia (necesario para el chat)
       allow create, update, delete: if isAuthenticated() &&
-                                      (
-                                        request.auth.uid == userId ||
-                                        (
-                                          isAdmin() &&
-                                          roomId == 'admin-testing' &&
-                                          userId.matches('^bot_.*')
-                                        ) ||
-                                        (
-                                          isAdmin() &&
-                                          roomId == 'principal' &&
-                                          userId.matches('^seed_user_.*')
-                                        )
-                                      );
+                                      request.auth.uid == userId;
     }
 
     // ===========================
@@ -444,7 +465,6 @@ service cloud.firestore {
             )
           )
         ) ||
-        isValidAdminSeededMessage(roomId) ||
         isValidSystemMessage() ||
         isValidRegisteredImageMessage(roomId);
 
@@ -469,14 +489,6 @@ service cloud.firestore {
 
       allow delete: if isAuthenticated() &&
                       (resource.data.userId == request.auth.uid || isAdmin());
-    }
-
-    // ===========================
-    // ADMIN SEEDED CHAT
-    // ===========================
-
-    match /admin_seeded_rooms/{roomId}/identities/{identityId} {
-      allow read, create, update, delete: if isAdmin();
     }
 
     // ===========================
@@ -523,33 +535,42 @@ service cloud.firestore {
       allow read: if isAuthenticated() &&
                     request.auth.uid in resource.data.participants;
 
-      // Crear chat: cualquier usuario autenticado participante
+      // Crear chat: participante autenticado, estructura acotada y timestamps server-side.
       allow create: if isAuthenticated() &&
-                      request.resource.data.keys().hasAll(['participants', 'createdAt']) &&
+                      request.resource.data.keys().hasAll(['participants', 'createdAt', 'updatedAt']) &&
+                      request.resource.data.participants is list &&
                       request.auth.uid in request.resource.data.participants &&
                       request.resource.data.participants.size() >= 2 &&
-                      request.resource.data.participants.size() <= 4;
+                      request.resource.data.participants.size() <= 4 &&
+                      request.resource.data.createdAt is timestamp &&
+                      request.resource.data.updatedAt is timestamp &&
+                      (!('isGroup' in request.resource.data) || request.resource.data.isGroup is bool) &&
+                      (request.resource.data.participants.size() != 2 ||
+                        (!isBlockedPair(request.resource.data.participants[0], request.resource.data.participants[1]))) &&
+                      request.resource.data.keys().hasOnly([
+                        'participants', 'participantProfiles', 'createdAt', 'updatedAt', 'lastMessage',
+                        'lastMessageAt', 'lastMessageType', 'active', 'status', 'acceptedBy', 'blockedBy',
+                        'lastSeenMessageId', 'isGroup', 'title', 'sourceChatId'
+                      ]);
 
-      // Permitir actualizar solo metadatos seguros del chat privado.
-      // Esto evita romper el flujo actual de envío mientras protegemos participants/createdAt.
+      // Actualizar solo metadata necesaria; nunca participants, perfiles, creación o identidad.
       allow update: if isAuthenticated() &&
                       request.auth.uid in resource.data.participants &&
                       request.resource.data.participants == resource.data.participants &&
                       request.resource.data.createdAt == resource.data.createdAt &&
                       request.resource.data.diff(resource.data).affectedKeys()
                         .hasOnly([
-                          'lastMessage',
-                          'lastMessageType',
-                          'lastMessageAt',
-                          'active',
-                          'status',
-                          'updatedAt',
-                          'acceptedBy',
-                          'blockedBy',
-                          'lastSeenMessageId',
-                          'title',
-                          'sourceChatId'
-                        ]);
+                          'lastMessage', 'lastMessageType', 'lastMessageSenderId', 'lastMessageAt', 'active', 'status', 'updatedAt',
+                          'acceptedBy', 'blockedBy', 'lastSeenMessageId', 'title', 'sourceChatId'
+                        ]) &&
+                      (!('lastMessage' in request.resource.data) || request.resource.data.lastMessage == null ||
+                        (request.resource.data.lastMessage is string && request.resource.data.lastMessage.size() <= 1000)) &&
+                      (!('lastMessageType' in request.resource.data) || request.resource.data.lastMessageType == null || request.resource.data.lastMessageType in ['text', 'image', 'voice', 'system']) &&
+                      (!('lastMessageSenderId' in request.resource.data) || request.resource.data.lastMessageSenderId == null || request.resource.data.lastMessageSenderId == request.auth.uid) &&
+                      (!('lastMessageAt' in request.resource.data) || request.resource.data.lastMessageAt == null || request.resource.data.lastMessageAt is timestamp) &&
+                      request.resource.data.active is bool &&
+                      request.resource.data.status is string &&
+                      request.resource.data.updatedAt is timestamp;
 
       match /messages/{messageId} {
         allow read: if isAuthenticated() &&
@@ -564,7 +585,8 @@ service cloud.firestore {
                           (
                             isValidMessage() &&
                             hasNoProhibitedWordsPrivate(request.resource.data.content.lower()) &&
-                            hasNoCriticalSafetyIntent(request.resource.data.content)
+                            hasNoCriticalSafetyIntent(request.resource.data.content) &&
+                            (request.resource.data.type != 'image' || hasValidPrivateChatImageMedia(chatId))
                           )
                           ||
                           // Mensaje de sistema (notificación de salida)
@@ -992,14 +1014,33 @@ service cloud.firestore {
       // ✅ Lectura pública
       allow read: if true;
 
-      // Crear: solo usuarios registrados
-      allow create: if isRegistered() &&
+      // Crear: usuarios registrados pueden publicar comentarios normales.
+      // Las marcas editoriales quedan reservadas a administradores y nunca pueden
+      // ser usadas por una cuenta común para aparentar ser el equipo.
+      allow create: if (
+                      isRegistered() &&
                       'userId' in request.resource.data &&
                       request.resource.data.userId == request.auth.uid &&
                       'comment' in request.resource.data &&
                       request.resource.data.comment is string &&
                       request.resource.data.comment.size() > 0 &&
-                      request.resource.data.comment.size() <= 500;
+                      request.resource.data.comment.size() <= 500 &&
+                      !request.resource.data.keys().hasAny(['isAdminReply', 'authorType'])
+                    ) || (
+                      isAdmin() &&
+                      'userId' in request.resource.data &&
+                      request.resource.data.userId == request.auth.uid &&
+                      'comment' in request.resource.data &&
+                      request.resource.data.comment is string &&
+                      request.resource.data.comment.size() > 0 &&
+                      request.resource.data.comment.size() <= 500 &&
+                      'username' in request.resource.data &&
+                      request.resource.data.username == 'Equipo Chactivo' &&
+                      'isAdminReply' in request.resource.data &&
+                      request.resource.data.isAdminReply == true &&
+                      'authorType' in request.resource.data &&
+                      request.resource.data.authorType == 'official_team'
+                    );
 
       // Eliminar: solo el autor
       allow delete: if isAuthenticated() &&
@@ -1087,8 +1128,34 @@ service cloud.firestore {
       // Leer: Cualquier usuario autenticado puede ver tarjetas
       allow read: if isAuthenticated();
 
-      // Crear: El dueño o un admin pueden crear la tarjeta
-      allow create: if isAuthenticated() && (request.auth.uid == odIdUsuari || isAdmin());
+      // Crear: solo el dueño; las métricas y la presencia parten en estado neutro.
+      allow create: if isAuthenticated() && request.auth.uid == odIdUsuari &&
+        request.resource.data.odIdUsuari == odIdUsuari &&
+        request.resource.data.esInvitado == false &&
+        request.resource.data.likesDe.size() == 0 &&
+        request.resource.data.huellasDe.size() == 0 &&
+        request.resource.data.visitasDe.size() == 0 &&
+        request.resource.data.impresionesDe.size() == 0 &&
+        request.resource.data.likesRecibidos == 0 &&
+        request.resource.data.huellasRecibidas == 0 &&
+        request.resource.data.visitasRecibidas == 0 &&
+        request.resource.data.impresionesRecibidas == 0 &&
+        request.resource.data.mensajesRecibidos == 0 &&
+        request.resource.data.actividadNoLeida == 0 &&
+        request.resource.data.estaOnline == false &&
+        request.resource.data.ultimaConexion == null &&
+        request.resource.data.ubicacion == null &&
+        request.resource.data.ubicacionActiva == false &&
+        request.resource.data.keys().hasOnly([
+          'odIdUsuari', 'odIdUsuariNombre', 'esInvitado', 'nombre', 'edad', 'sexo', 'rol',
+          'alturaCm', 'pesaje', 'etnia', 'ubicacionTexto', 'comuna', 'ubicacion', 'ubicacionActiva',
+          'bio', 'buscando', 'intencion', 'intencionFrase', 'intencionExpiracion', 'mostrarEdad',
+          'horariosConexion', 'fotoUrl', 'fotoUrlThumb', 'fotoUrlFull', 'fotoUrl2', 'fotoSensible',
+          'estaOnline', 'ultimaConexion', 'likesRecibidos', 'visitasRecibidas', 'impresionesRecibidas',
+          'mensajesRecibidos', 'likesDe', 'visitasDe', 'impresionesDe', 'huellasRecibidas', 'huellasDe',
+          'isProUser', 'proUntil', 'canUploadSecondPhoto', 'hasFeaturedCard', 'hasRainbowBorder',
+          'hasProBadge', 'creadaEn', 'actualizadaEn', 'actividadNoLeida'
+        ]);
 
       allow update: if isAuthenticated() && (
         (
@@ -1096,29 +1163,22 @@ service cloud.firestore {
           request.resource.data.odIdUsuari == resource.data.odIdUsuari &&
           request.resource.data.diff(resource.data).affectedKeys()
             .hasOnly([
-              'nombre',
-              'edad',
-              'sexo',
-              'rol',
-              'alturaCm',
-              'pesaje',
-              'etnia',
-              'ubicacionTexto',
-              'ubicacion',
-              'ubicacionActiva',
-              'bio',
-              'buscando',
-              'horariosConexion',
-              'fotoUrl',
-              'fotoUrlThumb',
-              'fotoUrlFull',
-              'fotoUrl2',
-              'fotoSensible',
-              'estaOnline',
-              'ultimaConexion',
-              'actividadNoLeida',
-              'actualizadaEn'
-            ])
+              'nombre', 'edad', 'sexo', 'rol', 'alturaCm', 'pesaje', 'etnia', 'ubicacionTexto',
+              'comuna', 'bio', 'buscando', 'intencion', 'intencionFrase', 'intencionExpiracion',
+              'mostrarEdad', 'horariosConexion', 'fotoUrl', 'fotoUrlThumb', 'fotoUrlFull', 'fotoUrl2',
+              'fotoSensible', 'actualizadaEn'
+            ]) &&
+          request.resource.data.nombre is string && request.resource.data.nombre.size() <= 30 &&
+          (request.resource.data.edad == null || (request.resource.data.edad is number && request.resource.data.edad >= 18 && request.resource.data.edad <= 99)) &&
+          request.resource.data.comuna is string && request.resource.data.comuna.size() <= 60 &&
+          request.resource.data.bio is string && request.resource.data.bio.size() <= 200 &&
+          request.resource.data.buscando is string && request.resource.data.buscando.size() <= 100 &&
+          request.resource.data.intencion is string && request.resource.data.intencion in ['', 'conversar', 'cita', 'amistad', 'panorama'] &&
+          request.resource.data.intencionFrase is string && request.resource.data.intencionFrase.size() <= 100 &&
+          (request.resource.data.intencionExpiracion == null || request.resource.data.intencionExpiracion is timestamp) &&
+          request.resource.data.mostrarEdad is bool &&
+          request.resource.data.fotoSensible is bool &&
+          request.resource.data.ubicacionActiva == false
         ) ||
         (
           isAdmin() &&
@@ -1164,15 +1224,16 @@ service cloud.firestore {
       allow read: if isRegistered() &&
                     (resource == null || request.auth.uid in resource.data.users);
 
-      // Crear: solo participantes, estructura mínima
-      allow create: if isRegistered() &&
-                      request.resource.data.keys().hasAll(['users', 'userA', 'userB', 'createdAt', 'status']) &&
-                      request.resource.data.users.size() == 2 &&
-                      request.auth.uid in request.resource.data.users;
+      // Crear: exclusivamente desde la callable de Functions. El cliente no puede fabricar matches.
+      allow create: if false;
 
-      // Actualizar: solo participantes
+      // Actualizar: únicamente marcar como leído; participantes y datos de identidad quedan inmutables.
       allow update: if isRegistered() &&
-                      request.auth.uid in resource.data.users;
+                      request.auth.uid in resource.data.users &&
+                      request.resource.data.users == resource.data.users &&
+                      request.resource.data.diff(resource.data).affectedKeys().hasOnly(['unreadByA', 'unreadByB']) &&
+                      request.resource.data.unreadByA is bool &&
+                      request.resource.data.unreadByB is bool;
 
       // Eliminar: solo admin o participantes
       allow delete: if isAdmin() ||

@@ -47,10 +47,12 @@ import {
   suscribirseAMiTarjeta,
   actualizarTarjeta,
   obtenerMisMatches,
-  contarMatchesNoLeidos
+  contarMatchesNoLeidos,
+  getBaulDayKey,
+  filterTarjetasByIntent,
+  sortTarjetasByDiscoveryMode
 } from '@/services/tarjetaService';
 import { getOrCreatePrivateChat } from '@/services/socialService';
-import { getCurrentLocation } from '@/services/geolocationService';
 import { toast } from '@/components/ui/use-toast';
 import { track, getSessionId } from '@/services/eventTrackingService';
 
@@ -69,7 +71,7 @@ const BaulHeader = ({
   onEditMyCard,
   canEditOwnCard = false
 }) => (
-  <div className="sticky top-0 z-10 bg-gray-900/95 backdrop-blur-sm border-b border-gray-700/50 px-4 py-3">
+    <div className="cv-header sticky top-0 z-10 border-b border-cyan-200/10 px-4 py-3">
     <div className="flex items-center justify-between">
       <div className="flex items-center gap-3">
         <motion.button
@@ -82,14 +84,14 @@ const BaulHeader = ({
           <ArrowLeft className="w-5 h-5" />
           <span className="text-sm font-medium hidden sm:inline">Volver</span>
         </motion.button>
-        <h2 className="text-xl font-bold text-white">Baúl de Perfiles</h2>
+          <h2 className="text-xl font-bold tracking-tight text-white">Baúl</h2>
         {isGuestView && (
           <span className="text-[10px] text-yellow-200 bg-yellow-500/20 px-2 py-0.5 rounded-full border border-yellow-500/30">
             Vista previa
           </span>
         )}
         <span className="text-sm text-gray-400 bg-gray-700/50 px-2 py-0.5 rounded-full">
-          {cantidadTarjetas} cerca
+          {cantidadTarjetas} visibles
         </span>
       </div>
 
@@ -141,7 +143,7 @@ const BaulHeader = ({
  * Estado vacío
  */
 const EstadoVacio = ({ mensaje, submensaje, onRefresh }) => (
-  <div className="flex flex-col items-center justify-center py-16 px-4 text-center">
+  <div className="cv-empty-state flex flex-col items-center justify-center py-16 px-4 text-center">
     <Users className="w-16 h-16 text-gray-600 mb-4" />
     <h3 className="text-lg font-medium text-gray-300 mb-2">{mensaje}</h3>
     <p className="text-sm text-gray-500 mb-6 max-w-xs">{submensaje}</p>
@@ -183,7 +185,6 @@ const BaulSection = ({ isOpen = true, onClose, variant = 'modal' }) => {
   const [miTarjeta, setMiTarjeta] = useState(null);
   const [isLoading, setIsLoading] = useState(true);
   const [isRefreshing, setIsRefreshing] = useState(false);
-  const [miUbicacion, setMiUbicacion] = useState(null);
   const [likesData, setLikesData] = useState({}); // { odIdUsuari: boolean }
   const [huellasData, setHuellasData] = useState({}); // { odIdUsuari: boolean }
   const [loadingHuella, setLoadingHuella] = useState(null); // odIdUsuari en progreso
@@ -199,40 +200,20 @@ const BaulSection = ({ isOpen = true, onClose, variant = 'modal' }) => {
   const [mostrarMatchModal, setMostrarMatchModal] = useState(false);
   const [mostrarMatchesList, setMostrarMatchesList] = useState(false);
   const [matchesNoLeidos, setMatchesNoLeidos] = useState(0);
+  const [discoveryMode, setDiscoveryMode] = useState('profile');
+  const [intentFilter, setIntentFilter] = useState('all');
   const { setActivePrivateChat, maxOpenPrivateChats } = usePrivateChat();
 
   // Cargar tarjetas (sin dependencia de miUbicacion para evitar loop)
-  const cargarTarjetas = useCallback(async (mostrarLoading = true, ubicacionParam = null) => {
+  const cargarTarjetas = useCallback(async (mostrarLoading = true) => {
     const odIdUsuari = user?.id || null;
 
     if (mostrarLoading) setIsLoading(true);
     else setIsRefreshing(true);
 
     try {
-      // Usar ubicación pasada como parámetro o intentar obtener nueva
-      let ubicacion = ubicacionParam;
-
-      if (!ubicacion && canInteract) {
-        try {
-          // Timeout rápido de 3 segundos
-          const locationPromise = getCurrentLocation();
-          const timeoutPromise = new Promise((_, reject) =>
-            setTimeout(() => reject(new Error('Timeout')), 3000)
-          );
-          ubicacion = await Promise.race([locationPromise, timeoutPromise]);
-          setMiUbicacion(ubicacion);
-
-          // Guardar ubicación en background (no bloquear)
-          if (odIdUsuari) {
-            actualizarTarjeta(odIdUsuari, {
-              ubicacion: { latitude: ubicacion.latitude, longitude: ubicacion.longitude },
-              ubicacionActiva: true
-            }).catch(() => {});
-          }
-        } catch {
-          ubicacion = null;
-        }
-      }
+      // La ubicación exacta está desactivada por privacidad. Baúl usa orden reciente.
+      const ubicacion = null;
 
       // Obtener tarjetas
       let tarjetasCargadas = [];
@@ -248,7 +229,7 @@ const BaulSection = ({ isOpen = true, onClose, variant = 'modal' }) => {
 
       // Resolver estados usando la data ya cargada en las tarjetas, sin lecturas N+1.
       if (tarjetasCargadas.length > 0 && odIdUsuari) {
-        const today = new Date().toISOString().slice(0, 10);
+        const today = getBaulDayKey();
         const huellaKey = `${odIdUsuari}_${today}`;
         const primeras20 = tarjetasCargadas.slice(0, 20);
 
@@ -545,24 +526,19 @@ const BaulSection = ({ isOpen = true, onClose, variant = 'modal' }) => {
     const odIdUsuari = user?.id;
     const tarjetaId = tarjeta?.odIdUsuari || tarjeta?.id;
     if (!odIdUsuari || !tarjetaId || tarjetaId === odIdUsuari) return;
-    const today = new Date().toISOString().slice(0, 10);
+    const today = getBaulDayKey();
     const impresionKey = `${tarjetaId}:${odIdUsuari}:${today}`;
     if (impresionesEnviadasRef.current.has(impresionKey)) return;
     if (Array.isArray(tarjeta?.impresionesDe) && tarjeta.impresionesDe.includes(`${odIdUsuari}_${today}`)) return;
 
     impresionesEnviadasRef.current.add(impresionKey);
-    setTarjetas((prev) => prev.map((item) => {
-      const itemId = item?.odIdUsuari || item?.id;
-      if (itemId !== tarjetaId) return item;
-      return {
-        ...item,
-        impresionesRecibidas: Number(item?.impresionesRecibidas || 0) + 1,
-        impresionesDe: Array.isArray(item?.impresionesDe)
-          ? [...item.impresionesDe, `${odIdUsuari}_${today}`]
-          : [`${odIdUsuari}_${today}`],
-      };
-    }));
-    registrarImpresion(tarjetaId, odIdUsuari, tarjeta);
+    registrarImpresion(tarjetaId, odIdUsuari, tarjeta).then((resultado) => {
+      if (!resultado?.recorded) {
+        impresionesEnviadasRef.current.delete(impresionKey);
+      }
+    }).catch(() => {
+      impresionesEnviadasRef.current.delete(impresionKey);
+    });
   }, [user?.id]);
 
   const handleVerPerfil = async (tarjeta) => {
@@ -690,7 +666,10 @@ const BaulSection = ({ isOpen = true, onClose, variant = 'modal' }) => {
     }
     return base;
   })();
-  const tarjetasVisibles = tarjetasBase;
+  const tarjetasVisibles = filterTarjetasByIntent(
+    sortTarjetasByDiscoveryMode(tarjetasBase, discoveryMode),
+    intentFilter
+  );
   const handleEditMyCard = async () => {
     if (!canEditOwnCard) return;
     if (!miTarjeta) {
@@ -727,6 +706,40 @@ const BaulSection = ({ isOpen = true, onClose, variant = 'modal' }) => {
               />
             ) : (
               <div className="p-3 sm:p-4">
+                <div className="mb-4 rounded-[1.25rem] border border-cyan-300/15 bg-gradient-to-r from-[#101d42] via-[#171439] to-[#261334] p-4">
+                  <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                    <div>
+                      <p className="text-[11px] font-bold uppercase tracking-[0.16em] text-cyan-200/70">Descubrimiento con contexto</p>
+                      <p className="mt-1 text-sm text-white/80">Ordenamos perfiles por información real y por la vigencia de su intención.</p>
+                    </div>
+                    <div className="flex flex-wrap gap-2" role="group" aria-label="Ordenar tarjetas">
+                      {[['profile', 'Para ti'], ['recent', 'Más recientes']].map(([value, label]) => (
+                        <button
+                          key={value}
+                          type="button"
+                          aria-pressed={discoveryMode === value}
+                          onClick={() => setDiscoveryMode(value)}
+                          className={`cv-chip rounded-full border px-3 py-1.5 text-xs font-semibold transition ${discoveryMode === value ? 'border-cyan-200/40 bg-cyan-300/20 text-cyan-100' : 'border-white/10 bg-white/5 text-white/60 hover:bg-white/10'}`}
+                        >
+                          {label}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                  <div className="mt-3 flex flex-wrap gap-2" role="group" aria-label="Filtrar por intención">
+                    {[['all', 'Todos'], ['active', 'Ahora']].map(([value, label]) => (
+                      <button
+                        key={value}
+                        type="button"
+                        aria-pressed={intentFilter === value}
+                        onClick={() => setIntentFilter(value)}
+                        className={`cv-chip rounded-lg border px-3 py-1.5 text-xs font-medium transition ${intentFilter === value ? 'border-fuchsia-200/35 bg-fuchsia-300/15 text-fuchsia-100' : 'border-white/10 text-white/55 hover:bg-white/5'}`}
+                      >
+                        {label}
+                      </button>
+                    ))}
+                  </div>
+                </div>
                 {!isGuestView && (
                   <div className="mb-3 sm:mb-4 flex flex-wrap items-center gap-2">
                     <motion.button
@@ -778,46 +791,9 @@ const BaulSection = ({ isOpen = true, onClose, variant = 'modal' }) => {
                   </div>
                 )}
 
-                {/* Top context banner */}
-                {(() => {
-                  const getTimestampMs = (value) => {
-                    if (!value) return null;
-                    if (value.toMillis) return value.toMillis();
-                    if (value.seconds) return value.seconds * 1000;
-                    if (value instanceof Date) return value.getTime();
-                    if (typeof value === 'number') return value;
-                    return null;
-                  };
-                  const tarjetasParaConteo = tarjetasVisibles.filter(t => t.odIdUsuari !== odIdUsuari);
-                  const activosAhora = tarjetasParaConteo.filter(t => (t.estadoReal || t.estado) === 'online').length;
-                  const nuevosHoy = tarjetasParaConteo.filter(t => {
-                    const ts = getTimestampMs(t.creadaEn || t.createdAt);
-                    return ts ? (Date.now() - ts) < 24 * 60 * 60 * 1000 : false;
-                  }).length;
-                  return (
-                    <div className="mb-3 sm:mb-4">
-                      <div className="flex flex-wrap items-center gap-2 rounded-lg border border-gray-700/50 bg-gray-800/40 px-3 py-2 text-[11px] text-gray-300">
-                        {isGuestView && (
-                          <span className="text-[10px] text-yellow-200 bg-yellow-500/10 px-2 py-0.5 rounded-full border border-yellow-500/30">
-                            Vista previa
-                          </span>
-                        )}
-                        <div className="flex items-center gap-2">
-                          <span className="text-cyan-400 font-semibold">Activos ahora</span>
-                          <span className="text-white font-bold">{activosAhora}</span>
-                        </div>
-                        <span className="text-gray-600">•</span>
-                        <div className="flex items-center gap-2">
-                          <span className="text-purple-300 font-semibold">Nuevos hoy</span>
-                          <span className="text-white font-bold">{nuevosHoy}</span>
-                        </div>
-                        <span className="ml-auto text-[10px] text-gray-400 hidden sm:inline">
-                          {isGuestView ? 'Explora antes de crear tu perfil' : 'Explora y conecta con un toque'}
-                        </span>
-                      </div>
-                    </div>
-                  );
-                })()}
+                <div className="mb-3 text-xs text-white/50">
+                  {isGuestView ? 'Vista previa: regístrate para interactuar con perfiles reales.' : 'Sin actividad inventada: solo verás señales declaradas por cada persona.'}
+                </div>
 
                 {/* Grid de tarjetas */}
                 <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-2.5 sm:gap-3">
@@ -856,20 +832,6 @@ const BaulSection = ({ isOpen = true, onClose, variant = 'modal' }) => {
                   })()}
                 </div>
 
-            {/* Info de ubicación */}
-            {!miUbicacion && canInteract && (
-              <div className="mt-6 p-4 bg-gray-800/50 rounded-xl border border-gray-700/50">
-                <div className="flex items-start gap-3">
-                  <MapPin className="w-5 h-5 text-orange-400 flex-shrink-0 mt-0.5" />
-                  <div>
-                    <h4 className="text-sm font-medium text-white">Activa tu ubicación</h4>
-                    <p className="text-xs text-gray-400 mt-1">
-                      Comparte tu ubicación para ver personas cerca de ti y aparecer en su baúl.
-                    </p>
-                  </div>
-                </div>
-              </div>
-            )}
           </div>
         )}
       </div>
@@ -1014,7 +976,7 @@ const BaulSection = ({ isOpen = true, onClose, variant = 'modal' }) => {
             exit={{ x: '100%' }}
             transition={{ type: 'spring', damping: 25, stiffness: 200 }}
             onClick={(e) => e.stopPropagation()}
-            className="absolute right-0 top-0 bottom-0 w-full max-w-2xl bg-gray-900 shadow-2xl overflow-hidden flex flex-col"
+            className="cv-page cv-shell absolute right-0 top-0 bottom-0 w-full max-w-2xl shadow-2xl overflow-hidden flex flex-col"
           >
             {content}
           </motion.div>
@@ -1024,7 +986,7 @@ const BaulSection = ({ isOpen = true, onClose, variant = 'modal' }) => {
   }
 
   return (
-    <div className="w-full min-h-[calc(100dvh-4rem)] bg-gray-900 shadow-2xl overflow-hidden flex flex-col">
+    <div className="cv-page cv-shell w-full min-h-[calc(100dvh-4rem)] shadow-2xl overflow-hidden flex flex-col">
       {content}
     </div>
   );

@@ -727,7 +727,7 @@ const ChatBottomNav = ({
           />
 
           <div
-            className="absolute left-0 right-0 bottom-0 mx-auto w-full max-w-md rounded-t-[28px] border border-slate-200 bg-white shadow-[0_-18px_48px_rgba(15,23,42,0.18)]"
+            className="cv-sheet absolute left-0 right-0 bottom-0 mx-auto w-full max-w-md rounded-t-[28px] shadow-[0_-18px_48px_rgba(15,23,42,0.18)]"
             style={{ paddingBottom: 'max(1rem, env(safe-area-inset-bottom))' }}
           >
             <div className="mx-auto mt-2.5 h-1.5 w-12 rounded-full bg-slate-300/80" />
@@ -1059,7 +1059,7 @@ const ChatBottomNav = ({
       )}
 
       <nav
-        className="lg:hidden fixed bottom-0 left-0 right-0 z-30 h-[62px] bg-[var(--chat-bottom-surface)] backdrop-blur-xl border-t border-[var(--chat-divider)] flex items-center justify-around px-2 safe-area-pb"
+        className="cv-bottom-nav lg:hidden fixed bottom-0 left-0 right-0 z-30 h-[62px] flex items-center justify-around px-2 safe-area-pb"
         style={{ paddingBottom: 'max(0.5rem, env(safe-area-inset-bottom))' }}
       >
         {items.map((item) => {
@@ -1070,12 +1070,10 @@ const ChatBottomNav = ({
             <button
               key={item.id}
               onClick={item.onClick}
-              className={`flex flex-col items-center justify-center flex-1 py-2 gap-0.5 min-w-0 transition-colors ${
-                active ? 'text-primary' : 'text-muted-foreground hover:text-foreground'
-              }`}
+              className="cv-bottom-nav-item flex-1 min-w-0" data-active={active}
               aria-label={item.label}
             >
-              <span className={`relative inline-flex items-center justify-center rounded-full p-2 transition-colors ${shouldPulsePrivates ? 'animate-pulse bg-[#1473E6]/10' : ''} ${active ? 'bg-primary/10' : 'bg-transparent'}`}>
+              <span className={`relative inline-flex items-center justify-center rounded-full p-2 transition-colors ${shouldPulsePrivates ? 'animate-pulse bg-cyan-400/10' : ''} ${active ? 'bg-cyan-300/10' : 'bg-transparent'}`}>
                 {shouldPulsePrivates ? (
                   <span className="absolute inset-[-6px] rounded-full bg-sky-400/20 blur-sm" />
                 ) : null}
@@ -1088,7 +1086,7 @@ const ChatBottomNav = ({
                   </span>
                 ) : null}
               </span>
-              <span className={`w-full truncate text-center text-[10px] font-medium tracking-[-0.01em] ${shouldPulsePrivates ? 'text-[#1473E6]' : ''}`}>{item.label}</span>
+              <span className={`w-full truncate text-center text-[10px] font-medium tracking-[-0.01em] ${shouldPulsePrivates ? 'text-cyan-700 dark:text-cyan-200' : ''}`}>{item.label}</span>
             </button>
           );
         })}

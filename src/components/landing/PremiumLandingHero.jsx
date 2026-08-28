@@ -12,7 +12,7 @@ const buildFeatureCards = (supportingPoints = []) => {
   const fallback = [
     'Entrada directa al chat desde tu navegador.',
     'Sin descargas ni pasos largos para empezar.',
-    'Gente real conectando ahora dentro de Chile.',
+    'Conversación comunitaria sin presión y con controles claros.',
   ];
 
   const points = supportingPoints.length > 0 ? supportingPoints.slice(0, 3) : fallback;
@@ -30,7 +30,7 @@ const buildFeatureCards = (supportingPoints = []) => {
       iconWrapClassName: 'bg-indigo-500/10 border-indigo-500/20',
     },
     {
-      title: 'Gente real ahora',
+      title: 'Conversación clara',
       icon: Users,
       iconClassName: 'text-blue-400',
       iconWrapClassName: 'bg-blue-500/10 border-blue-500/20',
@@ -44,13 +44,13 @@ const buildFeatureCards = (supportingPoints = []) => {
 };
 
 const PremiumLandingHero = ({
-  badgeLabel = 'Chile activo ahora',
+  badgeLabel = 'Chat para Chile',
   title,
   subtitle,
   ctaLabel = 'Entrar ahora',
   ctaSubtext = 'Sin app · Sin registro obligatorio · Acceso inmediato',
-  liveLabel = 'En vivo ahora',
-  livePillLabel = 'Personas conectando ahora',
+  liveLabel = 'Chat en tiempo real',
+  livePillLabel = 'Revisa la actividad disponible',
   supportingPoints = [],
   onPrimaryClick,
   showAutoRedirect = false,
@@ -77,8 +77,10 @@ const PremiumLandingHero = ({
               100% { transform: translate3d(0px, 0px, 0) scale(1); }
             }
 
-            .premium-blob {
-              animation: premium-blob 11s infinite alternate ease-in-out;
+            @media (prefers-reduced-motion: no-preference) {
+              .premium-blob {
+                animation: premium-blob 11s infinite alternate ease-in-out;
+              }
             }
 
             .premium-blob-delay-2000 {
@@ -97,7 +99,13 @@ const PremiumLandingHero = ({
             }
 
             .premium-hero-reveal {
-              transition: opacity 900ms ease, transform 900ms ease;
+              transition: opacity 240ms ease-out, transform 240ms ease-out;
+            }
+
+            @media (prefers-reduced-motion: reduce) {
+              .premium-hero-reveal {
+                transition: none;
+              }
             }
           `,
         }}
@@ -120,7 +128,8 @@ const PremiumLandingHero = ({
         </div>
 
         <div className="hidden items-center gap-2 text-sm font-medium text-white/50 sm:flex">
-          <div className="h-2 w-2 rounded-full bg-emerald-500 shadow-[0_0_10px_rgba(16,185,129,0.55)] animate-pulse" />
+                      <div className="h-2 w-2 rounded-full bg-emerald-500 shadow-[0_0_10px_rgba(16,185,129,0.55)]" aria-hidden="true" />
+
           <span>{liveLabel}</span>
         </div>
       </nav>

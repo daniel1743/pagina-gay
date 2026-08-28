@@ -2,9 +2,32 @@ import { doc, getDoc, setDoc, updateDoc, serverTimestamp, collection, query, whe
 import { db } from '@/config/firebase';
 import { resolveProfileRole } from '@/config/profileRoles';
 import { normalizeComuna } from '@/config/comunas';
+import { supabase, isSupabaseAuthEnabled } from '@/config/supabase';
+import * as supabaseBaulService from '@/services/supabaseBaulService';
+import * as supabaseOpinService from '@/services/supabaseOpinService';
+import {
+  ensureSupabaseProfile,
+  getSupabaseProfile,
+  updateSupabaseProfile,
+  updateSupabasePreferences,
+} from '@/services/supabaseProfileService';
 
 const PUBLIC_USER_PROFILES_COLLECTION = 'public_user_profiles';
 const getPublicUserProfileRef = (userId) => doc(db, PUBLIC_USER_PROFILES_COLLECTION, userId);
+
+const mapSupabaseProfileToLegacy = (profile) => profile ? ({
+  ...profile,
+  id: profile.id,
+  avatar: profile.avatar_url || null,
+  edad: profile.age ?? null,
+  age: profile.age ?? null,
+  profileRole: profile.profile_role || null,
+  isGuest: Boolean(profile.is_guest),
+  isPremium: Boolean(profile.is_premium),
+  profileVisible: profile.profile_visible !== false,
+  createdAt: profile.created_at || null,
+  updatedAt: profile.updated_at || null,
+}) : null;
 
 /**
  * ✅ NUEVO: Verifica si un username ya existe (case-insensitive)
@@ -13,6 +36,19 @@ const getPublicUserProfileRef = (userId) => doc(db, PUBLIC_USER_PROFILES_COLLECT
  * @returns {Promise<boolean>} true si el username está disponible, false si ya existe
  */
 export const checkUsernameAvailability = async (username, excludeUserId = null) => {
+  if (isSupabaseAuthEnabled()) {
+    try {
+      const client = (await import('@/config/supabase')).supabase;
+      if (!client || !username?.trim()) return false;
+      let query = client.from('profiles').select('id').ilike('username', username.trim()).limit(1);
+      if (excludeUserId) query = query.neq('id', excludeUserId);
+      const { data, error } = await query;
+      if (error) throw error;
+      return !data?.length;
+    } catch {
+      return false;
+    }
+  }
   try {
     if (!username || !username.trim()) {
       return false;
@@ -53,6 +89,13 @@ export const checkUsernameAvailability = async (username, excludeUserId = null) 
  * ✅ ACTUALIZADO: Ahora valida que el username sea único antes de crear
  */
 export const createUserProfile = async (uid, userData) => {
+  if (isSupabaseAuthEnabled()) {
+    const client = (await import('@/config/supabase')).supabase;
+    const authUser = (await client?.auth?.getUser())?.data?.user;
+    if (!authUser || authUser.id !== uid) throw new Error('NOT_PROFILE_OWNER');
+    const profile = await ensureSupabaseProfile(authUser, userData);
+    return mapSupabaseProfileToLegacy(profile);
+  }
   try {
     // ⚠️ TEMPORALMENTE DESHABILITADO: checkUsernameAvailability causa errores de permisos
     // La función intenta leer TODOS los usuarios, lo cual falla en Firestore
@@ -102,6 +145,15 @@ export const createUserProfile = async (uid, userData) => {
  * Si no existe, crea uno básico automáticamente
  */
 export const getUserProfile = async (uid) => {
+  if (isSupabaseAuthEnabled()) {
+    try {
+      const profile = await getSupabaseProfile(uid);
+      return mapSupabaseProfileToLegacy(profile);
+    } catch (error) {
+      console.warn('[USER] Supabase profile unavailable:', error?.message || error);
+      return null;
+    }
+  }
   try {
     const userRef = doc(db, 'users', uid);
     const userSnap = await getDoc(userRef);
@@ -145,6 +197,10 @@ export const getUserProfile = async (uid) => {
  * ✅ ACTUALIZADO: Valida username único si se está actualizando
  */
 export const updateUserProfile = async (uid, updates) => {
+  if (isSupabaseAuthEnabled()) {
+    const profile = await updateSupabaseProfile(uid, updates);
+    return mapSupabaseProfileToLegacy(profile);
+  }
   try {
     // ✅ VALIDAR: Si se está actualizando el username, verificar que sea único
     if (updates.username) {
@@ -174,6 +230,10 @@ export const updateUserProfile = async (uid, updates) => {
  * Actualiza configuración de tema
  */
 export const updateUserTheme = async (uid, themeSetting, value) => {
+  if (isSupabaseAuthEnabled()) {
+    const preferences = await updateSupabasePreferences(uid, { theme: { [themeSetting]: value } });
+    return preferences;
+  }
   try {
     const userRef = doc(db, 'users', uid);
     const userSnap = await getDoc(userRef);
@@ -198,6 +258,11 @@ export const updateUserTheme = async (uid, themeSetting, value) => {
  * Añade frase rápida
  */
 export const addQuickPhrase = async (uid, phrase) => {
+  if (isSupabaseAuthEnabled()) {
+    const profile = await getSupabaseProfile(uid);
+    const preferences = await updateSupabasePreferences(uid, { quickPhrases: [...new Set([...(profile?.quick_phrases || []), String(phrase || '').trim()].filter(Boolean))].slice(0, 20) });
+    return preferences;
+  }
   try {
     const userRef = doc(db, 'users', uid);
     const userSnap = await getDoc(userRef);
@@ -219,6 +284,11 @@ export const addQuickPhrase = async (uid, phrase) => {
  * Elimina frase rápida
  */
 export const removeQuickPhrase = async (uid, phraseToRemove) => {
+  if (isSupabaseAuthEnabled()) {
+    const profile = await getSupabaseProfile(uid);
+    const preferences = await updateSupabasePreferences(uid, { quickPhrases: (profile?.quick_phrases || []).filter((phrase) => phrase !== phraseToRemove) });
+    return preferences;
+  }
   try {
     const userRef = doc(db, 'users', uid);
     const userSnap = await getDoc(userRef);
@@ -240,6 +310,7 @@ export const removeQuickPhrase = async (uid, phraseToRemove) => {
  * Actualiza usuario a Premium
  */
 export const upgradeToPremium = async (uid) => {
+  if (isSupabaseAuthEnabled()) throw new Error('PREMIUM_SERVER_ONLY');
   try {
     const userRef = doc(db, 'users', uid);
     await updateDoc(userRef, {
@@ -258,6 +329,22 @@ export const upgradeToPremium = async (uid) => {
  * @returns {Promise<Array>} Lista de usuarios que coinciden
  */
 export const searchUsers = async (searchTerm) => {
+  if (isSupabaseAuthEnabled()) {
+    try {
+      const term = String(searchTerm || '').trim();
+      if (!term || !supabase) return [];
+      const { data, error } = await supabase.from('profiles')
+        .select('id, username, avatar_url, display_name, profile_role, comuna, is_premium, verified, profile_visible')
+        .ilike('username', `%${term}%`)
+        .eq('profile_visible', true)
+        .limit(20);
+      if (error) throw error;
+      return (data || []).map((profile) => ({ ...mapSupabaseProfileToLegacy(profile), userId: profile.id }));
+    } catch (error) {
+      console.warn('[USER] Error buscando perfiles Supabase:', error?.message || error);
+      return [];
+    }
+  }
   try {
     if (!searchTerm || !searchTerm.trim()) {
       return [];
@@ -301,6 +388,7 @@ export const searchUsers = async (searchTerm) => {
  * @returns {Promise<object|null>} Usuario o null si no existe
  */
 export const getUserById = async (userId) => {
+  if (isSupabaseAuthEnabled()) return getPublicProfileById(userId);
   try {
     const userRef = doc(db, 'users', userId);
     const userSnap = await getDoc(userRef);
@@ -333,6 +421,16 @@ const mapPublicProfileSnapshot = (docSnap) => {
 };
 
 export const getPublicProfileById = async (userId) => {
+  if (isSupabaseAuthEnabled()) {
+    try {
+      if (!userId || !supabase) return null;
+      const profile = await getSupabaseProfile(userId);
+      return profile ? { ...mapSupabaseProfileToLegacy(profile), userId: profile.id } : null;
+    } catch (error) {
+      console.warn('[USER] Error leyendo perfil público Supabase:', error?.message || error);
+      return null;
+    }
+  }
   try {
     if (!userId) return null;
     const profileSnap = await getDoc(getPublicUserProfileRef(userId));
@@ -344,6 +442,18 @@ export const getPublicProfileById = async (userId) => {
 };
 
 export const getPublicProfilesByIds = async (userIds = []) => {
+  if (isSupabaseAuthEnabled()) {
+    try {
+      const normalizedIds = [...new Set((Array.isArray(userIds) ? userIds : []).map((value) => String(value || '').trim()).filter(Boolean))];
+      if (!normalizedIds.length || !supabase) return [];
+      const { data, error } = await supabase.from('profiles').select('*').in('id', normalizedIds).eq('profile_visible', true);
+      if (error) throw error;
+      return (data || []).map((profile) => ({ ...mapSupabaseProfileToLegacy(profile), userId: profile.id }));
+    } catch (error) {
+      console.warn('[USER] Error leyendo perfiles públicos Supabase:', error?.message || error);
+      return [];
+    }
+  }
   try {
     const normalizedIds = [...new Set(
       (Array.isArray(userIds) ? userIds : [])
@@ -461,6 +571,43 @@ const fetchRecentOpinPosts = async (userId, maxItems = 6) => {
  * Diseñado para ser visualmente completo sin consultas masivas costosas.
  */
 export const getPublicProfileExtended = async (userId) => {
+  if (isSupabaseAuthEnabled()) {
+    try {
+      const baseProfile = await getPublicProfile(userId);
+      if (!baseProfile) return null;
+      const [card, posts] = await Promise.all([
+        supabaseBaulService.obtenerTarjeta(userId),
+        supabaseOpinService.getOpinPostsByUserId ? supabaseOpinService.getOpinPostsByUserId(userId, 6).catch(() => []) : Promise.resolve([]),
+      ]);
+      const recentOpinPosts = (posts || []).slice(0, 6).map((post) => ({
+        id: post.id,
+        text: String(post.text || '').trim(),
+        color: post.color || 'purple',
+        likeCount: Number(post.likeCount || 0),
+        commentCount: Number(post.commentCount || 0),
+        viewCount: Number(post.viewCount || 0),
+        createdAtMs: toMillisSafe(post.createdAt),
+      }));
+      return {
+        ...baseProfile,
+        friendsPreview: [],
+        stats: {
+          favoritesCount: 0,
+          interestsCount: 0,
+          profileViews: 0,
+          opinPostsCount: recentOpinPosts.length,
+          opinLikes: recentOpinPosts.reduce((sum, post) => sum + post.likeCount, 0),
+          opinComments: recentOpinPosts.reduce((sum, post) => sum + post.commentCount, 0),
+          opinViews: recentOpinPosts.reduce((sum, post) => sum + post.viewCount, 0),
+        },
+        baul: pickTarjetaPublicFields(card || {}),
+        recentOpinPosts,
+      };
+    } catch (error) {
+      console.warn('[USER] Error enriqueciendo perfil Supabase:', error?.message || error);
+      return null;
+    }
+  }
   try {
     const baseProfile = await getPublicProfile(userId);
     if (!baseProfile) return null;

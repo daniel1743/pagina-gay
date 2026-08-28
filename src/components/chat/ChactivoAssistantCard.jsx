@@ -37,6 +37,7 @@ const ChactivoAssistantCard = ({
           size="icon"
           onClick={onDismiss}
           className="h-7 w-7 rounded-full text-muted-foreground hover:text-cyan-100"
+          aria-label="Cerrar ayuda"
           title="Cerrar ayuda"
         >
           <X className="h-4 w-4" />

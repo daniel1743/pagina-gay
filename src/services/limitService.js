@@ -1,5 +1,6 @@
 import { doc, getDoc, setDoc, updateDoc, serverTimestamp } from 'firebase/firestore';
 import { auth, db } from '@/config/firebase';
+import { supabase, isSupabaseAuthEnabled } from '@/config/supabase';
 
 /**
  * Sistema de límites diarios para usuarios FREE
@@ -171,6 +172,12 @@ export const canSendDirectMessage = (user) => {
  * También sincroniza con Firestore para persistencia entre dispositivos
  */
 export const incrementChatInvites = async (userId) => {
+  if (isSupabaseAuthEnabled()) {
+    if (shouldReset()) resetLocalCounters();
+    const { data, error } = await supabase.rpc('increment_my_daily_limit', { limit_name: 'chat_invites' });
+    if (error) throw error;
+    const count = Number(data || 0); localStorage.setItem(STORAGE_KEYS.CHAT_INVITES, String(count)); localStorage.setItem(STORAGE_KEYS.LAST_RESET, getTodayDate()); return count;
+  }
   // Verificar reset
   if (shouldReset()) {
     resetLocalCounters();
@@ -217,6 +224,12 @@ export const incrementChatInvites = async (userId) => {
  * También sincroniza con Firestore para persistencia entre dispositivos
  */
 export const incrementDirectMessages = async (userId) => {
+  if (isSupabaseAuthEnabled()) {
+    if (shouldReset()) resetLocalCounters();
+    const { data, error } = await supabase.rpc('increment_my_daily_limit', { limit_name: 'direct_messages' });
+    if (error) throw error;
+    const count = Number(data || 0); localStorage.setItem(STORAGE_KEYS.DIRECT_MESSAGES, String(count)); localStorage.setItem(STORAGE_KEYS.LAST_RESET, getTodayDate()); return count;
+  }
   // Verificar reset
   if (shouldReset()) {
     resetLocalCounters();
@@ -262,6 +275,19 @@ export const incrementDirectMessages = async (userId) => {
  * Sincroniza límites desde Firestore (útil al iniciar sesión en nuevo dispositivo)
  */
 export const syncLimitsFromFirestore = async (userId) => {
+  if (isSupabaseAuthEnabled()) {
+    try {
+      const { data, error } = await supabase.rpc('get_my_daily_limits');
+      if (error) throw error;
+      localStorage.setItem(STORAGE_KEYS.CHAT_INVITES, String(data?.chatInvites || 0));
+      localStorage.setItem(STORAGE_KEYS.DIRECT_MESSAGES, String(data?.directMessages || 0));
+      localStorage.setItem(STORAGE_KEYS.LAST_RESET, getTodayDate());
+      return data;
+    } catch (error) {
+      console.warn('[LIMITS] No se pudieron sincronizar límites Supabase:', error?.message || error);
+      return null;
+    }
+  }
   try {
     const userLimitsRef = doc(db, 'users', userId, 'limits', getTodayDate());
     const limitsDoc = await getDoc(userLimitsRef);

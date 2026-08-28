@@ -49,7 +49,10 @@ export const CompanionWidget = ({
                   </span>
                 </div>
                 <button
+                  type="button"
                   onClick={onHideWidget}
+                  aria-label="Cerrar ayuda"
+                  title="Cerrar ayuda"
                   className="text-white hover:bg-white/20 rounded-full p-1 transition-colors"
                 >
                   <X className="w-4 h-4" />
@@ -114,7 +117,7 @@ export const CompanionWidget = ({
               {/* Footer - microcopy */}
               <div className="px-4 py-2 bg-gray-50 dark:bg-gray-900 border-t border-gray-200 dark:border-gray-700">
                 <p className="text-xs text-gray-500 dark:text-gray-400 text-center">
-                  💬 100% anónimo • Sin registro • Sin presión
+                  Ayuda local en tu navegador • Sin registro • Sin presión
                 </p>
               </div>
             </div>
@@ -124,7 +127,10 @@ export const CompanionWidget = ({
 
       {/* Botón flotante siempre visible */}
       <motion.button
+        type="button"
         onClick={isVisible ? onHideWidget : onShowWidget}
+        aria-label={isVisible ? 'Cerrar ayuda' : 'Abrir ayuda para empezar'}
+        title={isVisible ? 'Cerrar ayuda' : 'Abrir ayuda para empezar'}
         whileHover={{ scale: 1.05 }}
         whileTap={{ scale: 0.95 }}
         className="w-14 h-14 rounded-full bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-500 hover:to-pink-500 shadow-2xl flex items-center justify-center text-white transition-all hover:shadow-purple-500/50"

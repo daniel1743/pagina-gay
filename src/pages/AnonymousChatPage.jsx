@@ -13,7 +13,7 @@ const AnonymousChatPage = () => {
   useCanonical('/anonymous-chat');
 
   useEffect(() => {
-    document.title = "Sala de Apoyo Anónima - Chactivo | Chat Gay Chile";
+    document.title = "Recursos y conversación LGBT+ | Chactivo";
     
     // ✅ SEO: Meta description específica
     let metaDescription = document.querySelector('meta[name="description"]');
@@ -22,7 +22,7 @@ const AnonymousChatPage = () => {
       metaDescription.name = 'description';
       document.head.appendChild(metaDescription);
     }
-    metaDescription.content = '🔒 Sala de Apoyo Anónima - Espacio seguro y confidencial para la comunidad LGBT+ en Chile. Chat de apoyo emocional, consejos y recursos. 100% anónimo y protegido.';
+    metaDescription.content = 'Recursos y conversación para la comunidad LGBT+ en Chile. Revisa las normas, decide qué compartir y entra al chat disponible.';
 
     let robotsMeta = document.querySelector('meta[name="robots"]');
     if (!robotsMeta) {
@@ -34,9 +34,7 @@ const AnonymousChatPage = () => {
   }, []);
 
   const handleRegister = () => {
-    // Abrir modal de registro rápido si existe
-    const event = new CustomEvent('openQuickSignup');
-    window.dispatchEvent(event);
+    navigate('/auth', { state: { redirectTo: '/chat/principal' } });
   };
 
   const handleLogin = () => {
@@ -51,41 +49,41 @@ const AnonymousChatPage = () => {
   const benefits = [
     {
       icon: <Shield className="w-6 h-6" />,
-      title: "Espacio 100% Seguro",
-      description: "Solo usuarios registrados pueden participar. Tu privacidad está protegida."
+      title: "Normas claras",
+      description: "Revisa las normas y comparte solo la información que consideres necesaria."
     },
     {
       icon: <Heart className="w-6 h-6" />,
-      title: "Apoyo Emocional",
-      description: "Comparte experiencias y recibe apoyo de una comunidad comprensiva."
+      title: "Compartir con cuidado",
+      description: "La plataforma no es un servicio de emergencia ni sustituye apoyo profesional."
     },
     {
       icon: <Lock className="w-6 h-6" />,
-      title: "Totalmente Anónimo",
-      description: "Tu identidad está protegida. Habla libremente sin miedo."
+      title: "Controles disponibles",
+      description: "Usa un alias cuando la función lo permita y utiliza bloquear o reportar cuando estén disponibles."
     },
     {
       icon: <Users className="w-6 h-6" />,
-      title: "Comunidad Activa",
-      description: "Conecta con personas que entienden tu experiencia."
+      title: "Actividad variable",
+      description: "No damos por hecho que haya respuestas: la disponibilidad depende de la participación real."
     }
   ];
 
   const features = [
-    "Chat en tiempo real 24/7",
-    "Moderación activa para tu seguridad",
-    "Recursos de apoyo y bienestar",
-    "Comunidad empática y respetuosa",
-    "Sin censura, con respeto mutuo"
+    "Chat en tiempo real según la actividad",
+    "Herramientas de reporte cuando estén disponibles",
+    "Normas y límites del servicio visibles",
+    "Decide cuánto compartir",
+    "No es un servicio de emergencia"
   ];
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-[#1a1729] via-[#2C2A4A] to-[#1a1729] text-white">
+    <div className="cv-page cv-shell min-h-screen text-white">
       {/* Header */}
-      <header className="bg-[#22203a]/80 backdrop-blur-sm border-b border-[#413e62] p-4 flex items-center justify-between sticky top-0 z-50">
+      <header className="cv-header p-4 flex items-center justify-between sticky top-0 z-50">
         <div className="flex items-center gap-3">
           <Shield className="w-6 h-6 text-cyan-400" />
-          <h2 className="font-bold text-gray-100 text-lg">Sala de Apoyo Anónima</h2>
+          <h2 className="font-bold text-gray-100 text-lg">Recursos y conversación LGBT+</h2>
         </div>
         <div className="flex items-center gap-2">
           {/* Quick Escape Button */}
@@ -93,7 +91,7 @@ const AnonymousChatPage = () => {
             variant="ghost"
             size="sm"
             onClick={handleQuickEscape}
-            className="bg-red-500 hover:bg-red-600 text-white px-2 sm:px-3 flex items-center gap-1.5 sm:gap-2"
+            className="cv-button-danger px-2 sm:px-3 flex items-center gap-1.5 sm:gap-2"
             aria-label="Escape rápido - Salir inmediatamente"
             title="Escape rápido - Salir inmediatamente"
           >
@@ -104,7 +102,7 @@ const AnonymousChatPage = () => {
             variant="ghost"
             size="icon"
             onClick={() => navigate('/')}
-            className="text-gray-300 hover:text-cyan-400"
+            className="cv-icon-button"
           >
             <Home className="w-5 h-5" />
           </Button>
@@ -119,24 +117,24 @@ const AnonymousChatPage = () => {
           transition={{ duration: 0.6 }}
           className="text-center mb-16"
         >
-          <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-cyan-500/20 border border-cyan-500/30 mb-6">
+          <div className="cv-chip inline-flex items-center gap-2 px-4 py-2 rounded-full mb-6">
             <Lock className="w-4 h-4 text-cyan-400" />
-            <span className="text-sm text-cyan-300">Espacio Protegido y Confidencial</span>
+            <span className="text-sm text-cyan-300">Información y límites claros</span>
           </div>
           
-          <h1 className="text-4xl md:text-6xl font-extrabold mb-6 bg-gradient-to-r from-cyan-400 via-purple-400 to-pink-400 bg-clip-text text-transparent">
-            Sala de Apoyo Anónima
+          <h1 className="cv-display text-4xl md:text-6xl font-extrabold mb-6 text-foreground">
+            Recursos y conversación LGBT+
           </h1>
           
           <p className="text-xl md:text-2xl text-gray-300 max-w-3xl mx-auto mb-8">
-            Un espacio seguro y confidencial donde puedes compartir, recibir apoyo y conectar con una comunidad que te entiende.
+            Una página informativa para revisar límites, normas y opciones de conversación. No prometemos anonimato total ni disponibilidad constante.
           </p>
 
           <div className="flex flex-col sm:flex-row gap-4 justify-center items-center mb-12">
             <Button
               onClick={handleRegister}
               size="lg"
-              className="bg-gradient-to-r from-cyan-500 to-purple-500 hover:from-cyan-600 hover:to-purple-600 text-white font-bold text-lg px-8 py-6 rounded-xl shadow-lg hover:scale-105 transition-transform"
+              className="cv-button-primary text-lg px-8 py-6 rounded-xl shadow-lg"
             >
               <Zap className="w-5 h-5 mr-2" />
               Registrarse Gratis
@@ -147,7 +145,7 @@ const AnonymousChatPage = () => {
               onClick={handleLogin}
               variant="outline"
               size="lg"
-              className="border-2 border-cyan-400/50 text-cyan-400 hover:bg-cyan-400/10 font-bold text-lg px-8 py-6 rounded-xl"
+              className="cv-button-secondary text-lg px-8 py-6 rounded-xl"
             >
               Ya tengo cuenta
             </Button>
@@ -155,9 +153,9 @@ const AnonymousChatPage = () => {
 
           <div className="flex items-center justify-center gap-2 text-sm text-gray-400">
             <CheckCircle className="w-4 h-4 text-green-400" />
-            <span>Registro en menos de 30 segundos</span>
+            <span>Registro gratuito; revisa los requisitos</span>
             <span>•</span>
-            <span>100% Gratis</span>
+            <span>Sin pago para el chat público</span>
             <span>•</span>
             <span>Sin tarjeta de crédito</span>
           </div>
@@ -171,7 +169,7 @@ const AnonymousChatPage = () => {
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ duration: 0.6, delay: index * 0.1 }}
-              className="glass-effect p-6 rounded-xl border border-cyan-500/20 hover:border-cyan-500/40 transition-all hover:shadow-lg hover:shadow-cyan-500/10"
+              className="cv-card cv-card-interactive p-6"
             >
               <div className="text-cyan-400 mb-4">{benefit.icon}</div>
               <h3 className="text-lg font-bold mb-2">{benefit.title}</h3>
@@ -185,7 +183,7 @@ const AnonymousChatPage = () => {
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.6, delay: 0.4 }}
-          className="glass-effect rounded-2xl p-8 md:p-12 border-2 border-cyan-500/30 bg-gradient-to-br from-cyan-500/10 to-purple-500/10 mb-16"
+          className="cv-card p-8 md:p-12 mb-16"
         >
           <div className="text-center mb-8">
             <MessageCircle className="w-16 h-16 text-cyan-400 mx-auto mb-4" />
@@ -193,8 +191,7 @@ const AnonymousChatPage = () => {
               ¿Por qué registrarse?
             </h2>
             <p className="text-gray-300 text-lg max-w-2xl mx-auto">
-              Esta sala es un espacio protegido donde solo usuarios registrados pueden participar. 
-              Esto garantiza un ambiente seguro, respetuoso y libre de spam.
+              Esta página no inicia una conversación de apoyo independiente. Si quieres conversar, el acceso disponible es el chat principal y sus normas aplican allí.
             </p>
           </div>
 
@@ -214,7 +211,7 @@ const AnonymousChatPage = () => {
               className="bg-gradient-to-r from-cyan-500 to-purple-500 hover:from-cyan-600 hover:to-purple-600 text-white font-bold text-xl px-12 py-6 rounded-xl shadow-lg hover:scale-105 transition-transform"
             >
               <Shield className="w-6 h-6 mr-3" />
-              Acceder a la Sala de Apoyo
+              Entrar al Chat Principal
               <ArrowRight className="w-6 h-6 ml-3" />
             </Button>
           </div>
@@ -227,19 +224,19 @@ const AnonymousChatPage = () => {
           transition={{ duration: 0.6, delay: 0.6 }}
           className="text-center"
         >
-          <div className="glass-effect rounded-xl p-6 border border-purple-500/20 inline-block">
+          <div className="cv-card p-6 inline-block">
             <div className="flex flex-col sm:flex-row items-center justify-center gap-6">
               <div className="flex items-center gap-2">
                 <Shield className="w-5 h-5 text-cyan-400" />
-                <span className="text-sm text-gray-300">Moderación Activa</span>
+                <span className="text-sm text-gray-300">Reportes y controles</span>
               </div>
               <div className="flex items-center gap-2">
                 <Lock className="w-5 h-5 text-purple-400" />
-                <span className="text-sm text-gray-300">Privacidad Garantizada</span>
+                <span className="text-sm text-gray-300">Privacidad con límites claros</span>
               </div>
               <div className="flex items-center gap-2">
                 <Heart className="w-5 h-5 text-pink-400" />
-                <span className="text-sm text-gray-300">Comunidad Empática</span>
+                <span className="text-sm text-gray-300">Participación responsable</span>
               </div>
             </div>
           </div>

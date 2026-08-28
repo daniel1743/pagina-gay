@@ -4,11 +4,11 @@ import { Button } from '@/components/ui/button';
 import { Upload, X, Image as ImageIcon, Loader2, Check } from 'lucide-react';
 import { motion } from 'framer-motion';
 import { toast } from '@/components/ui/use-toast';
-import { uploadProfilePhoto, validateImageFile } from '@/services/photoUploadService';
+import { uploadProfilePhoto, validateImageFile, PROFILE_IMAGE_TARGET_MAX_KB } from '@/services/photoUploadService';
 import { useAuth } from '@/contexts/AuthContext';
 
 const PhotoUploadModal = ({ isOpen, onClose, onUploadSuccess }) => {
-  const { updateProfile } = useAuth();
+  const { user, updateProfile } = useAuth();
   const [selectedFile, setSelectedFile] = useState(null);
   const [preview, setPreview] = useState(null);
   const [isUploading, setIsUploading] = useState(false);
@@ -50,12 +50,22 @@ const PhotoUploadModal = ({ isOpen, onClose, onUploadSuccess }) => {
       return;
     }
 
+    if (!user?.id || user.isGuest || user.isAnonymous) {
+      toast({
+        title: 'Inicia sesión para continuar',
+        description: 'Las fotos de perfil solo están disponibles para cuentas registradas.',
+        variant: 'destructive',
+      });
+      return;
+    }
+
     setIsUploading(true);
     setUploadProgress(0);
+    let progressInterval;
 
     try {
-      // Simular progreso (la compresión y subida pueden tardar)
-      const progressInterval = setInterval(() => {
+      // Progreso orientativo: Storage no expone porcentaje real en este flujo.
+      progressInterval = setInterval(() => {
         setUploadProgress((prev) => {
           if (prev >= 90) {
             clearInterval(progressInterval);
@@ -71,8 +81,11 @@ const PhotoUploadModal = ({ isOpen, onClose, onUploadSuccess }) => {
       clearInterval(progressInterval);
       setUploadProgress(100);
 
-      // Actualizar perfil del usuario
-      await updateProfile({ avatar: photoURL });
+      // Confirmar que la URL quedó persistida en el perfil antes de cerrar.
+      const profileUpdated = await updateProfile({ avatar: photoURL });
+      if (!profileUpdated) {
+        throw new Error('No se pudo guardar la foto en el perfil.');
+      }
 
       toast({
         title: "✅ Foto subida exitosamente",
@@ -93,10 +106,13 @@ const PhotoUploadModal = ({ isOpen, onClose, onUploadSuccess }) => {
       console.error('Error subiendo foto:', error);
       toast({
         title: "Error al subir foto",
-        description: error.message || "No se pudo subir la foto. Intenta de nuevo.",
+        description: error?.message === 'SUPABASE_REQUIRED_FOR_PROFILE_PHOTOS'
+          ? 'La subida de fotos está pausada hasta configurar Supabase Storage.'
+          : error.message || "No se pudo subir la foto. Intenta de nuevo.",
         variant: "destructive",
       });
     } finally {
+      if (progressInterval) clearInterval(progressInterval);
       setIsUploading(false);
       setUploadProgress(0);
     }
@@ -148,33 +164,34 @@ const PhotoUploadModal = ({ isOpen, onClose, onUploadSuccess }) => {
             Subir Foto de Perfil
           </DialogTitle>
           <DialogDescription className="text-muted-foreground text-sm">
-            Sube una foto personalizada para tu perfil. Se comprimirá automáticamente a un tamaño óptimo (máximo 150 KB).
+            Sube una foto personalizada para tu perfil. Se comprimirá automáticamente a un tamaño óptimo (máximo {PROFILE_IMAGE_TARGET_MAX_KB} KB).
           </DialogDescription>
         </DialogHeader>
 
         <div className="p-6 space-y-6">
           {/* Área de carga */}
           {!preview ? (
-            <div
+            <label
+              htmlFor="profile-photo-input"
               onDragOver={handleDragOver}
               onDrop={handleDrop}
-              className="border-2 border-dashed border-[#E4007C]/50 rounded-xl p-12 text-center hover:border-[#E4007C] transition-colors cursor-pointer bg-accent/20"
-              onClick={() => fileInputRef.current?.click()}
+              className="block cursor-pointer rounded-xl border-2 border-dashed border-[#E4007C]/50 bg-accent/20 p-12 text-center transition-colors hover:border-[#E4007C] focus-within:border-[#E4007C] focus-within:ring-2 focus-within:ring-[#E4007C]/60"
             >
               <ImageIcon className="w-16 h-16 mx-auto mb-4 text-[#E4007C]" />
               <p className="text-lg font-semibold mb-2">Arrastra una imagen aquí</p>
               <p className="text-sm text-muted-foreground mb-4">o haz clic para seleccionar</p>
               <p className="text-xs text-muted-foreground">
-                Formatos: JPG, PNG, WEBP (máximo 10 MB)
+                Formatos: JPG, PNG, WEBP (máximo 10 MB antes de comprimir)
               </p>
               <input
+                id="profile-photo-input"
                 ref={fileInputRef}
                 type="file"
                 accept="image/jpeg,image/jpg,image/png,image/webp"
                 onChange={handleFileSelect}
-                className="hidden"
+                className="sr-only"
               />
-            </div>
+            </label>
           ) : (
             <div className="space-y-4">
               {/* Preview de la imagen */}
@@ -187,6 +204,7 @@ const PhotoUploadModal = ({ isOpen, onClose, onUploadSuccess }) => {
                 <Button
                   variant="ghost"
                   size="icon"
+                  type="button"
                   onClick={handleRemove}
                   className="absolute top-2 right-2 bg-black/50 hover:bg-black/70 text-white"
                 >
@@ -210,7 +228,7 @@ const PhotoUploadModal = ({ isOpen, onClose, onUploadSuccess }) => {
                   <div className="flex justify-between items-center">
                     <span className="text-sm text-muted-foreground">Tamaño después de compresión:</span>
                     <span className="text-sm font-medium text-[#E4007C]">
-                      ~100-150 KB
+                      hasta {PROFILE_IMAGE_TARGET_MAX_KB} KB
                     </span>
                   </div>
                 </div>
@@ -240,6 +258,7 @@ const PhotoUploadModal = ({ isOpen, onClose, onUploadSuccess }) => {
           <div className="flex gap-3 pt-4">
             <Button
               variant="outline"
+              type="button"
               onClick={onClose}
               className="flex-1"
               disabled={isUploading}
@@ -248,6 +267,7 @@ const PhotoUploadModal = ({ isOpen, onClose, onUploadSuccess }) => {
             </Button>
             {preview && (
               <Button
+                type="button"
                 onClick={handleUpload}
                 className="flex-1 bg-gradient-to-r from-[#E4007C] to-cyan-500 hover:from-[#ff0087] hover:to-cyan-400 text-white font-bold"
                 disabled={isUploading}
@@ -270,7 +290,7 @@ const PhotoUploadModal = ({ isOpen, onClose, onUploadSuccess }) => {
           {/* Información adicional */}
           <div className="bg-blue-500/10 border border-blue-500/30 rounded-lg p-4">
             <p className="text-sm text-blue-300">
-              <strong>💡 Nota:</strong> Tu imagen será comprimida automáticamente a un tamaño máximo de 150 KB para optimizar el rendimiento y velocidad.
+              <strong>Nota:</strong> Tu imagen será comprimida automáticamente a un tamaño máximo de {PROFILE_IMAGE_TARGET_MAX_KB} KB para optimizar el rendimiento y velocidad.
               La calidad se mantendrá lo mejor posible.
             </p>
           </div>
@@ -280,6 +300,7 @@ const PhotoUploadModal = ({ isOpen, onClose, onUploadSuccess }) => {
         <Button
           variant="ghost"
           size="icon"
+          type="button"
           onClick={onClose}
           className="absolute top-2 right-2 z-50 text-muted-foreground hover:text-foreground hover:bg-accent rounded-full"
           disabled={isUploading}

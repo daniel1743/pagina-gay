@@ -460,7 +460,7 @@ const BrazilLandingPage = () => {
             <li><strong>Totalmente grátis</strong> - Não pedimos cartão nem pagamentos ocultos</li>
             <li><strong>Anônimo e seguro</strong> - Sua privacidade é nossa prioridade</li>
             <li><strong>Sem downloads</strong> - Funciona direto no seu navegador</li>
-            <li><strong>Comunidade respeitosa</strong> - Moderação ativa 24/7</li>
+            <li><strong>Comunidade respeitosa</strong> - Controles contra spam e assédio</li>
           </ul>
 
           <h3 style={{

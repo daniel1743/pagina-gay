@@ -1,8 +1,4 @@
-import { startAITrace, finishAITrace, failAITrace } from '@/utils/runtimeDiagnostics';
 
-const DEEPSEEK_API_KEY = import.meta.env.VITE_DEEPSEEK_API_KEY;
-const DEEPSEEK_URL = 'https://api.deepseek.com/v1/chat/completions';
-const DEEPSEEK_MODEL = import.meta.env.VITE_DEEPSEEK_MODEL || 'deepseek-chat';
 
 const CONTACT_ESCAPE_REGEX = /\b(whatsapp|wsp|wapp|telegram|signal|discord|instagram|ig\b|teams|gmail|hotmail|outlook|correo|numero|n[uú]mero|celu|celular)\b|[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}/i;
 const MINOR_RISK_REGEX = /\b(soy menor|menor de edad|tengo\s*(1[0-7])\b|(1[0-7])\s*a[nñ]os\b|31 al rev[eé]s|-8 a[nñ]os)\b/i;
@@ -105,12 +101,10 @@ function buildActivityLevel(totalMessages, totalUsers) {
   return 'baja';
 }
 
-function jsonFence(value = '') {
-  return String(value || '').replace(/```json/gi, '').replace(/```/g, '').trim();
-}
-
 export function isChactivoAssistantAvailable() {
-  return Boolean(DEEPSEEK_API_KEY);
+  // El frontend nunca debe leer ni transportar claves privadas de proveedores AI.
+  // El análisis disponible actualmente es local y determinista.
+  return false;
 }
 
 export function buildLocalChactivoAssistantInsight({
@@ -209,65 +203,8 @@ export function buildLocalChactivoAssistantInsight({
   };
 }
 
-export async function generateChactivoAssistantInsight({ roomId = 'principal', compactContext, question = '' }) {
-  if (!DEEPSEEK_API_KEY) throw new Error('DeepSeek no esta configurado en el frontend.');
-  const traceId = startAITrace({
-    source: 'chactivo_assistant',
-    provider: 'deepseek',
-    action: 'generate_insight',
-    meta: { roomId },
-  });
-
-  const systemPrompt = 'Eres Chactivo Assistant. Analizas salud operativa de una sala de chat para admin. Responde solo JSON valido con esquema {"summary":"","state":"active|mixed|fragile","healthScore":0-100,"topFindings":[""],"risks":[{"level":"critical|high|medium|low","title":"","detail":""}],"opportunities":[{"title":"","detail":""}],"nextActions":[""],"answerToQuestion":""}. No inventes datos ni propongas infraestructura cara.';
-  const userPrompt = ['Analiza este contexto resumido de Chactivo.', question ? `Pregunta puntual del admin: ${question}` : 'Pregunta puntual del admin: como estuvo la sala y que corregir primero.', '', compactContext].join('\n');
-
-  const controller = new AbortController();
-  const timeoutId = setTimeout(() => controller.abort(), 20000);
-
-  try {
-    const response = await fetch(DEEPSEEK_URL, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        Authorization: `Bearer ${DEEPSEEK_API_KEY}`,
-      },
-      body: JSON.stringify({
-        model: DEEPSEEK_MODEL,
-        messages: [
-          { role: 'system', content: systemPrompt },
-          { role: 'user', content: userPrompt },
-        ],
-        temperature: 0.2,
-        max_tokens: 900,
-      }),
-      signal: controller.signal,
-    });
-
-    clearTimeout(timeoutId);
-    if (!response.ok) throw new Error(`DeepSeek respondio ${response.status}`);
-
-    const data = await response.json();
-    const parsed = JSON.parse(jsonFence(data?.choices?.[0]?.message?.content || ''));
-    finishAITrace(traceId, {
-      summary: `Assistant respondió para ${roomId}`,
-      meta: { state: parsed?.state || 'mixed' },
-    });
-    return {
-      source: 'deepseek',
-      generatedAtIso: new Date().toISOString(),
-      roomId: parsed.roomId || roomId,
-      summary: String(parsed.summary || 'No hubo resumen util del modelo.'),
-      state: String(parsed.state || 'mixed'),
-      healthScore: Number.isFinite(Number(parsed.healthScore)) ? Number(parsed.healthScore) : null,
-      topFindings: Array.isArray(parsed.topFindings) ? parsed.topFindings.slice(0, 5).map(String) : [],
-      risks: Array.isArray(parsed.risks) ? parsed.risks.slice(0, 5).map((risk) => ({ level: String(risk?.level || 'medium'), title: String(risk?.title || 'Riesgo'), detail: String(risk?.detail || '') })) : [],
-      opportunities: Array.isArray(parsed.opportunities) ? parsed.opportunities.slice(0, 5).map((item) => ({ title: String(item?.title || 'Oportunidad'), detail: String(item?.detail || '') })) : [],
-      nextActions: Array.isArray(parsed.nextActions) ? parsed.nextActions.slice(0, 6).map(String) : [],
-      answerToQuestion: String(parsed.answerToQuestion || ''),
-    };
-  } catch (error) {
-    clearTimeout(timeoutId);
-    failAITrace(traceId, { error, meta: { roomId } });
-    throw error;
-  }
+export async function generateChactivoAssistantInsight() {
+  const error = new Error('El análisis remoto de IA está desactivado en el frontend. Usa el resumen local o un backend autorizado.');
+  error.code = 'REMOTE_ASSISTANT_DISABLED';
+  throw error;
 }

@@ -130,7 +130,7 @@ const LoginGate = ({ roomSlug }) => {
                   🏳️‍🌈 ¿Nuevo en Chactivo?
                 </span>
                 <br />
-                Crea tu cuenta gratis en 30 segundos. Sin datos personales, 100% anónimo.
+                Crea tu cuenta gratis en 30 segundos. Decide qué información compartir y usa un nombre público.
               </p>
             </div>
           </CardContent>

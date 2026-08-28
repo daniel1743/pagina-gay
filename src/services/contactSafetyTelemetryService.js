@@ -7,6 +7,7 @@ import {
   setDoc,
 } from 'firebase/firestore';
 import { db } from '@/config/firebase';
+import { supabase, isSupabaseAuthEnabled } from '@/config/supabase';
 import { track } from '@/services/eventTrackingService';
 
 const CONTACT_SAFETY_EVENT_COLLECTION = 'contactSafetyEvents';
@@ -62,6 +63,21 @@ export const recordContactSafetyEvent = async ({
   if (!userId || !eventType) return;
 
   const normalizedRiskDelta = Number.isFinite(Number(riskDelta)) ? Number(riskDelta) : 0;
+
+  if (isSupabaseAuthEnabled()) {
+    const { data, error } = await supabase.rpc('record_contact_safety_event', {
+      target_user_id: userId,
+      target_event_type: eventType,
+      target_surface: surface,
+      target_blocked_type: blockedType,
+      target_risk_delta: normalizedRiskDelta,
+      target_chat_id: chatId || null,
+      target_metadata: metadata && typeof metadata === 'object' ? metadata : {},
+    });
+    if (error) console.warn('[CONTACT_SAFETY] No se pudo guardar telemetría Supabase:', error.message);
+    await track('contact_safety_event', { event_type: eventType, surface, blocked_type: blockedType, risk_delta: normalizedRiskDelta, chat_id: chatId || null }, { user: { id: userId } });
+    return data;
+  }
 
   const payload = {
     userId,

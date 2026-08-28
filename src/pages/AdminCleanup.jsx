@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { collection, getDocs, deleteDoc, doc } from 'firebase/firestore';
 import { db } from '@/config/firebase';
+import { isSupabaseAuthEnabled } from '@/config/supabase';
 
 const PROHIBITED_PATTERNS = [
   'wn y cuando',
@@ -39,6 +40,13 @@ const ROOMS = [
 ];
 
 const AdminCleanup = () => {
+  if (isSupabaseAuthEnabled()) {
+    return (
+      <div className="mx-auto max-w-2xl p-8 text-center text-slate-600">
+        La limpieza administrativa histórica de Firebase está desactivada en modo Supabase.
+      </div>
+    );
+  }
   const [cleaning, setCleaning] = useState(false);
   const [progress, setProgress] = useState('');
   const [stats, setStats] = useState(null);

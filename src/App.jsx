@@ -18,14 +18,14 @@ import ErrorBoundary from '@/components/ui/ErrorBoundary';
 import { useVersionChecker } from '@/hooks/useVersionChecker';
 import { useSessionTracking } from '@/hooks/useSessionTracking';
 import { subscribeToUserRewards, REWARD_TYPES } from '@/services/rewardsService';
+import { isSupabaseAuthEnabled } from '@/config/supabase';
 import { arrayUnion, doc, getDoc, serverTimestamp, updateDoc } from 'firebase/firestore';
 import { db } from '@/config/firebase';
 import PerformanceSummaryButton from '@/components/PerformanceSummaryButton'; // 📊 Performance Monitor Button
-import GlobalLandingPage from '@/pages/GlobalLandingPage'; // Landing principal - crítica para SEO
 import ChatBottomNav from '@/components/chat/ChatBottomNav';
 
 // 🚀 SEO LANDING MINIMALISTA - 1 segundo y redirige al chat
-import SEOLanding, {
+import {
   SEOLandingHome,
   SEOLandingChile,
   SEOLandingArgentina,
@@ -39,7 +39,7 @@ import SEOLanding, {
   SEOLandingSaoPaulo
 } from '@/components/seo/SEOLanding';
 import NoindexRouteNotice from '@/components/seo/NoindexRouteNotice';
-import { ENABLE_BAUL } from '@/config/featureFlags';
+import NoindexMeta from '@/components/seo/NoindexMeta';
 
 // ⚡ CODE SPLITTING - Lazy loading de páginas (reducción de 80% del bundle inicial)
 // Estas páginas se cargan solo cuando el usuario navega a ellas
@@ -56,10 +56,7 @@ const AnonymousChatPage = lazy(() => import('@/pages/AnonymousChatPage'));
 const ThreadDetailPage = lazy(() => import('@/pages/ThreadDetailPage'));
 const Mas30LandingPage = lazy(() => import('@/pages/Mas30LandingPage'));
 const SantiagoLandingPage = lazy(() => import('@/pages/SantiagoLandingPage'));
-const SpainLandingPage = lazy(() => import('@/pages/SpainLandingPage'));
-const BrazilLandingPage = lazy(() => import('@/pages/BrazilLandingPage'));
-const MexicoLandingPage = lazy(() => import('@/pages/MexicoLandingPage'));
-const ArgentinaLandingPage = lazy(() => import('@/pages/ArgentinaLandingPage'));
+const GlobalLandingPage = lazy(() => import('@/pages/GlobalLandingPage'));
 const TestLandingPage = lazy(() => import('@/pages/TestLandingPage'));
 const TestModalPage = lazy(() => import('@/pages/TestModalPage'));
 const FAQPage = lazy(() => import('@/pages/FAQPage'));
@@ -205,7 +202,7 @@ function RewardInboxListener() {
   const seenInProfileRef = useRef(new Set());
 
   useEffect(() => {
-    if (!user?.id || user?.isGuest || user?.isAnonymous) {
+    if (isSupabaseAuthEnabled() || !user?.id || user?.isGuest || user?.isAnonymous) {
       seenInProfileRef.current = new Set();
       return;
     }
@@ -233,7 +230,7 @@ function RewardInboxListener() {
   }, [user?.id, user?.isGuest, user?.isAnonymous]);
 
   useEffect(() => {
-    if (!user?.id || user?.isGuest || user?.isAnonymous) {
+    if (isSupabaseAuthEnabled() || !user?.id || user?.isGuest || user?.isAnonymous) {
       setPendingRewards([]);
       setCurrentReward(null);
       return () => {};
@@ -306,12 +303,14 @@ function RewardInboxListener() {
     }
 
     // Persistencia robusta: guardar también en perfil del usuario (evita re-show tras limpieza de cache/localStorage)
-    updateDoc(doc(db, 'users', user.id), {
-      rewardModalSeenIds: arrayUnion(currentReward.id),
-      rewardModalSeenUpdatedAt: serverTimestamp(),
-    }).catch((error) => {
-      console.warn('[REWARDS] No se pudo persistir rewardModalSeenIds en perfil:', error?.message || error);
-    });
+    if (!isSupabaseAuthEnabled()) {
+      updateDoc(doc(db, 'users', user.id), {
+        rewardModalSeenIds: arrayUnion(currentReward.id),
+        rewardModalSeenUpdatedAt: serverTimestamp(),
+      }).catch((error) => {
+        console.warn('[REWARDS] No se pudo persistir rewardModalSeenIds en perfil:', error?.message || error);
+      });
+    }
     seenInProfileRef.current.add(currentReward.id);
 
     // Refrescar perfil para que se muestren arcoíris, badge, segunda foto, etc.
@@ -334,6 +333,8 @@ function RewardInboxListener() {
 
 // ✅ Componente de rutas que está dentro del AuthProvider
 function AppRoutes() {
+  const isDevelopment = import.meta.env.DEV;
+
   return (
     <Router
       future={{
@@ -344,10 +345,13 @@ function AppRoutes() {
       {/* ⚡ SUSPENSE: Maneja la carga de componentes lazy */}
       <Suspense fallback={<PageLoader />}>
         <Routes>
-        {/* 🧪 PÁGINA DE PRUEBA - SIN wrappers (funciona correctamente) */}
-        <Route path="/test" element={<TestLandingPage />} />
-        {/* 🧪 MODAL DE PRUEBA - Solo modal de nickname */}
-        <Route path="/test-modal" element={<TestModalPage />} />
+        {/* 🧪 Herramientas de prueba solo para desarrollo; nunca se exponen en producción. */}
+        {isDevelopment && (
+          <>
+            <Route path="/test" element={<TestLandingPage />} />
+            <Route path="/test-modal" element={<TestModalPage />} />
+          </>
+        )}
         
         {/* 🚀 SEO LANDING MINIMALISTA - Google indexa, usuario ve 1 segundo y entra al chat */}
 
@@ -392,7 +396,7 @@ function AppRoutes() {
         <Route path="/es/madrid" element={<SEOLandingMadrid />} />
         <Route path="/modal-es" element={<Navigate to="/es" replace />} />
         <Route path="/modal-es/" element={<Navigate to="/es" replace />} />
-        <Route path="/es-test" element={<SEOLandingEspana />} />
+        {isDevelopment && <Route path="/es-test" element={<SEOLandingEspana />} />}
 
         {/* Trailing slashes - redirigen a la landing correspondiente */}
         <Route path="/es/" element={<SEOLandingEspana />} />
@@ -606,23 +610,25 @@ function AppRoutes() {
         <Route path="/anonymous-forum/" element={<Navigate to="/chat/principal" replace />} />
         <Route path="/foro-gay" element={<Navigate to="/chat/principal" replace />} />
         <Route path="/foro-gay/" element={<Navigate to="/chat/principal" replace />} />
-        <Route path="/thread/:threadId" element={<MainLayout><ThreadDetailPage /></MainLayout>} />
+        <Route path="/thread/:threadId" element={<NoindexMeta><MainLayout><ThreadDetailPage /></MainLayout></NoindexMeta>} />
 
         {/* 🎯 BAÚL - Página independiente */}
-        <Route path="/baul" element={ENABLE_BAUL ? <MainLayout><BaulPage /></MainLayout> : <Navigate to="/chat/principal" replace />} />
+        <Route path="/baul" element={<MainLayout><BaulPage /></MainLayout>} />
 
         {/* 🎯 OPIN - Discovery Wall */}
-        <Route path="/opin" element={<OpinLayout><OpinFeedPage /></OpinLayout>} />
+        <Route path="/opin" element={<NoindexMeta><OpinLayout><OpinFeedPage /></OpinLayout></NoindexMeta>} />
         <Route
           path="/opin/new"
           element={
-            <PrivateRoute>
-              <MainLayout><OpinComposerPage /></MainLayout>
-            </PrivateRoute>
+            <NoindexMeta>
+              <PrivateRoute>
+                <MainLayout><OpinComposerPage /></MainLayout>
+              </PrivateRoute>
+            </NoindexMeta>
           }
         />
 
-        <Route path="/profile/:userId" element={<MainLayout><ProfileViewPage /></MainLayout>} />
+        <Route path="/profile/:userId" element={<NoindexMeta><MainLayout><ProfileViewPage /></MainLayout></NoindexMeta>} />
         <Route
           path="/profile"
           element={

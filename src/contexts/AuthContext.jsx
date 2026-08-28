@@ -9,7 +9,7 @@ import {
   EmailAuthProvider,
   linkWithCredential,
 } from 'firebase/auth';
-import { auth } from '@/config/firebase';
+import { auth, db, isFirebaseConfigured } from '@/config/firebase';
 import {
   createUserProfile,
   getUserProfile,
@@ -20,7 +20,6 @@ import {
   upgradeToPremium as upgradeToPremiumService,
 } from '@/services/userService';
 import { doc, getDoc, setDoc, onSnapshot } from 'firebase/firestore';
-import { db } from '@/config/firebase';
 import { toast } from '@/components/ui/use-toast';
 import { trackUserRegister, trackUserLogin } from '@/services/eventTrackingService';
 import { recordUserConnection, checkVerificationMaintenance } from '@/services/verificationService';
@@ -37,6 +36,9 @@ import {
   hasGuestIdentity,
 } from '@/utils/guestIdentity';
 import { crearTarjetaAutomatica } from '@/services/tarjetaService';
+import { ENABLE_BAUL } from '@/config/featureFlags';
+import { isSupabaseAuthEnabled } from '@/config/supabase';
+import { SupabaseAuthProvider } from './SupabaseAuthProvider';
 import { removeRewardFromUser, REWARD_TYPES } from '@/services/rewardsService';
 import { resolveProfileRole } from '@/config/profileRoles';
 import { ONBOARDING_COMUNA_KEY, normalizeComuna } from '@/config/comunas';
@@ -253,6 +255,12 @@ const DEFAULT_AUTH_CONTEXT = {
   restoreAdminIdentity: async () => false,
 };
 
+const FIREBASE_DISABLED_CONTEXT = Object.freeze({
+  ...DEFAULT_AUTH_CONTEXT,
+  loading: false,
+  authReady: false,
+});
+
 export const AuthContext = createContext(DEFAULT_AUTH_CONTEXT);
 
 export const useAuth = () => {
@@ -260,7 +268,7 @@ export const useAuth = () => {
   return context || DEFAULT_AUTH_CONTEXT;
 };
 
-export const AuthProvider = ({ children }) => {
+const FirebaseAuthProvider = ({ children }) => {
   const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(true);
   const [authReady, setAuthReady] = useState(false);
@@ -642,6 +650,7 @@ export const AuthProvider = ({ children }) => {
 
   // ✅ BAÚL: Crear tarjeta automática solo para usuarios REGISTRADOS con auth lista
   useEffect(() => {
+    if (!ENABLE_BAUL) return;
     if (!authReady || !user?.id) return;
     if (user.isGuest || user.isAnonymous) return;
     if (!auth.currentUser?.uid || auth.currentUser.uid !== user.id) return;
@@ -682,7 +691,8 @@ export const AuthProvider = ({ children }) => {
     user?.canUploadSecondPhoto,
     user?.hasFeaturedCard,
     user?.hasRainbowBorder,
-    user?.hasProBadge
+    user?.hasProBadge,
+    ENABLE_BAUL,
   ]);
 
   // 🔄 Sincronizar perfil en tiempo real (premios PRO, verificación, premium, etc.)
@@ -1466,4 +1476,20 @@ export const AuthProvider = ({ children }) => {
       {children}
     </AuthContext.Provider>
   );
+};
+
+const FirebaseDisabledProvider = ({ children }) => (
+  <AuthContext.Provider value={FIREBASE_DISABLED_CONTEXT}>
+    {children}
+  </AuthContext.Provider>
+);
+
+export const AuthProvider = ({ children }) => {
+  if (isSupabaseAuthEnabled()) {
+    return <SupabaseAuthProvider>{children}</SupabaseAuthProvider>;
+  }
+  if (!isFirebaseConfigured) {
+    return <FirebaseDisabledProvider>{children}</FirebaseDisabledProvider>;
+  }
+  return <FirebaseAuthProvider>{children}</FirebaseAuthProvider>;
 };

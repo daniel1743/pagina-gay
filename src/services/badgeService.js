@@ -14,6 +14,7 @@
 
 import { doc, getDoc, updateDoc, increment as firestoreIncrement } from 'firebase/firestore';
 import { db } from '@/config/firebase';
+import { supabase, isSupabaseAuthEnabled } from '@/config/supabase';
 
 // ═══════════════════════════════════════════════════════════════════
 // DEFINICIÓN DE BADGES
@@ -58,6 +59,15 @@ const badgeCache = new Map();
  */
 export async function getUserBadge(userId) {
   if (!userId) return 'Nuevo';
+  if (isSupabaseAuthEnabled()) {
+    const cached = badgeCache.get(userId);
+    if (cached && (Date.now() - cached._at) < 300_000) return cached.badge;
+    try {
+      const { data, error } = await supabase.from('profiles').select('badge').eq('id', userId).maybeSingle();
+      if (error) throw error;
+      const badge = data?.badge || 'Nuevo'; badgeCache.set(userId, { badge, _at: Date.now() }); return badge;
+    } catch (err) { console.warn('[BADGE] Error leyendo badge Supabase:', err.message); return 'Nuevo'; }
+  }
 
   // Cache local
   const cached = badgeCache.get(userId);
@@ -84,6 +94,13 @@ export async function getUserBadge(userId) {
  */
 export async function incrementEventosParticipados(userId) {
   if (!userId) return;
+  if (isSupabaseAuthEnabled()) {
+    try {
+      const { data, error } = await supabase.rpc('increment_my_event_participation');
+      if (error) throw error;
+      const badge = data || 'Nuevo'; badgeCache.set(userId, { badge, _at: Date.now() }); return badge;
+    } catch (err) { console.warn('[BADGE] Error incrementando en Supabase:', err.message); return 'Nuevo'; }
+  }
 
   try {
     const userRef = doc(db, 'users', userId);

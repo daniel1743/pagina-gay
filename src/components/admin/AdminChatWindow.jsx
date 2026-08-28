@@ -8,12 +8,20 @@ import { db } from '@/config/firebase';
 import { useAuth } from '@/contexts/AuthContext';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { createSystemNotification, NOTIFICATION_TYPES } from '@/services/systemNotificationsService';
+import { isSupabaseAuthEnabled } from '@/config/supabase';
 
 /**
  * Componente de chat tipo WhatsApp para administradores
  * Permite chatear directamente con usuarios que han reportado casos
  */
 const AdminChatWindow = ({ isOpen, onClose, targetUserId, targetUsername, targetAvatar, reportId }) => {
+  if (isSupabaseAuthEnabled()) {
+    return isOpen ? (
+      <div className="rounded-2xl border border-slate-200 bg-white p-4 text-sm text-slate-600">
+        El chat administrativo histórico está desactivado en modo Supabase.
+      </div>
+    ) : null;
+  }
   const { user } = useAuth();
   const [messages, setMessages] = useState([]);
   const [newMessage, setNewMessage] = useState('');

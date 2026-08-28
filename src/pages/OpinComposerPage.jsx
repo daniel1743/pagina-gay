@@ -17,6 +17,8 @@ import {
   getMyActiveOpinIntent,
   deleteOpinPost,
 } from '@/services/opinService';
+import { actualizarTarjeta } from '@/services/tarjetaService';
+import { ENABLE_BAUL } from '@/config/featureFlags';
 import { toast } from '@/components/ui/use-toast';
 import { sanitizeOpinPublicText } from '@/services/opinSafetyService';
 
@@ -39,6 +41,7 @@ const OpinComposerPage = () => {
   const [loadingExisting, setLoadingExisting] = useState(false);
   const [activeIntentToReplace, setActiveIntentToReplace] = useState(null);
   const [replacingIntent, setReplacingIntent] = useState(false);
+  const [publishToBaul, setPublishToBaul] = useState(false);
   const isEditing = Boolean(editingPostId);
 
   const charCount = text.length;
@@ -154,6 +157,25 @@ const OpinComposerPage = () => {
           },
         });
         toast({ description: 'Intención abierta' });
+      }
+
+      if (ENABLE_BAUL && publishToBaul) {
+        const currentUserId = user?.id || user?.uid || null;
+        const intentByType = { crush: 'conversar', encuentro: 'cita', amistad: 'amistad' };
+        const baulUpdated = currentUserId
+          ? await actualizarTarjeta(currentUserId, {
+              intencion: intentByType[type] || 'conversar',
+              intencionFrase: text.trim(),
+              intencionExpiracion: new Date(Date.now() + 48 * 60 * 60 * 1000),
+              comuna: userProfile?.comuna || userProfile?.ubicacionTexto || '',
+              ubicacionTexto: userProfile?.comuna || userProfile?.ubicacionTexto || '',
+              ubicacion: null,
+              ubicacionActiva: false,
+            })
+          : false;
+        if (!baulUpdated) {
+          toast({ description: 'La intención se publicó en OPIN, pero no pudo reflejarse en Baúl.', variant: 'destructive' });
+        }
       }
 
       const currentUserId = user?.id || user?.uid || null;
@@ -303,6 +325,21 @@ const OpinComposerPage = () => {
             {/* Indicador de color */}
             <div className={`absolute left-0 top-0 bottom-0 w-1 rounded-full bg-gradient-to-b ${colorConfig.gradient}`} />
           </div>
+
+          {ENABLE_BAUL && !isEditing && (
+            <label className="mx-4 flex items-start gap-3 rounded-2xl border border-cyan-500/20 bg-cyan-500/5 p-4 cursor-pointer">
+              <input
+                type="checkbox"
+                checked={publishToBaul}
+                onChange={(e) => setPublishToBaul(e.target.checked)}
+                className="mt-1 accent-cyan-500"
+              />
+              <span>
+                <span className="block text-sm font-semibold text-cyan-100">Mostrar también en Baúl</span>
+                <span className="block mt-1 text-xs text-muted-foreground">Crea una intención temporal con esta frase durante 48 horas. Puedes editarla o quitarla desde Baúl.</span>
+              </span>
+            </label>
+          )}
 
           {/* Selector de Categoría / Tipo */}
           <div className="px-4 space-y-2">

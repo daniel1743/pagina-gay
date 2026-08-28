@@ -2,7 +2,7 @@
 
 ## ✅ Credenciales Configuradas
 
-Las credenciales de Supabase han sido configuradas en el archivo `.env`.
+La rama no contiene un archivo `.env` local. Las credenciales deben existir únicamente en el entorno de ejecución correspondiente y nunca deben copiarse en esta documentación.
 
 ---
 
@@ -218,8 +218,8 @@ CREATE POLICY "Users can update own avatar"
 3. Agrega estas variables:
 
 ```
-VITE_SUPABASE_URL = https://xlnwpixqkjcozkqgoutf.supabase.co
-VITE_SUPABASE_ANON_KEY = eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InhsbndwaXhxa2pjb3prcWdvdXRmIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Njc3NDQ3MDMsImV4cCI6MjA4MzMyMDcwM30.FojzbtBDvQSXq9E7PXiw8fXgiX_ena96JlyZxxffHn8
+VITE_SUPABASE_URL = <configurada-en-entorno>
+VITE_SUPABASE_ANON_KEY = <configurada-en-entorno>
 ```
 
 **⚠️ IMPORTANTE:**
@@ -239,10 +239,11 @@ Después de configurar, verifica que las variables estén disponibles:
 
 ### 3.1 Archivo .env
 
-El archivo `.env` ya está configurado con:
+El archivo `.env` no está incluido en esta rama. Configura estas variables solo en el entorno local o en Vercel, sin subirlas a Git:
 ```env
-VITE_SUPABASE_URL=https://xlnwpixqkjcozkqgoutf.supabase.co
-VITE_SUPABASE_ANON_KEY=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InhsbndwaXhxa2pjb3prcWdvdXRmIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Njc3NDQ3MDMsImV4cCI6MjA4MzMyMDcwM30.FojzbtBDvQSXq9E7PXiw8fXgiX_ena96JlyZxxffHn8
+VITE_ENABLE_SUPABASE=true
+VITE_SUPABASE_URL=<URL-del-proyecto>
+VITE_SUPABASE_ANON_KEY=<clave-publicable>
 ```
 
 ### 3.2 Probar Conexión
@@ -325,6 +326,6 @@ Una vez completada la configuración:
 
 ---
 
-**✅ Estado:** Credenciales configuradas - Listo para usar Supabase
+**Estado actual:** documentación histórica corregida; el cliente y el esquema Supabase aún requieren integración y verificación controlada.
 
 

@@ -13,6 +13,7 @@ import {
   writeBatch,
 } from 'firebase/firestore';
 import { db } from '@/config/firebase';
+import { supabase, isSupabaseAuthEnabled } from '@/config/supabase';
 
 const TOP_PARTICIPANTS_COLLECTION = 'featured_participants';
 const PUBLIC_USER_PROFILES_COLLECTION = 'public_user_profiles';
@@ -49,6 +50,26 @@ const normalizeParticipant = (docSnap) => {
     source: data.source || 'manual',
     updatedAt: data.updatedAt || null,
   };
+};
+
+const fetchSupabaseTopParticipants = async (roomId = 'principal') => {
+  const cutoff = new Date(Date.now() - RECENT_MESSAGE_WINDOW_MS).toISOString();
+  const [profilesResult, messagesResult, presenceResult] = await Promise.all([
+    supabase.from('profiles').select('id,username,avatar_url,is_premium,verified').eq('profile_visible', true).eq('is_guest', false).limit(200),
+    supabase.from('messages').select('author_id,created_at').eq('room_id', roomId).is('deleted_at', null).gte('created_at', cutoff).limit(FALLBACK_MESSAGES_LIMIT),
+    supabase.from('room_presence').select('user_id,is_online,last_seen_at').eq('room_id', roomId).eq('is_online', true).gte('last_seen_at', new Date(Date.now() - ROOM_ACTIVE_THRESHOLD_MS).toISOString()).limit(200),
+  ]);
+  const error = profilesResult.error || messagesResult.error || presenceResult.error;
+  if (error) throw error;
+  const profiles = new Map((profilesResult.data || []).map((profile) => [profile.id, profile]));
+  const counts = new Map();
+  (messagesResult.data || []).forEach((message) => counts.set(message.author_id, (counts.get(message.author_id) || 0) + 1));
+  const active = new Set((presenceResult.data || []).map((row) => row.user_id));
+  return sortLiveParticipantsForDisplay([...new Set([...counts.keys(), ...active])].map((userId) => {
+    const profile = profiles.get(userId); if (!profile) return null;
+    const messagesCount = counts.get(userId) || 0;
+    return { id: userId, userId, username: profile.username || 'Usuario', avatar: profile.avatar_url || '', isActive: active.has(userId), sortOrder: 9999, pinnedRank: null, blurEnabled: null, messagesCount, threadsCount: 0, repliesCount: 0, totalActiveTime: 0, activityScore: messagesCount, source: 'supabase_room_activity', lastMessageAtMs: null, lastPresenceAtMs: null, isPremium: Boolean(profile.is_premium), verified: Boolean(profile.verified), updatedAt: new Date().toISOString() };
+  }).filter(Boolean)).slice(0, AUTO_TOP_LIMIT);
 };
 
 const sortForDisplay = (participants) => {
@@ -437,6 +458,14 @@ export const subscribeTopParticipantsPublic = (onUpdate, onError) => {
     throw new Error('subscribeTopParticipantsPublic requiere callback.');
   }
 
+  if (isSupabaseAuthEnabled()) {
+    let active = true;
+    const load = async () => { try { const ranking = await fetchSupabaseTopParticipants('principal'); if (active) onUpdate(ranking); } catch (error) { onError?.(error); if (active) onUpdate([]); } };
+    void load();
+    const channel = supabase.channel('top-participants-public').on('postgres_changes', { event: '*', schema: 'public', table: 'messages', filter: 'room_id=eq.principal' }, () => { void load(); }).on('postgres_changes', { event: '*', schema: 'public', table: 'room_presence', filter: 'room_id=eq.principal' }, () => { void load(); }).subscribe();
+    return () => { active = false; void supabase.removeChannel(channel); };
+  }
+
   const participantsRef = collection(db, TOP_PARTICIPANTS_COLLECTION);
   const participantsQuery = query(participantsRef, orderBy('sortOrder', 'asc'));
 
@@ -474,6 +503,15 @@ export const subscribeRealtimeTopParticipants = (
 ) => {
   if (typeof onUpdate !== 'function') {
     throw new Error('subscribeRealtimeTopParticipants requiere callback.');
+  }
+
+  if (isSupabaseAuthEnabled()) {
+    let active = true;
+    const effectiveRoom = options?.isSecondaryRoom ? 'principal' : roomId || 'principal';
+    const load = async () => { try { const ranking = await fetchSupabaseTopParticipants(effectiveRoom); if (active) onUpdate(ranking); } catch (error) { onError?.(error); if (active) onUpdate([]); } };
+    void load();
+    const channel = supabase.channel(`top-participants:${effectiveRoom}`).on('postgres_changes', { event: '*', schema: 'public', table: 'messages', filter: `room_id=eq.${effectiveRoom}` }, () => { void load(); }).on('postgres_changes', { event: '*', schema: 'public', table: 'room_presence', filter: `room_id=eq.${effectiveRoom}` }, () => { void load(); }).subscribe();
+    return () => { active = false; void supabase.removeChannel(channel); };
   }
 
   const fallbackRoomId = options?.isSecondaryRoom ? 'principal' : roomId || 'principal';

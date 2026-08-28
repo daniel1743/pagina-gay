@@ -10,6 +10,7 @@ import {
 import { useAuth } from '@/contexts/AuthContext';
 import { Button } from '@/components/ui/button';
 import { toast } from '@/components/ui/use-toast';
+import { isSupabaseAuthEnabled } from '@/config/supabase';
 import { collection, query, orderBy, onSnapshot, doc, updateDoc, getDoc, limit } from 'firebase/firestore';
 import { db } from '@/config/firebase';
 import {
@@ -30,7 +31,6 @@ import ActiveUsersCounter from '@/components/admin/ActiveUsersCounter';
 import TimeDistributionChart from '@/components/admin/TimeDistributionChart';
 import TrafficSourcesChart from '@/components/admin/TrafficSourcesChart';
 import ModerationAlerts from '@/components/admin/ModerationAlerts';
-import MessageGenerator from '@/components/admin/MessageGenerator';
 import ConversionFunnelPanel from '@/components/admin/ConversionFunnelPanel';
 import AdminFeaturePulsePanel from '@/components/admin/AdminFeaturePulsePanel';
 import { 
@@ -79,7 +79,6 @@ import {
   deleteReplyAsAdmin,
   getReplies
 } from '@/services/forumService';
-import OpinStablesPanel from '@/components/admin/OpinStablesPanel';
 import AdminOpinRepliesPanel from '@/components/admin/AdminOpinRepliesPanel';
 import AdminEventosPanel from '@/components/admin/AdminEventosPanel';
 import AdminFeaturedAdsPanel from '@/components/admin/AdminFeaturedAdsPanel';
@@ -88,6 +87,13 @@ import AdminRoomHistoryPanel from '@/components/admin/AdminRoomHistoryPanel';
 import AdminAIInsightsPanel from '@/components/admin/AdminAIInsightsPanel';
 
 const AdminPage = () => {
+  if (isSupabaseAuthEnabled()) {
+    return (
+      <div className="mx-auto max-w-2xl p-8 text-center text-slate-600">
+        El panel administrativo histórico está temporalmente desactivado en modo Supabase hasta completar su adapter seguro.
+      </div>
+    );
+  }
   const navigate = useNavigate();
   const { user, switchToGenericIdentity } = useAuth();
   const [reports, setReports] = useState([]);
@@ -1026,14 +1032,12 @@ const AdminPage = () => {
             <TabsTrigger value="featured-ads">Canales Destacados</TabsTrigger>
             <TabsTrigger value="top-participants">Top Participantes</TabsTrigger>
             <TabsTrigger value="forum">Foro</TabsTrigger>
-            <TabsTrigger value="opin">OPIN estables</TabsTrigger>
             <TabsTrigger value="opin-replies">Responder OPINs</TabsTrigger>
             <TabsTrigger value="notifications">Notificaciones</TabsTrigger>
             <TabsTrigger value="analytics">Analytics</TabsTrigger>
             <TabsTrigger value="historial-sala">Historial Sala</TabsTrigger>
             <TabsTrigger value="ai-insights">Chactivo Assistant</TabsTrigger>
             <TabsTrigger value="moderation">Moderación</TabsTrigger>
-            <TabsTrigger value="generator">Generador</TabsTrigger>
             <TabsTrigger value="eventos">Eventos</TabsTrigger>
           </TabsList>
 
@@ -2557,11 +2561,6 @@ const AdminPage = () => {
             </motion.div>
           </TabsContent>
 
-          {/* OPIN estables Tab */}
-          <TabsContent value="opin" className="space-y-6">
-            <OpinStablesPanel />
-          </TabsContent>
-
           {/* Responder OPINs Tab */}
           <TabsContent value="opin-replies" className="space-y-6">
             <AdminOpinRepliesPanel />
@@ -3141,11 +3140,6 @@ const AdminPage = () => {
               </div>
               <ModerationAlerts />
             </motion.div>
-          </TabsContent>
-
-          {/* Generador de Mensajes */}
-          <TabsContent value="generator" className="space-y-6">
-            <MessageGenerator />
           </TabsContent>
 
           <TabsContent value="eventos" className="space-y-6">

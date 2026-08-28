@@ -5,18 +5,18 @@
 
 export const LANDING_CAPTURE_MESSAGES = [
   {
-    id: 'social-proof',
-    icon: '🔥',
-    title: 'Chat activo ahora',
-    description: '150+ personas conectadas • Gente real',
-    highlight: 'actividad en tiempo real'
+    id: 'community',
+    icon: '💬',
+    title: 'Conversación comunitaria',
+    description: 'Revisa las salas y participa cuando quieras',
+    highlight: 'entrada directa'
   },
   {
     id: 'privacy',
     icon: '🔒',
-    title: '100% Privado y Anónimo',
-    description: 'No guardamos datos • Sal cuando quieras',
-    highlight: 'privacidad total'
+    title: 'Comparte solo lo necesario',
+    description: 'Revisa las normas y controla la información que publicas',
+    highlight: 'privacidad clara'
   },
   {
     id: 'simplicity',
@@ -26,11 +26,11 @@ export const LANDING_CAPTURE_MESSAGES = [
     highlight: 'entrada rápida'
   },
   {
-    id: 'exclusivity',
-    icon: '💜',
-    title: 'Comunidad Emergente de Alta Calidad',
-    description: 'En camino a ser #1 en Chile y el mundo',
-    highlight: 'exclusividad'
+    id: 'guidelines',
+    icon: '🛡️',
+    title: 'Espacio con reglas claras',
+    description: 'Sin bots que aparenten ser personas y con controles contra spam',
+    highlight: 'confianza'
   }
 ];
 

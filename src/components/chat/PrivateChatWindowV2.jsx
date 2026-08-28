@@ -1,9 +1,9 @@
-import React, { useEffect, useMemo, useRef, useState, lazy, Suspense } from 'react';
+import React, { useEffect, useMemo, useRef, useState, useCallback, lazy, Suspense } from 'react';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { toast } from '@/components/ui/use-toast';
-import { db, storage } from '@/config/firebase';
+import { db } from '@/config/firebase';
 import {
   collection,
   query,
@@ -21,7 +21,6 @@ import {
   setDoc,
   updateDoc,
 } from 'firebase/firestore';
-import { ref as storageRef, uploadBytes, getDownloadURL } from 'firebase/storage';
 import imageCompression from 'browser-image-compression';
 import { Check, CheckCheck, Clock, CornerUpLeft, ImagePlus, Minus, Send, Smile, X } from 'lucide-react';
 import { EmojiStyle, Categories } from 'emoji-picker-react';
@@ -32,15 +31,26 @@ import {
   sendRichPrivateChatMessage,
   subscribeToPrivateChatTyping,
   updatePrivateChatTypingStatus,
+  subscribeToPrivateChatMessages,
+  getPrivateChatMessagesBefore,
+  getPrivateChatConversation,
+  markIncomingMessagesStatus as markSupabaseIncomingMessagesStatus,
 } from '@/services/socialService';
 import { getPrivateChatSharedContacts } from '@/services/secureUserDataService';
 import { notificationSounds } from '@/services/notificationSounds';
 import { savePendingPrivateChatRestore } from '@/utils/privateChatRestore';
 import { ENABLE_PRIVATE_TYPING } from '@/config/featureFlags';
+import { getSafeAvatarSrc } from '@/utils/avatar';
+import { isSupabaseAuthEnabled } from '@/config/supabase';
+import { uploadPrivateChatPhotoToSupabase } from '@/services/supabaseMediaService';
+import { getSupabaseProfile } from '@/services/supabaseProfileService';
+import { getPrivateContactState } from '@/services/supabasePrivateChatService';
+import { refreshSignedMediaUrl } from '@/services/supabaseMediaService';
 
 const EmojiPicker = lazy(() => import('emoji-picker-react'));
 
 const PHOTO_MAX_SIZE_BYTES = 140 * 1024;
+const ALLOWED_PRIVATE_IMAGE_TYPES = new Set(['image/jpeg', 'image/png', 'image/webp']);
 const RECENT_EMOJIS_STORAGE_KEY = 'private_chat_v2_recent_emojis';
 const INITIAL_PRIVATE_MESSAGES_LIMIT = 40;
 const PRIVATE_HISTORY_PAGE_SIZE = 40;
@@ -140,14 +150,6 @@ const buildReplyPayload = (message, fallbackUsername = 'Usuario') => ({
   type: message?.type || 'text',
 });
 
-const getImageExtension = (contentType = '') => {
-  if (contentType.includes('png')) return 'png';
-  if (contentType.includes('webp')) return 'webp';
-  if (contentType.includes('heic')) return 'heic';
-  if (contentType.includes('heif')) return 'heif';
-  return 'jpg';
-};
-
 const TypingDots = () => (
   <div className="inline-flex items-center gap-1">
     <span className="h-2 w-2 animate-bounce rounded-full bg-slate-400 [animation-delay:-0.2s]" />
@@ -230,6 +232,33 @@ export default function PrivateChatWindowV2({
   const [contactShareNowMs, setContactShareNowMs] = useState(() => Date.now());
   const [isContactGuideDismissed, setIsContactGuideDismissed] = useState(false);
   const [minimizedPosition, setMinimizedPosition] = useState(null);
+  const [publicPartnerIdentity, setPublicPartnerIdentity] = useState(null);
+  const [unavailablePrivateImages, setUnavailablePrivateImages] = useState(() => new Set());
+  const [privateImageUrls, setPrivateImageUrls] = useState(() => new Map());
+  const privateImageRetriesRef = useRef(new Set());
+
+  const handlePrivateImageError = useCallback(async (message, messageKey) => {
+    if (!messageKey || privateImageRetriesRef.current.has(messageKey)) {
+      setUnavailablePrivateImages((previous) => new Set([...previous, messageKey]));
+      return;
+    }
+    if (!isSupabaseAuthEnabled() || !message?.mediaPath || !message?.mediaBucket) {
+      setUnavailablePrivateImages((previous) => new Set([...previous, messageKey]));
+      return;
+    }
+    privateImageRetriesRef.current.add(messageKey);
+    try {
+      const refreshedUrl = await refreshSignedMediaUrl(message.mediaBucket, message.mediaPath, 60 * 60);
+      setPrivateImageUrls((previous) => new Map(previous).set(messageKey, refreshedUrl));
+      setUnavailablePrivateImages((previous) => {
+        const next = new Set(previous);
+        next.delete(messageKey);
+        return next;
+      });
+    } catch {
+      setUnavailablePrivateImages((previous) => new Set([...previous, messageKey]));
+    }
+  }, []);
 
   const inputRef = useRef(null);
   const fileInputRef = useRef(null);
@@ -293,7 +322,8 @@ export default function PrivateChatWindowV2({
     () => chatParticipants.filter((participantItem) => participantItem.userId !== user?.id),
     [chatParticipants, user?.id]
   );
-  const primaryParticipant = otherParticipants[0] || normalizeParticipant(partner || {});
+  const fallbackPrimaryParticipant = otherParticipants[0] || normalizeParticipant(partner || {});
+  const primaryParticipant = publicPartnerIdentity || fallbackPrimaryParticipant;
   const conversationTitle = isGroupChat
     ? (title?.trim() || buildGroupTitle(chatParticipants, user?.id))
     : (primaryParticipant.username || 'Usuario');
@@ -302,6 +332,45 @@ export default function PrivateChatWindowV2({
     [otherParticipants]
   );
   const isPartnerTyping = typingUsers.length > 0;
+
+  useEffect(() => {
+    const partnerId = fallbackPrimaryParticipant.userId;
+    if (!partnerId || isGroupChat) {
+      setPublicPartnerIdentity(null);
+      return undefined;
+    }
+
+    if (isSupabaseAuthEnabled()) {
+      let cancelled = false;
+      getSupabaseProfile(partnerId).then((data) => {
+        if (cancelled) return;
+        setPublicPartnerIdentity(normalizeParticipant({
+          ...fallbackPrimaryParticipant,
+          userId: partnerId,
+          username: data?.username || fallbackPrimaryParticipant.username,
+          avatar: data?.avatar_url || fallbackPrimaryParticipant.avatar,
+          isPremium: data?.is_premium ?? fallbackPrimaryParticipant.isPremium,
+        }));
+      }).catch(() => {
+        if (!cancelled) setPublicPartnerIdentity(null);
+      });
+      return () => { cancelled = true; };
+    }
+
+    const publicProfileRef = doc(db, 'public_user_profiles', partnerId);
+    return onSnapshot(publicProfileRef, (snapshot) => {
+      const data = snapshot.exists() ? snapshot.data() || {} : {};
+      setPublicPartnerIdentity(normalizeParticipant({
+        ...fallbackPrimaryParticipant,
+        userId: partnerId,
+        username: data.username || fallbackPrimaryParticipant.username,
+        avatar: data.avatar || fallbackPrimaryParticipant.avatar,
+        isPremium: data.isPremium ?? fallbackPrimaryParticipant.isPremium,
+      }));
+    }, () => {
+      setPublicPartnerIdentity(null);
+    });
+  }, [fallbackPrimaryParticipant.userId, fallbackPrimaryParticipant.username, fallbackPrimaryParticipant.avatar, fallbackPrimaryParticipant.isPremium, isGroupChat]);
   const privateMarkerId = isGroupChat ? chatId : (primaryParticipant.userId || null);
   const guestPrivateCounterStorageKey = useMemo(
     () => `${GUEST_PRIVATE_COUNTER_STORAGE_PREFIX}${user?.id || 'anon'}`,
@@ -367,14 +436,20 @@ export default function PrivateChatWindowV2({
 
     const loadChatMeta = async () => {
       try {
+        if (isSupabaseAuthEnabled()) {
+          const [conversation, contactState] = await Promise.all([
+            getPrivateChatConversation(chatId),
+            getPrivateContactState(chatId),
+          ]);
+          if (!cancelled) setChatMeta({ ...(conversation || {}), ...(contactState || {}) });
+          return;
+        }
         const snapshot = await getDoc(doc(db, 'private_chats', chatId));
         if (!cancelled) {
           setChatMeta(snapshot.exists() ? (snapshot.data() || null) : null);
         }
       } catch {
-        if (!cancelled) {
-          setChatMeta(null);
-        }
+        if (!cancelled) setChatMeta(null);
       }
     };
 
@@ -501,6 +576,21 @@ export default function PrivateChatWindowV2({
       setIsInitialMessagesLoading(true);
     }
 
+    if (isSupabaseAuthEnabled()) {
+      const unsubscribe = subscribeToPrivateChatMessages(chatId, (nextMessages = []) => {
+        setRecentMessages(nextMessages);
+        if (olderMessagesRef.current.length === 0) {
+          historyCursorRef.current = nextMessages[0]?.timestamp || null;
+          setHasMoreHistory(nextMessages.length >= INITIAL_PRIVATE_MESSAGES_LIMIT);
+        }
+        setIsInitialMessagesLoading(false);
+        const markRead = isWindowFocusedRef.current && !document.hidden;
+        markIncomingMessagesStatus(nextMessages, { markRead });
+        hasLoadedSnapshotRef.current = true;
+      }, INITIAL_PRIVATE_MESSAGES_LIMIT);
+      return () => unsubscribe?.();
+    }
+
     const q = query(
       collection(db, 'private_chats', chatId, 'messages'),
       orderBy('timestamp', 'asc'),
@@ -592,6 +682,14 @@ export default function PrivateChatWindowV2({
 
     const refreshChatMeta = async () => {
       try {
+        if (isSupabaseAuthEnabled()) {
+          const [conversation, contactState] = await Promise.all([
+            getPrivateChatConversation(chatId),
+            getPrivateContactState(chatId),
+          ]);
+          if (!cancelled) setChatMeta({ ...(conversation || {}), ...(contactState || {}) });
+          return;
+        }
         const snapshot = await getDoc(doc(db, 'private_chats', chatId));
         if (!cancelled) {
           setChatMeta(snapshot.exists() ? (snapshot.data() || null) : null);
@@ -750,6 +848,15 @@ export default function PrivateChatWindowV2({
 
     const loadPartnerPresence = async () => {
       try {
+        if (isSupabaseAuthEnabled()) {
+          if (!cancelled) {
+            setPartnerPresence({
+              isOnline: Boolean(partner?.isOnline || partner?.estaOnline),
+              lastSeenMs: getTimestampMs(partner?.lastSeen || partner?.ultimaConexion),
+            });
+          }
+          return;
+        }
         const snapshot = await getDoc(doc(db, 'tarjetas', partnerId));
         if (!snapshot.exists() || cancelled) return;
         const data = snapshot.data() || {};
@@ -976,7 +1083,7 @@ export default function PrivateChatWindowV2({
       // noop
     }
 
-    if (!user?.id) return;
+    if (!user?.id || isSupabaseAuthEnabled()) return;
 
     try {
       const guestRef = doc(db, 'guests', user.id);
@@ -997,6 +1104,10 @@ export default function PrivateChatWindowV2({
 
   const markIncomingMessagesStatus = async (messageList, { markRead = false } = {}) => {
     if (!chatId || !user?.id || !Array.isArray(messageList) || messageList.length === 0) return;
+    if (isSupabaseAuthEnabled()) {
+      await markSupabaseIncomingMessagesStatus(chatId, messageList, { markRead }).catch(() => {});
+      return;
+    }
 
     const batch = writeBatch(db);
     let hasUpdates = false;
@@ -1065,6 +1176,36 @@ export default function PrivateChatWindowV2({
   const loadOlderMessages = async () => {
     if (!chatId || isLoadingOlderHistory || !historyCursorRef.current) return;
 
+    if (isSupabaseAuthEnabled()) {
+      const container = messagesScrollRef.current;
+      const previousScrollHeight = container?.scrollHeight || 0;
+      const previousScrollTop = container?.scrollTop || 0;
+      setIsLoadingOlderHistory(true);
+      try {
+        const older = await getPrivateChatMessagesBefore(chatId, historyCursorRef.current, PRIVATE_HISTORY_PAGE_SIZE);
+        if (!older?.length) {
+          historyCursorRef.current = null;
+          setHasMoreHistory(false);
+          return;
+        }
+        historyCursorRef.current = older[0]?.timestamp || null;
+        setHasMoreHistory(older.length >= PRIVATE_HISTORY_PAGE_SIZE);
+        isPrependingHistoryRef.current = true;
+        setOlderMessages((prev) => [...older, ...prev]);
+        requestAnimationFrame(() => {
+          const currentContainer = messagesScrollRef.current;
+          if (currentContainer) currentContainer.scrollTop = previousScrollTop + ((currentContainer.scrollHeight || 0) - previousScrollHeight);
+          isPrependingHistoryRef.current = false;
+        });
+      } catch {
+        isPrependingHistoryRef.current = false;
+        toast({ title: 'No pudimos cargar mensajes anteriores', description: 'Intenta de nuevo en unos segundos.', variant: 'destructive' });
+      } finally {
+        setIsLoadingOlderHistory(false);
+      }
+      return;
+    }
+
     const container = messagesScrollRef.current;
     const previousScrollHeight = container?.scrollHeight || 0;
     const previousScrollTop = container?.scrollTop || 0;
@@ -1129,8 +1270,16 @@ export default function PrivateChatWindowV2({
     setIsSubmittingContactShare(true);
     try {
       const result = await requestPrivateChatContactShare(chatId, user.id);
-      const chatMetaSnapshot = await getDoc(doc(db, 'private_chats', chatId));
-      setChatMeta(chatMetaSnapshot.exists() ? (chatMetaSnapshot.data() || null) : null);
+      if (isSupabaseAuthEnabled()) {
+        const [conversation, contactState] = await Promise.all([
+          getPrivateChatConversation(chatId),
+          getPrivateContactState(chatId),
+        ]);
+        setChatMeta({ ...(conversation || {}), ...(contactState || {}) });
+      } else {
+        const chatMetaSnapshot = await getDoc(doc(db, 'private_chats', chatId));
+        setChatMeta(chatMetaSnapshot.exists() ? (chatMetaSnapshot.data() || null) : null);
+      }
       toast({
         title: result?.alreadyShared ? 'Tu telefono ya fue compartido' : 'Solicitud enviada',
         description: result?.alreadyShared
@@ -1161,8 +1310,16 @@ export default function PrivateChatWindowV2({
         incomingContactShareRequest.requesterId,
         accepted
       );
-      const chatMetaSnapshot = await getDoc(doc(db, 'private_chats', chatId));
-      setChatMeta(chatMetaSnapshot.exists() ? (chatMetaSnapshot.data() || null) : null);
+      if (isSupabaseAuthEnabled()) {
+        const [conversation, contactState] = await Promise.all([
+          getPrivateChatConversation(chatId),
+          getPrivateContactState(chatId),
+        ]);
+        setChatMeta({ ...(conversation || {}), ...(contactState || {}) });
+      } else {
+        const chatMetaSnapshot = await getDoc(doc(db, 'private_chats', chatId));
+        setChatMeta(chatMetaSnapshot.exists() ? (chatMetaSnapshot.data() || null) : null);
+      }
       toast({
         title: accepted ? 'Contacto habilitado' : 'Solicitud rechazada',
         description: accepted
@@ -1186,8 +1343,16 @@ export default function PrivateChatWindowV2({
     setIsSubmittingContactShare(true);
     try {
       await revokePrivateChatContactShare(chatId, user.id, primaryParticipant.userId);
-      const chatMetaSnapshot = await getDoc(doc(db, 'private_chats', chatId));
-      setChatMeta(chatMetaSnapshot.exists() ? (chatMetaSnapshot.data() || null) : null);
+      if (isSupabaseAuthEnabled()) {
+        const [conversation, contactState] = await Promise.all([
+          getPrivateChatConversation(chatId),
+          getPrivateContactState(chatId),
+        ]);
+        setChatMeta({ ...(conversation || {}), ...(contactState || {}) });
+      } else {
+        const chatMetaSnapshot = await getDoc(doc(db, 'private_chats', chatId));
+        setChatMeta(chatMetaSnapshot.exists() ? (chatMetaSnapshot.data() || null) : null);
+      }
       toast({
         title: 'Contacto revocado',
         description: 'Tu telefono dejo de mostrarse en este chat.',
@@ -1347,10 +1512,10 @@ export default function PrivateChatWindowV2({
       return;
     }
 
-    if (!selectedFile.type?.startsWith('image/')) {
+    if (!ALLOWED_PRIVATE_IMAGE_TYPES.has(selectedFile.type)) {
       toast({
         title: 'Archivo no permitido',
-        description: 'Solo se permiten imágenes.',
+        description: 'Solo se permiten imágenes JPG, PNG o WEBP.',
         variant: 'destructive',
       });
       return;
@@ -1363,35 +1528,28 @@ export default function PrivateChatWindowV2({
       const tempMessageId = typeof crypto !== 'undefined' && crypto.randomUUID
         ? crypto.randomUUID()
         : `private_msg_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
-      const assetId = `${Date.now()}_${Math.random().toString(36).slice(2, 7)}`;
-      const extension = getImageExtension(optimizedFile.type);
-      const mediaPath = `chat_media/private/${user?.id || 'unknown'}/${chatId}/${tempMessageId}/${assetId}.${extension}`;
+      let mediaAsset;
 
-      const fileRef = storageRef(storage, mediaPath);
-      await uploadBytes(fileRef, optimizedFile, {
-        contentType: optimizedFile.type,
-        customMetadata: {
-          roomId: `private_${chatId}`,
-          userId: user.id,
-          feature: 'chat_photo_access_private_v2',
-        },
-      });
+      if (!isSupabaseAuthEnabled()) {
+        throw new Error('SUPABASE_REQUIRED_FOR_PRIVATE_MEDIA');
+      }
 
-      const downloadURL = await getDownloadURL(fileRef);
+      const uploaded = await uploadPrivateChatPhotoToSupabase(optimizedFile, chatId, tempMessageId);
+      mediaAsset = {
+        kind: 'image',
+        path: uploaded.path,
+        bucket: uploaded.bucket,
+        mimeType: uploaded.mimeType,
+        size: uploaded.size,
+      };
+
       await sendRichPrivateChatMessage(chatId, {
         userId: user.id,
         username: user.username,
         avatar: user.avatar,
-        content: downloadURL,
+        content: 'Imagen',
         type: 'image',
-        media: [
-          {
-            kind: 'image',
-            path: mediaPath,
-            contentType: optimizedFile.type,
-            sizeBytes: optimizedFile.size,
-          },
-        ],
+        media: [mediaAsset],
         senderIsPremium: Boolean(user?.isPremium),
         replyTo: replyToSend,
       });
@@ -1407,7 +1565,9 @@ export default function PrivateChatWindowV2({
       console.error('[PRIVATE_CHAT_V2] Error sending private image:', error);
       toast({
         title: 'No se pudo subir la foto',
-        description: error?.message || 'Intenta nuevamente.',
+        description: error?.message === 'SUPABASE_REQUIRED_FOR_PRIVATE_MEDIA'
+          ? 'El envío de fotos privadas está pausado hasta configurar Supabase Storage.'
+          : error?.message || 'Intenta nuevamente.',
         variant: 'destructive',
       });
     } finally {
@@ -1725,7 +1885,7 @@ export default function PrivateChatWindowV2({
         >
           <div className="relative">
             <Avatar className="h-9 w-9 border border-slate-200">
-              <AvatarImage src={primaryParticipant.avatar} alt={conversationTitle} />
+              <AvatarImage src={getSafeAvatarSrc(primaryParticipant.avatar)} alt={conversationTitle} />
               <AvatarFallback>{conversationTitle.slice(0, 1).toUpperCase()}</AvatarFallback>
             </Avatar>
             {!isGroupChat ? (
@@ -1770,7 +1930,7 @@ export default function PrivateChatWindowV2({
       <div className="flex items-center gap-3 border-b border-slate-200/80 bg-white/92 px-4 py-3">
         <div className="relative">
           <Avatar className="h-11 w-11 border border-slate-200">
-            <AvatarImage src={primaryParticipant.avatar} alt={conversationTitle} />
+            <AvatarImage src={getSafeAvatarSrc(primaryParticipant.avatar)} alt={conversationTitle} />
             <AvatarFallback>{conversationTitle.slice(0, 1).toUpperCase()}</AvatarFallback>
           </Avatar>
           {!isGroupChat ? (
@@ -1980,6 +2140,11 @@ export default function PrivateChatWindowV2({
             }
 
             const status = isOwn ? messageStatus(message) : null;
+            const messageKey = message._realId || message.id || message.clientId;
+            const privateImageUrl = privateImageUrls.get(messageKey) || (typeof message.content === 'string' && message.content.startsWith('https://')
+              ? message.content
+              : null);
+            const imageUnavailable = unavailablePrivateImages.has(messageKey);
             return (
               <div
                 key={message.id}
@@ -2036,14 +2201,19 @@ export default function PrivateChatWindowV2({
                   ) : null}
 
                   {message.type === 'image' ? (
-                    <a href={message.content} target="_blank" rel="noreferrer" className="block overflow-hidden rounded-2xl bg-slate-100">
-                      <img
-                        src={message.content}
-                        alt="Imagen enviada"
-                        className="max-h-64 w-full object-cover"
-                        loading="lazy"
-                      />
-                    </a>
+                    privateImageUrl && !imageUnavailable ? (
+                      <a href={privateImageUrl} target="_blank" rel="noreferrer" className="block overflow-hidden rounded-2xl bg-slate-100">
+                        <img
+                          src={privateImageUrl}
+                          alt="Imagen enviada"
+                          className="max-h-64 w-full object-cover"
+                          loading="lazy"
+                          onError={() => { void handlePrivateImageError(message, messageKey); }}
+                        />
+                      </a>
+                    ) : (
+                      <div className="rounded-2xl border border-slate-200 bg-slate-50 px-3 py-3 text-xs text-slate-500">Imagen no disponible</div>
+                    )
                   ) : (
                     <div className={['text-[14px] leading-[1.35]', isOwn ? 'text-white' : 'text-slate-900'].join(' ')}>
                       <span className="whitespace-pre-wrap break-words">
@@ -2179,7 +2349,7 @@ export default function PrivateChatWindowV2({
           <input
             ref={fileInputRef}
             type="file"
-            accept="image/*"
+            accept="image/jpeg,image/png,image/webp"
             className="hidden"
             onChange={handlePhotoSelected}
           />

@@ -21,6 +21,7 @@ import { getPostComments, addComment, deleteComment, OPIN_STATUS_OPTIONS, getOpi
 import { sendPrivateChatRequestFromOpin } from '@/services/socialService';
 import { toast } from '@/components/ui/use-toast';
 import { sanitizeOpinPublicText } from '@/services/opinSafetyService';
+import { getSafeAvatarSrc, handleAvatarImageError } from '@/utils/avatar';
 
 const QUICK_REPLIES = ['Me interesa', 'Yo también busco', 'Escríbeme', 'Suena bien'];
 const PREVIEW_LIMIT = 3; // Respuestas visibles para visitantes
@@ -298,12 +299,17 @@ const OpinCommentsModal = ({
           <div className="flex items-center justify-between p-4 border-b border-border">
             <div className="flex items-center gap-2">
               <MessageCircle className="w-5 h-5 text-primary" />
-              <h2 className="text-lg font-bold text-foreground">
-                {comments.length} {comments.length === 1 ? 'respuesta' : 'respuestas'}
-              </h2>
+              <div>
+                <h2 className="text-lg font-bold text-foreground">
+                  {comments.length} {comments.length === 1 ? 'respuesta' : 'respuestas'}
+                </h2>
+                <p className="text-[11px] text-muted-foreground">Más recientes primero</p>
+              </div>
             </div>
             <button
+              type="button"
               onClick={onClose}
+              aria-label="Cerrar respuestas OPIN"
               className="p-2 hover:bg-white/5 rounded-lg transition-colors"
             >
               <X className="w-5 h-5" />
@@ -315,12 +321,13 @@ const OpinCommentsModal = ({
             <div className="flex items-start gap-3">
               {post.avatar ? (
                 <img
-                  src={post.avatar}
+                  src={getSafeAvatarSrc(post.avatar)}
+                  onError={handleAvatarImageError}
                   alt={post.username}
                   className="w-10 h-10 rounded-full ring-2 ring-primary/20 flex-shrink-0 object-cover"
                 />
               ) : (
-                <div className="w-10 h-10 rounded-full ring-2 ring-primary/20 flex-shrink-0 bg-gradient-to-br from-purple-500 to-pink-500 flex items-center justify-center text-white font-bold">
+                <div className="w-10 h-10 rounded-full ring-2 ring-cyan-300/25 flex-shrink-0 bg-gradient-to-br from-cyan-300 to-blue-600 flex items-center justify-center text-slate-950 font-bold">
                   {post.username?.charAt(0)?.toUpperCase() || '?'}
                 </div>
               )}
@@ -398,18 +405,24 @@ const OpinCommentsModal = ({
                     {/* Avatar mini */}
                     {comment.avatar ? (
                       <img
-                        src={comment.avatar}
+                        src={getSafeAvatarSrc(comment.avatar)}
+                        onError={handleAvatarImageError}
                         alt={comment.username}
                         className="w-7 h-7 rounded-full flex-shrink-0 object-cover"
                       />
                     ) : (
-                      <div className="w-7 h-7 rounded-full flex-shrink-0 bg-gradient-to-br from-purple-500 to-pink-500 flex items-center justify-center text-white text-xs font-bold">
+                      <div className="w-7 h-7 rounded-full flex-shrink-0 bg-gradient-to-br from-cyan-300 to-blue-600 flex items-center justify-center text-slate-950 text-xs font-bold">
                         {comment.username?.charAt(0)?.toUpperCase() || '?'}
                       </div>
                     )}
                     <div className="flex-1 min-w-0">
                       <p className="text-sm">
                         <span className="font-semibold text-foreground">{comment.username}</span>
+                        {comment.isAdminReply && comment.authorType === 'official_team' && (
+                          <span className="ml-1 rounded bg-cyan-500/20 px-1 py-0.5 text-[10px] font-medium text-cyan-300">
+                            equipo oficial
+                          </span>
+                        )}
                         {' '}
                         <span className="text-foreground/80">{sanitizeOpinPublicText(comment.comment || '')}</span>
                       </p>

@@ -12,6 +12,7 @@ import {
 } from 'firebase/firestore';
 import { db, auth } from '@/config/firebase';
 import { resolveProfileRole } from '@/config/profileRoles';
+import { supabase, isSupabaseAuthEnabled } from '@/config/supabase';
 
 const STATE_TTL_MS = 24 * 60 * 60 * 1000;
 const DEFAULT_FETCH_LIMIT = 60;
@@ -85,6 +86,17 @@ const isActiveState = (item) => {
 export const fetchRoomStates = async (roomId, maxItems = DEFAULT_FETCH_LIMIT) => {
   if (!roomId) return [];
 
+  if (isSupabaseAuthEnabled()) {
+    const safeLimit = Math.max(1, Math.min(Number(maxItems) || DEFAULT_FETCH_LIMIT, 100));
+    const { data: rows, error } = await supabase.from('room_states').select('*').eq('room_id', roomId).gt('expires_at', new Date().toISOString()).order('updated_at', { ascending: false }).limit(safeLimit);
+    if (error) throw error;
+    const ids = [...new Set((rows || []).map((row) => row.author_id).filter(Boolean))];
+    const { data: profiles, error: profileError } = ids.length ? await supabase.from('profiles').select('id, username, avatar_url, profile_role').in('id', ids) : { data: [], error: null };
+    if (profileError) throw profileError;
+    const profilesById = new Map((profiles || []).map((profile) => [profile.id, profile]));
+    return (rows || []).map((row) => normalizeState({ id: row.id, data: () => ({ userId: row.author_id, username: profilesById.get(row.author_id)?.username, avatar: profilesById.get(row.author_id)?.avatar_url, roleBadge: row.role_badge || profilesById.get(row.author_id)?.profile_role, message: row.message, createdAt: row.created_at, updatedAt: row.updated_at, expiresAt: row.expires_at }) })).filter(isActiveState);
+  }
+
   const statesRef = getStatesCollectionRef(roomId);
   const q = query(statesRef, orderBy('updatedAt', 'desc'), limit(maxItems));
   const snapshot = await getDocs(q);
@@ -97,6 +109,19 @@ export const fetchRoomStates = async (roomId, maxItems = DEFAULT_FETCH_LIMIT) =>
 };
 
 export const getOwnStateCooldown = async (roomId, userId) => {
+  if (isSupabaseAuthEnabled()) {
+    if (!roomId || !userId) return { canPublish: false, remainingMs: STATE_TTL_MS };
+    const { data: authData } = await supabase.auth.getUser();
+    if (authData?.user?.id !== userId) throw new Error('state/auth-required');
+    const { data, error } = await supabase.from('room_states').select('*').eq('room_id', roomId).eq('author_id', userId).maybeSingle();
+    if (error) throw error;
+    if (!data) return { canPublish: true, remainingMs: 0 };
+    const ownState = normalizeState({ id: data.id, data: () => ({ userId: data.author_id, message: data.message, createdAt: data.created_at, updatedAt: data.updated_at, expiresAt: data.expires_at }) });
+    const createdAtMs = ownState.createdAtMs;
+    if (!createdAtMs) return { canPublish: false, remainingMs: STATE_TTL_MS };
+    const remainingMs = Math.max(0, STATE_TTL_MS - (Date.now() - createdAtMs));
+    return { canPublish: remainingMs === 0, remainingMs, state: ownState };
+  }
   if (!roomId || !userId) {
     return { canPublish: false, remainingMs: STATE_TTL_MS };
   }
@@ -124,6 +149,28 @@ export const getOwnStateCooldown = async (roomId, userId) => {
 };
 
 export const publishRoomState = async (roomId, stateData) => {
+  if (isSupabaseAuthEnabled()) {
+    if (!roomId) throw new Error('state/invalid-room');
+    const { data: authData } = await supabase.auth.getUser();
+    const activeUser = authData?.user;
+    if (!activeUser?.id) throw new Error('state/auth-required');
+    if (activeUser.is_anonymous || stateData?.isGuest || stateData?.isAnonymous) throw new Error('state/registered-only');
+    const text = String(stateData?.message || '').trim();
+    if (!text) throw new Error('state/empty-message');
+    if (text.length > 160) throw new Error('state/message-too-long');
+    const { data: profile, error: profileError } = await supabase.from('profiles').select('avatar_url, profile_role, username, is_guest').eq('id', activeUser.id).single();
+    if (profileError) throw profileError;
+    const hasRealPhoto = hasRealProfilePhoto(profile?.avatar_url || stateData?.avatar);
+    const { count, error: countError } = await supabase.from('room_states').select('id', { count: 'exact', head: true }).eq('author_id', activeUser.id).gte('created_at', new Date(Date.now() - STATE_TTL_MS).toISOString());
+    if (countError) throw countError;
+    if (!hasRealPhoto && Number(count || 0) >= MAX_NO_PHOTO_STATES) { const error = new Error('state/photo-required'); error.requiredAfter = MAX_NO_PHOTO_STATES; throw error; }
+    const cooldown = await getOwnStateCooldown(roomId, activeUser.id);
+    if (!cooldown.canPublish) { const error = new Error('state/cooldown'); error.remainingMs = cooldown.remainingMs || STATE_TTL_MS; throw error; }
+    const roleBadge = resolveProfileRole(stateData?.roleBadge, stateData?.profileRole, stateData?.role) || profile?.profile_role || null;
+    const { error } = await supabase.from('room_states').upsert({ room_id: roomId, author_id: activeUser.id, role_badge: roleBadge, message: text, created_at: new Date().toISOString(), updated_at: new Date().toISOString(), expires_at: new Date(Date.now() + STATE_TTL_MS).toISOString() }, { onConflict: 'room_id,author_id' });
+    if (error) throw error;
+    return { ok: true };
+  }
   if (!roomId) throw new Error('state/invalid-room');
   if (!auth.currentUser?.uid) throw new Error('state/auth-required');
   if (auth.currentUser.isAnonymous || stateData?.isGuest || stateData?.isAnonymous) {
@@ -183,6 +230,15 @@ export const publishRoomState = async (roomId, stateData) => {
 };
 
 export const deleteRoomState = async (roomId, targetUserId = null) => {
+  if (isSupabaseAuthEnabled()) {
+    if (!roomId) throw new Error('state/invalid-room');
+    const { data: authData } = await supabase.auth.getUser();
+    const ownerId = targetUserId || authData?.user?.id;
+    if (!authData?.user?.id || ownerId !== authData.user.id) throw new Error('state/not-owner');
+    const { error } = await supabase.from('room_states').delete().eq('room_id', roomId).eq('author_id', ownerId);
+    if (error) throw error;
+    return { ok: true };
+  }
   if (!roomId) throw new Error('state/invalid-room');
   if (!auth.currentUser?.uid) throw new Error('state/auth-required');
 
@@ -195,6 +251,18 @@ export const deleteRoomState = async (roomId, targetUserId = null) => {
 
 export const fetchStateReactions = async (roomId, stateUserId) => {
   if (!roomId || !stateUserId) return [];
+  if (isSupabaseAuthEnabled()) {
+    const { data: state, error: stateError } = await supabase.from('room_states').select('id').eq('room_id', roomId).eq('author_id', stateUserId).maybeSingle();
+    if (stateError) throw stateError;
+    if (!state) return [];
+    const { data: rows, error } = await supabase.from('room_state_reactions').select('user_id, reaction, updated_at').eq('room_state_id', state.id).order('updated_at', { ascending: false }).limit(200);
+    if (error) throw error;
+    const ids = [...new Set((rows || []).map((row) => row.user_id).filter(Boolean))];
+    const { data: profiles, error: profileError } = ids.length ? await supabase.from('profiles').select('id, username, avatar_url').in('id', ids) : { data: [], error: null };
+    if (profileError) throw profileError;
+    const profileMap = new Map((profiles || []).map((profile) => [profile.id, profile]));
+    return (rows || []).map((row) => ({ id: row.user_id, userId: row.user_id, username: profileMap.get(row.user_id)?.username || 'Usuario', avatar: profileMap.get(row.user_id)?.avatar_url || '/avatar_por_defecto.jpeg', reaction: row.reaction, updatedAtMs: toMillisSafe(row.updated_at) }));
+  }
   const reactionsRef = getStateReactionsCollectionRef(roomId, stateUserId);
   const q = query(reactionsRef, orderBy('updatedAt', 'desc'), limit(200));
   const snapshot = await getDocs(q);
@@ -213,6 +281,19 @@ export const fetchStateReactions = async (roomId, stateUserId) => {
 
 export const setStateReaction = async (roomId, stateUserId, payload = {}) => {
   if (!roomId || !stateUserId) throw new Error('state/reaction-invalid-target');
+  if (isSupabaseAuthEnabled()) {
+    const { data: authData } = await supabase.auth.getUser();
+    if (!authData?.user?.id) throw new Error('state/auth-required');
+    if (authData.user.is_anonymous || payload?.isGuest || payload?.isAnonymous) throw new Error('state/registered-only');
+    const reaction = String(payload?.reaction || '').trim();
+    if (!ALLOWED_STATE_REACTIONS.includes(reaction)) throw new Error('state/invalid-reaction');
+    const { data: state, error: stateError } = await supabase.from('room_states').select('id').eq('room_id', roomId).eq('author_id', stateUserId).maybeSingle();
+    if (stateError) throw stateError;
+    if (!state) throw new Error('state/not-found');
+    const { error } = await supabase.from('room_state_reactions').upsert({ room_state_id: state.id, user_id: authData.user.id, reaction, updated_at: new Date().toISOString() }, { onConflict: 'room_state_id,user_id' });
+    if (error) throw error;
+    return { ok: true, reaction };
+  }
   if (!auth.currentUser?.uid) throw new Error('state/auth-required');
   if (auth.currentUser.isAnonymous || payload?.isGuest || payload?.isAnonymous) {
     throw new Error('state/registered-only');
@@ -237,6 +318,16 @@ export const setStateReaction = async (roomId, stateUserId, payload = {}) => {
 
 export const clearStateReaction = async (roomId, stateUserId) => {
   if (!roomId || !stateUserId) throw new Error('state/reaction-invalid-target');
+  if (isSupabaseAuthEnabled()) {
+    const { data: authData } = await supabase.auth.getUser();
+    if (!authData?.user?.id || authData.user.is_anonymous) throw new Error('state/registered-only');
+    const { data: state, error: stateError } = await supabase.from('room_states').select('id').eq('room_id', roomId).eq('author_id', stateUserId).maybeSingle();
+    if (stateError) throw stateError;
+    if (!state) return { ok: true };
+    const { error } = await supabase.from('room_state_reactions').delete().eq('room_state_id', state.id).eq('user_id', authData.user.id);
+    if (error) throw error;
+    return { ok: true };
+  }
   if (!auth.currentUser?.uid) throw new Error('state/auth-required');
   if (auth.currentUser.isAnonymous) throw new Error('state/registered-only');
 

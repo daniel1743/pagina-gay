@@ -10,6 +10,7 @@ import { getUserConnectionStatus, getStatusColor, getStatusText } from '@/utils/
 import { traceEvent, TRACE_EVENTS, isMessageTraceEnabled } from '@/utils/messageTrace';
 import { getBadgeConfig } from '@/services/badgeService';
 import { getProfileRoleBadgeMeta } from '@/config/profileRoles';
+import { getSafeAvatarSrc, handleAvatarImageError } from '@/utils/avatar';
 import './ChatMessages.css';
 
 const isSeededUserId = (userId = '') => String(userId || '').startsWith('seed_user_');
@@ -18,6 +19,20 @@ const normalizeMetaText = (value = '') => String(value || '')
   .replace(/[\u0300-\u036f]/g, '')
   .toLowerCase()
   .trim();
+
+const handleChatSharedImageError = (event) => {
+  const image = event?.currentTarget;
+  const shell = image?.closest?.('.chat-image-shell');
+  if (!image || !shell) return;
+
+  image.style.display = 'none';
+  image.alt = 'Imagen no disponible';
+  const overlay = shell.querySelector('.chat-image-reveal-overlay');
+  if (overlay) {
+    overlay.textContent = 'Imagen no disponible';
+    overlay.className = 'chat-image-error';
+  }
+};
 
 const QUICK_REPLY_ACTIONS = [
   {
@@ -77,17 +92,7 @@ const ChatMessages = ({
   onOpenContextualHighlight,
   onSuggestReply,
 }) => {
-  const DEFAULT_CHAT_AVATAR = '/avatar_por_defecto.jpeg';
-  const resolveChatAvatar = (avatar) => {
-    if (!avatar || typeof avatar !== 'string') return DEFAULT_CHAT_AVATAR;
-    const normalized = avatar.trim().toLowerCase();
-    if (!normalized) return DEFAULT_CHAT_AVATAR;
-    if (normalized === 'undefined' || normalized === 'null') return DEFAULT_CHAT_AVATAR;
-    if (normalized.includes('api.dicebear.com')) return DEFAULT_CHAT_AVATAR;
-    if (normalized.startsWith('data:image/svg+xml')) return DEFAULT_CHAT_AVATAR;
-    if (normalized.startsWith('blob:')) return DEFAULT_CHAT_AVATAR;
-    return avatar;
-  };
+  const resolveChatAvatar = (avatar) => getSafeAvatarSrc(avatar);
 
   const [highlightedMessageId, setHighlightedMessageId] = useState(null);
   const [activeQuickReplyBadge, setActiveQuickReplyBadge] = useState(null);
@@ -956,6 +961,7 @@ const ChatMessages = ({
                           <AvatarImage
                             src={resolveChatAvatar(group.avatar)}
                             alt={group.username || 'Usuario'}
+                            onError={handleAvatarImageError}
                             loading="lazy"
                             decoding="async"
                             fetchPriority="low"
@@ -1091,7 +1097,15 @@ const ChatMessages = ({
                           </div>
                         )}
                         {message.type === 'gif' && (
-                          <img src={message.content} alt="GIF" className="rounded max-w-full" />
+                          <img
+                            src={message.content}
+                            alt="GIF"
+                            className="rounded max-w-full"
+                            onError={(event) => {
+                              event.currentTarget.style.display = 'none';
+                              event.currentTarget.alt = 'GIF no disponible';
+                            }}
+                          />
                         )}
                         {message.type === 'image' && (
                           message.content
@@ -1103,6 +1117,7 @@ const ChatMessages = ({
                                   className={`chat-message-image block rounded-lg w-auto h-auto max-w-[150px] sm:max-w-[200px] lg:max-w-[220px] max-h-[240px] object-cover ${
                                     isImageRevealed ? '' : 'is-sensitive-blurred'
                                   }`}
+                                  onError={handleChatSharedImageError}
                                   loading="lazy"
                                 />
                                 {!isImageRevealed && (

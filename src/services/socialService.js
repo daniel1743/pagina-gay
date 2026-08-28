@@ -34,6 +34,10 @@ import { getPublicProfilesByIds } from '@/services/userService';
 import { dispatchUserNotification } from '@/services/userNotificationDispatchService';
 import { validateCriticalSafetyMessage } from '@/services/antiSpamService';
 import { publishPrivateChatDebug } from '@/utils/runtimeDiagnostics';
+import { isSupabaseAuthEnabled } from '@/config/supabase';
+import * as supabasePrivateChatService from '@/services/supabasePrivateChatService';
+
+const useSupabasePrivateChat = () => isSupabaseAuthEnabled();
 
 const OPIN_PRIVATE_REQUESTS_PER_HOUR = 4;
 const OPIN_PRIVATE_REQUEST_WINDOW_MS = 60 * 60 * 1000;
@@ -723,6 +727,7 @@ export const sendPrivateGroupInvite = async ({
  * El mensaje aparece en las notificaciones del destinatario
  */
 export const sendDirectMessage = async (fromUserId, toUserId, content) => {
+  if (useSupabasePrivateChat()) return supabasePrivateChatService.sendDirectMessage(fromUserId, toUserId, content);
   try {
     const blocked = await isBlockedBetween(fromUserId, toUserId);
     if (blocked) {
@@ -772,6 +777,7 @@ export const sendDirectMessage = async (fromUserId, toUserId, content) => {
  * La solicitud aparece en las notificaciones del destinatario con opciones Aceptar/Rechazar
  */
 export const sendPrivateChatRequest = async (fromUserId, toUserId, options = {}) => {
+  if (useSupabasePrivateChat()) return supabasePrivateChatService.sendPrivateChatRequest(fromUserId, toUserId, options);
   let stage = 'validate_input';
   try {
     const senderUserId = auth?.currentUser?.uid || fromUserId;
@@ -837,6 +843,7 @@ export const sendPrivateChatRequest = async (fromUserId, toUserId, options = {})
  * Sin solicitud previa (flujo rápido desde Baúl)
  */
 export const getOrCreatePrivateChat = async (userAId, userBId) => {
+  if (useSupabasePrivateChat()) return supabasePrivateChatService.getOrCreatePrivateChat(userAId, userBId);
   let stage = 'validate_input';
   if (!userAId || !userBId) {
     throw new Error('Missing user ids');
@@ -992,6 +999,7 @@ export const getOrCreatePrivateChat = async (userAId, userBId) => {
 };
 
 export const requestPrivateChatContactShare = async (chatId, requesterId) => {
+  if (useSupabasePrivateChat()) return supabasePrivateChatService.requestPrivateChatContactShare(chatId, requesterId);
   let stage = 'validate_input';
   try {
     if (!chatId || !requesterId) {
@@ -1116,6 +1124,7 @@ export const requestPrivateChatContactShare = async (chatId, requesterId) => {
 };
 
 export const respondToPrivateChatContactShare = async (chatId, responderId, requesterId, accepted) => {
+  if (useSupabasePrivateChat()) return supabasePrivateChatService.respondToPrivateChatContactShare(chatId, responderId, requesterId, accepted);
   let stage = 'validate_input';
   try {
     if (!chatId || !responderId || !requesterId) {
@@ -1216,6 +1225,7 @@ export const respondToPrivateChatContactShare = async (chatId, responderId, requ
 };
 
 export const revokePrivateChatContactShare = async (chatId, ownerId, recipientId) => {
+  if (useSupabasePrivateChat()) return supabasePrivateChatService.revokePrivateChatContactShare(chatId, ownerId, recipientId);
   let stage = 'validate_input';
   try {
     if (!chatId || !ownerId || !recipientId) {
@@ -1305,7 +1315,9 @@ export const revokePrivateChatContactShare = async (chatId, ownerId, recipientId
 /**
  * Envía un mensaje dentro de un chat privado existente
  */
-export const sendMessageToPrivateChat = async (chatId, { userId, username, avatar, content }) => {
+export const sendMessageToPrivateChat = async (chatId, payload) => {
+  if (useSupabasePrivateChat()) return supabasePrivateChatService.sendMessageToPrivateChat(chatId, payload);
+  const { userId, username, avatar, content } = payload || {};
   let stage = 'validate_input';
   if (!chatId || !userId || !content?.trim()) {
     throw new Error('Missing chatId, userId or content');
@@ -1474,6 +1486,10 @@ export const sendRichPrivateChatMessage = async (
     clientId = null,
   }
 ) => {
+  if (type === 'image' && !useSupabasePrivateChat()) {
+    throw new Error('SUPABASE_REQUIRED_FOR_PRIVATE_MEDIA');
+  }
+  if (useSupabasePrivateChat()) return supabasePrivateChatService.sendRichPrivateChatMessage(chatId, { userId, username, avatar, content, type, media, senderIsPremium, replyTo, clientId });
   let stage = 'validate_input';
   if (!chatId || !userId || !content) {
     throw new Error('Missing chatId, userId or content');
@@ -2039,10 +2055,11 @@ export const updatePrivateChatTypingStatus = async (
   isTyping,
   username = 'Usuario'
 ) => {
+  if (useSupabasePrivateChat()) return supabasePrivateChatService.updatePrivateChatTypingStatus(chatId, userId, isTyping, username);
   if (!chatId || !userId) return;
 
-  // Usar roomPresence para evitar dependencia de nuevas reglas en private_chats/typing
-  const typingRef = doc(db, 'roomPresence', `private_${chatId}`, 'users', userId);
+  // El typing privado vive dentro del chat para que Rules pueda validar participantes.
+  const typingRef = doc(db, 'private_chats', chatId, 'typing', userId);
 
   if (isTyping) {
     await setDoc(
@@ -2067,12 +2084,13 @@ export const updatePrivateChatTypingStatus = async (
  * Suscribe estados de escritura de otros participantes
  */
 export const subscribeToPrivateChatTyping = (chatId, currentUserId, callback) => {
+  if (useSupabasePrivateChat()) return supabasePrivateChatService.subscribeToPrivateChatTyping(chatId, currentUserId, callback);
   if (!chatId) {
     callback([]);
     return () => {};
   }
 
-  const typingRef = collection(db, 'roomPresence', `private_${chatId}`, 'users');
+  const typingRef = collection(db, 'private_chats', chatId, 'typing');
   const STALE_MS = 10000;
 
   return onSnapshot(
@@ -2121,6 +2139,7 @@ export const respondToPrivateChatRequest = async (
   notificationId,
   accepted
 ) => {
+  if (useSupabasePrivateChat()) return supabasePrivateChatService.respondToPrivateChatRequest(userId, notificationId, accepted);
   let stage = 'validate_input';
   const startedAt = Date.now();
   try {
@@ -2268,6 +2287,7 @@ export const respondToPrivateChatRequest = async (
  * Agrega un usuario a favoritos (máximo 15)
  */
 export const addToFavorites = async (userId, targetUserId) => {
+  if (useSupabasePrivateChat()) return supabasePrivateChatService.addToFavorites(userId, targetUserId);
   try {
     const userRef = doc(db, 'users', userId);
     const userDoc = await getDoc(userRef);
@@ -2292,6 +2312,7 @@ export const addToFavorites = async (userId, targetUserId) => {
  * Elimina un usuario de favoritos
  */
 export const removeFromFavorites = async (userId, targetUserId) => {
+  if (useSupabasePrivateChat()) return supabasePrivateChatService.removeFromFavorites(userId, targetUserId);
   try {
     const userRef = doc(db, 'users', userId);
 
@@ -2310,6 +2331,7 @@ export const removeFromFavorites = async (userId, targetUserId) => {
  * Suscribe a las notificaciones del usuario en tiempo real
  */
 export const subscribeToNotifications = (userId, callback) => {
+  if (useSupabasePrivateChat()) return supabasePrivateChatService.subscribeToNotifications(userId, callback);
   if (!userId || typeof callback !== 'function') {
     callback?.([]);
     return () => {};
@@ -2389,6 +2411,7 @@ export const subscribeToNotifications = (userId, callback) => {
 };
 
 export const subscribeToPrivateInbox = (userId, callback) => {
+  if (useSupabasePrivateChat()) return supabasePrivateChatService.subscribeToPrivateInbox(userId, callback);
   if (!userId || typeof callback !== 'function') {
     callback?.([]);
     return () => {};
@@ -2424,6 +2447,7 @@ export const subscribeToPrivateInbox = (userId, callback) => {
 };
 
 export const subscribeToPrivateMatchState = (userId, callback) => {
+  if (useSupabasePrivateChat()) return supabasePrivateChatService.subscribeToPrivateMatchState(userId, callback);
   if (!userId || typeof callback !== 'function') {
     callback?.([]);
     return () => {};
@@ -2459,6 +2483,7 @@ export const subscribeToPrivateMatchState = (userId, callback) => {
 };
 
 export const upsertPrivateMatchState = async (userId, targetUserId, patch = {}) => {
+  if (useSupabasePrivateChat()) return supabasePrivateChatService.upsertPrivateMatchState(userId, targetUserId, patch);
   if (!userId || !targetUserId) return;
 
   await setDoc(
@@ -2474,6 +2499,7 @@ export const upsertPrivateMatchState = async (userId, targetUserId, patch = {}) 
 };
 
 export const markPrivateInboxConversationRead = async (userId, conversationId) => {
+  if (useSupabasePrivateChat()) return supabasePrivateChatService.markPrivateInboxConversationRead(userId, conversationId);
   if (!userId || !conversationId) return;
 
   await setDoc(
@@ -2494,6 +2520,7 @@ export const markPrivateInboxConversationRead = async (userId, conversationId) =
  * Marca una notificación como leída
  */
 export const markNotificationAsRead = async (userId, notificationId) => {
+  if (useSupabasePrivateChat()) return supabasePrivateChatService.markNotificationAsRead(userId, notificationId);
   try {
     const notificationRef = doc(db, 'users', userId, 'notifications', notificationId);
 
@@ -2510,6 +2537,7 @@ export const markNotificationAsRead = async (userId, notificationId) => {
 };
 
 export const markNotificationsAsRead = async (userId, notificationIds = []) => {
+  if (useSupabasePrivateChat()) return supabasePrivateChatService.markNotificationsAsRead(userId, notificationIds);
   try {
     if (!userId || !Array.isArray(notificationIds) || notificationIds.length === 0) {
       return { success: true, updatedCount: 0 };
@@ -2534,6 +2562,7 @@ export const markNotificationsAsRead = async (userId, notificationIds = []) => {
 };
 
 export const deleteNotification = async (userId, notificationId) => {
+  if (useSupabasePrivateChat()) return supabasePrivateChatService.deleteNotification(userId, notificationId);
   try {
     if (!userId || !notificationId) {
       return { success: true };
@@ -2548,6 +2577,7 @@ export const deleteNotification = async (userId, notificationId) => {
 };
 
 export const deleteNotifications = async (userId, notificationIds = []) => {
+  if (useSupabasePrivateChat()) return supabasePrivateChatService.deleteNotifications(userId, notificationIds);
   try {
     if (!userId || !Array.isArray(notificationIds) || notificationIds.length === 0) {
       return { success: true, deletedCount: 0 };
@@ -2572,6 +2602,7 @@ export const deleteNotifications = async (userId, notificationIds = []) => {
  * Obtiene la lista de favoritos del usuario con sus datos
  */
 export const getFavorites = async (userId) => {
+  if (useSupabasePrivateChat()) return supabasePrivateChatService.getFavorites(userId);
   try {
     const userDoc = await getDoc(doc(db, 'users', userId));
     const favoriteIds = userDoc.data()?.favorites || [];
@@ -2595,3 +2626,27 @@ export const getFavorites = async (userId) => {
     throw error;
   }
 };
+
+export const subscribeToPrivateChatMessages = (chatId, callback, limitCount = 80) => (
+  useSupabasePrivateChat()
+    ? supabasePrivateChatService.subscribeToPrivateChatMessages(chatId, callback, limitCount)
+    : () => {}
+);
+
+export const getPrivateChatMessagesBefore = async (chatId, beforeIso, limitCount = 40) => (
+  useSupabasePrivateChat()
+    ? supabasePrivateChatService.getPrivateChatMessagesBefore(chatId, beforeIso, limitCount)
+    : []
+);
+
+export const getPrivateChatConversation = async (chatId) => (
+  useSupabasePrivateChat()
+    ? supabasePrivateChatService.getPrivateChatConversation(chatId)
+    : null
+);
+
+export const markIncomingMessagesStatus = async (chatId, messages = [], options = {}) => (
+  useSupabasePrivateChat()
+    ? supabasePrivateChatService.markIncomingMessagesStatus(chatId, messages, options)
+    : { success: false, skipped: true }
+);

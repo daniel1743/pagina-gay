@@ -19,30 +19,32 @@ const SaludMentalModal = ({ isOpen, onClose }) => {
   const handleFeatureClick = (feature) => {
     switch(feature) {
       case 'ai-chat':
-        if (user.isPremium) {
-           toast({
-            title: '🚧 IA de Apoyo en desarrollo',
-            description: 'Pronto podrás conversar con nuestra IA especializada.',
+        if (user?.isPremium) {
+          toast({
+            title: 'Función de apoyo no disponible',
+            description: 'La herramienta de IA está desactivada. No reemplaza apoyo profesional ni servicios de emergencia.',
           });
         } else {
-           toast({
-            title: '👑 Función Premium',
-            description: 'El chat con IA es una función exclusiva para miembros Premium.',
-            action: <Button onClick={() => handleNavigation('/premium')}>Ver Premium</Button>,
+          toast({
+            title: 'Función de apoyo no disponible',
+            description: 'La herramienta de IA está desactivada. Si necesitas ayuda urgente, contacta servicios de emergencia o apoyo profesional de tu zona.',
           });
         }
         break;
       case 'psychologist':
         toast({
-          title: '🚧 Psicólogos Reales Próximamente',
-          description: 'Estamos trabajando para conectar a profesionales contigo. Te avisaremos cuando esté listo.',
+          title: 'Apoyo profesional no disponible',
+          description: 'Chactivo no ofrece sesiones psicológicas desde esta sección. Si existe una urgencia, contacta los servicios de emergencia o apoyo profesional de tu zona.',
         });
         break;
       case 'anonymous-chat':
         handleNavigation('/anonymous-chat');
         break;
       case 'forum':
-        handleNavigation('/anonymous-chat');
+        toast({
+          title: 'Foro no disponible',
+          description: 'El foro anónimo está pausado. No se crea ni se muestra contenido de ejemplo.',
+        });
         break;
       default:
         break;
@@ -53,28 +55,28 @@ const SaludMentalModal = ({ isOpen, onClose }) => {
     {
       id: 'anonymous-chat',
       title: 'Sala de Apoyo Anónima',
-      description: 'Conecta y habla libremente con otros en un espacio 100% anónimo.',
+      description: 'Revisa los límites y normas antes de decidir si quieres conversar.',
       icon: <Users className="w-8 h-8 text-cyan-400" />,
       premium: false,
     },
     {
       id: 'ai-chat',
       title: 'Chat con IA de Apoyo',
-      description: 'Una IA entrenada para escucharte y ofrecerte apoyo emocional 24/7.',
+      description: 'Función experimental desactivada. No reemplaza apoyo profesional ni servicios de emergencia.',
       icon: <Bot className="w-8 h-8 text-purple-400" />,
       premium: true,
     },
      {
       id: 'forum',
       title: 'Foro Anónimo',
-      description: 'Haz preguntas y comparte experiencias en un foro moderado y seguro.',
+      description: 'El foro está pausado. Esta opción no publica ni muestra contenido de ejemplo.',
       icon: <MessageCircle className="w-8 h-8 text-yellow-400" />,
       premium: false,
     },
     {
       id: 'psychologist',
       title: 'Habla con un Psicólogo',
-      description: 'Conéctate con psicólogos profesionales para una sesión (próximamente).',
+      description: 'No hay sesiones profesionales disponibles desde Chactivo.',
       icon: <User className="w-8 h-8 text-green-400" />,
       premium: false,
     }
@@ -89,19 +91,20 @@ const SaludMentalModal = ({ isOpen, onClose }) => {
             Centro de Salud Mental
           </DialogTitle>
           <DialogDescription className="text-muted-foreground">
-            Tu espacio seguro para el bienestar emocional. No estás solo/a.
+            Recursos informativos y límites claros. Chactivo no es un servicio de emergencia ni reemplaza apoyo profesional.
           </DialogDescription>
         </DialogHeader>
 
         <div className="px-6 pb-6 max-h-[70vh] overflow-y-auto grid grid-cols-1 md:grid-cols-2 gap-4 scrollbar-hide">
           {options.map((option, index) => (
-            <motion.div
+            <motion.button
+              type="button"
               key={option.id}
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ duration: 0.5, delay: index * 0.1 }}
               onClick={() => handleFeatureClick(option.id)}
-              className="relative glass-effect p-6 rounded-xl flex flex-col gap-4 cursor-pointer hover:border-cyan-400 transition-all border"
+              className="relative glass-effect p-6 rounded-xl flex flex-col gap-4 text-left hover:border-cyan-400 transition-all border"
             >
               <div className="flex items-center gap-4">
                 {option.icon}
@@ -113,7 +116,7 @@ const SaludMentalModal = ({ isOpen, onClose }) => {
                   <Crown className="w-3 h-3"/> Premium
                 </div>
               )}
-            </motion.div>
+            </motion.button>
           ))}
         </div>
 

@@ -1,6 +1,6 @@
 # robots.txt para Chactivo - Chat Gay Internacional
 # URL principal: https://chactivo.com
-# Última actualización: 2026-04-09
+# Última actualización: 2026-08-27
 
 # Configuración para todos los bots
 User-agent: *
@@ -25,8 +25,11 @@ Allow: /ar/buenos-aires
 Allow: /es/madrid
 Allow: /br/sao-paulo
 
-# ✅ PERMITIR sala pública principal
+# ✅ PERMITIR sala pública principal para que el crawler pueda leer su noindex dinámico
 Allow: /chat/principal
+
+# /opin y /chat/principal permanecen rastreables para que los meta robots noindex
+# puedan ser descubiertos; no están incluidos en el sitemap por ser superficies dinámicas.
 
 # ⏸️ TEMPORAL (2026-03-26): no enumerar /chat/* residuales o dependientes de landing
 # mientras no sean destinos indexables autónomos estables

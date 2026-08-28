@@ -55,7 +55,7 @@ import {
 } from '@/services/chatService';
 import { CHAT_AVAILABILITY_HEARTBEAT_MS, joinRoom, leaveRoom, subscribeToRoomUsers, subscribeToMultipleRoomCounts, updateUserActivity, cleanInactiveUsers, filterActiveUsers, subscribeToTypingUsers, updatePresenceFields, validateUserAvailabilityInRoom, isUserAvailableForConversation, getPresenceActivityMs } from '@/services/presenceService';
 import { validateMessage, detectCriticalSafetyRisk, checkTempBan } from '@/services/antiSpamService';
-import { auth, db } from '@/config/firebase'; // ✅ CRÍTICO: Necesario para obtener UID real de Firebase Auth
+import { auth, db, isFirebaseConfigured } from '@/config/firebase'; // ✅ CRÍTICO: Necesario para obtener UID real de Firebase Auth
 import { doc, getDoc, deleteDoc } from 'firebase/firestore';
 import { evaluateMessage, checkAIMute, formatMuteRemaining } from '@/services/moderationAIService';
 import {
@@ -73,8 +73,6 @@ import {
 } from '@/services/socialService';
 import { subscribeToBlockedUsers, isBlocked, isBlockedBetween } from '@/services/blockService';
 import { requestNotificationPermission, canRequestPush, setupForegroundMessages } from '@/services/pushNotificationService';
-// ⚠️ MODERADOR ELIMINADO (06/01/2026) - A petición del usuario
-// import { sendModeratorWelcome } from '@/services/moderatorWelcome';
 // Actividad artificial eliminada: la sala solo acepta sesiones reales o anónimas autenticadas.
 import { track, getSessionId, trackPageView, trackPageExit, trackRoomJoined, trackMessageSent } from '@/services/eventTrackingService';
 import { useCanonical } from '@/hooks/useCanonical';
@@ -83,19 +81,20 @@ import { roomsData, canAccessRoom } from '@/config/rooms';
 import { traceEvent, TRACE_EVENTS, isMessageTraceEnabled } from '@/utils/messageTrace';
 import { startEngagementTracking, hasReachedOneHourLimit, getTotalEngagementTime, hasSeenEngagementModal, markEngagementModalAsShown } from '@/services/engagementService';
 import { notificationSounds, initAudioOnFirstGesture } from '@/services/notificationSounds';
-import { monitorActivityAndSendVOC, resetVOCCooldown } from '@/services/vocService';
 import ProCongratsModal from '@/components/rewards/ProCongratsModal';
 import { markReminderPopupShown, wasReminderPopupShown, cleanOldReminders } from '@/utils/eventReminderUtils';
 import { registrarParticipacionEvento } from '@/services/eventosService';
 import { resolveProfileRole } from '@/config/profileRoles';
 import { COMUNA_OPTIONS, getComunaKey, normalizeComuna, ONBOARDING_COMUNA_KEY } from '@/config/comunas';
 import { MessageCircle } from 'lucide-react';
+import { getSafeAvatarSrc, handleAvatarImageError } from '@/utils/avatar';
 import { getOpenOpinIntentsByUserIds, getOpinPostActivityMs, getOpinStatusMeta } from '@/services/opinService';
 import { readPendingPrivateChatRestore, clearPendingPrivateChatRestore } from '@/utils/privateChatRestore';
 import { clearSeoFunnelContext, readSeoFunnelContext } from '@/utils/seoFunnelContext';
 import { hasValidGuestCommunityAccess, syncGuestCommunityAccess } from '@/utils/communityPolicyGuard';
 import { ENABLE_BAUL } from '@/config/featureFlags';
 import '@/utils/chatDiagnostics'; // 🔍 Cargar diagnóstico en consola
+import { isSupabaseAuthEnabled } from '@/config/supabase';
 import { 
   trackChatLoad, 
   trackMessagesLoad, 
@@ -104,6 +103,12 @@ import {
   startTiming,
   endTiming,
 } from '@/utils/performanceMonitor';
+
+const getActiveAuthUserId = (appUser = null) => (
+  isSupabaseAuthEnabled() ? (appUser?.id || null) : (auth?.currentUser?.uid || null)
+);
+
+const hasActiveAuthUser = (appUser = null) => Boolean(getActiveAuthUserId(appUser));
 
 const roomWelcomeMessages = {
   // 'global': '¡Bienvenido a Chat Global! Habla de lo que quieras.', // ⚠️ DESACTIVADA
@@ -838,19 +843,8 @@ const QUICK_STARTER_PHRASES = [
 ];
 
 const MAX_OPEN_PRIVATE_CHATS = 3;
-const DEFAULT_CHAT_AVATAR = '/avatar_por_defecto.jpeg';
 const HETERO_INDEXING_ENABLED = false;
-
-const resolveChatAvatar = (avatar) => {
-  if (!avatar || typeof avatar !== 'string') return DEFAULT_CHAT_AVATAR;
-  const normalized = avatar.trim().toLowerCase();
-  if (!normalized) return DEFAULT_CHAT_AVATAR;
-  if (normalized === 'undefined' || normalized === 'null') return DEFAULT_CHAT_AVATAR;
-  if (normalized.includes('api.dicebear.com')) return DEFAULT_CHAT_AVATAR;
-  if (normalized.startsWith('data:image/svg+xml')) return DEFAULT_CHAT_AVATAR;
-  if (normalized.startsWith('blob:')) return DEFAULT_CHAT_AVATAR;
-  return avatar;
-};
+const resolveChatAvatar = (avatar) => getSafeAvatarSrc(avatar);
 
 const formatRelativePulse = (timestampMs, nowMs = Date.now()) => {
   if (!timestampMs) return 'sin actividad reciente';
@@ -952,10 +946,11 @@ const ChatPage = () => {
     setGuestMessageCount,
     updateAnonymousUserProfile,
     updateProfile,
-    signInAsGuest
+        signInAsGuest
   } = useAuth();
-
+  const chatBackendAvailable = isSupabaseAuthEnabled() || (isFirebaseConfigured && Boolean(db));
   // ✅ Estados y refs - DEBEN estar ANTES del early return
+
   const [currentRoom, setCurrentRoom] = useState(roomId);
   const [messages, setMessages] = useState([]);
   const [blockedUserIds, setBlockedUserIds] = useState(new Set());
@@ -1604,8 +1599,6 @@ const ChatPage = () => {
   const unsubscribeRef = useRef(null);
   const aiActivatedRef = useRef(false); // Flag para evitar activaciones múltiples de IA
   const lastUserCountRef = useRef(0); // Para evitar ejecuciones innecesarias del useEffect
-  // ⚠️ MODERADOR ELIMINADO (06/01/2026) - A petición del usuario
-  // const moderatorWelcomeSentRef = useRef(new Set()); // Para evitar mensajes duplicados del moderador
   const previousMessageCountRef = useRef(0); // Para detectar nuevos mensajes y reproducir sonido
   const lastUserCountsRef = useRef({ total: 0, active: 0, real: 0 }); // Para rastrear conteos de usuarios
   const previousRealUserCountRef = useRef(0); // Para detectar cuando usuarios se desconectan y reproducir sonido
@@ -3162,7 +3155,7 @@ const ChatPage = () => {
   sendNextRandomConnectInviteRef.current = sendNextRandomConnectInvite;
 
   const handleToggleRandomConnect = useCallback(() => {
-    if (!auth.currentUser || !user?.id) {
+    if (!hasActiveAuthUser(user) || !user?.id) {
       setRegistrationModalFeature('chat privado');
       setShowRegistrationModal(true);
       return;
@@ -3714,9 +3707,9 @@ const ChatPage = () => {
     }
 
     if (headerActivitySnapshot.visibleOnlineCount >= 6) {
-      items.push(`${headerActivitySnapshot.visibleOnlineCount} personas conectadas ahora`);
+      items.push(`${headerActivitySnapshot.visibleOnlineCount} actividad disponible`);
     } else if (headerActivitySnapshot.hasConnectedPeople) {
-      items.push('Hay personas conectadas ahora');
+      items.push('Hay actividad disponible');
     } else {
       items.push('Tu mensaje puede activar la sala en segundos');
     }
@@ -3988,38 +3981,38 @@ const ChatPage = () => {
         title: 'Video Chat Gay Gamers Chile 🎮 | Sala Gaming LGBT+ | Chactivo',
         description: 'Video chat gay gamers Chile para hablar de LoL, Valorant, Minecraft y más. Comunidad LGBT+ gamer activa, segura y sin toxicidad.',
         ogTitle: 'Chat Gay para Gamers Chile 🎮 | Comunidad Gaming LGBT+',
-        ogDescription: '🎮 Conecta con gamers LGBT+ de Chile. Sala activa 24/7 con +50 gamers. Todas las plataformas: PC, PS5, Xbox, Switch, Móvil. ¡Únete ahora!'
+        ogDescription: '🎮 Conecta con gamers LGBT+ de Chile. Participa cuando haya actividad real. PC, PS5, Xbox, Switch y móvil.'
       },
       'mas-30': {
         title: 'Chat Gay +30 Años Chile 💪 | Sala Mayores LGBT+ | Chactivo',
-        description: '💪 Chat gay para mayores de 30 años en Chile. Conversación madura, sin presión. Conoce gays de tu edad en Santiago, Valparaíso y todo Chile. Comunidad LGBT+ +30 activa 24/7.',
+        description: '💪 Chat gay para mayores de 30 años en Chile. Conversación madura, sin presión. Conoce gays de tu edad en Santiago, Valparaíso y todo Chile. Comunidad LGBT+ +30 para conversar cuando haya actividad.',
         ogTitle: 'Chat Gay +30 Años Chile | Comunidad Madura LGBT+',
         ogDescription: '💪 Sala exclusiva para mayores de 30. Conversación madura, respeto y buena onda. Conoce gays de tu generación.'
       },
       'santiago': {
         title: 'Chat Gay Santiago Chile 🏙️ | Sala LGBT+ Capital | Chactivo',
-        description: '🏙️ Chat gay Santiago Chile. Conecta con gays de la capital en tiempo real. Salas temáticas, conversación segura, comunidad LGBT+ activa 24/7. ¡Regístrate gratis!',
+        description: '🏙️ Chat gay Santiago Chile. Conecta con gays de la capital en tiempo real. Salas temáticas, conversación segura, comunidad LGBT+ para conversar cuando haya actividad. ¡Regístrate gratis!',
         ogTitle: 'Chat Gay Santiago | Conoce LGBT+ de la Capital',
         ogDescription: '🏙️ Sala exclusiva de Santiago. Conecta con gays de Providencia, Las Condes, Ñuñoa y toda la capital.'
       },
       // ⚠️ SALA GLOBAL - DESACTIVADA (reemplazada por 'principal')
       // 'global': {
       //   title: 'Chat Global - Chat Gay Chile 💬 | Sala General LGBT+ | Chactivo',
-      //   description: '💬 Sala de chat gay general Chile. Todos los temas bienvenidos: amistad, relaciones, gaming, cultura. Conversación libre, ambiente relajado. La sala más activa de Chactivo. ¡Regístrate en 30 segundos!',
+      //   description: '💬 Sala de chat gay general de Chile. Amistad, relaciones, gaming y cultura. Conversación libre, ambiente relajado.',
       //   ogTitle: 'Chat Global | Chat Gay Chile General 💬',
       //   ogDescription: '💬 La sala más popular de Chactivo. Todos los temas, todos bienvenidos. Ambiente relajado y conversación real.'
       // },
       'principal': {
         title: 'Chat Gay Chile Gratis 💬 | En Vivo Sin Registro | Chactivo',
-        description: 'Chat gay Chile en vivo. Entra gratis en segundos, conoce gente real y conversa sin registro obligatorio.',
+        description: 'Chat gay Chile en vivo. Entra gratis en segundos, revisa la actividad disponible y conversa sin registro obligatorio.',
         ogTitle: 'Chat Gay Chile Gratis 💬 | En Vivo Sin Registro',
-        ogDescription: 'Conecta con gente real de Chile en segundos: chat en vivo, gratis y sin registro obligatorio.'
+        ogDescription: 'Conversa con la comunidad de Chile en segundos: chat en vivo, gratis y sin registro obligatorio.'
       },
       'hetero-general': {
         title: 'Chat Hetero Gratis 💬 | En Vivo y Activo | Chactivo',
-        description: 'Chat hetero en vivo. Conoce gente real, conversa en tiempo real y entra sin pasos complejos.',
+        description: 'Chat hetero en vivo. Conversa en tiempo real y entra sin pasos complejos.',
         ogTitle: 'Chat Hetero Gratis 💬 | En Vivo y Activo',
-        ogDescription: 'Conecta con personas reales en una sala hetero activa, rápida y sin fricción.'
+        ogDescription: 'Conversa en una sala hetero en tiempo real, rápida y sin fricción.'
       }
     };
 
@@ -4048,7 +4041,9 @@ const ChatPage = () => {
       robotsMeta.setAttribute('name', 'robots');
       document.head.appendChild(robotsMeta);
     }
-    const shouldNoindexRoom = roomId === 'hetero-general' && !HETERO_INDEXING_ENABLED;
+    // Las salas contienen UGC dinámico y no son destinos SEO estables. Solo el vertical
+    // hetero puede optar explícitamente por indexación cuando su bandera esté habilitada.
+    const shouldNoindexRoom = roomId !== 'hetero-general' || !HETERO_INDEXING_ENABLED;
     robotsMeta.setAttribute(
       'content',
       shouldNoindexRoom ? 'noindex, nofollow, noarchive, nosnippet' : 'index, follow, max-image-preview:large'
@@ -4490,6 +4485,16 @@ const ChatPage = () => {
   // Esto permite que los mensajes carguen instantáneamente, incluso con usuario temporal
   // 🚀 EXPERIMENTO: Permitir suscripción SIN usuario para ver mensajes inmediatamente
   useEffect(() => {
+    if (!chatBackendAvailable) {
+      if (unsubscribeRef.current) {
+        unsubscribeRef.current();
+        unsubscribeRef.current = null;
+      }
+      setIsLoadingMessages(false);
+      setMessagesLoadingStage('ready');
+      return () => {};
+    }
+
     setCurrentRoom(roomId);
     setIsLoadingMessages(true); // ⏳ Marcar como cargando al cambiar de sala
     setMessagesLoadingStage('initial');
@@ -4825,32 +4830,6 @@ const ChatPage = () => {
     //   title: `👋 ¡${user.username} se ha unido a la sala!`,
     //   description: `Estás en #${roomId}`,
     // });
-
-    // 👮 Mensaje de bienvenida del moderador (solo una vez)
-    // ⚠️ MODERADOR COMENTADO (06/01/2026) - Desactivado a petición del usuario
-    /*
-    const moderatorKey = `${roomId}_${user.id}`;
-    const hasSeenModerator = sessionStorage.getItem(`moderator_welcome_${moderatorKey}`);
-    
-    // Verificar también en el ref para evitar duplicados en el mismo render
-    if (!hasSeenModerator && !moderatorWelcomeSentRef.current.has(moderatorKey)) {
-      // Marcar inmediatamente para evitar duplicados
-      moderatorWelcomeSentRef.current.add(moderatorKey);
-      sessionStorage.setItem(`moderator_welcome_${moderatorKey}`, 'true');
-      
-      setTimeout(() => {
-        // ✅ FIX: Validar que username existe antes de enviar bienvenida
-        if (user?.username) {
-        sendModeratorWelcome(roomId, user.username);
-        }
-      }, 2000); // Enviar después de 2 segundos
-    }
-    */
-
-    // ⚠️ BOTS ELIMINADOS (06/01/2026) - A petición del usuario
-    // 🌱 Sembrar conversaciones genuinas en "Chat Principal"
-    // checkAndSeedConversations(roomId);
-
 
     // Cleanup: desuscribirse y remover presencia cuando se desmonta o cambia de sala
     return () => {
@@ -5228,6 +5207,7 @@ const ChatPage = () => {
           userId: currentUserId,
         },
         notificationId: item.id,
+        requestId: item.requestId || item.entity_id || null,
         source: item.source || 'manual',
         suggestedStarter: item.suggestedStarter || '',
         systemPrompt: item.systemPrompt || '',
@@ -5548,7 +5528,7 @@ const ChatPage = () => {
   }, [user?.id, isPageVisible, getPrivateChatWindowState, getPrivateRequestSurfaceScope, isPrivateUiKeyActive, rememberPrivateUiKey, showPrivateConversationToast]); // refs manejan el estado mutable
 
   useEffect(() => {
-    if (!authReady || !user?.id || auth.currentUser?.uid !== user.id) {
+    if (!authReady || !user?.id || getActiveAuthUserId(user) !== user.id) {
       setPrivateInboxItems([]);
       return;
     }
@@ -5568,7 +5548,7 @@ const ChatPage = () => {
   }, [authReady, shouldListenPrivateSurfaceData, user?.id, isPageVisible]);
 
   useEffect(() => {
-    if (!authReady || !user?.id || auth.currentUser?.uid !== user.id) {
+    if (!authReady || !user?.id || getActiveAuthUserId(user) !== user.id) {
       setPrivateMatchStateItems([]);
       return;
     }
@@ -5664,7 +5644,7 @@ const ChatPage = () => {
     console.log('[REACTION] 🎯 Intentando reacción:', { messageId, reaction, currentRoom, userId: user?.id });
 
     // ⚠️ RESTRICCIÓN: Usuarios no autenticados o anónimos NO pueden dar reacciones
-    if (!auth.currentUser || auth.currentUser.isAnonymous || user?.isGuest || user?.isAnonymous || !user?.id) {
+    if (!hasActiveAuthUser(user) || (!isSupabaseAuthEnabled() && auth?.currentUser?.isAnonymous) || user?.isGuest || user?.isAnonymous || !user?.id) {
       console.log('[REACTION] ❌ Usuario no autenticado o invitado');
       toast({
         title: "¿Te gustó? Regístrate para reaccionar",
@@ -6062,12 +6042,12 @@ const ChatPage = () => {
     // ✅ A partir de aquí usamos el usuario efectivo (puede ser invitado auto-creado)
     // ✅ Chat principal: SIEMPRE permitir enviar mensajes (registrados e invitados)
     // Solo Baúl (cambio foto) y OPIN (publicar) requieren registro
-    if (auth.currentUser) {
-      // Si hay auth, esperar a que esté disponible
+    if (!isSupabaseAuthEnabled() && auth?.currentUser) {
+      // En el fallback Firebase, esperar a que Auth esté disponible
       let attempts = 0;
       const maxAttempts = 30;
 
-      while (!auth.currentUser && attempts < maxAttempts) {
+      while (!auth?.currentUser && attempts < maxAttempts) {
         await new Promise(resolve => setTimeout(resolve, 100));
         attempts++;
       }
@@ -6384,12 +6364,12 @@ const ChatPage = () => {
               } else if (validation.type === 'private_redirect') {
                 toast({
                   title: "Usa el privado interno",
-                  description: auth.currentUser
+                  description: Boolean(currentUser?.id)
                     ? "Si quieres seguir 1 a 1, toca el nombre del usuario y usa Invitar a privado dentro de Chactivo."
                     : "Para pasar a privado dentro de Chactivo primero debes registrarte.",
                   variant: "default",
                   duration: 8000,
-                  action: auth.currentUser
+                  action: Boolean(currentUser?.id)
                     ? undefined
                     : {
                         label: "Registrarme",
@@ -6460,25 +6440,24 @@ const ChatPage = () => {
           .catch(() => true) // Si falla validación, permitir envío (fail-open)
       : Promise.resolve(true);
 
-    // ⚡ INSTANTÁNEO: Enviar mensaje a Firestore en segundo plano (NO bloquear UI)
-    // El mensaje optimista ya está visible, Firestore se sincroniza en background
-    // ✅ CRÍTICO: Usar auth.currentUser.uid directamente (ya validado arriba)
-    // Firestore rules requieren que data.userId == request.auth.uid exactamente
+    // ⚡ INSTANTÁNEO: Enviar mensaje al backend activo en segundo plano (NO bloquear UI)
+    // El mensaje optimista ya está visible; el backend seleccionado se sincroniza en background
+    // El adapter valida el userId contra la sesión del proveedor activo.
 
     // 📊 PERFORMANCE MONITOR: Capturar tiempo de inicio ANTES del Promise chain
     const messageSendStartTime = performance.now();
 
-    Promise.all([validationPromise])
+    return Promise.all([validationPromise])
       .then(([isValid]) => {
         if (!isValid) return; // Validación falló, no enviar
         
         // ✅ GARANTIZAR AVATAR: Nunca enviar null o undefined
         const messageAvatar = resolveChatAvatar(currentUser.avatar);
 
-        // 🔍 TRACE: Intentando escribir en Firebase
+        // 🔍 TRACE: Intentando escribir en el backend activo
         traceEvent(TRACE_EVENTS.FIREBASE_WRITE_ATTEMPT, {
           traceId: clientId,
-          userId: auth.currentUser?.uid || currentUser.id,
+          userId: getActiveAuthUserId(currentUser) || currentUser.id,
           roomId: currentRoom,
           content: content.substring(0, 50),
         });
@@ -6494,7 +6473,7 @@ const ChatPage = () => {
       currentRoom,
       {
         clientId, // ✅ F1: Pasar clientId para correlación
-        userId: auth.currentUser?.uid || currentUser.id, // ✅ Fallback si no hay auth aún
+        userId: getActiveAuthUserId(currentUser) || currentUser.id, // ✅ Fallback si no hay auth aún
         username: currentUser.username || 'Usuario', // ✅ FIX: Fallback si username es undefined
         avatar: messageAvatar, // ✅ SIEMPRE tiene valor válido
         isPremium: currentUser.isPremium || false,
@@ -6516,15 +6495,20 @@ const ChatPage = () => {
         );
       })
       .then((sentMessage) => {
-        if (!sentMessage) return; // Validación falló o no se envió
-        
-        // 🔍 TRACE: Escritura en Firebase exitosa
+        if (!sentMessage?.id) {
+          if (messageType === 'image') {
+            throw new Error('MESSAGE_NOT_CONFIRMED');
+          }
+          return null;
+        }
+
+        // 🔍 TRACE: Escritura en el backend activo exitosa
         traceEvent(TRACE_EVENTS.FIREBASE_WRITE_SUCCESS, {
           traceId: clientId,
           messageId: sentMessage.id,
           userId: currentUser.id,
           roomId: currentRoom,
-          firestoreId: sentMessage.id,
+          backendMessageId: sentMessage.id,
         });
         
         // ✅ Mensaje enviado exitosamente - se actualizará automáticamente vía onSnapshot
@@ -6568,9 +6552,6 @@ const ChatPage = () => {
           contentLength: content.length,
         });
 
-        // 🎯 VOC: Resetear cooldown cuando hay nueva actividad
-        resetVOCCooldown(currentRoom);
-
         // ⚡ LATENCY CHECK: Solo log en consola (sin toast al usuario)
         const latency = Date.now() - optimisticMessage.timestampMs;
         console.log(`⏱️ [LATENCY TEST] Mensaje sincronizado en ${latency}ms`);
@@ -6582,9 +6563,12 @@ const ChatPage = () => {
               if (!modResult.safe) {
                 console.log(`[MOD-AI] Violación detectada post-send:`, modResult);
 
-                // Eliminar mensaje de Firestore
+                // Eliminar mediante el backend activo; Firebase solo queda en fallback histórico.
                 if (sentMessage?.id) {
-                  deleteDoc(doc(db, 'rooms', currentRoom, 'messages', sentMessage.id)).catch(e =>
+                  const deletePromise = isSupabaseAuthEnabled()
+                    ? deleteMessageWithMedia(currentRoom, sentMessage.id)
+                    : deleteDoc(doc(db, 'rooms', currentRoom, 'messages', sentMessage.id));
+                  deletePromise.catch(e =>
                     console.warn('[MOD-AI] Error eliminando mensaje:', e.message)
                   );
                 }
@@ -6705,6 +6689,7 @@ const ChatPage = () => {
         //     duration: 5000,
         //   });
         // }
+        throw error;
       });
   };
 
@@ -6740,7 +6725,7 @@ const ChatPage = () => {
         currentRoom,
         {
           clientId: optimisticMessage.clientId,
-          userId: auth.currentUser.uid,
+          userId: getActiveAuthUserId(user),
           username: user.username,
           avatar: messageAvatar, // ✅ SIEMPRE tiene valor válido
           isPremium: user.isPremium,
@@ -6826,7 +6811,7 @@ const ChatPage = () => {
     if (!targetUserId || !user?.id) return;
     if (targetUserId === user.id) return;
 
-    if (!auth.currentUser) {
+    if (!hasActiveAuthUser(user)) {
       setShowRegistrationModal(true);
       setRegistrationModalFeature('chat privado');
       return;
@@ -6903,13 +6888,13 @@ const ChatPage = () => {
   const openOrCreatePrivateChatWithTarget = useCallback(async (targetUser, options = {}) => {
     const targetUserId = targetUser?.userId || targetUser?.id || null;
     const hasRealAuthenticatedUid = Boolean(
-      auth.currentUser?.uid &&
+      getActiveAuthUserId(user) &&
       user?.id &&
-      auth.currentUser.uid === user.id &&
+      getActiveAuthUserId(user) === user.id &&
       !String(user.id).startsWith('temp_')
     );
 
-    if (!auth.currentUser || !user?.id) {
+    if (!hasActiveAuthUser(user) || !user?.id) {
       setPendingPrivateTarget(targetUser || null);
       setPendingPrivateOptions(options || null);
       openNicknameModal('private_chat_request');
@@ -7206,7 +7191,7 @@ const ChatPage = () => {
 
   useEffect(() => {
     if (!user?.id || !pendingPrivateTarget) return;
-    if (!authReady || auth.currentUser?.uid !== user.id || String(user.id).startsWith('temp_')) return;
+    if (!authReady || getActiveAuthUserId(user) !== user.id || String(user.id).startsWith('temp_')) return;
 
     const targetToOpen = pendingPrivateTarget;
     const optionsToUse = pendingPrivateOptions || {};
@@ -7551,7 +7536,7 @@ const ChatPage = () => {
           });
         }
 
-        const result = await respondToPrivateChatRequest(currentUserId, notificationId, accepted);
+        const result = await respondToPrivateChatRequest(currentUserId, requestToHandle?.requestId || notificationId, accepted);
         
         if (accepted && result?.chatId) {
           if (optimisticChatId && result.chatId !== optimisticChatId) {
@@ -7877,7 +7862,7 @@ const ChatPage = () => {
   return (
     <>
       {/* ✅ Layout Chat: Sidebar + Chat + Usuarios en línea (desktop) */}
-      <div className="h-screen overflow-hidden bg-background lg:flex" style={{ height: '100dvh', maxHeight: '100dvh' }}>
+      <div className="cv-page cv-shell h-screen overflow-hidden bg-background lg:flex" style={{ height: '100dvh', maxHeight: '100dvh' }}>
         <ChatSidebar
           currentRoom={currentRoom}
           setCurrentRoom={setCurrentRoom}
@@ -7909,6 +7894,12 @@ const ChatPage = () => {
             activityText={activityText}
             activityTickerItems={headerTickerItems}
           />
+
+          {!chatBackendAvailable && (
+            <div className="cv-status-warning flex items-center justify-center gap-2 border-b px-3 py-2 text-center text-xs font-semibold" role="status">
+              Este entorno no tiene chat conectado. La interfaz está disponible para revisión visual; los mensajes no se enviarán.
+            </div>
+          )}
 
           <section className="border-b border-[var(--chat-divider)] bg-[var(--chat-header-surface)]/70 px-3 py-2 backdrop-blur-[14px]">
             <div className="flex gap-2 overflow-x-auto scrollbar-hide">
@@ -8001,8 +7992,9 @@ const ChatPage = () => {
                         <div className="flex items-center gap-2">
                           <div className="relative h-10 w-10 overflow-hidden rounded-full border border-white/10">
                             <img
-                              src={item.avatar}
+                              src={getSafeAvatarSrc(item.avatar)}
                               alt={item.username}
+                              onError={handleAvatarImageError}
                               className="h-full w-full object-cover"
                               loading="lazy"
                             />
@@ -8238,6 +8230,7 @@ const ChatPage = () => {
           onOpenContextualOpportunity={handleOpenCompatibleNowCandidate}
           onDismissContextualOpportunities={handleDismissPrivateMatchSuggestion}
           isContextualSending={isSendingPrivateMatchRequest || isOpeningContextualOpportunity}
+          backendAvailable={chatBackendAvailable}
         />
 
         <FeaturedChannelsColumn
@@ -8296,7 +8289,7 @@ const ChatPage = () => {
             }}
             onSelectUser={(favoriteUser) => {
               // Abrir modal de acciones para el favorito seleccionado
-              setSelectedUserForActions(favoriteUser);
+              setUserActionsTarget(favoriteUser);
               setSelectedUser(null);
             }}
           />

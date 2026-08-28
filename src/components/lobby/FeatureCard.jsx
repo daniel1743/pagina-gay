@@ -84,29 +84,22 @@ const FeatureCard = ({
       animate="visible"
       onHoverStart={() => setIsHovered(true)}
       onHoverEnd={() => setIsHovered(false)}
-      onClick={onClick}
-      className="relative group cursor-pointer"
+      className="relative group"
     >
-      <motion.div
-        whileHover={{ y: -6 }}
+      <motion.button
+        type="button"
+        onClick={onClick}
+        aria-label={`${title} - ${description}`}
+        whileHover={{ y: -2 }}
         whileTap={{ scale: 0.98 }}
         className={`
-          glassmorphism-card
+          cv-card cv-card-interactive
           relative h-full ${isHorizontal ? 'min-h-[120px] sm:min-h-[140px] md:min-h-[160px]' : 'min-h-[180px] sm:min-h-[200px] md:min-h-[220px]'}
           text-foreground
           rounded-2xl p-4 sm:p-5 md:p-6
-          focus:outline-none focus:ring-4 focus:ring-primary/20
+          w-full text-left cv-focusable
           ${colors.glow}
         `}
-        tabIndex={0}
-        role="button"
-        aria-label={`${title} - ${description}`}
-        onKeyDown={(e) => {
-          if (e.key === 'Enter' || e.key === ' ') {
-            e.preventDefault();
-            onClick();
-          }
-        }}
       >
         {/* Badge - Solo para layout vertical */}
         {!isHorizontal && badge && BadgeIcon && (
@@ -221,7 +214,7 @@ const FeatureCard = ({
             </div>
           </div>
         )}
-      </motion.div>
+      </motion.button>
     </motion.div>
   );
 };

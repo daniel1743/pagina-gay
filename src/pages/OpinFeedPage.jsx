@@ -12,7 +12,9 @@ import {
   getOpinFeed,
   canCreatePost,
   getOpinPostActivityMs,
+  getTimestampMs,
   getMyOpinPosts,
+  getMyActiveOpinIntent,
   getOpinStatusMeta,
   updateOpinStatus,
   isOpenOpinIntentStatus,
@@ -27,6 +29,7 @@ import OpinCommentsModal from '@/components/opin/OpinCommentsModal';
 import { toast } from '@/components/ui/use-toast';
 import { trackPageView, trackPageExit, track } from '@/services/eventTrackingService';
 import { sanitizeOpinPublicText } from '@/services/opinSafetyService';
+import { getSafeAvatarSrc, handleAvatarImageError } from '@/utils/avatar';
 
 import {
   EarthIcon,
@@ -42,19 +45,19 @@ import {
 } from '@hugeicons/core-free-icons';
 
 const CATEGORY_FILTERS = [
-  { id: 'all', label: 'Todos', icon: EarthIcon, activeClass: 'bg-purple-500/20 text-purple-200 border border-purple-500/30 shadow-[0_0_10px_rgba(168,85,247,0.1)]' },
-  { id: 'crush', label: 'Busco conocer', icon: CrownIcon, activeClass: 'bg-fuchsia-500/20 text-fuchsia-200 border border-fuchsia-500/30 shadow-[0_0_10px_rgba(217,70,239,0.1)]' },
-  { id: 'conversar', label: 'Conversar', icon: BubbleChatIcon, activeClass: 'bg-blue-500/20 text-blue-200 border border-blue-500/30 shadow-[0_0_10px_rgba(59,130,246,0.1)]' },
-  { id: 'encuentro', label: 'Encuentro', icon: FireIcon, activeClass: 'bg-orange-500/20 text-orange-200 border border-orange-500/30 shadow-[0_0_10px_rgba(249,115,22,0.1)]' },
-  { id: 'evento', label: 'Evento', icon: Calendar01Icon, activeClass: 'bg-emerald-500/20 text-emerald-200 border border-emerald-500/30 shadow-[0_0_10px_rgba(16,185,129,0.1)]' },
-  { id: 'comunidad', label: 'Comunidad', icon: City01Icon, activeClass: 'bg-indigo-500/20 text-indigo-200 border border-indigo-500/30 shadow-[0_0_10px_rgba(99,102,241,0.1)]' },
-  { id: 'pregunta', label: 'Pregunta', icon: CircleQuestionMarkIcon, activeClass: 'bg-yellow-500/20 text-yellow-200 border border-yellow-500/30 shadow-[0_0_10px_rgba(234,179,8,0.1)]' },
-  { id: 'relacion', label: 'Relación', icon: HeartIcon, activeClass: 'bg-rose-500/20 text-rose-200 border border-rose-500/30 shadow-[0_0_10px_rgba(244,63,94,0.1)]' },
-  { id: 'casual', label: 'Casual', icon: FlashIcon, activeClass: 'bg-violet-500/20 text-violet-200 border border-violet-500/30 shadow-[0_0_10px_rgba(139,92,246,0.1)]' },
-  { id: 'amistad', label: 'Amistad', icon: UserGroupIcon, activeClass: 'bg-cyan-500/20 text-cyan-200 border border-cyan-500/30 shadow-[0_0_10px_rgba(6,182,212,0.1)]' }
+  { id: 'all', label: 'Todos', icon: EarthIcon, activeClass: 'bg-cyan-300/10 text-cyan-100 border border-cyan-300/40 shadow-[0_0_16px_rgba(34,211,238,0.14)]' },
+  { id: 'crush', label: 'Busco conocer', icon: CrownIcon, activeClass: 'bg-fuchsia-300/10 text-fuchsia-100 border border-fuchsia-300/40 shadow-[0_0_16px_rgba(217,70,239,0.14)]' },
+  { id: 'conversar', label: 'Conversar', icon: BubbleChatIcon, activeClass: 'bg-blue-300/10 text-blue-100 border border-blue-300/40 shadow-[0_0_16px_rgba(96,165,250,0.14)]' },
+  { id: 'encuentro', label: 'Encuentro', icon: FireIcon, activeClass: 'bg-amber-300/10 text-amber-100 border border-amber-300/40 shadow-[0_0_16px_rgba(245,158,11,0.14)]' },
+  { id: 'evento', label: 'Evento', icon: Calendar01Icon, activeClass: 'bg-emerald-300/10 text-emerald-100 border border-emerald-300/40 shadow-[0_0_16px_rgba(16,185,129,0.14)]' },
+  { id: 'comunidad', label: 'Comunidad', icon: City01Icon, activeClass: 'bg-indigo-300/10 text-indigo-100 border border-indigo-300/40 shadow-[0_0_16px_rgba(129,140,248,0.14)]' },
+  { id: 'pregunta', label: 'Pregunta', icon: CircleQuestionMarkIcon, activeClass: 'bg-yellow-300/10 text-yellow-100 border border-yellow-300/40 shadow-[0_0_16px_rgba(234,179,8,0.14)]' },
+  { id: 'relacion', label: 'Relación', icon: HeartIcon, activeClass: 'bg-rose-300/10 text-rose-100 border border-rose-300/40 shadow-[0_0_16px_rgba(244,63,94,0.14)]' },
+  { id: 'casual', label: 'Casual', icon: FlashIcon, activeClass: 'bg-violet-300/10 text-violet-100 border border-violet-300/40 shadow-[0_0_16px_rgba(139,92,246,0.14)]' },
+  { id: 'amistad', label: 'Amistad', icon: UserGroupIcon, activeClass: 'bg-teal-300/10 text-teal-100 border border-teal-300/40 shadow-[0_0_16px_rgba(20,184,166,0.14)]' }
 ];
 
-const OPIN_FEED_LIMIT = 24;
+const OPIN_FEED_LIMIT = 36;
 const FOLLOWED_STORAGE_PREFIX = 'opin:followed_posts:';
 const LAST_VISIT_STORAGE_PREFIX = 'opin:last_visit_at:';
 const SNAPSHOT_STORAGE_PREFIX = 'opin:own_snapshot:';
@@ -173,6 +176,7 @@ const OpinFeedPage = () => {
   const { user, userProfile } = useAuth();
   const [posts, setPosts] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [feedError, setFeedError] = useState('');
   const [canCreate, setCanCreate] = useState(false);
   const [createBlockMessage, setCreateBlockMessage] = useState('');
   const [selectedPost, setSelectedPost] = useState(null);
@@ -453,14 +457,21 @@ const OpinFeedPage = () => {
 
   const loadFeed = useCallback(async () => {
     setLoading(true);
+    setFeedError('');
+    let timeoutId;
     try {
-      const feedPosts = await getOpinFeed(OPIN_FEED_LIMIT);
+      const timeout = new Promise((_, reject) => {
+        timeoutId = setTimeout(() => reject(new Error('OPIN está tardando demasiado en responder.')), 12000);
+      });
+      const feedPosts = await Promise.race([getOpinFeed(OPIN_FEED_LIMIT), timeout]);
       setPosts(feedPosts);
     } catch (error) {
       console.error('Error cargando feed:', error);
       setPosts([]);
+      setFeedError(error?.message || 'No se pudo cargar OPIN.');
       toast({ description: error?.message || 'No se pudo cargar OPIN', variant: 'destructive' });
     } finally {
+      if (timeoutId) clearTimeout(timeoutId);
       setLoading(false);
     }
   }, []);
@@ -473,7 +484,7 @@ const OpinFeedPage = () => {
     }
 
     try {
-      const ownPostsData = await getMyOpinPosts(8);
+      const ownPostsData = await getMyOpinPosts(24);
       const activeIntentData = await getMyActiveOpinIntent();
       setMyPosts(ownPostsData);
       setMyActiveIntent(activeIntentData);
@@ -791,9 +802,13 @@ const OpinFeedPage = () => {
   const followedPosts = useMemo(() => (
     posts.filter((post) => followedPostSet.has(post.id))
   ), [posts, followedPostSet]);
+  const recentPosts = useMemo(() => (
+    [...posts].sort((a, b) => getTimestampMs(b.createdAt) - getTimestampMs(a.createdAt))
+  ), [posts]);
 
   const filters = [
     { id: 'all', label: 'Para ti', count: posts.length },
+    { id: 'recent', label: 'Más recientes', count: posts.length },
     { id: 'new_activity', label: 'Actividad nueva', count: newActivityPosts.length },
     { id: 'followed', label: 'Seguidos', count: followedPosts.length },
     ...(currentUserId ? [{ id: 'mine', label: 'Mis intenciones', count: ownPosts.length }] : []),
@@ -802,6 +817,9 @@ const OpinFeedPage = () => {
   const filteredPosts = useMemo(() => {
     let base = [];
     switch (activeFilter) {
+      case 'recent':
+        base = recentPosts;
+        break;
       case 'new_activity':
         base = newActivityPosts;
         break;
@@ -820,7 +838,7 @@ const OpinFeedPage = () => {
       return base.filter((p) => p.type === selectedTypeFilter);
     }
     return base;
-  }, [activeFilter, selectedTypeFilter, posts, newActivityPosts, followedPosts, ownPosts]);
+  }, [activeFilter, selectedTypeFilter, posts, recentPosts, newActivityPosts, followedPosts, ownPosts]);
 
   const activeIntentMetrics = useMemo(() => {
     if (!myActiveIntent) return null;
@@ -862,6 +880,11 @@ const OpinFeedPage = () => {
 
   const emptyStateCopy = useMemo(() => {
     switch (activeFilter) {
+      case 'recent':
+        return {
+          title: 'No hay notas recientes',
+          description: 'Esta vista muestra hasta 36 intenciones dentro de la ventana activa de 60 días.',
+        };
       case 'new_activity':
         return {
           title: 'Sin novedades desde tu última visita',
@@ -886,20 +909,26 @@ const OpinFeedPage = () => {
   }, [activeFilter]);
 
   return (
-    <div className="min-h-screen bg-background flex flex-col">
-      <div className="sticky top-0 z-10 bg-card/95 backdrop-blur-sm border-b border-border">
-        <div className="max-w-7xl mx-auto px-4 py-3">
-          <div className="flex items-center justify-between">
+    <div className="cv-page cv-shell flex flex-col">
+      <div className="cv-header sticky top-0 z-20 border-b border-cyan-300/15 shadow-[0_12px_32px_rgba(2,8,23,0.35)]">
+        <div className="max-w-7xl mx-auto px-4 py-3.5">
+          <div className="flex items-center justify-between gap-3">
             <div className="flex items-center gap-3">
               <button
                 onClick={() => navigate(-1)}
-                className="p-1.5 -ml-1 hover:bg-white/10 rounded-lg transition-colors"
+                aria-label="Volver"
+                className="cv-icon-button -ml-1"
               >
                 <ArrowLeft className="w-5 h-5" />
               </button>
-              <div className="flex items-center gap-2">
-                <Sparkles className="w-5 h-5 text-purple-400" />
-                <h1 className="text-lg font-bold">OPIN</h1>
+              <div className="flex items-center gap-2.5">
+                <span className="cv-brand-mark h-9 w-9">
+                  <Sparkles className="w-4 h-4" aria-hidden="true" />
+                </span>
+                <div>
+                  <p className="text-[10px] font-semibold uppercase tracking-[0.2em] text-cyan-200/75">Tablón de intención</p>
+                  <h1 className="text-xl font-black tracking-tight text-white">OPIN</h1>
+                </div>
               </div>
               {isReadOnlyMode && (
                 <span className="px-2 py-0.5 rounded-full bg-yellow-500/20 text-yellow-400 text-xs">
@@ -912,7 +941,8 @@ const OpinFeedPage = () => {
               <button
                 onClick={loadFeed}
                 disabled={loading}
-                className="p-2 hover:bg-white/10 rounded-lg transition-colors"
+                aria-label="Actualizar oportunidades"
+                className="cv-icon-button"
                 title="Actualizar oportunidades"
               >
                 <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
@@ -921,7 +951,7 @@ const OpinFeedPage = () => {
               {!isReadOnlyMode && (
                 <button
                   onClick={handleCreatePost}
-                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-gradient-to-r from-purple-500 to-pink-500 text-white text-sm font-medium"
+                  className="cv-button-primary px-3 py-1.5 text-sm"
                 >
                   <Plus className="w-4 h-4" />
                   <span className="hidden sm:inline">{myActiveIntent ? 'Editar intención' : 'Abrir intención'}</span>
@@ -930,8 +960,11 @@ const OpinFeedPage = () => {
             </div>
           </div>
 
-          <p className="text-xs text-muted-foreground mt-1">
-            {filteredPosts.length > 0 ? `${filteredPosts.length} notas en esta vista` : 'Notas de la comunidad'}
+          <p className="mt-2 max-w-2xl text-sm leading-relaxed text-slate-300">
+            Publica lo que buscas ahora, encuentra respuestas reales y vuelve cuando tu intención cambie.
+          </p>
+          <p className="text-xs text-slate-400 mt-1">
+            {filteredPosts.length > 0 ? `${filteredPosts.length} notas en esta vista` : 'Notas de la comunidad'} · Sin actividad simulada
           </p>
 
           <div className="flex flex-wrap gap-2 mt-3">
@@ -941,10 +974,11 @@ const OpinFeedPage = () => {
                 <button
                   key={filter.id}
                   onClick={() => handleFilterChange(filter.id)}
-                  className={`px-3 py-1.5 rounded-full text-xs font-medium transition-colors ${
+                  aria-pressed={isActive}
+                  className={`cv-chip px-3.5 py-2 rounded-xl text-xs font-semibold transition-all ${
                     isActive
-                      ? 'bg-white text-black'
-                      : 'bg-white/5 text-muted-foreground hover:bg-white/10'
+                      ? 'border-cyan-200/60 bg-cyan-200 text-slate-950 shadow-[0_6px_18px_rgba(103,232,249,0.18)]'
+                      : 'border-white/10 bg-white/[0.04] text-slate-300 hover:border-cyan-200/30 hover:bg-white/[0.08]'
                   }`}
                 >
                   {filter.label}
@@ -964,10 +998,11 @@ const OpinFeedPage = () => {
                 <button
                   key={cat.id}
                   onClick={() => setSelectedTypeFilter(cat.id)}
-                  className={`shrink-0 flex items-center gap-1.5 px-3 py-1.5 rounded-full text-[11px] font-semibold transition-all ${
+                  aria-pressed={selectedTypeFilter === cat.id}
+                  className={`cv-chip shrink-0 flex items-center gap-1.5 px-3 py-2 rounded-xl text-[11px] font-semibold transition-all ${
                     selectedTypeFilter === cat.id
-                      ? cat.activeClass
-                      : 'bg-white/5 text-muted-foreground border border-transparent hover:bg-white/10 hover:text-foreground'
+                      ? `${cat.activeClass} shadow-[0_6px_18px_rgba(34,211,238,0.10)]`
+                      : 'bg-white/[0.04] text-slate-400 border border-white/10 hover:bg-white/[0.08] hover:text-slate-100'
                   }`}
                 >
                   <HugeiconsIcon icon={Icon} size={14} color="currentColor" />
@@ -976,11 +1011,16 @@ const OpinFeedPage = () => {
               );
             })}
           </div>
+          <p className="mt-2 text-[11px] text-slate-400">
+            {activeFilter === 'recent'
+              ? 'Orden actual: publicaciones más recientes primero.'
+              : 'Para ti prioriza intenciones abiertas y actividad real; usa Más recientes para ver el historial cronológico.'}
+          </p>
         </div>
       </div>
 
       {isReadOnlyMode && (
-        <div className="bg-gradient-to-r from-purple-600/90 to-pink-600/90 px-4 py-2">
+        <div className="cv-status-warning px-4 py-2">
           <div className="max-w-7xl mx-auto flex items-center justify-between gap-3">
             <div className="flex items-center gap-2 text-white text-sm">
               <Eye className="w-4 h-4" />
@@ -988,7 +1028,7 @@ const OpinFeedPage = () => {
             </div>
             <button
               onClick={() => navigate('/auth')}
-              className="flex items-center gap-1.5 px-3 py-1 rounded-full bg-white text-purple-600 text-sm font-medium"
+              className="cv-button-primary px-3 py-1 text-sm"
             >
               <UserPlus className="w-4 h-4" />
               <span>Registrarse</span>
@@ -997,8 +1037,8 @@ const OpinFeedPage = () => {
         </div>
       )}
 
-      <div className="flex-1 overflow-y-auto">
-        <div className="max-w-7xl mx-auto p-3">
+      <div className="flex-1 overflow-y-auto bg-[radial-gradient(circle_at_8%_0%,rgba(34,211,238,0.08),transparent_28%),radial-gradient(circle_at_92%_12%,rgba(217,70,239,0.08),transparent_26%)]">
+        <div className="max-w-7xl mx-auto p-4 md:p-6">
           {!isReadOnlyMode && myActiveIntent && (
             <div className="mb-3 rounded-3xl border border-fuchsia-500/25 bg-gradient-to-br from-fuchsia-500/10 via-white/[0.03] to-cyan-500/10 p-4">
               <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
@@ -1094,7 +1134,8 @@ const OpinFeedPage = () => {
                       <div className="flex items-start gap-3">
                         {reply.avatar ? (
                           <img
-                            src={reply.avatar}
+                            src={getSafeAvatarSrc(reply.avatar)}
+                            onError={handleAvatarImageError}
                             alt={reply.username || 'Usuario'}
                             className="h-10 w-10 rounded-full object-cover border border-white/10"
                           />
@@ -1289,12 +1330,13 @@ const OpinFeedPage = () => {
                       <div className="mt-3 flex items-center gap-2 min-w-0">
                         {authorAvatar ? (
                           <img
-                            src={authorAvatar}
+                            src={getSafeAvatarSrc(authorAvatar)}
                             alt={authorName}
-                            className="w-8 h-8 rounded-full object-cover ring-1 ring-white/10"
+                            onError={handleAvatarImageError}
+                            className="w-8 h-8 rounded-full object-cover ring-1 ring-cyan-300/25"
                           />
                         ) : (
-                          <div className="w-8 h-8 rounded-full bg-gradient-to-br from-purple-500 to-pink-500 flex items-center justify-center text-xs font-semibold text-white ring-1 ring-white/10">
+                            <div className="w-8 h-8 rounded-full bg-gradient-to-br from-cyan-300 to-blue-600 flex items-center justify-center text-xs font-semibold text-slate-950 ring-1 ring-cyan-300/30">
                             {authorInitial}
                           </div>
                         )}
@@ -1412,22 +1454,29 @@ const OpinFeedPage = () => {
             </div>
           ) : filteredPosts.length === 0 ? (
             <div className="text-center py-16 px-4">
-              <Sparkles className="w-12 h-12 mx-auto text-purple-400/50 mb-4" />
-              <p className="text-lg font-medium mb-2">{emptyStateCopy.title}</p>
-              <p className="text-sm text-muted-foreground mb-6">
-                {emptyStateCopy.description}
+              <Sparkles className="w-12 h-12 mx-auto text-cyan-300/50 mb-4" />
+              <p className="text-lg font-medium mb-2">{feedError ? 'No pudimos cargar OPIN' : emptyStateCopy.title}</p>
+              <p className="text-sm text-slate-400 mb-6">
+                {feedError || emptyStateCopy.description}
               </p>
-              {!isReadOnlyMode && canCreate && activeFilter !== 'followed' && (
+              {feedError ? (
+                <button
+                  onClick={loadFeed}
+                  className="px-6 py-2.5 rounded-xl border border-cyan-200/40 bg-cyan-200/10 text-cyan-100 font-semibold hover:bg-cyan-200/20"
+                >
+                  Reintentar
+                </button>
+              ) : !isReadOnlyMode && canCreate && activeFilter !== 'followed' ? (
                 <button
                   onClick={handleCreatePost}
-                  className="px-6 py-2.5 rounded-full bg-gradient-to-r from-purple-500 to-pink-500 text-white font-medium"
+                  className="px-6 py-2.5 rounded-xl bg-gradient-to-r from-cyan-300 to-blue-600 text-slate-950 font-semibold"
                 >
                   {myActiveIntent ? 'Editar intención' : 'Abrir mi intención'}
                 </button>
-              )}
+              ) : null}
             </div>
           ) : (
-            <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3">
+            <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-5">
               {filteredPosts.map((post) => (
                 <OpinCard
                   key={post.id}
@@ -1452,7 +1501,7 @@ const OpinFeedPage = () => {
           initial={{ scale: 0 }}
           animate={{ scale: 1 }}
           onClick={handleCreatePost}
-          className="fixed bottom-20 right-4 z-40 w-14 h-14 rounded-full bg-gradient-to-r from-purple-500 to-pink-500 shadow-lg flex items-center justify-center sm:hidden"
+          className="cv-button-primary fixed bottom-20 right-4 z-40 h-14 w-14 rounded-full p-0 shadow-lg sm:hidden"
           title={myActiveIntent ? 'Editar intención' : 'Abrir intención'}
         >
           <Plus className="w-6 h-6 text-white" />

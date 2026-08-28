@@ -3,8 +3,6 @@ import { motion } from 'framer-motion';
 import { useNavigate } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { ArrowLeft } from 'lucide-react';
-import Header from '@/components/layout/Header';
-import Footer from '@/components/layout/Footer';
 import { useCanonical, usePageMeta } from '@/hooks/useCanonical';
 
 const FAQPage = () => {
@@ -18,51 +16,49 @@ const FAQPage = () => {
   const faqs = [
     {
       q: "¿Es realmente gratis?",
-      a: "Sí, 100% gratis para chatear. Puedes usar Chactivo sin pagar nada, sin registro, sin email. Ofrecemos una suscripción Premium opcional con beneficios extras (chats privados, badges exclusivos, avatares), pero el chat público es completamente gratuito para siempre."
+      a: "El chat público está disponible sin pago y algunas salas pueden solicitar registro. Las funciones Premium, si están habilitadas, son opcionales y deben revisarse en la pantalla correspondiente."
     },
     {
       q: "¿Necesito dar mi email o teléfono?",
-      a: "No. Puedes chatear completamente anónimo sin dar email, teléfono ni vincular redes sociales. Solo elige un nombre de usuario y listo. Si quieres crear una cuenta para acceder desde otros dispositivos, solo necesitas email (que nunca compartimos ni vendemos)."
+      a: "Para algunas entradas públicas puedes participar sin proporcionar email o teléfono, usando un alias. Una cuenta registrada puede requerir otros datos; comparte solo lo necesario y revisa la política de privacidad vigente."
     },
     {
       q: "¿Cómo protegen mi privacidad?",
-      a: "No vendemos ni compartimos tus datos. No usamos trackers de terceros ni anuncios invasivos. Tus conversaciones están encriptadas. Puedes chatear anónimo sin dar datos personales. Y tienes derecho al olvido: borra tu cuenta y datos en 24h, permanentemente."
+      a: "Puedes participar con un alias y evitar publicar datos personales, pero no prometemos anonimato total. El sitio puede utilizar herramientas técnicas de analítica y el almacenamiento depende del backend configurado. No compartas ubicación exacta, teléfono, correo ni información sensible en salas públicas."
     },
     {
       q: "¿Hay moderación? ¿Cómo funciona?",
-      a: "Sí. Chactivo usa filtros automáticos y análisis asistido para detectar spam, abuso y contenido de riesgo, además de reportes manuales de la comunidad. Los casos sensibles se revisan según prioridad operativa. Puedes reportar cualquier mensaje o usuario con un click."
+      a: "Hay filtros locales para algunos patrones de spam o riesgo y herramientas de reporte cuando están disponibles. Los filtros pueden equivocarse y ningún sistema garantiza una revisión inmediata; evita continuar una interacción que te incomode."
     },
     {
       q: "¿Puedo eliminar mi cuenta y datos?",
-      a: "Sí, en cualquier momento. Desde Configuración > Eliminar Cuenta. Todos tus datos se borran permanentemente en 24 horas. Sin excepciones, sin backups ocultos. Derecho al olvido garantizado."
+      a: "Si la opción de eliminación está disponible en Configuración, sigue sus pasos y conserva la confirmación. No prometemos borrado inmediato, eliminación de copias de seguridad ni un plazo universal sin verificar primero el backend y la política vigente."
     },
     {
       q: "¿Por qué no hay anuncios?",
-      a: "Porque los odiamos tanto como tú. Nuestro modelo es sostenible con suscripciones Premium opcionales, no vendiendo tu atención a anunciantes. Sin publicidad invasiva, sin trackers, sin distracciones. Solo chat real."
+      a: "Priorizamos una interfaz sin anuncios intrusivos. La medición técnica del sitio puede utilizar herramientas de analítica; revisa la información de privacidad antes de compartir datos personales."
     },
     {
       q: "¿Es seguro para profesionales o personas públicas?",
-      a: "Absolutamente. Anonimato total garantizado si lo deseas. No pedimos email ni teléfono para chatear. No hay forma de vincular tu identidad real con tu usuario del chat a menos que tú lo compartas. Muchos profesionales y figuras públicas usan Chactivo con tranquilidad."
+      a: "Puedes usar un alias y decidir qué información compartir, pero no prometemos anonimato total ni invulnerabilidad. No publiques datos sensibles, ubicación exacta, teléfono o correo en una sala pública."
     },
     {
       q: "¿Cómo reporto comportamiento inapropiado?",
-      a: "Hay un botón de reporte en cada mensaje y perfil. Click derecho > Reportar. Priorizamos casos sensibles y además usamos filtros automáticos para detectar spam, abuso y contenido de riesgo."
+      a: "Usa la opción Reportar que aparece en el mensaje o perfil cuando esté disponible y describe el problema sin incluir datos sensibles. Los filtros locales ayudan a detectar algunos patrones, pero ningún sistema reemplaza tu criterio ni garantiza una revisión inmediata."
     },
     {
       q: "¿Verifican que los usuarios sean reales?",
-      a: "Tenemos sistema de verificación opcional (badge azul) para usuarios que quieran demostrar autenticidad. No es obligatorio. También moderamos activamente para detectar bots, perfiles fake y comportamiento sospechoso. Tolerancia cero con spam."
+      a: "La insignia de verificación es opcional y no constituye una prueba absoluta de identidad. Aplicamos controles y reportes contra abuso; si algo te parece sospechoso, no compartas datos ni continúes la conversación."
     },
     {
       q: "¿Qué diferencia a Chactivo de Grindr o Tinder?",
-      a: "Enfoque: somos comunidad, no solo hookups. Privacidad real (no vendemos datos). Sin bots ni perfiles fake. Moderación humana 24/7. Sin publicidad invasiva. Ambiente más relajado y conversacional. Ideal para hacer amigos, no solo citas. Y 100% gratis para chatear."
+      a: "Nuestro enfoque combina conversación y comunidad, no solo citas. Puedes participar con un alias, usar herramientas de reporte cuando estén disponibles y decidir qué compartir. La actividad depende de las personas reales que participen; el chat público no requiere pago."
     },
   ];
 
   return (
-    <div className="flex flex-col min-h-screen">
-      <Header />
-      <main className="flex-1 pt-16 sm:pt-20">
-        <div className="container mx-auto px-4 sm:px-6 lg:px-8 py-8 sm:py-12 max-w-4xl">
+    <main className="flex-1">
+      <div className="container mx-auto px-4 sm:px-6 lg:px-8 py-8 sm:py-12 max-w-4xl">
           {/* Botón de regreso */}
           <motion.div
             initial={{ opacity: 0, x: -20 }}
@@ -131,16 +127,14 @@ const FAQPage = () => {
               ¿Más dudas? Contáctanos
             </p>
             <Button
-              onClick={() => navigate('/landing')}
+              onClick={() => navigate('/')}
               className="magenta-gradient text-white font-bold text-base sm:text-lg px-6 sm:px-8 py-3 sm:py-4 rounded-xl shadow-lg hover:shadow-[#E4007C]/50 hover:scale-105 transition-all"
             >
               Volver al Inicio
             </Button>
           </motion.div>
-        </div>
-      </main>
-      <Footer />
-    </div>
+      </div>
+    </main>
   );
 };
 

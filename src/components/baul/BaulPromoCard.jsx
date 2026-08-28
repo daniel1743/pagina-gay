@@ -8,6 +8,7 @@ import { motion } from 'framer-motion';
 import { Users, ChevronRight, Sparkles, MapPin } from 'lucide-react';
 import { collection, query, where, getDocs, limit } from 'firebase/firestore';
 import { db } from '@/config/firebase';
+import { supabase, isSupabaseAuthEnabled } from '@/config/supabase';
 
 const BAUL_PROMO_QUERY_CAP = 100;
 const BAUL_PROMO_REFRESH_MS = 3 * 60 * 1000;
@@ -16,6 +17,19 @@ const BAUL_PROMO_REFRESH_MS = 3 * 60 * 1000;
  * Obtener conteo de usuarios online/recientes
  */
 const obtenerConteoUsuarios = async () => {
+  if (isSupabaseAuthEnabled()) {
+    try {
+      const twoHoursAgo = new Date(Date.now() - 2 * 60 * 60 * 1000).toISOString();
+      const [onlineResult, recentResult] = await Promise.all([
+        supabase.from('room_presence').select('user_id', { count: 'exact', head: true }).eq('is_online', true).gte('last_seen_at', twoHoursAgo),
+        supabase.from('baul_cards').select('user_id', { count: 'exact', head: true }).eq('card_visible', true).gte('updated_at', twoHoursAgo),
+      ]);
+      if (onlineResult.error) throw onlineResult.error;
+      if (recentResult.error) throw recentResult.error;
+      const online = Number(onlineResult.count || 0); const recientes = Number(recentResult.count || 0);
+      return { online, recientes: Math.max(recientes, online) };
+    } catch (error) { console.warn('[BAUL PROMO] Error leyendo conteo Supabase:', error?.message || error); return { online: 0, recientes: 0 }; }
+  }
   try {
     const tarjetasRef = collection(db, 'tarjetas');
 

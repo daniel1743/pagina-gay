@@ -32,7 +32,7 @@ const ROLE_LABEL_BY_VALUE = {
   versatil: 'Versatil',
 };
 
-const DEFAULT_COMUNA = 'Santiago Centro';
+const DEFAULT_COMUNA = 'tu comuna';
 
 const buildRoleLabel = (selectedRole = '') => (
   ROLE_LABEL_BY_VALUE[String(selectedRole || '').trim().toLowerCase()] || 'Versatil'

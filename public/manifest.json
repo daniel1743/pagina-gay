@@ -1,7 +1,7 @@
 {
   "name": "Chactivo - Comunidad LGBT+",
   "short_name": "Chactivo",
-  "description": "Conecta con la comunidad LGBTQ+ más segura de Chile",
+  "description": "Acceso web a conversación comunitaria LGBTQ+ en Chile; la participación puede variar.",
   "start_url": "/",
   "scope": "/",
   "display": "standalone",

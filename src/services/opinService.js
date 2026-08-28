@@ -29,16 +29,20 @@ import {
   arrayUnion,
   arrayRemove,
 } from 'firebase/firestore';
-import { db, auth } from '@/config/firebase';
+import { db, auth, isFirebaseConfigured } from '@/config/firebase';
 import { track } from '@/services/eventTrackingService';
 import { isBlockedBetween } from '@/services/blockService';
 import { validateOpinPublicText } from '@/services/opinSafetyService';
 import { recordBlockedContactAttempt } from '@/services/contactSafetyTelemetryService';
 import { getPublicProfilesByIds } from '@/services/userService';
+import { isSupabaseAuthEnabled } from '@/config/supabase';
+import * as supabaseOpinService from '@/services/supabaseOpinService';
 import { dispatchUserNotification } from '@/services/userNotificationDispatchService';
 
+const useSupabaseOpin = () => isSupabaseAuthEnabled();
+
 const assertCanInteractWithUser = async (targetUserId) => {
-  if (!auth.currentUser || !targetUserId) return;
+  if (!auth?.currentUser || !targetUserId) return;
   const blocked = await isBlockedBetween(auth.currentUser.uid, targetUserId);
   if (blocked) {
     throw new Error('BLOCKED');
@@ -47,12 +51,13 @@ const assertCanInteractWithUser = async (targetUserId) => {
 
 // 🎨 Colores disponibles para posts OPIN
 export const OPIN_COLORS = {
-  purple: { name: 'Purple', gradient: 'from-purple-500 to-purple-700', bg: 'bg-purple-500/10', border: 'border-purple-500/50' },
-  pink: { name: 'Pink', gradient: 'from-pink-500 to-pink-700', bg: 'bg-pink-500/10', border: 'border-pink-500/50' },
-  cyan: { name: 'Cyan', gradient: 'from-cyan-500 to-cyan-700', bg: 'bg-cyan-500/10', border: 'border-cyan-500/50' },
-  orange: { name: 'Orange', gradient: 'from-orange-500 to-orange-700', bg: 'bg-orange-500/10', border: 'border-orange-500/50' },
-  green: { name: 'Green', gradient: 'from-green-500 to-green-700', bg: 'bg-green-500/10', border: 'border-green-500/50' },
-  blue: { name: 'Blue', gradient: 'from-blue-500 to-blue-700', bg: 'bg-blue-500/10', border: 'border-blue-500/50' },
+  // Las claves son parte del contrato de posts existentes; solo cambia la expresión visual.
+  purple: { name: 'Cyan profundo', gradient: 'from-cyan-400 to-blue-600', bg: 'bg-cyan-400/10', border: 'border-cyan-300/40' },
+  pink: { name: 'Fucsia', gradient: 'from-fuchsia-400 to-rose-500', bg: 'bg-fuchsia-400/10', border: 'border-fuchsia-300/40' },
+  cyan: { name: 'Turquesa', gradient: 'from-teal-300 to-cyan-600', bg: 'bg-teal-300/10', border: 'border-teal-300/40' },
+  orange: { name: 'Ámbar', gradient: 'from-amber-300 to-orange-600', bg: 'bg-amber-300/10', border: 'border-amber-300/40' },
+  green: { name: 'Esmeralda', gradient: 'from-emerald-300 to-teal-600', bg: 'bg-emerald-300/10', border: 'border-emerald-300/40' },
+  blue: { name: 'Índigo', gradient: 'from-indigo-300 to-violet-600', bg: 'bg-indigo-300/10', border: 'border-indigo-300/40' },
 };
 
 export const OPIN_STATUS_OPTIONS = [
@@ -96,8 +101,8 @@ export const OPIN_STATUS_OPTIONS = [
 const DEFAULT_OPIN_STATUS = OPIN_STATUS_OPTIONS[0].value;
 const OPEN_OPIN_STATUSES = new Set(['buscando', 'hablando', 'quiero_mas']);
 const OPIN_ACTIVE_WINDOW_MS = 60 * 24 * 60 * 60 * 1000;
-const OPIN_FEED_QUERY_CAP = 80;
-const OPIN_FEED_DEFAULT_LIMIT = 24;
+const OPIN_FEED_QUERY_CAP = 100;
+const OPIN_FEED_DEFAULT_LIMIT = 36;
 
 export const isValidOpinStatus = (status) => OPIN_STATUS_OPTIONS.some((item) => item.value === status);
 export const isOpenOpinIntentStatus = (status) => OPEN_OPIN_STATUSES.has(status || DEFAULT_OPIN_STATUS);
@@ -172,14 +177,12 @@ const resolveOpinIdentity = (post = {}, profileData = null) => {
 
 const hydrateOpinPostsWithProfiles = async (posts = []) => {
   const safePosts = Array.isArray(posts) ? posts : [];
+  // El snapshot histórico de un post puede contener una URL antigua o rota.
+  // Se hidratan todos los autores con userId para poder usar el espejo público
+  // actual sin mutar el post ni exponer datos privados.
   const userIdsToHydrate = Array.from(new Set(
     safePosts
-      .filter((post) => {
-        const hasUserId = Boolean(post?.userId);
-        if (!hasUserId) return false;
-        return isGenericOpinIdentity(post?.username) || !sanitizeOpinIdentityValue(post?.avatar);
-      })
-      .map((post) => String(post.userId).trim())
+      .map((post) => String(post?.userId || '').trim())
       .filter(Boolean)
   ));
 
@@ -239,6 +242,10 @@ export const OPIN_REACTIONS = [
  * Sin límite de cantidad - puedes publicar cuantos quieras respetando el cooldown
  */
 export const canCreatePost = async () => {
+  if (useSupabaseOpin()) return supabaseOpinService.canCreatePost();
+  if (!isFirebaseConfigured || !auth) {
+    return { canCreate: false, reason: 'backend_unavailable', message: 'OPIN está pausado hasta configurar el backend.' };
+  }
   if (!auth.currentUser) {
     return { canCreate: false, reason: 'no_auth' };
   }
@@ -328,7 +335,9 @@ export const canCreatePost = async () => {
 /**
  * ✅ Crear un nuevo post de OPIN
  */
-export const createOpinPost = async ({
+export const createOpinPost = async (params) => {
+  if (useSupabaseOpin()) return supabaseOpinService.createOpinPost(params);
+  let {
   title = '',
   text,
   color = 'purple',
@@ -338,7 +347,7 @@ export const createOpinPost = async ({
   contactMethod = 'chactivo',
   contactValue = '',
   imageUrl = ''
-}) => {
+  } = params || {};
   if (!auth.currentUser) {
     throw new Error('Usuario no autenticado');
   }
@@ -429,7 +438,6 @@ export const createOpinPost = async ({
 };
 
 /** Mínimo de OPINs estables que siempre debe haber en el feed (panel admin) */
-export const OPIN_MIN_STABLE = 20;
 
 /**
  * ✅ Obtener feed de posts activos
@@ -440,6 +448,8 @@ export const OPIN_MIN_STABLE = 20;
  * Query sin índice extra: orderBy createdAt, filtrado en cliente.
  */
 export const getOpinFeed = async (limitCount = OPIN_FEED_DEFAULT_LIMIT) => {
+  if (useSupabaseOpin()) return supabaseOpinService.getOpinFeed(limitCount);
+  if (!isFirebaseConfigured || !db) return [];
   const postsRef = collection(db, 'opin_posts');
   const now = Timestamp.now();
   const nowMs = now.toMillis();
@@ -506,6 +516,7 @@ export const getOpinFeed = async (limitCount = OPIN_FEED_DEFAULT_LIMIT) => {
  * ✅ Incrementar contador de vistas
  */
 export const incrementViewCount = async (postId) => {
+  if (useSupabaseOpin()) return supabaseOpinService.incrementViewCount(postId);
   const postRef = doc(db, 'opin_posts', postId);
 
   try {
@@ -525,6 +536,7 @@ export const incrementViewCount = async (postId) => {
  * ✅ Incrementar contador de clicks a perfil
  */
 export const incrementProfileClickCount = async (postId) => {
+  if (useSupabaseOpin()) return supabaseOpinService.incrementProfileClickCount(postId);
   const postRef = doc(db, 'opin_posts', postId);
 
   try {
@@ -603,7 +615,9 @@ const logAction = async (actionType, postId) => {
 /**
  * ✅ Editar post del usuario
  */
-export const editOpinPost = async (postId, { title, text, color, status, type, contactMethod, contactValue, imageUrl }) => {
+export const editOpinPost = async (postId, updates) => {
+  if (useSupabaseOpin()) return supabaseOpinService.editOpinPost(postId, updates);
+  const { title, text, color, status, type, contactMethod, contactValue, imageUrl } = updates || {};
   if (!auth.currentUser) {
     throw new Error('Usuario no autenticado');
   }
@@ -682,6 +696,7 @@ export const editOpinPost = async (postId, { title, text, color, status, type, c
  * ✅ Eliminar post del usuario
  */
 export const deleteOpinPost = async (postId) => {
+  if (useSupabaseOpin()) return supabaseOpinService.deleteOpinPost(postId);
   if (!auth.currentUser) {
     throw new Error('Usuario no autenticado');
   }
@@ -713,6 +728,8 @@ export const deleteOpinPost = async (postId) => {
   return { success: true, remaining: limitCheck.remaining - 1 };
 };
 export const getMyOpinPosts = async (limitCount = 10) => {
+  if (useSupabaseOpin()) return supabaseOpinService.getMyOpinPosts(limitCount);
+  if (!isFirebaseConfigured || !auth || !db) return [];
   if (!auth.currentUser) {
     return [];
   }
@@ -736,6 +753,8 @@ export const getMyOpinPosts = async (limitCount = 10) => {
 };
 
 export const getMyActiveOpinIntent = async () => {
+  if (useSupabaseOpin()) return supabaseOpinService.getMyActiveOpinIntent();
+  if (!isFirebaseConfigured || !auth || !db) return null;
   const nowMs = Date.now();
   const posts = await getMyOpinPosts(12);
   return posts.find((post) => (
@@ -759,6 +778,7 @@ const chunkArray = (items = [], size = 10) => {
 };
 
 export const getOpenOpinIntentsByUserIds = async (userIds = []) => {
+  if (useSupabaseOpin()) return supabaseOpinService.getOpenOpinIntentsByUserIds(userIds);
   const uniqueUserIds = Array.from(new Set(
     (Array.isArray(userIds) ? userIds : [])
       .map((value) => String(value || '').trim())
@@ -802,6 +822,7 @@ export const getOpenOpinIntentsByUserIds = async (userIds = []) => {
 };
 
 export const getOpinPostById = async (postId) => {
+  if (useSupabaseOpin()) return supabaseOpinService.getOpinPostById(postId);
   if (!postId) return null;
   const postRef = doc(db, 'opin_posts', postId);
   const postDoc = await getDoc(postRef);
@@ -839,6 +860,7 @@ export const savePersistedFollowedOpinPostIds = async (postIds = []) => {
 };
 
 export const updateOpinStatus = async (postId, status) => {
+  if (useSupabaseOpin()) return supabaseOpinService.updateOpinStatus(postId, status);
   if (!auth.currentUser) {
     throw new Error('Usuario no autenticado');
   }
@@ -922,6 +944,7 @@ export const getTimeSinceCreated = (createdAt) => {
  * ✅ Toggle like en un post (like/unlike)
  */
 export const toggleLike = async (postId) => {
+  if (useSupabaseOpin()) return supabaseOpinService.toggleLike(postId);
   if (!auth.currentUser) {
     throw new Error('Usuario no autenticado');
   }
@@ -968,6 +991,7 @@ export const toggleLike = async (postId) => {
  * ✅ Verificar si el usuario actual dio like a un post
  */
 export const hasUserLiked = (post) => {
+  if (useSupabaseOpin()) return supabaseOpinService.hasUserLiked(post, post?.currentUserId);
   if (!auth.currentUser) return false;
   const likedBy = post.likedBy || [];
   return likedBy.includes(auth.currentUser.uid);
@@ -983,6 +1007,7 @@ export const hasUserLiked = (post) => {
  * Un usuario puede tener múltiples reacciones diferentes en el mismo post.
  */
 export const toggleReaction = async (postId, emoji) => {
+  if (useSupabaseOpin()) return supabaseOpinService.toggleReaction(postId, emoji);
   if (!auth.currentUser) {
     throw new Error('Usuario no autenticado');
   }
@@ -1102,6 +1127,7 @@ export const getTotalReactionCount = (post) => {
  * ✅ Agregar comentario a un post
  */
 export const addComment = async (postId, commentText) => {
+  if (useSupabaseOpin()) return supabaseOpinService.addComment(postId, commentText);
   if (!auth.currentUser) {
     throw new Error('Usuario no autenticado');
   }
@@ -1209,6 +1235,7 @@ export const addComment = async (postId, commentText) => {
  * ✅ Obtener comentarios de un post
  */
 export const getPostComments = async (postId, limitCount = 100) => {
+  if (useSupabaseOpin()) return supabaseOpinService.getPostComments(postId, limitCount);
   const commentsRef = collection(db, 'opin_comments');
 
   let snapshot;
@@ -1217,7 +1244,7 @@ export const getPostComments = async (postId, limitCount = 100) => {
     const q = query(
       commentsRef,
       where('postId', '==', postId),
-      orderBy('createdAt', 'asc'),
+      orderBy('createdAt', 'desc'),
       limit(limitCount)
     );
     snapshot = await getDocs(q);
@@ -1235,7 +1262,7 @@ export const getPostComments = async (postId, limitCount = 100) => {
   const comments = snapshot.docs.map(doc => ({
     id: doc.id,
     ...doc.data(),
-  }));
+  })).sort((a, b) => getTimestampMs(b.createdAt) - getTimestampMs(a.createdAt));
 
   console.log(`💬 [OPIN] Comentarios cargados: ${comments.length} para post ${postId}`);
 
@@ -1265,16 +1292,14 @@ export const getStableOpinPosts = async () => {
 
 /**
  * ✅ Crear OPIN estable (solo admin)
- * No expira. Se muestra siempre en feed hasta OPIN_MIN_STABLE.
+ * Las publicaciones permanecen según las reglas de caducidad del producto.
  *
  * @param {object} params
  * @param {string} params.title - Título opcional
  * @param {string} params.text - Texto del OPIN (requerido)
  * @param {string} params.color - Color del OPIN
- * @param {string} params.customUsername - Username personalizado para seeding (opcional)
- * @param {string} params.customAvatar - Avatar personalizado para seeding (opcional)
  */
-export const createStableOpinPost = async ({ title = '', text, color = 'purple', customUsername = '', customAvatar = '' }) => {
+export const createStableOpinPost = async ({ title = '', text, color = 'purple' }) => {
   if (!auth.currentUser) {
     throw new Error('Usuario no autenticado');
   }
@@ -1303,24 +1328,21 @@ export const createStableOpinPost = async ({ title = '', text, color = 'purple',
   }
   const c = OPIN_COLORS[color] ? color : 'purple';
 
-  // Si se proporciona customUsername, usar ese (para seeding desde admin)
-  // Si no, usar el username del usuario actual
-  let username = customUsername?.trim() || '';
-  let avatar = customAvatar?.trim() || '';
+  // Las publicaciones estables usan siempre la identidad real del administrador.
+  let username = '';
+  let avatar = '';
 
-  if (!username) {
-    try {
-      const userDoc = await getDoc(doc(db, 'users', auth.currentUser.uid));
-      if (userDoc.exists()) {
-        const d = userDoc.data();
-        username = d.username || 'Chactivo';
-        avatar = avatar || d.avatar || '';
-      } else {
-        username = 'Chactivo';
-      }
-    } catch (_) {
+  try {
+    const userDoc = await getDoc(doc(db, 'users', auth.currentUser.uid));
+    if (userDoc.exists()) {
+      const d = userDoc.data();
+      username = d.username || 'Chactivo';
+      avatar = d.avatar || '';
+    } else {
       username = 'Chactivo';
     }
+  } catch (_) {
+    username = 'Chactivo';
   }
 
   const postsRef = collection(db, 'opin_posts');
@@ -1335,7 +1357,6 @@ export const createStableOpinPost = async ({ title = '', text, color = 'purple',
     createdAt: serverTimestamp(),
     isActive: true,
     isStable: true,
-    isSeeded: !!customUsername, // Marcar si fue creado con username personalizado
     viewCount: 0,
     profileClickCount: 0,
     likeCount: 0,
@@ -1344,7 +1365,7 @@ export const createStableOpinPost = async ({ title = '', text, color = 'purple',
   };
 
   const docRef = await addDoc(postsRef, data);
-  console.log('✅ [OPIN] Estable creado:', docRef.id, customUsername ? `(seeded: ${username})` : '');
+  console.log('✅ [OPIN] Estable creado:', docRef.id, 'como', username);
   return { postId: docRef.id, ...data };
 };
 
@@ -1424,75 +1445,21 @@ export const deleteStableOpinPost = async (postId) => {
   return { success: true };
 };
 
-// Nombres genéricos para seeding automático
-const OPIN_SEED_USERNAMES = [
-  'Carlos_28', 'JuanMadrid', 'Alex_BCN', 'DavidGym', 'MiguelVLC',
-  'Pablo_Fit', 'Sergio23', 'Andres_M', 'Dani_SEV', 'Ruben_BIO',
-  'JorgeNight', 'Mario_Tech', 'Adrian_Art', 'Hugo_Run', 'Iker_MAD',
-  'Leo_Gaming', 'Nacho_Cook', 'Raul_Photo', 'Alvaro_29', 'Oscar_BCN'
-];
-
-const OPIN_SEED_EXAMPLES = [
-  { title: 'Amigos', text: 'Busco amistad para charlar, salir y pasarlo bien. Sin dramas, buena onda.', color: 'purple' },
-  { title: 'Citas', text: 'Busco conocer a alguien con quien conectar. Citas tranquilas, café o algo más.', color: 'pink' },
-  { title: 'Gaming', text: 'Busco gente para jugar en PC o consola. Coop, competitivo o solo pasar el rato.', color: 'cyan' },
-  { title: 'Salir', text: 'Busco plan para salir: bares, fiestas, conciertos. Siempre abierto a sugerencias.', color: 'orange' },
-  { title: 'Deportes', text: 'Busco alguien para gym, running o deporte en general. Motivación mutua.', color: 'green' },
-  { title: 'Cine y series', text: 'Busco con quien hablar de pelis y series. Recomendaciones y maratones.', color: 'blue' },
-  { title: 'Música', text: 'Busco gente con gustos parecidos para hablar de música, ir a conciertos o tocar.', color: 'purple' },
-  { title: 'Viajes', text: 'Busco compañía para viajes o planes de escapada. Rutas, playa o ciudad.', color: 'pink' },
-  { title: 'Café y charla', text: 'Busco charlar tranquilo, café o té. Conversación sin presión.', color: 'orange' },
-  { title: 'Netflix & chill', text: 'Busco plan relajado en casa. Series, películas y buena compañía.', color: 'cyan' },
-  { title: 'Fitness', text: 'Busco motivación para entrenar. Gym, yoga o lo que sea, juntos mejor.', color: 'green' },
-  { title: 'Noche out', text: 'Busco salir de fiesta. Bares, discos o lo que se arme. Buena vibra.', color: 'blue' },
-  { title: 'Cocina', text: 'Busco alguien para cocinar juntos o probar restaurantes. Amante de la comida.', color: 'purple' },
-  { title: 'Fotografía', text: 'Busco salir a hacer fotos o hablar de fotografía. Urban, retratos, paisaje.', color: 'pink' },
-  { title: 'Libros', text: 'Busco intercambiar recomendaciones de libros y hablar de lo que leemos.', color: 'cyan' },
-  { title: 'Mascotas', text: 'Busco gente que ame los animales. Paseos con perros, fotos de gatos, etc.', color: 'orange' },
-  { title: 'Tecnología', text: 'Busco hablar de tech, apps, juegos o proyectos. Geek friendly.', color: 'green' },
-  { title: 'Arte y cultura', text: 'Busco ir a expos, museos o eventos culturales. Compartir gustos.', color: 'blue' },
-  { title: 'Senderismo', text: 'Busco compañía para rutas y naturaleza. Caminatas, miradores, aire libre.', color: 'purple' },
-  { title: 'Vida tranquila', text: 'Busco conexión real, sin prisa. Charlas, risas y buenos momentos.', color: 'pink' },
-];
-
 /**
- * ✅ Crear OPINs estables de ejemplo hasta completar OPIN_MIN_STABLE (solo admin)
- * Cada OPIN se crea con un username genérico diferente para simular actividad real.
- * @returns {Promise<number>} Número de posts creados
+ * El seeding artificial de OPIN está desactivado.
+ * La comunidad solo debe ver publicaciones creadas por usuarios reales.
  */
 export const seedStableOpinExamples = async () => {
-  if (!auth.currentUser) {
-    throw new Error('Usuario no autenticado');
-  }
-
-  const current = await getStableOpinPosts();
-  const need = Math.max(0, OPIN_MIN_STABLE - current.length);
-  if (need === 0) {
-    return 0;
-  }
-
-  let created = 0;
-  for (let i = 0; i < need && i < OPIN_SEED_EXAMPLES.length; i++) {
-    const ex = OPIN_SEED_EXAMPLES[i];
-    // Usar un username genérico diferente para cada OPIN
-    const customUsername = OPIN_SEED_USERNAMES[i % OPIN_SEED_USERNAMES.length];
-
-    await createStableOpinPost({
-      title: ex.title,
-      text: ex.text,
-      color: ex.color,
-      customUsername, // Usar nombre genérico para seeding
-    });
-    created++;
-  }
-  console.log(`🌱 [OPIN] Seed: ${created} estables creados con usernames genéricos`);
-  return created;
+  const error = new Error('El seeding artificial de OPIN está desactivado.');
+  error.code = 'ARTIFICIAL_SEEDING_DISABLED';
+  throw error;
 };
 
 /**
  * ✅ Eliminar comentario (solo el autor)
  */
 export const deleteComment = async (commentId) => {
+  if (useSupabaseOpin()) return supabaseOpinService.deleteComment(commentId);
   if (!auth.currentUser) {
     throw new Error('Usuario no autenticado');
   }
@@ -1531,6 +1498,7 @@ export const deleteComment = async (commentId) => {
  * Usado para mostrar respuestas inline en OpinCard sin necesidad de auth
  */
 export const getReplyPreview = async (postId, previewLimit = 3) => {
+  if (useSupabaseOpin()) return supabaseOpinService.getReplyPreview(postId, previewLimit);
   const commentsRef = collection(db, 'opin_comments');
 
   let snapshot;
@@ -1538,7 +1506,7 @@ export const getReplyPreview = async (postId, previewLimit = 3) => {
     const q = query(
       commentsRef,
       where('postId', '==', postId),
-      orderBy('createdAt', 'asc'),
+      orderBy('createdAt', 'desc'),
       limit(previewLimit)
     );
     snapshot = await getDocs(q);
@@ -1555,12 +1523,13 @@ export const getReplyPreview = async (postId, previewLimit = 3) => {
   const replies = snapshot.docs.map(doc => ({
     id: doc.id,
     ...doc.data(),
-  }));
+  })).sort((a, b) => getTimestampMs(b.createdAt) - getTimestampMs(a.createdAt));
 
   return replies;
 };
 
 export const getRecentReplyPreview = async (postId, previewLimit = 6) => {
+  if (useSupabaseOpin()) return supabaseOpinService.getRecentReplyPreview(postId, previewLimit);
   const commentsRef = collection(db, 'opin_comments');
 
   let snapshot;
@@ -1603,34 +1572,17 @@ export const canViewAllReplies = () => {
 // 🛡️ ADMIN — Respuestas Editoriales
 // ============================================================
 
-/** Nombres predefinidos para respuestas de admin */
-export const ADMIN_REPLY_NAMES = [
-  // Usuarios anónimos (para simular actividad real)
-  'Anónimo',
-  'Usuario',
-  'Alguien',
-  // Nombres genéricos de usuarios
-  'Carlos_23',
-  'Diego_fit',
-  'JuanM',
-  'AndresVLC',
-  'Pablo_28',
-  // Equipo oficial
-  'Equipo Chactivo',
-  'Moderador',
-  'Soporte',
-  'Comunidad',
-];
+/** Identidad única permitida para respuestas editoriales transparentes. */
+export const ADMIN_REPLY_NAMES = ['Equipo Chactivo'];
 
 /**
- * ✅ Agregar respuesta editorial (Admin)
- * Crea una respuesta como contenido semilla, con nombre personalizado
- * Visible públicamente, indistinguible de respuestas normales en UI
- * Internamente marcado como isAdminReply: true
+ * Agregar respuesta editorial (Admin).
+ * Las respuestas se publican de forma visible como Equipo Chactivo y se marcan
+ * para auditoría; nunca se pueden presentar como un usuario de la comunidad.
  *
  * @param {string} postId - ID del OPIN
  * @param {string} text - Texto de la respuesta
- * @param {string} authorName - Nombre a mostrar (ej: "Equipo Chactivo")
+ * @param {string} authorName - Debe ser exactamente "Equipo Chactivo"
  */
 export const addAdminReply = async (postId, text, authorName) => {
   if (!auth.currentUser) {
@@ -1645,8 +1597,9 @@ export const addAdminReply = async (postId, text, authorName) => {
     throw new Error('La respuesta no puede superar 150 caracteres');
   }
 
-  if (!authorName || authorName.trim().length < 1) {
-    throw new Error('Debes especificar un nombre de autor');
+  const normalizedAuthorName = authorName?.trim();
+  if (normalizedAuthorName !== ADMIN_REPLY_NAMES[0]) {
+    throw new Error('Las respuestas editoriales solo pueden publicarse como Equipo Chactivo');
   }
 
   const commentsRef = collection(db, 'opin_comments');
@@ -1656,11 +1609,12 @@ export const addAdminReply = async (postId, text, authorName) => {
   const replyData = {
     postId: postId,
     userId: auth.currentUser.uid, // Admin que lo creó (para auditoría)
-    username: authorName.trim(),
-    avatar: '', // Sin avatar para respuestas editoriales (usa inicial)
+    username: normalizedAuthorName,
+    avatar: '',
     comment: text.trim(),
     createdAt: serverTimestamp(),
-    isAdminReply: true, // Marca interna - NO mostrar en UI
+    isAdminReply: true,
+    authorType: 'official_team',
   };
 
   const docRef = await addDoc(commentsRef, replyData);
@@ -1687,7 +1641,7 @@ export const addAdminReply = async (postId, text, authorName) => {
     });
   }
 
-  console.log('🛡️ [OPIN] Respuesta editorial agregada:', docRef.id, 'como', authorName);
+  console.log('🛡️ [OPIN] Respuesta editorial agregada:', docRef.id, 'como Equipo Chactivo');
 
   return { id: docRef.id, ...replyData };
 };

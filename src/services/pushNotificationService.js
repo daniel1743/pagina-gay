@@ -8,6 +8,8 @@
 import { getToken, onMessage } from 'firebase/messaging';
 import { doc, updateDoc, arrayUnion, serverTimestamp } from 'firebase/firestore';
 import { db, auth } from '@/config/firebase';
+import { supabase, isSupabaseAuthEnabled } from '@/config/supabase';
+import { updateSupabasePreferences } from '@/services/supabaseProfileService';
 
 const VAPID_KEY = import.meta.env.VITE_FIREBASE_VAPID_KEY;
 const PUSH_ACTIVATION_NOTICE_SESSION_KEY = 'chactivo:push_activation_notice_shown';
@@ -107,6 +109,10 @@ const maybeShowPushActivationNotices = async () => {
  * @returns {Promise<string|null>} FCM token o null
  */
 export const requestNotificationPermission = async () => {
+  if (isSupabaseAuthEnabled()) {
+    console.info('[PUSH] FCM no está activo en Supabase-first; se mantienen los avisos dentro de la aplicación.');
+    return null;
+  }
   try {
     if (!('Notification' in window)) {
       console.log('[PUSH] Notificaciones no soportadas en este navegador');
@@ -176,6 +182,7 @@ export const requestNotificationPermission = async () => {
  * @returns {Function} Funcion para desuscribirse
  */
 export const setupForegroundMessages = (callback) => {
+  if (isSupabaseAuthEnabled()) return () => {};
   try {
     // Importar messaging sincrono (ya deberia estar inicializado)
     const messagingModule = import('@/config/firebase');
@@ -196,6 +203,7 @@ export const setupForegroundMessages = (callback) => {
  * Verifica si las notificaciones push estan habilitadas
  */
 export const isPushEnabled = () => {
+  if (isSupabaseAuthEnabled()) return false;
   return 'Notification' in window && Notification.permission === 'granted';
 };
 
@@ -203,6 +211,7 @@ export const isPushEnabled = () => {
  * Verifica si se puede pedir permiso (no ha sido denegado)
  */
 export const canRequestPush = () => {
+  if (isSupabaseAuthEnabled()) return false;
   return 'Notification' in window && Notification.permission === 'default';
 };
 
@@ -242,6 +251,19 @@ export const savePushInterestPreferences = async (preferences, userId = null) =>
     } catch (_) {
       // noop
     }
+  }
+
+  if (isSupabaseAuthEnabled()) {
+    const { data: authData } = await supabase.auth.getUser();
+    const targetUserId = userId || authData?.user?.id || null;
+    if (targetUserId && authData?.user?.id === targetUserId) {
+      try {
+        await updateSupabasePreferences(targetUserId, { pushInterests: normalized });
+      } catch (error) {
+        console.warn('[PUSH] No se pudieron guardar preferencias en Supabase:', error?.message || error);
+      }
+    }
+    return normalized;
   }
 
   const authUserId = auth?.currentUser?.uid || null;

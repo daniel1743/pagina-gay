@@ -1,33 +1,16 @@
-// ============================================
-// REGLAS PARA AÑADIR A TUS REGLAS EXISTENTES
-// ============================================
-// 
-// ⚠️ NO REEMPLACES TUS REGLAS ACTUALES
-// ⚠️ SOLO AÑADE ESTAS LÍNEAS DENTRO DE: match /b/{bucket}/o { ... }
-// ⚠️ AÑÁDELAS ANTES DE CUALQUIER REGLA match /{allPaths=**} que deniegue todo
-//
-// ============================================
+LEGACY / NO CANÓNICO
 
-    // Reglas para fotos de perfil
-    match /profile_photos/{userId}/{allPaths=**} {
-      // Cualquiera puede leer las fotos de perfil (públicas)
-      allow read: if true;
-      
-      // Solo el usuario autenticado puede escribir en su propia carpeta
-      allow write: if request.auth != null && request.auth.uid == userId
-        && request.resource.size < 100 * 1024  // Máximo 100 KB (después de compresión)
-        && request.resource.contentType.matches('image/.*');
-      
-      // Permitir eliminación solo del propio usuario
-      allow delete: if request.auth != null && request.auth.uid == userId;
-    }
+No uses este archivo como reglas completas ni lo pegues sin comparar con las reglas ya desplegadas.
 
-// ============================================
-// FIN DE REGLAS A AÑADIR
-// ============================================
+Fuente canónica local del proyecto: storage.rules
+Configuración que apunta a esa fuente: firebase.json -> storage.rules
+Estado: no desplegado por esta auditoría.
 
+Importante:
+- Las fotos de perfil actuales se suben a Cloudinary desde src/services/photoUploadService.js; no dependen de profile_photos en Firebase Storage.
+- Las fotos del chat público usan Firebase Storage en chat_media/rooms/{ownerUid}/{roomId}/{messageId}/{assetPath=**}.
+- Las fotos del chat privado activo usan Firebase Storage en chat_media/private/{ownerUid}/{chatId}/{messageId}/{assetPath=**}.
+- La ruta y los límites de esos flujos están definidos únicamente en storage.rules y deben probarse con Emulator Suite antes de desplegar.
+- No afirmes que SQL de Supabase habilita estos uploads: requeriría bucket, políticas de Storage, adapter y metadatos de mensaje.
 
-
-
-
-
+Si el proyecto Firebase ya tiene reglas adicionales, no reemplaces el archivo a ciegas. Haz una comparación manual, prueba las reglas resultantes en el emulador y despliega solo después de una autorización específica.

@@ -3,7 +3,7 @@
  *
  * ✅ Eventos semanales recurrentes por sala
  * ✅ Crea hábito en usuarios (vuelven a horarios específicos)
- * ✅ Concentra usuarios en vez de dispersarlos 24/7
+ * ✅ Concentra la conversación en horarios anunciados, sin crear actividad artificial
  * ✅ Genera contenido compartible
  *
  * Implementado: 2025-12-25
@@ -25,7 +25,7 @@ const PRINCIPAL_EVENT_THEME_ROTATION = [
   },
   {
     title: '📍 Ronda de Zonas',
-    description: 'Ideal para decir de dónde eres y encontrar gente cerca.',
+    description: 'Ideal para contar qué temas o panoramas te interesan sin compartir tu ubicación exacta.',
     emoji: '📍',
     color: 'blue',
   },

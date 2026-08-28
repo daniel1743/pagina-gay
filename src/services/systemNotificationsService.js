@@ -13,6 +13,7 @@ import {
 import { db } from '@/config/firebase';
 import { trackListenerStart, trackListenerStop } from '@/utils/listenerMonitor';
 import { dispatchUserNotification } from '@/services/userNotificationDispatchService';
+import { supabase, isSupabaseAuthEnabled } from '@/config/supabase';
 
 const sharedNotificationListeners = new Map();
 
@@ -29,6 +30,23 @@ const notifySharedSubscribers = (entry, payload) => {
 const isPermissionDeniedError = (error) => {
   return error?.code === 'permission-denied' || error?.message?.includes('Missing or insufficient permissions');
 };
+
+const mapSupabaseNotification = (row) => ({
+  id: row.id,
+  userId: row.user_id,
+  type: row.type,
+  title: row.title,
+  message: row.content,
+  content: row.content,
+  icon: row.icon || '📢',
+  link: row.link || null,
+  read: Boolean(row.read_at),
+  readAt: row.read_at || null,
+  createdAt: row.created_at || new Date().toISOString(),
+  expiresAt: row.expires_at || null,
+  priority: row.priority || 'normal',
+  createdBy: row.created_by || null,
+});
 
 /**
  * Servicio de Notificaciones del Sistema
@@ -55,6 +73,20 @@ export const NOTIFICATION_TYPES = {
  * @returns {Promise<string>} ID de la notificación creada
  */
 export const createSystemNotification = async (userId, notificationData) => {
+  if (isSupabaseAuthEnabled()) {
+    const { data, error } = await supabase.rpc('create_system_notification', {
+      target_user_id: userId,
+      notification_type: notificationData.type || NOTIFICATION_TYPES.ANNOUNCEMENT,
+      notification_title: notificationData.title || 'Aviso de Chactivo',
+      notification_content: notificationData.message || notificationData.content || '',
+      notification_icon: notificationData.icon || '📢',
+      notification_link: notificationData.link || null,
+      notification_priority: notificationData.priority || 'normal',
+      notification_created_by: notificationData.createdBy && notificationData.createdBy !== 'system' ? notificationData.createdBy : null,
+    });
+    if (error) throw error;
+    return data;
+  }
   try {
     const notificationsRef = collection(db, 'systemNotifications');
 
@@ -136,6 +168,19 @@ Bienvenido a Chactivo.`,
  * @returns {Promise<number>} Número de notificaciones creadas
  */
 export const createBroadcastNotification = async (broadcastData, adminId) => {
+  if (isSupabaseAuthEnabled()) {
+    const { data, error } = await supabase.rpc('admin_broadcast_system_notification', {
+      target_audience: broadcastData.targetAudience || 'all',
+      notification_type: broadcastData.type || NOTIFICATION_TYPES.BROADCAST,
+      notification_title: broadcastData.title || 'Aviso de Chactivo',
+      notification_content: broadcastData.message || broadcastData.content || '',
+      notification_icon: broadcastData.icon || '📢',
+      notification_link: broadcastData.link || null,
+      notification_priority: broadcastData.priority || 'normal',
+    });
+    if (error) throw error;
+    return Number(data || 0);
+  }
   try {
     const targetAudience = broadcastData.targetAudience || 'all'; // 'all', 'registered', 'guests'
     let count = 0;
@@ -200,6 +245,16 @@ export const createBroadcastNotification = async (broadcastData, adminId) => {
  * @returns {Promise<Array>} Lista de notificaciones
  */
 export const getUserSystemNotifications = async (userId, limitCount = 50) => {
+  if (isSupabaseAuthEnabled()) {
+    try {
+      const { data, error } = await supabase.from('notifications').select('*').eq('user_id', userId).order('created_at', { ascending: false }).limit(Math.max(1, Math.min(Number(limitCount) || 50, 100)));
+      if (error) throw error;
+      return (data || []).map(mapSupabaseNotification);
+    } catch (error) {
+      console.warn('[NOTIFICATIONS] Error leyendo Supabase:', error?.message || error);
+      return [];
+    }
+  }
   try {
     const notificationsRef = collection(db, 'systemNotifications');
     const q = query(
@@ -230,6 +285,17 @@ export const getUserSystemNotifications = async (userId, limitCount = 50) => {
  * @returns {function} Función para cancelar la suscripción
  */
 export const subscribeToSystemNotifications = (userId, callback) => {
+  if (isSupabaseAuthEnabled()) {
+    if (!userId || typeof callback !== 'function') return () => {};
+    let active = true;
+    const load = async () => {
+      const notifications = await getUserSystemNotifications(userId, 50);
+      if (active) callback(notifications);
+    };
+    void load();
+    const channel = supabase.channel(`system-notifications:${userId}`).on('postgres_changes', { event: '*', schema: 'public', table: 'notifications', filter: `user_id=eq.${userId}` }, () => { void load(); }).subscribe();
+    return () => { active = false; void supabase.removeChannel(channel); };
+  }
   // ⚠️ Validación: NO suscribirse si el userId es temporal
   if (!userId || userId.startsWith('temp_')) {
     console.warn('[Notifications] ⏳ ID temporal detectado, esperando ID real de Firebase...');
@@ -331,6 +397,13 @@ export const subscribeToSystemNotifications = (userId, callback) => {
  * @param {string} notificationId - ID de la notificación
  */
 export const markNotificationAsRead = async (notificationId) => {
+  if (isSupabaseAuthEnabled()) {
+    const { data: authData } = await supabase.auth.getUser();
+    if (!authData?.user?.id || !notificationId) return false;
+    const { error } = await supabase.from('notifications').update({ read_at: new Date().toISOString() }).eq('id', notificationId).eq('user_id', authData.user.id);
+    if (error) throw error;
+    return true;
+  }
   try {
     const notificationRef = doc(db, 'systemNotifications', notificationId);
     await updateDoc(notificationRef, {
@@ -347,6 +420,13 @@ export const markNotificationAsRead = async (notificationId) => {
  * @param {string} userId - ID del usuario
  */
 export const markAllNotificationsAsRead = async (userId) => {
+  if (isSupabaseAuthEnabled()) {
+    const { data: authData } = await supabase.auth.getUser();
+    if (!authData?.user?.id || authData.user.id !== userId) return false;
+    const { error } = await supabase.from('notifications').update({ read_at: new Date().toISOString() }).eq('user_id', userId).is('read_at', null);
+    if (error) throw error;
+    return true;
+  }
   try {
     const notificationsRef = collection(db, 'systemNotifications');
     const q = query(
@@ -378,6 +458,18 @@ export const markAllNotificationsAsRead = async (userId) => {
  * @returns {Promise<number>} Número de notificaciones no leídas
  */
 export const getUnreadNotificationsCount = async (userId) => {
+  if (isSupabaseAuthEnabled()) {
+    try {
+      const { data: authData } = await supabase.auth.getUser();
+      if (authData?.user?.id !== userId) return 0;
+      const { count, error } = await supabase.from('notifications').select('id', { count: 'exact', head: true }).eq('user_id', userId).is('read_at', null);
+      if (error) throw error;
+      return Number(count || 0);
+    } catch (error) {
+      console.warn('[NOTIFICATIONS] Error contando Supabase:', error?.message || error);
+      return 0;
+    }
+  }
   try {
     const notificationsRef = collection(db, 'systemNotifications');
     const q = query(
@@ -399,6 +491,7 @@ export const getUnreadNotificationsCount = async (userId) => {
  * @returns {Promise<boolean>} True si se otorgaron los permisos
  */
 export const requestNotificationPermission = async () => {
+  if (isSupabaseAuthEnabled()) return false;
   try {
     if (!('Notification' in window)) {
       console.warn('Este navegador no soporta notificaciones push');
@@ -448,6 +541,18 @@ export const showBrowserNotification = (title, options = {}) => {
  * @returns {Promise<number>} Número de notificaciones creadas
  */
 export const sendWelcomeToAllExistingUsers = async (adminId = 'system') => {
+  if (isSupabaseAuthEnabled()) {
+    const count = await createBroadcastNotification({
+      targetAudience: 'registered',
+      type: NOTIFICATION_TYPES.WELCOME,
+      title: 'Ya estás dentro de Chactivo',
+      message: 'Entra a la sala, saluda y deja que el chat haga lo suyo. Bienvenido a Chactivo.',
+      icon: '🔥',
+      link: '/chat/principal',
+      priority: 'high',
+    }, adminId);
+    return count;
+  }
   try {
     console.log('🚀 Iniciando envío de mensaje de bienvenida a todos los usuarios existentes...');
     

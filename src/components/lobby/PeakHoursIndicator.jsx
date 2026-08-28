@@ -1,44 +1,16 @@
-import React from 'react';
-import { Clock } from 'lucide-react';
+import { HugeiconsIcon } from '@hugeicons/react';
+import { InformationCircleIcon } from '@hugeicons/core-free-icons';
 
 /**
- * Indicador de horas pico para el lobby
- * Solo se muestra si hay pocos usuarios online (<10)
- * Horas pico: 21:00 - 01:00 hora Chile (UTC-3 / UTC-4)
+ * Aviso de disponibilidad para el lobby.
+ * La actividad no se infiere por horario: solo una fuente real de presencia puede
+ * afirmar que una sala está activa.
  */
-const PeakHoursIndicator = ({ totalOnline = 0 }) => {
-  if (totalOnline >= 10) return null;
-
-  const now = new Date();
-  // Hora Chile (aprox UTC-3, simplificado sin DST)
-  const chileOffset = -3;
-  const utcHours = now.getUTCHours();
-  const chileHour = (utcHours + chileOffset + 24) % 24;
-
-  let message = '';
-  let variant = 'default'; // default, soon, active
-
-  if (chileHour >= 21 || chileHour < 1) {
-    message = 'La comunidad esta activa ahora';
-    variant = 'active';
-  } else if (chileHour >= 19 && chileHour < 21) {
-    message = 'La comunidad se activa a las 21:00';
-    variant = 'soon';
-  } else {
-    message = 'Horas con mas actividad: 21:00 - 01:00 (Chile)';
-    variant = 'default';
-  }
-
-  const variantStyles = {
-    active: 'bg-green-500/10 border-green-500/30 text-green-400',
-    soon: 'bg-yellow-500/10 border-yellow-500/30 text-yellow-400',
-    default: 'bg-gray-500/10 border-gray-500/30 text-gray-400',
-  };
-
+const PeakHoursIndicator = ({ totalOnline: _totalOnline = 0 }) => {
   return (
-    <div className={`flex items-center gap-2 px-4 py-2.5 rounded-lg border text-sm ${variantStyles[variant]}`}>
-      <Clock className="w-4 h-4 flex-shrink-0" />
-      <span>{message}</span>
+    <div className="cv-surface flex items-start gap-2 rounded-lg px-4 py-3 text-sm text-muted-foreground">
+      <HugeiconsIcon icon={InformationCircleIcon} size={18} color="currentColor" className="mt-0.5 shrink-0 text-cyan-300" aria-hidden="true" />
+      <span>La actividad depende de la participación real. Entra a una sala para comprobar su estado.</span>
     </div>
   );
 };

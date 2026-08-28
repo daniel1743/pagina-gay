@@ -13,7 +13,7 @@ const PremiumPage = () => {
   useCanonical('/premium');
 
   const navigate = useNavigate();
-  const { user, upgradeToPremium } = useAuth();
+  const { user } = useAuth();
   const [showComingSoon, setShowComingSoon] = React.useState(false);
   const [comingSoonFeature, setComingSoonFeature] = React.useState({ name: '', description: '' });
 
@@ -23,21 +23,17 @@ const PremiumPage = () => {
     { icon: <Sparkles className="w-5 h-5" />, text: "Acceso a eventos exclusivos" },
     { icon: <Crown className="w-5 h-5" />, text: "Badge Premium visible" },
     { icon: <Check className="w-5 h-5" />, text: "Salas privadas VIP" },
-    { icon: <Check className="w-5 h-5" />, text: "Soporte prioritario 24/7" },
+    { icon: <Check className="w-5 h-5" />, text: "Soporte prioritario según disponibilidad" },
   ];
 
   const handleUpgrade = () => {
     setComingSoonFeature({
-      name: 'el sistema de pagos',
-      description: 'Estamos integrando pasarelas de pago seguras (Mercado Pago, WebPay) para que puedas actualizar a Premium de forma fácil y confiable. ¡Pronto podrás disfrutar de todos los beneficios!'
+      name: 'Premium en preparación',
+      description: 'El checkout y las funciones de pago todavía no están habilitados. Esta pantalla es informativa y no realiza ningún cobro.'
     });
     setShowComingSoon(true);
   };
 
-  const handleUpgradeDemo = () => {
-    upgradeToPremium();
-    navigate('/profile');
-  };
 
   React.useEffect(() => {
     document.title = "Premium - Chactivo | Chat Gay Chile";
@@ -64,7 +60,7 @@ const PremiumPage = () => {
 
   return (
     <>
-      <div className="min-h-screen px-4 py-8">
+      <div className="cv-page cv-shell min-h-screen px-4 py-8">
         <div className="max-w-4xl mx-auto">
           <Button
             variant="ghost"
@@ -85,10 +81,10 @@ const PremiumPage = () => {
               <Crown className="w-12 h-12 text-purple-950" />
             </div>
             <h1 className="text-4xl md:text-5xl font-bold mb-4 bg-gradient-to-r from-yellow-400 via-fuchsia-400 to-purple-400 bg-clip-text text-transparent">
-              Chactivo Premium
+              Chactivo Premium en preparación
             </h1>
             <p className="text-xl text-muted-foreground">
-              Desbloquea todo el potencial de la comunidad
+              La compra todavía no está habilitada
             </p>
           </motion.div>
 
@@ -97,7 +93,7 @@ const PremiumPage = () => {
               initial={{ opacity: 0, x: -20 }}
               animate={{ opacity: 1, x: 0 }}
               transition={{ duration: 0.6, delay: 0.2 }}
-              className="glass-effect rounded-3xl p-8 border-2 border-border"
+              className="cv-card rounded-3xl p-8"
             >
               <h2 className="text-2xl font-bold mb-2 text-foreground">Plan Gratuito</h2>
               <p className="text-4xl font-bold mb-6 text-foreground">$0</p>
@@ -118,7 +114,7 @@ const PremiumPage = () => {
               <Button
                 onClick={() => navigate('/profile')}
                 variant="outline"
-                className="w-full border-border hover:bg-accent"
+                className="cv-button-secondary w-full"
               >
                 {user ? 'Continuar Gratis' : 'Comenzar Gratis'}
               </Button>
@@ -128,16 +124,16 @@ const PremiumPage = () => {
               initial={{ opacity: 0, x: 20 }}
               animate={{ opacity: 1, x: 0 }}
               transition={{ duration: 0.6, delay: 0.3 }}
-              className="glass-effect rounded-3xl p-8 border-2 border-yellow-400 relative overflow-hidden"
+              className="cv-card rounded-3xl p-8 relative overflow-hidden"
             >
               <div className="absolute top-0 right-0 gold-gradient text-purple-950 px-4 py-1 rounded-bl-2xl font-bold text-sm">
-                POPULAR
+                EN PREPARACIÓN
               </div>
               <h2 className="text-2xl font-bold mb-2 bg-gradient-to-r from-yellow-400 to-fuchsia-400 bg-clip-text text-transparent">
                 Plan Premium
               </h2>
-              <p className="text-4xl font-bold mb-2 text-foreground">$9.990</p>
-              <p className="text-sm text-muted-foreground mb-6">por mes</p>
+              <p className="text-3xl font-bold mb-2 text-foreground">No disponible</p>
+              <p className="text-sm text-muted-foreground mb-6">El precio se definirá cuando exista checkout.</p>
               <ul className="space-y-3 mb-8">
                 {features.map((feature, index) => (
                   <li key={index} className="flex items-center text-foreground">
@@ -151,10 +147,10 @@ const PremiumPage = () => {
               <div className="space-y-3">
                 <Button
                   onClick={handleUpgrade}
-                  className="w-full gold-gradient text-purple-950 font-bold text-lg hover:scale-105 transition-transform"
+                  className="cv-button-primary w-full text-lg"
                 >
                   <Crown className="w-5 h-5 mr-2" />
-                  Actualizar Ahora
+                  Ver estado de Premium
                 </Button>
               </div>
             </motion.div>
@@ -164,15 +160,13 @@ const PremiumPage = () => {
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.6, delay: 0.4 }}
-            className="glass-effect rounded-3xl p-8 text-center"
+            className="cv-card rounded-3xl p-8 text-center"
           >
             <h3 className="text-2xl font-bold mb-4 text-foreground">
               ¿Por qué Premium?
             </h3>
             <p className="text-muted-foreground max-w-2xl mx-auto">
-              Únete a miles de miembros Premium que disfrutan de una experiencia sin límites,
-              acceso exclusivo a eventos y la mejor forma de conectar con la comunidad LGBTQ+
-              de Santiago. Tu apoyo nos ayuda a mantener Chactivo seguro y en constante mejora.
+              Esta página conserva una vista informativa para usuarios autenticados. Las funciones Premium, los eventos y el cobro no están habilitados; no se debe interpretar esta pantalla como una oferta activa. Cuando exista una implementación verificable, se actualizarán aquí las condiciones y el precio.
             </p>
           </motion.div>
         </div>

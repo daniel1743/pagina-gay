@@ -25,6 +25,7 @@ import {
 } from '@/services/socialService';
 import { subscribeToRoomUsers } from '@/services/presenceService';
 import { notificationSounds } from '@/services/notificationSounds';
+import { isSupabaseAuthEnabled } from '@/config/supabase';
 
 const EmojiPicker = lazy(() => import('emoji-picker-react'));
 
@@ -166,6 +167,14 @@ const PrivateChatWindow = ({
   onDeleteConversation,
   onChatActivity,
 }) => {
+  if (isSupabaseAuthEnabled()) {
+    return (
+      <div className="rounded-2xl border border-slate-200 bg-white p-4 text-sm text-slate-600">
+        Esta ventana privada antigua no está disponible en modo Supabase. Abre el chat privado actualizado.
+      </div>
+    );
+  }
+
   const [messages, setMessages] = useState([]);
   const [newMessage, setNewMessage] = useState(initialMessage || '');
   const [blockState, setBlockState] = useState({ blockedByMe: false, blockedByOther: false });

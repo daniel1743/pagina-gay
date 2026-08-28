@@ -452,7 +452,7 @@ const SpainLandingPage = () => {
             marginBottom: '20px',
             lineHeight: '1.7'
           }}>
-            Chactivo es la <strong>comunidad LGBT+ más activa de España</strong>, conectando miles de chicos gays, bisexuales y trans de todo el país. Desde Madrid hasta Barcelona, Valencia, Sevilla, Bilbao y cientos de ciudades más. <strong>100% gratis, sin registro obligatorio</strong>, y completamente anónimo. Sin rollos, tío.
+            Chactivo es la <strong>comunidad LGBT+ para España</strong>, para conversar entre personas gays, bisexuales y trans. Desde Madrid hasta Barcelona, Valencia, Sevilla, Bilbao y otras ciudades. <strong>acceso sin costo y registro opcional</strong>; decide qué información compartir. Sin rollos, tío.
           </p>
 
           <h3 style={{
@@ -475,7 +475,7 @@ const SpainLandingPage = () => {
             <li><strong>Totalmente gratis</strong> - No pedimos tarjeta ni pagos ocultos</li>
             <li><strong>Anónimo y seguro</strong> - Tu privacidad es nuestra prioridad</li>
             <li><strong>Sin descargas</strong> - Funciona directo en tu navegador</li>
-            <li><strong>Comunidad respetuosa</strong> - Moderación activa 24/7</li>
+            <li><strong>Comunidad respetuosa</strong> - Controles contra spam y acoso</li>
           </ul>
 
           <h3 style={{

@@ -8,7 +8,6 @@ import { Input } from '@/components/ui/input';
 import { MessageSquare, MessageCircle, Video, Check, X, ExternalLink, CheckCircle, Ticket, CheckCircle2, Search, Pin, Trash2, CheckCheck } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
-import { auth } from '@/config/firebase';
 import {
   markNotificationAsRead,
   markNotificationsAsRead,
@@ -23,7 +22,7 @@ import { es } from 'date-fns/locale';
 const NotificationsPanel = ({ isOpen, onClose, notifications, onOpenPrivateChat }) => {
   const { user } = useAuth();
   const navigate = useNavigate();
-  const currentUserId = auth?.currentUser?.uid || user?.id || user?.uid || null;
+  const currentUserId = user?.id || user?.uid || null;
   const [searchQuery, setSearchQuery] = useState('');
   const [busyIds, setBusyIds] = useState(() => new Set());
   const [bulkAction, setBulkAction] = useState(null);
@@ -58,7 +57,7 @@ const NotificationsPanel = ({ isOpen, onClose, notifications, onOpenPrivateChat 
   const handleAcceptPrivateChat = async (notification) => {
     if (!currentUserId) return;
     try {
-      const result = await respondToPrivateChatRequest(currentUserId, notification.id, true);
+      const result = await respondToPrivateChatRequest(currentUserId, notification.requestId || notification.entity_id || notification.id, true);
 
       toast({
         title: "✅ Chat privado aceptado",
@@ -98,7 +97,7 @@ const NotificationsPanel = ({ isOpen, onClose, notifications, onOpenPrivateChat 
   const handleRejectPrivateChat = async (notification) => {
     if (!currentUserId) return;
     try {
-      await respondToPrivateChatRequest(currentUserId, notification.id, false);
+      await respondToPrivateChatRequest(currentUserId, notification.requestId || notification.entity_id || notification.id, false);
 
       toast({
         title: "Solicitud rechazada",

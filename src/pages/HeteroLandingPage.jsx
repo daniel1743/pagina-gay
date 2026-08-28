@@ -6,15 +6,15 @@ import { track, trackPageExit, trackPageView } from '@/services/eventTrackingSer
 const LANDING_VARIANTS = {
   home: {
     canonicalPath: '/hetero',
-    title: 'Chat Hetero Activo | Conoce Gente Real Ahora | Chactivo',
+    title: 'Chat Hetero | Conversa en Tiempo Real | Chactivo',
     description:
-      'Chat hetero activo para conocer personas reales en tiempo real. Entra sin complicaciones y empieza a conversar.',
+      'Entrada de chat hetero para conversar en tiempo real. Revisa la sala y decide si quieres participar.',
     intentBadge: 'Entrada simple',
     entryKey: 'hetero-home',
     hero: {
-      h1: 'Conoce gente real hoy mismo',
+      h1: 'Conversa en tiempo real',
       subtext:
-        'Una entrada clara, sin ruido y con una sola accion: ver quien esta activo y empezar a conversar.',
+        'Una entrada clara, sin ruido y con una sola accion: revisar la sala y empezar a conversar.',
       selectorTitle: 'Elige como quieres entrar',
       ctaPrimary: 'Entrar gratis',
       ctaSecondary: 'Ver como funciona',
@@ -23,7 +23,7 @@ const LANDING_VARIANTS = {
       {
         key: 'chat',
         label: 'Quiero chat',
-        helper: 'Entrar directo a la sala activa',
+        helper: 'Revisar la sala y entrar si quieres participar',
         accent: 'sky',
       },
       {
@@ -35,11 +35,11 @@ const LANDING_VARIANTS = {
     ],
     supportTitle: 'Una entrada mas clara para convertir mejor',
     supportText:
-      'La sala ya tiene actividad. Esta landing solo quita friccion: eliges intencion, entras rapido y sigues dentro de Chactivo.',
+      'Esta landing ordena la entrada: eliges una intención opcional, revisas los límites y sigues dentro de Chactivo.',
     benefitCards: [
-      { title: 'Actividad real', text: 'Personas conectadas en este momento.' },
+      { title: 'Actividad honesta', text: 'La sala debe mostrar solo presencia que pueda comprobarse.' },
       { title: 'Entrada directa', text: 'Sin bloques visuales que distraigan.' },
-      { title: 'Privado interno', text: 'La conversion ocurre dentro de la plataforma.' },
+      { title: 'Privado interno', text: 'Si la función está disponible, puedes continuar con más control.' },
     ],
     faq: [
       { question: '¿Es gratis entrar?', answer: 'Si. Puedes entrar y conversar sin pagar.' },
@@ -57,7 +57,7 @@ const LANDING_VARIANTS = {
     canonicalPath: '/hetero/chat',
     title: 'Entrar al Chat Hetero Ahora | Acceso Directo | Chactivo',
     description:
-      'Accede al chat hetero activo en segundos. Intencion directa, acceso inmediato y conversacion en tiempo real.',
+      'Accede a la entrada de chat hetero en segundos. Elige una intención y revisa la sala antes de conversar.',
     intentBadge: 'Acceso directo',
     entryKey: 'hetero-chat',
     hero: {
@@ -72,7 +72,7 @@ const LANDING_VARIANTS = {
       {
         key: 'chat',
         label: 'Entrar directo',
-        helper: 'Acceso rapido a la sala activa',
+        helper: 'Acceso rápido para revisar la sala',
         accent: 'sky',
       },
       {
@@ -84,7 +84,7 @@ const LANDING_VARIANTS = {
     ],
     supportTitle: 'Menos marketing, mas accion',
     supportText:
-      'Esta variante baja texto y sube claridad. El objetivo es entrar rapido, conversar y mover la conversion al privado interno cuando aparezca match.',
+      'Esta variante reduce el ruido y explica el siguiente paso. El objetivo es entrar, conversar y decidir qué compartir.',
     benefitCards: [
       { title: 'CTA unico', text: 'Una accion principal y una secundaria.' },
       { title: 'Menos friccion', text: 'Diseno corto y enfocado en decision.' },
@@ -106,7 +106,7 @@ const LANDING_VARIANTS = {
     canonicalPath: '/hetero/amistad',
     title: 'Chat para Hacer Amigos y Conocer Gente | Chactivo',
     description:
-      'Habla con personas reales sin presion. Entra a conversar, hacer amigos y conectar en tiempo real.',
+      'Entra a conversar, hacer amigos y conectar en tiempo real, sin asumir que siempre habrá respuestas.',
     intentBadge: 'Amistad',
     entryKey: 'hetero-amistad',
     hero: {
@@ -127,7 +127,7 @@ const LANDING_VARIANTS = {
       {
         key: 'chat',
         label: 'Entrar directo',
-        helper: 'Ir igual a la sala activa ahora',
+        helper: 'Ir a la sala para revisar su estado',
         accent: 'sky',
       },
     ],
@@ -142,11 +142,11 @@ const LANDING_VARIANTS = {
     faq: [
       {
         question: '¿Es solo para hacer amigos?',
-        answer: 'No. Es una entrada mas social, pero la sala sigue viva y abierta.',
+        answer: 'No. Es una entrada más social; la disponibilidad depende de la participación real.',
       },
       {
         question: '¿Necesito registrarme antes?',
-        answer: 'No. Puedes entrar rapido y decidir despues si completas perfil.',
+        answer: 'Depende de la sala y de la función. Revisa los requisitos antes de compartir información.',
       },
     ],
     relatedLinks: [{ href: '/hetero/chat', label: 'Quiero acceso directo' }],
@@ -160,9 +160,9 @@ const NAV_LINKS = [
 ];
 
 const SUPPORT_PILLS = [
-  'Sala activa ahora',
-  'Entrada rapida',
-  'Privado interno',
+  'Entrada directa',
+  'Intención opcional',
+  'Normas visibles',
 ];
 
 const HETERO_INDEXING_ENABLED = false;
@@ -174,11 +174,11 @@ const HOW_IT_WORKS_STEPS = [
   },
   {
     title: 'Entra a la sala',
-    text: 'Accedes a la misma sala activa, sin pasos innecesarios.',
+    text: 'Accedes a la sala correspondiente, sin pasos innecesarios.',
   },
   {
     title: 'Conecta dentro de Chactivo',
-    text: 'Si hay quimica, das el salto al privado interno.',
+    text: 'Si la conversación avanza y la función está disponible, puedes solicitar continuar en privado.',
   },
 ];
 

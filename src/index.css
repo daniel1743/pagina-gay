@@ -32,20 +32,62 @@
     --input: 225 14% 14%;
     --ring: 335 100% 65%;
 
-    --chat-background-base: #0f1115;
-    --chat-surface-feed: #13161c;
-    --chat-bubble-incoming: #1a1f27;
-    --chat-bubble-outgoing: #1473e6;
-    --chat-text-primary: #f5f7fb;
-    --chat-text-secondary: #9aa3b2;
-    --chat-divider: rgba(255, 255, 255, 0.06);
-    --chat-divider-strong: rgba(255, 255, 255, 0.1);
-    --chat-header-surface: rgba(19, 22, 28, 0.78);
-    --chat-bottom-surface: rgba(19, 22, 28, 0.84);
-    --chat-composer-surface: rgba(255, 255, 255, 0.06);
-    --chat-composer-shell: #171b22;
-    --chat-send-solid: #1473e6;
-    --chat-send-solid-hover: #0f67d8;
+    /* Design system gradual: nuevos componentes deben consumir estos roles. */
+    --surface: 224 17% 8%;
+    --surface-elevated: 224 17% 11%;
+    --surface-hover: 224 17% 14%;
+    --border-subtle: 0 0% 100% / 0.12;
+    --text-primary: 0 0% 100%;
+    --text-secondary: 224 10% 72%;
+    --text-tertiary: 224 10% 58%;
+    --success: 158 64% 44%;
+    --warning: 38 92% 50%;
+    --error: 0 84% 60%;
+    --focus: 188 100% 50%;
+    --disabled: 225 14% 40%;
+    --font-ui: Inter, system-ui, sans-serif;
+
+    /* Chactivo Visual System — Midnight Community / Electric Trust */
+    --cv-page: #0b1020;
+    --cv-surface: #11182b;
+    --cv-surface-elevated: #17223a;
+    --cv-surface-hover: #1e2b49;
+    --cv-content-primary: #f8fafc;
+    --cv-content-secondary: #b5c0d2;
+    --cv-content-tertiary: #8290a7;
+    --cv-action-primary: #f472b6;
+    --cv-action-guidance: #6ee7f2;
+    --cv-action-secondary: #22304d;
+    --cv-success: #6ee7b7;
+    --cv-warning: #f7c96b;
+    --cv-danger: #ff8798;
+    --cv-on-action: #0b1020;
+    --cv-border: rgba(255, 255, 255, 0.1);
+    --cv-border-strong: rgba(110, 231, 242, 0.34);
+    --cv-focus: #6ee7f2;
+    --cv-shadow-card: 0 8px 24px rgba(0, 0, 0, 0.18);
+    --cv-shadow-elevated: 0 16px 42px rgba(0, 0, 0, 0.28);
+    --cv-radius-sm: 0.625rem;
+    --cv-radius-md: 0.875rem;
+    --cv-radius-lg: 1.25rem;
+    --cv-radius-xl: 1.5rem;
+    --cv-ease-out: cubic-bezier(0.23, 1, 0.32, 1);
+    --cv-ease-in-out: cubic-bezier(0.77, 0, 0.175, 1);
+
+    --chat-background-base: var(--cv-page);
+    --chat-surface-feed: var(--cv-surface);
+    --chat-bubble-incoming: var(--cv-surface-elevated);
+    --chat-bubble-outgoing: #255c99;
+    --chat-text-primary: var(--cv-content-primary);
+    --chat-text-secondary: var(--cv-content-secondary);
+    --chat-divider: var(--cv-border);
+    --chat-divider-strong: rgba(255, 255, 255, 0.16);
+    --chat-header-surface: rgba(17, 24, 43, 0.84);
+    --chat-bottom-surface: rgba(17, 24, 43, 0.94);
+    --chat-composer-surface: rgba(110, 231, 242, 0.08);
+    --chat-composer-shell: var(--cv-surface-elevated);
+    --chat-send-solid: #255c99;
+    --chat-send-solid-hover: #1d4f85;
     --chat-send-from: #e4007c;
     --chat-send-to: #20d5ff;
     --chat-card-shadow: 0 8px 28px rgba(15, 17, 21, 0.22);
@@ -93,20 +135,61 @@
     --input: 210 25% 94%;
     --ring: 335 100% 65%;
 
-    --chat-background-base: #f6f7f9;
-    --chat-surface-feed: #ffffff;
-    --chat-bubble-incoming: #f2f4f7;
-    --chat-bubble-outgoing: #1473e6;
-    --chat-text-primary: #111827;
-    --chat-text-secondary: #6b7280;
-    --chat-divider: rgba(0, 0, 0, 0.06);
-    --chat-divider-strong: rgba(17, 24, 39, 0.1);
-    --chat-header-surface: rgba(255, 255, 255, 0.78);
-    --chat-bottom-surface: rgba(246, 247, 249, 0.88);
-    --chat-composer-surface: rgba(255, 255, 255, 0.86);
-    --chat-composer-shell: #ffffff;
-    --chat-send-solid: #1473e6;
-    --chat-send-solid-hover: #0f67d8;
+    --surface: 0 0% 100%;
+    --surface-elevated: 0 0% 100%;
+    --surface-hover: 210 25% 96%;
+    --border-subtle: 220 13% 88%;
+    --text-primary: 222 24% 8%;
+    --text-secondary: 220 9% 38%;
+    --text-tertiary: 220 9% 48%;
+    --success: 158 64% 34%;
+    --warning: 32 90% 38%;
+    --error: 0 72% 45%;
+    --focus: 198 88% 38%;
+    --disabled: 220 9% 60%;
+    --font-ui: Inter, system-ui, sans-serif;
+
+    /* Chactivo Visual System — light mode */
+    --cv-page: #f7f8fc;
+    --cv-surface: #ffffff;
+    --cv-surface-elevated: #f1f4fa;
+    --cv-surface-hover: #e8edf6;
+    --cv-content-primary: #0b1220;
+    --cv-content-secondary: #48566b;
+    --cv-content-tertiary: #62718a;
+    --cv-action-primary: #b4236d;
+    --cv-action-guidance: #0e7490;
+    --cv-action-secondary: #e8edf6;
+    --cv-success: #087f5b;
+    --cv-warning: #8a5a00;
+    --cv-danger: #b4233c;
+    --cv-on-action: #ffffff;
+    --cv-border: rgba(11, 18, 32, 0.12);
+    --cv-border-strong: rgba(14, 116, 144, 0.34);
+    --cv-focus: #0e7490;
+    --cv-shadow-card: 0 8px 24px rgba(15, 23, 42, 0.08);
+    --cv-shadow-elevated: 0 16px 42px rgba(15, 23, 42, 0.14);
+    --cv-radius-sm: 0.625rem;
+    --cv-radius-md: 0.875rem;
+    --cv-radius-lg: 1.25rem;
+    --cv-radius-xl: 1.5rem;
+    --cv-ease-out: cubic-bezier(0.23, 1, 0.32, 1);
+    --cv-ease-in-out: cubic-bezier(0.77, 0, 0.175, 1);
+
+    --chat-background-base: var(--cv-page);
+    --chat-surface-feed: var(--cv-surface);
+    --chat-bubble-incoming: var(--cv-surface-elevated);
+    --chat-bubble-outgoing: #0e7490;
+    --chat-text-primary: var(--cv-content-primary);
+    --chat-text-secondary: var(--cv-content-secondary);
+    --chat-divider: var(--cv-border);
+    --chat-divider-strong: rgba(11, 18, 32, 0.16);
+    --chat-header-surface: rgba(247, 248, 252, 0.92);
+    --chat-bottom-surface: rgba(255, 255, 255, 0.94);
+    --chat-composer-surface: rgba(14, 116, 144, 0.08);
+    --chat-composer-shell: var(--cv-surface-elevated);
+    --chat-send-solid: #0e7490;
+    --chat-send-solid-hover: #155e75;
     --chat-send-from: #e4007c;
     --chat-send-to: #20d5ff;
     --chat-card-shadow: 0 6px 24px rgba(17, 24, 39, 0.05);
@@ -139,6 +222,26 @@
       radial-gradient(circle at top left, rgba(20, 115, 230, 0.05), transparent 20%),
       radial-gradient(circle at top right, rgba(17, 24, 39, 0.025), transparent 16%),
       linear-gradient(180deg, rgba(247, 248, 250, 1) 0%, rgba(247, 248, 250, 1) 100%);
+  }
+
+  :where(button, a[href], input, textarea, select, [tabindex]:not([tabindex="-1"])):focus-visible {
+    outline: 3px solid hsl(var(--focus));
+    outline-offset: 3px;
+  }
+
+  :where(button, input, textarea, select):disabled {
+    cursor: not-allowed;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    scroll-behavior: auto !important;
+    transition-duration: 0.01ms !important;
   }
 }
 
@@ -612,4 +715,606 @@ body {
 
 .rainbow-avatar-ring > * {
   border-radius: 9999px;
+}
+
+
+/* ========================================================================
+   CHACTIVO VISUAL SYSTEM — Midnight Community / Electric Trust
+   Shared visual primitives for the 2026 interface refresh.
+   ======================================================================== */
+@layer components {
+  .cv-page {
+    min-height: 100%;
+    background: var(--cv-page);
+    color: var(--cv-content-primary);
+    font-family: var(--font-ui);
+  }
+
+  .cv-shell {
+    background:
+      radial-gradient(circle at 8% 0%, rgba(110, 231, 242, 0.08), transparent 30%),
+      radial-gradient(circle at 92% 8%, rgba(244, 114, 182, 0.08), transparent 26%),
+      var(--cv-page);
+  }
+
+  .light .cv-shell {
+    background:
+      radial-gradient(circle at 8% 0%, rgba(14, 116, 144, 0.06), transparent 30%),
+      radial-gradient(circle at 92% 8%, rgba(180, 35, 109, 0.05), transparent 26%),
+      var(--cv-page);
+  }
+
+  .cv-surface {
+    background: var(--cv-surface);
+    border: 1px solid var(--cv-border);
+    box-shadow: var(--cv-shadow-card);
+  }
+
+  .cv-surface-elevated {
+    background: var(--cv-surface-elevated);
+    border: 1px solid var(--cv-border);
+    box-shadow: var(--cv-shadow-elevated);
+  }
+
+  .cv-surface-translucent {
+    background: rgba(17, 24, 43, 0.86);
+    border: 1px solid var(--cv-border);
+    backdrop-filter: blur(16px) saturate(125%);
+    -webkit-backdrop-filter: blur(16px) saturate(125%);
+  }
+
+  .light .cv-surface-translucent {
+    background: rgba(255, 255, 255, 0.9);
+  }
+
+  .cv-header {
+    background: rgba(11, 16, 32, 0.88);
+    border-bottom: 1px solid var(--cv-border);
+    backdrop-filter: blur(16px) saturate(125%);
+    -webkit-backdrop-filter: blur(16px) saturate(125%);
+  }
+
+  .light .cv-header {
+    background: rgba(247, 248, 252, 0.92);
+  }
+
+  .cv-brand-mark {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 2.5rem;
+    height: 2.5rem;
+    border: 1px solid rgba(110, 231, 242, 0.3);
+    border-radius: var(--cv-radius-md);
+    background: linear-gradient(145deg, rgba(110, 231, 242, 0.22), rgba(244, 114, 182, 0.24));
+    box-shadow: 0 8px 24px rgba(110, 231, 242, 0.14);
+  }
+
+  .cv-nav-link {
+    min-height: 2.5rem;
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0 0.75rem;
+    border: 1px solid transparent;
+    border-radius: var(--cv-radius-sm);
+    color: var(--cv-content-secondary);
+    font-size: 0.875rem;
+    font-weight: 650;
+    transition: background-color 160ms var(--cv-ease-out), color 160ms var(--cv-ease-out), border-color 160ms var(--cv-ease-out), transform 160ms var(--cv-ease-out);
+  }
+
+  .cv-nav-link:hover {
+    color: var(--cv-content-primary);
+    background: var(--cv-surface-hover);
+    border-color: var(--cv-border);
+  }
+
+  .cv-nav-link[data-active='true'] {
+    color: var(--cv-content-primary);
+    background: rgba(110, 231, 242, 0.12);
+    border-color: var(--cv-border-strong);
+    box-shadow: inset 3px 0 0 var(--cv-action-guidance);
+  }
+
+  .cv-button-primary,
+  .cv-button-secondary,
+  .cv-button-ghost,
+  .cv-icon-button {
+    transition: background-color 160ms var(--cv-ease-out), color 160ms var(--cv-ease-out), border-color 160ms var(--cv-ease-out), box-shadow 160ms var(--cv-ease-out), transform 160ms var(--cv-ease-out), opacity 160ms var(--cv-ease-out);
+  }
+
+  .cv-button-primary {
+    display: inline-flex;
+    min-height: 2.75rem;
+    align-items: center;
+    justify-content: center;
+    gap: 0.5rem;
+    border: 1px solid rgba(255, 255, 255, 0.2);
+    border-radius: var(--cv-radius-md);
+    background: var(--cv-action-primary);
+    color: var(--cv-on-action) !important;
+    padding: 0.625rem 1rem;
+    font-size: 0.875rem;
+    font-weight: 750;
+    box-shadow: 0 8px 22px rgba(244, 114, 182, 0.18);
+  }
+
+  .cv-button-primary:hover {
+    background: #fb8ac4;
+    box-shadow: 0 10px 28px rgba(244, 114, 182, 0.28);
+  }
+
+  .light .cv-button-primary:hover {
+    background: #c7387f;
+  }
+
+  .cv-button-secondary {
+    display: inline-flex;
+    min-height: 2.75rem;
+    align-items: center;
+    justify-content: center;
+    gap: 0.5rem;
+    border: 1px solid var(--cv-border-strong);
+    border-radius: var(--cv-radius-md);
+    background: rgba(110, 231, 242, 0.1);
+    color: var(--cv-action-guidance) !important;
+    padding: 0.625rem 1rem;
+    font-size: 0.875rem;
+    font-weight: 700;
+  }
+
+  .cv-button-secondary:hover {
+    background: rgba(110, 231, 242, 0.18);
+  }
+
+  .light .cv-button-secondary {
+    background: rgba(14, 116, 144, 0.08);
+  }
+
+  .cv-button-ghost {
+    display: inline-flex;
+    min-height: 2.5rem;
+    align-items: center;
+    justify-content: center;
+    gap: 0.5rem;
+    border: 1px solid transparent;
+    border-radius: var(--cv-radius-sm);
+    color: var(--cv-content-secondary) !important;
+    padding: 0.5rem 0.75rem;
+    font-size: 0.8125rem;
+    font-weight: 650;
+  }
+
+  .cv-button-ghost:hover {
+    color: var(--cv-content-primary) !important;
+    background: var(--cv-surface-hover);
+    border-color: var(--cv-border);
+  }
+
+  .cv-icon-button {
+    display: inline-flex;
+    width: 2.75rem;
+    height: 2.75rem;
+    align-items: center;
+    justify-content: center;
+    border: 1px solid transparent;
+    border-radius: var(--cv-radius-sm);
+    color: var(--cv-content-secondary);
+  }
+
+  .cv-icon-button:hover,
+  .cv-icon-button[aria-pressed='true'] {
+    color: var(--cv-action-guidance);
+    background: rgba(110, 231, 242, 0.12);
+    border-color: var(--cv-border-strong);
+  }
+
+  .cv-card {
+    border: 1px solid var(--cv-border);
+    border-radius: var(--cv-radius-lg);
+    background: var(--cv-surface);
+    box-shadow: var(--cv-shadow-card);
+  }
+
+  .cv-card-interactive {
+    transition: transform 160ms var(--cv-ease-out), border-color 160ms var(--cv-ease-out), box-shadow 160ms var(--cv-ease-out), background-color 160ms var(--cv-ease-out);
+  }
+
+  .cv-card-interactive:hover {
+    transform: translateY(-2px);
+    border-color: var(--cv-border-strong);
+    background: var(--cv-surface-elevated);
+    box-shadow: var(--cv-shadow-elevated);
+  }
+
+  .cv-chip {
+    display: inline-flex;
+    min-height: 2rem;
+    align-items: center;
+    gap: 0.375rem;
+    border: 1px solid var(--cv-border);
+    border-radius: 999px;
+    background: rgba(255, 255, 255, 0.04);
+    color: var(--cv-content-secondary);
+    padding: 0.35rem 0.7rem;
+    font-size: 0.75rem;
+    font-weight: 650;
+    transition: background-color 160ms var(--cv-ease-out), color 160ms var(--cv-ease-out), border-color 160ms var(--cv-ease-out);
+  }
+
+  .light .cv-chip {
+    background: rgba(11, 18, 32, 0.035);
+  }
+
+  .cv-chip:hover,
+  .cv-chip[data-active='true'] {
+    border-color: var(--cv-border-strong);
+    background: rgba(110, 231, 242, 0.14);
+    color: var(--cv-content-primary);
+  }
+
+  .cv-status-success {
+    color: var(--cv-success);
+    background: rgba(110, 231, 183, 0.1);
+    border-color: rgba(110, 231, 183, 0.28);
+  }
+
+  .cv-status-warning {
+    color: var(--cv-warning);
+    background: rgba(247, 201, 107, 0.1);
+    border-color: rgba(247, 201, 107, 0.28);
+  }
+
+  .cv-status-danger {
+    color: var(--cv-danger);
+    background: rgba(255, 135, 152, 0.1);
+    border-color: rgba(255, 135, 152, 0.28);
+  }
+
+  .cv-focusable:focus-visible,
+  .cv-button-primary:focus-visible,
+  .cv-button-secondary:focus-visible,
+  .cv-button-ghost:focus-visible,
+  .cv-icon-button:focus-visible,
+  .cv-chip:focus-visible {
+    outline: 3px solid var(--cv-focus);
+    outline-offset: 3px;
+  }
+
+  .cv-bottom-nav {
+    background: rgba(17, 24, 43, 0.94);
+    border-top: 1px solid var(--cv-border);
+    box-shadow: 0 -12px 32px rgba(0, 0, 0, 0.2);
+    backdrop-filter: blur(16px) saturate(125%);
+    -webkit-backdrop-filter: blur(16px) saturate(125%);
+  }
+
+  .light .cv-bottom-nav {
+    background: rgba(255, 255, 255, 0.94);
+    box-shadow: 0 -8px 24px rgba(15, 23, 42, 0.08);
+  }
+
+  .cv-bottom-nav-item {
+    min-height: 3rem;
+    min-width: 3.5rem;
+    display: inline-flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 0.125rem;
+    border-radius: var(--cv-radius-sm);
+    color: var(--cv-content-tertiary);
+    font-size: 0.6875rem;
+    font-weight: 700;
+    transition: background-color 160ms var(--cv-ease-out), color 160ms var(--cv-ease-out), transform 160ms var(--cv-ease-out);
+  }
+
+  .cv-bottom-nav-item:hover,
+  .cv-bottom-nav-item[data-active='true'] {
+    color: var(--cv-action-guidance);
+    background: rgba(110, 231, 242, 0.1);
+  }
+
+  .cv-empty-state {
+    display: flex;
+    min-height: 13rem;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 0.75rem;
+    border: 1px dashed var(--cv-border-strong);
+    border-radius: var(--cv-radius-lg);
+    background: rgba(255, 255, 255, 0.025);
+    color: var(--cv-content-secondary);
+    padding: 2rem 1.25rem;
+    text-align: center;
+  }
+
+  .light .cv-empty-state {
+    background: rgba(11, 18, 32, 0.025);
+  }
+}
+
+@media (max-width: 767px) {
+  .cv-button-primary,
+  .cv-button-secondary {
+    min-height: 3rem;
+  }
+
+  .cv-card {
+    border-radius: var(--cv-radius-md);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .cv-nav-link,
+  .cv-button-primary,
+  .cv-button-secondary,
+  .cv-button-ghost,
+  .cv-icon-button,
+  .cv-card-interactive,
+  .cv-chip,
+  .cv-bottom-nav-item {
+    transition-duration: 0.01ms;
+  }
+
+  .cv-card-interactive:hover {
+    transform: none;
+  }
+}
+
+
+@layer components {
+  .cv-sheet {
+    color: var(--cv-content-primary);
+    background: var(--cv-surface-elevated);
+    border: 1px solid var(--cv-border-strong);
+    box-shadow: var(--cv-shadow-elevated);
+  }
+
+  .cv-sheet .text-slate-900 {
+    color: var(--cv-content-primary) !important;
+  }
+
+  .cv-sheet .text-slate-800,
+  .cv-sheet .text-slate-700,
+  .cv-sheet .text-slate-600,
+  .cv-sheet .text-slate-500,
+  .cv-sheet .text-slate-400 {
+    color: var(--cv-content-secondary) !important;
+  }
+
+  .cv-sheet .bg-white {
+    background-color: var(--cv-surface) !important;
+  }
+
+  .cv-sheet .bg-slate-50,
+  .cv-sheet .bg-slate-100 {
+    background-color: var(--cv-surface-hover) !important;
+  }
+
+  .cv-sheet .border-slate-100,
+  .cv-sheet .border-slate-200 {
+    border-color: var(--cv-border) !important;
+  }
+
+  .cv-sheet .text-sky-700,
+  .cv-sheet .text-emerald-700,
+  .cv-sheet .text-violet-700 {
+    color: var(--cv-action-guidance) !important;
+  }
+
+  .cv-sheet input {
+    color: var(--cv-content-primary);
+    background: var(--cv-surface);
+    border-color: var(--cv-border-strong);
+  }
+
+  .cv-sheet input::placeholder {
+    color: var(--cv-content-tertiary);
+  }
+}
+
+
+@layer components {
+  .cv-composer {
+    border: 1px solid var(--cv-border);
+    border-radius: var(--cv-radius-xl);
+    background: var(--cv-surface-elevated);
+    box-shadow: var(--cv-shadow-card);
+    transition: border-color 160ms var(--cv-ease-out), box-shadow 160ms var(--cv-ease-out);
+  }
+
+  .cv-composer:focus-within {
+    border-color: var(--cv-border-strong);
+    box-shadow: 0 0 0 3px rgba(110, 231, 242, 0.11), var(--cv-shadow-card);
+  }
+
+  .light .cv-composer:focus-within {
+    box-shadow: 0 0 0 3px rgba(14, 116, 144, 0.12), var(--cv-shadow-card);
+  }
+
+  .cv-composer textarea {
+    color: var(--cv-content-primary);
+    caret-color: var(--cv-action-guidance);
+  }
+
+  .cv-composer textarea::placeholder {
+    color: var(--cv-content-tertiary);
+  }
+
+  .cv-composer-tool {
+    color: var(--cv-content-secondary) !important;
+    border-color: transparent !important;
+  }
+
+  .cv-composer-tool:hover,
+  .cv-composer-tool[aria-pressed='true'] {
+    color: var(--cv-action-guidance) !important;
+    background: rgba(110, 231, 242, 0.12) !important;
+    border-color: var(--cv-border-strong) !important;
+  }
+
+  .cv-composer-submit {
+    color: var(--cv-on-action) !important;
+    background: var(--cv-action-guidance) !important;
+    box-shadow: 0 8px 20px rgba(110, 231, 242, 0.22);
+  }
+
+  .cv-composer-submit:hover {
+    background: #8af0f7 !important;
+  }
+
+  .light .cv-composer-submit {
+    color: #ffffff !important;
+    background: var(--cv-action-guidance) !important;
+    box-shadow: 0 8px 20px rgba(14, 116, 144, 0.18);
+  }
+
+  .light .cv-composer-submit:hover {
+    background: #155e75 !important;
+  }
+}
+
+
+@layer components {
+  .cv-hero {
+    isolation: isolate;
+  }
+
+  .cv-hero-wash {
+    z-index: -1;
+    opacity: 0.95;
+    background:
+      radial-gradient(circle at 18% 22%, rgba(110, 231, 242, 0.16), transparent 28%),
+      radial-gradient(circle at 82% 8%, rgba(244, 114, 182, 0.17), transparent 24%),
+      linear-gradient(135deg, rgba(17, 24, 43, 0.96), rgba(11, 16, 32, 0.84));
+  }
+
+  .light .cv-hero-wash {
+    opacity: 1;
+    background:
+      radial-gradient(circle at 18% 22%, rgba(14, 116, 144, 0.1), transparent 28%),
+      radial-gradient(circle at 82% 8%, rgba(180, 35, 109, 0.08), transparent 24%),
+      linear-gradient(135deg, rgba(247, 248, 252, 0.98), rgba(255, 255, 255, 0.94));
+  }
+
+  .cv-hero-panel {
+    border: 1px solid var(--cv-border-strong);
+    background: rgba(110, 231, 242, 0.08);
+    box-shadow: var(--cv-shadow-card);
+  }
+
+  .light .cv-hero-panel {
+    background: rgba(14, 116, 144, 0.06);
+  }
+
+  .cv-display {
+    letter-spacing: -0.045em;
+    text-wrap: balance;
+  }
+}
+
+
+/* Priority overrides: shared CV classes intentionally win over legacy button utilities. */
+@layer components {
+  .cv-button-primary {
+    background: var(--cv-action-primary) !important;
+    color: var(--cv-on-action) !important;
+  }
+
+  .cv-button-secondary {
+    background: rgba(110, 231, 242, 0.1) !important;
+    color: var(--cv-action-guidance) !important;
+  }
+
+  .cv-button-ghost:hover,
+  .cv-icon-button:hover,
+  .cv-icon-button[aria-pressed='true'] {
+    background: var(--cv-surface-hover) !important;
+    color: var(--cv-action-guidance) !important;
+  }
+}
+
+
+@layer components {
+  .cv-field {
+    min-height: 2.75rem;
+    border: 1px solid var(--cv-border) !important;
+    background: var(--cv-surface) !important;
+    color: var(--cv-content-primary) !important;
+    outline: none;
+  }
+
+  .cv-field::placeholder {
+    color: var(--cv-content-tertiary) !important;
+  }
+
+  .cv-field:focus,
+  .cv-field:focus-visible {
+    border-color: var(--cv-border-strong) !important;
+    box-shadow: 0 0 0 3px rgba(110, 231, 242, 0.12);
+  }
+
+  .light .cv-field:focus,
+  .light .cv-field:focus-visible {
+    box-shadow: 0 0 0 3px rgba(14, 116, 144, 0.12);
+  }
+}
+
+
+@layer components {
+  .cv-button-danger {
+    display: inline-flex;
+    min-height: 2.75rem;
+    align-items: center;
+    justify-content: center;
+    gap: 0.5rem;
+    border: 1px solid rgba(255, 135, 152, 0.42);
+    border-radius: var(--cv-radius-md);
+    background: rgba(255, 135, 152, 0.16);
+    color: var(--cv-danger) !important;
+    padding: 0.625rem 1rem;
+    font-size: 0.875rem;
+    font-weight: 750;
+  }
+
+  .cv-button-danger:hover {
+    background: rgba(255, 135, 152, 0.24) !important;
+    color: var(--cv-content-primary) !important;
+  }
+}
+
+
+@layer components {
+  .cv-status-warning h3,
+  .cv-status-warning p,
+  .cv-status-warning span {
+    color: inherit !important;
+  }
+
+  .light .cv-status-warning {
+    background: rgba(138, 90, 0, 0.08);
+    border-color: rgba(138, 90, 0, 0.24);
+    color: var(--cv-warning);
+  }
+
+  .cv-button-primary:active,
+  .cv-button-secondary:active,
+  .cv-button-ghost:active,
+  .cv-icon-button:active,
+  .cv-chip:active {
+    transform: scale(0.97);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .cv-button-primary:active,
+  .cv-button-secondary:active,
+  .cv-button-ghost:active,
+  .cv-icon-button:active,
+  .cv-chip:active {
+    transform: none;
+  }
 }

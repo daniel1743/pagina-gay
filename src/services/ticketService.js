@@ -16,6 +16,8 @@ import {
 } from 'firebase/firestore';
 import { db, auth } from '@/config/firebase';
 import { dispatchUserNotification } from '@/services/userNotificationDispatchService';
+import { supabase, isSupabaseAuthEnabled } from '@/config/supabase';
+import { createSystemNotification, NOTIFICATION_TYPES } from '@/services/systemNotificationsService';
 
 /**
  * SERVICIO DE TICKETS DE SOPORTE - VERSIÓN EXTENDIDA
@@ -31,6 +33,46 @@ import { dispatchUserNotification } from '@/services/userNotificationDispatchSer
  *
  * COMPATIBILIDAD: Mantiene funciones originales para no romper código existente
  */
+
+const mapSupabaseTicket = (row) => ({
+  id: row.id,
+  userId: row.user_id,
+  userUid: row.user_id,
+  username: row.username_snapshot || 'Usuario',
+  usernameSnapshot: row.username_snapshot || 'Usuario',
+  email: row.email || '',
+  subject: row.subject,
+  description: row.description,
+  category: row.category,
+  priority: row.priority,
+  status: row.status,
+  attachments: row.attachments || [],
+  assignedTo: row.assigned_to,
+  adminNotes: row.admin_notes,
+  resolvedBy: row.resolved_by,
+  resolvedAt: row.resolved_at,
+  lastMessageAt: row.last_message_at,
+  createdAt: row.created_at,
+  updatedAt: row.updated_at,
+});
+
+const mapSupabaseTicketMessage = (row) => ({
+  id: row.id,
+  type: row.message_type,
+  author: row.author_type,
+  authorUid: row.author_id,
+  body: row.content,
+  attachments: row.attachments || [],
+  createdAt: row.created_at,
+});
+
+const mapSupabaseTicketLog = (row) => ({
+  id: row.id,
+  action: row.action,
+  actorUid: row.actor_id,
+  meta: row.metadata || {},
+  createdAt: row.created_at,
+});
 
 // ============================================
 // CONSTANTES
@@ -95,6 +137,17 @@ export const LOG_ACTION = {
  * @returns {Promise<string>} ID del ticket creado
  */
 export const createTicket = async (ticketData) => {
+  if (isSupabaseAuthEnabled()) {
+    const { data: authData } = await supabase.auth.getUser();
+    if (!authData?.user?.id) throw new Error('Debes estar autenticado para crear un ticket');
+    const { data: ticket, error } = await supabase.from('tickets').insert({ user_id: authData.user.id, username_snapshot: ticketData.username || 'Usuario', email: ticketData.email || authData.user.email || '', subject: ticketData.subject, description: ticketData.description, category: ticketData.category || TICKET_CATEGORY.GENERAL, priority: ticketData.priority || TICKET_PRIORITY.MEDIUM, attachments: ticketData.attachments || [] }).select('*').single();
+    if (error) throw error;
+    const { error: messageError } = await supabase.from('ticket_messages').insert({ ticket_id: ticket.id, author_id: authData.user.id, author_type: MESSAGE_AUTHOR.USER, message_type: MESSAGE_TYPE.EXTERNAL, content: ticketData.description, attachments: ticketData.attachments || [] });
+    if (messageError) throw messageError;
+    const { error: logError } = await supabase.from('ticket_logs').insert({ ticket_id: ticket.id, actor_id: authData.user.id, action: LOG_ACTION.CREATED, metadata: { subject: ticketData.subject, category: ticketData.category || TICKET_CATEGORY.GENERAL, priority: ticketData.priority || TICKET_PRIORITY.MEDIUM } });
+    if (logError) console.warn('[TICKETS] No se pudo registrar log Supabase:', logError.message);
+    return ticket.id;
+  }
   if (!auth.currentUser) {
     throw new Error('Debes estar autenticado para crear un ticket');
   }
@@ -177,6 +230,13 @@ export const createTicket = async (ticketData) => {
  * @returns {Promise<Array>} Lista de tickets
  */
 export const getAllTickets = async (status = null) => {
+  if (isSupabaseAuthEnabled()) {
+    let request = supabase.from('tickets').select('*').order('created_at', { ascending: false }).limit(200);
+    if (status) request = request.eq('status', status);
+    const { data, error } = await request;
+    if (error) throw error;
+    return (data || []).map(mapSupabaseTicket);
+  }
   try {
     const ticketsRef = collection(db, 'tickets');
     let q;
@@ -207,6 +267,16 @@ export const getAllTickets = async (status = null) => {
  * @returns {Promise<Array>} Lista de tickets filtrados
  */
 export const getTicketsAdvanced = async (filters = {}) => {
+  if (isSupabaseAuthEnabled()) {
+    let request = supabase.from('tickets').select('*').order(filters.orderBy === 'createdAt' ? 'created_at' : 'updated_at', { ascending: filters.orderDirection === 'asc' }).limit(Math.max(1, Math.min(Number(filters.limit) || 100, 200)));
+    if (filters.status) request = request.eq('status', filters.status);
+    if (filters.category) request = request.eq('category', filters.category);
+    if (filters.priority) request = request.eq('priority', filters.priority);
+    if (filters.assignedTo) request = request.eq('assigned_to', filters.assignedTo);
+    const { data, error } = await request;
+    if (error) throw error;
+    return (data || []).map(mapSupabaseTicket);
+  }
   try {
     const ticketsRef = collection(db, 'tickets');
     let q = query(ticketsRef);
@@ -259,6 +329,13 @@ export const getTicketsAdvanced = async (filters = {}) => {
  * @returns {Promise<Array>} Lista de tickets del usuario
  */
 export const getUserTickets = async (userId) => {
+  if (isSupabaseAuthEnabled()) {
+    const { data: authData } = await supabase.auth.getUser();
+    if (authData?.user?.id !== userId) return [];
+    const { data, error } = await supabase.from('tickets').select('*').eq('user_id', userId).order('created_at', { ascending: false }).limit(100);
+    if (error) throw error;
+    return (data || []).map(mapSupabaseTicket);
+  }
   try {
     const ticketsRef = collection(db, 'tickets');
     const q = query(
@@ -287,6 +364,12 @@ export const getUserTickets = async (userId) => {
  * @returns {Promise<Object>} Datos del ticket
  */
 export const getTicketById = async (ticketId) => {
+  if (isSupabaseAuthEnabled()) {
+    const { data, error } = await supabase.from('tickets').select('*').eq('id', ticketId).maybeSingle();
+    if (error) throw error;
+    if (!data) throw new Error('Ticket no encontrado');
+    return mapSupabaseTicket(data);
+  }
   try {
     const ticketRef = doc(db, 'tickets', ticketId);
     const ticketSnap = await getDoc(ticketRef);
@@ -316,6 +399,13 @@ export const getTicketById = async (ticketId) => {
  * @returns {Function} Función para cancelar la suscripción
  */
 export const subscribeToTicket = (ticketId, callback) => {
+  if (isSupabaseAuthEnabled()) {
+    let active = true;
+    const load = async () => { const ticket = await getTicketById(ticketId).catch(() => null); if (active) callback(ticket); };
+    void load();
+    const channel = supabase.channel(`ticket:${ticketId}`).on('postgres_changes', { event: '*', schema: 'public', table: 'tickets', filter: `id=eq.${ticketId}` }, () => { void load(); }).subscribe();
+    return () => { active = false; void supabase.removeChannel(channel); };
+  }
   const ticketRef = doc(db, 'tickets', ticketId);
 
   return onSnapshot(ticketRef, (snapshot) => {
@@ -349,6 +439,16 @@ export const subscribeToTicket = (ticketId, callback) => {
  * @param {string} adminNotes - Notas del admin (opcional)
  */
 export const updateTicketStatus = async (ticketId, newStatus, adminId, adminNotes = null) => {
+  if (isSupabaseAuthEnabled()) {
+    const updates = { status: newStatus, updated_at: new Date().toISOString() };
+    if (newStatus === 'resolved' || newStatus === 'closed') { updates.resolved_by = adminId; updates.resolved_at = new Date().toISOString(); }
+    if (adminNotes) updates.admin_notes = adminNotes;
+    const { error } = await supabase.from('tickets').update(updates).eq('id', ticketId);
+    if (error) throw error;
+    const { error: logError } = await supabase.from('ticket_logs').insert({ ticket_id: ticketId, actor_id: adminId, action: LOG_ACTION.STATUS_CHANGE, metadata: { newStatus, notes: adminNotes || null } });
+    if (logError) console.warn('[TICKETS] No se pudo registrar log Supabase:', logError.message);
+    return true;
+  }
   try {
     const ticketRef = doc(db, 'tickets', ticketId);
     const now = serverTimestamp();
@@ -398,6 +498,19 @@ export const updateTicketStatus = async (ticketId, newStatus, adminId, adminNote
  * @returns {Promise<void>}
  */
 export const updateTicketStatusAdvanced = async (ticketId, newStatus, actorUid, options = {}) => {
+  if (isSupabaseAuthEnabled()) {
+    const ticket = await getTicketById(ticketId);
+    if (ticket.status === newStatus) return;
+    const updates = { status: newStatus, updated_at: new Date().toISOString() };
+    if (newStatus === TICKET_STATUS.RESOLVED || newStatus === TICKET_STATUS.CLOSED) { updates.resolved_by = actorUid; updates.resolved_at = new Date().toISOString(); }
+    if (options.notes) updates.admin_notes = options.notes;
+    const { error } = await supabase.from('tickets').update(updates).eq('id', ticketId);
+    if (error) throw error;
+    const { error: logError } = await supabase.from('ticket_logs').insert({ ticket_id: ticketId, actor_id: actorUid, action: LOG_ACTION.STATUS_CHANGE, metadata: { oldStatus: ticket.status, newStatus, notes: options.notes || null } });
+    if (logError) console.warn('[TICKETS] No se pudo registrar log Supabase:', logError.message);
+    if (newStatus === TICKET_STATUS.RESOLVED && options.notifyUser !== false) await sendTicketNotification(ticket.userId, { type: 'ticket_resolved', ticketId, title: 'Tu ticket fue resuelto', body: options.notes || 'El equipo de soporte resolvió tu caso.' });
+    return;
+  }
   try {
     const ticket = await getTicketById(ticketId);
     const oldStatus = ticket.status;
@@ -470,6 +583,13 @@ export const updateTicketStatusAdvanced = async (ticketId, newStatus, actorUid, 
  * @returns {Promise<void>}
  */
 export const assignTicket = async (ticketId, assignToUid, actorUid) => {
+  if (isSupabaseAuthEnabled()) {
+    const { error } = await supabase.from('tickets').update({ assigned_to: assignToUid || null, updated_at: new Date().toISOString() }).eq('id', ticketId);
+    if (error) throw error;
+    const { error: logError } = await supabase.from('ticket_logs').insert({ ticket_id: ticketId, actor_id: actorUid, action: assignToUid ? LOG_ACTION.ASSIGNED : LOG_ACTION.UNASSIGNED, metadata: { assignedTo: assignToUid || null } });
+    if (logError) console.warn('[TICKETS] No se pudo registrar log Supabase:', logError.message);
+    return;
+  }
   try {
     const now = serverTimestamp();
     const batch = writeBatch(db);
@@ -511,6 +631,14 @@ export const assignTicket = async (ticketId, assignToUid, actorUid) => {
  * @returns {Promise<void>}
  */
 export const updateTicketPriority = async (ticketId, newPriority, actorUid) => {
+  if (isSupabaseAuthEnabled()) {
+    const ticket = await getTicketById(ticketId);
+    const { error } = await supabase.from('tickets').update({ priority: newPriority, updated_at: new Date().toISOString() }).eq('id', ticketId);
+    if (error) throw error;
+    const { error: logError } = await supabase.from('ticket_logs').insert({ ticket_id: ticketId, actor_id: actorUid, action: LOG_ACTION.PRIORITY_CHANGED, metadata: { oldPriority: ticket.priority, newPriority } });
+    if (logError) console.warn('[TICKETS] No se pudo registrar log Supabase:', logError.message);
+    return;
+  }
   try {
     const ticket = await getTicketById(ticketId);
     const oldPriority = ticket.priority;
@@ -558,6 +686,11 @@ export const updateTicketPriority = async (ticketId, newPriority, actorUid) => {
  * @returns {Promise<Array>} Lista de mensajes
  */
 export const getTicketMessages = async (ticketId) => {
+  if (isSupabaseAuthEnabled()) {
+    const { data, error } = await supabase.from('ticket_messages').select('*').eq('ticket_id', ticketId).order('created_at', { ascending: true });
+    if (error) throw error;
+    return (data || []).map(mapSupabaseTicketMessage);
+  }
   try {
     const messagesRef = collection(db, 'tickets', ticketId, 'messages');
     const q = query(messagesRef, orderBy('createdAt', 'asc'));
@@ -584,6 +717,13 @@ export const getTicketMessages = async (ticketId) => {
  * @returns {Function} Función para cancelar la suscripción
  */
 export const subscribeToTicketMessages = (ticketId, callback) => {
+  if (isSupabaseAuthEnabled()) {
+    let active = true;
+    const load = async () => { const messages = await getTicketMessages(ticketId).catch(() => []); if (active) callback(messages); };
+    void load();
+    const channel = supabase.channel(`ticket-messages:${ticketId}`).on('postgres_changes', { event: '*', schema: 'public', table: 'ticket_messages', filter: `ticket_id=eq.${ticketId}` }, () => { void load(); }).subscribe();
+    return () => { active = false; void supabase.removeChannel(channel); };
+  }
   const messagesRef = collection(db, 'tickets', ticketId, 'messages');
   const q = query(messagesRef, orderBy('createdAt', 'asc'));
 
@@ -609,6 +749,15 @@ export const subscribeToTicketMessages = (ticketId, callback) => {
  * @returns {Promise<string>} ID del mensaje creado
  */
 export const sendTicketMessage = async (ticketId, messageData) => {
+  if (isSupabaseAuthEnabled()) {
+    const { data: authData } = await supabase.auth.getUser();
+    if (!authData?.user?.id || !messageData?.body) throw new Error('Faltan campos obligatorios en el mensaje');
+    const { data, error } = await supabase.rpc('send_ticket_message', { target_ticket_id: ticketId, target_content: messageData.body, target_attachments: messageData.attachments || [] });
+    if (error) throw error;
+    const ticket = await getTicketById(ticketId).catch(() => null);
+    if (ticket && authData.user.id !== ticket.userId) await sendTicketNotification(ticket.userId, { type: 'ticket_reply', ticketId, title: 'Nueva respuesta en tu ticket', body: `Staff respondió: "${String(messageData.body).slice(0, 50)}${String(messageData.body).length > 50 ? '...' : ''}"` });
+    return data;
+  }
   try {
     const {
       type = MESSAGE_TYPE.EXTERNAL,
@@ -696,6 +845,11 @@ export const sendTicketMessage = async (ticketId, messageData) => {
  * @returns {Promise<Array>} Lista de logs
  */
 export const getTicketLogs = async (ticketId) => {
+  if (isSupabaseAuthEnabled()) {
+    const { data, error } = await supabase.from('ticket_logs').select('*').eq('ticket_id', ticketId).order('created_at', { ascending: false });
+    if (error) throw error;
+    return (data || []).map(mapSupabaseTicketLog);
+  }
   try {
     const logsRef = collection(db, 'tickets', ticketId, 'logs');
     const q = query(logsRef, orderBy('createdAt', 'desc'));
@@ -726,6 +880,14 @@ export const getTicketLogs = async (ticketId) => {
  * @returns {Promise<void>}
  */
 export const sendTicketNotification = async (userUid, notificationData) => {
+  if (isSupabaseAuthEnabled()) {
+    try {
+      await createSystemNotification(userUid, { type: notificationData.type || NOTIFICATION_TYPES.ANNOUNCEMENT, title: notificationData.title || 'Actualización de soporte', message: notificationData.body || '', icon: '🎫', link: notificationData.ticketId ? `/tickets/${notificationData.ticketId}` : null, priority: 'high', createdBy: null });
+    } catch (error) {
+      console.warn('[TICKETS] No se pudo enviar aviso Supabase:', error?.message || error);
+    }
+    return;
+  }
   try {
     const { type, ticketId, title, body } = notificationData;
 
@@ -754,6 +916,13 @@ export const sendTicketNotification = async (userUid, notificationData) => {
  * @returns {Promise<Array>} Tickets encontrados
  */
 export const searchTickets = async (searchText) => {
+  if (isSupabaseAuthEnabled()) {
+    const term = String(searchText || '').trim();
+    if (!term) return [];
+    const { data, error } = await supabase.from('tickets').select('*').or(`subject.ilike.%${term}%,username_snapshot.ilike.%${term}%`).order('updated_at', { ascending: false }).limit(100);
+    if (error) throw error;
+    return (data || []).map(mapSupabaseTicket);
+  }
   try {
     const ticketsRef = collection(db, 'tickets');
     const snapshot = await getDocs(ticketsRef);
@@ -795,6 +964,16 @@ export const searchTickets = async (searchText) => {
  * @returns {Promise<Object>} Estadísticas
  */
 export const getTicketStats = async () => {
+  if (isSupabaseAuthEnabled()) {
+    const tickets = await getAllTickets();
+    return tickets.reduce((stats, ticket) => {
+      stats.total += 1;
+      stats.byStatus[ticket.status] = (stats.byStatus[ticket.status] || 0) + 1;
+      stats.byPriority[ticket.priority] = (stats.byPriority[ticket.priority] || 0) + 1;
+      stats.byCategory[ticket.category] = (stats.byCategory[ticket.category] || 0) + 1;
+      return stats;
+    }, { total: 0, byStatus: {}, byPriority: {}, byCategory: {} });
+  }
   try {
     const ticketsRef = collection(db, 'tickets');
     const snapshot = await getDocs(ticketsRef);
@@ -840,6 +1019,14 @@ export const getTicketStats = async () => {
  * @returns {function} Función para desuscribirse
  */
 export const subscribeToTickets = (callback, ticketLimit = 50) => {
+  if (isSupabaseAuthEnabled()) {
+    if (typeof callback !== 'function') return () => {};
+    let active = true;
+    const load = async () => { const tickets = await getTicketsAdvanced({ limit: ticketLimit }); if (active) callback(tickets); };
+    void load();
+    const channel = supabase.channel('tickets-admin').on('postgres_changes', { event: '*', schema: 'public', table: 'tickets' }, () => { void load(); }).subscribe();
+    return () => { active = false; void supabase.removeChannel(channel); };
+  }
   const ticketsRef = collection(db, 'tickets');
   const q = query(
     ticketsRef,
@@ -873,6 +1060,14 @@ export const subscribeToTickets = (callback, ticketLimit = 50) => {
  * @returns {function} Función para desuscribirse
  */
 export const subscribeToUserTickets = (userId, callback) => {
+  if (isSupabaseAuthEnabled()) {
+    if (!userId || typeof callback !== 'function') { callback?.([]); return () => {}; }
+    let active = true;
+    const load = async () => { const tickets = await getUserTickets(userId).catch(() => []); if (active) callback(tickets); };
+    void load();
+    const channel = supabase.channel(`tickets-user:${userId}`).on('postgres_changes', { event: '*', schema: 'public', table: 'tickets', filter: `user_id=eq.${userId}` }, () => { void load(); }).subscribe();
+    return () => { active = false; void supabase.removeChannel(channel); };
+  }
   const ticketsRef = collection(db, 'tickets');
   const q = query(
     ticketsRef,

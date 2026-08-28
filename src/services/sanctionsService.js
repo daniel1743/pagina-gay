@@ -13,6 +13,7 @@ import {
   limit,
 } from 'firebase/firestore';
 import { db, auth } from '@/config/firebase';
+import { supabase, isSupabaseAuthEnabled } from '@/config/supabase';
 
 /**
  * Servicio de Sanciones y Expulsiones
@@ -50,6 +51,19 @@ export const SANCTION_REASONS = {
  * @returns {Promise<string>} ID de la sanción creada
  */
 export const createSanction = async (sanctionData) => {
+  if (isSupabaseAuthEnabled()) {
+    const { data: authData } = await supabase.auth.getUser();
+    if (!authData?.user || !sanctionData?.userId) throw new Error('Debes estar autenticado');
+    const expiresAt = sanctionData.expiresAt ? new Date(sanctionData.expiresAt).toISOString() : null;
+    const { data, error } = await supabase.rpc('admin_create_moderation_action', {
+      target_user_id: sanctionData.userId,
+      target_action_type: sanctionData.type,
+      target_reason: sanctionData.reasonDescription || sanctionData.reason || null,
+      target_expires_at: expiresAt,
+    });
+    if (error) throw error;
+    return data;
+  }
   if (!auth.currentUser) {
     throw new Error('Debes estar autenticado');
   }
@@ -108,6 +122,18 @@ export const updateUserBanStatus = async (userId, isBanned, banType) => {
  * @returns {Promise<Array>} Lista de sanciones activas
  */
 export const getUserActiveSanctions = async (userId) => {
+  if (isSupabaseAuthEnabled()) {
+    try {
+      const { data: authData } = await supabase.auth.getUser();
+      if (authData?.user?.id !== userId) return [];
+      const { data, error } = await supabase.from('moderation_actions').select('id, target_user_id, action_type, reason, expires_at, created_at, revoked_at').eq('target_user_id', userId).is('revoked_at', null).or(`expires_at.is.null,expires_at.gt.${new Date().toISOString()}`).order('created_at', { ascending: false }).limit(100);
+      if (error) throw error;
+      return (data || []).map((row) => ({ id: row.id, userId: row.target_user_id, type: row.action_type, reason: row.reason || '', expiresAt: row.expires_at || null, createdAt: row.created_at || null, status: 'active' }));
+    } catch (error) {
+      console.warn('[SANCTIONS] Error leyendo Supabase:', error?.message || error);
+      return [];
+    }
+  }
   try {
     const sanctionsRef = collection(db, 'sanctions');
     // Consultar solo sanciones activas para cumplir reglas de seguridad del cliente.
@@ -168,6 +194,18 @@ export const getUserActiveSanctions = async (userId) => {
  * @returns {Promise<Array>} Lista de sanciones
  */
 export const getAllSanctions = async (status = null) => {
+  if (isSupabaseAuthEnabled()) {
+    try {
+      let request = supabase.from('moderation_actions').select('id, moderator_id, target_user_id, action_type, reason, expires_at, created_at, revoked_at').order('created_at', { ascending: false }).limit(100);
+      if (status === 'active') request = request.is('revoked_at', null).or(`expires_at.is.null,expires_at.gt.${new Date().toISOString()}`);
+      const { data, error } = await request;
+      if (error) throw error;
+      return (data || []).map((row) => ({ id: row.id, userId: row.target_user_id, type: row.action_type, reason: row.reason || '', expiresAt: row.expires_at || null, createdAt: row.created_at || null, revokedAt: row.revoked_at || null, status: row.revoked_at ? 'revoked' : (row.expires_at && new Date(row.expires_at) <= new Date() ? 'expired' : 'active') }));
+    } catch (error) {
+      console.warn('[SANCTIONS] Error listando Supabase:', error?.message || error);
+      return [];
+    }
+  }
   try {
     const sanctionsRef = collection(db, 'sanctions');
     let q;
@@ -208,6 +246,11 @@ export const getAllSanctions = async (status = null) => {
  * @param {string} reason - Razón de la revocación
  */
 export const revokeSanction = async (sanctionId, adminId, reason = '') => {
+  if (isSupabaseAuthEnabled()) {
+    const { data, error } = await supabase.rpc('admin_revoke_moderation_action', { target_action_id: sanctionId });
+    if (error) throw error;
+    return Boolean(data);
+  }
   try {
     const sanctionRef = doc(db, 'sanctions', sanctionId);
     const sanctionSnap = await getDoc(sanctionRef);
@@ -244,6 +287,22 @@ export const revokeSanction = async (sanctionId, adminId, reason = '') => {
  * @returns {Promise<object>} Estado de sanciones
  */
 export const checkUserSanctions = async (userId) => {
+  if (isSupabaseAuthEnabled()) {
+    try {
+      const { data: authData } = await supabase.auth.getUser();
+      if (authData?.user?.id !== userId) return { isBanned: false, sanctions: [] };
+      const { data, error } = await supabase.rpc('get_my_moderation_state');
+      if (error) throw error;
+      const sanctions = [];
+      if (data?.permanentBan) sanctions.push({ type: SANCTION_TYPES.PERM_BAN, status: 'active', reason: data.lastReason || '' });
+      if (Number(data?.suspendUntilMs || 0) > Date.now()) sanctions.push({ type: SANCTION_TYPES.TEMP_BAN, status: 'active', expiresAt: new Date(Number(data.suspendUntilMs)).toISOString(), reason: data.lastReason || '' });
+      if (Number(data?.muteUntilMs || 0) > Date.now()) sanctions.push({ type: SANCTION_TYPES.MUTE, status: 'active', expiresAt: new Date(Number(data.muteUntilMs)).toISOString(), reason: data.lastReason || '' });
+      return { isBanned: Boolean(data?.permanentBan) || Number(data?.suspendUntilMs || 0) > Date.now(), banType: data?.permanentBan ? SANCTION_TYPES.PERM_BAN : SANCTION_TYPES.TEMP_BAN, sanctions };
+    } catch (error) {
+      console.warn('[SANCTIONS] Error comprobando Supabase:', error?.message || error);
+      return { isBanned: false, sanctions: [] };
+    }
+  }
   try {
     const userRef = doc(db, 'users', userId);
     const userSnap = await getDoc(userRef);
@@ -293,6 +352,17 @@ export const checkUserSanctions = async (userId) => {
  * @returns {function} Función para desuscribirse
  */
 export const subscribeToSanctions = (callback) => {
+  if (isSupabaseAuthEnabled()) {
+    if (typeof callback !== 'function') return () => {};
+    let active = true;
+    const load = async () => {
+      const rows = await getAllSanctions();
+      if (active) callback(rows);
+    };
+    void load();
+    const channel = supabase.channel('moderation-actions-admin').on('postgres_changes', { event: '*', schema: 'public', table: 'moderation_actions' }, () => { void load(); }).subscribe();
+    return () => { active = false; void supabase.removeChannel(channel); };
+  }
   const sanctionsRef = collection(db, 'sanctions');
   const q = query(
     sanctionsRef,
@@ -320,6 +390,23 @@ export const subscribeToSanctions = (callback) => {
  * @returns {Promise<object>} Estadísticas
  */
 export const getSanctionStats = async () => {
+  if (isSupabaseAuthEnabled()) {
+    try {
+      const rows = await getAllSanctions();
+      return {
+        total: rows.length,
+        active: rows.filter((row) => row.status === 'active').length,
+        warnings: rows.filter((row) => row.type === SANCTION_TYPES.WARNING).length,
+        tempBans: rows.filter((row) => row.type === SANCTION_TYPES.TEMP_BAN || row.type === 'suspend').length,
+        permBans: rows.filter((row) => row.type === SANCTION_TYPES.PERM_BAN).length,
+        mutes: rows.filter((row) => row.type === SANCTION_TYPES.MUTE).length,
+        revoked: rows.filter((row) => row.status === 'revoked').length,
+      };
+    } catch (error) {
+      console.warn('[SANCTIONS] Error calculando estadísticas Supabase:', error?.message || error);
+      return { total: 0, active: 0, warnings: 0, tempBans: 0, permBans: 0, mutes: 0, revoked: 0 };
+    }
+  }
   try {
     const sanctionsRef = collection(db, 'sanctions');
     const snapshot = await getDocs(query(sanctionsRef));

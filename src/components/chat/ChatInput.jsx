@@ -6,8 +6,8 @@ import ComingSoonModal from '@/components/ui/ComingSoonModal';
 import { EmojiStyle, Categories } from 'emoji-picker-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useAuth } from '@/contexts/AuthContext';
-import { storage } from '@/config/firebase';
-import { ref as storageRef, uploadBytes, getDownloadURL } from 'firebase/storage';
+import { isSupabaseAuthEnabled } from '@/config/supabase';
+import { uploadPublicChatPhotoToSupabase } from '@/services/supabaseMediaService';
 import imageCompression from 'browser-image-compression';
 import { updatePresenceFields, updateTypingStatus } from '@/services/presenceService';
 import { notificationSounds, initAudioOnFirstGesture } from '@/services/notificationSounds';
@@ -142,6 +142,7 @@ const ROLE_LABEL_BY_VALUE = {
 };
 
 const PHOTO_MAX_SIZE_BYTES = 140 * 1024;
+const CHAT_IMAGE_TYPES = ['image/jpeg', 'image/jpg', 'image/png', 'image/webp'];
 const PHOTO_HOURLY_LIMIT = 3;
 const PHOTO_VISIBLE_LIMIT = 3;
 
@@ -231,7 +232,7 @@ const ChatInput = ({
   const visiblePhotoCount = Number(photoUsageStats?.visibleCount || 0);
   const reachedPhotoHourlyLimit = hourlyPhotoCount >= PHOTO_HOURLY_LIMIT;
   const hasVisiblePhotoLimit = visiblePhotoCount >= PHOTO_VISIBLE_LIMIT;
-  const canSendPhotoNow = isRegisteredUser && roomId === 'principal';
+  const canSendPhotoNow = isRegisteredUser && roomId === 'principal' && isSupabaseAuthEnabled();
 
   const shouldShowComposerGuidance = !isHeteroContext && showOnboardingHints && !onboardingDismissed && !firstMessageSentInSession;
   const shouldShowOnboarding = shouldShowComposerGuidance;
@@ -1019,6 +1020,9 @@ const ChatInput = ({
     if (!isRegisteredUser) {
       return 'Debes iniciar sesión para subir fotos.';
     }
+    if (!isSupabaseAuthEnabled()) {
+      return 'La subida de fotos está pausada hasta configurar Supabase Storage.';
+    }
     if (roomId !== 'principal') {
       return 'Las fotos solo están habilitadas en la sala Principal.';
     }
@@ -1043,18 +1047,14 @@ const ChatInput = ({
 
   const showPhotoBlockedToast = () => {
     toast({
-      title: !isRegisteredUser ? 'Debes iniciar sesión' : 'Límite de fotos',
+      title: !isRegisteredUser
+        ? 'Debes iniciar sesión'
+        : !isSupabaseAuthEnabled()
+          ? 'Fotos pausadas'
+          : 'Límite de fotos',
       description: buildPhotoBlockedDescription(),
       duration: 4500,
     });
-  };
-
-  const getImageExtension = (contentType = '') => {
-    if (contentType.includes('png')) return 'png';
-    if (contentType.includes('webp')) return 'webp';
-    if (contentType.includes('heic')) return 'heic';
-    if (contentType.includes('heif')) return 'heif';
-    return 'jpg';
   };
 
   const compressImageForChat = async (file) => {
@@ -1085,10 +1085,10 @@ const ChatInput = ({
       showPhotoBlockedToast();
       return;
     }
-    if (!selectedFile.type?.startsWith('image/')) {
+    if (!CHAT_IMAGE_TYPES.includes(String(selectedFile.type || '').toLowerCase())) {
       toast({
-        title: 'Archivo no permitido',
-        description: 'Solo se permiten archivos de imagen.',
+        title: 'Formato no compatible',
+        description: 'Usa una imagen JPG, PNG o WEBP. HEIC/HEIF y GIF no se pueden comprimir aquí de forma fiable.',
         variant: 'destructive',
       });
       return;
@@ -1101,41 +1101,42 @@ const ChatInput = ({
         ? crypto.randomUUID()
         : `msg_${Date.now()}_${Math.random().toString(36).slice(2, 9)}`;
       const assetId = `${Date.now()}_${Math.random().toString(36).slice(2, 7)}`;
-      const extension = getImageExtension(optimizedFile.type);
-      const mediaPath = `chat_media/rooms/${user?.id || 'unknown'}/${roomId || 'principal'}/${tempMessageId}/${assetId}.${extension}`;
+      let downloadURL = '';
+      let mediaAsset;
 
-      const fileRef = storageRef(storage, mediaPath);
-      await uploadBytes(fileRef, optimizedFile, {
-        contentType: optimizedFile.type,
-        customMetadata: {
-          roomId: roomId || 'principal',
-          userId: user?.id || '',
-          feature: 'chat_photo_access',
-        },
-      });
+      if (!isSupabaseAuthEnabled()) {
+        throw new Error('SUPABASE_REQUIRED_FOR_PUBLIC_MEDIA');
+      }
 
-      const downloadURL = await getDownloadURL(fileRef);
+      const uploaded = await uploadPublicChatPhotoToSupabase(optimizedFile, roomId || 'principal', tempMessageId);
+      downloadURL = uploaded.url || '';
+      mediaAsset = {
+        kind: 'image',
+        path: uploaded.path,
+        bucket: uploaded.bucket,
+        mimeType: uploaded.mimeType,
+        size: uploaded.size,
+      };
 
       await onSendMessage(downloadURL, 'image', replyTo, {
-        media: [
-          {
-            kind: 'image',
-            path: mediaPath,
-            contentType: optimizedFile.type,
-            sizeBytes: optimizedFile.size,
-          },
-        ],
+        media: [mediaAsset],
       });
 
       toast({
-        title: 'Foto publicada',
-        description: 'Mientras más chateas, más aumentará tu cupo y desbloquearás beneficios prioritarios.',
+        title: 'Foto enviada',
+        description: 'La imagen se envió al chat y quedará sujeta a las normas de la sala.',
         duration: 4200,
       });
     } catch (error) {
+      const normalizedCode = String(error?.code || '').toLowerCase();
+      const description = normalizedCode.includes('permission-denied') || normalizedCode.includes('unauthorized')
+        ? 'Supabase rechazó la subida. Revisa la sesión y las políticas del bucket Storage.'
+        : error?.message === 'SUPABASE_REQUIRED_FOR_PUBLIC_MEDIA'
+          ? 'La subida de fotos está pausada hasta configurar Supabase Storage.'
+          : error?.message || 'Reintenta en unos segundos.';
       toast({
         title: 'No se pudo subir la foto',
-        description: error?.message || 'Reintenta en unos segundos.',
+        description,
         variant: 'destructive',
       });
     } finally {
@@ -1209,7 +1210,7 @@ const ChatInput = ({
 
   return (
     <div
-      className="bg-[var(--chat-bottom-surface)] backdrop-blur-[18px] border-t border-[var(--chat-divider)] px-3 pt-2.5 pb-3 sm:px-4 sm:pt-3 sm:pb-3.5 shrink-0 relative z-40"
+      className="cv-composer bg-[var(--chat-bottom-surface)] backdrop-blur-[18px] border-t border-[var(--chat-divider)] px-3 pt-2.5 pb-3 sm:px-4 sm:pt-3 sm:pb-3.5 shrink-0 relative z-40"
       ref={wrapperRef}
       style={{
         position: 'sticky',
@@ -1699,7 +1700,7 @@ const ChatInput = ({
 
       <form
         onSubmit={handleSubmit}
-        className="flex min-h-[54px] flex-nowrap items-end gap-2 rounded-[26px] border border-[var(--chat-divider)] bg-[var(--chat-composer-shell)] px-3 py-1.5"
+        className="cv-composer flex min-h-[54px] flex-nowrap items-end gap-2 px-3 py-1.5"
         style={{ boxShadow: 'var(--chat-input-shadow)' }}
       >
         {/* ✅ Iconos comentados - Más espacio para el input */}
@@ -1721,7 +1722,7 @@ const ChatInput = ({
           variant="ghost"
           size="icon"
           onClick={() => { setShowEmojiPicker(prev => !prev); setShowQuickPhrases(false);}}
-          className={`h-[40px] min-h-[40px] w-[40px] min-w-[40px] rounded-full border border-transparent transition-colors sm:min-h-0 sm:min-w-0 ${
+          className={`cv-composer-tool h-[40px] min-h-[40px] w-[40px] min-w-[40px] rounded-full border border-transparent transition-colors sm:min-h-0 sm:min-w-0 ${
             showEmojiPicker
               ? 'text-[#1473E6] border-[#1473E6]/15 bg-[#1473E6]/8 hover:text-[#0F67D8] hover:bg-[#1473E6]/12'
               : 'text-muted-foreground hover:bg-foreground/5 hover:text-foreground'
@@ -1744,7 +1745,7 @@ const ChatInput = ({
             onMouseLeave={() => setShowPhotoTooltip(false)}
             onFocus={() => setShowPhotoTooltip(true)}
             onBlur={() => setShowPhotoTooltip(false)}
-            className={`h-[40px] min-h-[40px] w-[40px] min-w-[40px] rounded-full border border-transparent transition-colors sm:min-h-0 sm:min-w-0 ${
+            className={`cv-composer-tool h-[40px] min-h-[40px] w-[40px] min-w-[40px] rounded-full border border-transparent transition-colors sm:min-h-0 sm:min-w-0 ${
               canSendPhotoNow && !reachedPhotoHourlyLimit
                 ? 'text-muted-foreground hover:bg-foreground/5 hover:text-foreground'
                 : 'text-muted-foreground/80 hover:text-[#1473E6]'
@@ -1765,7 +1766,8 @@ const ChatInput = ({
         <input
           ref={photoInputRef}
           type="file"
-          accept="image/jpeg,image/jpg,image/png,image/webp,image/heic,image/heif"
+          aria-label="Seleccionar una foto"
+          accept="image/jpeg,image/jpg,image/png,image/webp"
           className="hidden"
           onChange={handlePhotoFileSelected}
         />
@@ -1836,6 +1838,7 @@ const ChatInput = ({
         </div>
 
         <motion.div
+          tabIndex={-1}
           whileHover={{ scale: 1.05 }}
           whileTap={{ scale: 0.95 }}
           transition={{ duration: 0.1, ease: "easeOut" }}
@@ -1844,11 +1847,9 @@ const ChatInput = ({
           <Button
             type="submit"
             disabled={!message.trim() || isSending}
-            className="text-white rounded-full relative overflow-hidden min-w-[40px] min-h-[40px] w-[40px] h-[40px] p-0 border-0"
+            className="cv-composer-submit rounded-full relative overflow-hidden min-w-[40px] min-h-[40px] w-[40px] h-[40px] p-0 border-0"
             style={{
               transition: 'none',
-              background: 'var(--chat-send-solid)',
-              boxShadow: '0 8px 20px rgba(20, 115, 230, 0.22)',
             }}
             size="icon"
             aria-label={isSending ? "Enviando mensaje..." : "Enviar mensaje"}

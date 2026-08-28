@@ -1,5 +1,6 @@
 import { collection, addDoc, getDocs, query, orderBy, where, doc, getDoc, updateDoc, deleteDoc, increment, serverTimestamp, limit } from 'firebase/firestore';
 import { db } from '@/config/firebase';
+import { supabase, isSupabaseAuthEnabled } from '@/config/supabase';
 import { trackThreadCreated, trackForumReply, trackForumVote } from '@/services/ga4Service';
 
 /**
@@ -9,6 +10,15 @@ import { trackThreadCreated, trackForumReply, trackForumVote } from '@/services/
 
 const FORUM_COLLECTION = 'forum_threads';
 const REPLIES_COLLECTION = 'forum_replies';
+
+const mapSupabaseThread = (row) => ({ id: row.id, title: row.title, content: row.content, category: row.category, authorId: row.anonymous_id, authorDisplay: row.author_display, replies: row.reply_count || 0, likes: row.like_count || 0, views: row.view_count || 0, createdAt: row.created_at, updatedAt: row.updated_at, timestamp: new Date(row.created_at).getTime() || Date.now() });
+const mapSupabaseReply = (row) => ({ id: row.id, threadId: row.thread_id, content: row.content, authorId: row.anonymous_id, authorDisplay: row.author_display, likes: row.like_count || 0, createdAt: row.created_at, timestamp: new Date(row.created_at).getTime() || Date.now() });
+const getSupabaseForumActor = async () => {
+  const { data, error } = await supabase.auth.getUser();
+  if (error) throw error;
+  if (!data?.user?.id) throw new Error('Debes estar autenticado para usar el foro');
+  return data.user;
+};
 
 /**
  * Genera un ID anónimo único para usuarios del foro
@@ -24,6 +34,14 @@ const generateAnonymousId = () => {
  * @returns {Promise<string>} ID del thread creado
  */
 export const createThread = async (threadData, anonymousUserId = null) => {
+  if (isSupabaseAuthEnabled()) {
+    const actor = await getSupabaseForumActor();
+    const anonId = anonymousUserId || `anon_${actor.id.slice(0, 8)}`;
+    const { data, error } = await supabase.from('forum_threads').insert({ author_id: actor.id, anonymous_id: anonId, author_display: `Usuario Anónimo #${anonId.split('_')[1] || 'comunidad'}`, title: threadData.title, content: threadData.content, category: threadData.category || 'general' }).select('id').single();
+    if (error) throw error;
+    trackThreadCreated({ userId: anonId, category: threadData.category });
+    return data.id;
+  }
   try {
     const anonId = anonymousUserId || generateAnonymousId();
     
@@ -62,6 +80,16 @@ export const createThread = async (threadData, anonymousUserId = null) => {
  * @returns {Promise<Array>} Array de threads
  */
 export const getThreads = async (category = null, sortBy = 'recent', maxResults = null) => {
+  if (isSupabaseAuthEnabled()) {
+    try {
+      let request = supabase.from('forum_threads').select('*');
+      if (category && category !== 'Todos') request = request.eq('category', category);
+      const orderColumn = sortBy === 'popular' ? 'like_count' : sortBy === 'replies' ? 'reply_count' : 'created_at';
+      request = request.order(orderColumn, { ascending: false }).limit(Math.max(1, Math.min(Number(maxResults) || 100, 200)));
+      const { data, error } = await request; if (error) throw error;
+      return (data || []).map(mapSupabaseThread);
+    } catch (error) { console.warn('[FORUM] Error leyendo Supabase:', error?.message || error); return []; }
+  }
   try {
     // ✅ CORREGIDO: Construir el query de una sola vez con todos los constraints
     const constraints = [];
@@ -132,6 +160,11 @@ export const getThreads = async (category = null, sortBy = 'recent', maxResults 
  * @returns {Promise<object|null>} Thread o null si no existe
  */
 export const getThreadById = async (threadId) => {
+  if (isSupabaseAuthEnabled()) {
+    const { data, error } = await supabase.from('forum_threads').select('*').eq('id', threadId).maybeSingle();
+    if (error) throw error;
+    return data ? mapSupabaseThread(data) : null;
+  }
   try {
     const threadRef = doc(db, FORUM_COLLECTION, threadId);
     const threadSnap = await getDoc(threadRef);
@@ -159,6 +192,14 @@ export const getThreadById = async (threadId) => {
  * @returns {Promise<string>} ID de la respuesta creada
  */
 export const addReply = async (threadId, content, anonymousUserId = null) => {
+  if (isSupabaseAuthEnabled()) {
+    const actor = await getSupabaseForumActor();
+    const anonId = anonymousUserId || `anon_${actor.id.slice(0, 8)}`;
+    const { data, error } = await supabase.from('forum_replies').insert({ thread_id: threadId, author_id: actor.id, anonymous_id: anonId, author_display: `Usuario Anónimo #${anonId.split('_')[1] || 'comunidad'}`, content }).select('id').single();
+    if (error) throw error;
+    trackForumReply({ threadId, userId: anonId });
+    return data.id;
+  }
   try {
     const anonId = anonymousUserId || generateAnonymousId();
 
@@ -198,6 +239,11 @@ export const addReply = async (threadId, content, anonymousUserId = null) => {
  * @returns {Promise<Array>} Array de respuestas
  */
 export const getReplies = async (threadId) => {
+  if (isSupabaseAuthEnabled()) {
+    const { data, error } = await supabase.from('forum_replies').select('*').eq('thread_id', threadId).order('created_at', { ascending: true });
+    if (error) throw error;
+    return (data || []).map(mapSupabaseReply);
+  }
   try {
     const q = query(
       collection(db, REPLIES_COLLECTION),
@@ -230,6 +276,12 @@ export const getReplies = async (threadId) => {
  * @returns {Promise<void>}
  */
 export const voteThread = async (threadId, isLike = true) => {
+  if (isSupabaseAuthEnabled()) {
+    const { error } = await supabase.rpc('toggle_forum_vote', { target_entity_type: 'thread', target_entity_id: threadId, desired: Boolean(isLike) });
+    if (error) throw error;
+    if (isLike) trackForumVote({ threadId, voteType: 'upvote' });
+    return;
+  }
   try {
     const threadRef = doc(db, FORUM_COLLECTION, threadId);
     await updateDoc(threadRef, {
@@ -269,6 +321,12 @@ export const voteThread = async (threadId, isLike = true) => {
  * @returns {Promise<void>}
  */
 export const voteReply = async (replyId, isLike = true) => {
+  if (isSupabaseAuthEnabled()) {
+    const { error } = await supabase.rpc('toggle_forum_vote', { target_entity_type: 'reply', target_entity_id: replyId, desired: Boolean(isLike) });
+    if (error) throw error;
+    if (isLike) trackForumVote({ threadId: replyId, voteType: 'upvote' });
+    return;
+  }
   try {
     const replyRef = doc(db, REPLIES_COLLECTION, replyId);
     await updateDoc(replyRef, {
@@ -306,6 +364,11 @@ export const voteReply = async (replyId, isLike = true) => {
  * @returns {Promise<void>}
  */
 export const incrementViews = async (threadId) => {
+  if (isSupabaseAuthEnabled()) {
+    const { error } = await supabase.rpc('increment_forum_view', { target_thread_id: threadId });
+    if (error) console.warn('[FORUM] No se pudo registrar vista Supabase:', error.message);
+    return;
+  }
   try {
     const threadRef = doc(db, FORUM_COLLECTION, threadId);
     await updateDoc(threadRef, {
@@ -330,6 +393,13 @@ export const incrementViews = async (threadId) => {
  * @returns {Promise<string>} ID del thread creado
  */
 export const createThreadAsAdmin = async (threadData, customAnonymousId = null) => {
+  if (isSupabaseAuthEnabled()) {
+    const actor = await getSupabaseForumActor();
+    const anonId = customAnonymousId || `admin_${actor.id.slice(0, 8)}`;
+    const { data, error } = await supabase.from('forum_threads').insert({ author_id: actor.id, anonymous_id: anonId, author_display: `Usuario Anónimo #${anonId.split('_')[1] || 'comunidad'}`, title: threadData.title, content: threadData.content, category: threadData.category || 'general' }).select('id').single();
+    if (error) throw error;
+    return data.id;
+  }
   try {
     const anonId = customAnonymousId || generateAnonymousId();
     
@@ -361,6 +431,12 @@ export const createThreadAsAdmin = async (threadData, customAnonymousId = null) 
  * @returns {Promise<void>}
  */
 export const updateThreadAsAdmin = async (threadId, updates) => {
+  if (isSupabaseAuthEnabled()) {
+    const allowed = {}; ['title', 'content', 'category'].forEach((key) => { if (updates?.[key] !== undefined) allowed[key] = updates[key]; });
+    const { error } = await supabase.from('forum_threads').update(allowed).eq('id', threadId);
+    if (error) throw error;
+    return;
+  }
   try {
     const threadRef = doc(db, FORUM_COLLECTION, threadId);
     await updateDoc(threadRef, {
@@ -379,6 +455,11 @@ export const updateThreadAsAdmin = async (threadId, updates) => {
  * @returns {Promise<void>}
  */
 export const deleteThreadAsAdmin = async (threadId) => {
+  if (isSupabaseAuthEnabled()) {
+    const { error } = await supabase.from('forum_threads').delete().eq('id', threadId);
+    if (error) throw error;
+    return;
+  }
   try {
     // Eliminar todas las respuestas del thread
     const repliesQuery = query(
@@ -407,6 +488,13 @@ export const deleteThreadAsAdmin = async (threadId) => {
  * @returns {Promise<string>} ID de la respuesta creada
  */
 export const addReplyAsAdmin = async (threadId, content, customAnonymousId = null) => {
+  if (isSupabaseAuthEnabled()) {
+    const actor = await getSupabaseForumActor();
+    const anonId = customAnonymousId || `admin_${actor.id.slice(0, 8)}`;
+    const { data, error } = await supabase.from('forum_replies').insert({ thread_id: threadId, author_id: actor.id, anonymous_id: anonId, author_display: `Usuario Anónimo #${anonId.split('_')[1] || 'comunidad'}`, content }).select('id').single();
+    if (error) throw error;
+    return data.id;
+  }
   try {
     const anonId = customAnonymousId || generateAnonymousId();
 
@@ -442,6 +530,12 @@ export const addReplyAsAdmin = async (threadId, content, customAnonymousId = nul
  * @returns {Promise<void>}
  */
 export const updateReplyAsAdmin = async (replyId, updates) => {
+  if (isSupabaseAuthEnabled()) {
+    const allowed = {}; ['content'].forEach((key) => { if (updates?.[key] !== undefined) allowed[key] = updates[key]; });
+    const { error } = await supabase.from('forum_replies').update(allowed).eq('id', replyId);
+    if (error) throw error;
+    return;
+  }
   try {
     const replyRef = doc(db, REPLIES_COLLECTION, replyId);
     await updateDoc(replyRef, updates);
@@ -458,6 +552,11 @@ export const updateReplyAsAdmin = async (replyId, updates) => {
  * @returns {Promise<void>}
  */
 export const deleteReplyAsAdmin = async (replyId, threadId) => {
+  if (isSupabaseAuthEnabled()) {
+    const { error } = await supabase.from('forum_replies').delete().eq('id', replyId);
+    if (error) throw error;
+    return;
+  }
   try {
     // Eliminar la respuesta
     const replyRef = doc(db, REPLIES_COLLECTION, replyId);
@@ -486,6 +585,11 @@ export const deleteReplyAsAdmin = async (replyId, threadId) => {
  * @returns {Promise<Array>} Array de todos los threads
  */
 export const getAllThreadsAsAdmin = async () => {
+  if (isSupabaseAuthEnabled()) {
+    const { data, error } = await supabase.from('forum_threads').select('*').order('created_at', { ascending: false }).limit(500);
+    if (error) throw error;
+    return (data || []).map(mapSupabaseThread);
+  }
   try {
     const q = query(collection(db, FORUM_COLLECTION), orderBy('createdAt', 'desc'));
     const snapshot = await getDocs(q);
@@ -511,6 +615,11 @@ export const getAllThreadsAsAdmin = async () => {
  * @returns {Promise<Array>} Array de todas las respuestas
  */
 export const getAllRepliesAsAdmin = async () => {
+  if (isSupabaseAuthEnabled()) {
+    const { data, error } = await supabase.from('forum_replies').select('*').order('created_at', { ascending: false }).limit(1000);
+    if (error) throw error;
+    return (data || []).map(mapSupabaseReply);
+  }
   try {
     const q = query(collection(db, REPLIES_COLLECTION), orderBy('createdAt', 'desc'));
     const snapshot = await getDocs(q);

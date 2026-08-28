@@ -58,6 +58,8 @@ const TARJETA_MAX_VISITAS_DE = 50;
 const TARJETA_MAX_IMPRESIONES_DE = 200;
 const TARJETA_MAX_HUELLAS_DE = 200;
 const TARJETA_HUELLAS_MAX_POR_DIA = 15;
+const TARJETA_INTERACTIONS_ENABLED = false;
+const TARJETA_INTERACTION_LOGS_COLLECTION = "tarjeta_interaction_logs";
 const MODERATION_ALERT_ALLOWED_TYPES = new Set([
   "minor_risk",
   "minor_ambiguous",
@@ -2642,8 +2644,404 @@ exports.dispatchUserNotification = onCall(
 // FASE 2 ahorro Cloud Functions:
 // trackAnalyticsEvent retirado por alto volumen de invocaciones y costo por CORS/preflight.
 
-// RECORTE DRASTICO DE COSTO:
-// recordTarjetaInteraction retirada de producción mientras Baúl siga apagado.
+function buildTarjetaParticipant(userId, cardData = {}, userData = {}) {
+  const avatar = String(
+    cardData.fotoUrlFull || cardData.fotoUrl || cardData.fotoUrlThumb || userData.avatar || ""
+  ).trim();
+  const nombre = String(cardData.nombre || userData.username || cardData.odIdUsuariNombre || "Usuario")
+    .trim()
+    .slice(0, 80) || "Usuario";
+
+  return {
+    odIdUsuari: userId,
+    username: String(userData.username || cardData.odIdUsuariNombre || nombre).trim().slice(0, 80) || "Usuario",
+    nombre,
+    avatar: avatar.slice(0, 500),
+  };
+}
+
+function getTarjetaInteractionLogRef(actorUid) {
+  return db
+    .collection("users")
+    .doc(actorUid)
+    .collection(TARJETA_INTERACTION_LOGS_COLLECTION);
+}
+
+function normalizeTarjetaInteractionAction(value) {
+  const action = String(value || "").trim().toLowerCase();
+  return ["toggle_like", "leave_footprint", "record_visit", "record_impression", "send_message"].includes(action)
+    ? action
+    : null;
+}
+
+function normalizeTarjetaInteractionMessage(value) {
+  if (typeof value !== "string") return "";
+  return value.trim().replace(/\s+/g, " ").slice(0, 200);
+}
+
+function hasUnsafeTarjetaContactIntent(message) {
+  const normalized = normalizeCriticalSafetyText(message);
+  return (
+    /(?:https?:\/\/|www\.|wa\.me|t\.me|whatsapp|telegram|instagram|facebook|discord|snapchat)/i.test(normalized.raw) ||
+    /(?:buscame|escribeme|agregame|contactame|hablame\s+por|fuera\s+de\s+chactivo)/i.test(normalized.collapsed) ||
+    /\b\d[\d\s._-]{6,}\b/.test(normalized.raw)
+  );
+}
+
+async function enforceTarjetaInteractionRateLimit(actorUid, action, targetUserId) {
+  const limits = {
+    toggle_like: { windowMs: 60 * 60 * 1000, maxCount: 80, targetCooldownMs: 30 * 1000 },
+    leave_footprint: { windowMs: 24 * 60 * 60 * 1000, maxCount: TARJETA_HUELLAS_MAX_POR_DIA, targetCooldownMs: 24 * 60 * 60 * 1000 },
+    record_visit: { windowMs: 60 * 60 * 1000, maxCount: 120, targetCooldownMs: 24 * 60 * 60 * 1000 },
+    record_impression: { windowMs: 24 * 60 * 60 * 1000, maxCount: 300, targetCooldownMs: 24 * 60 * 60 * 1000 },
+    send_message: { windowMs: 60 * 60 * 1000, maxCount: 20, targetCooldownMs: 5 * 60 * 1000 },
+  }[action];
+  if (!limits) return;
+
+  const snapshot = await getTarjetaInteractionLogRef(actorUid)
+    .orderBy("createdAtMs", "desc")
+    .limit(80)
+    .get()
+    .catch(() => null);
+  if (!snapshot) return;
+
+  const now = Date.now();
+  let actionCount = 0;
+  for (const logDoc of snapshot.docs) {
+    const logData = logDoc.data() || {};
+    if (String(logData.action || "") !== action) continue;
+    const createdAtMs = Number(logData.createdAtMs || toMillisSafe(logData.createdAt));
+    if (!Number.isFinite(createdAtMs) || createdAtMs <= 0) continue;
+    const ageMs = now - createdAtMs;
+    if (ageMs <= limits.windowMs) actionCount += 1;
+    if (
+      targetUserId &&
+      ageMs <= limits.targetCooldownMs &&
+      String(logData.targetUserId || "") === String(targetUserId)
+    ) {
+      throw new HttpsError("resource-exhausted", "Debes esperar antes de repetir esta accion con el mismo usuario.");
+    }
+  }
+
+  if (actionCount >= limits.maxCount) {
+    throw new HttpsError("resource-exhausted", "Has alcanzado el limite temporal para esta accion.");
+  }
+}
+
+async function recordTarjetaInteractionLog(actorUid, action, targetUserId, metadata = {}) {
+  await getTarjetaInteractionLogRef(actorUid).add({
+    actorUid,
+    action,
+    targetUserId: targetUserId || null,
+    metadata,
+    createdAt: FieldValue.serverTimestamp(),
+    createdAtMs: Date.now(),
+  });
+}
+
+async function getTarjetaInteractionTarget(targetUserId, actorUid) {
+  const safeTargetUserId = String(targetUserId || "").trim();
+  if (!safeTargetUserId || safeTargetUserId === actorUid) {
+    throw new HttpsError("invalid-argument", "El usuario destinatario no es valido.");
+  }
+
+  const [targetCardSnap, targetUserSnap] = await Promise.all([
+    db.collection("tarjetas").doc(safeTargetUserId).get(),
+    db.collection("users").doc(safeTargetUserId).get(),
+  ]);
+  if (!targetCardSnap.exists) {
+    throw new HttpsError("not-found", "La tarjeta destinataria no existe.");
+  }
+  const targetCardData = targetCardSnap.data() || {};
+  if (targetCardData.esInvitado === true) {
+    throw new HttpsError("failed-precondition", "Los usuarios invitados no reciben interacciones de Baul.");
+  }
+  if (targetCardData.profileVisible === false) {
+    throw new HttpsError("failed-precondition", "Este perfil no esta disponible.");
+  }
+
+  return {
+    id: safeTargetUserId,
+    ref: targetCardSnap.ref,
+    data: targetCardData,
+    userData: targetUserSnap.exists ? targetUserSnap.data() || {} : {},
+  };
+}
+
+async function createTarjetaActivity(targetUserId, activity) {
+  return db.collection("tarjetas").doc(targetUserId).collection("actividad").add({
+    ...activity,
+    leida: false,
+    timestamp: activity.timestamp || FieldValue.serverTimestamp(),
+  });
+}
+
+exports.recordTarjetaInteraction = onCall(async (request) => {
+  if (!TARJETA_INTERACTIONS_ENABLED) {
+    throw new HttpsError("failed-precondition", "Baul esta en activacion gradual.");
+  }
+
+  const actor = await assertRegisteredCallableRequest(request);
+  const action = normalizeTarjetaInteractionAction(request.data?.action);
+  const targetUserId = String(request.data?.targetUserId || "").trim();
+  const payload = request.data?.payload && typeof request.data.payload === "object" ? request.data.payload : {};
+  if (!action) {
+    throw new HttpsError("invalid-argument", "Accion de Baul no soportada.");
+  }
+
+  const actorUserSnap = await db.collection("users").doc(actor.uid).get();
+  if (!actorUserSnap.exists) {
+    throw new HttpsError("failed-precondition", "Tu perfil registrado no esta listo para Baul.");
+  }
+  const actorUserData = actorUserSnap.data() || {};
+  const target = await getTarjetaInteractionTarget(targetUserId, actor.uid);
+  if (await isBlockedBetweenUsers(actor.uid, target.id)) {
+    throw new HttpsError("permission-denied", "No puedes interactuar con un usuario bloqueado.");
+  }
+  await enforceTarjetaInteractionRateLimit(actor.uid, action, target.id);
+
+  const actorCardRef = db.collection("tarjetas").doc(actor.uid);
+  const actorCardSnap = await actorCardRef.get();
+  if (!actorCardSnap.exists) {
+    throw new HttpsError("failed-precondition", "Primero debes completar tu tarjeta de Baul.");
+  }
+  const actorCardData = actorCardSnap.data() || {};
+  const actorParticipant = buildTarjetaParticipant(actor.uid, actorCardData, actorUserData);
+  const targetParticipant = buildTarjetaParticipant(target.id, target.data, target.userData);
+
+  if (action === "toggle_like") {
+    const matchId = [actor.uid, target.id].sort().join("_");
+    const matchRef = db.collection("matches").doc(matchId);
+    let liked = false;
+    let isMatch = false;
+    let matchCreated = false;
+
+    await db.runTransaction(async (transaction) => {
+      const targetSnapshot = await transaction.get(target.ref);
+      const actorSnapshot = await transaction.get(actorCardRef);
+      const matchSnapshot = await transaction.get(matchRef);
+      if (!targetSnapshot.exists || !actorSnapshot.exists) {
+        throw new HttpsError("not-found", "La tarjeta ya no existe.");
+      }
+
+      const targetData = targetSnapshot.data() || {};
+      const currentActorCard = actorSnapshot.data() || {};
+      const currentLikes = Array.isArray(targetData.likesDe) ? targetData.likesDe : [];
+      const alreadyLiked = currentLikes.includes(actor.uid);
+      liked = !alreadyLiked;
+      const nextLikes = alreadyLiked
+        ? buildTarjetaArrayWithoutValue(currentLikes, actor.uid)
+        : buildTarjetaArrayWithCap(currentLikes, actor.uid, TARJETA_MAX_LIKES_DE);
+      const currentLikesCount = Math.max(0, Number(targetData.likesRecibidos || 0));
+
+      transaction.update(target.ref, {
+        likesDe: nextLikes,
+        likesRecibidos: Math.max(0, currentLikesCount + (alreadyLiked ? -1 : 1)),
+        actividadNoLeida: Math.max(0, Number(targetData.actividadNoLeida || 0) + (alreadyLiked ? 0 : 1)),
+        actualizadaEn: FieldValue.serverTimestamp(),
+      });
+
+      if (liked && Array.isArray(currentActorCard.likesDe) && currentActorCard.likesDe.includes(target.id)) {
+        isMatch = true;
+        if (!matchSnapshot.exists) {
+          const sortedIds = [actor.uid, target.id].sort();
+          const userA = sortedIds[0] === actor.uid ? actorParticipant : targetParticipant;
+          const userB = sortedIds[1] === actor.uid ? actorParticipant : targetParticipant;
+          transaction.create(matchRef, {
+            id: matchId,
+            users: sortedIds,
+            userA,
+            userB,
+            createdAt: FieldValue.serverTimestamp(),
+            lastInteraction: FieldValue.serverTimestamp(),
+            status: "active",
+            chatStarted: false,
+            unreadByA: true,
+            unreadByB: true,
+          });
+          matchCreated = true;
+        }
+      } else if (!liked && matchSnapshot.exists) {
+        transaction.delete(matchRef);
+      }
+    });
+
+    await recordTarjetaInteractionLog(actor.uid, action, target.id, { liked, isMatch }).catch(() => {});
+    if (liked) {
+      await createTarjetaActivity(target.id, {
+        tipo: isMatch ? "match" : "like",
+        deUserId: actor.uid,
+        deUsername: actorParticipant.nombre,
+        deAvatar: actorParticipant.avatar,
+        mensaje: isMatch ? `${actorParticipant.nombre} tambien te dio like` : `${actorParticipant.nombre} marco tu tarjeta como interesante`,
+        matchId: isMatch ? matchId : null,
+      }).catch(() => {});
+      await createUserNotificationRecord(target.id, {
+        type: isMatch ? "tarjeta_match" : "tarjeta_like",
+        title: isMatch ? "Nuevo match en Baul" : "Alguien esta interesado en ti",
+        content: isMatch ? `${actorParticipant.nombre} tambien marco tu tarjeta.` : `${actorParticipant.nombre} marco tu tarjeta como interesante.`,
+        from: actor.uid,
+        fromUsername: actorParticipant.username,
+        fromAvatar: actorParticipant.avatar,
+        cardId: actor.uid,
+        matchId: isMatch ? matchId : null,
+        read: false,
+      }).catch(() => {});
+      if (matchCreated) {
+        await createTarjetaActivity(actor.uid, {
+          tipo: "match",
+          deUserId: target.id,
+          deUsername: targetParticipant.nombre,
+          deAvatar: targetParticipant.avatar,
+          mensaje: `Hiciste match con ${targetParticipant.nombre}`,
+          matchId,
+        }).catch(() => {});
+        await createUserNotificationRecord(actor.uid, {
+          type: "tarjeta_match",
+          title: "Nuevo match en Baul",
+          content: `Hiciste match con ${targetParticipant.nombre}.`,
+          from: target.id,
+          fromUsername: targetParticipant.username,
+          fromAvatar: targetParticipant.avatar,
+          cardId: target.id,
+          matchId,
+          read: false,
+        }).catch(() => {});
+      }
+    }
+
+    return {
+      success: true,
+      liked,
+      isMatch: Boolean(isMatch),
+      matchData: isMatch
+        ? {
+            id: matchId,
+            users: [actor.uid, target.id],
+            otroUsuario: targetParticipant,
+            userA: actorParticipant,
+            userB: targetParticipant,
+            createdAt: Date.now(),
+          }
+        : null,
+    };
+  }
+
+  if (action === "leave_footprint") {
+    const footprintKey = `${actor.uid}_${getChileDayString()}`;
+    let recorded = false;
+    await db.runTransaction(async (transaction) => {
+      const targetSnapshot = await transaction.get(target.ref);
+      if (!targetSnapshot.exists) throw new HttpsError("not-found", "La tarjeta ya no existe.");
+      const targetData = targetSnapshot.data() || {};
+      const current = Array.isArray(targetData.huellasDe) ? targetData.huellasDe : [];
+      if (current.includes(footprintKey)) return;
+      recorded = true;
+      transaction.update(target.ref, {
+        huellasDe: buildTarjetaArrayWithCap(current, footprintKey, TARJETA_MAX_HUELLAS_DE),
+        huellasRecibidas: Math.max(0, Number(targetData.huellasRecibidas || 0)) + 1,
+        actividadNoLeida: Math.max(0, Number(targetData.actividadNoLeida || 0)) + 1,
+        actualizadaEn: FieldValue.serverTimestamp(),
+      });
+    });
+    await recordTarjetaInteractionLog(actor.uid, action, target.id, { recorded }).catch(() => {});
+    if (recorded) {
+      await createTarjetaActivity(target.id, {
+        tipo: "huella",
+        deUserId: actor.uid,
+        deUsername: actorParticipant.nombre,
+        deAvatar: actorParticipant.avatar,
+        mensaje: `${actorParticipant.nombre} paso por tu tarjeta`,
+      }).catch(() => {});
+    }
+    return { success: true, recorded };
+  }
+
+  if (action === "record_visit" || action === "record_impression") {
+    const key = action === "record_visit" ? actor.uid : `${actor.uid}_${getChileDayString()}`;
+    const field = action === "record_visit" ? "visitasDe" : "impresionesDe";
+    const countField = action === "record_visit" ? "visitasRecibidas" : "impresionesRecibidas";
+    let recorded = false;
+    await db.runTransaction(async (transaction) => {
+      const targetSnapshot = await transaction.get(target.ref);
+      if (!targetSnapshot.exists) throw new HttpsError("not-found", "La tarjeta ya no existe.");
+      const targetData = targetSnapshot.data() || {};
+      const current = Array.isArray(targetData[field]) ? targetData[field] : [];
+      if (current.includes(key)) return;
+      recorded = true;
+      transaction.update(target.ref, {
+        [field]: buildTarjetaArrayWithCap(current, key, action === "record_visit" ? TARJETA_MAX_VISITAS_DE : TARJETA_MAX_IMPRESIONES_DE),
+        [countField]: Math.max(0, Number(targetData[countField] || 0)) + 1,
+        ...(action === "record_visit" ? { actividadNoLeida: Math.max(0, Number(targetData.actividadNoLeida || 0)) + 1 } : {}),
+        actualizadaEn: FieldValue.serverTimestamp(),
+      });
+    });
+    await recordTarjetaInteractionLog(actor.uid, action, target.id, { recorded }).catch(() => {});
+    if (recorded && action === "record_visit") {
+      await createTarjetaActivity(target.id, {
+        tipo: "visita",
+        deUserId: actor.uid,
+        deUsername: actorParticipant.nombre,
+        deAvatar: actorParticipant.avatar,
+        mensaje: `${actorParticipant.nombre} abrio tu tarjeta`,
+      }).catch(() => {});
+    }
+    return { success: true, recorded };
+  }
+
+  if (action === "send_message") {
+    const message = normalizeTarjetaInteractionMessage(payload.message);
+    if (!message) throw new HttpsError("invalid-argument", "La nota no puede estar vacia.");
+    if (hasUnsafeTarjetaContactIntent(message)) {
+      throw new HttpsError("failed-precondition", "Por seguridad, la primera nota no puede incluir datos de contacto externo.");
+    }
+    const safetyRisk = detectCriticalChatSafetyRisk(message);
+    if (safetyRisk.blocked) {
+      throw new HttpsError("failed-precondition", "La nota no cumple las reglas de seguridad de Chactivo.");
+    }
+
+    await createTarjetaActivity(target.id, {
+      tipo: "mensaje",
+      deUserId: actor.uid,
+      deUsername: actorParticipant.nombre,
+      deAvatar: actorParticipant.avatar,
+      mensaje: message,
+    });
+    await createUserNotificationRecord(target.id, {
+      type: "tarjeta_message",
+      title: "Nueva nota en Baul",
+      content: `${actorParticipant.nombre}: ${message}`,
+      from: actor.uid,
+      fromUsername: actorParticipant.username,
+      fromAvatar: actorParticipant.avatar,
+      cardId: actor.uid,
+      read: false,
+    }).catch(() => {});
+    await recordTarjetaInteractionLog(actor.uid, action, target.id, { messageLength: message.length }).catch(() => {});
+    return { success: true };
+  }
+
+  throw new HttpsError("invalid-argument", "Accion de Baul no soportada.");
+});
+
+exports.updateTarjetaPresence = onCall(async (request) => {
+  const actor = await assertRegisteredCallableRequest(request);
+  const online = request.data?.online === true;
+  const cardRef = db.collection("tarjetas").doc(actor.uid);
+  const cardSnap = await cardRef.get();
+  if (!cardSnap.exists) {
+    throw new HttpsError("failed-precondition", "Tu tarjeta de Baul aun no existe.");
+  }
+
+  await cardRef.update({
+    estaOnline: online,
+    ...(online ? { ultimaConexion: FieldValue.serverTimestamp() } : {}),
+  });
+  return { success: true, online };
+});
+
+// El backend de interacciones queda preparado pero cerrado por TARJETA_INTERACTIONS_ENABLED.
+
 
 // FASE 1 ahorro Cloud Functions:
 // archiveRoomMessageForAdminHistory retirado por costo por mensaje publico.
@@ -2698,6 +3096,19 @@ exports.syncPublicUserProfileMirror = onDocumentWritten(
       await discoverableRef.set(discoverableLocation);
     } else {
       await discoverableRef.delete().catch(() => {});
+    }
+
+    // El avatar de users es la fuente canónica para las superficies públicas.
+    // Solo se toca la tarjeta propia cuando avatar cambió; no es un backfill.
+    if (String(previousData?.avatar || '') !== String(nextData?.avatar || '')) {
+      const avatar = normalizePublicString(nextData.avatar, 500) || '';
+      await db.collection('tarjetas').doc(userId).set({
+        fotoUrl: avatar,
+        fotoUrlThumb: avatar,
+        fotoUrlFull: avatar,
+        actualizadaEn: FieldValue.serverTimestamp(),
+      }, { merge: true });
+      console.log(`[PUBLIC_PROFILE] Synced card avatar userId=${userId}`);
     }
     console.log(`[PUBLIC_PROFILE] Synced mirror userId=${userId}`);
     return null;
