@@ -86,13 +86,13 @@ const GlobalLandingPage = () => {
   };
 
   return (
-    <div className="min-h-screen bg-background text-foreground">
+    <div className="cv-page cv-shell min-h-screen text-foreground">
       <main className="mx-auto w-full max-w-6xl px-4 pb-24 pt-8 sm:px-6 sm:pt-12 lg:px-8">
         <motion.section
           initial={{ opacity: 0, y: 18 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.45 }}
-          className="relative overflow-hidden rounded-[2rem] border border-white/10 bg-gradient-to-br from-slate-950 via-violet-950/80 to-cyan-950/70 px-5 py-12 shadow-2xl shadow-violet-950/20 sm:px-10 sm:py-16 lg:px-16"
+          className="cv-surface-elevated cv-hero relative overflow-hidden rounded-[2rem] px-5 py-12 shadow-2xl sm:px-10 sm:py-16 lg:px-16"
         >
           <div className="pointer-events-none absolute -right-24 -top-28 h-80 w-80 rounded-full bg-cyan-300/10 blur-3xl" aria-hidden="true" />
           <div className="pointer-events-none absolute -bottom-32 -left-24 h-80 w-80 rounded-full bg-fuchsia-400/10 blur-3xl" aria-hidden="true" />
@@ -101,7 +101,7 @@ const GlobalLandingPage = () => {
               <HugeiconsIcon icon={EarthIcon} size={16} color="currentColor" aria-hidden="true" />
               Comunidad gay online en Chile
             </div>
-            <h1 className="text-4xl font-black tracking-tight text-white sm:text-6xl">Conversaciones reales, sin vueltas</h1>
+            <h1 className="cv-display text-4xl font-black tracking-tight text-white sm:text-6xl">Conversaciones reales, sin vueltas</h1>
             <p className="mt-6 max-w-2xl text-base leading-7 text-slate-300 sm:text-xl sm:leading-8">
               Entra al chat principal desde tu navegador, revisa qué actividad existe y decide cómo continuar. Chactivo no necesita aparentar una comunidad: necesita ayudarte a encontrar una conversación útil.
             </p>
@@ -109,7 +109,7 @@ const GlobalLandingPage = () => {
               <Button
                 type="button"
                 onClick={handleEnterChat}
-                className="min-h-12 rounded-xl bg-gradient-to-r from-fuchsia-500 to-cyan-400 px-6 text-base font-bold text-slate-950 shadow-lg shadow-fuchsia-500/20 hover:from-fuchsia-400 hover:to-cyan-300"
+                className="cv-button-primary min-h-12 rounded-xl px-6 text-base font-bold shadow-lg"
               >
                 Entrar al chat principal
                 <HugeiconsIcon icon={ArrowRight01Icon} size={20} color="currentColor" className="ml-2" aria-hidden="true" />
@@ -118,7 +118,7 @@ const GlobalLandingPage = () => {
                 type="button"
                 variant="outline"
                 onClick={() => navigate('/opin')}
-                className="min-h-12 rounded-xl border-white/20 bg-white/5 px-6 text-base font-semibold text-white hover:bg-white/10"
+                className="cv-button-secondary min-h-12 rounded-xl px-6 text-base font-semibold"
               >
                 Explorar OPIN
               </Button>
@@ -138,7 +138,7 @@ const GlobalLandingPage = () => {
           </div>
           <div className="mt-8 grid gap-4 md:grid-cols-3">
             {principles.map((principle) => (
-              <article key={principle.title} className="rounded-2xl border border-border/70 bg-card/70 p-6 shadow-sm transition-colors hover:border-cyan-300/30">
+              <article key={principle.title} className="cv-card cv-card-interactive rounded-2xl p-6">
                 <div className="flex h-11 w-11 items-center justify-center rounded-xl border border-cyan-300/20 bg-cyan-300/10 text-cyan-200">
                   <HugeiconsIcon icon={principle.icon} size={22} color="currentColor" aria-hidden="true" />
                 </div>
@@ -163,7 +163,7 @@ const GlobalLandingPage = () => {
           </div>
           <div className="mt-8 grid gap-4 md:grid-cols-3">
             {destinations.map((destination) => (
-              <a key={destination.href} href={destination.href} className="group rounded-2xl border border-border/70 bg-card/40 p-5 transition hover:-translate-y-0.5 hover:border-violet-300/30 hover:bg-card/70">
+              <a key={destination.href} href={destination.href} className="cv-card cv-card-interactive group rounded-2xl p-5">
                 <div className="flex items-center justify-between gap-3">
                   <h3 className="text-lg font-bold">{destination.label}</h3>
                   <HugeiconsIcon icon={ArrowRight01Icon} size={18} color="currentColor" className="text-muted-foreground transition-transform group-hover:translate-x-1 group-hover:text-foreground" aria-hidden="true" />
@@ -174,13 +174,13 @@ const GlobalLandingPage = () => {
           </div>
         </section>
 
-        <section className="mt-16 rounded-3xl border border-fuchsia-300/20 bg-gradient-to-br from-fuchsia-500/10 via-card/60 to-cyan-400/10 p-7 text-center sm:mt-20 sm:p-12">
+        <section className="cv-card mt-16 rounded-3xl p-7 text-center sm:mt-20 sm:p-12">
           <h2 className="text-3xl font-bold tracking-tight sm:text-4xl">¿Quieres conversar ahora?</h2>
           <p className="mx-auto mt-4 max-w-2xl leading-7 text-muted-foreground">Entra, revisa la actividad disponible y vuelve cuando quieras. La comunidad real no necesita un contador para merecer un espacio bien cuidado.</p>
           <Button
             type="button"
             onClick={handleEnterChat}
-            className="mt-7 min-h-12 rounded-xl bg-foreground px-7 text-base font-bold text-background hover:bg-foreground/90"
+            className="cv-button-primary mt-7 min-h-12 rounded-xl px-7 text-base font-bold"
           >
             Ir al chat principal
             <HugeiconsIcon icon={ArrowRight01Icon} size={19} color="currentColor" className="ml-2" aria-hidden="true" />

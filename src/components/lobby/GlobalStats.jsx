@@ -12,7 +12,7 @@ const GlobalStats = () => {
       aria-labelledby="community-status-title"
       className="mx-auto mb-8 w-full max-w-6xl px-4 sm:mb-12 sm:px-6 lg:px-8"
     >
-      <div className="rounded-2xl border border-border/70 bg-card/70 p-5 shadow-sm sm:p-6 lg:p-8">
+      <div className="cv-card p-5 sm:p-6 lg:p-8">
         <div className="flex items-start gap-3">
           <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl border border-cyan-300/20 bg-cyan-300/10 text-cyan-200">
             <HugeiconsIcon icon={UserGroupIcon} size={22} color="currentColor" aria-hidden="true" />
@@ -23,7 +23,7 @@ const GlobalStats = () => {
           </div>
         </div>
 
-        <div className="mt-6 rounded-xl border border-amber-300/20 bg-amber-300/5 p-4 sm:p-5">
+        <div className="cv-status-warning mt-6 rounded-xl border p-4 sm:p-5">
           <div className="flex items-start gap-3">
             <HugeiconsIcon icon={InformationCircleIcon} size={21} color="currentColor" className="mt-0.5 shrink-0 text-amber-200" aria-hidden="true" />
             <div>
@@ -38,7 +38,7 @@ const GlobalStats = () => {
         <nav aria-label="Acciones de la comunidad" className="mt-6 flex flex-col gap-3 sm:flex-row">
           <a
             href="/chat/principal"
-            className="inline-flex min-h-12 items-center justify-center rounded-xl bg-gradient-to-r from-fuchsia-500 to-cyan-400 px-5 text-sm font-bold text-slate-950 transition hover:from-fuchsia-400 hover:to-cyan-300 focus:outline-none focus:ring-2 focus:ring-cyan-200 focus:ring-offset-2 focus:ring-offset-background"
+            className="cv-button-primary inline-flex min-h-12 rounded-xl px-5 text-sm font-bold focus:outline-none focus:ring-2 focus:ring-cyan-200 focus:ring-offset-2 focus:ring-offset-background"
           >
             <HugeiconsIcon icon={BubbleChatIcon} size={19} color="currentColor" className="mr-2" aria-hidden="true" />
             Revisar el chat principal
@@ -46,7 +46,7 @@ const GlobalStats = () => {
           </a>
           <a
             href="/opin"
-            className="inline-flex min-h-12 items-center justify-center rounded-xl border border-border/70 bg-background/40 px-5 text-sm font-semibold text-foreground transition hover:bg-accent focus:outline-none focus:ring-2 focus:ring-cyan-200 focus:ring-offset-2 focus:ring-offset-background"
+            className="cv-button-secondary inline-flex min-h-12 rounded-xl px-5 text-sm font-semibold focus:outline-none focus:ring-2 focus:ring-cyan-200 focus:ring-offset-2 focus:ring-offset-background"
           >
             Explorar OPIN
           </a>

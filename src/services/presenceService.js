@@ -27,7 +27,7 @@ import {
   serverTimestamp,
   getDoc,
 } from 'firebase/firestore';
-import { db, auth } from '@/config/firebase';
+import { db, auth, isFirebaseConfigured } from '@/config/firebase';
 import { actualizarEstadoOnline } from '@/services/tarjetaService';
 import { resolveProfileRole } from '@/config/profileRoles';
 import { trackListenerStart, trackListenerStop } from '@/utils/listenerMonitor';
@@ -119,7 +119,7 @@ export const isUserAvailableForConversation = (user = {}, now = Date.now()) => {
 
 export const setAvailabilityForConversation = async (roomId, enabled = true) => {
   if (isSupabaseAuthEnabled()) return supabasePresenceService.setAvailabilityForConversation(roomId, enabled);
-  if (!auth.currentUser || !roomId) return;
+  if (!isFirebaseConfigured || !db || !auth?.currentUser || !roomId) return;
 
   const presenceRef = doc(db, 'roomPresence', roomId, 'users', auth.currentUser.uid);
   const now = Date.now();
@@ -144,7 +144,7 @@ export const setAvailabilityForConversation = async (roomId, enabled = true) => 
 
 export const getRoomPresenceUser = async (roomId, userId) => {
   if (isSupabaseAuthEnabled()) return supabasePresenceService.getRoomPresenceUser(roomId, userId);
-  if (!roomId || !userId) return null;
+  if (!isFirebaseConfigured || !db || !roomId || !userId) return null;
   const presenceSnap = await getDoc(doc(db, 'roomPresence', roomId, 'users', userId));
   if (!presenceSnap.exists()) return null;
   return {
@@ -176,7 +176,7 @@ export const validateUserAvailabilityInRoom = async (roomId, userId) => {
  */
 export const joinRoom = async (roomId, userData) => {
   if (isSupabaseAuthEnabled()) return supabasePresenceService.joinRoom(roomId, userData);
-  if (!auth.currentUser) return;
+  if (!isFirebaseConfigured || !db || !auth?.currentUser) return;
 
   // ⚠️ BLOQUEADOR DE BOTS: NO permitir que bots se registren en presencia
   const isBot = isBotUserId(userData.userId) || userData.userId === 'system_moderator';
@@ -243,7 +243,7 @@ export const joinRoom = async (roomId, userData) => {
  */
 export const leaveRoom = async (roomId) => {
   if (isSupabaseAuthEnabled()) return supabasePresenceService.leaveRoom(roomId);
-  if (!auth.currentUser) return;
+  if (!isFirebaseConfigured || !db || !auth?.currentUser || !roomId) return;
 
   const presenceRef = doc(db, 'roomPresence', roomId, 'users', auth.currentUser.uid);
 
@@ -265,7 +265,7 @@ export const leaveRoom = async (roomId) => {
  */
 export const setInPrivateChat = async (roomId, partnerId, partnerUsername) => {
   if (isSupabaseAuthEnabled()) return supabasePresenceService.setInPrivateChat(roomId, partnerId, partnerUsername);
-  if (!auth.currentUser || !roomId) return;
+  if (!isFirebaseConfigured || !db || !auth?.currentUser || !roomId) return;
   const presenceRef = doc(db, 'roomPresence', roomId, 'users', auth.currentUser.uid);
   try {
     await setDoc(presenceRef, {
@@ -287,7 +287,7 @@ export const setInPrivateChat = async (roomId, partnerId, partnerUsername) => {
  */
 export const clearInPrivateChat = async (roomId) => {
   if (isSupabaseAuthEnabled()) return supabasePresenceService.clearInPrivateChat(roomId);
-  if (!auth.currentUser || !roomId) return;
+  if (!isFirebaseConfigured || !db || !auth?.currentUser || !roomId) return;
   const presenceRef = doc(db, 'roomPresence', roomId, 'users', auth.currentUser.uid);
   try {
     await setDoc(presenceRef, {
@@ -305,7 +305,7 @@ export const clearInPrivateChat = async (roomId) => {
  */
 export const updatePresenceFields = async (roomId, fields) => {
   if (isSupabaseAuthEnabled()) return supabasePresenceService.updatePresenceFields(roomId, fields);
-  if (!auth.currentUser || !roomId) return;
+  if (!isFirebaseConfigured || !db || !auth?.currentUser || !roomId) return;
   const presenceRef = doc(db, 'roomPresence', roomId, 'users', auth.currentUser.uid);
   try {
     const nextFields = { ...(fields || {}) };
@@ -325,6 +325,10 @@ export const updatePresenceFields = async (roomId, fields) => {
  */
 export const subscribeToRoomUsers = (roomId, callback) => {
   if (isSupabaseAuthEnabled()) return supabasePresenceService.subscribeToRoomUsers(roomId, callback, ROOM_USERS_LISTENER_LIMIT);
+  if (!isFirebaseConfigured || !db) {
+    callback?.([]);
+    return () => {};
+  }
   const usersRef = query(
     collection(db, 'roomPresence', roomId, 'users'),
     orderBy('lastSeenMs', 'desc'),
@@ -384,6 +388,10 @@ export const subscribeToRoomUsers = (roomId, callback) => {
  */
 export const subscribeToMultipleRoomCounts = (roomIds, callback) => {
   if (isSupabaseAuthEnabled()) return supabasePresenceService.subscribeToMultipleRoomCounts(roomIds, callback);
+  if (!isFirebaseConfigured || !db) {
+    callback?.({});
+    return () => {};
+  }
   if (!Array.isArray(roomIds) || roomIds.length === 0) {
     callback({});
     return () => {};
@@ -503,8 +511,7 @@ export const subscribeToRoomUserCount = (roomId, callback) => {
  */
 export const updateUserActivity = async (roomId, options = {}) => {
   if (isSupabaseAuthEnabled()) return supabasePresenceService.updateUserActivity(roomId, options);
-  if (!auth.currentUser) return;
-
+  if (!isFirebaseConfigured || !db || !auth?.currentUser) return;
   const presenceRef = doc(db, 'roomPresence', roomId, 'users', auth.currentUser.uid);
   const now = Date.now();
   const force = options?.force === true;
@@ -559,6 +566,7 @@ export const filterActiveUsers = (users) => {
 export const registerBotPresenceForTesting = async (roomId, botData) => {
   if (roomId !== 'admin-testing') return false;
   if (!botData?.userId || !botData?.username) return false;
+  if (!isFirebaseConfigured || !db) return false;
 
   const presenceRef = doc(db, 'roomPresence', roomId, 'users', botData.userId);
   try {
@@ -586,6 +594,7 @@ export const registerBotPresenceForTesting = async (roomId, botData) => {
 export const removeBotPresenceForTesting = async (roomId, botUserId) => {
   if (roomId !== 'admin-testing') return false;
   if (!botUserId) return false;
+  if (!isFirebaseConfigured || !db) return false;
 
   try {
     await deleteDoc(doc(db, 'roomPresence', roomId, 'users', botUserId));
@@ -601,7 +610,7 @@ export const removeBotPresenceForTesting = async (roomId, botUserId) => {
  */
 export const subscribeToTypingUsers = (roomId, currentUserId, callback) => {
   if (isSupabaseAuthEnabled()) return supabasePresenceService.subscribeToTypingUsers(roomId, currentUserId, callback);
-  callback([]);
+  callback?.([]);
   return () => {};
 };
 

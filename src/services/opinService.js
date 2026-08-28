@@ -29,7 +29,7 @@ import {
   arrayUnion,
   arrayRemove,
 } from 'firebase/firestore';
-import { db, auth } from '@/config/firebase';
+import { db, auth, isFirebaseConfigured } from '@/config/firebase';
 import { track } from '@/services/eventTrackingService';
 import { isBlockedBetween } from '@/services/blockService';
 import { validateOpinPublicText } from '@/services/opinSafetyService';
@@ -42,7 +42,7 @@ import { dispatchUserNotification } from '@/services/userNotificationDispatchSer
 const useSupabaseOpin = () => isSupabaseAuthEnabled();
 
 const assertCanInteractWithUser = async (targetUserId) => {
-  if (!auth.currentUser || !targetUserId) return;
+  if (!auth?.currentUser || !targetUserId) return;
   const blocked = await isBlockedBetween(auth.currentUser.uid, targetUserId);
   if (blocked) {
     throw new Error('BLOCKED');
@@ -243,6 +243,9 @@ export const OPIN_REACTIONS = [
  */
 export const canCreatePost = async () => {
   if (useSupabaseOpin()) return supabaseOpinService.canCreatePost();
+  if (!isFirebaseConfigured || !auth) {
+    return { canCreate: false, reason: 'backend_unavailable', message: 'OPIN está pausado hasta configurar el backend.' };
+  }
   if (!auth.currentUser) {
     return { canCreate: false, reason: 'no_auth' };
   }
@@ -446,6 +449,7 @@ export const createOpinPost = async (params) => {
  */
 export const getOpinFeed = async (limitCount = OPIN_FEED_DEFAULT_LIMIT) => {
   if (useSupabaseOpin()) return supabaseOpinService.getOpinFeed(limitCount);
+  if (!isFirebaseConfigured || !db) return [];
   const postsRef = collection(db, 'opin_posts');
   const now = Timestamp.now();
   const nowMs = now.toMillis();
@@ -725,6 +729,7 @@ export const deleteOpinPost = async (postId) => {
 };
 export const getMyOpinPosts = async (limitCount = 10) => {
   if (useSupabaseOpin()) return supabaseOpinService.getMyOpinPosts(limitCount);
+  if (!isFirebaseConfigured || !auth || !db) return [];
   if (!auth.currentUser) {
     return [];
   }
@@ -749,6 +754,7 @@ export const getMyOpinPosts = async (limitCount = 10) => {
 
 export const getMyActiveOpinIntent = async () => {
   if (useSupabaseOpin()) return supabaseOpinService.getMyActiveOpinIntent();
+  if (!isFirebaseConfigured || !auth || !db) return null;
   const nowMs = Date.now();
   const posts = await getMyOpinPosts(12);
   return posts.find((post) => (

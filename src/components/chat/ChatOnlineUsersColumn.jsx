@@ -113,6 +113,7 @@ const ChatOnlineUsersColumn = ({
   onOpenContextualOpportunity,
   onDismissContextualOpportunities,
   isContextualSending = false,
+  backendAvailable = true,
 }) => {
   const [knownUsers, setKnownUsers] = useState([]);
   const [isExpanded, setIsExpanded] = useState(false);
@@ -342,7 +343,9 @@ const ChatOnlineUsersColumn = ({
       <div className="flex-1 min-h-0 overflow-y-auto p-3 space-y-2.5">
         {users.length === 0 ? (
           <div className="rounded-xl border border-border/70 bg-secondary/35 p-4 text-center">
-            <p className="text-sm font-medium text-foreground/80">Cargando personas...</p>
+            <p className="text-sm font-medium text-foreground/80">
+              {backendAvailable ? 'Cargando personas...' : 'La presencia aparecerá cuando el chat esté conectado.'}
+            </p>
           </div>
         ) : (
           visibleUsers.map((item) => {

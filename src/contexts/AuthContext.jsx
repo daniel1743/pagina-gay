@@ -9,7 +9,7 @@ import {
   EmailAuthProvider,
   linkWithCredential,
 } from 'firebase/auth';
-import { auth } from '@/config/firebase';
+import { auth, db, isFirebaseConfigured } from '@/config/firebase';
 import {
   createUserProfile,
   getUserProfile,
@@ -20,7 +20,6 @@ import {
   upgradeToPremium as upgradeToPremiumService,
 } from '@/services/userService';
 import { doc, getDoc, setDoc, onSnapshot } from 'firebase/firestore';
-import { db } from '@/config/firebase';
 import { toast } from '@/components/ui/use-toast';
 import { trackUserRegister, trackUserLogin } from '@/services/eventTrackingService';
 import { recordUserConnection, checkVerificationMaintenance } from '@/services/verificationService';
@@ -255,6 +254,12 @@ const DEFAULT_AUTH_CONTEXT = {
   switchToGenericIdentity: async () => false,
   restoreAdminIdentity: async () => false,
 };
+
+const FIREBASE_DISABLED_CONTEXT = Object.freeze({
+  ...DEFAULT_AUTH_CONTEXT,
+  loading: false,
+  authReady: false,
+});
 
 export const AuthContext = createContext(DEFAULT_AUTH_CONTEXT);
 
@@ -1473,9 +1478,18 @@ const FirebaseAuthProvider = ({ children }) => {
   );
 };
 
+const FirebaseDisabledProvider = ({ children }) => (
+  <AuthContext.Provider value={FIREBASE_DISABLED_CONTEXT}>
+    {children}
+  </AuthContext.Provider>
+);
+
 export const AuthProvider = ({ children }) => {
   if (isSupabaseAuthEnabled()) {
     return <SupabaseAuthProvider>{children}</SupabaseAuthProvider>;
+  }
+  if (!isFirebaseConfigured) {
+    return <FirebaseDisabledProvider>{children}</FirebaseDisabledProvider>;
   }
   return <FirebaseAuthProvider>{children}</FirebaseAuthProvider>;
 };

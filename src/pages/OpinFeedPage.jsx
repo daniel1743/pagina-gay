@@ -14,6 +14,7 @@ import {
   getOpinPostActivityMs,
   getTimestampMs,
   getMyOpinPosts,
+  getMyActiveOpinIntent,
   getOpinStatusMeta,
   updateOpinStatus,
   isOpenOpinIntentStatus,
@@ -908,20 +909,20 @@ const OpinFeedPage = () => {
   }, [activeFilter]);
 
   return (
-    <div className="min-h-screen bg-[#080d18] text-slate-100 flex flex-col">
-      <div className="sticky top-0 z-20 bg-[#080d18]/95 backdrop-blur-xl border-b border-cyan-300/15 shadow-[0_12px_32px_rgba(2,8,23,0.35)]">
+    <div className="cv-page cv-shell flex flex-col">
+      <div className="cv-header sticky top-0 z-20 border-b border-cyan-300/15 shadow-[0_12px_32px_rgba(2,8,23,0.35)]">
         <div className="max-w-7xl mx-auto px-4 py-3.5">
           <div className="flex items-center justify-between gap-3">
             <div className="flex items-center gap-3">
               <button
                 onClick={() => navigate(-1)}
                 aria-label="Volver"
-                className="p-1.5 -ml-1 hover:bg-white/10 rounded-lg transition-colors"
+                className="cv-icon-button -ml-1"
               >
                 <ArrowLeft className="w-5 h-5" />
               </button>
               <div className="flex items-center gap-2.5">
-                <span className="flex h-9 w-9 items-center justify-center rounded-2xl bg-gradient-to-br from-cyan-300 to-blue-600 text-slate-950 shadow-[0_8px_20px_rgba(34,211,238,0.20)]">
+                <span className="cv-brand-mark h-9 w-9">
                   <Sparkles className="w-4 h-4" aria-hidden="true" />
                 </span>
                 <div>
@@ -941,7 +942,7 @@ const OpinFeedPage = () => {
                 onClick={loadFeed}
                 disabled={loading}
                 aria-label="Actualizar oportunidades"
-                className="p-2 hover:bg-white/10 rounded-lg transition-colors"
+                className="cv-icon-button"
                 title="Actualizar oportunidades"
               >
                 <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
@@ -950,7 +951,7 @@ const OpinFeedPage = () => {
               {!isReadOnlyMode && (
                 <button
                   onClick={handleCreatePost}
-                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-gradient-to-r from-purple-500 to-pink-500 text-white text-sm font-medium"
+                  className="cv-button-primary px-3 py-1.5 text-sm"
                 >
                   <Plus className="w-4 h-4" />
                   <span className="hidden sm:inline">{myActiveIntent ? 'Editar intención' : 'Abrir intención'}</span>
@@ -974,7 +975,7 @@ const OpinFeedPage = () => {
                   key={filter.id}
                   onClick={() => handleFilterChange(filter.id)}
                   aria-pressed={isActive}
-                  className={`px-3.5 py-2 rounded-xl text-xs font-semibold transition-all border ${
+                  className={`cv-chip px-3.5 py-2 rounded-xl text-xs font-semibold transition-all ${
                     isActive
                       ? 'border-cyan-200/60 bg-cyan-200 text-slate-950 shadow-[0_6px_18px_rgba(103,232,249,0.18)]'
                       : 'border-white/10 bg-white/[0.04] text-slate-300 hover:border-cyan-200/30 hover:bg-white/[0.08]'
@@ -998,7 +999,7 @@ const OpinFeedPage = () => {
                   key={cat.id}
                   onClick={() => setSelectedTypeFilter(cat.id)}
                   aria-pressed={selectedTypeFilter === cat.id}
-                  className={`shrink-0 flex items-center gap-1.5 px-3 py-2 rounded-xl text-[11px] font-semibold transition-all ${
+                  className={`cv-chip shrink-0 flex items-center gap-1.5 px-3 py-2 rounded-xl text-[11px] font-semibold transition-all ${
                     selectedTypeFilter === cat.id
                       ? `${cat.activeClass} shadow-[0_6px_18px_rgba(34,211,238,0.10)]`
                       : 'bg-white/[0.04] text-slate-400 border border-white/10 hover:bg-white/[0.08] hover:text-slate-100'
@@ -1019,7 +1020,7 @@ const OpinFeedPage = () => {
       </div>
 
       {isReadOnlyMode && (
-        <div className="bg-gradient-to-r from-purple-600/90 to-pink-600/90 px-4 py-2">
+        <div className="cv-status-warning px-4 py-2">
           <div className="max-w-7xl mx-auto flex items-center justify-between gap-3">
             <div className="flex items-center gap-2 text-white text-sm">
               <Eye className="w-4 h-4" />
@@ -1027,7 +1028,7 @@ const OpinFeedPage = () => {
             </div>
             <button
               onClick={() => navigate('/auth')}
-              className="flex items-center gap-1.5 px-3 py-1 rounded-full bg-white text-purple-600 text-sm font-medium"
+              className="cv-button-primary px-3 py-1 text-sm"
             >
               <UserPlus className="w-4 h-4" />
               <span>Registrarse</span>
@@ -1500,7 +1501,7 @@ const OpinFeedPage = () => {
           initial={{ scale: 0 }}
           animate={{ scale: 1 }}
           onClick={handleCreatePost}
-          className="fixed bottom-20 right-4 z-40 w-14 h-14 rounded-full bg-gradient-to-r from-purple-500 to-pink-500 shadow-lg flex items-center justify-center sm:hidden"
+          className="cv-button-primary fixed bottom-20 right-4 z-40 h-14 w-14 rounded-full p-0 shadow-lg sm:hidden"
           title={myActiveIntent ? 'Editar intención' : 'Abrir intención'}
         >
           <Plus className="w-6 h-6 text-white" />

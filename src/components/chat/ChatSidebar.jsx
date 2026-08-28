@@ -254,7 +254,7 @@ const ChatSidebar = ({
   };
 
   const renderActionModule = ({ mobile = false } = {}) => (
-    <div className={`mb-2 rounded-2xl border border-border/60 bg-card/50 ${mobile ? 'mt-4 p-3' : 'mt-4 p-3.5'}`}>
+    <div className={`cv-card cv-card-interactive mb-2 ${mobile ? 'mt-4 p-3' : 'mt-4 p-3.5'}`}>
       <div className="flex items-start gap-3">
         <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl border border-emerald-500/20 bg-emerald-500/10">
           <Users className="h-5 w-5 text-emerald-300" />
@@ -450,7 +450,7 @@ const ChatSidebar = ({
 
       {/* Desktop: sidebar siempre visible - Solo en pantallas grandes */}
       {/* ✅ FIX: Usar hidden lg:flex para que no interfiera en móvil y mantenga layout flex en desktop */}
-      <aside className="hidden lg:flex w-72 h-full bg-card border-r border-border flex-col flex-shrink-0">
+      <aside className="cv-surface hidden lg:flex w-72 h-full flex-col flex-shrink-0">
         <div className="flex-shrink-0 p-4 border-b border-border flex items-center justify-between">
           <motion.div
             className="flex items-center gap-3 cursor-pointer"
@@ -519,7 +519,7 @@ const ChatSidebar = ({
                   >
                     <Button
                       variant="ghost"
-                      className={`w-full justify-start text-left h-auto py-2.5 px-3 group transition-all duration-200 ${
+                      className={`cv-nav-link w-full justify-start text-left h-auto py-2.5 px-3 group transition-all duration-200 ${
                         isActive
                           ? 'bg-primary/10 border-l-2 border-primary text-primary hover:bg-primary/15'
                           : requiresAuth
@@ -796,7 +796,7 @@ const ChatSidebar = ({
                   >
                     <Button
                       variant="ghost"
-                      className={`w-full justify-start text-left h-auto py-2.5 px-3 group transition-all duration-200 ${
+                      className={`cv-nav-link w-full justify-start text-left h-auto py-2.5 px-3 group transition-all duration-200 ${
                         isActive
                           ? 'bg-primary/10 border-l-2 border-primary text-primary hover:bg-primary/15'
                           : requiresAuth

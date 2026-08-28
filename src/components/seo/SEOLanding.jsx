@@ -224,22 +224,22 @@ const SEOLanding = ({
   }, [chatRoom, effectiveRedirectDelay, goToChat, isPreviewMode, landingPath, shouldAutoRedirect, title]);
 
   return (
-    <main className="min-h-screen bg-background text-foreground">
+    <main className="cv-page cv-shell min-h-screen text-foreground">
       <section className="mx-auto w-full max-w-6xl px-4 pb-14 pt-8 sm:px-6 sm:pt-12 lg:px-8">
-        <div className="relative overflow-hidden rounded-[2rem] border border-white/10 bg-gradient-to-br from-slate-950 via-cyan-950/70 to-violet-950/80 px-5 py-12 shadow-2xl shadow-cyan-950/20 sm:px-10 sm:py-16 lg:px-16">
+        <div className="cv-surface-elevated cv-hero relative overflow-hidden rounded-[2rem] px-5 py-12 shadow-2xl sm:px-10 sm:py-16 lg:px-16">
           <div className="pointer-events-none absolute -right-28 -top-28 h-80 w-80 rounded-full bg-cyan-300/10 blur-3xl" aria-hidden="true" />
           <div className="relative max-w-3xl">
             <div className="mb-6 inline-flex items-center gap-2 rounded-full border border-cyan-300/20 bg-cyan-300/10 px-3 py-1.5 text-sm font-medium text-cyan-100">
               <HugeiconsIcon icon={Globe02Icon} size={16} color="currentColor" aria-hidden="true" />
               {heroBadge}
             </div>
-            <h1 className="text-4xl font-black tracking-tight text-white sm:text-6xl">{h1}</h1>
+            <h1 className="cv-display text-4xl font-black tracking-tight text-white sm:text-6xl">{h1}</h1>
             <p className="mt-6 max-w-2xl text-base leading-7 text-slate-300 sm:text-xl sm:leading-8">{subtitle}</p>
             <div className="mt-8 flex flex-col gap-3 sm:flex-row">
               <button
                 type="button"
                 onClick={() => goToChat(isPreviewMode ? 'preview_cta' : 'landing_cta')}
-                className="inline-flex min-h-12 items-center justify-center rounded-xl bg-gradient-to-r from-cyan-400 to-fuchsia-500 px-6 text-base font-bold text-slate-950 shadow-lg shadow-cyan-500/20 transition hover:from-cyan-300 hover:to-fuchsia-400 focus:outline-none focus:ring-2 focus:ring-cyan-200 focus:ring-offset-2 focus:ring-offset-slate-950"
+                className="cv-button-primary inline-flex min-h-12 rounded-xl px-6 text-base font-bold shadow-lg focus:outline-none focus:ring-2 focus:ring-cyan-200 focus:ring-offset-2 focus:ring-offset-slate-950"
               >
                 {ctaLabel}
                 <HugeiconsIcon icon={ArrowRight01Icon} size={20} color="currentColor" className="ml-2" aria-hidden="true" />
@@ -247,7 +247,7 @@ const SEOLanding = ({
               <button
                 type="button"
                 onClick={() => navigate('/opin')}
-                className="inline-flex min-h-12 items-center justify-center rounded-xl border border-white/20 bg-white/5 px-6 text-base font-semibold text-white transition hover:bg-white/10 focus:outline-none focus:ring-2 focus:ring-cyan-200 focus:ring-offset-2 focus:ring-offset-slate-950"
+                className="cv-button-secondary inline-flex min-h-12 rounded-xl px-6 text-base font-semibold focus:outline-none focus:ring-2 focus:ring-cyan-200 focus:ring-offset-2 focus:ring-offset-slate-950"
               >
                 Explorar OPIN
               </button>
@@ -258,11 +258,11 @@ const SEOLanding = ({
 
         <div className="mt-8 grid gap-3 md:grid-cols-3">
           {supportingPoints.slice(0, 3).map((point) => (
-            <div key={point} className="rounded-2xl border border-border/70 bg-card/70 p-4 text-sm leading-6 text-muted-foreground">{point}</div>
+            <div key={point} className="cv-card cv-card-interactive rounded-2xl p-4 text-sm leading-6 text-muted-foreground">{point}</div>
           ))}
         </div>
 
-        <section aria-labelledby="regional-content-title" className="mt-14 rounded-3xl border border-border/70 bg-card/40 p-6 sm:mt-16 sm:p-10">
+        <section aria-labelledby="regional-content-title" className="cv-card mt-14 rounded-3xl p-6 sm:mt-16 sm:p-10">
           <div className="max-w-3xl">
             <p className="text-sm font-semibold uppercase tracking-[0.18em] text-cyan-300">Antes de entrar</p>
             <h2 id="regional-content-title" className="mt-3 text-3xl font-bold tracking-tight sm:text-4xl">{contentHeading}</h2>
@@ -270,7 +270,7 @@ const SEOLanding = ({
           </div>
           <div className="mt-8 grid gap-4 md:grid-cols-3">
             {regionalSteps.map((step) => (
-              <article key={step.title} className="rounded-2xl border border-border/70 bg-background/40 p-5">
+              <article key={step.title} className="cv-card cv-card-interactive rounded-2xl p-5">
                 <div className="flex h-10 w-10 items-center justify-center rounded-xl border border-cyan-300/20 bg-cyan-300/10 text-cyan-200">
                   <HugeiconsIcon icon={step.icon} size={21} color="currentColor" aria-hidden="true" />
                 </div>
@@ -282,7 +282,7 @@ const SEOLanding = ({
         </section>
 
         {secondaryLinks.length > 0 && (
-          <nav aria-label="Otras entradas de Chactivo" className="mt-10 rounded-2xl border border-border/70 bg-card/50 p-5 sm:p-6">
+          <nav aria-label="Otras entradas de Chactivo" className="cv-card mt-10 rounded-2xl p-5 sm:p-6">
             <div className="flex items-start gap-3">
               <HugeiconsIcon icon={InformationCircleIcon} size={21} color="currentColor" className="mt-0.5 shrink-0 text-cyan-300" aria-hidden="true" />
               <div>
@@ -297,11 +297,11 @@ const SEOLanding = ({
           </nav>
         )}
 
-        <section className="mt-10 rounded-3xl border border-fuchsia-300/20 bg-gradient-to-br from-fuchsia-500/10 via-card/60 to-cyan-400/10 p-7 text-center sm:p-10">
+        <section className="cv-card mt-10 rounded-3xl p-7 text-center sm:p-10">
           <HugeiconsIcon icon={Shield01Icon} size={28} color="currentColor" className="mx-auto text-cyan-200" aria-hidden="true" />
           <h2 className="mt-4 text-2xl font-bold sm:text-3xl">Conversación con límites claros</h2>
           <p className="mx-auto mt-3 max-w-2xl leading-7 text-muted-foreground">Revisa las <a href="/normas-comunidad" className="font-semibold text-cyan-300 underline-offset-4 hover:underline">normas de la comunidad</a> y la <a href="/faq" className="font-semibold text-cyan-300 underline-offset-4 hover:underline">FAQ</a> antes de continuar.</p>
-          <button type="button" onClick={() => goToChat('bottom_cta')} className="mt-6 inline-flex min-h-12 items-center justify-center rounded-xl bg-foreground px-7 text-base font-bold text-background hover:bg-foreground/90 focus:outline-none focus:ring-2 focus:ring-cyan-200 focus:ring-offset-2 focus:ring-offset-background">Entrar al chat<HugeiconsIcon icon={ArrowRight01Icon} size={19} color="currentColor" className="ml-2" aria-hidden="true" /></button>
+          <button type="button" onClick={() => goToChat('bottom_cta')} className="cv-button-primary mt-6 inline-flex min-h-12 rounded-xl px-7 text-base font-bold focus:outline-none focus:ring-2 focus:ring-cyan-200 focus:ring-offset-2 focus:ring-offset-background">Entrar al chat<HugeiconsIcon icon={ArrowRight01Icon} size={19} color="currentColor" className="ml-2" aria-hidden="true" /></button>
         </section>
       </section>
     </main>

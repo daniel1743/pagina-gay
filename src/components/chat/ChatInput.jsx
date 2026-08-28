@@ -1210,7 +1210,7 @@ const ChatInput = ({
 
   return (
     <div
-      className="bg-[var(--chat-bottom-surface)] backdrop-blur-[18px] border-t border-[var(--chat-divider)] px-3 pt-2.5 pb-3 sm:px-4 sm:pt-3 sm:pb-3.5 shrink-0 relative z-40"
+      className="cv-composer bg-[var(--chat-bottom-surface)] backdrop-blur-[18px] border-t border-[var(--chat-divider)] px-3 pt-2.5 pb-3 sm:px-4 sm:pt-3 sm:pb-3.5 shrink-0 relative z-40"
       ref={wrapperRef}
       style={{
         position: 'sticky',
@@ -1700,7 +1700,7 @@ const ChatInput = ({
 
       <form
         onSubmit={handleSubmit}
-        className="flex min-h-[54px] flex-nowrap items-end gap-2 rounded-[26px] border border-[var(--chat-divider)] bg-[var(--chat-composer-shell)] px-3 py-1.5"
+        className="cv-composer flex min-h-[54px] flex-nowrap items-end gap-2 px-3 py-1.5"
         style={{ boxShadow: 'var(--chat-input-shadow)' }}
       >
         {/* ✅ Iconos comentados - Más espacio para el input */}
@@ -1722,7 +1722,7 @@ const ChatInput = ({
           variant="ghost"
           size="icon"
           onClick={() => { setShowEmojiPicker(prev => !prev); setShowQuickPhrases(false);}}
-          className={`h-[40px] min-h-[40px] w-[40px] min-w-[40px] rounded-full border border-transparent transition-colors sm:min-h-0 sm:min-w-0 ${
+          className={`cv-composer-tool h-[40px] min-h-[40px] w-[40px] min-w-[40px] rounded-full border border-transparent transition-colors sm:min-h-0 sm:min-w-0 ${
             showEmojiPicker
               ? 'text-[#1473E6] border-[#1473E6]/15 bg-[#1473E6]/8 hover:text-[#0F67D8] hover:bg-[#1473E6]/12'
               : 'text-muted-foreground hover:bg-foreground/5 hover:text-foreground'
@@ -1745,7 +1745,7 @@ const ChatInput = ({
             onMouseLeave={() => setShowPhotoTooltip(false)}
             onFocus={() => setShowPhotoTooltip(true)}
             onBlur={() => setShowPhotoTooltip(false)}
-            className={`h-[40px] min-h-[40px] w-[40px] min-w-[40px] rounded-full border border-transparent transition-colors sm:min-h-0 sm:min-w-0 ${
+            className={`cv-composer-tool h-[40px] min-h-[40px] w-[40px] min-w-[40px] rounded-full border border-transparent transition-colors sm:min-h-0 sm:min-w-0 ${
               canSendPhotoNow && !reachedPhotoHourlyLimit
                 ? 'text-muted-foreground hover:bg-foreground/5 hover:text-foreground'
                 : 'text-muted-foreground/80 hover:text-[#1473E6]'
@@ -1847,11 +1847,9 @@ const ChatInput = ({
           <Button
             type="submit"
             disabled={!message.trim() || isSending}
-            className="text-white rounded-full relative overflow-hidden min-w-[40px] min-h-[40px] w-[40px] h-[40px] p-0 border-0"
+            className="cv-composer-submit rounded-full relative overflow-hidden min-w-[40px] min-h-[40px] w-[40px] h-[40px] p-0 border-0"
             style={{
               transition: 'none',
-              background: 'var(--chat-send-solid)',
-              boxShadow: '0 8px 20px rgba(20, 115, 230, 0.22)',
             }}
             size="icon"
             aria-label={isSending ? "Enviando mensaje..." : "Enviar mensaje"}

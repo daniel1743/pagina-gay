@@ -12,7 +12,7 @@ import {
   updateDoc,
   writeBatch,
 } from 'firebase/firestore';
-import { db } from '@/config/firebase';
+import { db, isFirebaseConfigured } from '@/config/firebase';
 import { supabase, isSupabaseAuthEnabled } from '@/config/supabase';
 import localFeaturedAds from '@/data/featuredChannels.json';
 import {
@@ -142,6 +142,10 @@ export const subscribeFeaturedAdsPublic = (onUpdate, onError) => {
     const channel = supabase.channel('featured-ads-public').on('postgres_changes', { event: '*', schema: 'public', table: 'featured_ads' }, () => { void load(); }).subscribe();
     return () => { active = false; void supabase.removeChannel(channel); };
   }
+  if (!isFirebaseConfigured || !db) {
+    onUpdate([]);
+    return () => {};
+  }
 
   const adsRef = collection(db, FEATURED_ADS_COLLECTION);
   const adsQuery = query(adsRef, orderBy('sortOrder', 'asc'));
@@ -171,6 +175,10 @@ export const subscribeFeaturedAdsAdmin = (onUpdate, onError) => {
     void load();
     const channel = supabase.channel('featured-ads-admin').on('postgres_changes', { event: '*', schema: 'public', table: 'featured_ads' }, () => { void load(); }).subscribe();
     return () => { active = false; void supabase.removeChannel(channel); };
+  }
+  if (!isFirebaseConfigured || !db) {
+    onUpdate([]);
+    return () => {};
   }
 
   const adsRef = collection(db, FEATURED_ADS_COLLECTION);
@@ -297,6 +305,7 @@ export const ensureSortOrderForAds = async () => {
 export const trackFeaturedAdClick = async (adId) => {
   if (!adId) return;
   if (isSupabaseAuthEnabled()) { const { error } = await supabase.rpc('record_featured_ad_click', { target_ad_id: adId }); if (error) console.warn('[FEATURED_ADS] No se pudo registrar click Supabase:', error.message); return; }
+  if (!isFirebaseConfigured || !db) return;
   try {
     await updateDoc(doc(db, FEATURED_ADS_COLLECTION, adId), {
       clickCount: increment(1),

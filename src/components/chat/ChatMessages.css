@@ -1294,3 +1294,113 @@
 .messages-container::-webkit-scrollbar-thumb:hover {
   background: rgba(0, 0, 0, 0.3);
 }
+
+
+/* ========================================================================
+   CHACTIVO VISUAL SYSTEM OVERRIDES
+   Keep the existing message geometry; refresh only the visual language.
+   ======================================================================== */
+.message-bubble.other,
+.dark .message-bubble.other {
+  background: var(--cv-surface-elevated) !important;
+  border-color: var(--cv-border) !important;
+  color: var(--cv-content-primary) !important;
+}
+
+.message-bubble.own,
+.dark .message-bubble.own {
+  background: var(--chat-bubble-outgoing) !important;
+  border-color: rgba(110, 231, 242, 0.18) !important;
+  color: #ffffff !important;
+}
+
+.message-bubble.contextual.other,
+.message-bubble.contextual.own {
+  outline-color: var(--cv-border-strong) !important;
+}
+
+.message-context-pill.other,
+.message-intent-chip.intent,
+.message-bubble-meta-label.intent,
+.message-comuna-chip,
+.quick-reply-badge {
+  background: rgba(110, 231, 242, 0.12) !important;
+  border-color: var(--cv-border-strong) !important;
+  color: var(--cv-action-guidance) !important;
+}
+
+.message-intent-chip.available {
+  background: rgba(110, 231, 183, 0.1) !important;
+  border-color: rgba(110, 231, 183, 0.28) !important;
+  color: var(--cv-success) !important;
+}
+
+.message-intent-chip.derived,
+.message-bubble-meta-label.derived {
+  background: rgba(255, 255, 255, 0.04) !important;
+  border-color: var(--cv-border) !important;
+  color: var(--cv-content-tertiary) !important;
+}
+
+.dark .message-context-pill.other,
+.dark .message-intent-chip.intent,
+.dark .message-bubble-meta-label.intent,
+.dark .message-comuna-chip,
+.dark .quick-reply-badge {
+  background: rgba(110, 231, 242, 0.12) !important;
+  border-color: var(--cv-border-strong) !important;
+  color: var(--cv-action-guidance) !important;
+}
+
+.message-discovery-hint,
+.message-usage-guide,
+.message-opportunity-banner {
+  border-color: var(--cv-border-strong) !important;
+  background: var(--cv-surface-elevated) !important;
+  color: var(--cv-content-primary) !important;
+  box-shadow: var(--cv-shadow-card) !important;
+}
+
+.message-usage-guide-title,
+.message-opportunity-banner-kicker,
+.message-opportunity-banner-action {
+  color: var(--cv-action-guidance) !important;
+}
+
+.message-opportunity-banner-action {
+  background: rgba(110, 231, 242, 0.12) !important;
+  border-color: var(--cv-border-strong) !important;
+}
+
+.message-quick-action,
+.dark .message-quick-action {
+  background: var(--cv-surface) !important;
+  border-color: var(--cv-border) !important;
+  color: var(--cv-content-secondary) !important;
+}
+
+.message-quick-action:hover,
+.message-quick-action.primary,
+.dark .message-quick-action:hover,
+.dark .message-quick-action.primary {
+  background: rgba(110, 231, 242, 0.12) !important;
+  border-color: var(--cv-border-strong) !important;
+  color: var(--cv-action-guidance) !important;
+}
+
+.message-private-trigger:hover,
+.message-private-trigger:focus-visible,
+.dark .message-private-trigger:hover,
+.dark .message-private-trigger:focus-visible {
+  background: rgba(110, 231, 242, 0.12) !important;
+  color: var(--cv-action-guidance) !important;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .message-bubble,
+  .message-private-trigger,
+  .message-quick-action,
+  .chat-message-image {
+    transition-duration: 0.01ms !important;
+  }
+}

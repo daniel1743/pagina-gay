@@ -171,9 +171,9 @@ const TarjetaUsuario = ({
       initial={{ opacity: 0, y: 12 }}
       animate={{ opacity: 1, y: 0 }}
       onClick={handleProfile}
-      className={`group relative overflow-hidden rounded-[1.5rem] border bg-[#101936] text-white shadow-[0_20px_55px_rgba(3,8,28,0.28)] transition-all hover:-translate-y-1 hover:border-cyan-300/35 hover:shadow-[0_25px_65px_rgba(3,8,28,0.42)] ${esMiTarjeta ? 'border-cyan-300/55 ring-1 ring-cyan-300/20' : 'border-white/10'}`}
+      className={`cv-card cv-card-interactive group relative overflow-hidden text-white ${esMiTarjeta ? 'border-cyan-300/55 ring-1 ring-cyan-300/20' : ''}`}
     >
-      <div className="relative aspect-[4/5] overflow-hidden bg-gradient-to-br from-[#1b2d5a] via-[#121c3b] to-[#0b1025]">
+      <div className="relative aspect-[4/5] overflow-hidden bg-gradient-to-br from-[#16284f] via-[#11182b] to-[#0b1020]">
         {hasPhoto ? (
           <img
             src={getSafeAvatarSrc(photo)}

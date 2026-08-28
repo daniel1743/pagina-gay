@@ -60,7 +60,7 @@ const PremiumPage = () => {
 
   return (
     <>
-      <div className="min-h-screen px-4 py-8">
+      <div className="cv-page cv-shell min-h-screen px-4 py-8">
         <div className="max-w-4xl mx-auto">
           <Button
             variant="ghost"
@@ -93,7 +93,7 @@ const PremiumPage = () => {
               initial={{ opacity: 0, x: -20 }}
               animate={{ opacity: 1, x: 0 }}
               transition={{ duration: 0.6, delay: 0.2 }}
-              className="glass-effect rounded-3xl p-8 border-2 border-border"
+              className="cv-card rounded-3xl p-8"
             >
               <h2 className="text-2xl font-bold mb-2 text-foreground">Plan Gratuito</h2>
               <p className="text-4xl font-bold mb-6 text-foreground">$0</p>
@@ -114,7 +114,7 @@ const PremiumPage = () => {
               <Button
                 onClick={() => navigate('/profile')}
                 variant="outline"
-                className="w-full border-border hover:bg-accent"
+                className="cv-button-secondary w-full"
               >
                 {user ? 'Continuar Gratis' : 'Comenzar Gratis'}
               </Button>
@@ -124,7 +124,7 @@ const PremiumPage = () => {
               initial={{ opacity: 0, x: 20 }}
               animate={{ opacity: 1, x: 0 }}
               transition={{ duration: 0.6, delay: 0.3 }}
-              className="glass-effect rounded-3xl p-8 border-2 border-yellow-400 relative overflow-hidden"
+              className="cv-card rounded-3xl p-8 relative overflow-hidden"
             >
               <div className="absolute top-0 right-0 gold-gradient text-purple-950 px-4 py-1 rounded-bl-2xl font-bold text-sm">
                 EN PREPARACIÓN
@@ -147,7 +147,7 @@ const PremiumPage = () => {
               <div className="space-y-3">
                 <Button
                   onClick={handleUpgrade}
-                  className="w-full gold-gradient text-purple-950 font-bold text-lg hover:scale-105 transition-transform"
+                  className="cv-button-primary w-full text-lg"
                 >
                   <Crown className="w-5 h-5 mr-2" />
                   Ver estado de Premium
@@ -160,7 +160,7 @@ const PremiumPage = () => {
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.6, delay: 0.4 }}
-            className="glass-effect rounded-3xl p-8 text-center"
+            className="cv-card rounded-3xl p-8 text-center"
           >
             <h3 className="text-2xl font-bold mb-4 text-foreground">
               ¿Por qué Premium?

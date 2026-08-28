@@ -20,6 +20,8 @@ const seoLanding = read('src/components/seo/SEOLanding.jsx');
 const seoGenerator = read('scripts/generate-static-seo-pages.mjs');
 const lobbyPage = read('src/pages/LobbyPage.jsx');
 const appSource = read('src/App.jsx');
+const firebaseConfig = read('src/config/firebase.js');
+const authContext = read('src/contexts/AuthContext.jsx');
 const featureCard = read('src/components/lobby/FeatureCard.jsx');
 const roomsModal = read('src/components/lobby/RoomsModal.jsx');
 const eventoBanner = read('src/components/eventos/EventoBanner.jsx');
@@ -28,6 +30,10 @@ const premiumPage = read('src/pages/PremiumPage.jsx');
 const saludMentalModal = read('src/components/lobby/SaludMentalModal.jsx');
 const denunciaModal = read('src/components/lobby/DenunciaModal.jsx');
 const reportService = read('src/services/reportService.js');
+const opinService = read('src/services/opinService.js');
+const chatService = read('src/services/chatService.js');
+const presenceService = read('src/services/presenceService.js');
+const featuredAdsService = read('src/services/featuredAdsService.js');
 const createReportSource = reportService.slice(
   reportService.indexOf('export const createReport'),
   reportService.indexOf('/**\n * Obtiene todas las denuncias')
@@ -148,5 +154,28 @@ describe('integridad de superficies públicas', () => {
 
   it('no suscribe recompensas históricas de Firestore en modo Supabase-first', () => {
     expect(appSource).toContain('isSupabaseAuthEnabled() || !user?.id || user?.isGuest || user?.isAnonymous');
+  });
+
+  it('permite montar la interfaz sin Firebase histórico configurado', () => {
+    expect(firebaseConfig).toContain('export const isFirebaseConfigured');
+    expect(firebaseConfig).not.toContain('throw new Error(`Variables de entorno de Firebase faltantes');
+    expect(firebaseConfig).toContain('La interfaz no se bloqueará; usa Supabase para las funciones nuevas.');
+    expect(authContext).toContain('if (!isFirebaseConfigured)');
+    expect(authContext).toContain('<FirebaseDisabledProvider>{children}</FirebaseDisabledProvider>');
+  });
+
+  it('degrada OPIN a estado vacío cuando no hay backend configurado', () => {
+    expect(opinService).toContain('if (!isFirebaseConfigured || !db) return [];');
+    expect(opinService).toContain("reason: 'backend_unavailable'");
+    expect(opinService).toContain('if (!isFirebaseConfigured || !auth || !db) return null;');
+  });
+
+  it('degrada chat, presencia y canales destacados sin backend sin lanzar errores de Firebase', () => {
+    expect(chatService).toContain("error.code = 'CHAT_BACKEND_UNAVAILABLE'");
+    expect(chatService).toContain('if (!isFirebaseConfigured || !db)');
+    expect(presenceService).toContain('if (!isFirebaseConfigured || !db)');
+    expect(presenceService).toContain('callback?.([]);');
+    expect(featuredAdsService).toContain('import { db, isFirebaseConfigured }');
+    expect(featuredAdsService).toContain('onUpdate([]);');
   });
 });

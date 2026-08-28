@@ -55,7 +55,7 @@ import {
 } from '@/services/chatService';
 import { CHAT_AVAILABILITY_HEARTBEAT_MS, joinRoom, leaveRoom, subscribeToRoomUsers, subscribeToMultipleRoomCounts, updateUserActivity, cleanInactiveUsers, filterActiveUsers, subscribeToTypingUsers, updatePresenceFields, validateUserAvailabilityInRoom, isUserAvailableForConversation, getPresenceActivityMs } from '@/services/presenceService';
 import { validateMessage, detectCriticalSafetyRisk, checkTempBan } from '@/services/antiSpamService';
-import { auth, db } from '@/config/firebase'; // ✅ CRÍTICO: Necesario para obtener UID real de Firebase Auth
+import { auth, db, isFirebaseConfigured } from '@/config/firebase'; // ✅ CRÍTICO: Necesario para obtener UID real de Firebase Auth
 import { doc, getDoc, deleteDoc } from 'firebase/firestore';
 import { evaluateMessage, checkAIMute, formatMuteRemaining } from '@/services/moderationAIService';
 import {
@@ -105,7 +105,7 @@ import {
 } from '@/utils/performanceMonitor';
 
 const getActiveAuthUserId = (appUser = null) => (
-  isSupabaseAuthEnabled() ? (appUser?.id || null) : (auth.currentUser?.uid || null)
+  isSupabaseAuthEnabled() ? (appUser?.id || null) : (auth?.currentUser?.uid || null)
 );
 
 const hasActiveAuthUser = (appUser = null) => Boolean(getActiveAuthUserId(appUser));
@@ -946,10 +946,11 @@ const ChatPage = () => {
     setGuestMessageCount,
     updateAnonymousUserProfile,
     updateProfile,
-    signInAsGuest
+        signInAsGuest
   } = useAuth();
-
+  const chatBackendAvailable = isSupabaseAuthEnabled() || (isFirebaseConfigured && Boolean(db));
   // ✅ Estados y refs - DEBEN estar ANTES del early return
+
   const [currentRoom, setCurrentRoom] = useState(roomId);
   const [messages, setMessages] = useState([]);
   const [blockedUserIds, setBlockedUserIds] = useState(new Set());
@@ -4484,6 +4485,16 @@ const ChatPage = () => {
   // Esto permite que los mensajes carguen instantáneamente, incluso con usuario temporal
   // 🚀 EXPERIMENTO: Permitir suscripción SIN usuario para ver mensajes inmediatamente
   useEffect(() => {
+    if (!chatBackendAvailable) {
+      if (unsubscribeRef.current) {
+        unsubscribeRef.current();
+        unsubscribeRef.current = null;
+      }
+      setIsLoadingMessages(false);
+      setMessagesLoadingStage('ready');
+      return () => {};
+    }
+
     setCurrentRoom(roomId);
     setIsLoadingMessages(true); // ⏳ Marcar como cargando al cambiar de sala
     setMessagesLoadingStage('initial');
@@ -5633,7 +5644,7 @@ const ChatPage = () => {
     console.log('[REACTION] 🎯 Intentando reacción:', { messageId, reaction, currentRoom, userId: user?.id });
 
     // ⚠️ RESTRICCIÓN: Usuarios no autenticados o anónimos NO pueden dar reacciones
-    if (!hasActiveAuthUser(user) || (!isSupabaseAuthEnabled() && auth.currentUser?.isAnonymous) || user?.isGuest || user?.isAnonymous || !user?.id) {
+    if (!hasActiveAuthUser(user) || (!isSupabaseAuthEnabled() && auth?.currentUser?.isAnonymous) || user?.isGuest || user?.isAnonymous || !user?.id) {
       console.log('[REACTION] ❌ Usuario no autenticado o invitado');
       toast({
         title: "¿Te gustó? Regístrate para reaccionar",
@@ -6031,12 +6042,12 @@ const ChatPage = () => {
     // ✅ A partir de aquí usamos el usuario efectivo (puede ser invitado auto-creado)
     // ✅ Chat principal: SIEMPRE permitir enviar mensajes (registrados e invitados)
     // Solo Baúl (cambio foto) y OPIN (publicar) requieren registro
-    if (!isSupabaseAuthEnabled() && auth.currentUser) {
+    if (!isSupabaseAuthEnabled() && auth?.currentUser) {
       // En el fallback Firebase, esperar a que Auth esté disponible
       let attempts = 0;
       const maxAttempts = 30;
 
-      while (!auth.currentUser && attempts < maxAttempts) {
+      while (!auth?.currentUser && attempts < maxAttempts) {
         await new Promise(resolve => setTimeout(resolve, 100));
         attempts++;
       }
@@ -7851,7 +7862,7 @@ const ChatPage = () => {
   return (
     <>
       {/* ✅ Layout Chat: Sidebar + Chat + Usuarios en línea (desktop) */}
-      <div className="h-screen overflow-hidden bg-background lg:flex" style={{ height: '100dvh', maxHeight: '100dvh' }}>
+      <div className="cv-page cv-shell h-screen overflow-hidden bg-background lg:flex" style={{ height: '100dvh', maxHeight: '100dvh' }}>
         <ChatSidebar
           currentRoom={currentRoom}
           setCurrentRoom={setCurrentRoom}
@@ -7883,6 +7894,12 @@ const ChatPage = () => {
             activityText={activityText}
             activityTickerItems={headerTickerItems}
           />
+
+          {!chatBackendAvailable && (
+            <div className="cv-status-warning flex items-center justify-center gap-2 border-b px-3 py-2 text-center text-xs font-semibold" role="status">
+              Este entorno no tiene chat conectado. La interfaz está disponible para revisión visual; los mensajes no se enviarán.
+            </div>
+          )}
 
           <section className="border-b border-[var(--chat-divider)] bg-[var(--chat-header-surface)]/70 px-3 py-2 backdrop-blur-[14px]">
             <div className="flex gap-2 overflow-x-auto scrollbar-hide">
@@ -8213,6 +8230,7 @@ const ChatPage = () => {
           onOpenContextualOpportunity={handleOpenCompatibleNowCandidate}
           onDismissContextualOpportunities={handleDismissPrivateMatchSuggestion}
           isContextualSending={isSendingPrivateMatchRequest || isOpeningContextualOpportunity}
+          backendAvailable={chatBackendAvailable}
         />
 
         <FeaturedChannelsColumn
@@ -8271,7 +8289,7 @@ const ChatPage = () => {
             }}
             onSelectUser={(favoriteUser) => {
               // Abrir modal de acciones para el favorito seleccionado
-              setSelectedUserForActions(favoriteUser);
+              setUserActionsTarget(favoriteUser);
               setSelectedUser(null);
             }}
           />

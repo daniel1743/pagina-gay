@@ -18,7 +18,7 @@ import {
   writeBatch,
 } from 'firebase/firestore';
 import { ref as storageRef, deleteObject } from 'firebase/storage';
-import { db, auth, storage } from '@/config/firebase';
+import { db, auth, storage, isFirebaseConfigured } from '@/config/firebase';
 import { isSupabaseAuthEnabled } from '@/config/supabase';
 import * as supabaseChatService from '@/services/supabaseChatService';
 import { trackMessageSent, trackFirstMessage } from '@/services/ga4Service';
@@ -525,6 +525,11 @@ const doSendMessage = async (roomId, messageData, isAnonymous = false, options =
  * 📊 Incluye monitoreo de rendimiento
  */
 export const sendMessage = async (roomId, messageData, isAnonymous = false, skipQueue = false, options = {}) => {
+  if (!isSupabaseAuthEnabled() && (!isFirebaseConfigured || !db)) {
+    const error = new Error('CHAT_BACKEND_UNAVAILABLE');
+    error.code = 'CHAT_BACKEND_UNAVAILABLE';
+    throw error;
+  }
   if (isSupabaseAuthEnabled()) {
     const result = await supabaseChatService.sendMessage(roomId, {
       ...messageData,
@@ -689,7 +694,10 @@ const writeCachedMessages = (roomId, messageLimit, messages) => {
 export const subscribeToRoomMessages = (roomId, callback, messageLimit = 30) => {
   if (isSupabaseAuthEnabled()) return supabaseChatService.subscribeToRoomMessages(roomId, callback, messageLimit);
   if (typeof callback !== 'function') return () => {};
-
+  if (!isFirebaseConfigured || !db) {
+    callback([]);
+    return () => {};
+  }
   const listenerKey = getRealtimeListenerKey('rooms', roomId, messageLimit);
   let sharedEntry = sharedRealtimeMessageListeners.get(listenerKey);
 
@@ -1309,7 +1317,10 @@ export const sendSecondaryMessage = async (roomId, messageData, isAnonymous = fa
 export const subscribeToSecondaryRoomMessages = (roomId, callback, messageLimit = 30) => {
   if (isSupabaseAuthEnabled()) return supabaseChatService.subscribeToRoomMessages(roomId, callback);
   if (typeof callback !== 'function') return () => {};
-
+  if (!isFirebaseConfigured || !db) {
+    callback([]);
+    return () => {};
+  }
   const listenerKey = getRealtimeListenerKey('secondary-rooms', roomId, messageLimit);
   let sharedEntry = sharedRealtimeMessageListeners.get(listenerKey);
 

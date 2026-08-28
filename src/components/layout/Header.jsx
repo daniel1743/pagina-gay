@@ -161,7 +161,7 @@ const Header = () => {
   };
 
   return (
-    <header className="sticky top-0 left-0 right-0 z-50 bg-card/80 backdrop-blur-xl border-b m-0 p-0 shadow-sm" style={{ backdropFilter: 'blur(12px)' }}>
+    <header className="cv-header sticky top-0 left-0 right-0 z-50 m-0 p-0 shadow-sm" style={{ backdropFilter: 'blur(12px)' }}>
       <div className="container mx-auto px-4 sm:px-6 lg:px-8 flex items-center justify-between h-16 sm:h-20">
         <div className="flex items-center gap-6">
           <div className="flex items-center gap-3 cursor-pointer" onClick={() => {
@@ -172,7 +172,7 @@ const Header = () => {
               navigate('/chat/principal');
             }
           }}>
-            <div className="w-10 h-10 flex items-center justify-center">
+            <div className="cv-brand-mark shrink-0">
               {logoSrc ? (
                 <img 
                   src={logoSrc} 
@@ -181,13 +181,13 @@ const Header = () => {
                   onError={handleLogoError}
                 />
               ) : (
-                <div className="w-10 h-10 flex items-center justify-center bg-gradient-to-br from-purple-500 to-pink-500 rounded-lg">
+                <div className="cv-brand-mark">
                   <span className="text-white font-bold text-lg">C</span>
                 </div>
               )}
             </div>
             <div className="hidden sm:flex items-center gap-2">
-              <h1 className="text-2xl font-bold text-foreground">Chactivo</h1>
+              <h1 className="text-2xl font-bold tracking-[-0.03em] text-foreground">Chactivo</h1>
               <span className={`px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider bg-gradient-to-r from-amber-400 to-orange-500 text-gray-900 rounded-md shadow-sm ${showBetaPulse ? 'animate-pulse' : ''}`}>
                 Beta
               </span>
@@ -203,7 +203,7 @@ const Header = () => {
                   <Button
                     key={item.id}
                     variant="ghost"
-                    className={`h-9 px-3 gap-2 ${isActive ? 'text-foreground' : 'text-muted-foreground hover:text-foreground'}`}
+                    className="cv-nav-link" data-active={isActive}
                     onClick={() => navigate(item.to)}
                   >
                     <Icon className="w-4 h-4" />
@@ -224,7 +224,7 @@ const Header = () => {
                 <Button
                   variant="ghost"
                   size="icon"
-                  className="text-muted-foreground hover:text-accent hover:bg-transparent"
+                  className="cv-icon-button"
                   onClick={toggleTheme}
                   aria-label={theme === 'dark' ? 'Cambiar a tema claro' : 'Cambiar a tema oscuro'}
                 >
@@ -236,7 +236,7 @@ const Header = () => {
               <Button
                 variant="ghost"
                 size="icon"
-                className="text-muted-foreground hover:text-cyan-400 hover:bg-transparent relative"
+                className="cv-icon-button relative"
                 onClick={() => setShowNotifications(!showNotifications)}
                 aria-label="Ver notificaciones"
               >
@@ -277,9 +277,9 @@ const Header = () => {
                     navigate('/auth', { state: { redirectTo: '/chat/principal' } });
                   }
                 }}
-                className="magenta-gradient text-white font-bold px-4 sm:px-6 py-2 sm:py-2.5 rounded-lg shadow-lg hover:shadow-[#E4007C]/50 transition-all hover:scale-105"
+                className="cv-button-primary"
               >
-                🚀 <span className="ml-1.5">ENTRAR GRATIS</span>
+                <span>ENTRAR AL CHAT</span>
               </Button>
             </>
           )}

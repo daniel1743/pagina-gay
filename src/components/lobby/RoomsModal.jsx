@@ -44,7 +44,7 @@ const RoomsModal = ({ isOpen, onClose }) => {
   return (
     <>
     <Dialog open={isOpen} onOpenChange={onClose}>
-      <DialogContent className="bg-card border text-foreground max-w-4xl rounded-2xl p-0">
+      <DialogContent className="cv-surface-elevated border text-foreground max-w-4xl rounded-2xl p-0">
         <DialogHeader className="p-6">
           <DialogTitle className="text-3xl font-extrabold flex items-center gap-3">
             <MessageSquare className="w-8 h-8 text-cyan-400" />
@@ -63,12 +63,12 @@ const RoomsModal = ({ isOpen, onClose }) => {
               <Input
                 type="text"
                 placeholder="Buscar en el chat principal..."
-                className="w-full bg-background border-2 border-border rounded-full pl-12 pr-4 py-3 text-lg placeholder:text-muted-foreground focus:border-primary transition-all"
+                className="cv-field w-full rounded-full pl-12 pr-4 py-3 text-lg transition-all"
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
               />
             </div>
-            <Button onClick={handleCreateRoom} className="cyan-gradient text-black font-bold whitespace-nowrap">
+            <Button onClick={handleCreateRoom} className="cv-button-secondary whitespace-nowrap">
               <Plus className="mr-2 h-5 w-5" />
               Crear {user && !user.isPremium && <Crown className="ml-2 h-4 w-4" />}
             </Button>
@@ -115,7 +115,7 @@ const RoomsModal = ({ isOpen, onClose }) => {
                   animate={{ opacity: 1, y: 0 }}
                   transition={{ duration: 0.4, delay: index * 0.05 }}
                   onClick={handleRoomClick}
-                  className={`relative w-full text-left glass-effect p-5 rounded-xl flex flex-col gap-3 cursor-pointer transition-all border group ${
+                  className={`cv-card cv-card-interactive relative w-full text-left p-5 rounded-xl flex flex-col gap-3 cursor-pointer transition-all group ${
                     !canAccess ? 'opacity-75 hover:opacity-90 hover:border-orange-500' : 'hover:border-primary'
                   }`}
                 >
@@ -167,7 +167,7 @@ const RoomsModal = ({ isOpen, onClose }) => {
           variant="ghost"
           size="icon"
           onClick={onClose}
-          className="absolute top-4 right-4 z-50 text-muted-foreground hover:text-foreground"
+          className="cv-icon-button absolute top-4 right-4 z-50"
         >
           <X className="w-6 h-6" />
         </Button>

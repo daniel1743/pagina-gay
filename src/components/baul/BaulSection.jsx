@@ -71,7 +71,7 @@ const BaulHeader = ({
   onEditMyCard,
   canEditOwnCard = false
 }) => (
-    <div className="sticky top-0 z-10 border-b border-cyan-200/10 bg-[#0b122b]/95 px-4 py-3 backdrop-blur-sm">
+    <div className="cv-header sticky top-0 z-10 border-b border-cyan-200/10 px-4 py-3">
     <div className="flex items-center justify-between">
       <div className="flex items-center gap-3">
         <motion.button
@@ -143,7 +143,7 @@ const BaulHeader = ({
  * Estado vacío
  */
 const EstadoVacio = ({ mensaje, submensaje, onRefresh }) => (
-  <div className="flex flex-col items-center justify-center py-16 px-4 text-center">
+  <div className="cv-empty-state flex flex-col items-center justify-center py-16 px-4 text-center">
     <Users className="w-16 h-16 text-gray-600 mb-4" />
     <h3 className="text-lg font-medium text-gray-300 mb-2">{mensaje}</h3>
     <p className="text-sm text-gray-500 mb-6 max-w-xs">{submensaje}</p>
@@ -719,7 +719,7 @@ const BaulSection = ({ isOpen = true, onClose, variant = 'modal' }) => {
                           type="button"
                           aria-pressed={discoveryMode === value}
                           onClick={() => setDiscoveryMode(value)}
-                          className={`rounded-full border px-3 py-1.5 text-xs font-semibold transition ${discoveryMode === value ? 'border-cyan-200/40 bg-cyan-300/20 text-cyan-100' : 'border-white/10 bg-white/5 text-white/60 hover:bg-white/10'}`}
+                          className={`cv-chip rounded-full border px-3 py-1.5 text-xs font-semibold transition ${discoveryMode === value ? 'border-cyan-200/40 bg-cyan-300/20 text-cyan-100' : 'border-white/10 bg-white/5 text-white/60 hover:bg-white/10'}`}
                         >
                           {label}
                         </button>
@@ -733,7 +733,7 @@ const BaulSection = ({ isOpen = true, onClose, variant = 'modal' }) => {
                         type="button"
                         aria-pressed={intentFilter === value}
                         onClick={() => setIntentFilter(value)}
-                        className={`rounded-lg border px-3 py-1.5 text-xs font-medium transition ${intentFilter === value ? 'border-fuchsia-200/35 bg-fuchsia-300/15 text-fuchsia-100' : 'border-white/10 text-white/55 hover:bg-white/5'}`}
+                        className={`cv-chip rounded-lg border px-3 py-1.5 text-xs font-medium transition ${intentFilter === value ? 'border-fuchsia-200/35 bg-fuchsia-300/15 text-fuchsia-100' : 'border-white/10 text-white/55 hover:bg-white/5'}`}
                       >
                         {label}
                       </button>
@@ -976,7 +976,7 @@ const BaulSection = ({ isOpen = true, onClose, variant = 'modal' }) => {
             exit={{ x: '100%' }}
             transition={{ type: 'spring', damping: 25, stiffness: 200 }}
             onClick={(e) => e.stopPropagation()}
-            className="absolute right-0 top-0 bottom-0 w-full max-w-2xl bg-gray-900 shadow-2xl overflow-hidden flex flex-col"
+            className="cv-page cv-shell absolute right-0 top-0 bottom-0 w-full max-w-2xl shadow-2xl overflow-hidden flex flex-col"
           >
             {content}
           </motion.div>
@@ -986,7 +986,7 @@ const BaulSection = ({ isOpen = true, onClose, variant = 'modal' }) => {
   }
 
   return (
-    <div className="w-full min-h-[calc(100dvh-4rem)] bg-gray-900 shadow-2xl overflow-hidden flex flex-col">
+    <div className="cv-page cv-shell w-full min-h-[calc(100dvh-4rem)] shadow-2xl overflow-hidden flex flex-col">
       {content}
     </div>
   );

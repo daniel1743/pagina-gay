@@ -78,9 +78,9 @@ const AnonymousChatPage = () => {
   ];
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-[#1a1729] via-[#2C2A4A] to-[#1a1729] text-white">
+    <div className="cv-page cv-shell min-h-screen text-white">
       {/* Header */}
-      <header className="bg-[#22203a]/80 backdrop-blur-sm border-b border-[#413e62] p-4 flex items-center justify-between sticky top-0 z-50">
+      <header className="cv-header p-4 flex items-center justify-between sticky top-0 z-50">
         <div className="flex items-center gap-3">
           <Shield className="w-6 h-6 text-cyan-400" />
           <h2 className="font-bold text-gray-100 text-lg">Recursos y conversación LGBT+</h2>
@@ -91,7 +91,7 @@ const AnonymousChatPage = () => {
             variant="ghost"
             size="sm"
             onClick={handleQuickEscape}
-            className="bg-red-500 hover:bg-red-600 text-white px-2 sm:px-3 flex items-center gap-1.5 sm:gap-2"
+            className="cv-button-danger px-2 sm:px-3 flex items-center gap-1.5 sm:gap-2"
             aria-label="Escape rápido - Salir inmediatamente"
             title="Escape rápido - Salir inmediatamente"
           >
@@ -102,7 +102,7 @@ const AnonymousChatPage = () => {
             variant="ghost"
             size="icon"
             onClick={() => navigate('/')}
-            className="text-gray-300 hover:text-cyan-400"
+            className="cv-icon-button"
           >
             <Home className="w-5 h-5" />
           </Button>
@@ -117,12 +117,12 @@ const AnonymousChatPage = () => {
           transition={{ duration: 0.6 }}
           className="text-center mb-16"
         >
-          <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-cyan-500/20 border border-cyan-500/30 mb-6">
+          <div className="cv-chip inline-flex items-center gap-2 px-4 py-2 rounded-full mb-6">
             <Lock className="w-4 h-4 text-cyan-400" />
             <span className="text-sm text-cyan-300">Información y límites claros</span>
           </div>
           
-          <h1 className="text-4xl md:text-6xl font-extrabold mb-6 bg-gradient-to-r from-cyan-400 via-purple-400 to-pink-400 bg-clip-text text-transparent">
+          <h1 className="cv-display text-4xl md:text-6xl font-extrabold mb-6 text-foreground">
             Recursos y conversación LGBT+
           </h1>
           
@@ -134,7 +134,7 @@ const AnonymousChatPage = () => {
             <Button
               onClick={handleRegister}
               size="lg"
-              className="bg-gradient-to-r from-cyan-500 to-purple-500 hover:from-cyan-600 hover:to-purple-600 text-white font-bold text-lg px-8 py-6 rounded-xl shadow-lg hover:scale-105 transition-transform"
+              className="cv-button-primary text-lg px-8 py-6 rounded-xl shadow-lg"
             >
               <Zap className="w-5 h-5 mr-2" />
               Registrarse Gratis
@@ -145,7 +145,7 @@ const AnonymousChatPage = () => {
               onClick={handleLogin}
               variant="outline"
               size="lg"
-              className="border-2 border-cyan-400/50 text-cyan-400 hover:bg-cyan-400/10 font-bold text-lg px-8 py-6 rounded-xl"
+              className="cv-button-secondary text-lg px-8 py-6 rounded-xl"
             >
               Ya tengo cuenta
             </Button>
@@ -169,7 +169,7 @@ const AnonymousChatPage = () => {
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ duration: 0.6, delay: index * 0.1 }}
-              className="glass-effect p-6 rounded-xl border border-cyan-500/20 hover:border-cyan-500/40 transition-all hover:shadow-lg hover:shadow-cyan-500/10"
+              className="cv-card cv-card-interactive p-6"
             >
               <div className="text-cyan-400 mb-4">{benefit.icon}</div>
               <h3 className="text-lg font-bold mb-2">{benefit.title}</h3>
@@ -183,7 +183,7 @@ const AnonymousChatPage = () => {
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.6, delay: 0.4 }}
-          className="glass-effect rounded-2xl p-8 md:p-12 border-2 border-cyan-500/30 bg-gradient-to-br from-cyan-500/10 to-purple-500/10 mb-16"
+          className="cv-card p-8 md:p-12 mb-16"
         >
           <div className="text-center mb-8">
             <MessageCircle className="w-16 h-16 text-cyan-400 mx-auto mb-4" />
@@ -224,7 +224,7 @@ const AnonymousChatPage = () => {
           transition={{ duration: 0.6, delay: 0.6 }}
           className="text-center"
         >
-          <div className="glass-effect rounded-xl p-6 border border-purple-500/20 inline-block">
+          <div className="cv-card p-6 inline-block">
             <div className="flex flex-col sm:flex-row items-center justify-center gap-6">
               <div className="flex items-center gap-2">
                 <Shield className="w-5 h-5 text-cyan-400" />

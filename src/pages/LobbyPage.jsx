@@ -271,26 +271,26 @@ const LobbyPage = () => {
 
   return (
     <>
-      <div className="w-full min-h-screen pb-16 sm:pb-20">
+      <div className="cv-page cv-shell w-full min-h-screen pb-16 sm:pb-20">
         {/* ✅ HERO MINIMALISTA - Consolidado y simplificado */}
         {showHeroSection && (
           <motion.section
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.6 }}
-            className="relative px-4 sm:px-6 lg:px-8 py-12 sm:py-16 lg:py-20 mb-12 sm:mb-16 overflow-hidden"
+            className="cv-hero relative px-4 sm:px-6 lg:px-8 py-12 sm:py-16 lg:py-20 mb-12 sm:mb-16 overflow-hidden"
           >
           {/* Fondo degradado animado */}
-          <div className="absolute inset-0 bg-gradient-to-br from-purple-900/20 via-pink-900/20 to-blue-900/20 animate-pulse"></div>
+          <div className="cv-hero-wash absolute inset-0" aria-hidden="true"></div>
 
           <div className="relative max-w-5xl mx-auto">
-            <div className="rounded-2xl border border-cyan-500/20 bg-cyan-500/5 px-5 py-4 text-center">
+            <div className="cv-hero-panel rounded-2xl px-5 py-4 text-center">
               <p className="text-sm font-semibold text-cyan-200">La actividad se muestra sin contadores promocionales</p>
               <p className="mt-1 text-xs leading-5 text-muted-foreground">Entra a una sala para comprobar el estado real de la conversación.</p>
             </div>
 
               {/* Tagline */}
-              <div className="glass-effect px-6 py-2 rounded-full border border-cyan-500/30">
+              <div className="cv-chip px-6 py-2 rounded-full">
                 <p className="text-sm sm:text-base text-cyan-300 font-medium">
                   Acceso rápido y sin registro
                 </p>
@@ -301,7 +301,7 @@ const LobbyPage = () => {
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
               transition={{ delay: 0.3 }}
-              className="text-3xl sm:text-4xl md:text-5xl lg:text-6xl font-extrabold text-center mb-4 sm:mb-6 leading-tight px-4"
+              className="cv-display text-3xl sm:text-4xl md:text-5xl lg:text-6xl font-extrabold text-center mb-4 sm:mb-6 leading-tight px-4"
             >
               Chat Gay Chile: conversa y participa en la comunidad 🏳️‍🌈
             </motion.h1>
@@ -334,9 +334,9 @@ const LobbyPage = () => {
                     navigate('/auth', { state: { redirectTo: '/chat/principal' } });
                   }
                 }}
-                className="magenta-gradient text-white font-extrabold text-lg sm:text-xl md:text-2xl px-8 sm:px-12 md:px-16 py-6 sm:py-7 md:py-8 rounded-2xl shadow-2xl hover:shadow-[#E4007C]/70 hover:scale-105 transition-all w-full sm:w-auto min-h-[56px] sm:min-h-[64px] animate-pulse-subtle"
+                className="cv-button-primary text-lg sm:text-xl md:text-2xl px-8 sm:px-12 md:px-16 py-6 sm:py-7 md:py-8 rounded-2xl shadow-2xl w-full sm:w-auto min-h-[56px] sm:min-h-[64px]"
               >
-                ⚡ Chatear Ahora - ¡Es Gratis!
+                Entrar al chat principal
               </Button>
 
               {/* Botón 2: Registrate (acceso completo) */}
@@ -350,9 +350,9 @@ const LobbyPage = () => {
                   }
                 }}
                 variant="outline"
-                className="border-2 border-cyan-500/50 text-cyan-400 font-bold text-base sm:text-lg md:text-xl px-6 sm:px-8 md:px-12 py-5 sm:py-6 md:py-7 rounded-xl hover:bg-cyan-500/10 hover:border-cyan-500 transition-all w-full sm:w-auto min-h-[48px]"
+                className="cv-button-secondary text-base sm:text-lg md:text-xl px-6 sm:px-8 md:px-12 py-5 sm:py-6 md:py-7 rounded-xl w-full sm:w-auto min-h-[48px]"
               >
-                💎 Registrate para Más
+                Crear mi cuenta
               </Button>
             </motion.div>
 
@@ -381,9 +381,9 @@ const LobbyPage = () => {
               </p>
               <Button
                 onClick={() => navigate('/auth', { state: { redirectTo: '/chat/principal' } })}
-                className="magenta-gradient text-white font-bold text-lg sm:text-xl px-10 sm:px-14 py-6 sm:py-7 rounded-xl shadow-xl hover:shadow-[#E4007C]/50 hover:scale-105 transition-all"
+                className="cv-button-primary text-lg sm:text-xl px-10 sm:px-14 py-6 sm:py-7 rounded-xl shadow-xl"
               >
-                ⚡ Empezar a Chatear Gratis
+                Explorar el chat
               </Button>
             </motion.div>
 
@@ -876,7 +876,7 @@ const LobbyPage = () => {
               </p>
               <Button
                 onClick={() => navigate('/auth', { state: { redirectTo: '/chat/principal' } })}
-                className="magenta-gradient text-white font-bold text-lg sm:text-xl px-10 sm:px-14 py-6 sm:py-7 rounded-xl shadow-xl hover:shadow-[#E4007C]/50 hover:scale-105 transition-all"
+                className="cv-button-primary text-lg sm:text-xl px-10 sm:px-14 py-6 sm:py-7 rounded-xl shadow-xl"
               >
                 Entrar al chat y revisar las normas
               </Button>
@@ -1055,7 +1055,7 @@ const LobbyPage = () => {
                 initial={{ opacity: 0, y: 10 }}
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ delay: 0.5 + index * 0.05 }}
-                className="glass-effect rounded-xl border border-cyan-500/30 hover:border-cyan-500/60 transition-all group"
+                className="cv-card cv-card-interactive rounded-xl transition-all group"
               >
                 <summary className="p-5 sm:p-6 cursor-pointer flex items-start justify-between gap-4 font-semibold text-base sm:text-lg text-foreground list-none">
                   <div className="flex items-start gap-3 flex-1">
@@ -1113,7 +1113,7 @@ const LobbyPage = () => {
             {showWelcomeBack && recentMessages.length > 0 && (
               <section
                 aria-labelledby="recent-conversations-title"
-                className="mb-10 rounded-2xl border border-border/70 bg-card/60 p-6 sm:mb-12 sm:p-8"
+                className="cv-card mb-10 rounded-2xl p-6 sm:mb-12 sm:p-8"
               >
                 <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
                   <div>
@@ -1150,7 +1150,7 @@ const LobbyPage = () => {
                 </div>
                 <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
                   {/* Mensajes enviados */}
-                  <div className="glass-effect p-5 rounded-xl border border-cyan-500/30 hover:border-cyan-500/60 transition-all text-center">
+                  <div className="cv-card cv-card-interactive p-5 text-center">
                     <MessageSquare className="w-6 h-6 text-cyan-400 mx-auto mb-2" />
                     <p className="text-2xl sm:text-3xl font-bold text-cyan-400">
                       {user.stats?.messagesSent || 0}
@@ -1159,7 +1159,7 @@ const LobbyPage = () => {
                   </div>
 
                   {/* Salas visitadas */}
-                  <div className="glass-effect p-5 rounded-xl border border-purple-500/30 hover:border-purple-500/60 transition-all text-center">
+                  <div className="cv-card cv-card-interactive p-5 text-center">
                     <Users className="w-6 h-6 text-purple-400 mx-auto mb-2" />
                     <p className="text-2xl sm:text-3xl font-bold text-purple-400">
                       {user.stats?.roomsVisited || 0}
@@ -1168,7 +1168,7 @@ const LobbyPage = () => {
                   </div>
 
                   {/* Días activo */}
-                  <div className="glass-effect p-5 rounded-xl border border-green-500/30 hover:border-green-500/60 transition-all text-center">
+                  <div className="cv-card cv-card-interactive p-5 text-center">
                     <Calendar className="w-6 h-6 text-green-400 mx-auto mb-2" />
                     <p className="text-2xl sm:text-3xl font-bold text-green-400">
                       {calculateActiveDays(user.createdAt)}
@@ -1177,7 +1177,7 @@ const LobbyPage = () => {
                   </div>
 
                   {/* Nivel */}
-                  <div className="glass-effect p-5 rounded-xl border border-yellow-500/30 hover:border-yellow-500/60 transition-all text-center">
+                  <div className="cv-card cv-card-interactive p-5 text-center">
                     <Sparkles className="w-6 h-6 text-yellow-400 mx-auto mb-2" />
                     <p className="text-2xl sm:text-3xl font-bold text-yellow-400">
                       Nivel {calculateUserLevel(user)}

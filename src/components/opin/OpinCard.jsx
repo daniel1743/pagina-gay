@@ -366,28 +366,28 @@ const OpinCard = forwardRef(({
           Icon: CrownIcon,
           label: 'Crush',
           badgeClass: 'border-fuchsia-300/40 bg-fuchsia-300/10 text-fuchsia-100 shadow-[0_0_16px_rgba(217,70,239,0.14)]',
-          borderClass: 'border-fuchsia-300/25 shadow-[0_12px_32px_rgba(217,70,239,0.10)] hover:border-fuchsia-200/50 hover:shadow-[0_18px_44px_rgba(217,70,239,0.18)]',
+          borderClass: 'border-[var(--cv-border)] hover:border-[var(--cv-border-strong)]',
         };
       case 'encuentro':
         return {
           Icon: FireIcon,
           label: 'Cita / Encuentro',
           badgeClass: 'border-amber-300/40 bg-amber-300/10 text-amber-100 shadow-[0_0_16px_rgba(245,158,11,0.14)]',
-          borderClass: 'border-amber-300/25 shadow-[0_12px_32px_rgba(245,158,11,0.10)] hover:border-amber-200/50 hover:shadow-[0_18px_44px_rgba(245,158,11,0.18)]',
+          borderClass: 'border-[var(--cv-border)] hover:border-[var(--cv-border-strong)]',
         };
       case 'amistad':
         return {
           Icon: UserGroupIcon,
           label: 'Amistad',
           badgeClass: 'border-cyan-300/40 bg-cyan-300/10 text-cyan-100 shadow-[0_0_16px_rgba(6,182,212,0.14)]',
-          borderClass: 'border-cyan-300/25 shadow-[0_12px_32px_rgba(6,182,212,0.10)] hover:border-cyan-200/50 hover:shadow-[0_18px_44px_rgba(6,182,212,0.18)]',
+          borderClass: 'border-[var(--cv-border)] hover:border-[var(--cv-border-strong)]',
         };
       default:
         return {
           Icon: Note01Icon,
           label: 'Nota',
           badgeClass: 'border-slate-400/30 bg-slate-400/10 text-slate-200',
-          borderClass: 'border-slate-500/25 shadow-[0_12px_32px_rgba(15,23,42,0.30)] hover:border-slate-300/40 hover:shadow-[0_18px_44px_rgba(15,23,42,0.45)]',
+          borderClass: 'border-[var(--cv-border)] hover:border-[var(--cv-border-strong)]',
         };
     }
   };
@@ -398,7 +398,7 @@ const OpinCard = forwardRef(({
     <>
       <div
         ref={setRefs}
-        className={`group relative h-full rounded-[26px] border bg-[#101827]/90 px-5 py-5 backdrop-blur-xl transition-all duration-200 hover:-translate-y-1 hover:bg-[#142136] ${categoryMeta.borderClass} ${post.isStable ? 'ring-1 ring-cyan-300/40' : ''}`}
+        className={`cv-card cv-card-interactive group relative h-full px-5 py-5 ${categoryMeta.borderClass} ${post.isStable ? 'ring-1 ring-cyan-300/40' : ''}`}
       >
         <div className="flex-1 min-w-0 flex flex-col h-full">
           {/* Cabecera */}

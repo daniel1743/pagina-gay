@@ -90,14 +90,14 @@ const FeatureCard = ({
         type="button"
         onClick={onClick}
         aria-label={`${title} - ${description}`}
-        whileHover={{ y: -6 }}
+        whileHover={{ y: -2 }}
         whileTap={{ scale: 0.98 }}
         className={`
-          glassmorphism-card
+          cv-card cv-card-interactive
           relative h-full ${isHorizontal ? 'min-h-[120px] sm:min-h-[140px] md:min-h-[160px]' : 'min-h-[180px] sm:min-h-[200px] md:min-h-[220px]'}
           text-foreground
           rounded-2xl p-4 sm:p-5 md:p-6
-          w-full text-left focus:outline-none focus:ring-4 focus:ring-primary/20
+          w-full text-left cv-focusable
           ${colors.glow}
         `}
       >

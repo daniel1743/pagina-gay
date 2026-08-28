@@ -73,7 +73,7 @@ const ChatHeader = ({
   return (
     <>
       <header
-        className="flex h-[60px] shrink-0 items-center justify-between border-b border-[var(--chat-divider)] bg-[var(--chat-header-surface)] px-3 py-2.5 backdrop-blur-[18px] sm:px-4"
+        className="cv-surface-translucent flex h-[60px] shrink-0 items-center justify-between border-b border-[var(--chat-divider)] px-3 py-2.5 sm:px-4"
         style={{ boxShadow: '0 1px 0 rgba(17,24,39,0.04)' }}
       >
       <div className="flex min-w-0 flex-1 items-center gap-2.5 sm:gap-3">
@@ -82,7 +82,7 @@ const ChatHeader = ({
           variant="ghost"
           size="icon"
           onClick={onMenuClick}
-          className="relative min-h-[40px] min-w-[40px] flex-shrink-0 rounded-[14px] text-muted-foreground hover:bg-foreground/5 hover:text-foreground sm:min-h-0 sm:min-w-0 lg:hidden"
+          className="cv-icon-button relative min-h-[40px] min-w-[40px] flex-shrink-0 lg:hidden"
           aria-label={showMenuBadge ? 'Abrir menú con novedades' : 'Abrir menú'}
           title="Abrir menú"
         >
@@ -120,7 +120,7 @@ const ChatHeader = ({
               variant="ghost"
               size="icon"
               onClick={onRandomConnect}
-              className={`h-[34px] min-h-[34px] w-[34px] min-w-[34px] rounded-[14px] p-0 ${
+              className={`cv-icon-button h-[34px] min-h-[34px] w-[34px] min-w-[34px] rounded-[14px] p-0 ${
                 isRandomConnectActive
                   ? 'border border-[#1473E6]/20 bg-[#1473E6]/8 text-[#1473E6] hover:text-[#0F67D8]'
                   : 'text-muted-foreground hover:bg-foreground/5 hover:text-foreground'
@@ -137,7 +137,7 @@ const ChatHeader = ({
             variant="ghost"
             size="icon"
             onClick={onSimulate}
-            className="h-[34px] min-h-[34px] w-[34px] min-w-[34px] rounded-[14px] p-0 text-muted-foreground/90 hover:bg-foreground/5 hover:text-foreground"
+            className="cv-icon-button h-[34px] min-h-[34px] w-[34px] min-w-[34px] rounded-[14px] p-0"
             aria-label="Ocultar chat y activar modo privacidad"
             title="Ocultar chat y activar modo privacidad"
           >
@@ -150,7 +150,7 @@ const ChatHeader = ({
           variant="ghost"
           size="icon"
           onClick={toggleTheme}
-          className="min-h-[40px] min-w-[40px] rounded-[14px] text-muted-foreground hover:bg-foreground/5 hover:text-foreground sm:hidden"
+          className="cv-icon-button min-h-[40px] min-w-[40px] rounded-[14px] sm:hidden"
           aria-label={theme === 'dark' ? 'Cambiar a tema claro' : 'Cambiar a tema oscuro'}
           title={theme === 'dark' ? 'Cambiar a tema claro' : 'Cambiar a tema oscuro'}
         >
@@ -161,7 +161,7 @@ const ChatHeader = ({
             variant="ghost"
             size="icon"
             onClick={handleToggleMute}
-            className={`min-h-[40px] min-w-[40px] rounded-[14px] sm:min-h-0 sm:min-w-0 ${
+            className={`cv-icon-button min-h-[40px] min-w-[40px] rounded-[14px] sm:min-h-0 sm:min-w-0 ${
               isMuted
                 ? 'text-muted-foreground hover:bg-foreground/5 hover:text-foreground'
                 : 'border border-[#1473E6]/16 bg-[#1473E6]/8 text-[#1473E6] hover:text-[#0F67D8]'
